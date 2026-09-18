@@ -163,7 +163,13 @@
     "adminRequired": "You need admin permissions to view this page.",
     "guildRole": {
       "admin": "Admin",
-      "member": "Member"
+      "member": "Member",
+      "superadmin": "Superadmin"
+    },
+    "guildRoleHelp": {
+      "member": "Takes part in what they're added to.",
+      "admin": "Runs the community — members, invites, initiatives, settings.",
+      "superadmin": "All that, plus how people get in: sign-in, AI and apps. Only a superadmin can appoint another."
     },
     "loadingSettings": "Loading settings…",
     "unableToLoadSettings": "Unable to load settings.",

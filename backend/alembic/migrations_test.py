@@ -712,6 +712,46 @@ class TestMigrationsAgainstDatabase:
                 "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
             )
 
+    def test_session_standard_upgrade_carries_enabled_guilds(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """0300 preserves the standard while both source tables FORCE RLS."""
+        _run_alembic("upgrade", "20260917_0299")
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Standard on', NULL), ('Standard off', NULL);"
+            "INSERT INTO public.guild_administration "
+            "(guild_id, enforce_compliance_session) "
+            "SELECT id, name = 'Standard on' FROM public.guilds "
+            "WHERE name IN ('Standard on', 'Standard off');"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
+
+        _run_alembic("upgrade", "20260917_0300")
+
+        _execute_sql("ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY")
+        try:
+            assert (
+                _fetchval(
+                    "SELECT enforce_compliance_session FROM public.guilds "
+                    "WHERE name = 'Standard on'"
+                )
+                is True
+            )
+            assert (
+                _fetchval(
+                    "SELECT enforce_compliance_session FROM public.guilds "
+                    "WHERE name = 'Standard off'"
+                )
+                is False
+            )
+        finally:
+            _execute_sql("ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY")
+
     def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
         self, fresh_migrations_db: str
     ) -> None:

@@ -1014,6 +1014,7 @@ export const ArchivableType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   initiative: "initiative",
 } as const;
@@ -1957,6 +1958,7 @@ export interface CommentCreate {
   dashboard_id?: number | null;
   post_id?: number | null;
   gallery_id?: number | null;
+  wiki_id?: number | null;
   parent_comment_id?: number | null;
 }
 
@@ -1993,6 +1995,7 @@ export interface CommentRead {
   dashboard_id: number | null;
   post_id: number | null;
   gallery_id: number | null;
+  wiki_id: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
@@ -2142,6 +2145,20 @@ export interface CommunitySettingsUpdate {
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
+}
+
+/**
+ * One provider a community may connect to, as the community sees it.
+ *
+ * Deliberately less than the operator's view: a community picks a provider by
+ * name. It holds no issuer and no client id, so it is shown neither — which
+ * also keeps one customer's identity provider out of another's list.
+ */
+export interface ConnectableProviderRead {
+  id: number;
+  display_name: string;
+  icon: string | null;
+  login_ready: boolean;
 }
 
 /**
@@ -3041,6 +3058,7 @@ export interface InitiativeMemberRead {
   can_view_dashboards: boolean;
   can_view_posts: boolean;
   can_view_galleries: boolean;
+  can_view_wikis: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
@@ -3049,6 +3067,7 @@ export interface InitiativeMemberRead {
   can_create_dashboards: boolean;
   can_create_posts: boolean;
   can_create_galleries: boolean;
+  can_create_wikis: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -3068,6 +3087,7 @@ export interface InitiativeRead {
   dashboards_enabled: boolean;
   posts_enabled: boolean;
   galleries_enabled: boolean;
+  wikis_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
@@ -3257,6 +3277,8 @@ export const SearchEntityType = {
   queue_item: "queue_item",
   tag: "tag",
   task: "task",
+  wiki: "wiki",
+  wiki_page: "wiki_page",
 } as const;
 
 /**
@@ -3281,6 +3303,7 @@ export const EntityType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -3289,6 +3312,7 @@ export const EntityType = {
   initiative: "initiative",
   tag: "tag",
   gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
 } as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
@@ -3942,6 +3966,7 @@ export interface GuildAppUpdate {
 export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
 
 export const GuildAuthOption = {
+  restrictions: "restrictions",
   providers: "providers",
   require_sign_in: "require_sign_in",
 } as const;
@@ -3999,6 +4024,15 @@ export interface GuildAuthPolicyUpdate {
 }
 
 /**
+ * The current controls on the superadmin's Authentication page.
+ */
+export interface GuildAuthSettingsRead {
+  auth_options: GuildAuthOption[];
+  allow_api_keys: boolean;
+  enforce_compliance_session: boolean;
+}
+
+/**
  * The banner a guild admin sets, whole.
  *
  * Every field is required: the banner is one value and this replaces it, so a
@@ -4016,6 +4050,63 @@ export interface GuildBannerWrite {
   text_color: string;
   text_align: BannerTextAlign;
   fade: BannerFade;
+}
+
+/**
+ * Place the people carrying one group.
+ *
+ * Naming an initiative places them there as well as in the community, since
+ * somebody has to be in the community to be in one of its initiatives.
+ */
+export interface GuildClaimRuleCreate {
+  provider_id: number;
+  /** @maxLength 500 */
+  claim_value: string;
+  guild_role?: string;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * One rule a community wrote: a group this provider asserts, and where
+ * somebody carrying it lands.
+ */
+export interface GuildClaimRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+}
+
+/**
+ * Change where a group lands. Its provider is not editable: a group value
+ * means nothing without knowing who asserted it, so a rule pointed at
+ * another provider is a different rule.
+ */
+export interface GuildClaimRuleUpdate {
+  claim_value?: string | null;
+  guild_role?: string | null;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * The rules, and whether the providers behind them report groups at all.
+ *
+ * Which claim carries groups is the operator's to set per provider. A
+ * community can write rules against a provider that has none, and they will
+ * never match anything, so the surface says which of its connections are
+ * ready to be written against rather than letting somebody find out later.
+ */
+export interface GuildClaimRulesResponse {
+  rules: GuildClaimRuleRead[];
+  reporting_provider_ids: number[];
 }
 
 export interface GuildCreate {
@@ -4125,6 +4216,50 @@ export interface GuildOrderUpdate {
 }
 
 /**
+ * Connect to one of the providers on offer.
+ */
+export interface GuildProviderConnectionCreate {
+  provider_id: number;
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean;
+  auto_join?: boolean;
+}
+
+/**
+ * One community signing its members in through one provider.
+ *
+ * Also how an arrangement the community has not made itself is shown: the
+ * deployment's default for that provider, marked ``inherited``, which the
+ * community replaces by connecting to the provider itself.
+ */
+export interface GuildProviderConnectionRead {
+  id: number | null;
+  inherited: boolean;
+  provider_id: number;
+  provider_slug: string;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+  auto_join: boolean;
+  login_ready: boolean;
+}
+
+/**
+ * Change the narrowing, or take the button away. The provider a
+ * connection is to is not editable: pointing it elsewhere would change who
+ * gets in without saying so. Disconnect and connect instead.
+ */
+export interface GuildProviderConnectionUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
+  auto_join?: boolean | null;
+}
+
+/**
  * A guild as its own members see it (``GET /guilds/`` and friends).
  *
  * The payload has two tiers, decided in one place — ``_serialize_guild`` in
@@ -4156,6 +4291,7 @@ export interface GuildRead {
   content_read_only: boolean;
   auth_options: GuildAuthOption[] | null;
   allow_api_keys: boolean | null;
+  enforce_compliance_session: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
@@ -4163,6 +4299,22 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+}
+
+/**
+ * Whether this guild holds its members to the twelve-hour session
+ * standard.
+ */
+export interface GuildSessionLimitRead {
+  enforce_compliance_session: boolean;
+}
+
+/**
+ * Set it. ``true`` means this guild's members sign in again every twelve
+ * hours, whatever the deployment's own limit says.
+ */
+export interface GuildSessionLimitUpdate {
+  enforce_compliance_session: boolean;
 }
 
 export interface GuildStorageUsageRead {
@@ -4326,6 +4478,7 @@ export interface InitiativeCreate {
   dashboards_enabled?: boolean;
   posts_enabled?: boolean;
   galleries_enabled?: boolean;
+  wikis_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
@@ -4483,6 +4636,8 @@ export const PermissionKey = {
   create_posts: "create_posts",
   galleries_enabled: "galleries_enabled",
   create_galleries: "create_galleries",
+  wikis_enabled: "wikis_enabled",
+  create_wikis: "create_wikis",
 } as const;
 
 /**
@@ -4578,6 +4733,7 @@ export interface InitiativeUpdate {
   dashboards_enabled?: boolean | null;
   posts_enabled?: boolean | null;
   galleries_enabled?: boolean | null;
+  wikis_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
@@ -4912,6 +5068,7 @@ export const Tool = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
 } as const;
 
 /**
@@ -5362,7 +5519,6 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
-  enforce_compliance_session: boolean;
 }
 
 /**
@@ -5381,7 +5537,29 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
-  enforce_compliance_session?: boolean | null;
+}
+
+/**
+ * How one provider is arranged for a community that has not said.
+ */
+export interface PlatformProviderDefaultRead {
+  provider_id: number;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+}
+
+/**
+ * Answer for a provider on behalf of the communities that have not.
+ *
+ * Carries the arrangement and nothing else. There is no ``auto_join`` here:
+ * a default names a provider, never a community, so who joins a community
+ * stays that community's to say.
+ */
+export interface PlatformProviderDefaultUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
 }
 
 /**
@@ -6265,6 +6443,7 @@ export const RecentEntityType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
 } as const;
 
 /**
@@ -6859,10 +7038,12 @@ export const TagTarget = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
   gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
 } as const;
 
 /**
@@ -7798,6 +7979,208 @@ export interface WidgetCatalog {
   presets: WidgetPresetEntry[];
 }
 
+export interface WikiCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  tag_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
+export interface WikiSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  page_count: number;
+  home_page_id: number | null;
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface WikiListResponse {
+  items: WikiSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export type WikiPageCreateContent = { [key: string]: unknown } | null;
+
+export interface WikiPageCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  parent_page_id?: number | null;
+  content?: WikiPageCreateContent;
+  tag_ids?: number[] | null;
+}
+
+/**
+ * One end of a connection a page has.
+ *
+ * Deliberately not a page-shaped object: the other end of an edge is often
+ * not a page at all — a task, a calendar event — so this is what any of them
+ * have in common, and the kind says which route addresses it.
+ */
+export interface WikiPageLink {
+  entity_type: string;
+  entity_id: number;
+  title: string;
+  relationship_type: string;
+  initiative_id: number | null;
+  tool: string | null;
+  tool_id: number | null;
+}
+
+/**
+ * What a page connects to, both ways.
+ *
+ * ``outgoing`` is what this page names; ``incoming`` is what names it — the
+ * backlinks, which are the thing that makes a wiki more than a folder.
+ */
+export interface WikiPageLinks {
+  outgoing: WikiPageLink[];
+  incoming: WikiPageLink[];
+}
+
+/**
+ * Where a page should sit after a drag.
+ *
+ * The two facts the tree needs, together: a page dropped into a new parent
+ * almost always lands at a particular place among its new siblings, and
+ * sending them separately would draw the tree wrong in between.
+ */
+export interface WikiPageMove {
+  parent_page_id?: number | null;
+  /** @minimum 0 */
+  position?: number;
+}
+
+export type WikiPageReadContent = { [key: string]: unknown };
+
+/**
+ * One page, opened.
+ */
+export interface WikiPageRead {
+  id: number;
+  wiki_id: number;
+  guild_id: number;
+  parent_page_id: number | null;
+  position: number;
+  title: string;
+  slug: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  tags: TagSummary[];
+  content: WikiPageReadContent;
+  comment_count: number;
+}
+
+/**
+ * One page as the tree draws it — no body.
+ *
+ * The navigation renders every page of a wiki at once, so this carries what a
+ * row needs and nothing that would make the payload grow with what people
+ * have written.
+ */
+export interface WikiPageSummary {
+  id: number;
+  wiki_id: number;
+  guild_id: number;
+  parent_page_id: number | null;
+  position: number;
+  title: string;
+  slug: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  tags: TagSummary[];
+}
+
+/**
+ * Every page of a wiki, flat, in reading order.
+ *
+ * Flat rather than nested: each row names its parent, and the client builds
+ * the shape. A nested payload would have to be walked to find one page and
+ * re-walked to move it, and the tree is drawn from the same rows either way.
+ */
+export interface WikiPageTree {
+  items: WikiPageSummary[];
+}
+
+export type WikiPageUpdateContent = { [key: string]: unknown } | null;
+
+/**
+ * A change to one page.
+ *
+ * Every field is optional and only what is sent is written, so renaming a
+ * page and moving it are the same request shape as editing its body.
+ * ``parent_page_id`` is the one field that is meaningfully ``null``: it means
+ * "make this a top-level page", which is different from not sending it.
+ */
+export interface WikiPageUpdate {
+  title?: string | null;
+  content?: WikiPageUpdateContent;
+  tag_ids?: number[] | null;
+}
+
+/**
+ * A wiki on its own page. The same shape as its summary: the pages are
+ * fetched as a tree of their own, because a wiki is navigated rather than
+ * read end to end.
+ */
+export interface WikiRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  page_count: number;
+  home_page_id: number | null;
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface WikiUpdate {
+  name?: string | null;
+  description?: string | null;
+  home_page_id?: number | null;
+}
+
 /**
  * A single field comparison.
  *
@@ -7898,19 +8281,10 @@ export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   username: string;
 };
 
-export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams = {
-  next?: string;
-};
-
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
-};
-
-export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams = {
-  code?: string | null;
-  state?: string | null;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
@@ -8159,6 +8533,7 @@ export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   dashboard_id?: number | null;
   post_id?: number | null;
   gallery_id?: number | null;
+  wiki_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
@@ -8816,6 +9191,35 @@ export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimeline
   tz?: string | null;
 };
 
+export type ListWikisApiV1GGuildIdWikisGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the wiki's name and description, through the same index the search page reads.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 500
+   */
+  page_size?: number;
+};
+
 export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
@@ -8938,7 +9342,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -8966,7 +9370,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
 
 export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -8994,7 +9398,7 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -9238,6 +9642,29 @@ export type ListMyPostsApiV1MePostsGetParams = {
 };
 
 export type ListMyGalleriesApiV1MeGalleriesGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyWikisApiV1MeWikisGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;

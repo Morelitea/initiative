@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import logging
+from dataclasses import replace
 from typing import Any, Annotated
 from urllib.parse import urlencode
 
@@ -31,7 +32,6 @@ from app.core.encryption import (
 from app.core.login_methods import LoginMethod
 from app.core.messages import (
     AuthMessages,
-    GuildMessages,
     OidcMessages,
     SettingsMessages,
 )
@@ -85,12 +85,16 @@ from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.platform import security_rules
 from app.services.auth import addresses
+from app.services.auth import (
+    guild_provider_connections as guild_connections,
+)
 from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     read_assurance,
+    read_narrowing,
     record_for_provider,
     session_amr,
 )
@@ -936,7 +940,7 @@ async def issue_upload_token(
         satisfied_providers=sorted(satisfied)
         if isinstance(satisfied, frozenset)
         else (),
-        sso_guilds=sorted(auth_context.sso_guilds()),
+        satisfied_claims=auth_context.satisfied_claims(),
         session_mfa=auth_context.session_mfa(),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
@@ -1188,12 +1192,11 @@ async def revoke_device_token(
 
 
 def _provider_state_key(row: AuthProvider) -> str:
-    """The identity a login-flow state binds to. Operator-global rows keep the
-    bare slug (states minted before guild providers stay valid); guild rows
-    are namespaced so a state begun with one guild's provider can't complete
-    against another guild's provider of the same slug."""
-    if row.guild_id is not None:
-        return f"g{row.guild_id}:{row.slug}"
+    """The identity a login-flow state binds to.
+
+    One sign-in, so one key: the provider's slug. A community is not a party
+    to the flow — it applies what it said about the provider afterwards.
+    """
     return row.slug
 
 
@@ -1272,43 +1275,7 @@ async def _resolve_login_provider(
         return row
     row = (
         await admin_session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == provider_slug,
-                AuthProvider.guild_id.is_(None),
-            )
-        )
-    ).one_or_none()
-    if row is None or not is_login_ready(row):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    return row
-
-
-async def _resolve_guild_login_provider(
-    admin_session: AsyncSession,
-    guild_id: int,
-    provider_slug: str,
-) -> AuthProvider:
-    """The login-ready guild-scoped provider row for one (guild, slug), or
-    404. Whether a guild has providers at all is decided when it configures
-    them (the operator's per-guild entitlement); once it has one, that provider
-    answers. An unknown guild, slug, or config-incomplete row all look
-    identical."""
-    if not is_valid_provider_slug(provider_slug):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    row = (
-        await admin_session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == provider_slug,
-                AuthProvider.guild_id == guild_id,
-            )
+            select(AuthProvider).where(AuthProvider.slug == provider_slug)
         )
     ).one_or_none()
     if row is None or not is_login_ready(row):
@@ -1337,7 +1304,7 @@ async def _build_row_oidc_provider(
         OidcClientConfig(
             issuer=row.issuer,
             client_id=row.client_id,
-            redirect_uri=provider_callback_url(row.slug, row.guild_id),
+            redirect_uri=provider_callback_url(row.slug),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
             provider_slug=_provider_state_key(row),
@@ -1348,11 +1315,13 @@ async def _build_row_oidc_provider(
 
 
 def _login_entry(row: AuthProvider) -> LoginProviderEntry:
-    login_url = (
-        f"{API_V1_STR}/auth/g/{row.guild_id}/{row.slug}/login"
-        if row.guild_id is not None
-        else f"{API_V1_STR}/auth/{row.slug}/login"
-    )
+    """One way in, as the sign-in page needs it.
+
+    One address per provider, whichever page offers it: a community's page
+    lists the ways in that count as its own, and they are the deployment's
+    ways in.
+    """
+    login_url = f"{API_V1_STR}/auth/{row.slug}/login"
     return LoginProviderEntry(
         id=row.id,
         slug=row.slug,
@@ -1397,7 +1366,6 @@ async def list_login_providers(
         await admin_session.exec(
             select(AuthProvider)
             .where(
-                AuthProvider.guild_id.is_(None),
                 AuthProvider.slug != PLATFORM_OIDC_SLUG,
                 AuthProvider.enabled.is_(True),
                 AuthProvider.kind == "oidc",
@@ -1421,8 +1389,7 @@ async def _begin_provider_login(
     device_name: str,
     next_path: str,
 ) -> RedirectResponse:
-    """Begin the relying-party flow for a resolved provider row — shared by
-    the operator-global and guild-addressed login routes.
+    """Begin the relying-party flow for a resolved provider row.
 
     ``next_path`` is an optional SPA path to return to after the web callback
     (e.g. the guild page a step-up started from). Only a validated relative
@@ -1460,47 +1427,24 @@ async def _begin_provider_login(
 async def list_guild_login_providers(
     session: SessionDep, admin_session: AdminSessionDep, guild_id: int
 ) -> LoginProvidersResponse:
-    """One guild's sign-in providers — non-secret metadata only, with
-    guild-addressed login URLs and the guild's display name for its login
-    page. Empty (and nameless) for a guild with no login-ready providers and
-    where single sign-on is not permitted; an unknown guild id is
-    indistinguishable from an empty registry."""
+    """The ways in this community counts as its own — non-secret metadata
+    only, plus its display name for its sign-in page.
+
+    A community does not authenticate anybody: these are the deployment's own
+    providers, and the buttons lead to the deployment's sign-in. What the
+    community has said about them is applied when somebody reaches it. Empty
+    (and nameless) where it connects to nothing and where single sign-on is
+    not permitted; an unknown guild id is indistinguishable from an empty
+    list."""
     if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
-    rows = (
-        await admin_session.exec(
-            select(AuthProvider)
-            .where(AuthProvider.guild_id == guild_id)
-            .order_by(AuthProvider.display_name)
-        )
-    ).all()
+    rows = await guild_connections.connected_providers(admin_session, guild_id=guild_id)
     entries = [_login_entry(row) for row in rows if is_login_ready(row)]
     guild_name = None
     if entries:
         guild = await admin_session.get(Guild, guild_id)
         guild_name = guild.name if guild else None
     return LoginProvidersResponse(providers=entries, guild_name=guild_name)
-
-
-@router.get("/g/{guild_id}/{provider_slug}/login")
-@limiter.limit("20/minute")
-async def guild_provider_login(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    guild_id: int,
-    provider_slug: str,
-    next_path: str = Query(default="", alias="next"),
-) -> RedirectResponse:
-    """Begin the relying-party flow for one of a guild's own providers.
-    Web only for now — native guild step-up arrives with native session
-    tokens, so there is no ``mobile`` variant of this route."""
-    provider_row = await _resolve_guild_login_provider(
-        admin_session, guild_id, provider_slug
-    )
-    return await _begin_provider_login(
-        admin_session, provider_row, mobile=False, device_name="", next_path=next_path
-    )
 
 
 @router.get("/{provider_slug}/login")
@@ -1561,13 +1505,12 @@ async def _complete_provider_login(
     code: str | None,
     state: str | None,
 ):
-    """Complete the relying-party flow for a resolved provider row — shared
-    by the operator-global and guild-addressed callback routes. Guild rows
-    differ in three ways: a successful sign-in also admits the user to the
-    provider's guild (JIT-provisioning unknown users when the provider allows
-    it, always as plain member, capacity-enforced), the operator claim-to-role
-    sync doesn't run, and mobile flows can't reach here (the guild login route
-    doesn't offer one)."""
+    """Complete the relying-party flow for a resolved provider.
+
+    One sign-in for the whole deployment. What each community makes of it —
+    whether this arrival counts as one of its own, and whether it joins them
+    to it — is applied from its connections once the identity is settled.
+    """
     # Best-effort mobile flag so even early failures land on the right surface
     # (app vs. web); ``complete()`` re-validates the state authoritatively.
     is_mobile: bool | None = None
@@ -1604,6 +1547,10 @@ async def _complete_provider_login(
                 "OIDC userinfo sub does not match id_token sub; ignoring userinfo"
             )
             userinfo = None
+
+    # Does the community this route belongs to recognise who just arrived?
+    # Asked of the verified id_token and before any account or membership is
+    # touched, because a no here means this person is not theirs.
 
     email_claim = claims.get("email")
     email = (
@@ -1663,7 +1610,6 @@ async def _complete_provider_login(
             admin_session,
             event_type=AuditEventType.AUTH_IDENTITY_LINKED,
             actor_user_id=user.id,
-            guild_id=provider_row.guild_id,
             target_type="auth_provider",
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
@@ -1711,44 +1657,24 @@ async def _complete_provider_login(
     await admin_session.commit()
     await admin_session.refresh(user)
 
-    if provider_row.guild_id is not None:
-        # The guild's own IdP is its configured identity source, so a
-        # successful authentication doubles as admission: get-or-create the
-        # membership, always as plain member (roles are assigned in the app),
-        # honoring the guild's member capacity.
-        #
-        # ``resolve_oidc_identity`` has already committed a JIT-provisioned
-        # user, so plain values are captured up front — the rollback below
-        # expires the ORM object.
-        onboarding_user_id = user.id
-        was_provisioned = resolution.outcome is ResolutionOutcome.PROVISIONED
-        try:
-            await guilds_service.ensure_membership(
-                admin_session,
-                guild_id=provider_row.guild_id,
-                user_id=onboarding_user_id,
-            )
-            await admin_session.commit()
-        except guilds_service.GuildCapacityError:
-            await admin_session.rollback()
-            # A user provisioned by THIS sign-in belongs to no other guild, so
-            # a full guild would strand a usable-nowhere account. Undo it (the
-            # federated-identity link and its secret cascade). An account that
-            # already existed keeps whatever access it had.
-            if was_provisioned:
-                await _discard_provisioned_user(
-                    admin_session, user_id=onboarding_user_id
-                )
-            return _error_redirect(is_mobile, GuildMessages.GUILD_USER_LIMIT_REACHED)
-        await admin_session.refresh(user)
+    # What each community makes of this arrival. A connection can say that
+    # people it counts as its own join on sight, which is how somebody reaches
+    # a community they have never been invited to.
+    await guild_connections.join_on_arrival(
+        admin_session,
+        provider_id=provider_row.id,
+        user_id=user.id,
+        claims=dict(claims or {}),
+    )
+    # It commits per community and rolls back the ones at capacity, either of
+    # which leaves this copy of the account stale.
+    await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
-    # Operator-global providers only: the mapping registry is platform-level
-    # configuration; per-guild claim mappings are their own later feature.
+    # There is one sign-in, so this runs for it: a rule grants where it names,
+    # and a community only holds rules for providers it connects to.
     try:
-        claim_path = (
-            provider_row.role_claim_path if provider_row.guild_id is None else None
-        )
+        claim_path = provider_row.role_claim_path
         if claim_path:
             claim_values = extract_claim_values(
                 userinfo or {}, completion.claims, claim_path
@@ -1816,7 +1742,6 @@ async def _complete_provider_login(
     # path never touches the ORM object again.
     user_id, token_version = user.id, user.token_version
     provider_id, provider_slug = provider_row.id, provider_row.slug
-    provider_guild_id = provider_row.guild_id
     # Return the browser to where the login started (a step-up hands the
     # guild page it interrupted): the login route stored a validated SPA
     # path in the short-lived cookie; re-validate before echoing it, and
@@ -1837,7 +1762,18 @@ async def _complete_provider_login(
     # entry is replaced by what it just asserted, and every other provider's
     # account of its own event is left as it was.
     assurance = read_assurance(completion.claims)
-    amr = session_amr(provider_slug, assurance, guild_id=provider_guild_id)
+    # What this provider asserted for the claims some community narrows it by.
+    # A fact about the authentication, kept beside the rest, so the rule about
+    # which values count is read fresh when somebody reaches a community.
+    narrowing = await guild_connections.narrowed_by(
+        admin_session, provider_id=provider_id
+    )
+    if narrowing:
+        assurance = replace(
+            assurance,
+            claims=read_narrowing(completion.claims, userinfo, narrowing),
+        )
+    amr = session_amr(provider_slug, assurance)
     satisfied = [provider_id]
     provider_auth = record_for_provider(
         None, provider_id=provider_id, assurance=assurance
@@ -1870,7 +1806,7 @@ async def _complete_provider_login(
             admin_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
             actor_user_id=user_id,
-            guild_id=provider_guild_id,
+            guild_id=None,
             detail={
                 "method": "oidc",
                 "provider": provider_slug,
@@ -1912,27 +1848,6 @@ async def _complete_provider_login(
     set_session_cookie(oidc_response, app_token, max_age=access_max_age)
     set_refresh_cookie(oidc_response, issued.refresh_token)
     return oidc_response
-
-
-@router.get("/g/{guild_id}/{provider_slug}/callback")
-@limiter.limit("20/minute")
-async def guild_provider_callback(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    guild_id: int,
-    provider_slug: str,
-    code: str | None = Query(default=None),
-    state: str | None = Query(default=None),
-):
-    """Complete the relying-party flow for one of a guild's own providers —
-    the guild-addressed URL registered at the guild's IdP."""
-    provider_row = await _resolve_guild_login_provider(
-        admin_session, guild_id, provider_slug
-    )
-    return await _complete_provider_login(
-        request, session, admin_session, provider_row, code, state
-    )
 
 
 @router.get("/{provider_slug}/callback")

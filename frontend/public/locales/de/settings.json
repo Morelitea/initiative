@@ -1027,6 +1027,10 @@
       "supportLabel": "Hilfeanfragen",
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
       "authOption": {
+        "restrictions": {
+          "label": "Eigene Anmeldung konfigurieren",
+          "help": "Gibt dieser Community den Tab „Authentifizierung“: persönliche API-Schlüssel, ein Zwölf-Stunden-Sitzungslimit und alles darunter Angehakte. Für die meisten Communities aus — ohne diese Option sehen sie den Tab nie."
+        },
         "providers": {
           "label": "Eigene Anmeldeanbieter",
           "help": "Erlaubt ihren Admins, einen Identitätsanbieter einzurichten und neue Konten darüber aufzunehmen."
@@ -1037,9 +1041,7 @@
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit",
-      "complianceSessionLabel": "Zwölf-Stunden-Sitzungslimit",
-      "complianceSessionHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen."
+      "storageLabel": "Speicherlimit"
     },
     "unlimited": "Unbegrenzt"
   },
@@ -1095,11 +1097,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identitätsanbieter",
-      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Community anmelden. Werden von den Admins dieser Community konfiguriert und gelten nur hier.",
-      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
-    },
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1132,6 +1129,84 @@
       "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
       "saved": "API-Zugriff gespeichert",
       "error": "API-Zugriff konnte nicht gespeichert werden"
+    },
+    "sessionLimit": {
+      "title": "Sitzungslimit",
+      "description": "Wie oft sich die Mitglieder dieser Community neu anmelden.",
+      "allowLabel": "Zwölf-Stunden-Sitzungslimit",
+      "onHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen.",
+      "offHelp": "Mitglieder bleiben so lange angemeldet, wie es die Installation zulässt.",
+      "saved": "Sitzungslimit gespeichert",
+      "error": "Sitzungslimit konnte nicht gespeichert werden"
+    },
+    "connections": {
+      "title": "Welche Anmeldungen eure sind",
+      "description": "Angemeldet wird sich bei dieser Installation. Sagt, welche ihrer Anmeldeanbieter zu eurer Community zählen und wer darauf als eure Leute gilt.",
+      "connect": "Anbieter verbinden",
+      "connected": "Anbieter verbunden",
+      "connectError": "Diese Verbindung konnte nicht geändert werden",
+      "disconnect": "Trennen",
+      "disconnected": "Anbieter getrennt",
+      "disconnectTitle": "{{name}} trennen?",
+      "disconnectDescription": "Sie zählt nicht mehr als eure: Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
+      "empty": "Noch keine Anbieter verbunden — eure Mitglieder melden sich wie gewohnt an.",
+      "noneOffered": "Wer diese Installation betreibt, hat noch keine Anbieter zum Verbinden angeboten.",
+      "notReady": "Nicht verfügbar",
+      "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+      "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+      "dialogTitle": "Anmeldeanbieter verbinden",
+      "dialogDescription": "Wähle den Anbieter, den eure Mitglieder nutzen, und sage dann, welche Konten darauf euch gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "claimLabel": "Wessen Konten als eure gelten",
+      "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
+      "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
+      "claimValuesLabel": "Gültige Werte",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Sie dieser Community hinzufügen",
+      "autoJoinHelp": "Wer als eure Leute zählt, wird bei der ersten Anmeldung Mitglied. Lasst es aus, wenn ihr selbst einladen wollt.",
+      "joinsOnArrival": "Neue treten automatisch bei",
+      "claimOptions": {
+        "hd": "Google-Workspace-Domain",
+        "tid": "Microsoft-Entra-Mandant",
+        "groups": "Gruppenmitgliedschaft",
+        "domain": "Domain"
+      },
+      "inherited": "Von der Installation",
+      "makeItOurs": "Zu unserer machen"
+    },
+    "rules": {
+      "title": "Wo eure Leute landen",
+      "description": "Euer Anbieter meldet, in welchen Gruppen jemand ist. Legt hier fest, was diese Gruppen bedeuten – wer als Mitglied beitritt, wer als Admin, und in welcher Initiative sie starten.",
+      "add": "Regel hinzufügen",
+      "added": "Regel hinzugefügt",
+      "addError": "Regel konnte nicht hinzugefügt werden",
+      "empty": "Noch keine Regeln – wer über eure Anbieter kommt, tritt ohne besondere Zuordnung bei.",
+      "connectFirst": "Verbindet zuerst einen Anbieter, dann legt fest, was seine Gruppen bedeuten.",
+      "noGroupsBadge": "Keine Gruppen gemeldet",
+      "noGroupsHint": "Die Betreiber dieser Installation haben diesem Anbieter nicht mitgeteilt, wo seine Gruppen stehen. Bis dahin trifft diese Regel auf niemanden zu.",
+      "landsInCommunity": "Ankunft über {{provider}} – tritt bei als {{role}}",
+      "landsInInitiative": "Ankunft über {{provider}} – tritt bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+      "dialogDescription": "Nennt eine Gruppe, die euer Anbieter meldet, und legt fest, wohin ihre Leute gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "groupLabel": "Gruppe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Genau so geschrieben wie bei eurem Anbieter.",
+      "standingLabel": "Sie treten bei als",
+      "role": {
+        "member": "Mitglied",
+        "admin": "Admin"
+      },
+      "initiativeLabel": "Und starten in",
+      "communityOnly": "Nur die Community",
+      "initiativeRoleLabel": "In dieser Initiative als",
+      "initiativeRolePlaceholder": "Rolle auswählen",
+      "remove": "Entfernen",
+      "removed": "Regel entfernt",
+      "removeError": "Regel konnte nicht entfernt werden",
+      "removeTitle": "Diese Regel entfernen?",
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
     }
   },
   "authProviders": {
@@ -1438,5 +1513,23 @@
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
     "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+  },
+  "providerDefaults": {
+    "title": "Was eine Community erbt",
+    "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",
+    "noAnswer": "Keine Antwort – jede Community entscheidet selbst",
+    "noProviders": "Fügt zuerst einen Anmeldeanbieter hinzu, dann legt fest, was Communities von ihm erben.",
+    "answer": "Dafür antworten",
+    "change": "Ändern",
+    "withdraw": "Zurückziehen",
+    "withdrawn": "Antwort zurückgezogen",
+    "save": "Speichern",
+    "saved": "Antwort gespeichert",
+    "saveError": "Antwort konnte nicht gespeichert werden",
+    "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+    "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+    "claimLabel": "Welcher Claim entscheidet",
+    "valuesLabel": "Gültige Werte",
+    "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   }
 }

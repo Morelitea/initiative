@@ -121,7 +121,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
         # Auth/login foundation — one user's identities span guilds; provider
         # registry is read pre-routing at login.
-        "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "auth_providers",  # login provider registry; every row is the operator's
         "auth_provider_secrets",  # provider client secret; app_admin-only companion
         "federated_identities",  # (provider, subject) -> user links
         "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
@@ -138,6 +138,13 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # of this group: an assertion arrives before any account is known.
         "user_passkeys",
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
+        # Which of the platform's providers a community signs in through, and
+        # the tenant it narrows one to. Read at login on the system engine.
+        "guild_provider_connections",
+        # The same arrangement, answered once for a community that has not.
+        # Read by the gate on the request path, like the connections it
+        # stands in for.
+        "platform_provider_defaults",
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         # Deployment-wide notices and what each person has done with them. One

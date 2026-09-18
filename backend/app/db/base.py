@@ -58,6 +58,7 @@ from app.models.tenant.gallery import (
     GalleryImage,
     GalleryImageVersion,
 )
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
 from app.models.tenant.counter import (
@@ -88,6 +89,8 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.identity_ref import IdentityRef
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_provider_connection import GuildProviderConnection
+from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
@@ -139,6 +142,8 @@ __all__ = [
     "FederatedIdentitySecret",
     "IdentityRef",
     "GuildAuthPolicy",
+    "GuildProviderConnection",
+    "PlatformProviderDefault",
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
@@ -182,6 +187,8 @@ __all__ = [
     "Gallery",
     "GalleryImage",
     "GalleryImageVersion",
+    "Wiki",
+    "WikiPage",
     "PostRead",
     "PostPoll",
     "PostPollOption",

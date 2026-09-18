@@ -13,6 +13,7 @@ from app.services.export.adapters.post import PostAdapter
 from app.services.export.adapters.project import ProjectAdapter
 from app.services.export.adapters.queue import QueueAdapter
 from app.services.export.adapters.tasks_table import TasksTableAdapter
+from app.services.export.adapters.wiki import WikiAdapter
 
 ADAPTERS = {
     adapter.source: adapter
@@ -24,6 +25,7 @@ ADAPTERS = {
         CounterGroupAdapter(),
         CalendarAdapter(),
         PostAdapter(),
+        WikiAdapter(),
         InitiativeExportAdapter(),
         GuildExportAdapter(),
     )

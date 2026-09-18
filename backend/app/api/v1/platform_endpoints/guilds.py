@@ -65,6 +65,7 @@ from app.schemas.platform.guild import (
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
+    GuildAuthSettingsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
     GuildCreate,
@@ -76,14 +77,20 @@ from app.schemas.platform.guild import (
     GuildInviteRead,
     GuildInviteStatus,
     GuildOrderUpdate,
+    GuildSessionLimitRead,
+    GuildSessionLimitUpdate,
     GuildUpdate,
     LeaveGuildEligibilityResponse,
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.services.auth import session_lifetime
 from app.services.auth.identity import has_federated_identity
+from app.services.auth import (
+    guild_provider_connections as guild_connections,
+)
 from app.services.auth.platform_provider import is_login_ready
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import GuildAuthOption, effective_options
 from app.models.platform.access_grant import AccessGrantPurpose
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import auth_posture
@@ -162,9 +169,17 @@ def _serialize_guild(
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
-        auth_options=sorted(admin_row.auth_options) if admin_row else None,
+        # Derived, not stored — an option ticked under a master nobody granted
+        # is not one this guild holds.
+        auth_options=sorted(effective_options(admin_row.auth_options))
+        if admin_row
+        else None,
         # Admins only: the state of the API-access control on that tab.
         allow_api_keys=guild.allow_api_keys if is_admin else None,
+        # Admins only: and of the session-limit control beside it.
+        enforce_compliance_session=(
+            guild.enforce_compliance_session if is_admin else None
+        ),
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -1053,6 +1068,32 @@ def _auth_policy_read(
     )
 
 
+@router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
+async def get_guild_auth_settings(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthSettingsRead:
+    """Read the controls held by this community's superadmin seat."""
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    administration = await guilds_service.get_administration(
+        admin_session, guild_id=guild_id
+    )
+    return GuildAuthSettingsRead(
+        auth_options=sorted(effective_options(administration.auth_options))
+        if administration
+        else [],
+        allow_api_keys=guild.allow_api_keys,
+        enforce_compliance_session=guild.enforce_compliance_session,
+    )
+
+
 @router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
 async def get_guild_auth_policy(
     guild_id: int,
@@ -1143,11 +1184,16 @@ async def set_guild_auth_policy(
         # would be taken on the system engine while the write happens on the
         # request path, which is two connections contending for one row.
         provider = await admin_session.get(AuthProvider, payload.provider_id)
-        if (
-            provider is None
-            or provider.guild_id != guild_id
-            or not is_login_ready(provider)
-        ):
+        # Theirs because they connect to it. Every provider is the operator's,
+        # so a connection is what makes one this community's to require.
+        connection = (
+            None
+            if provider is None
+            else await guild_connections.connection_for(
+                admin_session, guild_id=guild_id, provider_id=provider.id
+            )
+        )
+        if provider is None or connection is None or not is_login_ready(provider):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
@@ -1163,7 +1209,9 @@ async def set_guild_auth_policy(
     # community has a provider that works, so there is nothing else to ask.
     # One check per method the list may hold; ``sso`` is the only one it can
     # hold today, and a method added to the vocabulary brings its own.
-    if LoginMethod.sso in require_methods and guild_id not in auth_context.sso_guilds():
+    if LoginMethod.sso in require_methods and not (
+        await guild_connections.admits_this_session(admin_session, guild_id=guild_id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
@@ -1210,15 +1258,18 @@ async def set_guild_api_access(
 
     The same seat as the sign-in requirement, and for the same reason: it says
     what may be used to reach the community, which is not the job of running
-    one. It carries no operator entitlement, though — turning it off only ever
-    narrows what reaches the guild, so there is nothing for an operator to
-    grant.
+    one. Like everything else on that surface it needs the master entitlement,
+    which most guilds never hold — a community that configures no part of its
+    own sign-in is not asked about API keys either.
 
     Existing keys are left alone. What they may reach is decided when they are
     used, so switching this back on restores them rather than leaving somebody
     to mint replacements.
     """
     await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
     guild = await admin_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
@@ -1228,6 +1279,50 @@ async def set_guild_api_access(
     admin_session.add(guild)
     await admin_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
+
+
+@router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)
+async def set_guild_session_limit(
+    guild_id: int,
+    payload: GuildSessionLimitUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildSessionLimitRead:
+    """Hold this guild's members to the twelve-hour session standard, or stop.
+
+    The same seat as the sign-in requirement beside it: how often somebody
+    signs in again is part of what the community asks of a session, not part of
+    running it. One standard rather than a figure of the guild's own, so
+    somebody in two communities that ask for it has an answer and not a
+    comparison. It needs the master entitlement, like the rest of the surface.
+
+    It reaches members' sessions at their next sign-in. Phones are the
+    exception: a device token carries its deadline in its own expiry, so the
+    ones already issued are brought under the standard here — which can sign a
+    phone out at once, where it signed in longer ago than the standard allows.
+    """
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    changed = guild.enforce_compliance_session != payload.enforce_compliance_session
+    guild.enforce_compliance_session = payload.enforce_compliance_session
+    admin_session.add(guild)
+    if changed:
+        # Written before the sweep below, which reads the standard back off the
+        # guild row to find whose phones it applies to.
+        await admin_session.flush()
+        await session_lifetime.apply_to_device_tokens(admin_session)
+    await admin_session.commit()
+    return GuildSessionLimitRead(
+        enforce_compliance_session=guild.enforce_compliance_session
+    )
 
 
 @router.delete(

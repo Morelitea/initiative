@@ -23,7 +23,7 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
-    auth_options: [],
+    auth_options: ["restrictions"],
     banner_image_enabled: true,
     support_enabled: false,
   },
@@ -36,7 +36,7 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
-    auth_options: ["providers", "require_sign_in"],
+    auth_options: ["restrictions", "providers", "require_sign_in"],
     banner_image_enabled: true,
     support_enabled: true,
   },
@@ -308,30 +308,49 @@ describe("AdminDashboardGuildsPage", () => {
       expect(option("Requiring a sign-in")).toBeChecked();
     });
 
+    it("offers nothing under the master until the master is granted", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await openSheet(user, "Full Community");
+      expect(option("Configuring its own sign-in")).not.toBeChecked();
+      // The two beneath it mean nothing without it, so they are not on offer.
+      expect(option("Its own sign-in providers")).toBeDisabled();
+      expect(option("Requiring a sign-in")).toBeDisabled();
+
+      await user.click(option("Configuring its own sign-in"));
+      expect(mutate).toHaveBeenCalledWith({
+        guildId: 9,
+        data: { auth_options: ["restrictions"] },
+      });
+    });
+
     it("grants one option without the other", async () => {
       const user = userEvent.setup();
       renderPage();
 
-      await openSheet(user, "Capped Community");
-      expect(option("Its own sign-in providers")).not.toBeChecked();
+      await openSheet(user, "Open Community");
+      expect(option("Requiring a sign-in")).toBeChecked();
 
-      await user.click(option("Its own sign-in providers"));
+      await user.click(option("Requiring a sign-in"));
       expect(mutate).toHaveBeenCalledWith({
-        guildId: 7,
-        data: { auth_options: ["providers"] },
+        guildId: 8,
+        data: { auth_options: ["restrictions", "providers"] },
       });
     });
 
-    it("withdraws one option and leaves the other", async () => {
+    it("withdrawing the master leaves what is stored underneath it", async () => {
       const user = userEvent.setup();
       renderPage();
 
       await openSheet(user, "Open Community");
-      await user.click(option("Requiring a sign-in"));
+      await user.click(option("Configuring its own sign-in"));
 
+      // The ticks stay on the row; they simply stop counting for anything,
+      // and come back if the master is granted again.
       expect(mutate).toHaveBeenCalledWith({
         guildId: 8,
-        data: { auth_options: ["providers"] },
+        data: { auth_options: ["providers", "require_sign_in"] },
       });
     });
   });

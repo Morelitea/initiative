@@ -773,25 +773,28 @@ async def test_upload_token_copies_session_satisfied_providers(
         headers={
             "Authorization": "Bearer "
             + get_auth_token(
-                user, satisfied_providers=[7, 3], amr=["guild:11", "oidc:corp"]
+                user,
+                satisfied_providers=[7, 3],
+                asserted_claims={7: {"hd": ["acme.com"]}},
+                amr=["oidc:corp"],
             )
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat, sso_guilds, _mfa = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, asserted, _mfa = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
-    # And the communities whose own sign-in the session completed, so a rule
-    # asking for one reads this token the way it reads that session.
-    assert sso_guilds == frozenset({11})
+    # And what those providers asserted, so a community narrowing one reads
+    # this token the way it reads that session.
+    assert asserted == {"7": {"hd": ["acme.com"]}}
 
     # A session that satisfied no provider hands the upload token an empty set
     # rather than leaving the claim off.
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat, sso_guilds, _mfa = verify_upload_token(unsatisfied.json()["upload_token"])
+    _, sat, asserted, _mfa = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
-    assert sso_guilds == frozenset()
+    assert asserted == {}
 
 
 @pytest.mark.integration
@@ -887,7 +890,7 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
             OidcClientConfig(
                 issuer=row.issuer,
                 client_id=row.client_id,
-                redirect_uri=auth_module.provider_callback_url(row.slug, row.guild_id),
+                redirect_uri=auth_module.provider_callback_url(row.slug),
                 client_secret="s3cret",
                 scopes=row.scopes or "openid",
                 provider_slug=auth_module._provider_state_key(row),
@@ -1208,9 +1211,9 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
 async def test_the_platform_provider_asserts_a_platform_identity(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """Under platform posture the one provider is operator-global, so the
-    address it asserts belongs to no guild — ``auth_providers.guild_id`` is
-    NULL and the per-guild derivation has nothing to match."""
+    """A sign-in on the platform's own page asserts an address that belongs to
+    no community: the route names none, so the per-community derivation has
+    nothing to match."""
     from app.models.platform.user_email import UserEmail
     from app.models.platform.user_email_assertion import UserEmailAssertion
 
@@ -1251,9 +1254,11 @@ async def test_the_platform_provider_asserts_a_platform_identity(
             )
         )
     ).one()
+    # The assertion names the provider that made it and nothing else: an
+    # address is claimed by a provider, not by a community. Which community a
+    # sign-in entered is a fact about the route, and the platform's own route
+    # names none.
     assert claim.provider_id == provider_id
-    # The provider it came from serves the platform, not a guild.
-    assert (await session.get(AuthProvider, provider_id)).guild_id is None
 
 
 @pytest.mark.integration

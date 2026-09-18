@@ -107,7 +107,8 @@
     "dashboards": "Dashboards",
     "counterGroups": "Zähler",
     "posts": "Beiträge",
-    "galleries": "Galerien"
+    "galleries": "Galerien",
+    "wikis": "Wikis"
   },
   "settings": {
     "title": "Initiative-Einstellungen",
@@ -237,7 +238,8 @@
       "dashboards": "Dashboards",
       "counterGroups": "Zähler",
       "posts": "Beiträge",
-      "galleries": "Galerien"
+      "galleries": "Galerien",
+      "wikis": "Wikis"
     },
     "permissions": {
       "viewDocuments": "Dokumente anzeigen",
@@ -257,7 +259,9 @@
       "viewGalleries": "Galerien anzeigen",
       "createGalleries": "Galerien erstellen",
       "viewShort": "Ansehen",
-      "createShort": "Erstellen"
+      "createShort": "Erstellen",
+      "viewWikis": "Wikis ansehen",
+      "createWikis": "Wikis erstellen"
     },
     "handleColumn": "Handle",
     "toolAudience": {
@@ -327,5 +331,7 @@
     "nextJoining": "Weiter: Mitgliedschaft",
     "nextMembers": "Weiter: Berechtigungen",
     "firstIntroLink": "Hier mehr lesen"
-  }
+  },
+  "wikisFeature": "Wikis",
+  "wikisFeatureDescription": "Seiten, die aufeinander verweisen. Handbücher, Nachschlagewerke, das eine Thema, nach dem alle immer fragen."
 }

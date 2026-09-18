@@ -85,11 +85,11 @@ async def test_only_the_seat_switches_api_access(
     assert response.status_code == 403
 
 
-async def test_api_access_needs_no_operator_entitlement(
+async def test_api_access_waits_on_the_master_entitlement(
     client: AsyncClient, session: AsyncSession
 ):
-    """It only ever narrows what reaches the guild, so there is nothing for an
-    operator to grant — unlike the sign-in requirement beside it."""
+    """A community that configures no part of its own sign-in is not asked
+    about API keys either."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
@@ -101,7 +101,7 @@ async def test_api_access_needs_no_operator_entitlement(
         headers=get_auth_headers(admin),
         json={"allow_api_keys": False},
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 404, response.text
 
 
 # --- The mint ---------------------------------------------------------------

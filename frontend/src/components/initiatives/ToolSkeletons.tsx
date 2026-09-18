@@ -383,6 +383,35 @@ const GallerySketch = ({ active }: SketchProps) => (
   </Frame>
 );
 
+/**
+ * A wiki: the page tree down the left, the page itself on the right. The split
+ * IS the tool — a wiki is navigated before it is read — so the sketch shows the
+ * navigation taking its own column rather than a page on its own.
+ */
+const WikiSketch = ({ active }: SketchProps) => (
+  <Frame>
+    <div className="flex h-full gap-1.5">
+      <div className={cn("flex w-1/3 flex-col gap-1 border-r pr-1.5", line(active))}>
+        <div className={cn("h-1.5 w-3/4 rounded-sm", ink(active))} />
+        {(["a", "b"] as const).map((row) => (
+          <div key={row} className="flex flex-col gap-1 pl-1">
+            <div className={cn("h-1 w-full rounded-sm", faint(active))} />
+            <div className={cn("ml-1.5 h-1 w-2/3 rounded-sm", faint(active))} />
+          </div>
+        ))}
+        <div className={cn("ml-1 h-1 w-1/2 rounded-sm", ink(active))} />
+      </div>
+      <div className="flex flex-1 flex-col gap-1">
+        <div className={cn("h-2 w-2/3 rounded-sm", ink(active))} />
+        <div className={cn("h-1 w-full rounded-sm", faint(active))} />
+        <div className={cn("h-1 w-11/12 rounded-sm", faint(active))} />
+        <div className={cn("h-1 w-1/3 rounded-sm", ink(active))} />
+        <div className={cn("h-1 w-5/6 rounded-sm", faint(active))} />
+      </div>
+    </div>
+  </Frame>
+);
+
 export const TOOL_SKETCHES: Record<Tool, (props: SketchProps) => ReactNode> = {
   [Tool.project]: ProjectSketch,
   [Tool.document]: DocumentSketch,
@@ -392,6 +421,7 @@ export const TOOL_SKETCHES: Record<Tool, (props: SketchProps) => ReactNode> = {
   [Tool.dashboard]: DashboardSketch,
   [Tool.post]: PostSketch,
   [Tool.gallery]: GallerySketch,
+  [Tool.wiki]: WikiSketch,
 };
 
 export interface ToolSketchProps extends SketchProps {

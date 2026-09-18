@@ -789,7 +789,6 @@ async def update_guild(
     auth_options: list[GuildAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
     support_enabled: bool | None = None,
-    enforce_compliance_session: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -865,10 +864,8 @@ async def update_guild(
         or auth_options is not None
         or banner_image_enabled is not None
         or support_enabled is not None
-        or enforce_compliance_session is not None
     ):
         administration_updated = False
-        compliance_changed = False
         administration = await get_administration(session, guild_id=guild_id)
         if (
             max_storage_bytes_provided
@@ -905,22 +902,9 @@ async def update_guild(
         ):
             administration.support_enabled = support_enabled
             administration_updated = True
-        if (
-            enforce_compliance_session is not None
-            and administration.enforce_compliance_session != enforce_compliance_session
-        ):
-            administration.enforce_compliance_session = enforce_compliance_session
-            administration_updated = True
-            compliance_changed = True
         if administration_updated:
             session.add(administration)
             await session.flush()
-        if compliance_changed:
-            # The members' device tokens carry their deadline in their own
-            # expiry, so the standard is written into the ones already issued.
-            from app.services.auth import session_lifetime
-
-            await session_lifetime.apply_to_device_tokens(session)
     if retention_days_provided:
         from app.services.platform.app_settings import get_or_create_guild_settings
 

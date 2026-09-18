@@ -56,20 +56,31 @@ Untick something people are using and Initiative tells you how many accounts sig
 
 Turning off single sign-on waits if any community still requires one. Lift the requirement there first; the page names how many are in the way.
 
-## Letting a community run its own sign-in
+## Letting a community use a provider
 
-A community can have identity providers of its own — useful when it's a separate organisation with a separate staff directory. That's yours to grant, per community, in **Settings → Platform → Guilds**: find it in the list, hit **Manage**, and the **Sign-in** section has two ticks.
+**The providers are yours. A community connects to one.**
+
+You say this deployment can sign people in with Google. A community says *our* members come in through that — and only our Workspace. That second half is the point: Google will vouch for anybody with a Google account, so a community connecting to it names the domain that's theirs.
+
+A community never sees an issuer, a client ID or a secret, and never types an address. There's nothing left for them to get wrong on behalf of every one of their members.
+
+A community bringing its own identity provider is the same shape with you doing the registering: add their Okta on this page when you onboard them, and connect it to them.
+
+**The three ticks** in **Settings → Platform → Guilds → Manage → Sign-in** are yours to grant, per community. The first one turns the others on.
 
 | Option | What it lets their admins do |
 |---|---|
-| **Its own sign-in providers** | Add providers on their own Authentication page, copy a member sign-in link that drops people straight into the community, and onboard new accounts through it. |
-| **Requiring a sign-in** | Insist members reach the community through one of those providers. |
+| **Configuring its own sign-in** | Gives the community an Authentication page at all — and with it, personal API keys and a twelve-hour session limit. Off to start with, which is the right answer for most communities: they never see the page. |
+| **Its own sign-in providers** | Connect to the providers you've registered, say which accounts on one count as theirs, and copy a member sign-in link that drops people straight into the community. |
+| **Requiring a sign-in** | Insist members reach the community through one of those connections. |
 
-They're separate on purpose. A community can offer its provider as a convenience without forcing anyone through it — those are different arrangements, and one used to imply the other.
+The last two are separate on purpose. A community can offer a sign-in as a convenience without forcing anyone through it.
 
-A community's own provider only ever admits people to that community, and everybody still has exactly one account however they signed in.
+Withdrawing an option closes the page it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
-Withdrawing an option closes the page it governs and nothing else. Their providers stay, their members keep signing in through them, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+Withdrawing the first takes the page away entirely; withdrawing either of the others closes the part it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+
+Everybody still has exactly one account however they signed in.
 
 ## Provider quickstarts
 

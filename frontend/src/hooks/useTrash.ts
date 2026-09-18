@@ -53,6 +53,8 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
 // comment, queue_item, counter) name their parent tool's lists.
 const RESTORED: Record<EntityType, () => Spec> = {
   project: q.allProjects,
+  wiki: q.allWikis,
+  wiki_page: q.allWikis,
   task: q.allTasks,
   document: q.allDocuments,
   comment: q.allComments,

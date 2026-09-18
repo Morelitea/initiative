@@ -42,6 +42,8 @@
     "dashboard": "Tableau de bord",
     "post": "Publication",
     "gallery": "Galerie",
-    "gallery_image": "Image"
+    "gallery_image": "Image",
+    "wiki": "Wiki",
+    "wiki_page": "Page"
   }
 }

@@ -1027,6 +1027,10 @@
       "supportLabel": "Solicitudes de ayuda",
       "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
       "authOption": {
+        "restrictions": {
+          "label": "Configurar su propio inicio de sesión",
+          "help": "Da a esta comunidad la pestaña Autenticación: claves de API personales, un límite de sesión de doce horas y lo que se marque debajo. Desactivado para la mayoría de comunidades: sin esto nunca ven la pestaña."
+        },
         "providers": {
           "label": "Sus propios proveedores de inicio de sesión",
           "help": "Permite que sus administradores conecten un proveedor de identidad y den de alta cuentas nuevas por ahí."
@@ -1037,9 +1041,7 @@
         }
       },
       "usersLabel": "Miembros",
-      "storageLabel": "Límite de almacenamiento",
-      "complianceSessionLabel": "Límite de sesión de doce horas",
-      "complianceSessionHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento."
+      "storageLabel": "Límite de almacenamiento"
     },
     "unlimited": "Sin límite"
   },
@@ -1095,11 +1097,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Proveedores de identidad",
-      "description": "Los proveedores de inicio de sesión único con los que se autentican los miembros de esta comunidad. Los configuran los administradores de esta comunidad y solo se aplican aquí.",
-      "dialogDescription": "Detalles OpenID Connect. La URL de callback para tu IdP es /api/v1/auth/g/{{guildId}}/{slug}/callback en este servidor."
-    },
     "shareUrl": {
       "title": "Enlace de inicio de sesión para miembros",
       "description": "Comparte este enlace con los miembros: ofrece los proveedores de inicio de sesión de esta comunidad y los lleva directamente a la comunidad.",
@@ -1132,6 +1129,84 @@
       "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
       "saved": "Acceso por API guardado",
       "error": "No se pudo guardar el acceso por API"
+    },
+    "sessionLimit": {
+      "title": "Límite de sesión",
+      "description": "Con qué frecuencia vuelven a iniciar sesión los miembros de esta comunidad.",
+      "allowLabel": "Límite de sesión de doce horas",
+      "onHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento.",
+      "offHelp": "Los miembros siguen con la sesión iniciada mientras lo permita la instalación.",
+      "saved": "Límite de sesión guardado",
+      "error": "No se pudo guardar el límite de sesión"
+    },
+    "connections": {
+      "title": "Qué inicios de sesión son vuestros",
+      "description": "La gente inicia sesión en esta instalación. Di cuáles de sus proveedores cuentan como de vuestra comunidad, y quién en ellos cuenta como vuestro.",
+      "connect": "Conectar un proveedor",
+      "connected": "Proveedor conectado",
+      "connectError": "No se pudo cambiar esa conexión",
+      "disconnect": "Desconectar",
+      "disconnected": "Proveedor desconectado",
+      "disconnectTitle": "¿Desconectar {{name}}?",
+      "disconnectDescription": "Deja de contar como vuestra: el botón desaparece de vuestra página de inicio de sesión y nadie nuevo entra por ahí. Nadie cierra sesión y ninguna cuenta cambia. Si exigís entrar por él, levantad eso primero.",
+      "empty": "Aún no hay proveedores conectados: vuestros miembros inician sesión como siempre.",
+      "noneOffered": "Quien gestiona esta instalación aún no ha ofrecido ningún proveedor para conectar.",
+      "notReady": "No disponible",
+      "narrowedTo": "Solo cuentas cuyo {{claim}} sea {{values}}",
+      "anyoneItVouchesFor": "Cualquiera por quien responda este proveedor",
+      "dialogTitle": "Conectar un proveedor de inicio de sesión",
+      "dialogDescription": "Elige el proveedor que usan vuestros miembros y luego di qué cuentas suyas son vuestras.",
+      "providerLabel": "Proveedor",
+      "providerPlaceholder": "Elige uno",
+      "claimLabel": "Qué cuentas cuentan como vuestras",
+      "claimHelp": "Un proveedor como Google responde por cualquiera con una cuenta, así que di cuáles de sus cuentas son vuestras: un dominio de Workspace, o un tenant. Déjalo en blanco si el proveedor ya es solo vuestra gente.",
+      "claimPlaceholder": "En blanco para cualquiera por quien responda",
+      "claimValuesLabel": "Valores válidos",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Añadirles a esta comunidad",
+      "autoJoinHelp": "Quien cuente como vuestro se hace miembro la primera vez que inicia sesión. Déjalo apagado si preferís invitar vosotros.",
+      "joinsOnArrival": "Quien llega se une automáticamente",
+      "claimOptions": {
+        "hd": "Dominio de Google Workspace",
+        "tid": "Tenant de Microsoft Entra",
+        "groups": "Pertenencia a un grupo",
+        "domain": "Dominio"
+      },
+      "inherited": "De la instalación",
+      "makeItOurs": "Hacerla nuestra"
+    },
+    "rules": {
+      "title": "Dónde llega vuestra gente",
+      "description": "Vuestro proveedor indica en qué grupos está cada persona. Decid aquí qué significan esos grupos: quién entra como miembro, quién como administrador y en qué iniciativa empieza.",
+      "add": "Añadir una regla",
+      "added": "Regla añadida",
+      "addError": "No se pudo añadir esa regla",
+      "empty": "Aún no hay reglas: quien llegue por vuestros proveedores entrará sin nada en particular.",
+      "connectFirst": "Conectad primero un proveedor y luego decid qué significan sus grupos.",
+      "noGroupsBadge": "No informa de grupos",
+      "noGroupsHint": "Quien gestiona esta instalación no ha indicado a este proveedor dónde están sus grupos, así que esta regla no se aplicará a nadie hasta que lo haga.",
+      "landsInCommunity": "Llega por {{provider}}: entra como {{role}}",
+      "landsInInitiative": "Llega por {{provider}}: entra como {{role}}, y en {{initiative}} como {{initiativeRole}}",
+      "dialogDescription": "Nombrad un grupo del que informe vuestro proveedor y decid dónde pertenece su gente.",
+      "providerLabel": "Proveedor",
+      "providerPlaceholder": "Elegid uno",
+      "groupLabel": "Grupo",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactamente como lo escribe vuestro proveedor.",
+      "standingLabel": "Entran como",
+      "role": {
+        "member": "miembro",
+        "admin": "administrador"
+      },
+      "initiativeLabel": "Y empiezan en",
+      "communityOnly": "Solo la comunidad",
+      "initiativeRoleLabel": "En esa iniciativa, como",
+      "initiativeRolePlaceholder": "Elegid un rol",
+      "remove": "Eliminar",
+      "removed": "Regla eliminada",
+      "removeError": "No se pudo eliminar esa regla",
+      "removeTitle": "¿Eliminar esta regla?",
+      "removeDescription": "Quien lleve {{group}} dejará de ser asignado aquí, y quien esté aquí por esta regla perderá esa posición la próxima vez que inicie sesión con ese proveedor."
     }
   },
   "authProviders": {
@@ -1438,5 +1513,23 @@
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
     "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
     "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
+  },
+  "providerDefaults": {
+    "title": "Lo que hereda una comunidad",
+    "description": "Responded una vez por proveedor y cada comunidad heredará esa respuesta hasta que dé la suya. Útil cuando esta instalación es una sola organización: un proveedor, un inquilino y comunidades que son sus equipos.",
+    "noAnswer": "Sin respuesta: cada comunidad decide por sí misma",
+    "noProviders": "Añadid primero un proveedor de inicio de sesión y luego decid qué heredan las comunidades de él.",
+    "answer": "Responder por él",
+    "change": "Cambiar",
+    "withdraw": "Retirar",
+    "withdrawn": "Respuesta retirada",
+    "save": "Guardar",
+    "saved": "Respuesta guardada",
+    "saveError": "No se pudo guardar esa respuesta",
+    "narrowedTo": "Solo cuentas cuyo {{claim}} sea {{values}}",
+    "anyoneItVouchesFor": "Cualquiera por quien responda este proveedor",
+    "claimLabel": "Qué reclamación decide",
+    "valuesLabel": "Valores que cuentan",
+    "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
   }
 }

@@ -1,7 +1,13 @@
 """
-Real-time document collaboration service using Yjs (via pycrdt).
+Real-time collaboration service using Yjs (via pycrdt).
 
-A room is the Yjs document plus its persistence. It deliberately does **not**
+A room is the Yjs document plus its persistence, for ANY body several people
+can write at once — a native document, a wiki page. Which row a room is a body
+of, and whose sharing decides who may open it, is declared once in
+:mod:`app.services.tenant.collaborative_resources`; nothing here knows about
+documents in particular.
+
+A room deliberately does **not**
 keep a list of who is connected: that register lives once, in
 :mod:`app.services.stream_authz`, keyed by socket. A channel that keeps its own
 copy has to keep the two in step, and the moment they disagree — which is every
@@ -22,27 +28,30 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.db.session import AsyncSessionLocal, set_rls_context
-from app.models.tenant.document import Document
 from app.services.stream_authz import authority as stream_authority
+from app.services.tenant.collaborative_resources import (
+    YJS_STATE_COLUMN,
+    YJS_UPDATED_COLUMN,
+    resource_for,
+)
 
 logger = logging.getLogger(__name__)
 
-# The spine's room namespace for this channel. Rooms there are
-# (guild_id, resource_type, resource_id); documents claim "document".
-RESOURCE_TYPE = "document"
 
-
-class DocumentRoom:
-    """The live Yjs state of one document, and what it owes the database.
+class CollaborationRoom:
+    """The live Yjs state of one body, and what it owes the database.
 
     Holds the merged ``Doc`` every connection reads and writes, the JSON
     ``content`` an editor last reported for it, and enough bookkeeping to know
     whether either has moved since it was last written down.
     """
 
-    def __init__(self, guild_id: int, document_id: int):
+    def __init__(self, guild_id: int, resource_type: str, resource_id: int):
         self.guild_id = guild_id
-        self.document_id = document_id
+        #: Which kind of body this is — the key into the resource registry, and
+        #: the namespace this room occupies in the stream register.
+        self.resource_type = resource_type
+        self.resource_id = resource_id
         self.doc = Doc()
         self._lock = asyncio.Lock()
         self._initialized = False
@@ -89,7 +98,7 @@ class DocumentRoom:
     def connection_count(self) -> int:
         """How many sockets are in this room, asked of the one register."""
         return stream_authority.room_size(
-            self.guild_id, RESOURCE_TYPE, self.document_id
+            self.guild_id, self.resource_type, self.resource_id
         )
 
     def is_empty(self) -> bool:
@@ -125,12 +134,13 @@ class DocumentRoom:
         async with self._load_lock:
             if self._loaded:
                 return
-            statement = select(Document).where(Document.id == self.document_id)
-            document = (await session.exec(statement)).one_or_none()
-            if document:
+            spec = resource_for(self.resource_type)
+            statement = select(spec.model).where(spec.model.id == self.resource_id)
+            row = (await session.exec(statement)).one_or_none()
+            if row:
                 await self.initialize_from_db(
-                    yjs_state=document.yjs_state,
-                    lexical_content=document.content,
+                    yjs_state=getattr(row, YJS_STATE_COLUMN),
+                    lexical_content=getattr(row, spec.content_column),
                 )
             self._loaded = True
 
@@ -152,16 +162,20 @@ class DocumentRoom:
                 # Restore from existing Yjs state
                 try:
                     self.doc.apply_update(yjs_state)
-                    logger.info(f"Document {self.document_id}: restored from Yjs state")
+                    logger.info(
+                        f"{self.resource_type} {self.resource_id}: restored from Yjs state"
+                    )
                 except Exception as e:
                     logger.warning(
-                        f"Document {self.document_id}: failed to restore Yjs state: {e}"
+                        f"{self.resource_type} {self.resource_id}: "
+                        f"failed to restore Yjs state: {e}"
                     )
             else:
                 # First time collaborative edit - Yjs doc starts empty
                 # Frontend will bootstrap with existing Lexical content via initialEditorState
                 logger.info(
-                    f"Document {self.document_id}: no Yjs state, frontend will bootstrap"
+                    f"{self.resource_type} {self.resource_id}: no Yjs state, "
+                    "frontend will bootstrap"
                 )
 
             self._initialized = True
@@ -245,13 +259,15 @@ class DocumentRoom:
             self._persisted_revision = revision
 
 
-# A room is identified by (guild_id, document_id). The guild_id is part of the
-# key because documents live in per-guild schemas (`guild_<id>.documents`, `id
-# SERIAL`): document ids are per-schema sequences, so id 5 names a different
-# document in every guild that has one. This manager is a single process-global
-# structure, so the id alone does not identify a document. Never key
-# collaboration state by a guild-schema-local id alone.
-RoomKey = Tuple[int, int]
+# A room is identified by (guild_id, resource_type, resource_id). The guild_id
+# is part of the key because bodies live in per-guild schemas (`guild_<id>.…`,
+# `id SERIAL`): ids are per-schema sequences, so id 5 names a different row in
+# every guild that has one. The resource_type is part of it because two kinds
+# number independently — document 5 and wiki page 5 are both real. This manager
+# is a single process-global structure, so neither the id nor the pair without
+# the guild identifies a body. Never key collaboration state by a
+# guild-schema-local id alone.
+RoomKey = Tuple[int, str, int]
 
 # How often the sweeper writes rooms that have changed.
 PERSISTENCE_INTERVAL_SECONDS = 30
@@ -259,7 +275,7 @@ PERSISTENCE_INTERVAL_SECONDS = 30
 
 class CollaborationManager:
     """
-    Manages all active document collaboration rooms.
+    Manages every active collaboration room, of every kind.
 
     Handles:
     - Room lifecycle (create, destroy)
@@ -268,7 +284,7 @@ class CollaborationManager:
     """
 
     def __init__(self):
-        self._rooms: Dict[RoomKey, DocumentRoom] = {}
+        self._rooms: Dict[RoomKey, CollaborationRoom] = {}
         self._lock = asyncio.Lock()
         self._persistence_interval = PERSISTENCE_INTERVAL_SECONDS
         self._persistence_task: Optional[asyncio.Task] = None
@@ -276,15 +292,16 @@ class CollaborationManager:
     async def get_or_create_room(
         self,
         guild_id: int,
-        document_id: int,
+        resource_type: str,
+        resource_id: int,
         session: AsyncSession,
-    ) -> DocumentRoom:
+    ) -> CollaborationRoom:
         """Get an existing room or create a new one.
 
-        ``session`` must be routed to ``guild_id`` — the document is loaded
-        through it, from that guild's schema.
+        ``session`` must be routed to ``guild_id`` — the body is loaded through
+        it, from that guild's schema.
         """
-        key = (guild_id, document_id)
+        key = (guild_id, resource_type, resource_id)
         # The registry lock is held only long enough to claim the room's slot.
         # Reading its state is database I/O, and doing that here would make one
         # slow document a wait for every other room in the process, in every
@@ -292,19 +309,21 @@ class CollaborationManager:
         async with self._lock:
             room = self._rooms.get(key)
             if room is None:
-                room = DocumentRoom(guild_id, document_id)
+                room = CollaborationRoom(guild_id, resource_type, resource_id)
                 self._rooms[key] = room
                 logger.info(
-                    f"Created collaboration room for document {document_id} "
-                    f"in guild {guild_id}"
+                    f"Created collaboration room for {resource_type} "
+                    f"{resource_id} in guild {guild_id}"
                 )
 
         await room.load_once(session)
         return room
 
-    async def remove_room(self, guild_id: int, document_id: int) -> None:
+    async def remove_room(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> None:
         """Remove a room once nothing is connected to it."""
-        key = (guild_id, document_id)
+        key = (guild_id, resource_type, resource_id)
         async with self._lock:
             room = self._rooms.get(key)
             if not room:
@@ -322,9 +341,13 @@ class CollaborationManager:
                 return
             room.detached = True
             del self._rooms[key]
-            logger.info(f"Removed empty collaboration room for document {document_id}")
+            logger.info(
+                f"Removed empty collaboration room for {resource_type} {resource_id}"
+            )
 
-    async def invalidate_room_if_empty(self, guild_id: int, document_id: int) -> bool:
+    async def invalidate_room_if_empty(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> bool:
         """Remove a room if it exists and has no active connections.
 
         Used when document content is modified externally (e.g. unresolving
@@ -334,7 +357,7 @@ class CollaborationManager:
         Returns True if the room was removed, False if it is still in use (in
         which case its connections hold their state until reload).
         """
-        key = (guild_id, document_id)
+        key = (guild_id, resource_type, resource_id)
         async with self._lock:
             room = self._rooms.get(key)
             if not room:
@@ -347,25 +370,29 @@ class CollaborationManager:
                 if room.is_dirty:
                     # Empty but still owing the database: the sweep has it.
                     logger.info(
-                        f"Document {document_id} has unsaved state; keeping its "
+                        f"{resource_type} {resource_id} has unsaved state; keeping its "
                         "room until it is written"
                     )
                     return False
                 room.detached = True
                 del self._rooms[key]
                 logger.info(
-                    f"Invalidated empty collaboration room for document {document_id}"
+                    f"Invalidated empty collaboration room for {resource_type} {resource_id}"
                 )
                 return True
             else:
                 logger.warning(
-                    f"Document {document_id} has active collaborators - "
+                    f"{resource_type} {resource_id} has active collaborators - "
                     "they may see stale wikilinks until reload"
                 )
                 return False
 
     async def persist_room(
-        self, guild_id: int, document_id: int, session: AsyncSession
+        self,
+        guild_id: int,
+        resource_type: str,
+        resource_id: int,
+        session: AsyncSession,
     ) -> None:
         """Persist the current room state to the database.
 
@@ -373,12 +400,12 @@ class CollaborationManager:
         being written.
         """
         async with self._lock:
-            room = self._rooms.get((guild_id, document_id))
+            room = self._rooms.get((guild_id, resource_type, resource_id))
         if room is None:
             return
         await self._write_room(room, session)
 
-    async def _write_room(self, room: DocumentRoom, session: AsyncSession) -> None:
+    async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
         """Write both views of one room in a single statement.
 
         ``content`` only joins the write once an editor in the room has
@@ -389,55 +416,59 @@ class CollaborationManager:
             await self._write_room_locked(room, session)
 
     async def _write_room_locked(
-        self, room: DocumentRoom, session: AsyncSession
+        self, room: CollaborationRoom, session: AsyncSession
     ) -> None:
+        spec = resource_for(room.resource_type)
         revision, state, content = room.snapshot()
         values: Dict[str, Any] = {
-            "yjs_state": state,
-            "yjs_updated_at": datetime.now(timezone.utc),
+            YJS_STATE_COLUMN: state,
+            YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
         }
         if content is not None:
             # Imported here rather than at module scope: the sync reaches back
             # into this registry to retire idle rooms.
-            from app.core.search import SearchEntityType
             from app.services.tenant import content_references
             from app.services.tenant.relationships import Endpoint
 
             try:
                 fixed = await content_references.sync_for_entity(
                     session,
-                    Endpoint(SearchEntityType.document, room.document_id),
+                    Endpoint(spec.entity_type, room.resource_id),
                     body=content,
                     fix_content=True,
                 )
             except Exception:
                 logger.exception(
-                    f"Failed to sync references for document {room.document_id}"
+                    f"Failed to sync references for {room.resource_type} "
+                    f"{room.resource_id}"
                 )
                 fixed = None
-            values["content"] = fixed if fixed else content
+            values[spec.content_column] = fixed if fixed else content
         try:
             result = await session.exec(
-                sa_update(Document)
-                .where(Document.id == room.document_id)
+                sa_update(spec.model)
+                .where(spec.model.id == room.resource_id)
                 .values(**values)
             )
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)
-                logger.debug(f"Persisted Yjs state for document {room.document_id}")
+                logger.debug(
+                    f"Persisted Yjs state for {room.resource_type} {room.resource_id}"
+                )
             else:
                 # The row was not reachable on this session — deleted, or the
                 # context was not routed to its guild. Either way nothing was
                 # written, and the room stays dirty rather than reporting a
                 # save that did not happen.
                 logger.warning(
-                    f"Persisting document {room.document_id} in guild "
+                    f"Persisting {room.resource_type} {room.resource_id} in guild "
                     f"{room.guild_id} matched no row; leaving it unsaved"
                 )
         except Exception as e:
             logger.error(
-                f"Failed to persist Yjs state for document {room.document_id}: {e}"
+                f"Failed to persist Yjs state for {room.resource_type} "
+                f"{room.resource_id}: {e}"
             )
             await session.rollback()
 
@@ -461,7 +492,9 @@ class CollaborationManager:
                     )
                     await self._write_room(room, session)
             except Exception:
-                logger.exception(f"Sweep failed to persist document {room.document_id}")
+                logger.exception(
+                    f"Sweep failed to persist {room.resource_type} {room.resource_id}"
+                )
         return len(targets)
 
     def ensure_persistence_loop(self) -> None:
@@ -504,17 +537,21 @@ class CollaborationManager:
         """Get the set of (guild, document) pairs with active rooms."""
         return set(self._rooms.keys())
 
-    def get_room(self, guild_id: int, document_id: int) -> Optional[DocumentRoom]:
+    def get_room(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> Optional[CollaborationRoom]:
         """Get a room without creating it."""
-        return self._rooms.get((guild_id, document_id))
+        return self._rooms.get((guild_id, resource_type, resource_id))
 
-    def has_active_collaborators(self, guild_id: int, document_id: int) -> bool:
+    def has_active_collaborators(
+        self, guild_id: int, resource_type: str, resource_id: int
+    ) -> bool:
         """Check if a document has any live connection."""
-        room = self._rooms.get((guild_id, document_id))
+        room = self._rooms.get((guild_id, resource_type, resource_id))
         return room is not None and not room.is_empty()
 
 
-def room_roster(guild_id: int, document_id: int) -> list[dict]:
+def room_roster(guild_id: int, resource_type: str, resource_id: int) -> list[dict]:
     """Who is editing a document, one entry per person.
 
     Read from the connection register, so it cannot drift from the sockets
@@ -523,7 +560,7 @@ def room_roster(guild_id: int, document_id: int) -> list[dict]:
     can write if any of those connections may.
     """
     by_user: Dict[int, dict] = {}
-    for member in stream_authority.room_members(guild_id, RESOURCE_TYPE, document_id):
+    for member in stream_authority.room_members(guild_id, resource_type, resource_id):
         user_id = member.user.id
         if user_id is None:
             continue
@@ -540,7 +577,9 @@ def room_roster(guild_id: int, document_id: int) -> list[dict]:
     return list(by_user.values())
 
 
-def user_has_connection(guild_id: int, document_id: int, user_id: int) -> bool:
+def user_has_connection(
+    guild_id: int, resource_type: str, resource_id: int, user_id: int
+) -> bool:
     """Whether this account still holds any connection to a document.
 
     A person leaves a document when their last tab does, not when one of
@@ -549,14 +588,15 @@ def user_has_connection(guild_id: int, document_id: int, user_id: int) -> bool:
     return any(
         member.user.id == user_id
         for member in stream_authority.room_members(
-            guild_id, RESOURCE_TYPE, document_id
+            guild_id, resource_type, resource_id
         )
     )
 
 
 async def broadcast_awareness(
     guild_id: int,
-    document_id: int,
+    resource_type: str,
+    resource_id: int,
     awareness_data: dict,
     *,
     exclude=None,
@@ -572,7 +612,7 @@ async def broadcast_awareness(
         + json.dumps({"type": "awareness", "data": awareness_data}).encode()
     )
     await stream_authority.emit_bytes(
-        guild_id, RESOURCE_TYPE, document_id, message, exclude=exclude
+        guild_id, resource_type, resource_id, message, exclude=exclude
     )
 
 

@@ -9,8 +9,8 @@ exactly like one that did not.
 
 These are recorded **per provider**, not per session. One session can satisfy
 several guilds' identity sources at once, and each guild's requirement is about
-its own provider's authentication event — a step-up into one guild's IdP says
-nothing about when another's last authenticated.
+its own provider's authentication event — a step-up through one provider says
+nothing about when another last authenticated.
 
 The values come from the provider, so this module fixes their shape and size
 before they reach a session row or an access token.
@@ -67,6 +67,11 @@ class ProviderAssurance:
     auth_time: int | None = None
     amr: tuple[str, ...] = ()
     acr: str | None = None
+    #: What this provider asserted for the claims some community narrows it
+    #: by — ``{"hd": ("acme.com",)}``. A fact about the authentication, kept
+    #: beside the others, so the rule about which values count can be read
+    #: fresh at the moment somebody reaches a community.
+    claims: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     def as_record(self) -> dict[str, Any]:
         """The stored form: what lands in ``auth_sessions.provider_auth`` and
@@ -79,7 +84,35 @@ class ProviderAssurance:
             record["amr"] = list(self.amr)
         if self.acr is not None:
             record["acr"] = self.acr
+        if self.claims:
+            record["claims"] = {name: list(values) for name, values in self.claims}
         return record
+
+
+#: How many values one claim contributes. A group list can be long, and this
+#: rides in the access token; a community narrows on a handful.
+MAX_CLAIM_VALUES = 24
+
+
+def read_narrowing(
+    claims: Mapping[str, Any],
+    userinfo: Mapping[str, Any] | None,
+    names: Iterable[str],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """What this provider asserted for each named claim.
+
+    ``names`` are the claims some community narrows this provider by, so a
+    provider nobody narrows records nothing. Values are read through the same
+    dot-path extractor the group rules use, so a nested path works here too.
+    """
+    from app.services.oidc_sync import extract_claim_values
+
+    found: list[tuple[str, tuple[str, ...]]] = []
+    for name in sorted({str(n) for n in names if n}):
+        values = extract_claim_values(userinfo or {}, claims, name)
+        if values:
+            found.append((name, tuple(sorted(values))[:MAX_CLAIM_VALUES]))
+    return tuple(found)
 
 
 def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
@@ -98,42 +131,17 @@ def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
 def session_amr(
     provider_slug: str,
     assurance: ProviderAssurance,
-    *,
-    guild_id: int | None = None,
 ) -> list[str]:
     """The session-level ``amr`` one provider login contributes: our own marker
-    naming the provider, the community it belongs to when it belongs to one,
-    plus the methods the IdP named.
+    naming the provider, plus the methods the IdP named.
 
     The provider marker is what a guild policy keyed to *this* provider
-    matches; the community marker is what a policy asking for any of that
-    community's own providers matches; the IdP's own values are what an
-    assurance-only policy reads.
+    matches; the IdP's own values are what an assurance-only policy reads. A
+    policy asking for any of a community's providers is answered from the
+    connections themselves, so no marker names a community.
     """
     markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
-    if guild_id is not None:
-        markers.add(f"{GUILD_AMR_PREFIX}{guild_id}")
     return sorted({*markers, *assurance.amr})
-
-
-def sso_guilds_from_amr(amr: Iterable[str] | None) -> frozenset[int]:
-    """The communities whose own single sign-on a session completed.
-
-    Read back from the markers :func:`session_amr` wrote. A value that is not
-    one of those markers is ignored — an identity provider's own ``amr``
-    vocabulary is its own.
-    """
-    if not amr:
-        return frozenset()
-    found: set[int] = set()
-    for value in amr:
-        if not value.startswith(GUILD_AMR_PREFIX):
-            continue
-        try:
-            found.add(int(value[len(GUILD_AMR_PREFIX) :]))
-        except ValueError:
-            continue
-    return frozenset(found)
 
 
 def record_for_provider(

@@ -31,6 +31,7 @@ Permissions are grouped by tool, and each offers **View**, **Create**, or neithe
 | **Dashboards** | View, Create |
 | **Posts** | View, Create |
 | **Galleries** | View, Create |
+| **Wikis** | View, Create |
 
 So a "Contributor" might view and create projects and documents, while a "Guest" only views them and has no idea the queues exist.
 

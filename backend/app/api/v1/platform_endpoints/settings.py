@@ -20,7 +20,6 @@ from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import (
-    GUILD_ASSIGNABLE_ROLES,
     Guild,
     GuildMembership,
     GuildRole,
@@ -78,6 +77,7 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
+from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import LoginMethod
 from app.services.auth import session_lifetime
@@ -95,9 +95,7 @@ BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 #: The guild roles a claim mapping may name, as the strings it stores them as.
-_MAPPABLE_GUILD_ROLES: frozenset[str] = frozenset(
-    role.value for role in GUILD_ASSIGNABLE_ROLES
-)
+_MAPPABLE_GUILD_ROLES: frozenset[str] = claim_rules.MAPPABLE_GUILD_ROLES
 
 router = APIRouter()
 
@@ -614,9 +612,6 @@ async def list_platform_guild_storage(
             support_enabled=(
                 administration.support_enabled if administration else False
             ),
-            enforce_compliance_session=(
-                administration.enforce_compliance_session if administration else False
-            ),
         )
         for g, administration in rows
     ]
@@ -654,7 +649,6 @@ async def update_platform_guild_storage(
             auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,
-            enforce_compliance_session=payload.enforce_compliance_session,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(
@@ -802,72 +796,20 @@ async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
     await set_rls_context(session, guild_id=guild_id)
 
 
-async def _reset_admin_session(session: AsyncSession) -> None:
-    """Return the admin session to its neutral public / login-role baseline.
+#: A rule's destination is resolved the same way whoever wrote it — the
+#: operator here, or the community on its own surface.
+_reset_admin_session = claim_rules.reset_to_admin_baseline
+_lookup_guild_initiative = claim_rules.lookup_guild_initiative
 
-    After routing into a guild schema the session has assumed that guild's role,
-    which has no write access to shared ``public`` config tables. Reset to the
-    admin login role (``SET ROLE none``, ``search_path public``) before
-    writing the mapping back to ``public``.
+
+async def _require_known_provider(session: AsyncSession, provider_id: int) -> None:
+    """A rule reads some provider's claims, so it has to name one that exists.
+
+    Which guild it grants in is the rule's own business: every provider is the
+    operator's, and a rule names whichever guild it places somebody in.
     """
-    await set_rls_context(session)
-
-
-async def _lookup_guild_initiative(
-    session: AsyncSession,
-    guild_id: int,
-    initiative_id: int,
-    initiative_role_id: int | None,
-) -> tuple[Initiative | None, InitiativeRoleModel | None]:
-    """Look up an initiative (and optional role) inside a guild's schema.
-
-    Routes the session into ``guild_<id>`` for the read, then resets it back to
-    the neutral admin baseline so callers can write the mapping to the shared
-    ``public.oidc_claim_mappings`` table as the admin login role (the
-    guild role has no write grant on config tables). ``populate_existing`` keeps
-    a colliding id from another guild already in the identity map from being
-    returned stale — ids are unique only within a schema.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-    try:
-        initiative = (
-            await session.exec(
-                select(Initiative)
-                .where(Initiative.id == initiative_id)
-                .execution_options(populate_existing=True)
-            )
-        ).one_or_none()
-        role: InitiativeRoleModel | None = None
-        if initiative_role_id is not None:
-            role = (
-                await session.exec(
-                    select(InitiativeRoleModel)
-                    .where(InitiativeRoleModel.id == initiative_role_id)
-                    .execution_options(populate_existing=True)
-                )
-            ).one_or_none()
-        return initiative, role
-    finally:
-        await _reset_admin_session(session)
-
-
-async def _check_provider_reaches_guild(
-    session: AsyncSession, provider_id: int, guild_id: int
-) -> None:
-    """Whether a rule for this provider may name this guild.
-
-    A guild's own provider is configured by that guild and speaks for it, so
-    its rules stay inside it. An operator-global provider — the platform login
-    registry, ``guild_id IS NULL`` — has no guild of its own, and its rules
-    name whichever guild they grant in.
-    """
-    provider = await session.get(AuthProvider, provider_id)
-    if provider is None:
+    if await session.get(AuthProvider, provider_id) is None:
         raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
-    if provider.guild_id is not None and provider.guild_id != guild_id:
-        raise HTTPException(
-            status_code=400, detail=SettingsMessages.PROVIDER_WRONG_GUILD
-        )
 
 
 async def _enrich_mapping(
@@ -972,8 +914,7 @@ async def create_oidc_mapping(
     if not guild:
         raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
 
-    # Validate the provider exists and may grant in that guild
-    await _check_provider_reaches_guild(session, payload.provider_id, payload.guild_id)
+    await _require_known_provider(session, payload.provider_id)
 
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
@@ -1070,9 +1011,9 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Full validation of the final state. Either side of the pair can move in
-    # one request, so the provider is checked against the guild that results.
-    await _check_provider_reaches_guild(session, mapping.provider_id, mapping.guild_id)
+    # Full validation of the final state: the provider can move in the same
+    # request that moves everything else.
+    await _require_known_provider(session, mapping.provider_id)
 
     effective_target = mapping.target_type
     if isinstance(effective_target, str):
