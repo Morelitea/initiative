@@ -90,7 +90,7 @@ export const WikiSidebarContent = ({
 
   const addPage = () =>
     createPage.mutate(
-      { title: t("pages.untitled") },
+      {},
       {
         onSuccess: (page) =>
           void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, page.id)) }),
