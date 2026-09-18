@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 
 interface WikiChromeProps {
   wiki: WikiRead;
+  /** The page being read. This bar names where you are, not where you are in general. */
+  pageTitle: string;
   /** Whether the reader may write, which is what makes editing offerable. */
   canWrite: boolean;
   /** Whether the page is open for editing rather than being read. */
@@ -21,18 +23,21 @@ interface WikiChromeProps {
 /**
  * The bar a wiki wears across the top of every one of its pages.
  *
- * This is what makes the surface read as a place rather than a document: the
- * wiki's name and what it covers stay put while you move between pages, and
+ * It names the page being read, because that is what somebody needs from the
+ * top of the screen — the wiki's own name already stands at the head of the
+ * column its pages are in.
+ *
  * What acts on the whole wiki and belongs over every page of it — the
- * conversation, and whether the rail is showing — lives here. Making a page
- * and configuring the wiki do not: a page is a place in the tree, so it is
- * made in the tree, and the settings are a screen of their own.
+ * conversation, the reading mode, whether the rail is showing — lives here.
+ * Making a page and configuring the wiki do not: a page is a place in the
+ * tree, so it is made in the tree, and the settings are a screen of their own.
  *
  * The accent is the wiki's own, so two open in two tabs are told apart before
  * either name is read.
  */
 export const WikiChrome = ({
   wiki,
+  pageTitle,
   canWrite,
   editing,
   onToggleEditing,
@@ -58,10 +63,7 @@ export const WikiChrome = ({
       </span>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate font-semibold text-base leading-tight">{wiki.name}</h1>
-        {wiki.description ? (
-          <p className="truncate text-muted-foreground text-xs">{wiki.description}</p>
-        ) : null}
+        <h1 className="truncate font-semibold text-base leading-tight">{pageTitle}</h1>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -107,21 +109,23 @@ export const WikiChrome = ({
           </Tooltip>
         ) : null}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("hidden size-8 lg:inline-flex", connectionsOpen && "bg-accent")}
-              onClick={onToggleConnections}
-              aria-pressed={connectionsOpen}
-              aria-label={t("links.title")}
-            >
-              <PanelRight className="size-4" aria-hidden />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("links.title")}</TooltipContent>
-        </Tooltip>
+        {wiki.show_connections ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("size-8", connectionsOpen && "bg-accent")}
+                onClick={onToggleConnections}
+                aria-pressed={connectionsOpen}
+                aria-label={t("links.title")}
+              >
+                <PanelRight className="size-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("links.title")}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
     </header>
   );

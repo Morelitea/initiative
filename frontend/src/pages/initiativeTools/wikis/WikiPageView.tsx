@@ -7,7 +7,6 @@ import { Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
-import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -141,9 +141,16 @@ export const WikiPageView = () => {
   // drops back to reading stays there. Reading is where everyone starts,
   // writers included: what a reader sees is the thing worth checking.
   const [editing, setEditing] = useState(false);
+  // Whether there is gutter to put the rail in. Keyed to the same 1280px the
+  // `xl:` classes use, so the measurement and the layout cannot disagree.
+  const railFitsBeside = useMediaQuery("(min-width: 1280px)");
   // Whether the connections rail is showing. A per-visit choice: it is
   // reading furniture, not a setting.
   const [showConnections, setShowConnections] = useState(true);
+  // Whether the rail was asked for out loud. Beside the words it is furniture
+  // and can simply be there; over them it is an interruption, so a narrow
+  // screen waits to be asked rather than opening a drawer on arrival.
+  const [railAsked, setRailAsked] = useState(false);
 
   const createPage = useCreateWikiPage(wikiId);
   const navigate = useNavigate();
@@ -184,17 +191,23 @@ export const WikiPageView = () => {
   // Editing needs both the right and the intent — somebody who may write is
   // still reading until they say otherwise.
   const isEditing = canWrite && editing;
+  // Asked for, allowed by the wiki, and there is a page to have connections.
+  const railOpen = showConnections && wiki.show_connections && Boolean(page);
 
   return (
     <>
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
+          pageTitle={page?.title || t("pages.untitled")}
           canWrite={canWrite}
           editing={editing}
           onToggleEditing={() => setEditing((on) => !on)}
           onOpenComments={() => setCommentsOpen(true)}
-          onToggleConnections={() => setShowConnections((shown) => !shown)}
+          onToggleConnections={() => {
+            setRailAsked(true);
+            setShowConnections((shown) => !shown);
+          }}
           connectionsOpen={showConnections}
         />
 
@@ -227,14 +240,6 @@ export const WikiPageView = () => {
                         {page.title || t("pages.untitled")}
                       </h1>
                     )}
-                    {isEditing ? (
-                      <WikiPageActions
-                        wiki={wiki}
-                        page={page}
-                        canWrite={canWrite}
-                        initiativeId={initiativeId}
-                      />
-                    ) : null}
                   </div>
 
                   <Editor
@@ -270,19 +275,35 @@ export const WikiPageView = () => {
             </div>
           </div>
 
-          {/* The rail: where this page leads. The contents of the page
-              itself are in the sidebar, under the page — one outline, in the
-              column that already carries the navigation.
+          {/* The rail: where this page leads. The contents of the page itself
+              are in the sidebar, under the page — one outline, in the column
+              that already carries the navigation.
 
-              Only from `xl`, because below that there is no gutter to put it
-              in and it would be taking the words' room instead. */}
-          {showConnections && wiki.show_connections && page ? (
-            <div className="hidden w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6 xl:flex">
+              Beside the words when there is gutter for it, which is the width
+              at which opening it moves nothing. */}
+          {railOpen && railFitsBeside ? (
+            <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
               <WikiPageConnections wikiId={wikiId} pageId={pageId} className="min-h-0" />
             </div>
           ) : null}
         </div>
       </div>
+
+      {/* Too narrow to sit beside the words, so it opens over them instead —
+          the control means the same thing at every width. */}
+      <Sheet
+        open={railOpen && !railFitsBeside && railAsked}
+        onOpenChange={(open) => !open && setShowConnections(false)}
+      >
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
+          <SheetHeader className="border-b px-5 py-4">
+            <SheetTitle>{t("links.title")}</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <WikiPageConnections wikiId={wikiId} pageId={pageId} className="border-0 shadow-none" />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Hidden until asked for: browsing a wiki is reading it, and the
           conversation about it is a different activity. */}

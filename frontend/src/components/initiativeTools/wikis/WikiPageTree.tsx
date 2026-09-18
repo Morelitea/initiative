@@ -13,8 +13,8 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, GripVertical, Home, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CircleChevronRight, Home } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -143,7 +143,7 @@ const WikiPageRow = ({
   activePageId,
   homePageId,
   hrefOf,
-  onAddChild,
+  renderRowMenu,
   draggableRows,
   showCounts,
   landing,
@@ -157,7 +157,8 @@ const WikiPageRow = ({
   activePageId?: number | null;
   homePageId?: number | null;
   hrefOf: (page: WikiPageSummary) => string;
-  onAddChild?: (parent: WikiPageSummary) => void;
+  /** What this page's own row offers, drawn at its end. */
+  renderRowMenu?: (page: WikiPageSummary) => ReactNode;
   draggableRows: boolean;
   showCounts: boolean;
   landing: Landing | null;
@@ -181,14 +182,23 @@ const WikiPageRow = ({
 
   const draggable = useDraggable({ id: page.id, disabled: !draggableRows });
   const droppable = useDroppable({ id: page.id, disabled: !draggableRows });
+  // One element is both ends of the gesture — what you pick up and what you
+  // drop onto — and dnd-kit hands out a ref for each.
+  const setRowRef = (node: HTMLElement | null) => {
+    draggable.setNodeRef(node);
+    droppable.setNodeRef(node);
+  };
 
   return (
     <SidebarMenuItem>
       <Collapsible open={open} onOpenChange={() => onToggle(page.id)}>
         <div
-          ref={droppable.setNodeRef}
+          ref={setRowRef}
+          {...draggable.listeners}
+          {...draggable.attributes}
           className={cn(
             "group/page flex min-w-0 items-center gap-1 rounded-md",
+            draggableRows && "cursor-grab active:cursor-grabbing",
             draggable.isDragging && "opacity-40",
             // Filing it under this page rings the row; placing it beside draws
             // the line it would land on.
@@ -238,35 +248,7 @@ const WikiPageRow = ({
             </SidebarMenuButton>
           </div>
 
-          {/* Dragging has its own grip. The row is a link, and a link that is
-              also the drag handle cannot be clicked without starting a gesture
-              first. Revealed on hover, the way the initiative row reveals its
-              settings. */}
-          {draggableRows ? (
-            <Button
-              ref={draggable.setNodeRef}
-              variant="ghost"
-              size="icon"
-              className="hidden h-6 w-0 shrink-0 cursor-grab overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
-              aria-label={t("pages.reorder")}
-              {...draggable.listeners}
-              {...draggable.attributes}
-            >
-              <GripVertical className="size-3.5" aria-hidden />
-            </Button>
-          ) : null}
-
-          {onAddChild ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
-              onClick={() => onAddChild(page)}
-              aria-label={t("pages.newSubPage")}
-            >
-              <Plus className="size-3.5" aria-hidden />
-            </Button>
-          ) : null}
+          {renderRowMenu ? renderRowMenu(page) : null}
         </div>
 
         {expandable && open && (
@@ -291,7 +273,7 @@ const WikiPageRow = ({
                   activePageId={activePageId}
                   homePageId={homePageId}
                   hrefOf={hrefOf}
-                  onAddChild={onAddChild}
+                  renderRowMenu={renderRowMenu}
                   draggableRows={draggableRows}
                   showCounts={showCounts}
                   landing={landing}
@@ -322,8 +304,11 @@ interface WikiPageTreeProps {
   accentColor?: string | null;
   /** Builds the link for a page. The tree does not know the route shape. */
   hrefOf: (page: WikiPageSummary) => string;
-  /** Offered per row when the reader may write. Omitted otherwise. */
-  onAddChild?: (parent: WikiPageSummary) => void;
+  /**
+   * What a row offers at its end — drawn by the caller, because what can be
+   * done to a page is the caller's business and not the tree's.
+   */
+  renderRowMenu?: (page: WikiPageSummary) => ReactNode;
   /**
    * Where a dragged page was dropped. Omitted when the reader may not write,
    * which is also what makes the rows undraggable.
@@ -353,7 +338,7 @@ export const WikiPageTree = ({
   activePageId,
   homePageId,
   hrefOf,
-  onAddChild,
+  renderRowMenu,
   onMove,
   showCounts = false,
   accentColor,
@@ -518,7 +503,7 @@ export const WikiPageTree = ({
               activePageId={activePageId}
               homePageId={homePageId}
               hrefOf={hrefOf}
-              onAddChild={onAddChild}
+              renderRowMenu={renderRowMenu}
               draggableRows={Boolean(onMove)}
               showCounts={showCounts}
               landing={landing}

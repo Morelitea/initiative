@@ -1,9 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Check, FileStack, Home, MoreHorizontal, Trash2 } from "lucide-react";
+import { Check, FileStack, Home, Pencil, Settings2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageRead, WikiRead } from "@/api/generated/initiativeAPI.schemas";
+import type { WikiPageSummary, WikiRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   AlertDialog,
@@ -26,11 +26,11 @@ import {
 import { useDeleteWikiPage, useUpdateWiki } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute } from "@/lib/tools";
+import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiPageActionsProps {
   wiki: WikiRead;
-  page: WikiPageRead;
+  page: WikiPageSummary;
   canWrite: boolean;
   initiativeId: number;
 }
@@ -38,9 +38,10 @@ interface WikiPageActionsProps {
 /**
  * What can be done to this page, as opposed to the wiki.
  *
- * Kept behind one control beside the title: a wiki is read far more than it is
- * rearranged, so the three things that change a page's standing should not be
- * three buttons in the way of the words.
+ * It lives on the page's own row in the tree, beside the grip that moves it:
+ * the tree is where a page is a thing you manage, and the page itself is where
+ * it is a thing you read. Revealed on hover like every other row control, so a
+ * wiki being read is a wiki with nothing in the way of the words.
  */
 export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPageActionsProps) => {
   const { t } = useTranslation(["wikis", "common"]);
@@ -64,13 +65,30 @@ export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPage
           <Button
             variant="ghost"
             size="icon"
-            className="mt-2 size-8 shrink-0"
+            className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
             aria-label={t("page.actions")}
           >
-            <MoreHorizontal className="size-4" aria-hidden />
+            <Settings2 className="size-3.5" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
+          {/* The other way into writing. The bar over the page offers it too;
+              this is the one you reach for from the tree, without opening the
+              page to read first. */}
+          <DropdownMenuItem
+            onSelect={() => {
+              void navigate({
+                to: gp(wikiPageRoute(initiativeId, wiki.id, page.id)),
+                search: { edit: true },
+              });
+            }}
+          >
+            <Pencil className="size-4" aria-hidden />
+            {t("viewMode.edit")}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
           <DropdownMenuItem
             onSelect={() => {
               updateWiki.mutate(
