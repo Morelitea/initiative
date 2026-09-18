@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import { ArrowUpRight, Link2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageLink } from "@/api/generated/initiativeAPI.schemas";
@@ -67,13 +67,34 @@ export const WikiPageView = () => {
     savePage({ title: next });
   }, [debouncedTitle, canWrite, pageQuery.data?.title, savePage]);
 
+  // The editor reports every keystroke; the server hears about them 2s after
+  // somebody stops, the same window a document autosaves on. Saving per change
+  // would be a request per character — and each one re-reads the body for the
+  // links it names.
+  // The newest body, and a counter that says one arrived. The body itself is a
+  // ref so a keystroke does not re-render the editor around the person typing.
+  const pendingBody = useRef<SerializedEditorState | null>(null);
+  const [bodyRevision, setBodyRevision] = useState(0);
+
   const onBodyChange = useCallback(
     (state: SerializedEditorState) => {
       if (!canWrite) return;
-      savePage({ content: state as unknown as Record<string, unknown> });
+      pendingBody.current = state;
+      setBodyRevision((revision) => revision + 1);
     },
-    [canWrite, savePage]
+    [canWrite]
   );
+
+  useEffect(() => {
+    if (bodyRevision === 0 || pendingBody.current === null) return;
+    const timer = setTimeout(() => {
+      const body = pendingBody.current;
+      if (body === null) return;
+      pendingBody.current = null;
+      savePage({ content: body as unknown as Record<string, unknown> });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [bodyRevision, savePage]);
 
   const initialBody = useMemo(
     () => (pageQuery.data?.content ?? null) as SerializedEditorState | null,
