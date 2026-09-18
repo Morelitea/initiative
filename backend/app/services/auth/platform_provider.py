@@ -69,8 +69,8 @@ def can_serve_login_clause() -> ColumnElement[bool]:
     over ``auth_providers``.
 
     :func:`login_ready_clause` plus the platform row's extra condition: the
-    platform flow has always required a stored client secret, where a
-    PKCE-only public client is a guild-provider affordance (see
+    platform flow has always required a stored client secret, where a row
+    beside it may be a PKCE-only public client (see
     ``_active_platform_provider``). Row-form callers branch between the two
     halves; a query that must ask of rows it is not loading needs them as one.
 

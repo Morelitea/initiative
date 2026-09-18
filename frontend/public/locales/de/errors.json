@@ -184,7 +184,6 @@
   "SETTINGS_PROVIDE_TEST_EMAIL": "Gib eine Test-E-Mail-Adresse an",
   "SETTINGS_SMTP_INCOMPLETE": "SMTP-Einstellungen sind unvollständig",
   "SETTINGS_MAPPING_NOT_FOUND": "Zuordnung nicht gefunden",
-  "SETTINGS_PROVIDER_WRONG_GUILD": "Dieser Anmeldeanbieter gehört zu einer anderen Community; seine Regeln können Zugriff nur dort gewähren",
   "SETTINGS_INVALID_TARGET_TYPE": "Der Zieltyp muss eine Community oder eine Initiative sein",
   "SETTINGS_INVALID_GUILD_ROLE": "Die Community-Rolle muss 'admin' oder 'member' sein",
   "SETTINGS_INITIATIVE_ID_REQUIRED": "Initiative-ID für Initiativenzuordnungen erforderlich",

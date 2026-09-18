@@ -5,11 +5,11 @@ them. They sit in ``guild_administration`` with the caps and the other
 entitlements, not on the guild row.
 
 ``restrictions`` is the master, and it is what most guilds never hold: without
-it a guild has no Authentication surface at all — no providers of its own, no
-sign-in requirement, no refusing personal API keys, no session standard. Nobody
+it a guild has no Authentication surface at all — no providers it counts as
+its own, no sign-in requirement, no refusing personal API keys, no session standard. Nobody
 running a book club is asked to think about any of it.
 
-The two beneath it are deliberately separate. Adding a provider is a guild
+The two beneath it are deliberately separate. Connecting a provider is a guild
 saying "you may come in this way"; requiring one is a guild saying "you may
 come in *only* this way", which binds every member. An operator can grant the
 first without the second — a guild that offers its IdP alongside a password is
@@ -28,7 +28,7 @@ class GuildAuthOption(str, Enum):
     #: May configure its own sign-in at all. The master: everything below hangs
     #: off it, and so does every auth surface that has no option of its own.
     restrictions = "restrictions"
-    #: May register and edit identity providers of its own.
+    #: May say which of the deployment's providers it counts as its own.
     providers = "providers"
     #: May require that members reach the guild through one of them.
     require_sign_in = "require_sign_in"

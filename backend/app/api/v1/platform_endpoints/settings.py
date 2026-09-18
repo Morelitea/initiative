@@ -847,23 +847,14 @@ async def _lookup_guild_initiative(
         await _reset_admin_session(session)
 
 
-async def _check_provider_reaches_guild(
-    session: AsyncSession, provider_id: int, guild_id: int
-) -> None:
-    """Whether a rule for this provider may name this guild.
+async def _require_known_provider(session: AsyncSession, provider_id: int) -> None:
+    """A rule reads some provider's claims, so it has to name one that exists.
 
-    A guild's own provider is configured by that guild and speaks for it, so
-    its rules stay inside it. An operator-global provider — the platform login
-    registry, ``guild_id IS NULL`` — has no guild of its own, and its rules
-    name whichever guild they grant in.
+    Which guild it grants in is the rule's own business: every provider is the
+    operator's, and a rule names whichever guild it places somebody in.
     """
-    provider = await session.get(AuthProvider, provider_id)
-    if provider is None:
+    if await session.get(AuthProvider, provider_id) is None:
         raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
-    if provider.guild_id is not None and provider.guild_id != guild_id:
-        raise HTTPException(
-            status_code=400, detail=SettingsMessages.PROVIDER_WRONG_GUILD
-        )
 
 
 async def _enrich_mapping(
@@ -968,8 +959,7 @@ async def create_oidc_mapping(
     if not guild:
         raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
 
-    # Validate the provider exists and may grant in that guild
-    await _check_provider_reaches_guild(session, payload.provider_id, payload.guild_id)
+    await _require_known_provider(session, payload.provider_id)
 
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
@@ -1066,9 +1056,9 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Full validation of the final state. Either side of the pair can move in
-    # one request, so the provider is checked against the guild that results.
-    await _check_provider_reaches_guild(session, mapping.provider_id, mapping.guild_id)
+    # Full validation of the final state: the provider can move in the same
+    # request that moves everything else.
+    await _require_known_provider(session, mapping.provider_id)
 
     effective_target = mapping.target_type
     if isinstance(effective_target, str):

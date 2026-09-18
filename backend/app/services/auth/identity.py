@@ -312,10 +312,9 @@ async def federated_only_user_count(session: AsyncSession) -> int:
     What withdrawing the SSO method would strand: no usable password, and a
     login-ready identity that is currently their way in.
 
-    Every namespace counts, operator-global and guild-scoped alike. Withdrawing
-    the method closes the guild-addressed login route as well as the
-    platform one, so an account reached through a guild's provider is one this
-    has to report.
+    Every provider counts. Withdrawing the method closes all of them at once,
+    so an account whose only way in is any one of them is one this has to
+    report.
     """
     holds_any_identity = (
         select(FederatedIdentity.id)

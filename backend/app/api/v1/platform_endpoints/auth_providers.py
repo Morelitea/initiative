@@ -3,13 +3,12 @@
 Managed here: operator-global registry rows — the providers the login page
 offers besides the platform SSO form. The platform provider row (slug
 ``oidc``) is reconciled from ``app_settings`` and is read-only in this CRUD
-(listed with ``reserved=True``); guild-scoped rows have their own CRUD
-(``guild_auth_providers``) and never appear here.
+(listed with ``reserved=True``). Every row here is the operator's; a community
+reaches one through ``guild_provider_connections``.
 
 Gating: ``config.manage`` (the same wall as the rest of the admin settings).
-The CRUD logic — namespace scoping, slug rules, write-only secrets, delete
-semantics — lives in ``app.services.auth.provider_registry``, shared with the
-guild CRUD; this router only gates and delegates. All reads and writes run on
+The CRUD logic — slug rules, write-only secrets, delete semantics — lives in
+``app.services.auth.provider_registry``; this router only gates and delegates. All reads and writes run on
 the system engine — ``auth_providers`` and its secret companion carry no
 request-path grants.
 
