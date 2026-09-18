@@ -21,6 +21,16 @@ from app.services.tenant.collaboration import (
     user_has_connection,
 )
 
+
+def _an_update() -> bytes:
+    """A real Yjs update, as a client's first bootstrap of a body produces."""
+    from pycrdt import Doc, Text
+
+    doc = Doc()
+    doc["body"] = Text("something somebody wrote")
+    return bytes(doc.get_update())
+
+
 #: The kind most of these use. Which kind a room is for does not change how it
 #: is addressed, so one stands for all of them except where two are the point.
 DOC = SearchEntityType.document.value
@@ -64,6 +74,42 @@ def loaded_room(
 
 
 @pytest.mark.unit
+def test_a_room_carries_nothing_until_something_reaches_its_document() -> None:
+    room = CollaborationRoom(guild_id=1, resource_type=DOC, resource_id=1)
+
+    assert room.carries_document is False
+
+    room.apply_update(_an_update())
+    assert room.carries_document is True
+
+
+def test_a_rendering_is_refused_until_the_room_carries_a_document() -> None:
+    """An editor that has not yet taken up the body it was handed reports what
+    it is showing, which is nothing."""
+    room = CollaborationRoom(guild_id=1, resource_type=DOC, resource_id=1)
+
+    assert room.offer_content({"root": {"children": []}}) is False
+    # Nothing was recorded, so there is nothing for a sweep to write.
+    assert room.is_dirty is False
+
+    room.apply_update(_an_update())
+    assert room.offer_content({"root": {"children": ["something"]}}) is True
+
+
+def test_restoring_stored_state_makes_a_room_carry_a_document() -> None:
+    """A room that came back from the database has a body, so the editor it
+    hands it to is reporting on something real."""
+    source = CollaborationRoom(guild_id=1, resource_type=DOC, resource_id=1)
+    source.apply_update(_an_update())
+
+    restored = CollaborationRoom(guild_id=1, resource_type=DOC, resource_id=1)
+    asyncio.run(
+        restored.initialize_from_db(yjs_state=source.get_state(), lexical_content=None)
+    )
+
+    assert restored.carries_document is True
+
+
 async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
@@ -270,7 +316,7 @@ async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
     manager = CollaborationManager()
     room = loaded_room(1, 5)
     manager._rooms[(1, DOC, 5)] = room
-    room.offer_content({"root": {}})
+    room.apply_update(_an_update())
 
     await manager.remove_room(1, DOC, 5)
 
