@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
+from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -30,7 +31,31 @@ class WikiCreate(WikiBase):
     )
 
 
-class WikiUpdate(SanitizedBaseModel):
+class WikiSettings(SanitizedBaseModel):
+    """What a wiki is *for*, as the handful of choices that differ.
+
+    Every field is optional on the way in and only what is sent is written, so
+    one switch is one request rather than a whole form.
+    """
+
+    #: How siblings are ordered in the tree.
+    page_order: Optional[WikiPageOrder] = None
+    #: Whether the tree shows how many pages sit under each one.
+    show_page_counts: Optional[bool] = None
+    #: How deep the contents rail goes — 2 to 4 heading levels.
+    contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
+    #: Whether a page shows what links to it.
+    show_connections: Optional[bool] = None
+    #: Whether a page's body fills the screen or holds to a reading measure.
+    reading_width: Optional[WikiReadingWidth] = None
+    #: The wiki's own accent, as a CSS colour. ``null`` takes the app's.
+    accent_color: Optional[str] = Field(default=None, max_length=32)
+    #: A page whose body seeds every new one. ``null`` clears it; a set value
+    #: has to be one of this wiki's own pages.
+    template_page_id: Optional[int] = None
+
+
+class WikiUpdate(WikiSettings):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
     #: The page the wiki opens on. ``null`` clears the choice and it opens on
@@ -54,6 +79,14 @@ class WikiSummary(WikiBase, ArchiveState):
     page_count: int = 0
     #: The page it opens on, or ``null`` where none was chosen.
     home_page_id: Optional[int] = None
+    #: What this wiki is for — see :class:`WikiSettings`.
+    page_order: WikiPageOrder = WikiPageOrder.manual
+    show_page_counts: bool = False
+    contents_depth: int = 3
+    show_connections: bool = True
+    reading_width: WikiReadingWidth = WikiReadingWidth.wide
+    accent_color: Optional[str] = None
+    template_page_id: Optional[int] = None
     my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
@@ -219,6 +252,13 @@ def serialize_wiki_summary(
         updated_at=wiki.updated_at,
         page_count=int(getattr(wiki, "page_count", 0)),
         home_page_id=wiki.home_page_id,
+        page_order=wiki.page_order,
+        show_page_counts=wiki.show_page_counts,
+        contents_depth=wiki.contents_depth,
+        show_connections=wiki.show_connections,
+        reading_width=wiki.reading_width,
+        accent_color=wiki.accent_color,
+        template_page_id=wiki.template_page_id,
         archived_at=wiki.archived_at,
         **client_access(Tool.wiki, wiki, user_id),
         comments_enabled=wiki.comments_enabled,

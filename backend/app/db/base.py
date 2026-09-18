@@ -17,6 +17,7 @@ from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
+from app.models.platform.user_passkey import UserPasskey
 
 # Registers ``MemberProfile`` in the mapper registry — the tenant
 # relationships that name a person resolve it by name.
@@ -129,6 +130,7 @@ __all__ = [
     "AnnouncementImage",
     "AnnouncementReadReceipt",
     "User",
+    "UserPasskey",
     "MemberProfile",
     "AccessGrant",
     "AuthProvider",

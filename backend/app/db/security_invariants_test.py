@@ -90,6 +90,9 @@ _RLS_SHARED_TABLES = {
     "user_totp_secrets",
     "mfa_recovery_codes",
     "auth_challenges",
+    # WebAuthn credentials, on the same terms: forced with no policies, so
+    # nothing but the system engine reads or writes one.
+    "user_passkeys",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

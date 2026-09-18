@@ -3,6 +3,7 @@ import { BookText, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
@@ -34,9 +35,15 @@ export const WikiDetailPage = () => {
   const createPage = useCreateWikiPage(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
+  const addPage = () => createPage.mutate({ title: t("pages.untitled"), parent_page_id: null });
+
   const canWrite =
     wikiQuery.data?.my_permission_level === "write" ||
     wikiQuery.data?.my_permission_level === "owner";
+
+  // Inside a wiki, the thing to create is a page. Without this the button in
+  // the corner keeps whatever the list before it registered — a second wiki.
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
 
   if (!validIds || wikiQuery.isError) {
     return (

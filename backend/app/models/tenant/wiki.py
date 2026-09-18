@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 from typing import ClassVar, List, Optional, TYPE_CHECKING
 
+from enum import Enum
+
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -26,6 +29,32 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
+
+
+class WikiPageOrder(str, Enum):
+    """How a wiki's page tree is sorted.
+
+    ``manual`` is the spine — where somebody dragged each page. ``title`` sorts
+    siblings alphabetically instead, which is what a reference wants: nobody
+    arranges a glossary by hand, and a new entry should land where it belongs
+    rather than at the end.
+    """
+
+    manual = "manual"
+    title = "title"
+    recently_updated = "recently_updated"
+
+
+class WikiReadingWidth(str, Enum):
+    """How wide a page's body runs.
+
+    ``wide`` fills the screen, which is what a runbook full of tables and
+    screenshots wants. ``comfortable`` holds prose to a measure you can read
+    without losing your place, which is what a handbook wants.
+    """
+
+    wide = "wide"
+    comfortable = "comfortable"
 
 
 class Wiki(
@@ -77,6 +106,61 @@ class Wiki(
                 ondelete="SET NULL",
                 use_alter=True,
                 name="wikis_home_page_id_fkey",
+            ),
+            nullable=True,
+        ),
+    )
+    #: How siblings are ordered in the tree. ``manual`` reads ``position``.
+    page_order: WikiPageOrder = Field(
+        default=WikiPageOrder.manual,
+        sa_column=Column(
+            String(length=16), nullable=False, server_default=WikiPageOrder.manual.value
+        ),
+    )
+    #: Whether the tree shows how many pages sit under each one. Off by default:
+    #: a number beside every row is noise until a wiki is big enough to need it.
+    show_page_counts: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    #: How deep the contents rail goes. A page with four heading levels makes a
+    #: forty-row rail nobody can use; most wikis want the top one or two.
+    contents_depth: int = Field(
+        default=3,
+        sa_column=Column(Integer, nullable=False, server_default=text("3")),
+    )
+    #: Whether a page shows what links to it. A world bible lives on that
+    #: question; a handbook read front to back never asks it.
+    show_connections: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
+    )
+    reading_width: WikiReadingWidth = Field(
+        default=WikiReadingWidth.wide,
+        sa_column=Column(
+            String(length=16),
+            nullable=False,
+            server_default=WikiReadingWidth.wide.value,
+        ),
+    )
+    #: The wiki's own accent, used for its chrome so two wikis open side by side
+    #: are told apart at a glance. NULL takes the app's.
+    accent_color: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=32), nullable=True)
+    )
+    #: A page whose body seeds every new page. Nullable, and declared
+    #: ``use_alter`` for the same reason ``home_page_id`` is — the two tables
+    #: point at each other. ``SET NULL`` so deleting the template leaves the
+    #: wiki without one rather than without a wiki.
+    template_page_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey(
+                "wiki_pages.id",
+                ondelete="SET NULL",
+                use_alter=True,
+                name="wikis_template_page_id_fkey",
             ),
             nullable=True,
         ),
