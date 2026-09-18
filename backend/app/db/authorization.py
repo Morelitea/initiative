@@ -56,7 +56,7 @@ __all__ = [
 #: the credential proved; ``p_claims`` is what those providers asserted,
 #: ``{"12": {"hd": ["acme.com"]}}``.
 GUILD_CONNECTION_ADMITS = """\
-CREATE OR REPLACE FUNCTION public.guild_connection_admits(p_guild_id integer, p_providers integer[], p_claims jsonb, p_provider_id integer DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.guild_connection_admits(p_guild_id integer, p_providers integer[], p_claims jsonb, p_provider_id integer DEFAULT NULL::integer)
  RETURNS boolean
  LANGUAGE sql
  STABLE
@@ -99,7 +99,7 @@ $function$
 #: Gate 0b: the same question for the current request, off the GUCs the
 #: session context sets. This is what the policy legs call.
 GUILD_CONNECTION_SATISFIED = """\
-CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL::integer)
  RETURNS boolean
  LANGUAGE sql
  STABLE

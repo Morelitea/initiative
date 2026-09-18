@@ -20,6 +20,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.testing.factories import (
+    guild_administration,
     create_auth_provider,
     create_federated_identity,
     create_guild,
@@ -84,10 +85,14 @@ async def _is_member(session: AsyncSession, *, guild_id: int, user_id: int) -> b
     return row is not None
 
 
-async def _latest_session(session: AsyncSession) -> AuthSession | None:
+async def _who_just_signed_in(session: AsyncSession) -> int | None:
+    """The account behind the newest session, as a plain id — the rows are
+    written on another session, so nothing here holds a loaded copy."""
     session.expire_all()
     rows = (
-        await session.exec(select(AuthSession).order_by(AuthSession.created_at.desc()))
+        await session.exec(
+            select(AuthSession.user_id).order_by(AuthSession.created_at.desc())
+        )
     ).all()
     return rows[0] if rows else None
 
@@ -140,13 +145,14 @@ async def test_arriving_joins_where_the_community_said_so(
     await create_guild_provider_connection(
         session, guild=guild, provider=provider, auto_join=True
     )
+    guild_id = guild.id
 
     response = await _sign_in(client, fake_idp)
 
     assert response.status_code in (302, 307), response.text
-    signed_in = await _latest_session(session)
-    assert signed_in is not None
-    assert await _is_member(session, guild_id=guild.id, user_id=signed_in.user_id)
+    arrived = await _who_just_signed_in(session)
+    assert arrived is not None
+    assert await _is_member(session, guild_id=guild_id, user_id=arrived)
 
 
 async def test_arriving_joins_nobody_by_default(
@@ -159,12 +165,13 @@ async def test_arriving_joins_nobody_by_default(
     guild = await create_guild(session)
     provider = await create_auth_provider(session, slug="corp", allow_jit=True)
     await create_guild_provider_connection(session, guild=guild, provider=provider)
+    guild_id = guild.id
 
     await _sign_in(client, fake_idp)
 
-    signed_in = await _latest_session(session)
-    assert signed_in is not None
-    assert not await _is_member(session, guild_id=guild.id, user_id=signed_in.user_id)
+    arrived = await _who_just_signed_in(session)
+    assert arrived is not None
+    assert not await _is_member(session, guild_id=guild_id, user_id=arrived)
 
 
 async def test_the_narrowing_decides_who_joins(
@@ -184,12 +191,13 @@ async def test_the_narrowing_decides_who_joins(
         claim_values=["acme.com"],
         auto_join=True,
     )
+    guild_id = guild.id
 
     await _sign_in(client, fake_idp, id_token_claims={"hd": "elsewhere.com"})
 
-    outsider = await _latest_session(session)
-    assert outsider is not None
-    assert not await _is_member(session, guild_id=guild.id, user_id=outsider.user_id)
+    arrived = await _who_just_signed_in(session)
+    assert arrived is not None
+    assert not await _is_member(session, guild_id=guild_id, user_id=arrived)
 
 
 async def test_the_narrowing_admits_the_communitys_own(
@@ -207,12 +215,13 @@ async def test_the_narrowing_admits_the_communitys_own(
         claim_values=["acme.com"],
         auto_join=True,
     )
+    guild_id = guild.id
 
     await _sign_in(client, fake_idp, id_token_claims={"hd": "acme.com"})
 
-    arrived = await _latest_session(session)
+    arrived = await _who_just_signed_in(session)
     assert arrived is not None
-    assert await _is_member(session, guild_id=guild.id, user_id=arrived.user_id)
+    assert await _is_member(session, guild_id=guild_id, user_id=arrived)
 
 
 async def test_a_full_community_is_skipped_and_the_sign_in_stands(
@@ -223,20 +232,19 @@ async def test_a_full_community_is_skipped_and_the_sign_in_stands(
     fake_idp = FakeIdp()
     _wire_fake_idp(monkeypatch, fake_idp)
     guild = await create_guild(session)
-    guild.max_members = 0
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, max_users=0)
     provider = await create_auth_provider(session, slug="corp", allow_jit=True)
     await create_guild_provider_connection(
         session, guild=guild, provider=provider, auto_join=True
     )
+    guild_id = guild.id
 
     response = await _sign_in(client, fake_idp)
 
     assert response.status_code in (302, 307), response.text
-    signed_in = await _latest_session(session)
-    assert signed_in is not None
-    assert not await _is_member(session, guild_id=guild.id, user_id=signed_in.user_id)
+    arrived = await _who_just_signed_in(session)
+    assert arrived is not None
+    assert not await _is_member(session, guild_id=guild_id, user_id=arrived)
 
 
 # ── The gate ───────────────────────────────────────────────────────────────

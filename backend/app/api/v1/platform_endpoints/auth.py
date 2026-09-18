@@ -1660,14 +1660,15 @@ async def _complete_provider_login(
     # What each community makes of this arrival. A connection can say that
     # people it counts as its own join on sight, which is how somebody reaches
     # a community they have never been invited to.
-    joined = await guild_connections.join_on_arrival(
+    await guild_connections.join_on_arrival(
         admin_session,
         provider_id=provider_row.id,
         user_id=user.id,
         claims=dict(claims or {}),
     )
-    if joined:
-        await admin_session.refresh(user)
+    # It commits per community and rolls back the ones at capacity, either of
+    # which leaves this copy of the account stale.
+    await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
     # There is one sign-in, so this runs for it: a rule grants where it names,

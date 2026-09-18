@@ -1,6 +1,8 @@
 """Guild auth policy: admin endpoints, the step-up gate, and the DB-layer
 session-satisfaction enforcement inside the guild RLS."""
 
+import json
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
@@ -13,9 +15,13 @@ from app.api.deps import (
     _enforce_guild_auth_policy,
     establish_guild_access,
 )
-from app.core.auth_context import satisfied_provider_ids
+from app.core.auth_context import (
+    satisfied_provider_ids,
+    set_satisfied_claims,
+    set_satisfied_providers,
+)
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.project import Project
 from app.services.platform import api_keys as api_keys_service
@@ -27,6 +33,7 @@ from app.testing.factories import (
     create_auth_provider,
     create_document,
     create_guild,
+    create_guild_auth_policy,
     create_guild_membership,
     create_initiative,
     create_project,
@@ -46,15 +53,10 @@ def _sat_headers(user, provider_ids: list[int]) -> dict[str, str]:
 async def _require_provider(
     session: AsyncSession, guild_id: int, provider
 ) -> GuildAuthPolicy:
-    row = GuildAuthPolicy(
-        guild_id=guild_id,
-        policy="required",
-        provider_id=provider.id,
-        provider_slug=provider.slug,
-    )
-    session.add(row)
-    await session.commit()
-    return row
+    """The requirement, with the connection that makes the provider theirs —
+    which is the only state the endpoint will write."""
+    guild = await session.get(Guild, guild_id)
+    return await create_guild_auth_policy(session, guild, provider)
 
 
 async def test_the_seat_sets_reads_and_clears_the_policy(
@@ -749,12 +751,11 @@ async def test_db_layer_blocks_unsatisfied_session(session: AsyncSession, role_s
 # --- "Any of ours": a requirement that names no single provider -------------
 
 
-def _sso_headers(user, guild_ids: list[int], provider_ids: list[int] | None = None):
-    """A session that completed those communities' own sign-in."""
+def _sso_headers(user, provider_ids: list[int]):
+    """A session that came in through those providers. Which communities count
+    it is read from their connections."""
     token = get_auth_token(
-        user,
-        amr=[f"guild:{gid}" for gid in guild_ids] + ["oidc:whatever"],
-        satisfied_providers=provider_ids or [],
+        user, amr=["oidc:whatever"], satisfied_providers=provider_ids
     )
     return {"Authorization": f"Bearer {token}"}
 
@@ -778,11 +779,11 @@ async def test_any_of_this_communitys_providers_satisfies_the_rule(
 ):
     """The rule a community with two providers could not write before: come in
     through one of ours, and we do not mind which."""
-    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+    member, guild, provider = await _guild_requiring_its_own_sso(session)
 
     allowed = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
-        headers=_sso_headers(member, [guild.id]),
+        headers=_sso_headers(member, [provider.id]),
     )
     assert allowed.status_code == 200, allowed.text
 
@@ -793,11 +794,11 @@ async def test_another_communitys_sign_in_does_not_satisfy_it(
     """Single sign-on somewhere else — the deployment's own providers included
     — is not this community's single sign-on."""
     member, guild, _provider = await _guild_requiring_its_own_sso(session)
-    elsewhere = await create_guild(session)
+    elsewhere_provider = await create_auth_provider(session, slug="somewhere-else")
 
     blocked = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
-        headers=_sso_headers(member, [elsewhere.id]),
+        headers=_sso_headers(member, [elsewhere_provider.id]),
     )
     assert blocked.status_code == 401
     assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
@@ -808,7 +809,7 @@ async def test_a_password_session_is_stepped_up_to_the_communitys_login_page(
 ):
     """The challenge names the community rather than a provider: a rule that
     named none is served by the community's own login page."""
-    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+    member, guild, provider = await _guild_requiring_its_own_sso(session)
 
     blocked = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
@@ -825,7 +826,7 @@ async def test_a_device_token_session_does_not_satisfy_the_rule(
 ):
     """It records nothing about how its owner signed in, so it answers this
     the way it answers a rule naming one provider."""
-    member, guild, _provider = await _guild_requiring_its_own_sso(session)
+    member, guild, provider = await _guild_requiring_its_own_sso(session)
     device_token = await user_tokens.create_device_token(
         session, user_id=member.id, device_name="old-phone"
     )
@@ -866,7 +867,7 @@ async def _database_admits(
     guild_id: int,
     user_id: int,
     satisfied: list[int],
-    sso_guilds: list[int],
+    asserted: dict | None = None,
     session_mfa: bool = False,
 ) -> bool:
     """What ``public.guild_auth_satisfied()`` says, given the GUCs a request
@@ -881,7 +882,7 @@ async def _database_admits(
                 "SELECT set_config('app.current_user_id', :uid, true), "
                 "set_config('app.current_guild_id', :gid, true), "
                 "set_config('app.satisfied_providers', :satp, true), "
-                "set_config('app.sso_guilds', :ssog, true), "
+                "set_config('app.satisfied_claims', :satc, true), "
                 "set_config('app.session_mfa', :mfa, true), "
                 "public.guild_auth_satisfied() AS verdict"
             ),
@@ -889,7 +890,7 @@ async def _database_admits(
                 "uid": str(user_id),
                 "gid": str(guild_id),
                 "satp": ",".join(str(p) for p in satisfied),
-                "ssog": ",".join(str(g) for g in sso_guilds),
+                "satc": json.dumps(asserted or {}),
                 "mfa": "true" if session_mfa else "false",
             },
         )
@@ -897,20 +898,30 @@ async def _database_admits(
     return bool(verdict.verdict)
 
 
-def _app_admits(
-    policy, guild_id: int, satisfied, sso_guilds, session_mfa: bool = False
+async def _app_admits(
+    session: AsyncSession,
+    policy,
+    guild_id: int,
+    satisfied,
+    asserted: dict | None = None,
+    session_mfa: bool = False,
 ) -> bool:
     """What the gate in ``deps.py`` says, given the same standing."""
+    set_satisfied_providers(frozenset(satisfied))
+    set_satisfied_claims(asserted or {})
     try:
-        _enforce_guild_auth_policy(
+        await _enforce_guild_auth_policy(
+            session,
             policy,
             guild_id,
             frozenset(satisfied),
-            frozenset(sso_guilds),
             session_mfa,
         )
     except GuildAccessError:
         return False
+    finally:
+        set_satisfied_providers(None)
+        set_satisfied_claims(None)
     return True
 
 
@@ -927,9 +938,15 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
         session, user=user, guild=guild, role=GuildRole.member
     )
     provider = await create_auth_provider(session, slug="corp")
-    await create_guild_provider_connection(session, guild=guild, provider=provider)
+    await create_guild_provider_connection(
+        session,
+        guild=guild,
+        provider=provider,
+        claim="hd",
+        claim_values=["acme.com"],
+    )
     guild_id, user_id, provider_id = int(guild.id), int(user.id), int(provider.id)
-    other_provider_id, other_guild_id = provider_id + 1000, guild_id + 1000
+    other_provider_id = provider_id + 1000
 
     rules: list[tuple[str, dict]] = [
         ("open", {"policy": "open"}),
@@ -953,24 +970,26 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
             },
         ),
     ]
-    bare: list[tuple[str, list[int], list[int]]] = [
-        ("nothing at all", [], []),
-        ("that provider, recorded both ways", [provider_id], [guild_id]),
+    ours = {str(provider_id): {"hd": ["acme.com"]}}
+    theirs = {str(provider_id): {"hd": ["elsewhere.com"]}}
+    bare: list[tuple[str, list[int], dict]] = [
+        ("nothing at all", [], {}),
+        ("that provider, counted as theirs", [provider_id], ours),
+        ("that provider, counted as somebody else's", [provider_id], theirs),
+        ("that provider, asserting nothing", [provider_id], {}),
+        ("some other provider", [other_provider_id], {}),
         (
-            "this community's sign-in, some other provider",
+            "some other provider, asserting what this community counts",
             [other_provider_id],
-            [guild_id],
+            {str(other_provider_id): {"hd": ["acme.com"]}},
         ),
-        ("another community's sign-in", [other_provider_id], [other_guild_id]),
-        ("that provider, no community recorded", [provider_id], []),
-        ("this community recorded, no provider", [], [guild_id]),
     ]
     # Each of those twice: a session that presented the account's second factor
     # and one that did not. A rule asking for a factor is answered by nothing
     # else on this list.
-    standings: list[tuple[str, list[int], list[int], bool]] = [
-        (f"{name}{', with a factor' if mfa else ''}", sat, guilds, mfa)
-        for name, sat, guilds in bare
+    standings: list[tuple[str, list[int], dict, bool]] = [
+        (f"{name}{', with a factor' if mfa else ''}", sat, asserted, mfa)
+        for name, sat, asserted in bare
         for mfa in (False, True)
     ]
 
@@ -984,14 +1003,16 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
         await session.commit()
         await session.refresh(stored)
 
-        for standing, satisfied, guilds, mfa in standings:
-            in_app = _app_admits(stored, guild_id, satisfied, guilds, mfa)
+        for standing, satisfied, asserted, mfa in standings:
+            in_app = await _app_admits(
+                session, stored, guild_id, satisfied, asserted, mfa
+            )
             in_db = await _database_admits(
                 session,
                 guild_id=guild_id,
                 user_id=user_id,
                 satisfied=satisfied,
-                sso_guilds=guilds,
+                asserted=asserted,
                 session_mfa=mfa,
             )
             assert in_app == in_db, (
@@ -1007,14 +1028,14 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
     )
     await session.commit()
     assert await _database_admits(
-        session, guild_id=guild_id, user_id=user_id, satisfied=[], sso_guilds=[]
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], asserted={}
     )
     session.add(
         GuildAuthPolicy(guild_id=guild_id, policy="required", require_methods=["sso"])
     )
     await session.commit()
     assert not await _database_admits(
-        session, guild_id=guild_id, user_id=user_id, satisfied=[], sso_guilds=[]
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], asserted={}
     )
 
 
@@ -1088,14 +1109,14 @@ async def test_the_database_refuses_it_even_where_the_gate_is_skipped(
     guild_id, user_id = int(guild.id), int(member.id)
 
     assert not await _database_admits(
-        session, guild_id=guild_id, user_id=user_id, satisfied=[], sso_guilds=[]
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], asserted={}
     )
     assert await _database_admits(
         session,
         guild_id=guild_id,
         user_id=user_id,
         satisfied=[],
-        sso_guilds=[],
+        asserted={},
         session_mfa=True,
     )
 

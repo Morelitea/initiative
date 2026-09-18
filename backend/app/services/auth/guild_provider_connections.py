@@ -375,24 +375,31 @@ async def join_on_arrival(
     """
     from app.services.platform import guilds as guilds_service
 
+    # Plain values up front: the commit below expires the rows, and reading
+    # an expired attribute mid-loop would need an await of its own.
+    wanted = [
+        connection.guild_id
+        for connection in await admitting_connections(
+            session, provider_id=provider_id, claims=claims
+        )
+        if connection.auto_join
+    ]
+
     joined: list[int] = []
-    for connection in await admitting_connections(
-        session, provider_id=provider_id, claims=claims
-    ):
-        if not connection.auto_join:
-            continue
+    for guild_id in wanted:
+        # A savepoint each, so a community at capacity undoes its own attempt
+        # and leaves the sign-in that carried it here alone.
         try:
-            await guilds_service.ensure_membership(
-                session, guild_id=connection.guild_id, user_id=user_id
-            )
-            await session.commit()
+            async with session.begin_nested():
+                await guilds_service.ensure_membership(
+                    session, guild_id=guild_id, user_id=user_id
+                )
         except guilds_service.GuildCapacityError:
-            await session.rollback()
             logger.info(
-                "guild %s is at capacity; %s did not join on arrival",
-                connection.guild_id,
-                provider_id,
+                "guild %s is at capacity; nobody joined it on arrival", guild_id
             )
             continue
-        joined.append(connection.guild_id)
+        joined.append(guild_id)
+    if joined:
+        await session.commit()
     return joined

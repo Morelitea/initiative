@@ -2191,10 +2191,28 @@ async def create_guild_auth_policy(
 ) -> GuildAuthPolicy:
     """Make ``guild`` require a sign-in through ``provider``.
 
+    Connects the community to the provider first where it is not connected
+    already: the endpoint refuses a requirement naming a provider the
+    community does not count as its own, and the gate answers the same way, so
+    a policy without a connection is a state production cannot reach.
+
     ``provider_slug`` is denormalised onto the row in production so a step-up
     response can name the provider without a registry read; this keeps the two
     in step the same way.
     """
+    connected = (
+        await session.exec(
+            select(GuildProviderConnection).where(
+                GuildProviderConnection.guild_id == guild.id,
+                GuildProviderConnection.provider_id == provider.id,
+            )
+        )
+    ).first()
+    if connected is None:
+        await create_guild_provider_connection(
+            session, guild=guild, provider=provider, commit=commit
+        )
+
     defaults = {
         "guild_id": guild.id,
         "policy": "required",

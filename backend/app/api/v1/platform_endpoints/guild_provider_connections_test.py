@@ -43,9 +43,7 @@ async def test_the_seat_connects_narrows_and_disconnects(
     client: AsyncClient, session: AsyncSession
 ):
     admin, guild = await _seat(session)
-    provider = await create_auth_provider(
-        session, slug="google", display_name="Google", connectable_by_guilds=True
-    )
+    provider = await create_auth_provider(session, slug="google", display_name="Google")
     headers = get_auth_headers(admin)
 
     created = await client.post(
@@ -80,27 +78,17 @@ async def test_the_seat_connects_narrows_and_disconnects(
     assert (await client.get(_base(guild.id), headers=headers)).json() == []
 
 
-async def test_a_community_sees_what_is_offered_and_what_it_already_uses(
+async def test_a_community_sees_every_way_in_the_deployment_offers(
     client: AsyncClient, session: AsyncSession
 ):
-    """The picker is the providers on offer plus the ones already connected —
-    which is what keeps a provider registered for one customer out of every
-    other customer's list."""
+    """The picker is every way in the deployment offers. They are all public
+    sign-in buttons; what a community decides is which arrivals are its own."""
     admin, guild = await _seat(session)
-    offered = await create_auth_provider(
-        session, slug="google", display_name="Google", connectable_by_guilds=True
-    )
+    google = await create_auth_provider(session, slug="google", display_name="Google")
     theirs = await create_auth_provider(
         session, slug="acme-okta", display_name="Acme Okta"
     )
-    somebody_elses = await create_auth_provider(
-        session, slug="beta-okta", display_name="Beta Okta"
-    )
     await create_guild_provider_connection(session, guild=guild, provider=theirs)
-    _, other_guild = await _seat(session)
-    await create_guild_provider_connection(
-        session, guild=other_guild, provider=somebody_elses
-    )
 
     response = await client.get(
         f"{_base(guild.id)}/available", headers=get_auth_headers(admin)
@@ -108,36 +96,31 @@ async def test_a_community_sees_what_is_offered_and_what_it_already_uses(
 
     assert response.status_code == 200, response.text
     names = {row["display_name"] for row in response.json()}
-    assert names == {"Google", "Acme Okta"}
-    assert "Beta Okta" not in names
-    assert offered.id in {row["id"] for row in response.json()}
+    assert {"Google", "Acme Okta"} <= names
+    assert google.id in {row["id"] for row in response.json()}
 
 
-async def test_a_community_cannot_connect_to_one_it_was_never_offered(
+async def test_the_picker_says_nothing_a_sign_in_page_does_not(
     client: AsyncClient, session: AsyncSession
 ):
-    """The write is held to the same rule the picker lists by, so a guessed id
-    gets no further than a name the community was never shown."""
+    """A community picks by name. No issuer, no client, no secret."""
     admin, guild = await _seat(session)
-    somebody_elses = await create_auth_provider(session, slug="beta-okta")
+    await create_auth_provider(session, slug="google", display_name="Google")
 
-    response = await client.post(
-        _base(guild.id),
-        headers=get_auth_headers(admin),
-        json={"provider_id": somebody_elses.id},
+    response = await client.get(
+        f"{_base(guild.id)}/available", headers=get_auth_headers(admin)
     )
 
-    assert response.status_code == 404, response.text
-    assert response.json()["detail"] == AuthProviderMessages.NOT_FOUND
+    assert response.status_code == 200, response.text
+    row = next(r for r in response.json() if r["display_name"] == "Google")
+    assert set(row) == {"id", "display_name", "icon", "login_ready"}
 
 
 async def test_a_narrowing_is_both_halves_or_neither(
     client: AsyncClient, session: AsyncSession
 ):
     admin, guild = await _seat(session)
-    provider = await create_auth_provider(
-        session, slug="google", connectable_by_guilds=True
-    )
+    provider = await create_auth_provider(session, slug="google")
     headers = get_auth_headers(admin)
 
     # A narrowing is both halves or neither; half of one narrows nothing.
@@ -161,9 +144,7 @@ async def test_a_community_connects_to_a_provider_once(
     client: AsyncClient, session: AsyncSession
 ):
     admin, guild = await _seat(session)
-    provider = await create_auth_provider(
-        session, slug="google", connectable_by_guilds=True
-    )
+    provider = await create_auth_provider(session, slug="google")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     again = await client.post(
@@ -185,9 +166,7 @@ async def test_an_ordinary_admin_reads_but_does_not_connect(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    provider = await create_auth_provider(
-        session, slug="google", connectable_by_guilds=True
-    )
+    provider = await create_auth_provider(session, slug="google")
     headers = get_auth_headers(admin)
 
     assert (await client.get(_base(guild.id), headers=headers)).status_code == 200
