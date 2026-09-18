@@ -13,15 +13,10 @@ import {
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
 import { CircleChevronRight, Home } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
-import {
-  type OutlineNode,
-  useOutlineNavigate,
-  useOutlineNodes,
-} from "@/components/documents/DocumentOutline";
+import type { WikiPageHeading, WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
@@ -45,39 +40,72 @@ interface Landing {
  */
 const BRANCH = "ml-3 space-y-0.5 border-l";
 
+/** A heading, and the headings written under it. */
+interface HeadingNode {
+  heading: WikiPageHeading;
+  children: HeadingNode[];
+}
+
 /**
- * One heading of the open page.
+ * A page's headings as a tree.
  *
- * A button rather than a link: a heading has no address of its own, and this
- * scrolls the page already on screen to it. Drawn muted so a glance separates
- * what is on this page from the pages beside it.
+ * The server sends them flat and in order; the nesting is inferred from the
+ * levels alone. A shallower heading closes every deeper one still open, so a
+ * page that starts at `h2` puts its `h2`s at the top level, and one that jumps
+ * `h1` to `h3` files the `h3` under the `h1` rather than inventing an empty
+ * `h2` to sit between them.
+ */
+export const buildHeadingTree = (headings: readonly WikiPageHeading[]): HeadingNode[] => {
+  const roots: HeadingNode[] = [];
+  const open: HeadingNode[] = [];
+
+  for (const heading of headings) {
+    const node: HeadingNode = { heading, children: [] };
+    while (open.length > 0 && open[open.length - 1].heading.level >= heading.level) {
+      open.pop();
+    }
+    const parent = open[open.length - 1];
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+    open.push(node);
+  }
+  return roots;
+};
+
+/**
+ * One heading of a page.
+ *
+ * A link rather than a button: a heading has an address — its page, plus the
+ * anchor the editor stamps on it when it renders — so it can be opened from a
+ * page you are not currently on, and opened in a new tab like anything else.
  */
 const WikiHeadingRow = ({
   node,
+  href,
+  hrefOf,
   accentColor,
-  onSelect,
 }: {
-  node: OutlineNode;
+  node: HeadingNode;
+  href: string;
+  hrefOf: (anchor: string) => string;
   accentColor?: string | null;
-  onSelect: (key: string) => void;
 }) => (
   <SidebarMenuItem>
-    <SidebarMenuButton
-      size="sm"
-      className="min-w-0 text-muted-foreground hover:text-foreground"
-      onClick={() => onSelect(node.key)}
-    >
-      <span className="min-w-0 flex-1 truncate text-left">{node.text}</span>
+    <SidebarMenuButton asChild size="sm" className="min-w-0 text-muted-foreground">
+      <Link to={hrefOf(node.heading.anchor)} className="min-w-0">
+        <span className="min-w-0 flex-1 truncate text-left">{node.heading.text}</span>
+      </Link>
     </SidebarMenuButton>
     {node.children.length > 0 ? (
       <div className={BRANCH} style={{ borderColor: accentColor || undefined }}>
         <SidebarMenu>
           {node.children.map((child) => (
             <WikiHeadingRow
-              key={child.key}
+              key={child.heading.anchor}
               node={child}
+              href={href}
+              hrefOf={hrefOf}
               accentColor={accentColor}
-              onSelect={onSelect}
             />
           ))}
         </SidebarMenu>
@@ -109,8 +137,6 @@ const WikiPageRow = ({
   landing,
   open,
   onToggle,
-  headings,
-  onSelectHeading,
   accentColor,
   rowMenu,
 }: {
@@ -122,15 +148,16 @@ const WikiPageRow = ({
   landing: Landing | null;
   open: boolean;
   onToggle: () => void;
-  /** The open page's headings. Empty for every other row. */
-  headings: OutlineNode[];
-  onSelectHeading: (key: string) => void;
   accentColor?: string | null;
   rowMenu?: ReactNode;
 }) => {
   const { t } = useTranslation("wikis");
   const showing = landing?.id === page.id ? landing.intent : null;
-  const expandable = active && headings.length > 0;
+  // Every page's headings come with the page, so a row is collapsible from the
+  // moment it is drawn — nobody has to open a page to find out that it has
+  // anything in it.
+  const headings = useMemo(() => buildHeadingTree(page.headings), [page.headings]);
+  const expandable = headings.length > 0;
 
   const draggable = useDraggable({ id: page.id, disabled: !draggableRows });
   const droppable = useDroppable({ id: page.id, disabled: !draggableRows });
@@ -212,12 +239,13 @@ const WikiPageRow = ({
             forceMount
           >
             <SidebarMenu>
-              {headings.map((heading) => (
+              {headings.map((node) => (
                 <WikiHeadingRow
-                  key={heading.key}
-                  node={heading}
+                  key={node.heading.anchor}
+                  node={node}
+                  href={href}
+                  hrefOf={(anchor) => `${href}#${anchor}`}
                   accentColor={accentColor}
-                  onSelect={onSelectHeading}
                 />
               ))}
             </SidebarMenu>
@@ -274,10 +302,6 @@ export const WikiPageTree = ({
   className,
 }: WikiPageTreeProps) => {
   const { t } = useTranslation("wikis");
-  // The headings the open page's editor is reporting. Empty on every screen
-  // that has no editor mounted, which is what makes this safe to read here.
-  const headings = useOutlineNodes();
-  const goToHeading = useOutlineNavigate();
 
   // Expanded is the default — a wiki is a thing you skim — so this records the
   // pages somebody has deliberately folded away.
@@ -363,8 +387,6 @@ export const WikiPageTree = ({
               landing={landing}
               open={!collapsed.has(page.id)}
               onToggle={() => toggle(page.id)}
-              headings={headings}
-              onSelectHeading={goToHeading}
               accentColor={accentColor}
               rowMenu={renderRowMenu?.(page)}
             />

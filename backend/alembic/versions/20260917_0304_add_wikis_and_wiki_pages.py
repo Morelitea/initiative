@@ -356,11 +356,9 @@ def _apply_upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("guild_id", sa.Integer(), nullable=False),
         sa.Column("wiki_id", sa.Integer(), nullable=False),
+        sa.Column("parent_page_id", sa.Integer(), nullable=True),
         sa.Column(
             "position", sa.Integer(), server_default=sa.text("0"), nullable=False
-        ),
-        sa.Column(
-            "is_draft", sa.Boolean(), server_default=sa.text("false"), nullable=False
         ),
         sa.Column(
             "title", sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False
@@ -379,6 +377,9 @@ def _apply_upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
         sa.ForeignKeyConstraint(["guild_id"], ["guilds.id"]),
+        sa.ForeignKeyConstraint(
+            ["parent_page_id"], ["wiki_pages.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["wiki_id"], ["wikis.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("wiki_id", "slug", name="uq_wiki_pages_wiki_slug"),
@@ -386,6 +387,9 @@ def _apply_upgrade() -> None:
     with op.batch_alter_table("wiki_pages", schema=None) as batch_op:
         batch_op.create_index(
             batch_op.f("ix_wiki_pages_guild_id"), ["guild_id"], unique=False
+        )
+        batch_op.create_index(
+            batch_op.f("ix_wiki_pages_parent_page_id"), ["parent_page_id"], unique=False
         )
         batch_op.create_index(
             batch_op.f("ix_wiki_pages_wiki_id"), ["wiki_id"], unique=False
@@ -467,6 +471,7 @@ def _apply_downgrade() -> None:
 
     with op.batch_alter_table("wiki_pages", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_wiki_pages_wiki_id"))
+        batch_op.drop_index(batch_op.f("ix_wiki_pages_parent_page_id"))
         batch_op.drop_index(batch_op.f("ix_wiki_pages_guild_id"))
 
     op.drop_table("wiki_pages")

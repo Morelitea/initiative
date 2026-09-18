@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,7 +10,6 @@ import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -47,6 +46,13 @@ export const WikiPageView = () => {
     initiativeId?: string;
   };
 
+  // Reading or writing. Kept in the address, because the bar over the page and
+  // the page's row in the tree both offer it from different React trees, and
+  // because a page being edited is then a thing you can link to or reload into.
+  // Reading is where everyone starts, writers included.
+  const { edit } = useSearch({ strict: false }) as { edit?: true };
+  const editWanted = edit === true;
+
   const wikiId = Number(wikiIdParam);
   const pageId = Number(pageIdParam);
   const initiativeId = Number(initiativeIdParam);
@@ -57,7 +63,9 @@ export const WikiPageView = () => {
   // through its wiki, the way every other address for it does.
   const collaboration = useCollaboration({
     socketPath: validIds ? `wikis/${wikiId}/pages/${pageId}/collaborate` : null,
-    enabled: validIds,
+    // Only while somebody is writing. A wiki is read far more than it is
+    // written, so a reader opens no room and costs the server nothing.
+    enabled: validIds && editWanted,
     onError: (error) => {
       toast.error(t("error"), { description: error.message });
     },
@@ -133,14 +141,34 @@ export const WikiPageView = () => {
   const wiki = wikiQuery.data;
   const page = pageQuery.data;
 
+  // Arriving at a heading. The editor stamps each heading's anchor on the
+  // element as it renders, so this waits for the body to be on screen rather
+  // than firing on navigation — a page opened from a heading in the sidebar is
+  // usually being fetched at the moment the link is followed.
+  const hash = useLocation({ select: (location) => location.hash });
+  useEffect(() => {
+    if (!hash || !page) return;
+    let cancelled = false;
+    const find = () => {
+      if (cancelled) return;
+      const heading = document.getElementById(hash);
+      if (heading) heading.scrollIntoView({ behavior: "smooth", block: "start" });
+      else requestAnimationFrame(find);
+    };
+    requestAnimationFrame(find);
+    return () => {
+      cancelled = true;
+    };
+  }, [hash, page]);
+
   // The conversation is a drawer: a wiki is browsed, and talking about a page
   // is a different activity from reading it.
   const [commentsOpen, setCommentsOpen] = useState(false);
-  // Reading or writing. Held here rather than per page, so somebody who opens
-  // the editor keeps it open as they move around the wiki — and somebody who
-  // drops back to reading stays there. Reading is where everyone starts,
-  // writers included: what a reader sees is the thing worth checking.
-  const [editing, setEditing] = useState(false);
+  // Reading or writing. Kept in the address, because the bar over the page and
+  // the page's row in the tree both offer it from different React trees, and
+  // because a page being edited is then a thing you can link to or reload into.
+  // Reading is where everyone starts, writers included.
+
   // Whether there is gutter to put the rail in. Keyed to the same 1280px the
   // `xl:` classes use, so the measurement and the layout cannot disagree.
   const railFitsBeside = useMediaQuery("(min-width: 1280px)");
@@ -190,7 +218,7 @@ export const WikiPageView = () => {
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
   // Editing needs both the right and the intent — somebody who may write is
   // still reading until they say otherwise.
-  const isEditing = canWrite && editing;
+  const isEditing = canWrite && edit === true;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
 
@@ -199,11 +227,18 @@ export const WikiPageView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={page?.title || t("pages.untitled")}
+          pageTitle={isEditing ? title : page?.title || t("pages.untitled")}
+          onRename={isEditing ? setTitle : undefined}
           pageUpdatedAt={page?.updated_at}
           canWrite={canWrite}
-          editing={editing}
-          onToggleEditing={() => setEditing((on) => !on)}
+          editing={isEditing}
+          onToggleEditing={() =>
+            void navigate({
+              to: gp(wikiPageRoute(initiativeId, wikiId, pageId)),
+              search: isEditing ? {} : { edit: true },
+              replace: true,
+            })
+          }
           onOpenComments={() => setCommentsOpen(true)}
           onToggleConnections={() => {
             setRailAsked(true);
@@ -227,27 +262,17 @@ export const WikiPageView = () => {
             >
               {page ? (
                 <>
-                  <div className="flex items-start gap-2">
-                    {isEditing ? (
-                      <Input
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                        aria-label={t("pages.titleLabel")}
-                        placeholder={t("pages.titlePlaceholder")}
-                        className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
-                      />
-                    ) : (
-                      <h1 className="min-w-0 flex-1 py-1 font-bold text-3xl">
-                        {page.title || t("pages.untitled")}
-                      </h1>
-                    )}
-                  </div>
-
                   <Editor
-                    key={pageId}
+                    // Rebuilt rather than switched: the editor captures
+                    // whether it is collaborative at first mount and never
+                    // re-reads it, so flipping that on a live instance is
+                    // outside its contract. Changing the key hands it a fresh
+                    // one for the mode being entered.
+                    key={`${pageId}:${isEditing ? "edit" : "read"}`}
                     editorSerializedState={initialBody ?? undefined}
                     onSerializedChange={onBodyChange}
                     readOnly={!isEditing}
+                    showToolbar={isEditing}
                     // Reading a wiki is reading a web page, so the sheet a
                     // document draws itself comes off. Wiki-local: the class
                     // overrides the variant here and changes nothing about how
