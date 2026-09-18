@@ -379,17 +379,17 @@ function AppLayout() {
                       centred. Flooring the track at 0 hands the item the
                       container's width and lets what is inside scroll or
                       truncate on its own terms. */}
-                    {/* A full-bleed route takes the scrollport itself: no
-                      measure, no padding, and a definite height, so a surface
-                      that pins its own header and scrolls its own middle has
-                      an area to do it in. `pb-16` on small screens keeps the
-                      bottom bar off the end of it. */}
+                    {/* A full-bleed route drops the measure and the padding:
+                      it lays itself out against the window, and its own header
+                      sits against the edges. The height needs no help — the
+                      grid row below is already definite, which is what a
+                      surface pinning its header and scrolling its middle
+                      resolves its `h-full` against. `pb-16` on small screens
+                      keeps the bottom bar off the end of it. */}
                     <div
                       className={cn(
                         "grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr]",
-                        fullBleed
-                          ? "h-full pb-16 md:pb-0"
-                          : "container mx-auto p-4 pb-24 md:p-8 md:pb-24"
+                        fullBleed ? "pb-16 md:pb-0" : "container mx-auto p-4 pb-24 md:p-8 md:pb-24"
                       )}
                     >
                       <Suspense fallback={<PageLoader />}>

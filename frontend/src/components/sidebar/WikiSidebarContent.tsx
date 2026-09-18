@@ -77,9 +77,9 @@ export const WikiSidebarContent = ({
     wikiQuery.data?.my_permission_level === "write" ||
     wikiQuery.data?.my_permission_level === "owner";
 
-  const addPage = (parent?: WikiPageSummary) =>
+  const addPage = () =>
     createPage.mutate(
-      { title: t("pages.untitled"), parent_page_id: parent?.id ?? null },
+      { title: t("pages.untitled") },
       {
         onSuccess: (page) =>
           void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, page.id)) }),
@@ -88,9 +88,9 @@ export const WikiSidebarContent = ({
 
   // A drop tells the server where the page landed; the tree is then redrawn
   // from what comes back rather than from what the drag guessed.
-  const movePageTo = (page: WikiPageSummary, parentPageId: number | null, position: number) => {
+  const movePageTo = (page: WikiPageSummary, position: number) => {
     setMovingPageId(page.id);
-    movePage.mutate({ parent_page_id: parentPageId, position });
+    movePage.mutate({ position });
   };
 
   return (
@@ -176,7 +176,6 @@ export const WikiSidebarContent = ({
                       )
                     : undefined
                 }
-                showCounts={wikiQuery.data?.show_page_counts ?? false}
                 accentColor={wikiQuery.data?.accent_color}
               />
               {canWrite ? (

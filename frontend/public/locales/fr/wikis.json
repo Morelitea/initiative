@@ -49,7 +49,8 @@
     "noMatches": "Aucune page ne correspond",
     "collapse": "Réduire",
     "expand": "Développer",
-    "moved": "Page déplacée"
+    "moved": "Page déplacée",
+    "draft": "Brouillon"
   },
   "links": {
     "title": "Connexions",
@@ -81,8 +82,6 @@
     "orderTitleHint": "Idéal dès qu’il y a plus de pages que personne ne veut ranger.",
     "orderRecent": "Les plus récemment modifiées d’abord",
     "orderRecentHint": "Idéal pour les notes et les décisions, où le plus récent compte le plus.",
-    "counts": "Afficher le nombre de pages sous chacune",
-    "countsHint": "Utile sur un grand wiki, du bruit sur un petit.",
     "contents": "Profondeur du sommaire",
     "contentsDescription": "Combien de niveaux de titres le sommaire affiche.",
     "contentsLevels_one": "{{count}} niveau",
@@ -110,14 +109,20 @@
     "pagesDescription": "Par où le wiki s'ouvre, et à partir de quoi commence une nouvelle page.",
     "home": "Page d'accueil",
     "homeDescription": "La page sur laquelle le wiki s'ouvre.",
-    "homeNone": "Première page"
+    "homeNone": "Première page",
+    "updated": "Afficher la date de modification",
+    "updatedHint": "Un manuel dont on se sert en a besoin ; une bible d'univers non."
   },
   "page": {
     "actions": "Actions de la page",
     "setHome": "Définir comme page d’accueil",
     "useAsTemplate": "Utiliser comme modèle pour les nouvelles pages",
     "isTemplate": "Les nouvelles pages partent de celle-ci",
-    "delete": "Supprimer la page"
+    "delete": "Supprimer la page",
+    "markDraft": "Marquer comme brouillon",
+    "publish": "Publier",
+    "published": "Page publiée",
+    "drafted": "Page marquée comme brouillon"
   },
   "comments": "Commentaires",
   "closeComments": "Fermer les commentaires",
@@ -125,5 +130,6 @@
   "viewMode": {
     "read": "Voir comme un lecteur",
     "edit": "Modifier cette page"
-  }
+  },
+  "updated": "Modifié"
 }

@@ -49,7 +49,8 @@
     "noMatches": "Ninguna página coincide",
     "collapse": "Contraer",
     "expand": "Expandir",
-    "moved": "Página movida"
+    "moved": "Página movida",
+    "draft": "Borrador"
   },
   "links": {
     "title": "Conexiones",
@@ -81,8 +82,6 @@
     "orderTitleHint": "Ideal cuando hay más páginas de las que nadie quiere ordenar.",
     "orderRecent": "Editadas más recientemente primero",
     "orderRecentHint": "Ideal para notas y decisiones, donde lo más nuevo es lo que importa.",
-    "counts": "Mostrar cuántas páginas hay debajo de cada una",
-    "countsHint": "Útil en un wiki grande, ruido en uno pequeño.",
     "contents": "Profundidad del contenido",
     "contentsDescription": "Cuántos niveles de encabezado muestra la lista de contenido.",
     "contentsLevels_one": "{{count}} nivel",
@@ -110,14 +109,20 @@
     "pagesDescription": "Dónde abre el wiki y a partir de qué empieza una página nueva.",
     "home": "Página de inicio",
     "homeDescription": "La página con la que abre el wiki.",
-    "homeNone": "Primera página"
+    "homeNone": "Primera página",
+    "updated": "Mostrar cuándo cambió una página",
+    "updatedHint": "Un manual sobre el que se actúa lo necesita; una biblia del mundo no."
   },
   "page": {
     "actions": "Acciones de la página",
     "setHome": "Establecer como página de inicio",
     "useAsTemplate": "Usar como plantilla para las páginas nuevas",
     "isTemplate": "Las páginas nuevas parten de esta",
-    "delete": "Eliminar página"
+    "delete": "Eliminar página",
+    "markDraft": "Marcar como borrador",
+    "publish": "Publicar",
+    "published": "Página publicada",
+    "drafted": "Página marcada como borrador"
   },
   "comments": "Comentarios",
   "closeComments": "Cerrar comentarios",
@@ -125,5 +130,6 @@
   "viewMode": {
     "read": "Ver como lector",
     "edit": "Editar esta página"
-  }
+  },
+  "updated": "Actualizado"
 }

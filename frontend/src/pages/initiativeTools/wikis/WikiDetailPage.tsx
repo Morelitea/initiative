@@ -35,7 +35,7 @@ export const WikiDetailPage = () => {
   const createPage = useCreateWikiPage(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
-  const addPage = () => createPage.mutate({ title: t("pages.untitled"), parent_page_id: null });
+  const addPage = () => createPage.mutate({ title: t("pages.untitled") });
 
   const canWrite =
     wikiQuery.data?.my_permission_level === "write" ||
@@ -85,9 +85,7 @@ export const WikiDetailPage = () => {
         {canWrite ? (
           <CardContent>
             <Button
-              onClick={() =>
-                createPage.mutate({ title: t("pages.untitled"), parent_page_id: null })
-              }
+              onClick={() => createPage.mutate({ title: t("pages.untitled") })}
               disabled={createPage.isPending}
             >
               <Plus className="size-4" aria-hidden />

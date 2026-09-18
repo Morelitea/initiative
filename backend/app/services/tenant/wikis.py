@@ -1,19 +1,22 @@
 """Wiki pages: the spine, and the slugs that address it.
 
-A wiki's pages form a tree. That tree is two columns — ``parent_page_id`` and
-``position`` — and this module owns every operation that has to keep them
-coherent: naming a page, placing it, moving it, and reading the tree back.
+A wiki's pages are a flat, ordered list. That order is one column —
+``position`` — and this module owns every operation that has to keep it
+coherent: naming a page, placing it, moving it, and reading the list back.
 
-What is deliberately NOT here: anything a page connects to that is not its
-parent. A page ``part_of`` a task, a page ``related_to`` another wiki's page,
-and the ``references`` edges read out of ``[[ ]]`` links in a body are all rows
-in ``relationships``, handled by the services that already own that table. The
-tree is navigation; the edges are meaning, and they are kept apart on purpose.
+Pages do not nest. Structure *inside* a page is its headings, which are content
+and live in the body, so the navigation nests without the table needing to.
+
+What is deliberately NOT here: anything a page connects to. A page ``part_of``
+a task, a page ``related_to`` another wiki's page, and the ``references`` edges
+read out of ``[[ ]]`` links in a body are all rows in ``relationships``,
+handled by the services that already own that table. The order is navigation;
+the edges are meaning, and they are kept apart on purpose.
 """
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -22,7 +25,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
-from app.core.messages import WikiMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -144,25 +146,18 @@ async def unique_page_slug(
     raise ValueError("could not derive a unique wiki page slug")
 
 
-async def next_position(
-    session: AsyncSession, wiki_id: int, parent_page_id: int | None
-) -> int:
-    """Where a new page lands: after its last sibling.
+async def next_position(session: AsyncSession, wiki_id: int) -> int:
+    """Where a new page lands: at the end of the list.
 
     Positions are sparse and never renumbered on insert, so this is a read of
     the current maximum rather than a count.
     """
     statement = select(WikiPage.position).where(WikiPage.wiki_id == wiki_id)
-    statement = (
-        statement.where(WikiPage.parent_page_id.is_(None))
-        if parent_page_id is None
-        else statement.where(WikiPage.parent_page_id == parent_page_id)
-    )
     positions = (await session.exec(statement)).all()
     return (max(positions) + 1) if positions else 0
 
 
-#: How each ordering sorts siblings. ``manual`` reads the spine somebody
+#: How each ordering sorts pages. ``manual`` reads the spine somebody
 #: dragged; the others ignore it, which is the point — nobody hand-orders two
 #: hundred entries, and a decisions log wants the newest at the top.
 _ORDERINGS = {
@@ -175,96 +170,26 @@ _ORDERINGS = {
 }
 
 
-async def load_tree(
+async def load_pages(
     session: AsyncSession,
     wiki_id: int,
     *,
     page_order: WikiPageOrder = WikiPageOrder.manual,
+    include_drafts: bool = True,
 ) -> list[WikiPage]:
     """Every live page of a wiki, in the order the navigation draws them.
 
-    One query for the whole tree. A wiki is read far more often than it is
-    written and its pages are small rows, so assembling the shape in Python
-    beats a recursive query per level.
+    ``include_drafts`` is the caller's answer to "may this person write here":
+    a draft is a page somebody is still working on, so it is part of the wiki
+    for the people who write it and not part of the wiki for the people who
+    read it.
     """
-    statement = (
-        select(WikiPage)
-        .where(WikiPage.wiki_id == wiki_id)
-        .order_by(*_ORDERINGS[page_order]())
+    statement = select(WikiPage).where(WikiPage.wiki_id == wiki_id)
+    if not include_drafts:
+        statement = statement.where(WikiPage.is_draft.is_(False))
+    return list(
+        (await session.exec(statement.order_by(*_ORDERINGS[page_order]()))).all()
     )
-    return list((await session.exec(statement)).all())
-
-
-def order_depth_first(pages: Sequence[WikiPage]) -> list[WikiPage]:
-    """Flatten a wiki's pages into reading order — each page then its children.
-
-    Pages whose parent is missing from ``pages`` are treated as top-level, so a
-    partial read still renders every row it was given rather than dropping the
-    ones whose parent it cannot see.
-    """
-    children: dict[int | None, list[WikiPage]] = {}
-    ids = {page.id for page in pages}
-    for page in pages:
-        parent = page.parent_page_id if page.parent_page_id in ids else None
-        children.setdefault(parent, []).append(page)
-
-    ordered: list[WikiPage] = []
-
-    def walk(parent_id: int | None) -> None:
-        for page in children.get(parent_id, []):
-            ordered.append(page)
-            walk(page.id)
-
-    walk(None)
-    return ordered
-
-
-def descendant_ids(pages: Iterable[WikiPage], root_id: int) -> set[int]:
-    """Every page beneath ``root_id``, the root excluded."""
-    by_parent: dict[int | None, list[int]] = {}
-    for page in pages:
-        by_parent.setdefault(page.parent_page_id, []).append(page.id)
-
-    found: set[int] = set()
-    frontier = list(by_parent.get(root_id, []))
-    while frontier:
-        page_id = frontier.pop()
-        if page_id in found:
-            continue
-        found.add(page_id)
-        frontier.extend(by_parent.get(page_id, []))
-    return found
-
-
-async def validate_reparent(
-    session: AsyncSession, page: WikiPage, new_parent_id: int | None
-) -> None:
-    """Refuse a move that would detach a subtree from the tree.
-
-    A page cannot be its own parent, cannot be moved beneath one of its own
-    descendants, and cannot be moved under a page belonging to another wiki.
-    """
-    if new_parent_id is None:
-        return
-    if new_parent_id == page.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=WikiMessages.PAGE_PARENT_ITSELF,
-        )
-
-    parent = await session.get(WikiPage, new_parent_id)
-    if parent is None or parent.wiki_id != page.wiki_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WikiMessages.PAGE_NOT_FOUND,
-        )
-
-    pages = await load_tree(session, page.wiki_id)
-    if new_parent_id in descendant_ids(pages, page.id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=WikiMessages.PAGE_PARENT_DESCENDANT,
-        )
 
 
 async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> None:
@@ -319,7 +244,7 @@ async def get_wiki_for_export(
         current_user,
         access="read",
     )
-    pages = order_depth_first(await load_tree(session, wiki.id))
+    pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
     await tags_service.annotate_tags(session, pages)
     return wiki, pages
 

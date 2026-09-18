@@ -2349,14 +2349,13 @@ async def create_wiki_page(
     creator: User,
     *,
     title: str | None = None,
-    parent: "WikiPage | None" = None,
     commit: bool = True,
     **overrides: Any,
 ) -> WikiPage:
-    """Create a page in a wiki, optionally beneath another page.
+    """Create a page in a wiki.
 
-    ``parent`` is the spine, so a test builds a tree by passing the page it
-    wants this one under rather than setting the column by hand.
+    A wiki's pages are a flat list; what sits under a page in the navigation is
+    that page's own headings, which are content in its body.
     """
     await route_session_to_guild(session, wiki.guild_id)
 
@@ -2368,7 +2367,6 @@ async def create_wiki_page(
         "created_by": creator.id,
         "title": page_title,
         "slug": slugify_page_title(page_title, fallback=f"page-{stamp}"),
-        "parent_page_id": parent.id if parent is not None else None,
     }
     page = WikiPage(**{**defaults, **overrides})
     session.add(page)

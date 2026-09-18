@@ -125,6 +125,16 @@ async def _refetch_wiki(session: RLSSessionDep, wiki_id: int, *, user_id: int) -
     return wiki
 
 
+def _may_write(wiki: Wiki, current_user: User) -> bool:
+    """Whether this person may write this wiki — guild admins and full-access
+    initiative members included, which is why it goes through the DAC engine
+    rather than reading grants directly."""
+    level = permissions_service.compute_permission(
+        permissions_service.DAC_RESOURCES[Tool.wiki], wiki, current_user.id
+    )
+    return level in ("write", "owner")
+
+
 async def _load_page(
     session: RLSSessionDep,
     wiki_id: int,
@@ -143,7 +153,10 @@ async def _load_page(
         session, Tool.wiki, wiki_id, current_user, guild_context, access=access
     )
     page = await wikis_service.get_page(session, wiki.id, page_id)
-    if page is None:
+    # A draft is not part of the wiki for somebody who only reads it, so it is
+    # missing rather than refused — the same answer they get for a page that
+    # was never written.
+    if page is None or (page.is_draft and not _may_write(wiki, current_user)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WikiMessages.PAGE_NOT_FOUND,
@@ -497,16 +510,19 @@ async def list_wiki_pages(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageTree:
-    """Every page of a wiki, flat, in reading order.
+    """Every page of a wiki, in reading order.
 
-    The whole tree in one response: the navigation draws all of it, and these
+    The whole list in one response: the navigation draws all of it, and these
     rows carry no bodies.
     """
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
-    pages = wikis_service.order_depth_first(
-        await wikis_service.load_tree(session, wiki.id, page_order=wiki.page_order)
+    pages = await wikis_service.load_pages(
+        session,
+        wiki.id,
+        page_order=wiki.page_order,
+        include_drafts=_may_write(wiki, current_user),
     )
     await tags_service.annotate_tags(session, pages)
     return WikiPageTree(items=[serialize_wiki_page_summary(p) for p in pages])
@@ -531,14 +547,6 @@ async def create_wiki_page(
     )
     title = page_in.title.strip()
 
-    if page_in.parent_page_id is not None:
-        parent = await wikis_service.get_page(session, wiki.id, page_in.parent_page_id)
-        if parent is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=WikiMessages.PAGE_NOT_FOUND,
-            )
-
     # A new page starts as a copy of the wiki's template, where it has one and
     # the request did not bring a body of its own. That is what keeps two
     # hundred character pages the same shape without anybody policing it.
@@ -552,10 +560,8 @@ async def create_wiki_page(
         guild_id=guild_context.guild_id,
         wiki_id=wiki.id,
         created_by=current_user.id,
-        parent_page_id=page_in.parent_page_id,
-        position=await wikis_service.next_position(
-            session, wiki.id, page_in.parent_page_id
-        ),
+        position=await wikis_service.next_position(session, wiki.id),
+        is_draft=page_in.is_draft,
         title=title,
         slug=await wikis_service.unique_page_slug(session, wiki.id, title),
         content=content or {},
@@ -614,6 +620,8 @@ async def update_wiki_page(
     )
     data = page_in.model_dump(exclude_unset=True)
 
+    if "is_draft" in data and data["is_draft"] is not None:
+        page.is_draft = data["is_draft"]
     if "title" in data and data["title"] is not None:
         title = data["title"].strip()
         if title != page.title:
@@ -657,21 +665,23 @@ async def move_wiki_page(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    """Reparent and reposition a page in one request — what a drag is."""
+    """Put a page somewhere else in the list — what a drag is.
+
+    The whole list is renumbered rather than the moved page alone: positions
+    are only ever read in order, and one pass leaves no two pages sharing one.
+    """
     _wiki, page = await _load_page(
         session, wiki_id, page_id, current_user, guild_context, access="write"
     )
-    await wikis_service.validate_reparent(session, page, move.parent_page_id)
 
-    siblings = [
+    others = [
         p
-        for p in await wikis_service.load_tree(session, page.wiki_id)
-        if p.parent_page_id == move.parent_page_id and p.id != page.id
+        for p in await wikis_service.load_pages(session, page.wiki_id)
+        if p.id != page.id
     ]
-    index = min(move.position, len(siblings))
-    ordered = [*siblings[:index], page, *siblings[index:]]
+    index = min(move.position, len(others))
+    ordered = [*others[:index], page, *others[index:]]
 
-    page.parent_page_id = move.parent_page_id
     for position, sibling in enumerate(ordered):
         sibling.position = position
         session.add(sibling)

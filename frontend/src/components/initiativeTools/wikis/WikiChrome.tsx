@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { WikiRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,8 @@ interface WikiChromeProps {
   wiki: WikiRead;
   /** The page being read. This bar names where you are, not where you are in general. */
   pageTitle: string;
+  /** When that page was last written to, shown when the wiki asks for it. */
+  pageUpdatedAt?: string | null;
   /** Whether the reader may write, which is what makes editing offerable. */
   canWrite: boolean;
   /** Whether the page is open for editing rather than being read. */
@@ -38,6 +41,7 @@ interface WikiChromeProps {
 export const WikiChrome = ({
   wiki,
   pageTitle,
+  pageUpdatedAt,
   canWrite,
   editing,
   onToggleEditing,
@@ -64,6 +68,13 @@ export const WikiChrome = ({
 
       <div className="min-w-0 flex-1">
         <h1 className="truncate font-semibold text-base leading-tight">{pageTitle}</h1>
+        {/* A handbook people act on needs to say how old it is; the wiki
+            decides whether that is true of it. */}
+        {wiki.show_updated_at && pageUpdatedAt ? (
+          <p className="truncate text-muted-foreground text-xs">
+            {t("updated")} <RelativeTime date={pageUpdatedAt} />
+          </p>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

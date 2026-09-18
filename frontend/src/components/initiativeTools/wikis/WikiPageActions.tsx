@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Check, FileStack, Home, Pencil, Settings2, Trash2 } from "lucide-react";
+import { Check, EyeOff, FileStack, Home, Pencil, Send, Settings2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDeleteWikiPage, useUpdateWiki } from "@/hooks/useWikis";
+import { useDeleteWikiPage, useUpdateWiki, useUpdateWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
@@ -49,6 +49,7 @@ export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPage
   const navigate = useNavigate();
   const updateWiki = useUpdateWiki(wiki.id);
   const deletePage = useDeleteWikiPage(wiki.id);
+  const updatePage = useUpdateWikiPage(wiki.id, page.id);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!canWrite) {
@@ -121,6 +122,27 @@ export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPage
               <FileStack className="size-4" aria-hidden />
             )}
             {isTemplate ? t("page.isTemplate") : t("page.useAsTemplate")}
+          </DropdownMenuItem>
+
+          {/* A draft is a page only the people who write here are shown. It is
+              how you leave something half-finished in a wiki people read. */}
+          <DropdownMenuItem
+            onSelect={() => {
+              updatePage.mutate(
+                { is_draft: !page.is_draft },
+                {
+                  onSuccess: () =>
+                    toast.success(page.is_draft ? t("page.published") : t("page.drafted")),
+                }
+              );
+            }}
+          >
+            {page.is_draft ? (
+              <Send className="size-4" aria-hidden />
+            ) : (
+              <EyeOff className="size-4" aria-hidden />
+            )}
+            {page.is_draft ? t("page.publish") : t("page.markDraft")}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />

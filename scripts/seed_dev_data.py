@@ -2859,14 +2859,14 @@ async def _create_wikis(
         pages: list of page defs.
 
     Each page def has:
-        title, parent (title of the page it sits under), created_by, tags,
-        paragraphs (the opening), sections (``(heading, [paragraph, ...])``
-        pairs) and links (see :func:`_resolve_wiki_link`).
+        title, created_by, tags, is_draft, paragraphs (the opening), sections
+        (``(heading, [paragraph, ...])`` pairs) and links (see
+        :func:`_resolve_wiki_link`).
 
-    Pages are written parent-first so a child can name the page it belongs to
-    by title, which is what makes these definitions readable — nothing here
-    carries an id. Links are resolved in a second pass over every wiki, once
-    all of them exist, so one wiki may point into another.
+    Pages are a flat list in the order they are written here — what sits under
+    a page in the navigation is that page's own headings. Links are resolved in
+    a second pass over every wiki, once all of them exist, so one wiki may
+    point into another.
 
     ``entities`` is what a page may link to besides another page, keyed by kind
     then by name — ``{"task": {...}, "document": {...}}``.
@@ -2885,7 +2885,6 @@ async def _create_wikis(
             page_order=wd.get("page_order", WikiPageOrder.manual),
             reading_width=wd.get("reading_width", WikiReadingWidth.wide),
             contents_depth=wd.get("contents_depth", 3),
-            show_page_counts=wd.get("show_page_counts", False),
             show_connections=wd.get("show_connections", True),
             accent_color=wd.get("accent_color"),
         )
@@ -2925,13 +2924,12 @@ async def _create_wikis(
         by_title: dict[str, WikiPage] = {}
         for position, pd in enumerate(wd.get("pages", [])):
             author = all_users[pd.get("created_by", wd["created_by"])]
-            parent = by_title.get(pd["parent"]) if pd.get("parent") else None
             title = pd["title"]
             page = WikiPage(
                 guild_id=guild.id,
                 wiki_id=wiki.id,
-                parent_page_id=parent.id if parent is not None else None,
                 position=position,
+                is_draft=pd.get("is_draft", False),
                 title=title,
                 slug=slugify_page_title(title, fallback=f"page-{position}"),
                 content=_wiki_body(pd),
@@ -5978,7 +5976,6 @@ async def seed() -> None:
                     # eighty entries by hand, and every entry the same shape.
                     "page_order": WikiPageOrder.title,
                     "reading_width": WikiReadingWidth.comfortable,
-                    "show_page_counts": True,
                     "accent_color": "#8b5cf6",
                     "home": "Barovia",
                     "template": "Entry template",
@@ -6048,7 +6045,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Vallaki",
-                            "parent": "Barovia",
                             "created_by": "Dungeon Master",
                             "tags": ["exploration"],
                             "paragraphs": [
@@ -6088,7 +6084,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "The Blue Water Inn",
-                            "parent": "Vallaki",
                             "created_by": "Elara Moonwhisper",
                             "paragraphs": [
                                 "Run by the Martikovs, who are not what they appear and "
@@ -6115,7 +6110,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "St. Andral's Church",
-                            "parent": "Vallaki",
                             "created_by": "Seraphina Dawnlight",
                             "tags": ["quest"],
                             "paragraphs": [
@@ -6148,7 +6142,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Castle Ravenloft",
-                            "parent": "Barovia",
                             "created_by": "Dungeon Master",
                             "tags": ["lore"],
                             "paragraphs": [
@@ -6188,7 +6181,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "The dining hall",
-                            "parent": "Castle Ravenloft",
                             "created_by": "Dungeon Master",
                             "tags": ["roleplay"],
                             "paragraphs": [
@@ -6214,7 +6206,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "The Village of Barovia",
-                            "parent": "Barovia",
                             "created_by": "Thorn Ironforge",
                             "paragraphs": [
                                 "Not the valley. The village, which shares its name and "
@@ -6240,7 +6231,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Bildrath's Mercantile",
-                            "parent": "The Village of Barovia",
                             "created_by": "Vex Shadowstep",
                             "tags": ["items/loot"],
                             "paragraphs": [
@@ -6264,7 +6254,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Krezk",
-                            "parent": "Barovia",
                             "created_by": "Dungeon Master",
                             "paragraphs": [
                                 "A walled village that does not want visitors and says so at "
@@ -6289,7 +6278,7 @@ async def seed() -> None:
                         },
                         {
                             "title": "The Amber Temple",
-                            "parent": "Barovia",
+                            "is_draft": True,
                             "created_by": "Dungeon Master",
                             "tags": ["lore", "items/loot"],
                             "paragraphs": [
@@ -6318,7 +6307,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Tser Pool",
-                            "parent": "Barovia",
                             "created_by": "Elara Moonwhisper",
                             "tags": ["NPC", "roleplay"],
                             "paragraphs": [
@@ -6630,7 +6618,6 @@ async def seed() -> None:
                     "tags": ["lore"],
                     "page_order": WikiPageOrder.title,
                     "reading_width": WikiReadingWidth.wide,
-                    "show_page_counts": True,
                     "accent_color": "#10b981",
                     "home": "Phandalin",
                     "pages": [
@@ -6667,7 +6654,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Tresendar Manor",
-                            "parent": "Phandalin",
                             "created_by": "Dungeon Master",
                             "tags": ["combat"],
                             "paragraphs": [
@@ -6773,7 +6759,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Thundertree",
-                            "parent": "Neverwinter Wood",
                             "created_by": "Vex Shadowstep",
                             "tags": ["exploration", "side quest"],
                             "paragraphs": [
@@ -8294,7 +8279,6 @@ async def seed() -> None:
                     "tags": ["main quest"],
                     "page_order": WikiPageOrder.title,
                     "reading_width": WikiReadingWidth.wide,
-                    "show_page_counts": True,
                     "contents_depth": 3,
                     "accent_color": "#0ea5e9",
                     "home": "The Exodus Fleet",
@@ -8354,7 +8338,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Ark Perseverance",
-                            "parent": "The Exodus Fleet",
                             "created_by": "Overseer Nova",
                             "tags": ["engineering"],
                             "paragraphs": [
@@ -8393,7 +8376,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Deck 7",
-                            "parent": "Ark Perseverance",
                             "created_by": "Kael Windrunner",
                             "tags": ["NPC"],
                             "paragraphs": [
@@ -8519,6 +8501,7 @@ async def seed() -> None:
                         },
                         {
                             "title": "Sector 7G",
+                            "is_draft": True,
                             "created_by": "Elara Moonwhisper",
                             "tags": ["exploration"],
                             "paragraphs": [
@@ -10432,7 +10415,6 @@ async def seed() -> None:
                     "tags": ["exploration"],
                     "page_order": WikiPageOrder.title,
                     "reading_width": WikiReadingWidth.comfortable,
-                    "show_page_counts": True,
                     "contents_depth": 3,
                     "accent_color": "#0ea5e9",
                     "home": "The Shattered Seas",
@@ -10502,7 +10484,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Port Vermillion",
-                            "parent": "The Shattered Seas",
                             "created_by": "Harbormaster Marisol",
                             "tags": ["NPC", "diplomacy"],
                             "paragraphs": [
@@ -10546,7 +10527,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "The Crimson Maiden",
-                            "parent": "Port Vermillion",
                             "created_by": "Finley Goldtongue",
                             "tags": ["ship upgrades"],
                             "paragraphs": [
@@ -10587,7 +10567,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Skull Cove",
-                            "parent": "The Shattered Seas",
                             "created_by": "Thorn Ironforge",
                             "tags": ["exploration", "loot"],
                             "paragraphs": [
@@ -10614,7 +10593,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "The Whispering Jungle",
-                            "parent": "The Shattered Seas",
                             "created_by": "Aurelia Brightshield",
                             "tags": ["exploration"],
                             "paragraphs": [
@@ -10675,6 +10653,7 @@ async def seed() -> None:
                         },
                         {
                             "title": "Ghost ship sightings",
+                            "is_draft": True,
                             "created_by": "Seraphina Dawnlight",
                             "tags": ["side quest"],
                             "paragraphs": [
@@ -10845,7 +10824,6 @@ async def seed() -> None:
                     "tags": ["naval combat"],
                     "page_order": WikiPageOrder.title,
                     "reading_width": WikiReadingWidth.wide,
-                    "show_page_counts": True,
                     "contents_depth": 2,
                     "accent_color": "#1e40af",
                     "home": "The Imperial Navy",
@@ -10898,7 +10876,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "Admiral Blackwood",
-                            "parent": "The Imperial Navy",
                             "created_by": "Kael Windrunner",
                             "tags": ["NPC", "boss fight"],
                             "paragraphs": [
@@ -10928,7 +10905,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "HMS Vengeance",
-                            "parent": "The Imperial Navy",
                             "created_by": "Thorn Ironforge",
                             "tags": ["naval combat"],
                             "paragraphs": [
@@ -10955,7 +10931,6 @@ async def seed() -> None:
                         },
                         {
                             "title": "HMS Ironclad",
-                            "parent": "The Imperial Navy",
                             "created_by": "Finley Goldtongue",
                             "tags": ["naval combat", "boss fight"],
                             "paragraphs": [

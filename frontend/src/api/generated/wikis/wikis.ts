@@ -1017,9 +1017,9 @@ export const useRecordWikiViewApiV1GGuildIdWikisWikiIdViewPost = <
   );
 };
 /**
- * Every page of a wiki, flat, in reading order.
+ * Every page of a wiki, in reading order.
  *
- * The whole tree in one response: the navigation draws all of it, and these
+ * The whole list in one response: the navigation draws all of it, and these
  * rows carry no bodies.
  * @summary List Wiki Pages
  */
@@ -1677,7 +1677,10 @@ export const useDeleteWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdDelete = <
   );
 };
 /**
- * Reparent and reposition a page in one request — what a drag is.
+ * Put a page somewhere else in the list — what a drag is.
+ *
+ * The whole list is renumbered rather than the moved page alone: positions
+ * are only ever read in order, and one pass leaves no two pages sharing one.
  * @summary Move Wiki Page
  */
 export const moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost = (

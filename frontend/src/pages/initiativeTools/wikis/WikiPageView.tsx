@@ -157,7 +157,7 @@ export const WikiPageView = () => {
 
   const addPage = () =>
     createPage.mutate(
-      { title: t("pages.untitled"), parent_page_id: null },
+      { title: t("pages.untitled") },
       {
         onSuccess: (created) =>
           void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, created.id)) }),
@@ -200,6 +200,7 @@ export const WikiPageView = () => {
         <WikiChrome
           wiki={wiki}
           pageTitle={page?.title || t("pages.untitled")}
+          pageUpdatedAt={page?.updated_at}
           canWrite={canWrite}
           editing={editing}
           onToggleEditing={() => setEditing((on) => !on)}

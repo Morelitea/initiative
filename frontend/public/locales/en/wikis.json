@@ -49,7 +49,8 @@
     "noMatches": "No pages match that",
     "collapse": "Collapse",
     "expand": "Expand",
-    "moved": "Page moved"
+    "moved": "Page moved",
+    "draft": "Draft"
   },
   "links": {
     "title": "Connections",
@@ -81,8 +82,6 @@
     "orderTitleHint": "Best once there are more pages than anyone wants to arrange.",
     "orderRecent": "Most recently edited first",
     "orderRecentHint": "Best for notes and decisions, where the newest matters most.",
-    "counts": "Show how many pages are under each one",
-    "countsHint": "Useful on a big wiki, noise on a small one.",
     "contents": "Contents depth",
     "contentsDescription": "How many heading levels the contents list shows.",
     "contentsLevels_one": "{{count}} level",
@@ -110,14 +109,20 @@
     "pagesDescription": "Where the wiki opens, and what a new page starts from.",
     "home": "Home page",
     "homeDescription": "The page the wiki opens on.",
-    "homeNone": "First page"
+    "homeNone": "First page",
+    "updated": "Show when a page changed",
+    "updatedHint": "A handbook people act on needs this; a world bible does not."
   },
   "page": {
     "actions": "Page actions",
     "setHome": "Set as home page",
     "useAsTemplate": "Use as the template for new pages",
     "isTemplate": "New pages start from this one",
-    "delete": "Delete page"
+    "delete": "Delete page",
+    "markDraft": "Mark as draft",
+    "publish": "Publish",
+    "published": "Page published",
+    "drafted": "Page marked as a draft"
   },
   "comments": "Comments",
   "closeComments": "Close comments",
@@ -125,5 +130,6 @@
   "viewMode": {
     "read": "View as a reader",
     "edit": "Edit this page"
-  }
+  },
+  "updated": "Updated"
 }

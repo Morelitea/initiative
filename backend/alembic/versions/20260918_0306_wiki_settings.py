@@ -27,11 +27,11 @@ depends_on = None
 #: this runs once per guild schema.
 _COLUMN_NAMES: tuple[str, ...] = (
     "page_order",
-    "show_page_counts",
     "accent_color",
     "template_page_id",
     "contents_depth",
     "show_connections",
+    "show_updated_at",
     "reading_width",
 )
 
@@ -43,19 +43,20 @@ def _columns() -> list[sa.Column]:
         sa.Column(
             "page_order", sa.String(length=16), server_default="manual", nullable=False
         ),
-        sa.Column(
-            "show_page_counts",
-            sa.Boolean(),
-            server_default=sa.text("false"),
-            nullable=False,
-        ),
         sa.Column("accent_color", sa.String(length=32), nullable=True),
         sa.Column("template_page_id", sa.Integer(), nullable=True),
         sa.Column(
             "contents_depth", sa.Integer(), server_default=sa.text("3"), nullable=False
         ),
         sa.Column(
+            "show_updated_at",
+            sa.Boolean(),
+            server_default=sa.text("true"),
+            nullable=False,
+        ),
+        sa.Column(
             "show_connections",
+            "show_updated_at",
             sa.Boolean(),
             server_default=sa.text("true"),
             nullable=False,
