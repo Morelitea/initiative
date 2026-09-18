@@ -130,9 +130,19 @@ if [ -n "${DEV_PORT_OFFSET:-}" ]; then
 fi
 
 # Where the frontend reaches the backend. vite.config.ts reads
-# VITE_DEV_PROXY_TARGET for its proxy, the SPA reads VITE_API_URL.
+# VITE_DEV_PROXY_TARGET for its proxy; the SPA reads VITE_API_URL.
+#
+# The SPA's is RELATIVE, so every request it makes — REST and WebSocket alike —
+# goes to the page's own origin and through Vite, which proxies `/api` with
+# `ws: true`. An absolute one sends the SPA straight at the backend port and
+# leaves that proxy unused, which is fine for REST and is not fine for a
+# WebSocket: the upgrade has one more hop to survive, and a browser that cannot
+# make it reports only that it could not connect.
+#
+# Anything outside the browser wants the absolute one and should use
+# VITE_DEV_PROXY_TARGET, which is what it is for.
 export VITE_DEV_PROXY_TARGET="${VITE_DEV_PROXY_TARGET:-http://localhost:${DEV_BACKEND_PORT}}"
-export VITE_API_URL="${VITE_API_URL:-http://localhost:${DEV_BACKEND_PORT}/api/v1}"
+export VITE_API_URL="${VITE_API_URL:-/api/v1}"
 export VITE_DEV_PORT="$DEV_FRONTEND_PORT"
 
 # One log per checkout, so two dev environments don't write over each other.
