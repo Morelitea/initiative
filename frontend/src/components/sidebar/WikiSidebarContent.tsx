@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, Plus, Search, Settings } from "lucide-react";
+import { ChevronLeft, FilePlus2, Plus, Search, Settings } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, WikiPageKind, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import { AddWikiDocumentDialog } from "@/components/initiativeTools/wikis/AddWikiDocumentDialog";
 import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useCreateWikiPage, useMoveWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
+import {
+  useCreateWikiPage,
+  useMoveWikiPage,
+  useRemoveWikiDocument,
+  useWiki,
+  useWikiPages,
+} from "@/hooks/useWikis";
+import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolSettingsRoute, wikiPageRoute } from "@/lib/tools";
+import { toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiSidebarContentProps {
   wikiId: number;
@@ -58,6 +66,9 @@ export const WikiSidebarContent = ({
   // for whichever one the tree hands over — `0` while none is in flight, which
   // the tree never triggers.
   const [movingPageId, setMovingPageId] = useState(0);
+  // Putting a document in the wiki, and taking one back out.
+  const [addingDocument, setAddingDocument] = useState(false);
+  const removeDocument = useRemoveWikiDocument(wikiId);
   const movePage = useMoveWikiPage(wikiId, movingPageId);
 
   const pages = pagesQuery.data?.items ?? [];
@@ -146,7 +157,13 @@ export const WikiSidebarContent = ({
                 {matches.map((page) => (
                   <SidebarMenuItem key={page.id}>
                     <SidebarMenuButton asChild size="sm" isActive={page.id === activePageId}>
-                      <Link to={gp(wikiPageRoute(initiativeId, wikiId, page.id))}>
+                      <Link
+                        to={gp(
+                          page.kind === WikiPageKind.document
+                            ? wikiDocumentRoute(initiativeId, wikiId, page.id)
+                            : wikiPageRoute(initiativeId, wikiId, page.id)
+                        )}
+                      >
                         <span className="min-w-0 flex-1 truncate">
                           {page.title || t("pages.untitled")}
                         </span>
@@ -162,7 +179,13 @@ export const WikiSidebarContent = ({
                 pages={pages}
                 activePageId={activePageId}
                 homePageId={wikiQuery.data?.home_page_id}
-                hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
+                hrefOf={(page) =>
+                  gp(
+                    page.kind === WikiPageKind.document
+                      ? wikiDocumentRoute(initiativeId, wikiId, page.id)
+                      : wikiPageRoute(initiativeId, wikiId, page.id)
+                  )
+                }
                 onMove={canWrite ? movePageTo : undefined}
                 renderRowMenu={
                   canWrite && wikiQuery.data
@@ -172,6 +195,11 @@ export const WikiSidebarContent = ({
                           page={page}
                           canWrite={canWrite}
                           initiativeId={initiativeId}
+                          onRemoveDocument={() =>
+                            removeDocument.mutate(page.id, {
+                              onSuccess: () => toast.success(t("documents.removed")),
+                            })
+                          }
                         />
                       )
                     : undefined
@@ -190,12 +218,26 @@ export const WikiSidebarContent = ({
                       <span>{t("pages.newPage")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton size="sm" onClick={() => setAddingDocument(true)}>
+                      <FilePlus2 className="h-4 w-4" />
+                      <span>{t("documents.addDocument")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               ) : null}
             </>
           )}
         </SidebarGroup>
       </SidebarContent>
+
+      <AddWikiDocumentDialog
+        wikiId={wikiId}
+        initiativeId={initiativeId}
+        pages={pages}
+        open={addingDocument}
+        onOpenChange={setAddingDocument}
+      />
     </>
   );
 };

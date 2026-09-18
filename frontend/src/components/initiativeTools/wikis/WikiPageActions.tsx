@@ -1,10 +1,20 @@
-import { useNavigate } from "@tanstack/react-router";
-import { Check, EyeOff, FileStack, Home, Pencil, Send, Settings2, Trash2 } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  Check,
+  ExternalLink,
+  EyeOff,
+  FileStack,
+  Home,
+  Pencil,
+  Send,
+  Settings2,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary, WikiRead } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, WikiPageKind } from "@/api/generated/initiativeAPI.schemas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +43,8 @@ interface WikiPageActionsProps {
   page: WikiPageSummary;
   canWrite: boolean;
   initiativeId: number;
+  /** Takes a document back out of the wiki. Only a document row has one. */
+  onRemoveDocument?: () => void;
 }
 
 /**
@@ -43,7 +55,13 @@ interface WikiPageActionsProps {
  * it is a thing you read. Revealed on hover like every other row control, so a
  * wiki being read is a wiki with nothing in the way of the words.
  */
-export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPageActionsProps) => {
+export const WikiPageActions = ({
+  wiki,
+  page,
+  canWrite,
+  initiativeId,
+  onRemoveDocument,
+}: WikiPageActionsProps) => {
   const { t } = useTranslation(["wikis", "common"]);
   const gp = useGuildPath();
   const navigate = useNavigate();
@@ -73,87 +91,108 @@ export const WikiPageActions = ({ wiki, page, canWrite, initiativeId }: WikiPage
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          {/* The other way into writing. The bar over the page offers it too;
+          {page.kind === WikiPageKind.document ? (
+            <>
+              <DropdownMenuItem asChild>
+                <Link to={gp(toolDetailRoute(Tool.document, initiativeId, page.id))}>
+                  <ExternalLink className="size-4" aria-hidden />
+                  {t("documents.openDocument")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive hover:text-destructive"
+                onSelect={() => onRemoveDocument?.()}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                {t("documents.remove")}
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <>
+              {/* The other way into writing. The bar over the page offers it too;
               this is the one you reach for from the tree, without opening the
               page to read first. */}
-          <DropdownMenuItem
-            onSelect={() => {
-              void navigate({
-                to: gp(wikiPageRoute(initiativeId, wiki.id, page.id)),
-                search: { edit: true },
-              });
-            }}
-          >
-            <Pencil className="size-4" aria-hidden />
-            {t("viewMode.edit")}
-          </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  void navigate({
+                    to: gp(wikiPageRoute(initiativeId, wiki.id, page.id)),
+                    search: { edit: true },
+                  });
+                }}
+              >
+                <Pencil className="size-4" aria-hidden />
+                {t("viewMode.edit")}
+              </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-          <DropdownMenuItem
-            onSelect={() => {
-              updateWiki.mutate(
-                { home_page_id: page.id },
-                { onSuccess: () => toast.success(t("pages.homeSet")) }
-              );
-            }}
-            disabled={isHome}
-          >
-            {isHome ? (
-              <Check className="size-4" aria-hidden />
-            ) : (
-              <Home className="size-4" aria-hidden />
-            )}
-            {isHome ? t("pages.isHome") : t("page.setHome")}
-          </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  updateWiki.mutate(
+                    { home_page_id: page.id },
+                    { onSuccess: () => toast.success(t("pages.homeSet")) }
+                  );
+                }}
+                disabled={isHome}
+              >
+                {isHome ? (
+                  <Check className="size-4" aria-hidden />
+                ) : (
+                  <Home className="size-4" aria-hidden />
+                )}
+                {isHome ? t("pages.isHome") : t("page.setHome")}
+              </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onSelect={() => {
-              updateWiki.mutate(
-                { template_page_id: page.id },
-                { onSuccess: () => toast.success(t("settings.saved")) }
-              );
-            }}
-            disabled={isTemplate}
-          >
-            {isTemplate ? (
-              <Check className="size-4" aria-hidden />
-            ) : (
-              <FileStack className="size-4" aria-hidden />
-            )}
-            {isTemplate ? t("page.isTemplate") : t("page.useAsTemplate")}
-          </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  updateWiki.mutate(
+                    { template_page_id: page.id },
+                    { onSuccess: () => toast.success(t("settings.saved")) }
+                  );
+                }}
+                disabled={isTemplate}
+              >
+                {isTemplate ? (
+                  <Check className="size-4" aria-hidden />
+                ) : (
+                  <FileStack className="size-4" aria-hidden />
+                )}
+                {isTemplate ? t("page.isTemplate") : t("page.useAsTemplate")}
+              </DropdownMenuItem>
 
-          {/* A draft is a page only the people who write here are shown. It is
+              {/* A draft is a page only the people who write here are shown. It is
               how you leave something half-finished in a wiki people read. */}
-          <DropdownMenuItem
-            onSelect={() => {
-              updatePage.mutate(
-                { is_draft: !page.is_draft },
-                {
-                  onSuccess: () =>
-                    toast.success(page.is_draft ? t("page.published") : t("page.drafted")),
-                }
-              );
-            }}
-          >
-            {page.is_draft ? (
-              <Send className="size-4" aria-hidden />
-            ) : (
-              <EyeOff className="size-4" aria-hidden />
-            )}
-            {page.is_draft ? t("page.publish") : t("page.markDraft")}
-          </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  updatePage.mutate(
+                    { is_draft: !page.is_draft },
+                    {
+                      onSuccess: () =>
+                        toast.success(page.is_draft ? t("page.published") : t("page.drafted")),
+                    }
+                  );
+                }}
+              >
+                {page.is_draft ? (
+                  <Send className="size-4" aria-hidden />
+                ) : (
+                  <EyeOff className="size-4" aria-hidden />
+                )}
+                {page.is_draft ? t("page.publish") : t("page.markDraft")}
+              </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-          <DropdownMenuItem
-            className="text-destructive hover:text-destructive"
-            onSelect={() => setConfirmingDelete(true)}
-          >
-            <Trash2 className="size-4" aria-hidden />
-            {t("page.delete")}
-          </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive hover:text-destructive"
+                onSelect={() => setConfirmingDelete(true)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                {t("page.delete")}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

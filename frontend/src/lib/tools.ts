@@ -301,6 +301,20 @@ export const wikiPageRoute = (
 ): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/pages/${pageId}`;
 
 /**
+ * A document read inside the wiki it was put in, e.g.
+ * "/i/12/wikis/3/documents/8".
+ *
+ * Its own address stays what it always was — this one says "this document, as
+ * a page of that wiki", which is what keeps the wiki's navigation standing
+ * beside it.
+ */
+export const wikiDocumentRoute = (
+  initiativeId: number | null,
+  wikiId: number,
+  documentId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/documents/${documentId}`;
+
+/**
  * Guild-relative resolver route for an entity whose initiative isn't in hand,
  * e.g. "/go/document/42". The resolver reads the entity and replaces itself
  * with the canonical address.

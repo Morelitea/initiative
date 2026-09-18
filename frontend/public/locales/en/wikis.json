@@ -131,5 +131,14 @@
     "read": "View as a reader",
     "edit": "Edit this page"
   },
-  "updated": "Updated"
+  "updated": "Updated",
+  "documents": {
+    "openDocument": "Open document",
+    "addDocument": "Add a document",
+    "added": "Document added to the wiki",
+    "removed": "Document removed from the wiki",
+    "remove": "Remove from this wiki",
+    "none": "No documents to add",
+    "pick": "Which document?"
+  }
 }

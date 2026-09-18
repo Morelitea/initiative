@@ -307,6 +307,47 @@ async def get_wiki_for_export(
     return wiki, pages
 
 
+async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:
+    """The documents somebody has put in this wiki.
+
+    A document joins a wiki by an edge, not by a column: ``document part_of
+    wiki`` is exactly the fact being asserted, and ``relationships`` already
+    holds facts of that shape. So a document can sit in a wiki without being
+    moved, copied, or owned by it — it stays the document it was, in whatever
+    else it also belongs to.
+    """
+    from app.core.relationships import RelationshipType, decode_node_id, node_id
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document
+    from app.models.tenant.relationship import EntityRelationship
+
+    edges = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.target_node
+                == node_id(SearchEntityType.wiki, wiki_id),
+                EntityRelationship.relationship_type == RelationshipType.part_of,
+                EntityRelationship.removed_at.is_(None),
+            )
+        )
+    ).all()
+
+    document_ids = [
+        entity_id
+        for kind, entity_id in (decode_node_id(edge.source_node) for edge in edges)
+        if kind is SearchEntityType.document
+    ]
+    if not document_ids:
+        return []
+
+    # RLS is the gate, as everywhere else: a document the reader may not see
+    # simply does not come back, and the wiki is shorter by one row.
+    rows = (
+        await session.exec(select(Document).where(Document.id.in_(document_ids)))
+    ).all()
+    return list(rows)
+
+
 async def page_links(session: AsyncSession, page: WikiPage) -> tuple[list, list]:
     """What this page connects to, and what connects to it.
 

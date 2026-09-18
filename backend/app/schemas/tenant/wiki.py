@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
@@ -144,6 +145,21 @@ class WikiPageMove(SanitizedBaseModel):
     position: int = Field(default=0, ge=0)
 
 
+class WikiPageKind(str, Enum):
+    """What a row in a wiki's navigation actually is.
+
+    A wiki holds pages of its own and documents somebody put in it. The second
+    kind is a document still — it is not copied in, it keeps its own address,
+    its own sharing and its own history — so the navigation has to say which it
+    is looking at rather than pretend they are the same row.
+    """
+
+    #: A page belonging to this wiki, written here.
+    page = "page"
+    #: A document placed in this wiki by a ``part_of`` edge.
+    document = "document"
+
+
 class WikiPageHeading(SanitizedBaseModel):
     """One heading written on a page.
 
@@ -176,7 +192,12 @@ class WikiPageSummary(SanitizedBaseModel):
     id: int
     wiki_id: int
     guild_id: int
+    #: Which of the two things this row is. A document keeps its own id, so a
+    #: client keys rows on the pair rather than on the number alone.
+    kind: WikiPageKind = WikiPageKind.page
     position: int = 0
+    #: A document placed in a wiki is never a draft: it is not this wiki's to
+    #: hold back, and it is readable wherever else it already lives.
     is_draft: bool = False
     title: str
     slug: str
@@ -295,6 +316,7 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
         id=page.id,
         wiki_id=page.wiki_id,
         guild_id=page.guild_id,
+        kind=WikiPageKind.page,
         position=page.position,
         is_draft=page.is_draft,
         title=page.title,
@@ -304,6 +326,33 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
         updated_at=page.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(page.content)],
         tags=annotated_tags(page),
+    )
+
+
+def serialize_document_as_page(
+    document: "Any", *, wiki_id: int, position: int
+) -> WikiPageSummary:
+    """A document, as the wiki's navigation draws it.
+
+    Everything a row needs, read off the document itself — including its
+    headings, so a document in a wiki opens in the sidebar exactly as a page
+    written here does.
+    """
+    from app.services.tenant.wikis import page_headings, slugify_page_title
+
+    return WikiPageSummary(
+        id=document.id,
+        wiki_id=wiki_id,
+        guild_id=document.guild_id,
+        kind=WikiPageKind.document,
+        position=position,
+        is_draft=False,
+        title=document.name,
+        slug=slugify_page_title(document.name, fallback=f"document-{document.id}"),
+        created_by=document.created_by,
+        created_at=document.created_at,
+        updated_at=document.updated_at,
+        headings=[WikiPageHeading(**h) for h in page_headings(document.content)],
     )
 
 
