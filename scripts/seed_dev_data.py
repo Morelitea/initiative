@@ -151,6 +151,7 @@ from app.core.relationships import (  # noqa: E402
     node_id,
 )
 from app.core.search import SearchEntityType  # noqa: E402
+from app.core.tools import TOGGLEABLE_TOOLS  # noqa: E402
 from app.models.tenant.relationship import EntityRelationship  # noqa: E402
 from app.services.tenant import relationships as relationships_service  # noqa: E402
 from app.models.tenant.tag import Tag  # noqa: E402
@@ -1007,35 +1008,36 @@ async def _create_initiative(
     color: str,
     pm_user: User,
     member_users: list[User] | None = None,
-    queues_enabled: bool = False,
-    counter_groups_enabled: bool = False,
-    calendars_enabled: bool = False,
-    dashboards_enabled: bool = False,
-    posts_enabled: bool = False,
-    galleries_enabled: bool = False,
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private,
     auto_join: bool = False,
+    **tools_enabled: bool,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members.
+
+    Which tools the initiative starts with is given as ``<plural>_enabled=True``
+    keywords. They are checked against the Tool enum rather than a list kept
+    here, so a tool added to the enum is seedable the same day and a misspelled
+    switch is a ``TypeError`` instead of one that quietly stays off. Anything
+    not named takes the model's own default.
 
     ``join_policy`` decides how a community member without a membership row
     gets one: ``private`` is invite-only, ``request`` puts them in the manager's
     queue, ``open`` is one click. ``auto_join`` enrols every new arrival to the
     community and the check constraint only allows it on an ``open`` one.
     """
+    unknown = sorted(set(tools_enabled) - {t.view_permission for t in TOGGLEABLE_TOOLS})
+    if unknown:
+        raise TypeError(
+            f"_create_initiative() got unexpected keyword argument(s): {', '.join(unknown)}"
+        )
     initiative = Initiative(
         guild_id=guild.id,
         name=name,
         description=description,
         color=color,
-        queues_enabled=queues_enabled,
-        counter_groups_enabled=counter_groups_enabled,
-        calendars_enabled=calendars_enabled,
-        dashboards_enabled=dashboards_enabled,
-        posts_enabled=posts_enabled,
-        galleries_enabled=galleries_enabled,
         join_policy=join_policy.value,
         auto_join=auto_join,
+        **tools_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -3627,6 +3629,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
             galleries_enabled=True,
@@ -3646,6 +3649,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
             galleries_enabled=True,
@@ -6912,6 +6916,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             galleries_enabled=True,
         )
@@ -6929,6 +6934,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
         )
 
         # Projects
@@ -8927,6 +8933,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             galleries_enabled=True,
         )
@@ -8944,6 +8951,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
         )
 
         # Projects
