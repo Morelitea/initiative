@@ -1171,7 +1171,42 @@
         "tid": "Tenant de Microsoft Entra",
         "groups": "Pertenencia a un grupo",
         "domain": "Dominio"
-      }
+      },
+      "inherited": "De la instalación",
+      "makeItOurs": "Hacerla nuestra"
+    },
+    "rules": {
+      "title": "Dónde llega vuestra gente",
+      "description": "Vuestro proveedor indica en qué grupos está cada persona. Decid aquí qué significan esos grupos: quién entra como miembro, quién como administrador y en qué iniciativa empieza.",
+      "add": "Añadir una regla",
+      "added": "Regla añadida",
+      "addError": "No se pudo añadir esa regla",
+      "empty": "Aún no hay reglas: quien llegue por vuestros proveedores entrará sin nada en particular.",
+      "connectFirst": "Conectad primero un proveedor y luego decid qué significan sus grupos.",
+      "noGroupsBadge": "No informa de grupos",
+      "noGroupsHint": "Quien gestiona esta instalación no ha indicado a este proveedor dónde están sus grupos, así que esta regla no se aplicará a nadie hasta que lo haga.",
+      "landsInCommunity": "Llega por {{provider}}: entra como {{role}}",
+      "landsInInitiative": "Llega por {{provider}}: entra como {{role}}, y en {{initiative}} como {{initiativeRole}}",
+      "dialogDescription": "Nombrad un grupo del que informe vuestro proveedor y decid dónde pertenece su gente.",
+      "providerLabel": "Proveedor",
+      "providerPlaceholder": "Elegid uno",
+      "groupLabel": "Grupo",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactamente como lo escribe vuestro proveedor.",
+      "standingLabel": "Entran como",
+      "role": {
+        "member": "miembro",
+        "admin": "administrador"
+      },
+      "initiativeLabel": "Y empiezan en",
+      "communityOnly": "Solo la comunidad",
+      "initiativeRoleLabel": "En esa iniciativa, como",
+      "initiativeRolePlaceholder": "Elegid un rol",
+      "remove": "Eliminar",
+      "removed": "Regla eliminada",
+      "removeError": "No se pudo eliminar esa regla",
+      "removeTitle": "¿Eliminar esta regla?",
+      "removeDescription": "Quien lleve {{group}} dejará de ser asignado aquí, y quien esté aquí por esta regla perderá esa posición la próxima vez que inicie sesión con ese proveedor."
     }
   },
   "authProviders": {
@@ -1478,5 +1513,23 @@
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
     "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
     "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
+  },
+  "providerDefaults": {
+    "title": "Lo que hereda una comunidad",
+    "description": "Responded una vez por proveedor y cada comunidad heredará esa respuesta hasta que dé la suya. Útil cuando esta instalación es una sola organización: un proveedor, un inquilino y comunidades que son sus equipos.",
+    "noAnswer": "Sin respuesta: cada comunidad decide por sí misma",
+    "noProviders": "Añadid primero un proveedor de inicio de sesión y luego decid qué heredan las comunidades de él.",
+    "answer": "Responder por él",
+    "change": "Cambiar",
+    "withdraw": "Retirar",
+    "withdrawn": "Respuesta retirada",
+    "save": "Guardar",
+    "saved": "Respuesta guardada",
+    "saveError": "No se pudo guardar esa respuesta",
+    "narrowedTo": "Solo cuentas cuyo {{claim}} sea {{values}}",
+    "anyoneItVouchesFor": "Cualquiera por quien responda este proveedor",
+    "claimLabel": "Qué reclamación decide",
+    "valuesLabel": "Valores que cuentan",
+    "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
   }
 }

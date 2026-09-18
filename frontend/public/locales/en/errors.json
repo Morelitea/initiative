@@ -184,7 +184,6 @@
   "SETTINGS_SMTP_INCOMPLETE": "SMTP settings are incomplete",
   "SETTINGS_EMAIL_SEND_FAILED": "Failed to send the test email. Check the server logs for details.",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapping not found",
-  "SETTINGS_PROVIDER_WRONG_GUILD": "This sign-in provider belongs to another community, so its rules can only grant access there",
   "SETTINGS_INVALID_TARGET_TYPE": "Target type must be a community or an initiative",
   "SETTINGS_INVALID_GUILD_ROLE": "Community role must be 'admin' or 'member'",
   "SETTINGS_INITIATIVE_ID_REQUIRED": "Initiative ID required for initiative mappings",
@@ -697,5 +696,8 @@
   "WIKI_PAGE_NOT_FOUND": "That page is not in this wiki",
   "WIKI_PAGE_PARENT_ITSELF": "A page cannot be filed under itself",
   "WIKI_PAGE_PARENT_DESCENDANT": "A page cannot be filed under one of its own sub-pages",
-  "WIKI_HOME_NOT_IN_WIKI": "The home page has to be one of this wiki's own pages"
+  "WIKI_HOME_NOT_IN_WIKI": "The home page has to be one of this wiki's own pages",
+  "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",
+  "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connect that provider to your community before saying what its groups mean",
+  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there"
 }

@@ -74,13 +74,29 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
   const [removing, setRemoving] = useState<GuildProviderConnectionRead | null>(null);
 
   const connections = connectionsQuery.data ?? [];
-  const connectedIds = new Set(connections.map((row) => row.provider_id));
+  // Only what this community said itself: a provider it merely inherits is
+  // still one it can connect to, which is how it takes the arrangement over.
+  const connectedIds = new Set(
+    connections.filter((row) => !row.inherited).map((row) => row.provider_id)
+  );
   // A provider already in use is still listed by the server (that is what
   // keeps one registered for this community visible to it), so the picker
   // leaves out the ones there is nothing left to do with.
   const choosable = (availableQuery.data ?? []).filter(
     (row: ConnectableProviderRead) => !connectedIds.has(row.id)
   );
+
+  /** Take over an inherited arrangement: the same dialog, filled in with
+   *  what the deployment answered, so the community starts from that rather
+   *  than from a blank form. Saving writes a connection of its own, which
+   *  shadows the default from then on. */
+  const adopt = (row: GuildProviderConnectionRead) => {
+    setProviderId(String(row.provider_id));
+    setClaim(row.claim ?? "");
+    setClaimValues(row.claim_values.join(", "));
+    setAutoJoin(false);
+    setDialogOpen(true);
+  };
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -145,6 +161,9 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{row.provider_display_name}</span>
+                      {row.inherited && (
+                        <Badge variant="outline">{t("guildAuth.connections.inherited")}</Badge>
+                      )}
                       {!row.enabled && (
                         <Badge variant="outline">{t("authProviders.disabledBadge")}</Badge>
                       )}
@@ -168,31 +187,45 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <Switch
-                    aria-label={t("authProviders.enabledLabel")}
-                    checked={row.enabled}
-                    onCheckedChange={(checked) =>
-                      updateConnection.mutate(
-                        { connectionId: row.id, data: { enabled: Boolean(checked) } },
-                        {
-                          onError: (error) =>
-                            toast.error(
-                              getErrorMessage(error, "settings:guildAuth.connections.connectError")
-                            ),
+                  {row.inherited || row.id === null ? (
+                    <Button type="button" variant="outline" size="sm" onClick={() => adopt(row)}>
+                      {t("guildAuth.connections.makeItOurs")}
+                    </Button>
+                  ) : (
+                    <>
+                      <Switch
+                        aria-label={t("authProviders.enabledLabel")}
+                        checked={row.enabled}
+                        onCheckedChange={(checked) =>
+                          updateConnection.mutate(
+                            {
+                              connectionId: row.id as number,
+                              data: { enabled: Boolean(checked) },
+                            },
+                            {
+                              onError: (error) =>
+                                toast.error(
+                                  getErrorMessage(
+                                    error,
+                                    "settings:guildAuth.connections.connectError"
+                                  )
+                                ),
+                            }
+                          )
                         }
-                      )
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    aria-label={t("guildAuth.connections.disconnect")}
-                    onClick={() => setRemoving(row)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        aria-label={t("guildAuth.connections.disconnect")}
+                        onClick={() => setRemoving(row)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </li>
             ))}
@@ -301,7 +334,9 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
         destructive
         isLoading={disconnect.isPending}
         onConfirm={() => {
-          if (!removing) return;
+          // Only a connection of this community's own reaches here; an
+          // inherited row offers to be taken over rather than removed.
+          if (removing?.id == null) return;
           disconnect.mutate(removing.id, {
             onSuccess: () => {
               toast.success(t("guildAuth.connections.disconnected"));

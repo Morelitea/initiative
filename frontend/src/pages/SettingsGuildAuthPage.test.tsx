@@ -96,6 +96,13 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useConnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateProviderConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useDisconnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
+  useGuildClaimRules: () => ({
+    data: { rules: [], reporting_provider_ids: [] },
+    isLoading: false,
+  }),
+  useCreateClaimRule: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateClaimRule: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteClaimRule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { SettingsGuildAuthPage } from "./SettingsGuildAuthPage";

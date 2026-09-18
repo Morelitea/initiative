@@ -9,8 +9,8 @@ exactly like one that did not.
 
 These are recorded **per provider**, not per session. One session can satisfy
 several guilds' identity sources at once, and each guild's requirement is about
-its own provider's authentication event — a step-up into one guild's IdP says
-nothing about when another's last authenticated.
+its own provider's authentication event — a step-up through one provider says
+nothing about when another last authenticated.
 
 The values come from the provider, so this module fixes their shape and size
 before they reach a session row or an access token.

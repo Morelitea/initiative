@@ -37,21 +37,14 @@ from app.services.auth import identity as identity_service
 logger = logging.getLogger(__name__)
 
 
-def provider_callback_url(slug: str, guild_id: int | None = None) -> str:
+def provider_callback_url(slug: str) -> str:
     """Where a provider sends the browser back, which is what an operator
     registers with their IdP.
 
-    ``guild_id`` addresses the community a sign-in is *for*, not the owner of
-    the provider — a community's sign-in comes in on its own route and has to
-    go back out on it, because that is the address already registered at the
-    far end. It comes from the request path, never from the provider row.
-
-    Built here so the address shown in settings and the address sent to the IdP
-    come from one place.
+    One provider, one address. Built here so the address shown in settings and
+    the address sent to the IdP come from one place.
     """
     base = app_config.APP_URL.rstrip("/")
-    if guild_id is not None:
-        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{slug}/callback"
     return f"{base}{API_V1_STR}/auth/{slug}/callback"
 
 

@@ -4052,6 +4052,63 @@ export interface GuildBannerWrite {
   fade: BannerFade;
 }
 
+/**
+ * Place the people carrying one group.
+ *
+ * Naming an initiative places them there as well as in the community, since
+ * somebody has to be in the community to be in one of its initiatives.
+ */
+export interface GuildClaimRuleCreate {
+  provider_id: number;
+  /** @maxLength 500 */
+  claim_value: string;
+  guild_role?: string;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * One rule a community wrote: a group this provider asserts, and where
+ * somebody carrying it lands.
+ */
+export interface GuildClaimRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+}
+
+/**
+ * Change where a group lands. Its provider is not editable: a group value
+ * means nothing without knowing who asserted it, so a rule pointed at
+ * another provider is a different rule.
+ */
+export interface GuildClaimRuleUpdate {
+  claim_value?: string | null;
+  guild_role?: string | null;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * The rules, and whether the providers behind them report groups at all.
+ *
+ * Which claim carries groups is the operator's to set per provider. A
+ * community can write rules against a provider that has none, and they will
+ * never match anything, so the surface says which of its connections are
+ * ready to be written against rather than letting somebody find out later.
+ */
+export interface GuildClaimRulesResponse {
+  rules: GuildClaimRuleRead[];
+  reporting_provider_ids: number[];
+}
+
 export interface GuildCreate {
   name: string;
   description?: string | null;
@@ -4171,9 +4228,14 @@ export interface GuildProviderConnectionCreate {
 
 /**
  * One community signing its members in through one provider.
+ *
+ * Also how an arrangement the community has not made itself is shown: the
+ * deployment's default for that provider, marked ``inherited``, which the
+ * community replaces by connecting to the provider itself.
  */
 export interface GuildProviderConnectionRead {
-  id: number;
+  id: number | null;
+  inherited: boolean;
   provider_id: number;
   provider_slug: string;
   provider_display_name: string;
@@ -5475,6 +5537,29 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
+}
+
+/**
+ * How one provider is arranged for a community that has not said.
+ */
+export interface PlatformProviderDefaultRead {
+  provider_id: number;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+}
+
+/**
+ * Answer for a provider on behalf of the communities that have not.
+ *
+ * Carries the arrangement and nothing else. There is no ``auto_join`` here:
+ * a default names a provider, never a community, so who joins a community
+ * stays that community's to say.
+ */
+export interface PlatformProviderDefaultUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
 }
 
 /**

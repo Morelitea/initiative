@@ -184,7 +184,6 @@
   "SETTINGS_PROVIDE_TEST_EMAIL": "Gib eine Test-E-Mail-Adresse an",
   "SETTINGS_SMTP_INCOMPLETE": "SMTP-Einstellungen sind unvollständig",
   "SETTINGS_MAPPING_NOT_FOUND": "Zuordnung nicht gefunden",
-  "SETTINGS_PROVIDER_WRONG_GUILD": "Dieser Anmeldeanbieter gehört zu einer anderen Community; seine Regeln können Zugriff nur dort gewähren",
   "SETTINGS_INVALID_TARGET_TYPE": "Der Zieltyp muss eine Community oder eine Initiative sein",
   "SETTINGS_INVALID_GUILD_ROLE": "Die Community-Rolle muss 'admin' oder 'member' sein",
   "SETTINGS_INITIATIVE_ID_REQUIRED": "Initiative-ID für Initiativenzuordnungen erforderlich",
@@ -697,5 +696,8 @@
   "WIKI_PAGE_NOT_FOUND": "Diese Seite ist nicht in diesem Wiki",
   "WIKI_PAGE_PARENT_ITSELF": "Eine Seite kann nicht sich selbst untergeordnet werden",
   "WIKI_PAGE_PARENT_DESCENDANT": "Eine Seite kann keiner ihrer eigenen Unterseiten untergeordnet werden",
-  "WIKI_HOME_NOT_IN_WIKI": "Die Startseite muss eine Seite dieses Wikis sein"
+  "WIKI_HOME_NOT_IN_WIKI": "Die Startseite muss eine Seite dieses Wikis sein",
+  "AUTH_PROVIDER_RULE_NOT_FOUND": "Diese Regel gehört nicht zu euch",
+  "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Verbindet diesen Anbieter mit eurer Community, bevor ihr festlegt, was seine Gruppen bedeuten",
+  "AUTH_PROVIDER_RULE_EXISTS": "Diese Gruppe landet dort bereits"
 }

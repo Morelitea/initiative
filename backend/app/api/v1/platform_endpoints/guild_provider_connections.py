@@ -1,10 +1,13 @@
 """Which of the platform's providers a community signs its members in through.
 
-Managed here: a community's ``guild_provider_connections`` rows. A community
-does not register a provider — the operator holds every one of those — so
-nothing on this surface takes an issuer, a client id or a secret. What it takes
-is which provider, and the claim that narrows it to this community's own
-tenant.
+Managed here: a community's ``guild_provider_connections`` rows, and the rules
+riding them. A community does not register a provider — the operator holds
+every one of those — so nothing on this surface takes an issuer, a client id or
+a secret. What it takes is which provider, the claim that narrows it to this
+community's own tenant, and where the groups that provider asserts land.
+
+Those are one sentence said in one breath, which is why they share a router and
+a gate: *our people come in through this, and these of them belong here.*
 
 Exists only where the operator has granted the community that option (404
 otherwise, like the rest of the guild auth surface).
@@ -34,10 +37,15 @@ from app.db.session import get_admin_session
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
+    GuildClaimRuleCreate,
+    GuildClaimRuleRead,
+    GuildClaimRulesResponse,
+    GuildClaimRuleUpdate,
     GuildProviderConnectionCreate,
     GuildProviderConnectionRead,
     GuildProviderConnectionUpdate,
 )
+from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import guild_provider_connections as connections
 from app.services.platform import guilds as guilds_service
 
@@ -175,3 +183,76 @@ async def delete_guild_provider_connection(
     # connection is being removed through the separate system session.
     await guilds_service.lock_guild_seats(session, guild_id)
     await connections.delete_connection(admin_session, connection_id, guild_id=guild_id)
+
+
+@router.get("/{guild_id}/auth/rules", response_model=GuildClaimRulesResponse)
+async def list_guild_claim_rules(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> GuildClaimRulesResponse:
+    """Where this community places the people its providers vouch for."""
+    await _require_connection_reader(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    return await claim_rules.list_rules(admin_session, guild_id=guild_id)
+
+
+@router.post(
+    "/{guild_id}/auth/rules",
+    response_model=GuildClaimRuleRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_guild_claim_rule(
+    guild_id: int,
+    payload: GuildClaimRuleCreate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> GuildClaimRuleRead:
+    """Place the people carrying one group. The rule reads a provider this
+    community already counts as its own — saying what a group means is the
+    same sentence as saying whose people arrive through it."""
+    await _require_connection_admin(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    return await claim_rules.create_rule(
+        admin_session, guild_id=guild_id, payload=payload
+    )
+
+
+@router.patch("/{guild_id}/auth/rules/{rule_id}", response_model=GuildClaimRuleRead)
+async def update_guild_claim_rule(
+    guild_id: int,
+    rule_id: int,
+    payload: GuildClaimRuleUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> GuildClaimRuleRead:
+    await _require_connection_admin(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    return await claim_rules.update_rule(
+        admin_session, guild_id=guild_id, rule_id=rule_id, payload=payload
+    )
+
+
+@router.delete(
+    "/{guild_id}/auth/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_guild_claim_rule(
+    guild_id: int,
+    rule_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: CurrentUserDep,
+) -> None:
+    """Stop placing the people carrying one group. Nobody loses a standing
+    they already hold until their next sign-in through that provider, which
+    reconciles against the rules as they stand then."""
+    await _require_connection_admin(
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
+    )
+    await claim_rules.delete_rule(admin_session, guild_id=guild_id, rule_id=rule_id)

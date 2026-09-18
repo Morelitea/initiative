@@ -327,6 +327,14 @@ class AuthProviderMessages:
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
+    #: A community's rule, by an id that is not one of its own.
+    RULE_NOT_FOUND = "AUTH_PROVIDER_RULE_NOT_FOUND"
+    #: A rule reads a provider's groups, so the community has to count that
+    #: provider as one of its own before it can say what its groups mean.
+    RULE_PROVIDER_NOT_CONNECTED = "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED"
+    #: One group lands in one place. A second rule for the same group and the
+    #: same destination would be two answers to one question.
+    RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
 
 
 class TagMessages:
@@ -468,7 +476,6 @@ class SettingsMessages:
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
-    PROVIDER_WRONG_GUILD = "SETTINGS_PROVIDER_WRONG_GUILD"
     INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
     INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
@@ -476,7 +483,7 @@ class SettingsMessages:
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
-    #: A guild still requires a sign-in through a provider of its own.
+    #: A guild still requires a sign-in through a provider it connects to.
     LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
     #: Something is ticked, but nothing that can begin a session — an

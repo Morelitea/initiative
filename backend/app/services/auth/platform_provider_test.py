@@ -50,7 +50,6 @@ async def test_upsert_creates_provider_and_secret(session):
     provider = await _upsert(session)
 
     assert provider.slug == PLATFORM_OIDC_SLUG
-    assert provider.guild_id is None
     assert provider.enabled is True
     assert provider.issuer == "https://idp.example.com"
     assert provider.client_id == "client-123"

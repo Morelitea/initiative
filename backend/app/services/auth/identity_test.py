@@ -300,14 +300,10 @@ async def test_closed_registration_refuses_unknown_user(session, monkeypatch):
     assert await _identities_for(session, provider) == []
 
 
-async def test_a_guilds_pkce_provider_counts_as_a_way_in(session):
-    """A guild's provider needs no client secret, and may carry any slug —
-    including the one the operator-global row uses in its own namespace.
-
-    The secret requirement belongs to the operator-global row, which is
-    identified by ``guild_id IS NULL`` and not by its slug. A guild row sharing
-    that slug answers logins, so it counts as a way in like any other.
-    """
+async def test_a_pkce_provider_counts_as_a_way_in(session):
+    """A stored client secret is the platform row's own requirement, so a
+    provider beside it answers logins without one — and the counts deciding
+    whether single sign-on can be withdrawn include whoever arrives that way."""
     from app.services.auth.identity import (
         federated_only_user_count,
         password_only_user_count,
@@ -319,10 +315,9 @@ async def test_a_guilds_pkce_provider_counts_as_a_way_in(session):
         create_user,
     )
 
-    guild = await create_guild(session)
-    provider = await create_auth_provider(
-        session, slug="oidc", guild_id=guild.id
-    )  # no client secret: PKCE-only, which a guild provider may be
+    # Makes its own creator, who holds a password — the baseline below.
+    await create_guild(session)
+    provider = await create_auth_provider(session, slug="pkce")  # no client secret
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 

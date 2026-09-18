@@ -1171,7 +1171,42 @@
         "tid": "Microsoft-Entra-Mandant",
         "groups": "Gruppenmitgliedschaft",
         "domain": "Domain"
-      }
+      },
+      "inherited": "Von der Installation",
+      "makeItOurs": "Zu unserer machen"
+    },
+    "rules": {
+      "title": "Wo eure Leute landen",
+      "description": "Euer Anbieter meldet, in welchen Gruppen jemand ist. Legt hier fest, was diese Gruppen bedeuten – wer als Mitglied beitritt, wer als Admin, und in welcher Initiative sie starten.",
+      "add": "Regel hinzufügen",
+      "added": "Regel hinzugefügt",
+      "addError": "Regel konnte nicht hinzugefügt werden",
+      "empty": "Noch keine Regeln – wer über eure Anbieter kommt, tritt ohne besondere Zuordnung bei.",
+      "connectFirst": "Verbindet zuerst einen Anbieter, dann legt fest, was seine Gruppen bedeuten.",
+      "noGroupsBadge": "Keine Gruppen gemeldet",
+      "noGroupsHint": "Die Betreiber dieser Installation haben diesem Anbieter nicht mitgeteilt, wo seine Gruppen stehen. Bis dahin trifft diese Regel auf niemanden zu.",
+      "landsInCommunity": "Ankunft über {{provider}} – tritt bei als {{role}}",
+      "landsInInitiative": "Ankunft über {{provider}} – tritt bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+      "dialogDescription": "Nennt eine Gruppe, die euer Anbieter meldet, und legt fest, wohin ihre Leute gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "groupLabel": "Gruppe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Genau so geschrieben wie bei eurem Anbieter.",
+      "standingLabel": "Sie treten bei als",
+      "role": {
+        "member": "Mitglied",
+        "admin": "Admin"
+      },
+      "initiativeLabel": "Und starten in",
+      "communityOnly": "Nur die Community",
+      "initiativeRoleLabel": "In dieser Initiative als",
+      "initiativeRolePlaceholder": "Rolle auswählen",
+      "remove": "Entfernen",
+      "removed": "Regel entfernt",
+      "removeError": "Regel konnte nicht entfernt werden",
+      "removeTitle": "Diese Regel entfernen?",
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
     }
   },
   "authProviders": {
@@ -1478,5 +1513,23 @@
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
     "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+  },
+  "providerDefaults": {
+    "title": "Was eine Community erbt",
+    "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",
+    "noAnswer": "Keine Antwort – jede Community entscheidet selbst",
+    "noProviders": "Fügt zuerst einen Anmeldeanbieter hinzu, dann legt fest, was Communities von ihm erben.",
+    "answer": "Dafür antworten",
+    "change": "Ändern",
+    "withdraw": "Zurückziehen",
+    "withdrawn": "Antwort zurückgezogen",
+    "save": "Speichern",
+    "saved": "Antwort gespeichert",
+    "saveError": "Antwort konnte nicht gespeichert werden",
+    "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+    "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+    "claimLabel": "Welcher Claim entscheidet",
+    "valuesLabel": "Gültige Werte",
+    "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   }
 }

@@ -7,12 +7,17 @@ import {
   listLoginProvidersApiV1AuthProvidersGet,
 } from "@/api/generated/auth/auth";
 import {
+  createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost,
   createGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsPost,
+  deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete,
   deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete,
   getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey,
+  getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey,
   getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey,
   listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet,
+  listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet,
   listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet,
+  updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch,
   updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch,
 } from "@/api/generated/guild-provider-connections/guild-provider-connections";
 import {
@@ -30,6 +35,9 @@ import type {
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   GuildAuthSettingsRead,
+  GuildClaimRuleCreate,
+  GuildClaimRulesResponse,
+  GuildClaimRuleUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
@@ -212,6 +220,55 @@ export const useDisconnectProvider = (guildId: number) => {
         guildId,
         connectionId
       ),
+    onSuccess: invalidate,
+  });
+};
+
+/** Where this community places the people its providers vouch for. */
+export const useGuildClaimRules = (
+  guildId: number,
+  options?: QueryOpts<GuildClaimRulesResponse>
+) => {
+  return useQuery<GuildClaimRulesResponse>({
+    queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+    queryFn: () => listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
+const useInvalidateClaimRules = (guildId: number) => {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({
+      queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+    });
+  };
+};
+
+export const useCreateClaimRule = (guildId: number) => {
+  const invalidate = useInvalidateClaimRules(guildId);
+  return useMutation({
+    mutationFn: (data: GuildClaimRuleCreate) =>
+      createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost(guildId, data),
+    onSuccess: invalidate,
+  });
+};
+
+export const useUpdateClaimRule = (guildId: number) => {
+  const invalidate = useInvalidateClaimRules(guildId);
+  return useMutation({
+    mutationFn: ({ ruleId, data }: { ruleId: number; data: GuildClaimRuleUpdate }) =>
+      updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch(guildId, ruleId, data),
+    onSuccess: invalidate,
+  });
+};
+
+export const useDeleteClaimRule = (guildId: number) => {
+  const invalidate = useInvalidateClaimRules(guildId);
+  return useMutation({
+    mutationFn: (ruleId: number) =>
+      deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete(guildId, ruleId),
     onSuccess: invalidate,
   });
 };

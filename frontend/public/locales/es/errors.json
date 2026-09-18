@@ -182,7 +182,6 @@
   "SETTINGS_PROVIDE_TEST_EMAIL": "Proporciona una dirección de email de prueba",
   "SETTINGS_SMTP_INCOMPLETE": "La configuración SMTP está incompleta",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapeo no encontrado",
-  "SETTINGS_PROVIDER_WRONG_GUILD": "Este proveedor de inicio de sesión pertenece a otra comunidad, por lo que sus reglas solo pueden conceder acceso allí",
   "SETTINGS_INVALID_TARGET_TYPE": "El tipo de destino debe ser una comunidad o una iniciativa",
   "SETTINGS_INVALID_GUILD_ROLE": "El rol de la comunidad debe ser 'admin' o 'member'",
   "SETTINGS_INITIATIVE_ID_REQUIRED": "Se requiere ID de iniciativa para mapeos de iniciativa",
@@ -697,5 +696,8 @@
   "WIKI_PAGE_NOT_FOUND": "Esa página no está en este wiki",
   "WIKI_PAGE_PARENT_ITSELF": "Una página no puede colocarse dentro de sí misma",
   "WIKI_PAGE_PARENT_DESCENDANT": "Una página no puede colocarse dentro de una de sus propias subpáginas",
-  "WIKI_HOME_NOT_IN_WIKI": "La página de inicio debe ser una página de este wiki"
+  "WIKI_HOME_NOT_IN_WIKI": "La página de inicio debe ser una página de este wiki",
+  "AUTH_PROVIDER_RULE_NOT_FOUND": "Esa regla no es vuestra",
+  "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Conectad ese proveedor a vuestra comunidad antes de decir qué significan sus grupos",
+  "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí"
 }

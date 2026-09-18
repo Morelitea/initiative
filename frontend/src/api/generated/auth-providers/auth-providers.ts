@@ -27,6 +27,8 @@ import type {
   AuthProviderProbeResult,
   AuthProviderUpdate,
   HTTPValidationError,
+  PlatformProviderDefaultRead,
+  PlatformProviderDefaultUpdate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -654,6 +656,411 @@ export const useTestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost = <
 > => {
   return useMutation(
     getTestAuthProviderApiV1SettingsAuthProvidersProviderIdTestPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * The deployment's own answer for this provider, or null where it has
+ * made none and every community speaks for itself.
+ * @summary Get Provider Default
+ */
+export const getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet = (
+  providerId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformProviderDefaultRead | null>(
+    { url: `/api/v1/settings/auth/providers/${providerId}/default`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey = (
+  providerId: number
+) => {
+  return [`/api/v1/settings/auth/providers/${providerId}/default`] as const;
+};
+
+export const getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(providerId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>>
+  > = ({ signal }) =>
+    getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet(
+      providerId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: providerId !== null && providerId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>>
+  >;
+export type GetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet<
+  TData = Awaited<
+    ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet<
+  TData = Awaited<
+    ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet<
+  TData = Awaited<
+    ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Provider Default
+ */
+
+export function useGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet<
+  TData = Awaited<
+    ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryOptions(
+      providerId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Answer once for the communities that have not.
+ *
+ * A community's own connection to this provider is untouched and goes on
+ * overriding this outright. Nobody is signed out: the gate reads the
+ * arrangement in force when it is asked, so this reaches the next request.
+ * @summary Set Provider Default
+ */
+export const setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut = (
+  providerId: number,
+  platformProviderDefaultUpdate: BodyType<PlatformProviderDefaultUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformProviderDefaultRead>(
+    {
+      url: `/api/v1/settings/auth/providers/${providerId}/default`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: platformProviderDefaultUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>,
+    TError,
+    { providerId: number; data: BodyType<PlatformProviderDefaultUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>,
+  TError,
+  { providerId: number; data: BodyType<PlatformProviderDefaultUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>,
+    { providerId: number; data: BodyType<PlatformProviderDefaultUpdate> }
+  > = (props) => {
+    const { providerId, data } = props ?? {};
+
+    return setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut(
+      providerId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>
+  >;
+export type SetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPutMutationBody =
+  BodyType<PlatformProviderDefaultUpdate>;
+export type SetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Provider Default
+ */
+export const useSetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>,
+      TError,
+      { providerId: number; data: BodyType<PlatformProviderDefaultUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut>>,
+  TError,
+  { providerId: number; data: BodyType<PlatformProviderDefaultUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Withdraw the answer. Communities that wrote their own keep them; the
+ * rest stop counting this provider as theirs.
+ * @summary Clear Provider Default
+ */
+export const clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete = (
+  providerId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/settings/auth/providers/${providerId}/default`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>
+      >,
+      TError,
+      { providerId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>
+    >,
+    TError,
+    { providerId: number },
+    TContext
+  > => {
+    const mutationKey = ["clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>
+      >,
+      { providerId: number }
+    > = (props) => {
+      const { providerId } = props ?? {};
+
+      return clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete(
+        providerId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ClearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>
+    >
+  >;
+
+export type ClearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Provider Default
+ */
+export const useClearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>
+      >,
+      TError,
+      { providerId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete>>,
+  TError,
+  { providerId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDeleteMutationOptions(
+      options
+    ),
     queryClient
   );
 };
