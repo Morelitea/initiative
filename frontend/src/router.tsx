@@ -81,4 +81,18 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
   }
+
+  interface StaticDataRouteOption {
+    /**
+     * Whether this route lays itself out against the window rather than inside
+     * the app's reading container.
+     *
+     * Almost every screen here is a document in a centred column, and the shell
+     * supplies that column. A few are a surface instead — a wiki is the one
+     * today — where the chrome belongs against the edges and the page finds its
+     * own measure inside. Declared on the route because the shell has to know
+     * before the page renders.
+     */
+    fullBleed?: boolean;
+  }
 }

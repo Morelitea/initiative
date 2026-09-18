@@ -17,6 +17,7 @@ from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
+from app.models.platform.user_passkey import UserPasskey
 
 # Registers ``MemberProfile`` in the mapper registry — the tenant
 # relationships that name a person resolve it by name.
@@ -57,6 +58,7 @@ from app.models.tenant.gallery import (
     GalleryImage,
     GalleryImageVersion,
 )
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
 from app.models.tenant.counter import (
@@ -87,6 +89,8 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.identity_ref import IdentityRef
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_provider_connection import GuildProviderConnection
+from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
@@ -126,6 +130,7 @@ __all__ = [
     "AnnouncementImage",
     "AnnouncementReadReceipt",
     "User",
+    "UserPasskey",
     "MemberProfile",
     "AccessGrant",
     "AuthProvider",
@@ -137,6 +142,8 @@ __all__ = [
     "FederatedIdentitySecret",
     "IdentityRef",
     "GuildAuthPolicy",
+    "GuildProviderConnection",
+    "PlatformProviderDefault",
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
@@ -180,6 +187,8 @@ __all__ = [
     "Gallery",
     "GalleryImage",
     "GalleryImageVersion",
+    "Wiki",
+    "WikiPage",
     "PostRead",
     "PostPoll",
     "PostPollOption",

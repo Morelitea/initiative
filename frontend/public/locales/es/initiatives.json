@@ -107,7 +107,8 @@
     "dashboards": "Paneles",
     "counterGroups": "Contadores",
     "posts": "Publicaciones",
-    "galleries": "Galerías"
+    "galleries": "Galerías",
+    "wikis": "Wikis"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -237,7 +238,8 @@
       "dashboards": "Paneles",
       "counterGroups": "Contadores",
       "posts": "Publicaciones",
-      "galleries": "Galerías"
+      "galleries": "Galerías",
+      "wikis": "Wikis"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -257,7 +259,9 @@
       "viewGalleries": "Ver galerías",
       "createGalleries": "Crear galerías",
       "viewShort": "Ver",
-      "createShort": "Crear"
+      "createShort": "Crear",
+      "viewWikis": "Ver wikis",
+      "createWikis": "Crear wikis"
     },
     "handleColumn": "Identificador",
     "toolAudience": {
@@ -327,5 +331,7 @@
     "nextJoining": "Siguiente: Membresía",
     "nextMembers": "Siguiente: Permisos",
     "firstIntroLink": "Leer más aquí"
-  }
+  },
+  "wikisFeature": "Wikis",
+  "wikisFeatureDescription": "Páginas que se enlazan entre sí. Manuales, referencias, eso que todo el mundo pregunta una y otra vez."
 }

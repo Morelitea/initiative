@@ -76,7 +76,7 @@
     "finalizing": "Weiterleitung wird abgeschlossen…",
     "goHome": "Zurück zur Startseite"
   },
-  "adminDashboard": "Administrator-Dashboard",
+  "operatorDashboard": "Operator-Dashboard",
   "pastAnnouncements": "Frühere Ankündigungen",
   "requestsWaiting_one": "{{count}} ausstehend",
   "requestsWaiting_other": "{{count}} ausstehend",
@@ -84,5 +84,7 @@
   "createPost": "Neuer Beitrag",
   "galleries": "Galerien",
   "createGallery": "Neue Galerie",
-  "moderation": "Moderation"
+  "moderation": "Moderation",
+  "wikis": "Wikis",
+  "createWiki": "Neues Wiki"
 }

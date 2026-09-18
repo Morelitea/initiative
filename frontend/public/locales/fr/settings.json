@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Lecture seule",
-        "message": "Cette communauté est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+        "message": "Cette communauté est en lecture seule. Contactez la personne qui gère ce serveur pour rétablir l'accès complet."
       },
       "suspended": {
         "label": "Suspendu",
-        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez la personne qui gère ce serveur."
       }
     },
     "tabs": {
@@ -446,13 +446,13 @@
     "deactivateSuccess": "Compte désactivé avec succès",
     "deleteSuccess": "Compte supprimé définitivement",
     "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
-    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère le serveur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
     "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
     "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
     "softDeleteSuccess": "Votre compte a été anonymisé."
   },
   "branding": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'image de marque.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
     "colorsTitle": "Couleurs de marque",
     "colorsDescription": "Personnalisez les couleurs d'accent pour le mode clair et sombre.",
     "loadingInterface": "Chargement des paramètres d'interface…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres e-mail.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
     "title": "E-mail SMTP",
     "description": "Configurez le serveur SMTP utilisé pour les e-mails transactionnels.",
     "loading": "Chargement des paramètres e-mail…",
@@ -553,7 +553,7 @@
     "saveError": "Impossible d'enregistrer les paramètres e-mail"
   },
   "auth": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'authentification.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
     "postLoginRedirect": "Redirection post-connexion :",
@@ -663,19 +663,10 @@
     "filterPlaceholder": "Filtrer par identifiant…",
     "columnId": "ID utilisateur",
     "columnHandle": "Identifiant",
-    "columnName": "Nom",
     "columnEmail": "E-mail",
-    "columnRole": "Rôle",
     "columnStatus": "Statut",
     "columnActions": "Actions",
     "active": "Actif",
-    "inactive": "Inactif",
-    "admin": "Administrateur",
-    "user": "Utilisateur",
-    "promoteToAdmin": "Promouvoir en administrateur",
-    "promoteDescription": "Cela donnera à {{email}} des permissions d'administrateur de plateforme, lui permettant de gérer les paramètres, utilisateurs et configurations de la plateforme.",
-    "demoteToUser": "Rétrograder en utilisateur",
-    "demoteDescription": "Cela retirera les permissions d'administrateur de plateforme de {{email}}. Il ne pourra plus accéder aux paramètres de la plateforme.",
     "resetPassword": "Réinitialiser le mot de passe",
     "resetDescription": "Cela enverra un e-mail de réinitialisation de mot de passe à {{email}}.",
     "reactivate": "Réactiver",
@@ -683,15 +674,11 @@
     "exportAll": "Tout exporter en CSV",
     "exportError": "Impossible d'exporter les utilisateurs.",
     "deleteUser": "Supprimer l'utilisateur",
-    "promoteSuccess": "Utilisateur promu administrateur",
-    "demoteSuccess": "Utilisateur rétrogradé en membre",
     "roleChangeError": "Impossible de changer le rôle de l'utilisateur",
     "resetSuccess": "E-mail de réinitialisation du mot de passe envoyé à {{email}}",
     "resetError": "Impossible d'envoyer la réinitialisation du mot de passe",
     "reactivateSuccess": "{{email}} a été réactivé",
     "reactivateError": "Impossible de réactiver l'utilisateur",
-    "cannotDemoteLastAdmin": "Impossible de rétrograder le dernier administrateur de plateforme",
-    "cannotChangeOwnRole": "Impossible de changer votre propre rôle",
     "permissionRequired": "Vous n'avez pas la permission de voir les utilisateurs de la plateforme.",
     "roles": {
       "member": "Membre",
@@ -712,18 +699,35 @@
     "roleChangeSuccess": "Rôle de plateforme changé en {{role}}",
     "deactivated": "Désactivé",
     "anonymized": "Anonymisé",
-    "changeUsername": "Changer le nom d'utilisateur",
+    "suspended": "Suspendu",
     "usernameChanged": "Nom d'utilisateur modifié.",
-    "changeUsernameTitle": "Changer le nom d'utilisateur de {{handle}}",
-    "changeUsernameBody": "La personne en sera informée et ne pourra pas revenir en arrière elle-même. Le numéro reste le même.",
     "suspend": "Suspendre",
-    "unsuspend": "Lever la suspension",
     "suspendTitle": "Suspendre {{handle}} ?",
     "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
     "actionError": "L'opération n'a pas abouti. Réessayez.",
     "clearAgeBlock": "Réinitialiser la question d'âge",
-    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau."
+    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau.",
+    "sheet": {
+      "open": "Gérer",
+      "openLabel": "Gérer le compte {{handle}}",
+      "description": "Ce qu'un opérateur tient pour ce compte. Chaque modification est enregistrée séparément.",
+      "identity": "Identité",
+      "usernameLabel": "Nom d'utilisateur",
+      "usernameHelp": "L'identifiant sous lequel cette personne est désignée. Le numéro qui le suit reste inchangé.",
+      "avatarLabel": "Photo de profil",
+      "avatarHelp": "Retirer la photo. Elle ne peut pas être remplacée d'ici.",
+      "avatarRemove": "Retirer",
+      "avatarRemoved": "Photo de profil retirée.",
+      "avatarConfirmTitle": "Retirer cette photo de profil ?",
+      "avatarConfirmBody": "La photo de {{handle}} est retirée et la personne en est informée. Elle peut en téléverser une autre.",
+      "access": "Accès",
+      "suspendLabel": "Suspendu",
+      "suspendHelp": "Un compte suspendu peut toujours se connecter et lire le motif, mais n'atteint aucune de ses communautés.",
+      "role": "Rôle de plateforme",
+      "roleLabel": "Rôle",
+      "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
+    }
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",
@@ -961,8 +965,8 @@
     "manifestChangedDescription": "Le manifeste de cette application ne correspond plus à celui enregistré lors de son inscription : ses fonctionnalités, ses connexions ou ses pages intégrées ont pu changer. Accepter adopte le nouveau manifeste et marque l'application comme vérifiée. N'acceptez que si vous attendiez ce changement.",
     "manifestChangedConfirm": "Accepter le nouveau manifeste"
   },
-  "adminDashboard": {
-    "title": "Tableau de bord admin",
+  "operatorDashboard": {
+    "title": "Tableau de bord opérateur",
     "subtitle": "Gérez les utilisateurs de la plateforme et les accès temporaires.",
     "tabs": {
       "users": "Utilisateurs",
@@ -1027,6 +1031,10 @@
       "supportLabel": "Demandes d'aide",
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
       "authOption": {
+        "restrictions": {
+          "label": "Configurer sa propre connexion",
+          "help": "Donne à cette communauté l'onglet Authentification : clés d'API personnelles, limite de session de douze heures et tout ce qui est coché en dessous. Désactivé pour la plupart des communautés — sans cela, elles ne voient jamais l'onglet."
+        },
         "providers": {
           "label": "Ses propres fournisseurs de connexion",
           "help": "Permet à leurs administrateurs de connecter un fournisseur d'identité et d'y créer de nouveaux comptes."
@@ -1037,9 +1045,7 @@
         }
       },
       "usersLabel": "Membres",
-      "storageLabel": "Limite de stockage",
-      "complianceSessionLabel": "Limite de session de douze heures",
-      "complianceSessionHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité."
+      "storageLabel": "Limite de stockage"
     },
     "unlimited": "Sans limite"
   },
@@ -1095,11 +1101,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Fournisseurs d'identité",
-      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette communauté se connectent. Configurés par les admins de cette communauté et appliqués uniquement ici.",
-      "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
-    },
     "shareUrl": {
       "title": "Lien de connexion des membres",
       "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette communauté et les amène directement dans la communauté.",
@@ -1132,6 +1133,84 @@
       "blockedHelp": "Aucune clé ne peut être créée pour cette communauté, et une clé déjà créée ne l'atteint plus. Les membres conservent leurs clés pour les autres communautés.",
       "saved": "Accès par API enregistré",
       "error": "Impossible d'enregistrer l'accès par API"
+    },
+    "sessionLimit": {
+      "title": "Limite de session",
+      "description": "À quelle fréquence les membres de cette communauté se reconnectent.",
+      "allowLabel": "Limite de session de douze heures",
+      "onHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité.",
+      "offHelp": "Les membres restent connectés aussi longtemps que le déploiement l'autorise.",
+      "saved": "Limite de session enregistrée",
+      "error": "Impossible d'enregistrer la limite de session"
+    },
+    "connections": {
+      "title": "Quelles connexions sont les vôtres",
+      "description": "On se connecte à cette installation. Dites lesquels de ses fournisseurs comptent comme ceux de votre communauté, et qui chez eux compte comme les vôtres.",
+      "connect": "Connecter un fournisseur",
+      "connected": "Fournisseur connecté",
+      "connectError": "Impossible de modifier cette connexion",
+      "disconnect": "Déconnecter",
+      "disconnected": "Fournisseur déconnecté",
+      "disconnectTitle": "Déconnecter {{name}} ?",
+      "disconnectDescription": "Elle cesse de compter comme la vôtre : le bouton disparaît de votre page de connexion et personne de nouveau n’entre par là. Personne n’est déconnecté et aucun compte ne change. Si vous exigez une connexion par ce biais, levez-la d’abord.",
+      "empty": "Aucun fournisseur connecté pour l’instant — vos membres se connectent comme d’habitude.",
+      "noneOffered": "Qui gère cette installation n’a encore proposé aucun fournisseur à connecter.",
+      "notReady": "Indisponible",
+      "narrowedTo": "Uniquement les comptes dont le {{claim}} est {{values}}",
+      "anyoneItVouchesFor": "Toute personne dont ce fournisseur se porte garant",
+      "dialogTitle": "Connecter un fournisseur de connexion",
+      "dialogDescription": "Choisissez le fournisseur que vos membres utilisent, puis dites quels comptes chez lui sont les vôtres.",
+      "providerLabel": "Fournisseur",
+      "providerPlaceholder": "Choisissez-en un",
+      "claimLabel": "Quels comptes comptent comme les vôtres",
+      "claimHelp": "Un fournisseur comme Google se porte garant de toute personne ayant un compte : dites donc lesquels de ses comptes sont les vôtres — un domaine Workspace, ou un tenant. Laissez vide si le fournisseur ne couvre déjà que vos gens.",
+      "claimPlaceholder": "Vide pour toute personne dont il se porte garant",
+      "claimValuesLabel": "Valeurs acceptées",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Les ajouter à cette communauté",
+      "autoJoinHelp": "Toute personne considérée comme des vôtres devient membre à sa première connexion. Laissez désactivé pour inviter vous-même.",
+      "joinsOnArrival": "Les nouveaux arrivants rejoignent automatiquement",
+      "claimOptions": {
+        "hd": "Domaine Google Workspace",
+        "tid": "Locataire Microsoft Entra",
+        "groups": "Appartenance à un groupe",
+        "domain": "Domaine"
+      },
+      "inherited": "Du déploiement",
+      "makeItOurs": "En faire la nôtre"
+    },
+    "rules": {
+      "title": "Où arrivent vos membres",
+      "description": "Votre fournisseur indique les groupes auxquels appartient chaque personne. Dites ici ce que ces groupes signifient : qui rejoint comme membre, qui comme administrateur, et dans quelle initiative.",
+      "add": "Ajouter une règle",
+      "added": "Règle ajoutée",
+      "addError": "Impossible d'ajouter cette règle",
+      "empty": "Aucune règle pour l'instant : les personnes arrivant par vos fournisseurs rejoignent sans affectation particulière.",
+      "connectFirst": "Connectez d'abord un fournisseur, puis dites ce que ses groupes signifient.",
+      "noGroupsBadge": "Aucun groupe signalé",
+      "noGroupsHint": "L'équipe qui gère ce déploiement n'a pas indiqué à ce fournisseur où se trouvent ses groupes : cette règle ne s'appliquera à personne tant que ce n'est pas fait.",
+      "landsInCommunity": "Arrive par {{provider}} — rejoint comme {{role}}",
+      "landsInInitiative": "Arrive par {{provider}} — rejoint comme {{role}}, et {{initiative}} comme {{initiativeRole}}",
+      "dialogDescription": "Nommez un groupe signalé par votre fournisseur et dites où appartiennent ses membres.",
+      "providerLabel": "Fournisseur",
+      "providerPlaceholder": "En choisir un",
+      "groupLabel": "Groupe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactement comme votre fournisseur l'écrit.",
+      "standingLabel": "Ils rejoignent comme",
+      "role": {
+        "member": "membre",
+        "admin": "administrateur"
+      },
+      "initiativeLabel": "Et démarrent dans",
+      "communityOnly": "La communauté seulement",
+      "initiativeRoleLabel": "Dans cette initiative, comme",
+      "initiativeRolePlaceholder": "Choisir un rôle",
+      "remove": "Supprimer",
+      "removed": "Règle supprimée",
+      "removeError": "Impossible de supprimer cette règle",
+      "removeTitle": "Supprimer cette règle ?",
+      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur."
     }
   },
   "authProviders": {
@@ -1438,5 +1517,23 @@
     "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
     "copyUnavailable": "Copie impossible — notez les codes à la main.",
     "notOffered": "Cette installation ne propose pas l'application d'authentification."
+  },
+  "providerDefaults": {
+    "title": "Ce dont hérite une communauté",
+    "description": "Répondez une fois pour un fournisseur et chaque communauté hérite de cette réponse jusqu'à ce qu'elle donne la sienne. Utile lorsque ce déploiement est une seule organisation : un fournisseur, un locataire, et des communautés qui sont ses équipes.",
+    "noAnswer": "Aucune réponse — chaque communauté décide pour elle-même",
+    "noProviders": "Ajoutez d'abord un fournisseur de connexion, puis dites ce que les communautés en héritent.",
+    "answer": "Répondre pour lui",
+    "change": "Modifier",
+    "withdraw": "Retirer",
+    "withdrawn": "Réponse retirée",
+    "save": "Enregistrer",
+    "saved": "Réponse enregistrée",
+    "saveError": "Impossible d'enregistrer cette réponse",
+    "narrowedTo": "Uniquement les comptes dont {{claim}} vaut {{values}}",
+    "anyoneItVouchesFor": "Toute personne pour laquelle ce fournisseur se porte garant",
+    "claimLabel": "Quelle revendication décide",
+    "valuesLabel": "Valeurs acceptées",
+    "valuesHint": "Séparez-en plusieurs par des virgules. La connexion propre d'une communauté remplace ceci entièrement : rien d'ici n'est fusionné avec ce qu'elle dit."
   }
 }

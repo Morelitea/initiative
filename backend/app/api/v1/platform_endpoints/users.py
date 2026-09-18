@@ -32,6 +32,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
+from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.security import (
@@ -1330,13 +1331,14 @@ async def delete_own_account(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent last platform admin deletion (use FOR UPDATE to prevent race condition)
-    if await users_service.is_last_platform_admin(
-        session, current_user.id, for_update=True
+    # Keep at least one owner, who is the only rung that can manage platform
+    # configuration (FOR UPDATE to prevent a race).
+    if await users_service.is_last_capability_holder(
+        session, current_user.id, Capability.CONFIG_MANAGE, for_update=True
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
+            detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
         )
 
     # Verify password — skipped for SSO-only users, who have no password
@@ -1661,12 +1663,12 @@ async def delete_user(
     # manager — so it is asked on the system engine rather than through the
     # guild role this request has assumed. FOR UPDATE to prevent a race with a
     # concurrent platform-role change.
-    if await users_service.is_last_platform_admin(
-        admin_session, user_id, for_update=True
+    if await users_service.is_last_capability_holder(
+        admin_session, user_id, Capability.CONFIG_MANAGE, for_update=True
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN,
+            detail=UserMessages.CANNOT_REMOVE_LAST_OWNER,
         )
     if user_id == current_admin.id:
         raise HTTPException(

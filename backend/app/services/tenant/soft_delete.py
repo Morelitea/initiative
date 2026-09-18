@@ -50,6 +50,7 @@ from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 
 
 # parent_model -> list of (child_model, fk_column_name)
@@ -66,6 +67,7 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
         (Post, "initiative_id"),
         (Gallery, "initiative_id"),
         (CounterGroup, "initiative_id"),
+        (Wiki, "initiative_id"),
     ],
     Project: [(Task, "project_id")],
     Calendar: [(CalendarEvent, "calendar_id")],
@@ -75,6 +77,9 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
     Task: [(Comment, "task_id")],
     Queue: [(QueueItem, "queue_id")],
     CounterGroup: [(Counter, "counter_group_id")],
+    Wiki: [(WikiPage, "wiki_id"), (Comment, "wiki_id")],
+    # A page takes its sub-pages with it: a section is put away whole,
+    # the same self-cascade a comment thread uses.
     Comment: [(Comment, "parent_comment_id")],
 }
 

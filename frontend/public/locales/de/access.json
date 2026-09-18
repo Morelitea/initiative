@@ -110,6 +110,8 @@
     "resource_post_one": "Beitrag",
     "resource_post_other": "Beiträge",
     "resource_gallery_one": "Galerie",
-    "resource_gallery_other": "Galerien"
+    "resource_gallery_other": "Galerien",
+    "resource_wiki_one": "Wiki",
+    "resource_wiki_other": "Wikis"
   }
 }

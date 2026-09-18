@@ -32,7 +32,6 @@ from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
     AdminUsernameUpdate,
     PlatformRoleUpdate,
-    PlatformAdminCountResponse,
     AdminUserDeleteRequest,
     AdminDeletionEligibilityResponse,
     AdminGuildRoleUpdate,
@@ -585,16 +584,6 @@ async def set_user_suspension(
     return await users_service.to_admin_read_one(user)
 
 
-@router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
-async def get_platform_admin_count(
-    session: UserSessionDep,
-    _current_user: UsersReadDep,
-) -> PlatformAdminCountResponse:
-    """Get the count of platform admins (``users.read``, role-scoped session)."""
-    count = await users_service.count_platform_admins(session)
-    return PlatformAdminCountResponse(count=count)
-
-
 @router.delete("/users/{user_id}/age-block", response_model=AdminUserRead)
 async def clear_age_block(
     user_id: int,
@@ -654,11 +643,11 @@ async def update_platform_role(
     session: AdminSessionDep,
     current_user: RolesAssignDep,
 ) -> AdminUserRead:
-    """Update a user's platform role (admin only).
+    """Update a user's platform role (``roles.assign``).
 
     Restrictions:
     - Cannot change your own role
-    - Cannot demote the last platform admin
+    - Cannot demote the last owner
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -677,9 +666,8 @@ async def update_platform_role(
     # Refuse role changes on non-active accounts. A deactivated row's role
     # change is meaningless until the user is reactivated, and an
     # anonymized row should never gain or lose elevated privileges (the
-    # account is permanently gone). ``count_platform_admins`` already
-    # excludes non-active users from its count, so promoting a husk to
-    # admin would also confuse the last-admin invariant.
+    # account is permanently gone). The last-owner check counts active
+    # holders only, so promoting a husk would also confuse it.
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -711,9 +699,19 @@ async def update_platform_role(
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_OWNER,
             )
 
+    previous_role = user.role
     user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_PLATFORM_ROLE_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"from": previous_role.value, "to": payload.role.value},
+    )
     # What this account may do just changed, and it was not their doing. Their
     # open tabs re-read it rather than showing a rung they no longer hold.
     account_stream.queue_account_signal(session, user_id, "role")
@@ -814,7 +812,7 @@ async def delete_user(
 
     Restrictions:
     - Cannot delete yourself (use /users/me/delete-account)
-    - Cannot delete the last platform admin
+    - Cannot delete the last owner
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -975,7 +973,7 @@ async def admin_delete_initiative(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Delete an initiative (platform admin only).
+    """Delete an initiative (``guilds.manage``).
 
     Used by the user-deletion blocker-resolution flow when a target user is
     the sole project manager of an initiative with no other members the
@@ -986,7 +984,7 @@ async def admin_delete_initiative(
 
     Default initiatives are deletable here — that restriction exists for
     guild admins (so the guild always has a default for new project
-    creation), but a platform admin cleaning up a soon-to-be-deleted
+    creation), but an operator cleaning up a soon-to-be-deleted
     user shouldn't be blocked by it.
 
     ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
@@ -1028,9 +1026,9 @@ async def admin_update_guild_member_role(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Update a guild member's role (platform admin only).
+    """Update a guild member's role (``guilds.manage``).
 
-    This allows platform admins to change guild member roles in any guild,
+    This allows operators to change guild member roles in any guild,
     even if they're not a member. Useful for resolving "last admin" blockers.
 
     Restrictions:
@@ -1113,7 +1111,7 @@ async def admin_get_initiative_members(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Sequence[User]:
-    """List members of any initiative (platform admin only).
+    """List members of any initiative (``guilds.manage``).
 
     ``guild_id`` is required: initiatives live in per-guild schemas with
     independent id sequences. We route into that guild's schema as a guild
@@ -1161,9 +1159,9 @@ async def admin_update_initiative_member_role(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Update an initiative member's role (platform admin only).
+    """Update an initiative member's role (``guilds.manage``).
 
-    This allows platform admins to change initiative member roles in any initiative,
+    This allows operators to change initiative member roles in any initiative,
     even if they're not a member. Useful for resolving "sole PM" blockers.
 
     ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique

@@ -37,7 +37,6 @@ import type {
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   HTTPValidationError,
   ListAuditEventsApiV1AdminAuditEventsGetParams,
-  PlatformAdminCountResponse,
   PlatformRoleUpdate,
   UserPublic,
   VerificationSendResponse,
@@ -1089,152 +1088,6 @@ export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
   );
 };
 /**
- * Get the count of platform admins (``users.read``, role-scoped session).
- * @summary Get Platform Admin Count
- */
-export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<PlatformAdminCountResponse>(
-    { url: `/api/v1/admin/platform-admin-count`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey = () => {
-  return [`/api/v1/admin/platform-admin-count`] as const;
-};
-
-export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-  > = ({ signal }) => getPlatformAdminCountApiV1AdminPlatformAdminCountGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
->;
-export type GetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Platform Admin Count
- */
-
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
  * Let an account answer the age question again.
  *
  * An account that answered as under age keeps that answer, and the question
@@ -1333,11 +1186,11 @@ export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
   );
 };
 /**
- * Update a user's platform role (admin only).
+ * Update a user's platform role (``roles.assign``).
  *
  * Restrictions:
  * - Cannot change your own role
- * - Cannot demote the last platform admin
+ * - Cannot demote the last owner
  * @summary Update Platform Role
  */
 export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
@@ -1666,7 +1519,7 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
  *
  * Restrictions:
  * - Cannot delete yourself (use /users/me/delete-account)
- * - Cannot delete the last platform admin
+ * - Cannot delete the last owner
  * @summary Delete User
  */
 export const deleteUserApiV1AdminUsersUserIdDelete = (
@@ -1849,7 +1702,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
   );
 };
 /**
- * Delete an initiative (platform admin only).
+ * Delete an initiative (``guilds.manage``).
  *
  * Used by the user-deletion blocker-resolution flow when a target user is
  * the sole project manager of an initiative with no other members the
@@ -1860,7 +1713,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
  *
  * Default initiatives are deletable here — that restriction exists for
  * guild admins (so the guild always has a default for new project
- * creation), but a platform admin cleaning up a soon-to-be-deleted
+ * creation), but an operator cleaning up a soon-to-be-deleted
  * user shouldn't be blocked by it.
  *
  * ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
@@ -1974,9 +1827,9 @@ export const useAdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = <
   );
 };
 /**
- * Update a guild member's role (platform admin only).
+ * Update a guild member's role (``guilds.manage``).
  *
- * This allows platform admins to change guild member roles in any guild,
+ * This allows operators to change guild member roles in any guild,
  * even if they're not a member. Useful for resolving "last admin" blockers.
  *
  * Restrictions:
@@ -2093,7 +1946,7 @@ export const useAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRo
   );
 };
 /**
- * List members of any initiative (platform admin only).
+ * List members of any initiative (``guilds.manage``).
  *
  * ``guild_id`` is required: initiatives live in per-guild schemas with
  * independent id sequences. We route into that guild's schema as a guild
@@ -2315,9 +2168,9 @@ export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMem
 }
 
 /**
- * Update an initiative member's role (platform admin only).
+ * Update an initiative member's role (``guilds.manage``).
  *
- * This allows platform admins to change initiative member roles in any initiative,
+ * This allows operators to change initiative member roles in any initiative,
  * even if they're not a member. Useful for resolving "sole PM" blockers.
  *
  * ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique

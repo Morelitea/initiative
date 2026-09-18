@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -179,7 +180,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
-    "set_config('app.sso_guilds', :ssog, true), "
+    "set_config('app.satisfied_claims', :satc, true), "
     "set_config('app.session_mfa', :mfa, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
@@ -236,12 +237,14 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pr": "false",
             "pw": "false",
             "satp": "",
-            "ssog": "",
+            "satc": "",
+            # No session at all on this path, so it answers for none of the
+            # things a session records about how somebody signed in.
+            "mfa": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
             "vdash": "",
-            "names": "false",
             "q": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),
@@ -320,10 +323,12 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     else:
         satp = ""
 
-    # The communities whose own single sign-on this session completed, as a
-    # comma list the policy leg reads with one ``string_to_array``. Empty when
-    # the credential records none.
-    ssog = ",".join(str(int(gid)) for gid in sorted(params.get("sso_guilds") or ()))
+    # What each satisfied provider asserted for the claims some community
+    # narrows it by, as the JSON object the gate reads with ``->``. Empty
+    # string when the credential records none, which the gate treats as
+    # nothing asserted.
+    claims = params.get("satisfied_claims") or {}
+    satc = json.dumps(claims, separators=(",", ":"), sort_keys=True) if claims else ""
 
     # Whether the credential recorded the account's own second factor. A plain
     # string, because the policy leg compares it as one.
@@ -338,7 +343,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
-        "ssog": ssog,
+        "satc": satc,
         "bgid": "",
         "ovr": override_csv,
         "sinit": str(int(scope_initiative_id))
@@ -398,7 +403,7 @@ async def set_rls_context(
     read_only: bool = False,
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
-    sso_guilds: Optional[Sequence[int]] = None,
+    satisfied_claims: Optional[dict] = None,
     session_mfa: bool = False,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
@@ -494,7 +499,7 @@ async def set_rls_context(
         read_only=read_only,
         query=query,
         satisfied_providers=satisfied_providers,
-        sso_guilds=sso_guilds,
+        satisfied_claims=satisfied_claims,
         session_mfa=session_mfa,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
@@ -545,7 +550,7 @@ async def set_rls_context(
         "read_only": read_only,
         "query": query,
         "satisfied_providers": satisfied_providers,
-        "sso_guilds": sso_guilds,
+        "satisfied_claims": satisfied_claims,
         "session_mfa": session_mfa,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,

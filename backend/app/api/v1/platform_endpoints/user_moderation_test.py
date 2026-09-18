@@ -421,3 +421,53 @@ class TestTheAggregateRoutes:
 
         response = await client.get("/api/v1/me/projects", headers=a.headers)
         assert response.json()["items"] != []
+
+
+class TestPlatformRole:
+    """Granting a rung is an operator's job, and the log says so.
+
+    It sat alongside these actions for a long time without recording itself,
+    which made it the one change to an account that left no trace.
+    """
+
+    async def test_a_role_change_is_recorded(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        operator = await create_user(session, role=UserRole.operator)
+        subject = await create_user(session)
+
+        response = await client.patch(
+            f"/api/v1/admin/users/{subject.id}/platform-role",
+            headers=get_auth_headers(operator),
+            json={"role": "support"},
+        )
+        assert response.status_code == 200, response.text
+
+        entries = await _audit_entries(client, operator, subject.id)
+        assert [entry["event_type"] for entry in entries] == [
+            "user.platform_role_changed"
+        ]
+        entry = entries[0]
+        # The two rungs it moved between, so the log reads without the reader
+        # having to reconstruct the account's history.
+        assert entry["detail"] == {"from": "member", "to": "support"}
+        assert entry["actor"]["id"] == operator.id
+        # Operator work, not moderation.
+        assert entry["category"] == "platform"
+
+    async def test_a_refused_change_records_nothing(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The write and its record share a transaction, so a refusal leaves
+        neither."""
+        operator = await create_user(session, role=UserRole.operator)
+        subject = await create_user(session)
+
+        response = await client.patch(
+            f"/api/v1/admin/users/{subject.id}/platform-role",
+            headers=get_auth_headers(operator),
+            json={"role": "owner"},
+        )
+
+        assert response.status_code == 403
+        assert await _audit_entries(client, operator, subject.id) == []

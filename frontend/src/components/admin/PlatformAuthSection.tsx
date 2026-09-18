@@ -29,6 +29,17 @@ const withdrawalCost = (methods: LoginMethodStatus[], next: LoginMethod[]) =>
     .filter((m) => m.enabled && !next.includes(m.method))
     .reduce((total, m) => total + m.would_strand, 0);
 
+/**
+ * Whether the ways in are offered on this page at all.
+ *
+ * They are held back for the moment: nobody is shown the choice, the platform
+ * owner included, and the deployment goes on permitting whatever it already
+ * permits. Set this to `true` to put the section back — the checkboxes it
+ * renders, the mutation behind them and the endpoint they call are all
+ * untouched, and so are their tests, which are skipped alongside it.
+ */
+const SHOW_LOGIN_METHODS: boolean = false;
+
 export const PlatformAuthSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
@@ -41,6 +52,10 @@ export const PlatformAuthSection = () => {
   if (query.isLoading || !query.data) return null;
 
   const { methods, guilds_requiring_sign_in, session_max_hours } = query.data;
+
+  // With the ways in held back, how long a session lasts is all this section has.
+  if (!SHOW_LOGIN_METHODS) return <SessionLifetimeSection hours={session_max_hours ?? null} />;
+
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
 

@@ -42,6 +42,8 @@
     "dashboard": "Dashboard",
     "post": "Beitrag",
     "gallery": "Galerie",
-    "gallery_image": "Bild"
+    "gallery_image": "Bild",
+    "wiki": "Wiki",
+    "wiki_page": "Seite"
   }
 }

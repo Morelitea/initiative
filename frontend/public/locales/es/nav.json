@@ -76,7 +76,7 @@
   "allCounterGroups": "Todos los contadores",
   "createCounterGroup": "Nuevo grupo de contadores",
   "createExternally": "Se crea en {{name}}",
-  "adminDashboard": "Panel de administración",
+  "operatorDashboard": "Panel de operador",
   "pastAnnouncements": "Anuncios anteriores",
   "requestsWaiting_one": "{{count}} pendiente",
   "requestsWaiting_other": "{{count}} pendientes",
@@ -84,5 +84,7 @@
   "createPost": "Nueva publicación",
   "galleries": "Galerías",
   "createGallery": "Nueva galería",
-  "moderation": "Moderación"
+  "moderation": "Moderación",
+  "wikis": "Wikis",
+  "createWiki": "Nuevo wiki"
 }

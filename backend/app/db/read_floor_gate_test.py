@@ -1,0 +1,95 @@
+"""The read-only guild role can answer the gate, not just reach the catalog.
+
+``guild_base_ro_parity_test`` notices when a shared table is granted to the
+writable floor and not the read one. This asks the question that difference
+actually costs: a session routed into ``guild_<id>_ro`` runs the same
+``guild_auth_satisfied()`` every guild content policy runs, and the gate reads
+``guild_provider_connections`` and ``platform_provider_defaults`` to answer it.
+
+Two paths route into that role. A PAM read grant carries no
+``current_guild_id``, so the gate matches no policy row and stops early. A
+community in ``read_only`` lifecycle status routes a **real member** in while
+keeping the membership GUCs, so the gate runs in full — which is the case here.
+"""
+
+import pytest
+from sqlalchemy import text
+
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.testing.factories import create_auth_provider, create_guild
+
+pytestmark = [pytest.mark.integration, pytest.mark.auth]
+
+
+async def test_the_read_floor_can_answer_the_gate(session, engine):
+    """A read-only member of a community that requires a sign-in.
+
+    The gate answers — false here, since this session proved nothing — rather
+    than faulting on a table the role cannot read.
+    """
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="gate-floor")
+    guild_id, provider_id = guild.id, provider.id
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild_id,
+            policy="required",
+            provider_id=provider_id,
+            require_methods=["sso"],
+        )
+    )
+    await session.commit()
+
+    async with engine.connect() as conn:
+        await conn.execute(text(f'SET ROLE "guild_{guild_id}_ro"'))
+        for key, value in (
+            ("app.current_user_id", "1"),
+            ("app.current_guild_id", str(guild_id)),
+            ("app.current_guild_role", "member"),
+            ("app.satisfied_providers", ""),
+            ("app.satisfied_claims", ""),
+        ):
+            await conn.execute(
+                text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value}
+            )
+        answered = await conn.scalar(text("SELECT public.guild_auth_satisfied()"))
+
+    assert answered is False
+
+
+async def test_the_read_floor_reads_a_deployment_wide_answer(session, engine):
+    """The same, for the arrangement a community inherits rather than wrote."""
+    from app.models.platform.platform_provider_default import PlatformProviderDefault
+
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="gate-floor-default")
+    guild_id, provider_id = guild.id, provider.id
+    session.add(
+        PlatformProviderDefault(
+            provider_id=provider_id,
+            claim="tid",
+            claim_values=["acme-tenant"],
+            enabled=True,
+        )
+    )
+    session.add(
+        GuildAuthPolicy(guild_id=guild_id, policy="required", require_methods=["sso"])
+    )
+    await session.commit()
+
+    async with engine.connect() as conn:
+        await conn.execute(text(f'SET ROLE "guild_{guild_id}_ro"'))
+        for key, value in (
+            ("app.current_user_id", "1"),
+            ("app.current_guild_id", str(guild_id)),
+            ("app.current_guild_role", "member"),
+            ("app.satisfied_providers", str(provider_id)),
+            ("app.satisfied_claims", '{"%s": {"tid": ["acme-tenant"]}}' % provider_id),
+        ):
+            await conn.execute(
+                text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value}
+            )
+        answered = await conn.scalar(text("SELECT public.guild_auth_satisfied()"))
+
+    # The inherited narrowing counts this arrival, so the requirement is met.
+    assert answered is True

@@ -44,7 +44,7 @@ Because a listed community is open to people its members haven't met, Initiative
 
 The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
 
-Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [admin dashboard](platform-roles.md#managing-platform-users).
+Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [operator dashboard](platform-roles.md#managing-platform-users).
 
 ### What new accounts can be reached at
 
@@ -68,7 +68,7 @@ Web sessions already open keep the terms they were opened under and pick up the 
 !!! warning "The app on a phone is different"
     A phone holds a longer-lived credential, and the new limit is written into the ones already issued — measured from when that person last signed in. So somebody whose phone signed in three days ago, on a deployment that has just set twelve hours, is signed out at once and asked for their password again. Shortening the number, or turning on a community's twelve-hour switch, can therefore sign phones out immediately. Lengthening the number, or clearing it, signs nobody out — and a phone that is still signed in goes back to the longer window from its next renewal. A phone that was already signed out stays signed out: it has to sign in again, which is the point.
 
-**A community can be held to a stricter one.** Open **Manage** for it in the Guilds tab and there's a twelve-hour switch under Sign-in — the figure HIPAA and NIST both land on. Its members sign in again on that schedule whatever your own number says, and being in two such communities is still twelve hours, not six.
+**A community can hold itself to a stricter one.** Where you've [let a community configure its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), the switch is theirs rather than yours: under that community's own **Settings → Authentication**, and it's twelve hours — the figure HIPAA and NIST both land on. Its members then sign in again on that schedule whatever your own number says, and being in two such communities is still twelve hours, not six.
 
 ## Running behind a reverse proxy
 

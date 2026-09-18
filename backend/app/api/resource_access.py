@@ -38,6 +38,7 @@ from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import wikis as wikis_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
@@ -109,6 +110,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.gallery: ResourceAccessConfig(
         Tool.gallery, galleries_service.get_gallery, "gallery_id"
     ),
+    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki, "wiki_id"),
 }
 
 

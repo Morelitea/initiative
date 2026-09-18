@@ -15,7 +15,7 @@ from enum import Enum
 
 from app.core.tools import Tool
 
-#: Indexed things that are not a tool: the four that live inside one, what people
+#: Indexed things that are not a tool: the five that live inside one, what people
 #: say on any of them, and the guild-level vocabulary.
 NON_TOOL_ENTITY_TYPES: tuple[str, ...] = (
     "task",
@@ -23,6 +23,7 @@ NON_TOOL_ENTITY_TYPES: tuple[str, ...] = (
     "counter",
     "calendar_event",
     "gallery_image",
+    "wiki_page",
     "comment",
     "tag",
 )

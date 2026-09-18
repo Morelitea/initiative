@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Read-only",
-        "message": "This community is read-only. Contact your platform administrator to restore full access."
+        "message": "This community is read-only. Contact whoever runs this server to restore full access."
       },
       "suspended": {
         "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact your platform administrator."
+        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
     "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
-    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. A platform admin can reactivate your account on request. Your name, email, and content remain intact.",
+    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Account deleted permanently"
   },
   "branding": {
-    "adminOnly": "Only platform admins can manage branding settings.",
+    "adminOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only platform admins can manage email settings.",
+    "adminOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -553,7 +553,7 @@
     "saveError": "Unable to save email settings"
   },
   "auth": {
-    "adminOnly": "Only platform admins can manage authentication settings.",
+    "adminOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
@@ -663,21 +663,13 @@
     "filterPlaceholder": "Filter by handle…",
     "columnId": "User ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "Email",
-    "columnRole": "Role",
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
-    "inactive": "Inactive",
     "deactivated": "Deactivated",
     "anonymized": "Anonymized",
-    "admin": "Admin",
-    "user": "User",
-    "promoteToAdmin": "Promote to admin",
-    "promoteDescription": "This will give {{email}} platform admin permissions, allowing them to manage platform settings, users, and configurations.",
-    "demoteToUser": "Demote to user",
-    "demoteDescription": "This will remove platform admin permissions from {{email}}. They will no longer be able to access platform settings.",
+    "suspended": "Suspended",
     "resetPassword": "Reset password",
     "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
@@ -685,15 +677,11 @@
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
-    "promoteSuccess": "User promoted to admin",
-    "demoteSuccess": "User demoted to member",
     "roleChangeError": "Unable to change user role",
     "resetSuccess": "Password reset email sent to {{email}}",
     "resetError": "Unable to send password reset",
     "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
-    "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
-    "cannotChangeOwnRole": "Cannot change your own role",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
       "member": "Member",
@@ -712,18 +700,34 @@
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
     "roleChangeSuccess": "Platform role changed to {{role}}",
-    "changeUsername": "Change username",
     "usernameChanged": "Username changed.",
-    "changeUsernameTitle": "Change {{handle}}'s username",
-    "changeUsernameBody": "They will be told, and they cannot change it back themselves. The number stays as it is.",
     "suspend": "Suspend",
-    "unsuspend": "Lift suspension",
     "suspendTitle": "Suspend {{handle}}?",
     "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
     "suspendReasonLabel": "Reason (shown to them)",
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
-    "ageBlockCleared": "They can answer the age question again."
+    "ageBlockCleared": "They can answer the age question again.",
+    "sheet": {
+      "open": "Manage",
+      "openLabel": "Manage account {{handle}}",
+      "description": "What an operator keeps for this account. Each change saves on its own.",
+      "identity": "Identity",
+      "usernameLabel": "Username",
+      "usernameHelp": "The handle they are addressed by. The number after it stays as it is.",
+      "avatarLabel": "Profile picture",
+      "avatarHelp": "Take the picture down. It cannot be replaced from here.",
+      "avatarRemove": "Remove",
+      "avatarRemoved": "Profile picture removed.",
+      "avatarConfirmTitle": "Remove this profile picture?",
+      "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
+      "access": "Access",
+      "suspendLabel": "Suspended",
+      "suspendHelp": "A suspended account can still sign in and read why, but reaches none of its communities.",
+      "role": "Platform role",
+      "roleLabel": "Role",
+      "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
+    }
   },
   "adminDeleteUser": {
     "title": "Delete User",
@@ -1016,6 +1020,10 @@
       "supportLabel": "Help requests",
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
       "authOption": {
+        "restrictions": {
+          "label": "Configuring its own sign-in",
+          "help": "Gives this community the Authentication tab: personal API keys, a twelve-hour session limit, and whatever is ticked below. Off for most communities — without it they never see the tab."
+        },
         "providers": {
           "label": "Its own sign-in providers",
           "help": "Let their admins connect an identity provider and onboard new accounts through it."
@@ -1026,14 +1034,12 @@
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit",
-      "complianceSessionLabel": "Twelve-hour session limit",
-      "complianceSessionHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard."
+      "storageLabel": "Storage limit"
     },
     "unlimited": "No limit"
   },
-  "adminDashboard": {
-    "title": "Admin dashboard",
+  "operatorDashboard": {
+    "title": "Operator dashboard",
     "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",
@@ -1095,11 +1101,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identity providers",
-      "description": "The single sign-on providers this community's members sign in with. Configured by this community's admins and applying only here.",
-      "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
-    },
     "shareUrl": {
       "title": "Member sign-in link",
       "description": "Share this link with members — it offers this community's sign-in providers and brings them straight into the community.",
@@ -1132,6 +1133,84 @@
       "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
       "saved": "API access saved",
       "error": "Could not save API access"
+    },
+    "sessionLimit": {
+      "title": "Session limit",
+      "description": "How often this community's members sign in again.",
+      "allowLabel": "Twelve-hour session limit",
+      "onHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard.",
+      "offHelp": "Members stay signed in for as long as the deployment allows.",
+      "saved": "Session limit saved",
+      "error": "Could not save the session limit"
+    },
+    "connections": {
+      "title": "Which sign-ins are yours",
+      "description": "People sign in to this deployment. Say which of its sign-in providers count as your community's, and who on them counts as yours.",
+      "connect": "Connect a provider",
+      "connected": "Provider connected",
+      "connectError": "Could not change that connection",
+      "disconnect": "Disconnect",
+      "disconnected": "Provider disconnected",
+      "disconnectTitle": "Disconnect {{name}}?",
+      "disconnectDescription": "It stops counting as yours: the button comes off your sign-in page and nobody new arrives through it. Nobody is signed out and no account changes. If you require a sign-in through it, lift that first.",
+      "empty": "No providers connected yet — your members sign in the usual way.",
+      "noneOffered": "Whoever runs this deployment has not offered any providers to connect to yet.",
+      "notReady": "Unavailable",
+      "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+      "anyoneItVouchesFor": "Anyone this provider vouches for",
+      "dialogTitle": "Connect a sign-in provider",
+      "dialogDescription": "Pick the provider your members use, then say which accounts on it are yours.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "claimLabel": "Whose accounts count as yours",
+      "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
+      "claimPlaceholder": "Leave blank for anyone it vouches for",
+      "claimValuesLabel": "Values that count",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Join them to this community",
+      "autoJoinHelp": "Anyone who counts as yours becomes a member the first time they sign in. Leave it off to invite people yourself.",
+      "joinsOnArrival": "New arrivals join automatically",
+      "claimOptions": {
+        "hd": "Google Workspace domain",
+        "tid": "Microsoft Entra tenant",
+        "groups": "Group membership",
+        "domain": "Domain"
+      },
+      "inherited": "From the deployment",
+      "makeItOurs": "Make it ours"
+    },
+    "rules": {
+      "title": "Where your people land",
+      "description": "Your provider reports which groups somebody is in. Say what those groups mean here — who joins as a member, who joins as an admin, and which initiative they start in.",
+      "add": "Add a rule",
+      "added": "Rule added",
+      "addError": "Could not add that rule",
+      "empty": "No rules yet — people arriving through your providers join with nothing in particular.",
+      "connectFirst": "Connect a provider first, then say what its groups mean.",
+      "noGroupsBadge": "No groups reported",
+      "noGroupsHint": "Whoever runs this deployment has not told this provider where its groups live, so this rule will not match anybody until they do.",
+      "landsInCommunity": "Arriving through {{provider}} — joins as {{role}}",
+      "landsInInitiative": "Arriving through {{provider}} — joins as {{role}}, and {{initiative}} as {{initiativeRole}}",
+      "dialogDescription": "Name a group your provider reports, and say where the people in it belong.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "groupLabel": "Group",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactly as your provider spells it.",
+      "standingLabel": "They join as",
+      "role": {
+        "member": "a member",
+        "admin": "an admin"
+      },
+      "initiativeLabel": "And start in",
+      "communityOnly": "The community only",
+      "initiativeRoleLabel": "In that initiative, as",
+      "initiativeRolePlaceholder": "Choose a role",
+      "remove": "Remove",
+      "removed": "Rule removed",
+      "removeError": "Could not remove that rule",
+      "removeTitle": "Remove this rule?",
+      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
     }
   },
   "authProviders": {
@@ -1438,5 +1517,23 @@
     "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
     "copyUnavailable": "Couldn't copy — write the codes down instead.",
     "notOffered": "This deployment does not offer the authenticator app."
+  },
+  "providerDefaults": {
+    "title": "What a community inherits",
+    "description": "Answer once for a provider and every community inherits that answer until it gives its own. Useful where this deployment is one organisation: one provider, one tenant, communities that are its teams.",
+    "noAnswer": "No answer — each community says for itself",
+    "noProviders": "Add a sign-in provider first, then say what communities inherit from it.",
+    "answer": "Answer for it",
+    "change": "Change",
+    "withdraw": "Withdraw",
+    "withdrawn": "Answer withdrawn",
+    "save": "Save",
+    "saved": "Answer saved",
+    "saveError": "Could not save that answer",
+    "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+    "anyoneItVouchesFor": "Anyone this provider vouches for",
+    "claimLabel": "Which claim decides",
+    "valuesLabel": "Values that count",
+    "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
   }
 }

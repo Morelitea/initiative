@@ -314,9 +314,27 @@ class AuthProviderMessages:
     DISCOVERY_INVALID = "AUTH_PROVIDER_DISCOVERY_INVALID"
     #: The stored row has no issuer to check.
     DISCOVERY_NO_ISSUER = "AUTH_PROVIDER_DISCOVERY_NO_ISSUER"
+    #: A community's connection, by an id that is not one of its own.
+    CONNECTION_NOT_FOUND = "AUTH_PROVIDER_CONNECTION_NOT_FOUND"
+    #: A community connects to a given provider once.
+    CONNECTION_EXISTS = "AUTH_PROVIDER_CONNECTION_EXISTS"
+    #: A narrowing is a claim and the values that admit somebody; either half
+    #: alone would look configured and let nobody in, or nobody out.
+    CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
+    #: Somebody arrived through a provider a community connects to, but the
+    #: claim it narrows on did not name them.
+    CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
+    #: A community's rule, by an id that is not one of its own.
+    RULE_NOT_FOUND = "AUTH_PROVIDER_RULE_NOT_FOUND"
+    #: A rule reads a provider's groups, so the community has to count that
+    #: provider as one of its own before it can say what its groups mean.
+    RULE_PROVIDER_NOT_CONNECTED = "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED"
+    #: One group lands in one place. A second rule for the same group and the
+    #: same destination would be two answers to one question.
+    RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
 
 
 class TagMessages:
@@ -458,7 +476,6 @@ class SettingsMessages:
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
-    PROVIDER_WRONG_GUILD = "SETTINGS_PROVIDER_WRONG_GUILD"
     INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
     INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
@@ -466,7 +483,7 @@ class SettingsMessages:
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
-    #: A guild still requires a sign-in through a provider of its own.
+    #: A guild still requires a sign-in through a provider it connects to.
     LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
     #: Something is ticked, but nothing that can begin a session — an
@@ -522,11 +539,9 @@ class AdminMessages:
     ALREADY_ANONYMIZED = "ADMIN_ALREADY_ANONYMIZED"
     CANNOT_CHANGE_ROLE_INACTIVE = "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
     CANNOT_CHANGE_OWN_ROLE = "ADMIN_CANNOT_CHANGE_OWN_ROLE"
-    CANNOT_DEMOTE_LAST_ADMIN = "ADMIN_CANNOT_DEMOTE_LAST_ADMIN"
     CANNOT_DEMOTE_LAST_OWNER = "ADMIN_CANNOT_DEMOTE_LAST_OWNER"
     CANNOT_ASSIGN_HIGHER_ROLE = "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE"
     USE_SELF_DELETION = "ADMIN_USE_SELF_DELETION"
-    CANNOT_DELETE_LAST_ADMIN = "ADMIN_CANNOT_DELETE_LAST_ADMIN"
     CANNOT_DELETE_LAST_OWNER = "ADMIN_CANNOT_DELETE_LAST_OWNER"
     CANNOT_DELETE_SELF = "ADMIN_CANNOT_DELETE_SELF"
     USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
@@ -564,7 +579,7 @@ class PasswordMessages:
 
 
 class UserMessages:
-    CANNOT_DELETE_LAST_ADMIN = "USER_CANNOT_DELETE_LAST_ADMIN"
+    CANNOT_DELETE_LAST_OWNER = "USER_CANNOT_DELETE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
     CANNOT_DELETE = "USER_CANNOT_DELETE"
@@ -595,7 +610,7 @@ class UserMessages:
     )
     PLATFORM_ROLE_WRONG_ENDPOINT = "USER_PLATFORM_ROLE_WRONG_ENDPOINT"
     STATUS_WRONG_ENDPOINT = "USER_STATUS_WRONG_ENDPOINT"
-    CANNOT_REMOVE_LAST_ADMIN = "USER_CANNOT_REMOVE_LAST_ADMIN"
+    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
@@ -853,6 +868,14 @@ class GalleryMessages:
     VERSION_CONFLICT = "GALLERY_VERSION_CONFLICT"
     #: A cover has to be one of the gallery's own pictures.
     COVER_NOT_IN_GALLERY = "GALLERY_COVER_NOT_IN_GALLERY"
+
+
+class WikiMessages:
+    PAGE_NOT_FOUND = "WIKI_PAGE_NOT_FOUND"
+    #: A home page has to be one of the wiki's own pages.
+    HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
+    #: So does the page new ones are copied from.
+    TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
 
 
 class MarketplaceMessages:

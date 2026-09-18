@@ -45,6 +45,7 @@ from app.api.deps import (
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
+    holds_guild_role,
     require_first_party_session,
 )
 from app.core.config import settings
@@ -54,7 +55,7 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.db import session as db_session
-from app.models.platform.guild import GuildMembership
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
@@ -123,8 +124,18 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 # ---------------------------------------------------------------------------
 
 
-def _require_guild_admin(guild_context: GuildContext) -> None:
-    if not rls_service.is_guild_admin(guild_context.role):
+def _require_guild_seat(guild_context: GuildContext) -> None:
+    """The seat, for everything that decides what the guild hands an app.
+
+    Installing one, and the credentials that authorize the whole community,
+    say what reaches the community's data from outside it — the same question
+    its sign-in answers, and the same seat. Connecting your own account to an
+    app is yours and asks none of this.
+
+    Asked through the shared predicate, so it answers exactly as the
+    dependency form does — a settings grant at the superadmin rung included.
+    """
+    if not holds_guild_role(guild_context, GuildRole.superadmin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildAppMessages.ADMIN_REQUIRED,
@@ -373,7 +384,7 @@ async def install_guild_app(
     supplied per member installs with none present, and members connect their
     own accounts afterwards if they want what those unlock.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
 
     listing, version = await _resolve_app_listing(session, payload.listing_uid)
 
@@ -443,7 +454,7 @@ async def upgrade_guild_app(
     connections the new version dropped go the same way, and are revoked rather
     than orphaned.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     # Upgrading prunes both configuration maps to the new definition, so it
     # takes the row: an app writing a flow's result back at the same moment
     # must land on one side of the prune or the other.
@@ -509,7 +520,7 @@ async def update_guild_app(
     guild's own answer to where an app belongs rather than a permission, so it
     reads the same for everyone, admins included.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
     data = payload.model_dump(exclude_unset=True)
@@ -553,7 +564,7 @@ async def uninstall_guild_app(
     An app the deployment provides to every guild is not removable here (§7.7):
     the operator's registration decides whether it exists at all.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     # Held for the rest of this transaction, so a member adding a calendar to
     # the app either lands before this read and is trashed with everything else,
     # or finds no install and is refused.
@@ -632,7 +643,7 @@ async def update_guild_app_config(
     member's to make, and the fields an app marks ``managed`` arrive on the
     app's own write-back path rather than through a form.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — an app writing a flow's result back is doing the same thing to
     # the same values.
@@ -851,7 +862,7 @@ async def connect_guild_app(
     connect_path = connection["connect_path"]
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
-        _require_guild_admin(guild_context)
+        _require_guild_seat(guild_context)
 
     # The vendor flow runs at the app's own URL, so it has to be wired up and
     # switched on before anyone is sent anywhere.
@@ -1039,7 +1050,7 @@ async def disconnect_guild_app(
     connection = _connection_or_404(app, connection_id)
 
     if connection.get("scope") == "static":
-        _require_guild_admin(guild_context)
+        _require_guild_seat(guild_context)
         if (app.config or {}).get(connection_id) or (app.config_secrets or {}).get(
             connection_id
         ):
@@ -1257,7 +1268,7 @@ async def list_guild_app_members(
     — seeing which vendor account somebody connected as, and ending it — rather
     than looking at credentials.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
     rows = await connections_service.list_app_connections(session, app_id=app.id)
@@ -1312,7 +1323,7 @@ async def revoke_member_connection(
     guild_context: GuildContextDep,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1344,7 +1355,7 @@ async def block_member_connection(
     The lever for "this person should no longer reach that system through us"
     that does not mean uninstalling the app for everyone.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1372,7 +1383,7 @@ async def unblock_member_connection(
     guild_context: GuildContextDep,
 ) -> None:
     """Lift a block, so the member may connect their own account again."""
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1399,7 +1410,7 @@ async def revoke_member_delegation(
     themselves, or nobody does. Governance runs one way here, which is what
     keeps "the app acts as me" something its subject actually decided.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
     await delegations_service.revoke(
@@ -1421,7 +1432,7 @@ async def revoke_all_member_delegations(
     compromise, reacting fast should not cost the guild its configuration.
     Members may authorize again once the guild is satisfied.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
     await delegations_service.revoke_all(
@@ -1442,7 +1453,7 @@ async def revoke_all_member_connections(
     For a suspected app or vendor compromise: reacting fast should not cost the
     guild its configuration.
     """
-    _require_guild_admin(guild_context)
+    _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
     await connections_service.revoke_all(session, app=app)

@@ -64,6 +64,7 @@ _RLS_SHARED_TABLES = {
     "guild_images",
     "guild_invites",
     "guild_memberships",
+    "guild_provider_connections",
     "guilds",
     "identity_refs",
     "marketplace_listing_versions",
@@ -72,6 +73,7 @@ _RLS_SHARED_TABLES = {
     "marketplace_registry_state",
     "oidc_claim_mappings",
     "platform_ai_connections",
+    "platform_provider_defaults",
     "profile_favorites",
     "storage_backfill_state",
     "user_api_keys",
@@ -88,6 +90,9 @@ _RLS_SHARED_TABLES = {
     "user_totp_secrets",
     "mfa_recovery_codes",
     "auth_challenges",
+    # WebAuthn credentials, on the same terms: forced with no policies, so
+    # nothing but the system engine reads or writes one.
+    "user_passkeys",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

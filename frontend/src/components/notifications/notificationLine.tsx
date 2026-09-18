@@ -137,7 +137,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "access_grant_revoked":
       // The Access tab serves both requesters (their requests) and approvers
       // (the queue). It's a platform route, not guild-scoped.
-      return "/settings/admin/access";
+      return "/settings/operator/access";
     case "event_invitation":
     case "event_updated":
     case "event_cancelled":

@@ -26,6 +26,8 @@ pytestmark = pytest.mark.database
 #: design change, and ``test_no_unexpected_overloads`` is what would say so.
 SIGNATURES = {
     "guild_auth_satisfied": "()",
+    "guild_connection_admits": "(int,int[],jsonb,int)",
+    "guild_connection_satisfied": "(int,int)",
     "initiative_access": "(int,int,bool)",
     "initiative_full_access": "(int,bool)",
     "initiative_role_permits": "(int,int,text,bool)",

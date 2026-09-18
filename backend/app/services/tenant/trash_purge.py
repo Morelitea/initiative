@@ -43,6 +43,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -76,6 +77,8 @@ _PURGE_TOP_DOWN = (
     GalleryImage,
     CounterGroup,
     Counter,
+    Wiki,
+    WikiPage,
 )
 
 

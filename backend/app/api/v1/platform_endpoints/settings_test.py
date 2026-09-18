@@ -182,51 +182,6 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
 
 
 @pytest.mark.integration
-async def test_a_guild_providers_rule_stays_inside_its_guild(
-    client: AsyncClient,
-    session: AsyncSession,
-) -> None:
-    """A guild-scoped provider's rules name that guild. Creating one elsewhere,
-    or moving an accepted one there afterwards, is refused."""
-    owner = await create_user(
-        session, email="owner-provider-scope@example.com", role=UserRole.owner
-    )
-    home = await create_guild(session, creator=owner)
-    elsewhere = await create_guild(session, creator=owner)
-    provider = await create_auth_provider(session, slug="tenant", guild_id=home.id)
-    headers = get_auth_headers(owner)
-
-    def rule(guild_id: int) -> dict:
-        return {
-            "provider_id": provider.id,
-            "claim_value": "staff",
-            "target_type": "guild",
-            "guild_id": guild_id,
-            "guild_role": "admin",
-        }
-
-    refused = await client.post(
-        "/api/v1/settings/oidc-mappings", json=rule(elsewhere.id), headers=headers
-    )
-    assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
-
-    accepted = await client.post(
-        "/api/v1/settings/oidc-mappings", json=rule(home.id), headers=headers
-    )
-    assert accepted.status_code == 201, accepted.text
-    mapping_id = accepted.json()["id"]
-
-    moved = await client.put(
-        f"/api/v1/settings/oidc-mappings/{mapping_id}",
-        json={"guild_id": elsewhere.id},
-        headers=headers,
-    )
-    assert moved.status_code == 400, moved.text
-    assert moved.json()["detail"] == "SETTINGS_PROVIDER_WRONG_GUILD"
-
-
-@pytest.mark.integration
 async def test_an_operator_global_rule_names_any_guild(
     client: AsyncClient,
     session: AsyncSession,
@@ -915,7 +870,7 @@ async def test_guild_storage_endpoints_allow_admin(
     session: AsyncSession,
 ) -> None:
     """A platform ``admin`` (guilds.manage) can list guilds and set a storage
-    cap from the Admin dashboard Guilds tab."""
+    cap from the Operator dashboard Guilds tab."""
     admin = await create_user(
         session, email="gstor-admin@example.com", role=UserRole.operator
     )

@@ -20,6 +20,10 @@ class SessionAssurance(SanitizedBaseModel):
     auth_time: Optional[int] = None
     amr: list[str] = []
     acr: Optional[str] = None
+    #: What this provider asserted for the claims some community narrows it
+    #: by. The community's rule about which values count is read live; this is
+    #: only the fact of what was said.
+    claims: dict[str, list[str]] = {}
 
 
 class TokenPayload(SanitizedBaseModel):

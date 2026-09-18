@@ -450,7 +450,7 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     if not user.username_chosen:
         user.username = usernames.random_name()
         user.discriminator = usernames.random_discriminator()
-    # Demote any platform admin to member. The row is now an empty husk
+    # Drop any platform role back to member. The row is now an empty husk
     # that can't act on anything; leaving the admin role on it would be
     # misleading in audit views and would inflate any role-only count
     # that doesn't also filter by status.
@@ -617,27 +617,6 @@ async def is_last_capability_holder(
         User.id != user_id,
     )
     return (await session.exec(others_stmt)).one() == 0
-
-
-# Backwards-compatible wrappers. The invariant we protect is "can the platform
-# still manage its own configuration", i.e. at least one ``owner`` remains
-# (``config.manage`` is owner-only).
-async def count_platform_admins(
-    session: AsyncSession, *, for_update: bool = False
-) -> int:
-    """Count active users who can manage platform configuration (owners)."""
-    return await count_capability_holders(
-        session, Capability.CONFIG_MANAGE, for_update=for_update
-    )
-
-
-async def is_last_platform_admin(
-    session: AsyncSession, user_id: int, *, for_update: bool = False
-) -> bool:
-    """True iff removing this user would leave the platform with no config managers."""
-    return await is_last_capability_holder(
-        session, user_id, Capability.CONFIG_MANAGE, for_update=for_update
-    )
 
 
 async def hard_delete_user(
@@ -951,7 +930,7 @@ async def to_self_read(user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
-    unmasked. A platform admin reading another account gets ``to_admin_read``.
+    unmasked. Reading somebody else's account gets ``to_admin_read``.
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
@@ -968,7 +947,7 @@ async def to_self_read(user: User) -> "UserRead":
 
 
 async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
-    """The same, for a platform admin reading other people's accounts.
+    """The same, for staff reading other people's accounts.
 
     The shape masks the address itself.
     """

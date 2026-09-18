@@ -163,7 +163,13 @@
     "adminRequired": "Necesitas permisos de administrador para ver esta página.",
     "guildRole": {
       "admin": "Administrador",
-      "member": "Miembro"
+      "member": "Miembro",
+      "superadmin": "Superadministrador"
+    },
+    "guildRoleHelp": {
+      "member": "Participa en aquello a lo que se le añade.",
+      "admin": "Dirige la comunidad: miembros, invitaciones, iniciativas, ajustes.",
+      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y aplicaciones. Solo un superadministrador puede nombrar a otro."
     },
     "loadingSettings": "Cargando configuración…",
     "unableToLoadSettings": "No se pudo cargar la configuración.",

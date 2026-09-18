@@ -22,8 +22,6 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
@@ -39,16 +37,18 @@ from app.api.deps import (
 from app.core.messages import DocumentMessages
 from app.core.security import SESSION_COOKIE_NAME
 from app.db.session import AsyncSessionLocal, set_rls_context
-from app.models.tenant.document import Document
-from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
 from app.services.tenant.collaboration import (
-    RESOURCE_TYPE,
     broadcast_awareness,
     collaboration_manager,
     room_roster,
     user_has_connection,
+)
+from app.services.tenant.collaborative_resources import (
+    CollaborativeResource,
+    Collaborating,
+    ContentFrameError,
+    resource_for,
 )
 from app.core.search import SearchEntityType
 from app.services.tenant import content_references
@@ -82,43 +82,66 @@ async def _get_user_from_token(token: str, session) -> Optional[User]:
     return await authenticate_ws_token(token, session)
 
 
-async def _get_document_with_permissions(
-    session,
-    document_id: int,
-    guild_id: int,
-) -> Optional[Document]:
-    """Get document with all relationships needed for permission checks."""
-    stmt = (
-        select(Document)
-        .where(Document.id == document_id)
-        .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.role_ref),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-        )
-    )
-    result = await session.exec(stmt)
-    document = result.one_or_none()
+def _addresses_the_same_thing(
+    spec: CollaborativeResource, resolved: Collaborating, parent_id: int | None
+) -> bool:
+    """Whether the parent the URL named is the one the row actually has.
 
-    if not document:
-        return None
-
-    # Verify document belongs to a guild the user has access to
-    if document.initiative and document.initiative.guild_id != guild_id:
-        return None
-
-    return document
+    Only a nested resource has one. The authorization never reads the path
+    segment — it reads the row — so a mismatch is simply refused rather than
+    quietly serving the right room under the wrong address.
+    """
+    if parent_id is None:
+        return True
+    return getattr(resolved.body, "wiki_id", None) == parent_id
 
 
 @router.websocket("/documents/{document_id}/collaborate")
-async def websocket_collaborate(
+async def websocket_collaborate_document(
     websocket: WebSocket,
     guild_id: int,
     document_id: int,
 ):
+    """Live editing of a document's body."""
+    await _collaborate(
+        websocket, guild_id, resource_for(SearchEntityType.document.value), document_id
+    )
+
+
+@router.websocket("/wikis/{wiki_id}/pages/{page_id}/collaborate")
+async def websocket_collaborate_wiki_page(
+    websocket: WebSocket,
+    guild_id: int,
+    wiki_id: int,
+    page_id: int,
+):
+    """Live editing of a wiki page's body.
+
+    ``wiki_id`` is in the path because a page is addressed through its wiki
+    everywhere else, and a socket that named the page alone would be the one
+    place it is not. The page's own row names the wiki that governs it, so the
+    authorization does not read the path segment — a mismatched one is refused
+    below rather than believed.
     """
-    WebSocket endpoint for collaborative document editing.
+    await _collaborate(
+        websocket,
+        guild_id,
+        resource_for(SearchEntityType.wiki_page.value),
+        page_id,
+        parent_id=wiki_id,
+    )
+
+
+async def _collaborate(
+    websocket: WebSocket,
+    guild_id: int,
+    spec: CollaborativeResource,
+    resource_id: int,
+    *,
+    parent_id: int | None = None,
+):
+    """
+    WebSocket endpoint for collaborative editing of one body.
 
     Protocol:
     1. Client connects and sends MSG_AUTH with {token} as first message; the
@@ -139,14 +162,17 @@ async def websocket_collaborate(
     # If we try to close before accept, the HTTP upgrade never completes
     # and the client sees an abnormal closure (1006)
     await websocket.accept()
-    logger.info(f"Collaboration: WebSocket accepted for document {document_id}")
+    logger.info(
+        f"Collaboration: WebSocket accepted for {spec.resource_type} {resource_id}"
+    )
 
     # Wait for authentication message (must be first message)
     try:
         auth_data = await websocket.receive_bytes()
         if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
             logger.warning(
-                f"Collaboration: Expected MSG_AUTH as first message for document {document_id}"
+                f"Collaboration: Expected MSG_AUTH as first message for "
+                f"{spec.resource_type} {resource_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -162,14 +188,16 @@ async def websocket_collaborate(
                 raise ValueError("Missing token")
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(
-                f"Collaboration: Invalid auth payload for document {document_id}: {e}"
+                f"Collaboration: Invalid auth payload for {spec.resource_type} "
+                f"{resource_id}: {e}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
     except WebSocketDisconnect:
         logger.info(
-            f"Collaboration: Client disconnected before auth for document {document_id}"
+            f"Collaboration: Client disconnected before auth for "
+            f"{spec.resource_type} {resource_id}"
         )
         return
 
@@ -177,7 +205,9 @@ async def websocket_collaborate(
     async with AsyncSessionLocal() as session:
         user = await _get_user_from_token(token, session)
         if not user:
-            logger.warning(f"Collaboration: Auth failed for document {document_id}")
+            logger.warning(
+                f"Collaboration: Auth failed for {spec.resource_type} {resource_id}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
@@ -196,24 +226,30 @@ async def websocket_collaborate(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # Get document and check permissions
-        document = await _get_document_with_permissions(session, document_id, guild_id)
-        if not document:
+        # The body, and the row whose sharing governs it. For a document they
+        # are the same row; for a wiki page the governing row is its wiki.
+        resolved = await spec.load(session, resource_id, guild_id)
+        if resolved is None or not _addresses_the_same_thing(spec, resolved, parent_id):
             logger.warning(
-                f"Collaboration: Document {document_id} not found or not in guild {guild_id}"
+                f"Collaboration: {spec.resource_type} {resource_id} not found "
+                f"or not in guild {guild_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+        body = resolved.body
 
-        # Per-document level via the shared DAC engine — guild-admin / break-glass
-        # bypass (→ owner), a live PAM grant lifted to its level, or the document's
-        # explicit user/role/all-members grants. The active role + grant context
-        # was established above, and establish_guild_access already proved guild
-        # reach, so the only open question is the document level.
-        level = permissions_service.compute_document_permission(document, user.id)
+        # Per-resource level via the shared DAC engine — guild-admin /
+        # break-glass bypass (→ owner), a live PAM grant lifted to its level, or
+        # the resource's explicit user/role/all-members grants. The active role +
+        # grant context was established above, and establish_guild_access already
+        # proved guild reach, so the only open question is this level.
+        level = permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[spec.tool], resolved.governing, user.id
+        )
         if level is None:
             logger.warning(
-                f"Collaboration: User {handle_of(user)} has no read access to document {document_id}"
+                f"Collaboration: User {handle_of(user)} has no read access to "
+                f"{spec.resource_type} {resource_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -224,14 +260,15 @@ async def websocket_collaborate(
 
         # Get or create the document room (needs session for initial load)
         room = await collaboration_manager.get_or_create_room(
-            guild_id, document_id, session
+            guild_id, spec.resource_type, resource_id, session
         )
         # Held from here until this socket is in the register, so the room is
         # not read as idle and retired in the gap between the two.
         room.hold()
 
     logger.info(
-        f"Collaboration: user {user.id} authenticated for document {document_id}"
+        f"Collaboration: user {user.id} authenticated for "
+        f"{spec.resource_type} {resource_id}"
     )
 
     collaborator_name = display_name(user)
@@ -247,10 +284,12 @@ async def websocket_collaborate(
     needs_write = can_write
 
     async def _authorize(check_session, check_user):
-        doc = await _get_document_with_permissions(check_session, document_id, guild_id)
-        if doc is None:
-            return False  # initiative removed (RLS hides it) or document gone
-        current = permissions_service.compute_document_permission(doc, check_user.id)
+        again = await spec.load(check_session, resource_id, guild_id)
+        if again is None:
+            return False  # initiative removed (RLS hides it) or the row is gone
+        current = permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[spec.tool], again.governing, check_user.id
+        )
         if current is None:
             return False  # read access revoked
         # A guild flipping to read_only mid-session caps ``current`` at "read"
@@ -264,9 +303,9 @@ async def websocket_collaborate(
             websocket,
             user,
             guild_id=guild_id,
-            initiative_id=document.initiative_id,
-            resource_type="document",
-            resource_id=document_id,
+            initiative_id=resolved.initiative_id,
+            resource_type=spec.resource_type,
+            resource_id=resource_id,
             authorize=_authorize,
             satisfied_providers=satisfied_provider_ids(),
             meta={
@@ -290,7 +329,7 @@ async def websocket_collaborate(
         collaborators_message = json.dumps(
             {
                 "type": "collaborators",
-                "data": room_roster(guild_id, document_id),
+                "data": room_roster(guild_id, spec.resource_type, resource_id),
             }
         ).encode()
         await websocket.send_bytes(bytes([MSG_AWARENESS]) + collaborators_message)
@@ -298,7 +337,8 @@ async def websocket_collaborate(
         # Broadcast that a new user joined
         await broadcast_awareness(
             guild_id,
-            document_id,
+            spec.resource_type,
+            resource_id,
             {
                 "type": "join",
                 "user": {
@@ -351,8 +391,8 @@ async def websocket_collaborate(
                     # other connection this is simply state they do not have.
                     await stream_authority.emit_bytes(
                         guild_id,
-                        RESOURCE_TYPE,
-                        document_id,
+                        spec.resource_type,
+                        resource_id,
                         bytes([MSG_UPDATE]) + payload,
                         exclude=websocket,
                     )
@@ -367,17 +407,17 @@ async def websocket_collaborate(
                     continue
                 try:
                     room.offer_content(
-                        documents_service.normalize_document_content(
-                            json.loads(payload.decode()),
-                            document_type=document.document_type,
-                        ),
+                        spec.normalize(body, json.loads(payload.decode())),
                         connection=websocket,
                     )
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     logger.warning(
                         f"Collaboration: unreadable content frame from {handle_of(user)}"
                     )
-                except documents_service.DocumentContentError as exc:
+                except (
+                    documents_service.DocumentContentError,
+                    ContentFrameError,
+                ) as exc:
                     logger.warning(
                         f"Collaboration: rejected content frame from "
                         f"{handle_of(user)}: {exc.code}"
@@ -387,19 +427,21 @@ async def websocket_collaborate(
                 # y-protocols awareness update - relay as-is to other clients
                 await stream_authority.emit_bytes(
                     guild_id,
-                    RESOURCE_TYPE,
-                    document_id,
+                    spec.resource_type,
+                    resource_id,
                     bytes([MSG_AWARENESS_BINARY]) + payload,
                     exclude=websocket,
                 )
 
     except WebSocketDisconnect:
         logger.info(
-            f"Collaboration: {handle_of(user)} disconnected from document {document_id}"
+            f"Collaboration: {handle_of(user)} disconnected from "
+            f"{spec.resource_type} {resource_id}"
         )
     except Exception as e:
         logger.error(
-            f"Collaboration error for {handle_of(user)} on document {document_id}: {e}"
+            f"Collaboration error for {handle_of(user)} on "
+            f"{spec.resource_type} {resource_id}: {e}"
         )
     finally:
         # Stop governing this socket (idempotent if the spine already closed it).
@@ -408,10 +450,11 @@ async def websocket_collaborate(
         # Tell the rest of the room only when this was the account's last
         # connection: the others keep a roster of people, and one of somebody's
         # two tabs closing does not take them out of the document.
-        if not user_has_connection(guild_id, document_id, user.id):
+        if not user_has_connection(guild_id, spec.resource_type, resource_id, user.id):
             await broadcast_awareness(
                 guild_id,
-                document_id,
+                spec.resource_type,
+                resource_id,
                 {"type": "leave", "user_id": user.id},
                 exclude=websocket,
             )
@@ -421,8 +464,12 @@ async def websocket_collaborate(
         # account is another connection, and keeps it.
         async with AsyncSessionLocal() as session:
             await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-            await collaboration_manager.persist_room(guild_id, document_id, session)
-        await collaboration_manager.remove_room(guild_id, document_id)
+            await collaboration_manager.persist_room(
+                guild_id, spec.resource_type, resource_id, session
+            )
+        await collaboration_manager.remove_room(
+            guild_id, spec.resource_type, resource_id
+        )
 
 
 @router.get("/documents/{document_id}/collaborators")
@@ -433,7 +480,9 @@ async def get_document_collaborators(
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> list[dict]:
     """Get the list of current collaborators on a document."""
-    return room_roster(guild_context.guild_id, document_id)
+    return room_roster(
+        guild_context.guild_id, SearchEntityType.document.value, document_id
+    )
 
 
 @router.post("/documents/{document_id}/sync-content")
@@ -478,7 +527,9 @@ async def sync_document_content(
         return {"status": "error", "message": "No guild access"}
 
     # Get document and check write permission
-    document = await _get_document_with_permissions(session, document_id, guild_id)
+    spec = resource_for(SearchEntityType.document.value)
+    resolved = await spec.load(session, document_id, guild_id)
+    document = resolved.body if resolved else None
     if not document:
         logger.warning(f"Sync content: Document {document_id} not found")
         return {"status": "error", "message": "Document not found"}
@@ -496,7 +547,9 @@ async def sync_document_content(
     # so a snapshot arriving beside it is not applied here: this beacon can
     # come from a tab that has been disconnected for some time, and its idea
     # of the content is that old. With no room, this is the only writer.
-    if collaboration_manager.has_active_collaborators(guild_id, document_id):
+    if collaboration_manager.has_active_collaborators(
+        guild_id, spec.resource_type, document_id
+    ):
         # The room owns the content column while it is live and takes its
         # rendering from the connection that made it. This request carries no
         # connection, so it is not applied.

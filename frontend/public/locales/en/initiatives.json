@@ -107,7 +107,8 @@
     "dashboards": "Dashboards",
     "counterGroups": "Counters",
     "posts": "Posts",
-    "galleries": "Galleries"
+    "galleries": "Galleries",
+    "wikis": "Wikis"
   },
   "settings": {
     "title": "Initiative settings",
@@ -237,7 +238,8 @@
       "dashboards": "Dashboards",
       "counterGroups": "Counters",
       "posts": "Posts",
-      "galleries": "Galleries"
+      "galleries": "Galleries",
+      "wikis": "Wikis"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -257,7 +259,9 @@
       "viewGalleries": "View Galleries",
       "createGalleries": "Create Galleries",
       "viewShort": "View",
-      "createShort": "Create"
+      "createShort": "Create",
+      "viewWikis": "View Wikis",
+      "createWikis": "Create Wikis"
     },
     "handleColumn": "Handle",
     "toolAudience": {
@@ -327,5 +331,7 @@
     "nextJoining": "Next: Membership",
     "nextMembers": "Next: Permissions",
     "firstIntroLink": "Read more here"
-  }
+  },
+  "wikisFeature": "Wikis",
+  "wikisFeatureDescription": "Pages that link to each other. Handbooks, references, the thing everyone keeps asking about."
 }

@@ -60,6 +60,7 @@ from app.api.v1.tenant_endpoints import (
     tasks,
     tools,
     trash,
+    wikis,
 )
 from app.api.v1.platform_endpoints import (
     field_catalog,
@@ -76,7 +77,7 @@ from app.api.v1.platform_endpoints import (
     contacts,
     delegation_exchange,
     guild_reference,
-    guild_auth_providers,
+    guild_provider_connections,
     guilds,
     marketplace,
     native,
@@ -176,7 +177,9 @@ api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
 api_router.include_router(
-    guild_auth_providers.router, prefix="/guilds", tags=["guild-auth-providers"]
+    guild_provider_connections.router,
+    prefix="/guilds",
+    tags=["guild-provider-connections"],
 )
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
@@ -247,6 +250,7 @@ guild_router.include_router(
 )
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
+guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #

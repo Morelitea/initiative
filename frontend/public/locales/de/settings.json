@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
-        "message": "Diese Community ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+        "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       },
       "suspended": {
         "label": "Gesperrt",
-        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an die Betreiber dieses Servers."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
     "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
-    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Konto dauerhaft gelöscht"
   },
   "branding": {
-    "adminOnly": "Nur Plattformadministratoren können die Branding-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur Plattformadministratoren können die E-Mail-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -553,7 +553,7 @@
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
   "auth": {
-    "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
@@ -663,21 +663,13 @@
     "filterPlaceholder": "Nach Handle filtern…",
     "columnId": "Benutzer-ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "E-Mail",
-    "columnRole": "Rolle",
     "columnStatus": "Status",
     "columnActions": "Aktionen",
     "active": "Aktiv",
-    "inactive": "Inaktiv",
     "deactivated": "Deaktiviert",
     "anonymized": "Anonymisiert",
-    "admin": "Administrator",
-    "user": "Benutzer",
-    "promoteToAdmin": "Zum Administrator befördern",
-    "promoteDescription": "Dadurch erhält {{email}} Plattformadministrator-Berechtigungen und kann Plattformeinstellungen, Benutzer und Konfigurationen verwalten.",
-    "demoteToUser": "Zum Benutzer herabstufen",
-    "demoteDescription": "Dadurch werden {{email}} die Plattformadministrator-Berechtigungen entzogen. Die Person kann dann nicht mehr auf die Plattformeinstellungen zugreifen.",
+    "suspended": "Gesperrt",
     "resetPassword": "Passwort zurücksetzen",
     "resetDescription": "Dadurch wird eine E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet.",
     "reactivate": "Wieder aktivieren",
@@ -685,15 +677,11 @@
     "exportAll": "Alle als CSV exportieren",
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "deleteUser": "Benutzer löschen",
-    "promoteSuccess": "Benutzer zum Administrator befördert",
-    "demoteSuccess": "Benutzer zum Mitglied herabgestuft",
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
     "resetSuccess": "E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
     "reactivateSuccess": "{{email}} wurde wieder aktiviert",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
-    "cannotDemoteLastAdmin": "Der letzte Plattformadministrator kann nicht herabgestuft werden",
-    "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
     "roles": {
       "member": "Mitglied",
@@ -712,18 +700,34 @@
     "changeRoleTitle": "Plattformrolle ändern",
     "changeRoleDescription": "Dadurch wird die Plattformrolle von {{email}} in {{role}} geändert.",
     "roleChangeSuccess": "Plattformrolle in {{role}} geändert",
-    "changeUsername": "Benutzernamen ändern",
     "usernameChanged": "Benutzername geändert.",
-    "changeUsernameTitle": "Benutzernamen von {{handle}} ändern",
-    "changeUsernameBody": "Die Person wird benachrichtigt und kann die Änderung nicht selbst rückgängig machen. Die Nummer bleibt unverändert.",
     "suspend": "Sperren",
-    "unsuspend": "Sperre aufheben",
     "suspendTitle": "{{handle}} sperren?",
     "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
-    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden."
+    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
+    "sheet": {
+      "open": "Verwalten",
+      "openLabel": "Konto {{handle}} verwalten",
+      "description": "Was ein Operator für dieses Konto pflegt. Jede Änderung wird einzeln gespeichert.",
+      "identity": "Identität",
+      "usernameLabel": "Benutzername",
+      "usernameHelp": "Das Handle, unter dem die Person angesprochen wird. Die Nummer dahinter bleibt unverändert.",
+      "avatarLabel": "Profilbild",
+      "avatarHelp": "Das Bild entfernen. Von hier aus kann es nicht ersetzt werden.",
+      "avatarRemove": "Entfernen",
+      "avatarRemoved": "Profilbild entfernt.",
+      "avatarConfirmTitle": "Dieses Profilbild entfernen?",
+      "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
+      "access": "Zugriff",
+      "suspendLabel": "Gesperrt",
+      "suspendHelp": "Ein gesperrtes Konto kann sich weiterhin anmelden und den Grund lesen, erreicht aber keine seiner Communitys.",
+      "role": "Plattformrolle",
+      "roleLabel": "Rolle",
+      "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
+    }
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",
@@ -961,8 +965,8 @@
     "manifestChangedDescription": "Das Manifest dieser App entspricht nicht mehr dem bei der Registrierung hinterlegten Stand; Funktionen, Verbindungen oder eingebettete Seiten können sich also geändert haben. Beim Annehmen wird das neue Manifest übernommen und die App als überprüft markiert. Nimm es nur an, wenn du mit dieser Änderung gerechnet hast.",
     "manifestChangedConfirm": "Neues Manifest annehmen"
   },
-  "adminDashboard": {
-    "title": "Administrator-Dashboard",
+  "operatorDashboard": {
+    "title": "Operator-Dashboard",
     "subtitle": "Verwalte Plattformbenutzer und zeitlich begrenzte Zugriffsrechte.",
     "tabs": {
       "users": "Benutzer",
@@ -1027,6 +1031,10 @@
       "supportLabel": "Hilfeanfragen",
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
       "authOption": {
+        "restrictions": {
+          "label": "Eigene Anmeldung konfigurieren",
+          "help": "Gibt dieser Community den Tab „Authentifizierung“: persönliche API-Schlüssel, ein Zwölf-Stunden-Sitzungslimit und alles darunter Angehakte. Für die meisten Communities aus — ohne diese Option sehen sie den Tab nie."
+        },
         "providers": {
           "label": "Eigene Anmeldeanbieter",
           "help": "Erlaubt ihren Admins, einen Identitätsanbieter einzurichten und neue Konten darüber aufzunehmen."
@@ -1037,9 +1045,7 @@
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit",
-      "complianceSessionLabel": "Zwölf-Stunden-Sitzungslimit",
-      "complianceSessionHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen."
+      "storageLabel": "Speicherlimit"
     },
     "unlimited": "Unbegrenzt"
   },
@@ -1095,11 +1101,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identitätsanbieter",
-      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Community anmelden. Werden von den Admins dieser Community konfiguriert und gelten nur hier.",
-      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
-    },
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1132,6 +1133,84 @@
       "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
       "saved": "API-Zugriff gespeichert",
       "error": "API-Zugriff konnte nicht gespeichert werden"
+    },
+    "sessionLimit": {
+      "title": "Sitzungslimit",
+      "description": "Wie oft sich die Mitglieder dieser Community neu anmelden.",
+      "allowLabel": "Zwölf-Stunden-Sitzungslimit",
+      "onHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen.",
+      "offHelp": "Mitglieder bleiben so lange angemeldet, wie es die Installation zulässt.",
+      "saved": "Sitzungslimit gespeichert",
+      "error": "Sitzungslimit konnte nicht gespeichert werden"
+    },
+    "connections": {
+      "title": "Welche Anmeldungen eure sind",
+      "description": "Angemeldet wird sich bei dieser Installation. Sagt, welche ihrer Anmeldeanbieter zu eurer Community zählen und wer darauf als eure Leute gilt.",
+      "connect": "Anbieter verbinden",
+      "connected": "Anbieter verbunden",
+      "connectError": "Diese Verbindung konnte nicht geändert werden",
+      "disconnect": "Trennen",
+      "disconnected": "Anbieter getrennt",
+      "disconnectTitle": "{{name}} trennen?",
+      "disconnectDescription": "Sie zählt nicht mehr als eure: Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
+      "empty": "Noch keine Anbieter verbunden — eure Mitglieder melden sich wie gewohnt an.",
+      "noneOffered": "Wer diese Installation betreibt, hat noch keine Anbieter zum Verbinden angeboten.",
+      "notReady": "Nicht verfügbar",
+      "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+      "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+      "dialogTitle": "Anmeldeanbieter verbinden",
+      "dialogDescription": "Wähle den Anbieter, den eure Mitglieder nutzen, und sage dann, welche Konten darauf euch gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "claimLabel": "Wessen Konten als eure gelten",
+      "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
+      "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
+      "claimValuesLabel": "Gültige Werte",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Sie dieser Community hinzufügen",
+      "autoJoinHelp": "Wer als eure Leute zählt, wird bei der ersten Anmeldung Mitglied. Lasst es aus, wenn ihr selbst einladen wollt.",
+      "joinsOnArrival": "Neue treten automatisch bei",
+      "claimOptions": {
+        "hd": "Google-Workspace-Domain",
+        "tid": "Microsoft-Entra-Mandant",
+        "groups": "Gruppenmitgliedschaft",
+        "domain": "Domain"
+      },
+      "inherited": "Von der Installation",
+      "makeItOurs": "Zu unserer machen"
+    },
+    "rules": {
+      "title": "Wo eure Leute landen",
+      "description": "Euer Anbieter meldet, in welchen Gruppen jemand ist. Legt hier fest, was diese Gruppen bedeuten – wer als Mitglied beitritt, wer als Admin, und in welcher Initiative sie starten.",
+      "add": "Regel hinzufügen",
+      "added": "Regel hinzugefügt",
+      "addError": "Regel konnte nicht hinzugefügt werden",
+      "empty": "Noch keine Regeln – wer über eure Anbieter kommt, tritt ohne besondere Zuordnung bei.",
+      "connectFirst": "Verbindet zuerst einen Anbieter, dann legt fest, was seine Gruppen bedeuten.",
+      "noGroupsBadge": "Keine Gruppen gemeldet",
+      "noGroupsHint": "Die Betreiber dieser Installation haben diesem Anbieter nicht mitgeteilt, wo seine Gruppen stehen. Bis dahin trifft diese Regel auf niemanden zu.",
+      "landsInCommunity": "Ankunft über {{provider}} – tritt bei als {{role}}",
+      "landsInInitiative": "Ankunft über {{provider}} – tritt bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+      "dialogDescription": "Nennt eine Gruppe, die euer Anbieter meldet, und legt fest, wohin ihre Leute gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "groupLabel": "Gruppe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Genau so geschrieben wie bei eurem Anbieter.",
+      "standingLabel": "Sie treten bei als",
+      "role": {
+        "member": "Mitglied",
+        "admin": "Admin"
+      },
+      "initiativeLabel": "Und starten in",
+      "communityOnly": "Nur die Community",
+      "initiativeRoleLabel": "In dieser Initiative als",
+      "initiativeRolePlaceholder": "Rolle auswählen",
+      "remove": "Entfernen",
+      "removed": "Regel entfernt",
+      "removeError": "Regel konnte nicht entfernt werden",
+      "removeTitle": "Diese Regel entfernen?",
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
     }
   },
   "authProviders": {
@@ -1438,5 +1517,23 @@
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
     "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+  },
+  "providerDefaults": {
+    "title": "Was eine Community erbt",
+    "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",
+    "noAnswer": "Keine Antwort – jede Community entscheidet selbst",
+    "noProviders": "Fügt zuerst einen Anmeldeanbieter hinzu, dann legt fest, was Communities von ihm erben.",
+    "answer": "Dafür antworten",
+    "change": "Ändern",
+    "withdraw": "Zurückziehen",
+    "withdrawn": "Antwort zurückgezogen",
+    "save": "Speichern",
+    "saved": "Antwort gespeichert",
+    "saveError": "Antwort konnte nicht gespeichert werden",
+    "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+    "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+    "claimLabel": "Welcher Claim entscheidet",
+    "valuesLabel": "Gültige Werte",
+    "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   }
 }

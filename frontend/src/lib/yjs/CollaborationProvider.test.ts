@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { CollaborationError, CollaborationProvider } from "./CollaborationProvider";
+import {
+  CollaborationError,
+  CollaborationProvider,
+  getLiveProvider,
+  getOrCreateProvider,
+} from "./CollaborationProvider";
 
 const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
@@ -221,5 +226,40 @@ describe("CollaborationProvider across an outage", () => {
 
     expect(errors).toHaveLength(1);
     expect((errors[0] as CollaborationError).recoverable).toBe(false);
+  });
+});
+
+describe("joining a connection that already exists", () => {
+  const url = "ws://test/api/v1/g/1/collaboration/documents/9/collaborate";
+
+  it("hands back the provider already serving that address", () => {
+    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+    opened.push(provider);
+
+    expect(getLiveProvider(url)).toBe(provider);
+  });
+
+  it("hands back nothing once it has been destroyed", () => {
+    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+    provider.destroy();
+
+    expect(getLiveProvider(url)).toBeNull();
+  });
+
+  it("does not spend the reconnect budget on handshakes nobody waited for", () => {
+    // A remount destroys the provider mid-handshake. Done enough times, a
+    // counted attempt would exhaust the address's budget and make the next
+    // real connection wait for a window nothing had used.
+    for (let i = 0; i < 12; i += 1) {
+      const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+      (FakeWebSocket.last as FakeWebSocket).readyState = FakeWebSocket.CONNECTING;
+      provider.destroy();
+    }
+
+    FakeWebSocket.last = null;
+    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+    opened.push(provider);
+
+    expect(FakeWebSocket.last).not.toBeNull();
   });
 });

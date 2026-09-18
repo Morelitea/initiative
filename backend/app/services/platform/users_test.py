@@ -14,6 +14,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.capabilities import Capability
 from app.models.platform.guild import GuildRole
 from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
@@ -650,11 +651,11 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_ignores_inactive_targets(session: AsyncSession):
+async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSession):
     """An owner whose status isn't ``active`` doesn't contribute to the
     active config-manager count, so they can never be "the last owner".
 
-    ``is_last_platform_admin`` now tracks holders of ``config.manage``
+    ``is_last_capability_holder`` tracks holders of ``config.manage``
     (owners) — the invariant that keeps the platform able to manage its own
     configuration.
     """
@@ -669,31 +670,51 @@ async def test_is_last_platform_admin_ignores_inactive_targets(session: AsyncSes
     await user_service.deactivate_user(session, deact_owner.id)
 
     # The active owner really is the last *active* config manager.
-    assert await user_service.is_last_platform_admin(session, active_owner.id) is True
+    assert (
+        await user_service.is_last_capability_holder(
+            session, active_owner.id, Capability.CONFIG_MANAGE
+        )
+        is True
+    )
 
     # The deactivated owner is never "the last owner" — they're not in
     # the count to begin with, so removing them changes nothing.
-    assert await user_service.is_last_platform_admin(session, deact_owner.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, deact_owner.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_with_other_active_owner(session: AsyncSession):
+async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):
     """When a second active owner exists, neither is the last owner."""
     from app.models.platform.user import UserRole
 
     a = await create_user(session, email="a@example.com", role=UserRole.owner)
     b = await create_user(session, email="b@example.com", role=UserRole.owner)
 
-    assert await user_service.is_last_platform_admin(session, a.id) is False
-    assert await user_service.is_last_platform_admin(session, b.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, a.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
+    assert (
+        await user_service.is_last_capability_holder(
+            session, b.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession):
-    """A plain ``admin`` no longer holds ``config.manage``, so they're not
-    counted as a config manager and are never "the last owner"."""
+async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
+    """An operator does not hold ``config.manage``, so they are not counted
+    as a config manager and are never "the last owner"."""
     from app.models.platform.user import UserRole
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
@@ -701,7 +722,12 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
         session, email="admin@example.com", role=UserRole.operator
     )
 
-    assert await user_service.is_last_platform_admin(session, plain_admin.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, plain_admin.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.integration

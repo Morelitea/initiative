@@ -29,6 +29,7 @@ class Tool(str, Enum):
     dashboard = "dashboard"
     post = "post"
     gallery = "gallery"
+    wiki = "wiki"
 
     @property
     def plural(self) -> str:
@@ -165,6 +166,7 @@ TAGGABLE_EXTRAS: tuple[str, ...] = (
     "queue_item",
     "calendar_event",
     "gallery_image",
+    "wiki_page",
 )
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 
@@ -183,6 +185,7 @@ TRASHABLE_EXTRAS: tuple[str, ...] = (
     "initiative",
     "tag",
     "gallery_image",
+    "wiki_page",
 )
 TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 

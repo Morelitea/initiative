@@ -73,7 +73,7 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     assert content.status_code in (403, 404), content.text
 
 
-async def test_a_settings_only_grant_reaches_guild_scoped_configuration(
+async def test_a_settings_only_superadmin_grant_reaches_ai_configuration(
     client: AsyncClient, session: AsyncSession
 ):
     owner = await create_user(session, role=UserRole.owner)
@@ -81,7 +81,7 @@ async def test_a_settings_only_grant_reaches_guild_scoped_configuration(
     guild = await create_guild(session, creator=owner)
 
     await _request_and_approve(
-        client, requester=support, approver=owner, guild=guild, rung="admin"
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
     )
 
     response = await client.get(
@@ -143,7 +143,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     assert pref.status_code == 200, pref.text
 
     await _request_and_approve(
-        client, requester=support, approver=owner, guild=guild, rung="admin"
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
     )
     deleted = await client.delete(
         f"/api/v1/g/{guild.id}/settings/ai/connections/{connection_id}",
@@ -170,6 +170,35 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     assert prefs == []
 
 
+async def test_the_superadmin_grantee_reads_the_auth_controls(
+    client: AsyncClient, session: AsyncSession
+):
+    """The temporary seat gets the current values before changing them."""
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(
+        session,
+        creator=owner,
+        allow_api_keys=False,
+        enforce_compliance_session=True,
+    )
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
+    )
+
+    response = await client.get(
+        f"/api/v1/guilds/{guild.id}/auth-settings",
+        headers=get_auth_headers(support),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "auth_options": ["providers", "require_sign_in", "restrictions"],
+        "allow_api_keys": False,
+        "enforce_compliance_session": True,
+    }
+
+
 async def test_the_admin_rung_does_not_reach_the_seat(
     client: AsyncClient, session: AsyncSession
 ):
@@ -189,6 +218,9 @@ async def test_the_admin_rung_does_not_reach_the_seat(
         json={"allow_api_keys": False},
     )
     assert refused.status_code == 403, refused.text
+
+    read = await client.get(f"/api/v1/guilds/{guild.id}/auth-settings", headers=headers)
+    assert read.status_code == 403, read.text
 
 
 async def test_a_bare_request_is_a_content_read(

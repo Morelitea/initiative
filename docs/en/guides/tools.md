@@ -56,6 +56,12 @@ Everything that lives inside an initiative is a **tool**. There are eight kinds.
 
     [:octicons-arrow-right-24: Galleries](galleries.md)
 
+-   :material-book-open-page-variant-outline: __Wikis__
+
+    Linked pages, for the things your group knows rather than the things it is doing.
+
+    [:octicons-arrow-right-24: Wikis](wikis.md)
+
 </div>
 
 ## Add one when you actually need it

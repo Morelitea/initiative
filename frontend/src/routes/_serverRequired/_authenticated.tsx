@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useLocation,
+  useMatches,
+} from "@tanstack/react-router";
 import { Loader2, LogOut, Plus, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +18,7 @@ import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
 import { ConfirmAge } from "@/components/ConfirmAge";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
 import { Galaxy } from "@/components/icons/Galaxy";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -45,6 +53,7 @@ import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
+import { cn } from "@/lib/utils";
 
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
@@ -82,6 +91,12 @@ function AppLayout() {
   const { user, loading, logout } = useAuth();
   const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
   const location = useLocation();
+  // Whether the route on screen lays itself out against the window. Read off
+  // the matched routes rather than the path, so a route says it once where it
+  // is declared.
+  const fullBleed = useMatches({
+    select: (matches) => matches.some((match) => match.staticData?.fullBleed === true),
+  });
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
@@ -140,7 +155,7 @@ function AppLayout() {
   }
 
   // No-guild empty-state branch. The user-scoped settings routes
-  // (``/profile/*``) and platform-admin settings (``/settings/admin/*``
+  // (``/profile/*``) and platform-admin settings (``/settings/operator/*``
   // for an admin) don't need guild context — the APIs they call work
   // without a server-held guild — and a user with zero
   // memberships would otherwise have no path to delete their account
@@ -240,51 +255,56 @@ function AppLayout() {
       <div className="relative flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
         <div className="flex min-h-0 flex-1">
-          <SidebarProvider
-            defaultOpen={true}
-            // The provider's own wrapper asks for `min-h-svh`, which is a floor
-            // for a page that grows and a trap for one that does not: anything
-            // above it here -- a permission prompt, a banner -- makes the row
-            // it sits in shorter than a screen, and the wrapper refuses to
-            // follow. Everything below then measures itself against a box
-            // taller than the one on screen, and the app scrolls into space
-            // that was never there. The shell has a real height; take it.
-            className="h-full min-h-0"
-            style={
-              {
-                "--sidebar-width": "20rem",
-                "--sidebar-width-mobile": "90vw",
-              } as React.CSSProperties
-            }
-          >
-            <AppSidebar />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
-              <div
-                className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
-                style={{ paddingTop: "var(--safe-area-inset-top)" }}
-              >
-                {/* Mobile hamburger lives in BottomNav and search now lives in
+          {/* The live editor's headings, shared by the page that hosts the
+              editor and the sidebar beside it — a wiki lists a page's headings
+              under the page. The scope is a store, so it costs nothing on the
+              screens that mount no editor. */}
+          <DocumentOutlineScope>
+            <SidebarProvider
+              defaultOpen={true}
+              // The provider's own wrapper asks for `min-h-svh`, which is a floor
+              // for a page that grows and a trap for one that does not: anything
+              // above it here -- a permission prompt, a banner -- makes the row
+              // it sits in shorter than a screen, and the wrapper refuses to
+              // follow. Everything below then measures itself against a box
+              // taller than the one on screen, and the app scrolls into space
+              // that was never there. The shell has a real height; take it.
+              className="h-full min-h-0"
+              style={
+                {
+                  "--sidebar-width": "20rem",
+                  "--sidebar-width-mobile": "90vw",
+                } as React.CSSProperties
+              }
+            >
+              <AppSidebar />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
+                <div
+                  className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
+                  style={{ paddingTop: "var(--safe-area-inset-top)" }}
+                >
+                  {/* Mobile hamburger lives in BottomNav and search now lives in
                     the sidebar, so this desktop-only row is just recents — and
                     with nothing recent it takes up no room at all. */}
-                {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
-                  <div className="hidden h-12 lg:flex">
-                    <div className="min-w-0 flex-1">
-                      <RecentTabsBar
-                        items={recentItems}
-                        loading={recentQuery.isLoading}
-                        activeKey={activeRecentKey}
-                        onClose={handleClearRecent}
-                        onCloseOthers={handleCloseOtherRecents}
-                        onCloseAll={handleCloseAllRecents}
-                      />
+                  {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
+                    <div className="hidden h-12 lg:flex">
+                      <div className="min-w-0 flex-1">
+                        <RecentTabsBar
+                          items={recentItems}
+                          loading={recentQuery.isLoading}
+                          activeKey={activeRecentKey}
+                          onClose={handleClearRecent}
+                          onCloseOthers={handleCloseOtherRecents}
+                          onCloseAll={handleCloseAllRecents}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-                <OfflineBanner />
-                <GuildAccessBanner />
-              </div>
-              <div className="flex min-h-0 flex-1 justify-between">
-                {/*<div
+                  )}
+                  <OfflineBanner />
+                  <GuildAccessBanner />
+                </div>
+                <div className="flex min-h-0 flex-1 justify-between">
+                  {/*<div
                   className="h-full w-full opacity-20 fixed"
                   style={{
                     backgroundImage: `url(${isDark ? "/images/hexWhite.svg" : "/images/hexBlack.svg"})`,
@@ -293,7 +313,7 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
-                {/* The app's scroller. Named twice over: the router restores
+                  {/* The app's scroller. Named twice over: the router restores
                     this element's position across navigations rather than the
                     window's, and pull-to-refresh asks it how far down it is.
 
@@ -327,12 +347,12 @@ function AppLayout() {
                     Measured: fifteen comments made the document 3057px tall in
                     a 900px window. Inside `main` they scroll with the comment
                     they label. */}
-                <main
-                  data-app-scroll=""
-                  data-scroll-restoration-id="app-main"
-                  className="relative min-w-0 flex-1 overflow-y-auto overflow-x-clip"
-                >
-                  {/* A grid, and `min-h-full` rather than `h-full`, because
+                  <main
+                    data-app-scroll=""
+                    data-scroll-restoration-id="app-main"
+                    className="relative min-w-0 flex-1 overflow-y-auto overflow-x-clip"
+                  >
+                    {/* A grid, and `min-h-full` rather than `h-full`, because
                       this sits between the scrollport and the page and must
                       pass a height through without capping one.
 
@@ -359,20 +379,33 @@ function AppLayout() {
                       centred. Flooring the track at 0 hands the item the
                       container's width and lets what is inside scroll or
                       truncate on its own terms. */}
-                  <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
-                    <Suspense fallback={<PageLoader />}>
-                      <Outlet />
-                    </Suspense>
-                  </div>
-                </main>
+                    {/* A full-bleed route drops the measure and the padding:
+                      it lays itself out against the window, and its own header
+                      sits against the edges. The height needs no help — the
+                      grid row below is already definite, which is what a
+                      surface pinning its header and scrolling its middle
+                      resolves its `h-full` against. `pb-16` on small screens
+                      keeps the bottom bar off the end of it. */}
+                    <div
+                      className={cn(
+                        "grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr]",
+                        fullBleed ? "pb-16 md:pb-0" : "container mx-auto p-4 pb-24 md:p-8 md:pb-24"
+                      )}
+                    >
+                      <Suspense fallback={<PageLoader />}>
+                        <Outlet />
+                      </Suspense>
+                    </div>
+                  </main>
+                </div>
               </div>
-            </div>
-            <ProjectActivitySidebar
-              projectId={activeProjectId}
-              initiativeId={activeProjectInitiativeId}
-            />
-            <BottomNav />
-          </SidebarProvider>
+              <ProjectActivitySidebar
+                projectId={activeProjectId}
+                initiativeId={activeProjectInitiativeId}
+              />
+              <BottomNav />
+            </SidebarProvider>
+          </DocumentOutlineScope>
         </div>
         <UpdateAnnouncementDialog
           open={updateAvailable.show}
@@ -492,7 +525,7 @@ function NoGuildState({
           </Button>
           {isPlatformAdmin && (
             <Button variant="outline" asChild>
-              <Link to="/settings/admin">
+              <Link to="/settings/operator">
                 <Settings className="h-4 w-4" />
                 {t("noGuild.platformSettings")}
               </Link>
@@ -512,7 +545,7 @@ function NoGuildState({
 /**
  * Minimal layout shown when the user has zero guild memberships but
  * is on a route that doesn't need guild context (``/profile/*``,
- * ``/settings/admin/*``). Renders the matched outlet inside a
+ * ``/settings/operator/*``). Renders the matched outlet inside a
  * narrow container with just enough chrome (Back-to-start + logout)
  * to navigate away.
  */

@@ -601,7 +601,7 @@ export const LandingCinematic = () => {
             description={t("tools.description")}
             visible={toolsReveal.isVisible}
           />
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {TOOLS.map((tool, i) => {
               const Icon = TOOL_ICONS[tool];
               return (

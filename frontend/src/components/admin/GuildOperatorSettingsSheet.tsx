@@ -19,11 +19,10 @@ import type {
   GuildAuthOption,
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -35,7 +34,6 @@ import { Switch } from "@/components/ui/switch";
 import { useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { cn } from "@/lib/utils";
 
 const GIB = 1024 ** 3;
 
@@ -59,45 +57,6 @@ const parseUserLimitInput = (raw: string): { limit: number | null; invalid: bool
 };
 
 const userLimitToInput = (limit: number | null): string => (limit == null ? "" : String(limit));
-
-/** One labelled control with its explanation, so every row reads the same. */
-const SettingRow = ({
-  label,
-  help,
-  htmlFor,
-  control,
-  nested = false,
-}: {
-  label: string;
-  help: string;
-  htmlFor?: string;
-  control: React.ReactNode;
-  /** Renders indented under the row above, for a setting that reads as part of it. */
-  nested?: boolean;
-}) => (
-  <div
-    className={cn(
-      "flex items-start justify-between gap-6 py-3",
-      nested && "ml-3 border-border border-l pl-4"
-    )}
-  >
-    <div className="space-y-1">
-      <Label htmlFor={htmlFor} className="font-medium">
-        {label}
-      </Label>
-      <p className="text-muted-foreground text-sm">{help}</p>
-    </div>
-    <div className="shrink-0 pt-0.5">{control}</div>
-  </div>
-);
-
-const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="space-y-1">
-    <h3 className="font-semibold text-sm">{title}</h3>
-    <Separator />
-    <div className="divide-y">{children}</div>
-  </section>
-);
 
 export const GuildOperatorSettingsSheet = ({
   guild,
@@ -240,10 +199,16 @@ export const GuildOperatorSettingsSheet = ({
           </Section>
 
           <Section title={t("guilds.sheet.signIn")}>
-            {(["providers", "require_sign_in"] as const).map((option) => (
+            {(
+              [
+                ["restrictions", 0],
+                ["providers", 1],
+                ["require_sign_in", 2],
+              ] as const
+            ).map(([option, indent]) => (
               <SettingRow
                 key={option}
-                nested={option === "require_sign_in"}
+                indent={indent}
                 label={t(`guilds.sheet.authOption.${option}.label`)}
                 help={t(`guilds.sheet.authOption.${option}.help`)}
                 htmlFor={`guild-auth-${option}`}
@@ -252,26 +217,13 @@ export const GuildOperatorSettingsSheet = ({
                     id={`guild-auth-${option}`}
                     checked={options.includes(option)}
                     onCheckedChange={(checked) => toggleOption(option, Boolean(checked))}
-                    disabled={update.isPending}
+                    // The two beneath the master mean nothing without it, so
+                    // they are not on offer until it is ticked.
+                    disabled={update.isPending || (indent > 0 && !options.includes("restrictions"))}
                   />
                 }
               />
             ))}
-            <SettingRow
-              label={t("guilds.sheet.complianceSessionLabel")}
-              help={t("guilds.sheet.complianceSessionHelp")}
-              htmlFor="guild-compliance-session"
-              control={
-                <Switch
-                  id="guild-compliance-session"
-                  checked={guild.enforce_compliance_session}
-                  onCheckedChange={(checked) =>
-                    patch({ enforce_compliance_session: Boolean(checked) })
-                  }
-                  disabled={update.isPending}
-                />
-              }
-            />
           </Section>
 
           <Section title={t("guilds.sheet.features")}>

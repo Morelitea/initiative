@@ -158,15 +158,17 @@ def test_upload_token_round_trips_to_user_id():
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == (123, frozenset(), frozenset(), False)
+    assert verify_upload_token(token) == (123, frozenset(), {}, False)
 
     satisfied_token, _ = create_upload_token(
-        user_id=123, satisfied_providers=[5, 2], sso_guilds=[9]
+        user_id=123,
+        satisfied_providers=[5, 2],
+        satisfied_claims={"5": {"hd": ["acme.com"]}},
     )
     assert verify_upload_token(satisfied_token) == (
         123,
         frozenset({2, 5}),
-        frozenset({9}),
+        {"5": {"hd": ["acme.com"]}},
         False,
     )
 

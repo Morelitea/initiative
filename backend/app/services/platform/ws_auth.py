@@ -24,8 +24,11 @@ import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth_context import set_satisfied_providers, set_sso_guilds
-from app.services.auth.assurance import sso_guilds_from_amr
+from app.core.auth_context import (
+    claims_from_provider_auth,
+    set_satisfied_claims,
+    set_satisfied_providers,
+)
 from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.token import TokenPayload
@@ -65,7 +68,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     auth-policy gate to the socket exactly as REST would.
     """
     set_satisfied_providers(None)
-    set_sso_guilds(None)
+    set_satisfied_claims(None)
 
     # First try JWT validation.
     try:
@@ -80,7 +83,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
                 and token_data.ver == user.token_version
             ):
                 set_satisfied_providers(frozenset(token_data.sat or ()))
-                set_sso_guilds(sso_guilds_from_amr(token_data.amr))
+                set_satisfied_claims(claims_from_provider_auth(token_data.satd))
                 return user
         # A session token that resolved nobody — revoked by ``ver``, naming an
         # unknown or inactive account — is refused here rather than offered to

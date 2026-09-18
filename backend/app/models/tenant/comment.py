@@ -4,20 +4,28 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 from app.models.platform.user_profile_view import MemberProfile
+
+
+#: The comment columns naming a parent — the task plus one per tool — as the
+#: single-parent CHECK spells them. Derived from the enum so the constraint and
+#: the columns below cannot name different sets.
+COMMENT_PARENT_COLUMN_SQL = ", ".join(
+    ["task_id", *(f"{tool.value}_id" for tool in Tool)]
+)
 
 
 class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
-        # A comment hangs off exactly ONE parent: a task, or one tool entity
-        # (document, project, queue, counter group, calendar, dashboard, post,
-        # gallery).
+        # A comment hangs off exactly ONE parent: a task, or one tool entity.
+        # The column list is derived from the Tool enum, so a new tool's column
+        # joins the rule by existing rather than by being remembered here.
         CheckConstraint(
-            "num_nonnulls(task_id, document_id, project_id, queue_id, "
-            "counter_group_id, calendar_id, dashboard_id, post_id, gallery_id) = 1",
+            f"num_nonnulls({COMMENT_PARENT_COLUMN_SQL}) = 1",
             name="ck_comments_single_parent",
         ),
     )
@@ -94,6 +102,12 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(
             Integer, ForeignKey("galleries.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    wiki_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("wikis.id", ondelete="CASCADE"), nullable=True
         ),
     )
     parent_comment_id: Optional[int] = Field(

@@ -89,6 +89,6 @@ Not sure you want to run a server at all? A paid hosted service is on the way �
 
 ## The first thing to know
 
-The **first person to register** on a fresh server automatically becomes the **owner** — the top administrator, and the only role that can change server-wide settings.
+The **first person to register** on a fresh server automatically becomes the **owner** — the top of the platform ladder, and the only role that can change server-wide settings.
 
 So make absolutely sure the first sign-up is you, or whoever is actually going to run this. Not the enthusiastic colleague who wandered past while it was booting. See [Platform roles](platform-roles.md).

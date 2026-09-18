@@ -6,10 +6,10 @@ icon: lucide/shield-half
 
 Two role systems, kept deliberately separate:
 
-- **Community roles** (admin / member) govern a single workspace. See [Working with communities](../guides/communities.md).
-- **Platform roles** govern the **whole server** — every community, every user. That's this page. The tier below owner is called **operator**, to keep it clear of the community "admin" role.
+- **Community roles** (superadmin / admin / member) govern a single workspace. See [Working with communities](../guides/communities.md).
+- **Platform roles** govern the **whole server** — every community, every user. That's this page. The ladder runs member → support → moderator → operator → owner. **Admin** belongs to the community ladder above, and stays there.
 
-Platform roles are managed by the [owner](#the-owner) — and for some actions, operators — from **Settings → Platform** and the **Admin dashboard**.
+Platform roles are managed by the [owner](#the-owner) — and for some actions, operators — from **Settings → Platform** and the **Operator dashboard**.
 
 ## The ladder
 
@@ -37,9 +37,19 @@ The **first person to register** on a new server becomes the **owner**. The owne
 
 ## Managing platform users
 
-From **Settings → Platform → Users** (or the **Admin dashboard → Users**) you can:
+**Operator dashboard → Users** lists every account on the server. A row names somebody by their handle and their address — whatever they filled in as a real name is theirs, and none of this needs it.
 
-- **Promote / demote** a user's platform role.
+**Manage** opens everything you can change about one account:
+
+- **Username** — the handle they're addressed by. The four digits after it stay as they are.
+- **Profile picture** — take one down. Putting one up stays theirs.
+- **Suspend** — freezes the account. They can still sign in and read why, and reach none of their communities. Nothing is deleted; lifting it hands everything back.
+- **Platform role** — move them up or down the ladder. You can't grant a rung above your own.
+
+Each of those asks for its own capability, so a moderator opening the same panel sees the first three and not the fourth.
+
+The row's actions menu keeps the one-off jobs:
+
 - **Reset a user's password** (sends them a reset email).
 - **Reactivate** a deactivated account.
 - **Export** the user list as CSV.
@@ -49,16 +59,30 @@ From **Settings → Platform → Users** (or the **Admin dashboard → Users**) 
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.
     - **Hard delete** — everything removed, including authored content; not reversible.
 
-Before a destructive delete, Initiative makes you resolve **blockers** — for example, transferring projects the user owns, or promoting a replacement where they were the last admin — so nothing important is orphaned.
+Before a destructive delete, Initiative makes you resolve **blockers** — for example, transferring projects the user owns, or promoting a replacement where they held a community's last [superadmin](../guides/communities.md#why-superadmin-is-separate) seat — so nothing important is orphaned.
 
 ## Cross-community access: break-glass and time-bound grants
 
 **Nobody holds a standing back door into communities they don't belong to** — not even platform operators. When platform staff genuinely need to reach a community's data, they take **explicit, time-bound, recorded** access instead. Manage it from **Settings → Access**.
 
-Two paths:
+### What a grant can say
 
-- **Request and approve** (Support and Moderator). Someone **requests** scoped access to a community — read-only by default, or read-and-write — for a chosen number of hours, with a reason. An approver (Operator/Owner) grants or denies it, and it **auto-expires**. A read-write grant can edit existing content, but not author new material or manage members.
-- **Break glass** (Operator and Owner). For urgent situations, an operator can **self-issue** an emergency grant to a community — approved instantly, scoped to that community, expiring automatically. A read-write break-glass grant acts as a **full community admin** for its window. Every break-glass grant is recorded, so the access is auditable.
+A request names **what it reaches**, and the two halves are asked for separately:
+
+| | What it reaches |
+|---|---|
+| **Content** | What the community holds — read-only, or read-and-write. A read-write grant edits existing material; it doesn't author new material or manage members. |
+| **Settings** | The community's configuration and nothing inside it, held at **admin** or **superadmin** — the community's own two rungs. Somebody helping with a moderation setting has no business in anybody's documents, and this is how they don't end up there. |
+
+Ask for one, the other, or both. Each is approved and recorded on its own.
+
+### The two paths
+
+- **Request and approve** (Support and Moderator). Someone **requests** what they need, for a chosen number of hours, with a reason. An approver (Operator/Owner) grants or denies it, and it **auto-expires**.
+- **Break glass** (Operator and Owner). For urgent situations, an operator can **self-issue** an emergency grant — approved instantly, scoped to that community, expiring automatically. Breaking glass issues both halves, the settings one at superadmin, because an emergency is no time to discover you asked for the wrong shape. Each is named and recorded separately, so afterwards the log says exactly how far it went.
+
+!!! info "A grant is never a membership"
+    Whatever it reaches and whoever holds it, a grant runs out. Anything that would outlive it stays out of reach — a grantee can't answer a request to join an initiative, for instance, because the membership on the other side of that answer has no end date.
 
 !!! info "Breaking glass asks for your authenticator code"
     As soon as **anybody** who can break glass has set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks everybody for a code — theirs, at the moment they do it. One of your recovery codes works too, which matters, because the phone is the thing most likely to be missing in the hour you need this.
@@ -74,13 +98,13 @@ Two paths:
 
 Operators and owners can write **announcements** — notices shown in a dialog to the people using the server. They're for a change somebody has to act on, or would otherwise be confused by. See [Announcements](announcements.md).
 
-## Community storage limits
+## What you decide per community
 
-The owner can set a maximum storage size per community from **Settings → Platform → Communities**. See [File & object storage](object-storage.md#per-community-storage-limits).
+**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
 ## Related
 
 - [Announcements](announcements.md) — telling everyone something.
 - [Configuration](configuration.md) — foundational settings.
-- [Working with communities](../guides/communities.md) — the per-community admin role.
+- [Working with communities](../guides/communities.md) — the per-community roles, and the superadmin seat.
 - [How your data is kept separate](../security/how-your-data-is-kept-separate.md) — the access model behind all of this.

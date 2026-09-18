@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
+import { GuildClaimRulesSection } from "@/components/auth/GuildClaimRulesSection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,10 +20,12 @@ import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
-  useGuildAuthProviders,
+  useGuildAuthSettings,
   useGuildLoginProviders,
+  useGuildProviderConnections,
   useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
+  useUpdateGuildSessionLimit,
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
@@ -40,6 +43,37 @@ import { getErrorMessage } from "@/lib/errorMessage";
  * provider. Not a number, so it can never collide with a provider id. */
 const ANY_PROVIDER = "any";
 
+/**
+ * The state behind a switch that saves as it is flipped rather than waiting
+ * for a button. The draft is what the switch shows until the refreshed guild
+ * list carries the saved value; a failed save drops it and keeps a message.
+ */
+const useFlipToSave = (saved: boolean, guildId: number) => {
+  const [state, setState] = useState<{
+    guildId: number;
+    draft: boolean | null;
+    error: string | null;
+  }>({ guildId, draft: null, error: null });
+  const current = state.guildId === guildId ? state : { guildId, draft: null, error: null };
+  return {
+    value: current.draft ?? saved,
+    error: current.error,
+    begin: (next: boolean) => {
+      setState({ guildId, draft: next, error: null });
+    },
+    settle: () => {
+      setState((previous) =>
+        previous.guildId === guildId ? { guildId, draft: null, error: null } : previous
+      );
+    },
+    fail: (message: string) => {
+      setState((previous) =>
+        previous.guildId === guildId ? { guildId, draft: null, error: message } : previous
+      );
+    },
+  };
+};
+
 export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
@@ -49,29 +83,47 @@ export const SettingsGuildAuthPage = () => {
   // requirement needs ``require_sign_in``. Outside both the tab is hidden and a
   // direct URL renders nothing (fail closed while still loading).
   const { activeGuild, refreshGuilds } = useGuilds();
-  const grantedOptions = activeGuild?.auth_options ?? [];
+  const hasGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
+  const authSettingsQuery = useGuildAuthSettings(guildId, {
+    enabled: guildId > 0 && hasGrantedSeat,
+  });
+  const authSettings = hasGrantedSeat ? authSettingsQuery.data : undefined;
+  const grantedOptions = authSettings?.auth_options ?? activeGuild?.auth_options ?? [];
+  // The master: without it the community configures no part of its own
+  // sign-in, and this whole page is somebody else's business.
+  const mayConfigureAuth = grantedOptions.includes("restrictions");
   const mayConfigureProviders = grantedOptions.includes("providers");
   const mayRequireSignIn = grantedOptions.includes("require_sign_in");
   // The seat above admin holds a community's sign-in configuration, and this
   // page is all of it — so it is theirs to reach, not only theirs to write.
   // The tab is gated the same way; this is the direct-URL half.
-  const isSuperadmin = activeGuild?.role === "superadmin";
+  const isSuperadmin = activeGuild?.role === "superadmin" || hasGrantedSeat;
   const guildPostureActive = mayConfigureProviders || mayRequireSignIn;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && mayRequireSignIn,
   });
-  // Read for either grant. A requirement names one of the guild's providers, so
-  // choosing one needs the list even where editing it is not on offer — the two
-  // grants are independent and a guild may hold only the requirement half.
-  const providersQuery = useGuildAuthProviders(guildId, {
+  // Read for either grant. A requirement names a provider this community
+  // connects to, so choosing one needs the list even where changing the
+  // connections is not on offer — the two grants are independent and a
+  // community may hold only the requirement half.
+  const connectionsQuery = useGuildProviderConnections(guildId, {
     enabled: guildId > 0 && guildPostureActive,
   });
-  // Only the guild's enabled providers can be required — a disabled row can't
-  // serve a sign-in, so requiring it would lock the guild.
+  // Only a live connection can be required. A disconnected or switched-off
+  // one cannot serve a sign-in, and neither can one whose provider the
+  // operator has since withdrawn — requiring any of those would lock the
+  // community out of itself.
   const eligibleProviders = useMemo(
-    () => (providersQuery.data ?? []).filter((entry) => entry.enabled),
-    [providersQuery.data]
+    () =>
+      (connectionsQuery.data ?? [])
+        .filter((row) => row.enabled && row.login_ready)
+        .map((row) => ({
+          id: row.provider_id,
+          slug: row.provider_slug,
+          display_name: row.provider_display_name,
+        })),
+    [connectionsQuery.data]
   );
 
   // Chosen here, saved by the button below — a refetch in between must not
@@ -97,28 +149,56 @@ export const SettingsGuildAuthPage = () => {
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
-  // API access is one boolean, so it saves as it is switched rather than
-  // waiting for a button. The draft is what the switch shows until the
-  // refreshed guild list carries the saved value.
+  // Each of these is one boolean, so both save as they are switched.
   const updateApiAccess = useUpdateGuildApiAccess(guildId);
-  const [apiAccessDraft, setApiAccessDraft] = useState<boolean | null>(null);
-  const allowApiKeys = apiAccessDraft ?? activeGuild?.allow_api_keys ?? true;
-  const [apiAccessError, setApiAccessError] = useState<string | null>(null);
+  const apiAccess = useFlipToSave(
+    authSettings?.allow_api_keys ?? activeGuild?.allow_api_keys ?? true,
+    guildId
+  );
 
   const changeApiAccess = (next: boolean) => {
-    setApiAccessDraft(next);
-    setApiAccessError(null);
+    apiAccess.begin(next);
     updateApiAccess.mutate(
       { allow_api_keys: next },
       {
         onSuccess: async () => {
-          await refreshGuilds();
-          setApiAccessDraft(null);
+          if (hasGrantedSeat) {
+            await authSettingsQuery.refetch();
+          } else {
+            await refreshGuilds();
+          }
+          apiAccess.settle();
           toast.success(t("guildAuth.apiAccess.saved"));
         },
         onError: (err: unknown) => {
-          setApiAccessDraft(null);
-          setApiAccessError(getErrorMessage(err, "settings:guildAuth.apiAccess.error"));
+          apiAccess.fail(getErrorMessage(err, "settings:guildAuth.apiAccess.error"));
+        },
+      }
+    );
+  };
+
+  const updateSessionLimit = useUpdateGuildSessionLimit(guildId);
+  const sessionLimit = useFlipToSave(
+    authSettings?.enforce_compliance_session ?? activeGuild?.enforce_compliance_session ?? false,
+    guildId
+  );
+
+  const changeSessionLimit = (next: boolean) => {
+    sessionLimit.begin(next);
+    updateSessionLimit.mutate(
+      { enforce_compliance_session: next },
+      {
+        onSuccess: async () => {
+          if (hasGrantedSeat) {
+            await authSettingsQuery.refetch();
+          } else {
+            await refreshGuilds();
+          }
+          sessionLimit.settle();
+          toast.success(t("guildAuth.sessionLimit.saved"));
+        },
+        onError: (err: unknown) => {
+          sessionLimit.fail(getErrorMessage(err, "settings:guildAuth.sessionLimit.error"));
         },
       }
     );
@@ -234,7 +314,10 @@ export const SettingsGuildAuthPage = () => {
     }
   };
 
-  if (!isSuperadmin) {
+  // A grantee's options arrive with the settings query rather than the guild
+  // list, so the page waits for it rather than reading "granted nothing" off
+  // an answer that has not come back yet.
+  if (!isSuperadmin || (hasGrantedSeat && authSettings == null) || !mayConfigureAuth) {
     return null;
   }
 
@@ -379,27 +462,61 @@ export const SettingsGuildAuthPage = () => {
                 {t("guildAuth.apiAccess.allowLabel")}
               </Label>
               <p className="text-muted-foreground text-sm">
-                {allowApiKeys
+                {apiAccess.value
                   ? t("guildAuth.apiAccess.allowHelp")
                   : t("guildAuth.apiAccess.blockedHelp")}
               </p>
             </div>
             <Switch
               id="guild-allow-api-keys"
-              checked={allowApiKeys}
+              checked={apiAccess.value}
               onCheckedChange={changeApiAccess}
               disabled={updateApiAccess.isPending}
             />
           </div>
-          {apiAccessError && (
+          {apiAccess.error && (
             <Alert variant="destructive">
-              <AlertDescription>{apiAccessError}</AlertDescription>
+              <AlertDescription>{apiAccess.error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("guildAuth.sessionLimit.title")}</CardTitle>
+          <CardDescription>{t("guildAuth.sessionLimit.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="guild-session-limit" className="font-medium">
+                {t("guildAuth.sessionLimit.allowLabel")}
+              </Label>
+              <p className="text-muted-foreground text-sm">
+                {sessionLimit.value
+                  ? t("guildAuth.sessionLimit.onHelp")
+                  : t("guildAuth.sessionLimit.offHelp")}
+              </p>
+            </div>
+            <Switch
+              id="guild-session-limit"
+              checked={sessionLimit.value}
+              onCheckedChange={changeSessionLimit}
+              disabled={updateSessionLimit.isPending}
+            />
+          </div>
+          {sessionLimit.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{sessionLimit.error}</AlertDescription>
             </Alert>
           )}
         </CardContent>
       </Card>
 
       {mayConfigureProviders ? <GuildAuthProvidersSection guildId={guildId} /> : null}
+
+      {mayConfigureProviders ? <GuildClaimRulesSection guildId={guildId} /> : null}
 
       {guildPostureActive ? (
         <Card className="shadow-sm">

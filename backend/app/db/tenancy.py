@@ -7,7 +7,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 
 - **Shared tables** stay in the ``public`` schema — identity, the tenancy
   roster, platform config, and per-user / cross-guild concerns read *without* a
-  guild context (login, "list my guilds", platform admin, SSO auto-join, the
+  guild context (login, "list my guilds", platform staff, SSO auto-join, the
   notification inbox). Listed explicitly in ``SHARED_TABLES``.
 - **Guild-scoped tables** move into a per-guild schema (``guild_<id>``) — the
   actual tenant content. ``GUILD_SCOPED_TABLES`` is *derived* as
@@ -121,7 +121,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
         # Auth/login foundation — one user's identities span guilds; provider
         # registry is read pre-routing at login.
-        "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "auth_providers",  # login provider registry; every row is the operator's
         "auth_provider_secrets",  # provider client secret; app_admin-only companion
         "federated_identities",  # (provider, subject) -> user links
         "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
@@ -134,7 +134,17 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_totp_secrets",
         "mfa_recovery_codes",
         "auth_challenges",  # a sign-in between its password and its code
+        # WebAuthn credentials. app_admin-only for the same reason as the rest
+        # of this group: an assertion arrives before any account is known.
+        "user_passkeys",
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
+        # Which of the platform's providers a community signs in through, and
+        # the tenant it narrows one to. Read at login on the system engine.
+        "guild_provider_connections",
+        # The same arrangement, answered once for a community that has not.
+        # Read by the gate on the request path, like the connections it
+        # stands in for.
+        "platform_provider_defaults",
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         # Deployment-wide notices and what each person has done with them. One

@@ -199,3 +199,23 @@ def created_by_models() -> list[type[CreatedByMixin]]:
         if table and getattr(cls, "__table__", None) is not None:
             found[str(table)] = cls
     return [found[name] for name in sorted(found)]
+
+
+def tool_models() -> dict[str, type[SQLModel]]:
+    """Each tool's own content model, keyed by table name.
+
+    A tool's table is its plural — that rule is :class:`~app.core.tools.Tool`'s,
+    not this module's — so the registries that map a tool to its model read this
+    instead of restating the pairing. A tool added to the enum is picked up the
+    moment its model exists, which is what keeps those registries from being a
+    place a new tool can be forgotten.
+    """
+    found: dict[str, type[SQLModel]] = {}
+    stack = list(SoftDeleteMixin.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        table = getattr(cls, "__tablename__", None)
+        if table and getattr(cls, "__table__", None) is not None:
+            found[str(table)] = cls
+    return found

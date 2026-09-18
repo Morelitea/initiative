@@ -36,7 +36,6 @@ async def _create_provider(session, *, allow_jit: bool = True) -> AuthProvider:
         display_name="Test IdP",
         kind=AuthProviderKind.oidc.value,
         enabled=True,
-        guild_id=None,
         issuer="https://idp.example.com",
         client_id="client-123",
         allow_jit=allow_jit,
@@ -202,68 +201,6 @@ async def test_missing_email_claim_uses_synthetic_address(session):
     assert row.verified_at is None
 
 
-async def _create_guild_provider(session, *, auth_options: list[str]):
-    """A JIT-capable guild-scoped provider whose guild holds ``auth_options``."""
-    from app.testing.factories import create_guild
-
-    guild = await create_guild(session, auth_options=auth_options)
-    provider = AuthProvider(
-        slug=f"idp-{secrets.token_hex(4)}",
-        display_name="Guild IdP",
-        kind=AuthProviderKind.oidc.value,
-        enabled=True,
-        guild_id=guild.id,
-        issuer="https://idp.example.com",
-        client_id="client-123",
-        allow_jit=True,
-    )
-    session.add(provider)
-    await session.commit()
-    await session.refresh(provider)
-    return guild, provider
-
-
-async def test_guild_provider_jit_refused_when_guild_auth_disabled(session):
-    """A guild-scoped provider whose guild has sign-in disabled refuses an
-    unknown user — no new account — even though the provider allows JIT."""
-    _guild, provider = await _create_guild_provider(session, auth_options=[])
-
-    result = await _resolve(
-        session, provider, subject="unknown-sub", email="stranger@example.com"
-    )
-    assert result.outcome is ResolutionOutcome.JIT_DISABLED
-    assert result.user is None
-    assert await _identities_for(session, provider) == []
-
-
-async def test_guild_provider_jit_allowed_when_providers_granted(session):
-    """The mirror: an enabled guild JIT-provisions a new user (allow_jit alone,
-    independent of instance registration)."""
-    _guild, provider = await _create_guild_provider(
-        session, auth_options=["providers", "require_sign_in"]
-    )
-
-    result = await _resolve(
-        session, provider, subject="new-sub", email="new@example.com"
-    )
-    assert result.outcome is ResolutionOutcome.PROVISIONED
-    assert result.user is not None
-
-
-async def test_disabled_guild_still_resolves_existing_linked_identity(session):
-    """The gate is on NEW accounts only: an existing (provider, subject) link
-    still resolves to its user even when the guild's sign-in is disabled."""
-    _guild, provider = await _create_guild_provider(session, auth_options=[])
-    user = await create_user(session)
-    await link_identity(
-        session, user=user, provider=provider, subject="sub-1", email_verified=True
-    )
-
-    result = await _resolve(session, provider, subject="sub-1")
-    assert result.outcome is ResolutionOutcome.LINKED
-    assert result.user.id == user.id
-
-
 async def test_jit_disabled_provider_refuses_unknown_user(session):
     provider = await _create_provider(session, allow_jit=False)
     result = await _resolve(session, provider, email="stranger@example.com")
@@ -363,14 +300,10 @@ async def test_closed_registration_refuses_unknown_user(session, monkeypatch):
     assert await _identities_for(session, provider) == []
 
 
-async def test_a_guilds_pkce_provider_counts_as_a_way_in(session):
-    """A guild's provider needs no client secret, and may carry any slug —
-    including the one the operator-global row uses in its own namespace.
-
-    The secret requirement belongs to the operator-global row, which is
-    identified by ``guild_id IS NULL`` and not by its slug. A guild row sharing
-    that slug answers logins, so it counts as a way in like any other.
-    """
+async def test_a_pkce_provider_counts_as_a_way_in(session):
+    """A stored client secret is the platform row's own requirement, so a
+    provider beside it answers logins without one — and the counts deciding
+    whether single sign-on can be withdrawn include whoever arrives that way."""
     from app.services.auth.identity import (
         federated_only_user_count,
         password_only_user_count,
@@ -382,10 +315,9 @@ async def test_a_guilds_pkce_provider_counts_as_a_way_in(session):
         create_user,
     )
 
-    guild = await create_guild(session)
-    provider = await create_auth_provider(
-        session, slug="oidc", guild_id=guild.id
-    )  # no client secret: PKCE-only, which a guild provider may be
+    # Makes its own creator, who holds a password — the baseline below.
+    await create_guild(session)
+    provider = await create_auth_provider(session, slug="pkce")  # no client secret
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 

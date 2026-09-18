@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
 import { PlatformAuthSection } from "@/components/admin/PlatformAuthSection";
+import { ProviderDefaultsSection } from "@/components/admin/ProviderDefaultsSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,6 +70,8 @@ export const SettingsAuthPage = () => {
       </SettingsSection>
 
       <AuthProvidersSection />
+
+      <ProviderDefaultsSection />
       <OidcClaimMappingsSection />
     </div>
   );

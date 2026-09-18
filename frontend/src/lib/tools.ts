@@ -31,6 +31,7 @@
 
 import type { ParseKeys } from "i18next";
 import {
+  BookText,
   CalendarDays,
   GalleryHorizontalEnd,
   Gauge,
@@ -62,6 +63,7 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.dashboard]: LayoutDashboard,
   [Tool.post]: Megaphone,
   [Tool.gallery]: Images,
+  [Tool.wiki]: BookText,
 };
 
 /** Every tool, in canonical enum order. */
@@ -130,6 +132,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
   Tool.post,
   Tool.queue,
   Tool.counter_group,
+  Tool.wiki,
   Tool.project,
 ];
 
@@ -260,10 +263,10 @@ export const toolGuildBrowseTarget = (tool: Tool): { to: string; search: { tool:
   search: { tool: toolRouteSegment(tool) },
 });
 
-// --- The three tools with a child entity -----------------------------------
+// --- The tools with a child entity -----------------------------------------
 // Stated here once rather than left to each page: a task belongs to a project,
-// an event to a calendar, a counter to its group, and each child nests under
-// its parent so the URL reads end to end.
+// an event to a calendar, a counter to its group, a page to its wiki, and each
+// child nests under its parent so the URL reads end to end.
 
 /** e.g. "/i/1/projects/2/tasks/5". */
 export const taskRoute = (initiativeId: number | null, projectId: number, taskId: number): string =>
@@ -289,6 +292,27 @@ export const counterRoute = (
   groupId: number,
   counterId: number
 ): string => `${toolDetailRoute(Tool.counter_group, initiativeId, groupId)}/counter/${counterId}`;
+
+/** e.g. "/i/1/wikis/4/pages/11". */
+export const wikiPageRoute = (
+  initiativeId: number | null,
+  wikiId: number,
+  pageId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/pages/${pageId}`;
+
+/**
+ * A document read inside the wiki it was put in, e.g.
+ * "/i/12/wikis/3/documents/8".
+ *
+ * Its own address stays what it always was — this one says "this document, as
+ * a page of that wiki", which is what keeps the wiki's navigation standing
+ * beside it.
+ */
+export const wikiDocumentRoute = (
+  initiativeId: number | null,
+  wikiId: number,
+  documentId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/documents/${documentId}`;
 
 /**
  * Guild-relative resolver route for an entity whose initiative isn't in hand,
