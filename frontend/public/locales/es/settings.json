@@ -1140,15 +1140,15 @@
       "error": "No se pudo guardar el límite de sesión"
     },
     "connections": {
-      "title": "Cómo inician sesión vuestros miembros",
-      "description": "Los proveedores de inicio de sesión que ofrece esta instalación, y por cuáles entran vuestros miembros. Quien gestiona la instalación configura los proveedores en sí.",
+      "title": "Qué inicios de sesión son vuestros",
+      "description": "La gente inicia sesión en esta instalación. Di cuáles de sus proveedores cuentan como de vuestra comunidad, y quién en ellos cuenta como vuestro.",
       "connect": "Conectar un proveedor",
       "connected": "Proveedor conectado",
       "connectError": "No se pudo cambiar esa conexión",
       "disconnect": "Desconectar",
       "disconnected": "Proveedor desconectado",
       "disconnectTitle": "¿Desconectar {{name}}?",
-      "disconnectDescription": "El botón desaparece de vuestra página de inicio de sesión y nadie nuevo entra por ahí. Nadie cierra sesión y ninguna cuenta cambia. Si exigís entrar por él, levantad eso primero.",
+      "disconnectDescription": "Deja de contar como vuestra: el botón desaparece de vuestra página de inicio de sesión y nadie nuevo entra por ahí. Nadie cierra sesión y ninguna cuenta cambia. Si exigís entrar por él, levantad eso primero.",
       "empty": "Aún no hay proveedores conectados: vuestros miembros inician sesión como siempre.",
       "noneOffered": "Quien gestiona esta instalación aún no ha ofrecido ningún proveedor para conectar.",
       "notReady": "No disponible",
@@ -1162,7 +1162,10 @@
       "claimHelp": "Un proveedor como Google responde por cualquiera con una cuenta, así que di cuáles de sus cuentas son vuestras: un dominio de Workspace, o un tenant. Déjalo en blanco si el proveedor ya es solo vuestra gente.",
       "claimPlaceholder": "En blanco para cualquiera por quien responda",
       "claimValuesLabel": "Valores válidos",
-      "claimValuesPlaceholder": "example.com, example.org"
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Añadirles a esta comunidad",
+      "autoJoinHelp": "Quien cuente como vuestro se hace miembro la primera vez que inicia sesión. Déjalo apagado si preferís invitar vosotros.",
+      "joinsOnArrival": "Quien llega se une automáticamente"
     }
   },
   "authProviders": {

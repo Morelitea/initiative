@@ -1,16 +1,16 @@
 /**
- * Which of the platform's sign-in providers this community uses.
+ * Which of the deployment's sign-in providers this community counts as its own.
  *
- * A community does not configure a provider — whoever runs the deployment
- * holds all of those — so there is no issuer here, no client id and no secret.
- * What a community says is which provider its members come in through, and
- * whose accounts on it count as theirs: "our Google Workspace" rather than
+ * A community does not configure a provider and does not sign anybody in —
+ * whoever runs the deployment does both — so there is no issuer here, no
+ * client id and no secret. What a community says is which arrivals are its
+ * own, and whether they join on sight: "our Google Workspace" rather than
  * "Google".
  *
- * That last part is the narrowing. Google will vouch for anybody with a Google
- * account, so a community connecting to it says which workspace domain is
- * theirs. A community whose provider is its own identity provider needs none:
- * it already only admits their people.
+ * That first part is the narrowing. Google will vouch for anybody with a
+ * Google account, so a community connecting to it says which workspace domain
+ * is theirs. A community whose provider is its own identity provider needs
+ * none: it already only holds their people.
  */
 
 import { Loader2, Plus, Trash2 } from "lucide-react";
@@ -70,6 +70,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
   const [providerId, setProviderId] = useState("");
   const [claim, setClaim] = useState("");
   const [claimValues, setClaimValues] = useState("");
+  const [autoJoin, setAutoJoin] = useState(false);
   const [removing, setRemoving] = useState<GuildProviderConnectionRead | null>(null);
 
   const connections = connectionsQuery.data ?? [];
@@ -86,6 +87,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
     setProviderId("");
     setClaim("");
     setClaimValues("");
+    setAutoJoin(false);
   };
 
   const submit = () => {
@@ -96,6 +98,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
     connect.mutate(
       {
         provider_id: Number(providerId),
+        auto_join: autoJoin,
         // Both halves or neither — the server clears a half-written one, so
         // send it the way it will store it.
         claim: claim && values.length > 0 ? claim : null,
@@ -157,6 +160,11 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
                           })
                         : t("guildAuth.connections.anyoneItVouchesFor")}
                     </p>
+                    {row.auto_join && (
+                      <p className="text-muted-foreground text-xs">
+                        {t("guildAuth.connections.joinsOnArrival")}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -218,6 +226,22 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+              <div className="space-y-1">
+                <Label htmlFor="connection-auto-join">
+                  {t("guildAuth.connections.autoJoinLabel")}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t("guildAuth.connections.autoJoinHelp")}
+                </p>
+              </div>
+              <Switch
+                id="connection-auto-join"
+                checked={autoJoin}
+                onCheckedChange={(checked) => setAutoJoin(Boolean(checked))}
+              />
             </div>
 
             <div className="space-y-2 rounded-md border bg-muted/40 p-3">

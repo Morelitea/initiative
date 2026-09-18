@@ -37,8 +37,9 @@ export const StepUpDialog = () => {
     { listen: !Capacitor.isNativePlatform() }
   );
 
-  // A guild-scoped provider resolves its login URL through the guild's own
-  // listing; the operator-global listing serves platform-posture servers.
+  // A community's listing names the ways in it counts as its own; the
+  // deployment's own listing serves everything else. Both lead to the same
+  // sign-in — a community does not authenticate anybody.
   const guildId = challenge?.guildId ?? 0;
   const guildProvidersQuery = useGuildLoginProviders(guildId, { enabled: open && guildId > 0 });
   const platformProvidersQuery = useLoginProviders({ enabled: open && guildId <= 0 });
@@ -51,11 +52,8 @@ export const StepUpDialog = () => {
     if (!providerSlug) {
       return;
     }
-    const fallbackUrl =
-      guildId > 0
-        ? `/api/v1/auth/g/${guildId}/${encodeURIComponent(providerSlug)}/login`
-        : `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
-    const loginUrl = provider?.login_url ?? fallbackUrl;
+    const loginUrl =
+      provider?.login_url ?? `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
     window.location.href = `${loginUrl}?next=${encodeURIComponent(currentSpaPath())}`;
   };
 

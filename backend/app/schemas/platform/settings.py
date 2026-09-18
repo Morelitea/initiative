@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
@@ -166,6 +166,13 @@ class ConnectableProviderRead(SanitizedBaseModel):
     login_ready: bool = True
 
 
+#: One value a narrowing counts, bounded to what the column holds so an
+#: over-long one is answered with a validation error rather than a database
+#: one. The list is bounded too: a narrowing names a tenant, not a directory.
+ClaimValue = Annotated[str, Field(max_length=256)]
+MAX_CLAIM_VALUES = 64
+
+
 class GuildProviderConnectionRead(SanitizedBaseModel):
     """One community signing its members in through one provider."""
 
@@ -183,6 +190,8 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     claim: Optional[str] = None
     claim_values: List[str] = Field(default_factory=list)
     enabled: bool
+    #: Whether somebody this connection counts as theirs joins on arrival.
+    auto_join: bool = False
     login_ready: bool = True
 
 
@@ -191,8 +200,12 @@ class GuildProviderConnectionCreate(SanitizedBaseModel):
 
     provider_id: int
     claim: Optional[str] = Field(default=None, max_length=64)
-    claim_values: Optional[List[str]] = None
+    claim_values: Optional[List[ClaimValue]] = Field(
+        default=None, max_length=MAX_CLAIM_VALUES
+    )
     enabled: bool = True
+    #: Whether somebody this connection counts as theirs joins on arrival.
+    auto_join: bool = False
 
 
 class GuildProviderConnectionUpdate(SanitizedBaseModel):
@@ -201,8 +214,11 @@ class GuildProviderConnectionUpdate(SanitizedBaseModel):
     gets in without saying so. Disconnect and connect instead."""
 
     claim: Optional[str] = Field(default=None, max_length=64)
-    claim_values: Optional[List[str]] = None
+    claim_values: Optional[List[ClaimValue]] = Field(
+        default=None, max_length=MAX_CLAIM_VALUES
+    )
     enabled: Optional[bool] = None
+    auto_join: Optional[bool] = None
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

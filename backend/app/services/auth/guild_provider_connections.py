@@ -52,6 +52,7 @@ def connection_read(
         claim=connection.claim,
         claim_values=list(connection.claim_values or ()),
         enabled=connection.enabled,
+        auto_join=connection.auto_join,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -184,6 +185,7 @@ async def create_connection(
         claim=claim,
         claim_values=claim_values,
         enabled=payload.enabled,
+        auto_join=payload.auto_join,
     )
     session.add(row)
     try:
@@ -223,8 +225,10 @@ async def update_connection(
         row.claim, row.claim_values = _clean_claim(
             data.get("claim", row.claim), data.get("claim_values", row.claim_values)
         )
-    if "enabled" in data:
+    if "enabled" in data and data["enabled"] is not None:
         row.enabled = data["enabled"]
+    if "auto_join" in data and data["auto_join"] is not None:
+        row.auto_join = data["auto_join"]
     session.add(row)
     await session.commit()
     await session.refresh(row)

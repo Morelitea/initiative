@@ -1140,15 +1140,15 @@
       "error": "Could not save the session limit"
     },
     "connections": {
-      "title": "How your members sign in",
-      "description": "The sign-in providers this deployment offers, and which of them your members come in through. Whoever runs the deployment configures the providers themselves.",
+      "title": "Which sign-ins are yours",
+      "description": "People sign in to this deployment. Say which of its sign-in providers count as your community's, and who on them counts as yours.",
       "connect": "Connect a provider",
       "connected": "Provider connected",
       "connectError": "Could not change that connection",
       "disconnect": "Disconnect",
       "disconnected": "Provider disconnected",
       "disconnectTitle": "Disconnect {{name}}?",
-      "disconnectDescription": "The button comes off your sign-in page and nobody new arrives through it. Nobody is signed out and no account changes. If you require a sign-in through it, lift that first.",
+      "disconnectDescription": "It stops counting as yours: the button comes off your sign-in page and nobody new arrives through it. Nobody is signed out and no account changes. If you require a sign-in through it, lift that first.",
       "empty": "No providers connected yet — your members sign in the usual way.",
       "noneOffered": "Whoever runs this deployment has not offered any providers to connect to yet.",
       "notReady": "Unavailable",
@@ -1162,7 +1162,10 @@
       "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
       "claimPlaceholder": "Leave blank for anyone it vouches for",
       "claimValuesLabel": "Values that count",
-      "claimValuesPlaceholder": "example.com, example.org"
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Join them to this community",
+      "autoJoinHelp": "Anyone who counts as yours becomes a member the first time they sign in. Leave it off to invite people yourself.",
+      "joinsOnArrival": "New arrivals join automatically"
     }
   },
   "authProviders": {

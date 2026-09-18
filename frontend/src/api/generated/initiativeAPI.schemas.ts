@@ -4156,6 +4156,7 @@ export interface GuildProviderConnectionCreate {
   claim?: string | null;
   claim_values?: string[] | null;
   enabled?: boolean;
+  auto_join?: boolean;
 }
 
 /**
@@ -4170,6 +4171,7 @@ export interface GuildProviderConnectionRead {
   claim: string | null;
   claim_values: string[];
   enabled: boolean;
+  auto_join: boolean;
   login_ready: boolean;
 }
 
@@ -4182,6 +4184,7 @@ export interface GuildProviderConnectionUpdate {
   claim?: string | null;
   claim_values?: string[] | null;
   enabled?: boolean | null;
+  auto_join?: boolean | null;
 }
 
 /**

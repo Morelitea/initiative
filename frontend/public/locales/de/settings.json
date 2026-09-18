@@ -1140,15 +1140,15 @@
       "error": "Sitzungslimit konnte nicht gespeichert werden"
     },
     "connections": {
-      "title": "Wie sich eure Mitglieder anmelden",
-      "description": "Die Anmeldeanbieter, die diese Installation anbietet, und über welche eure Mitglieder hereinkommen. Die Anbieter selbst richtet ein, wer die Installation betreibt.",
+      "title": "Welche Anmeldungen eure sind",
+      "description": "Angemeldet wird sich bei dieser Installation. Sagt, welche ihrer Anmeldeanbieter zu eurer Community zählen und wer darauf als eure Leute gilt.",
       "connect": "Anbieter verbinden",
       "connected": "Anbieter verbunden",
       "connectError": "Diese Verbindung konnte nicht geändert werden",
       "disconnect": "Trennen",
       "disconnected": "Anbieter getrennt",
       "disconnectTitle": "{{name}} trennen?",
-      "disconnectDescription": "Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
+      "disconnectDescription": "Sie zählt nicht mehr als eure: Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
       "empty": "Noch keine Anbieter verbunden — eure Mitglieder melden sich wie gewohnt an.",
       "noneOffered": "Wer diese Installation betreibt, hat noch keine Anbieter zum Verbinden angeboten.",
       "notReady": "Nicht verfügbar",
@@ -1162,7 +1162,10 @@
       "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
       "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
       "claimValuesLabel": "Gültige Werte",
-      "claimValuesPlaceholder": "example.com, example.org"
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Sie dieser Community hinzufügen",
+      "autoJoinHelp": "Wer als eure Leute zählt, wird bei der ersten Anmeldung Mitglied. Lasst es aus, wenn ihr selbst einladen wollt.",
+      "joinsOnArrival": "Neue treten automatisch bei"
     }
   },
   "authProviders": {

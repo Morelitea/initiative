@@ -1140,15 +1140,15 @@
       "error": "Impossible d'enregistrer la limite de session"
     },
     "connections": {
-      "title": "Comment vos membres se connectent",
-      "description": "Les fournisseurs de connexion proposés par cette installation, et ceux par lesquels vos membres entrent. Les fournisseurs eux-mêmes sont configurés par qui gère l’installation.",
+      "title": "Quelles connexions sont les vôtres",
+      "description": "On se connecte à cette installation. Dites lesquels de ses fournisseurs comptent comme ceux de votre communauté, et qui chez eux compte comme les vôtres.",
       "connect": "Connecter un fournisseur",
       "connected": "Fournisseur connecté",
       "connectError": "Impossible de modifier cette connexion",
       "disconnect": "Déconnecter",
       "disconnected": "Fournisseur déconnecté",
       "disconnectTitle": "Déconnecter {{name}} ?",
-      "disconnectDescription": "Le bouton disparaît de votre page de connexion et personne de nouveau n’entre par là. Personne n’est déconnecté et aucun compte ne change. Si vous exigez une connexion par ce biais, levez-la d’abord.",
+      "disconnectDescription": "Elle cesse de compter comme la vôtre : le bouton disparaît de votre page de connexion et personne de nouveau n’entre par là. Personne n’est déconnecté et aucun compte ne change. Si vous exigez une connexion par ce biais, levez-la d’abord.",
       "empty": "Aucun fournisseur connecté pour l’instant — vos membres se connectent comme d’habitude.",
       "noneOffered": "Qui gère cette installation n’a encore proposé aucun fournisseur à connecter.",
       "notReady": "Indisponible",
@@ -1162,7 +1162,10 @@
       "claimHelp": "Un fournisseur comme Google se porte garant de toute personne ayant un compte : dites donc lesquels de ses comptes sont les vôtres — un domaine Workspace, ou un tenant. Laissez vide si le fournisseur ne couvre déjà que vos gens.",
       "claimPlaceholder": "Vide pour toute personne dont il se porte garant",
       "claimValuesLabel": "Valeurs acceptées",
-      "claimValuesPlaceholder": "example.com, example.org"
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Les ajouter à cette communauté",
+      "autoJoinHelp": "Toute personne considérée comme des vôtres devient membre à sa première connexion. Laissez désactivé pour inviter vous-même.",
+      "joinsOnArrival": "Les nouveaux arrivants rejoignent automatiquement"
     }
   },
   "authProviders": {
