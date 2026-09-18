@@ -38,40 +38,6 @@ from app.services.tenant.collaborative_resources import (
 logger = logging.getLogger(__name__)
 
 
-def body_says_nothing(content: Any) -> bool:
-    """Whether a Lexical body carries no content at all.
-
-    True for a body with no root, no children, or children that are all empty
-    themselves — which is what an editor renders before it has taken up the
-    document it was handed.
-    """
-    if not isinstance(content, dict):
-        return True
-    root = content.get("root")
-    children = root.get("children") if isinstance(root, dict) else None
-    if not children:
-        return True
-    return all(_node_says_nothing(node) for node in children)
-
-
-def _node_says_nothing(node: Any) -> bool:
-    """Whether one node contributes nothing a reader would see.
-
-    Text is content; so is anything that is not text and not a container — an
-    image, a table, a horizontal rule — because those say something without
-    saying words.
-    """
-    if not isinstance(node, dict):
-        return True
-    if node.get("text"):
-        return False
-    children = node.get("children")
-    if children is None:
-        # A leaf that is not text: an image, a rule, an embed.
-        return node.get("type") in {None, "paragraph", "text"}
-    return all(_node_says_nothing(child) for child in children)
-
-
 class CollaborationRoom:
     """The live Yjs state of one body, and what it owes the database.
 
@@ -113,10 +79,6 @@ class CollaborationRoom:
         # commits, and an edit landing in between must not be marked saved.
         self._revision = 0
         self._persisted_revision = 0
-        # Whether this room's Y.Doc has ever been given a document — restored
-        # from stored state, or put there by an editor. Until it has, the room
-        # holds nothing, and nothing is not something to save over a row.
-        self._carries_document = False
         self._content: Optional[dict] = None
         # The revision the held rendering was made from. Below ``_revision``
         # means the document has moved since, and a live tab has a newer
@@ -200,7 +162,6 @@ class CollaborationRoom:
                 # Restore from existing Yjs state
                 try:
                     self.doc.apply_update(yjs_state)
-                    self._carries_document = True
                     logger.info(
                         f"{self.resource_type} {self.resource_id}: restored from Yjs state"
                     )
@@ -248,21 +209,7 @@ class CollaborationRoom:
         """Apply a Yjs update from a client."""
         self.doc.apply_update(update)
         self._revision += 1
-        self._carries_document = True
         self._last_writer = connection
-
-    @property
-    def carries_document(self) -> bool:
-        """Whether anything has ever reached this room's Y.Doc.
-
-        A room restored from stored state carries one; a room an editor has
-        written into carries one. A room that has only been *told what it looks
-        like* does not: a rendering is what an editor reports of what it is
-        showing, and an editor that has not yet taken up the body it was handed
-        is showing nothing. So a room in that state knows strictly less than the
-        row does, and has nothing to say to it.
-        """
-        return self._carries_document
 
     def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
@@ -277,12 +224,6 @@ class CollaborationRoom:
 
         Returns whether the offer was taken.
         """
-        # Nothing has reached this room's document yet, so an editor reporting
-        # what it is showing is reporting what it was handed — which is
-        # nothing. Taking it would make the room dirty with a body it does not
-        # have, and the sweep would write that over the row.
-        if not self._carries_document:
-            return False
         if self._last_writer is not None and connection is not self._last_writer:
             return False
         self._content = content
@@ -478,45 +419,7 @@ class CollaborationManager:
         self, room: CollaborationRoom, session: AsyncSession
     ) -> None:
         spec = resource_for(room.resource_type)
-
-        # A room that carries no document has nothing to save, and what it
-        # would write is worse than nothing: an empty body over the real one,
-        # and an empty Yjs state alongside it. The second is what makes the
-        # first permanent — a stored state is what a room restores from, and a
-        # room that restores something is never bootstrapped from the body
-        # again. So a room in this state writes neither column and stays dirty
-        # for a later sweep, by which time an editor has usually arrived.
-        if not room.carries_document:
-            logger.warning(
-                f"{room.resource_type} {room.resource_id} in guild {room.guild_id} "
-                f"has no document to persist; leaving the stored body alone"
-            )
-            return
-
         revision, state, content = room.snapshot()
-
-        # The second guard, and the one that does not rely on the room's own
-        # account of itself: a rendering with nothing in it never replaces a
-        # stored body that has something. An editor renders nothing while it is
-        # still taking up the document it was handed, and a room cannot tell
-        # that apart from somebody having cleared the page — but the row can,
-        # because it still holds what was there.
-        if content is not None and body_says_nothing(content):
-            stored = (
-                await session.exec(
-                    select(getattr(spec.model, spec.content_column)).where(
-                        spec.model.id == room.resource_id
-                    )
-                )
-            ).one_or_none()
-            if not body_says_nothing(stored):
-                logger.warning(
-                    f"{room.resource_type} {room.resource_id} in guild "
-                    f"{room.guild_id} rendered as empty over a body that is not; "
-                    f"leaving the stored body alone"
-                )
-                return
-
         values: Dict[str, Any] = {
             YJS_STATE_COLUMN: state,
             YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
