@@ -2580,6 +2580,8 @@ export const DatasetName = {
   posts: "posts",
   galleries: "galleries",
   gallery_images: "gallery_images",
+  wikis: "wikis",
+  wiki_pages: "wiki_pages",
 } as const;
 
 /**
