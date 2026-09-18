@@ -18,6 +18,7 @@ import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
   type CollaboratorInfo,
+  getLiveProvider,
   getOrCreateProvider,
 } from "@/lib/yjs/CollaborationProvider";
 
@@ -182,12 +183,23 @@ export function useCollaboration({
       // This prevents the wsUrl effect from destroying the new provider
       currentWsUrlRef.current = wsUrl;
 
-      // Get or create the Y.Doc
-      let doc = yjsDocMap.get(id);
+      // Join a connection already in progress rather than replacing it.
+      //
+      // Lexical hands this factory a fresh `yjsDocMap` on every mount, so the
+      // doc is new each time even when the address is not. Building another
+      // one here and passing it down makes `getOrCreateProvider` destroy the
+      // provider holding the live socket — and a socket destroyed before its
+      // handshake finishes never syncs, which is what a remount (React's
+      // development double-mount included) used to cause.
+      //
+      // So if a provider for this address is still alive, its doc is the one
+      // the server is answering, and it is the one to use.
+      const live = getLiveProvider(wsUrl);
+      let doc = live?.doc ?? yjsDocMap.get(id);
       if (doc === undefined) {
         doc = new Y.Doc();
-        yjsDocMap.set(id, doc);
       }
+      yjsDocMap.set(id, doc);
 
       // Use the factory function to get or create a provider
       // This ensures we reuse existing providers for the same document
