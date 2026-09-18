@@ -30,8 +30,8 @@ _COLUMN_NAMES: tuple[str, ...] = (
     "accent_color",
     "template_page_id",
     "contents_depth",
-    "show_connections",
     "show_updated_at",
+    "show_connections",
     "reading_width",
 )
 
@@ -56,7 +56,6 @@ def _columns() -> list[sa.Column]:
         ),
         sa.Column(
             "show_connections",
-            "show_updated_at",
             sa.Boolean(),
             server_default=sa.text("true"),
             nullable=False,
