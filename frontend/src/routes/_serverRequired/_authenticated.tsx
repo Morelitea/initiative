@@ -11,6 +11,7 @@ import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
 import { ConfirmAge } from "@/components/ConfirmAge";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
 import { Galaxy } from "@/components/icons/Galaxy";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -240,51 +241,56 @@ function AppLayout() {
       <div className="relative flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
         <div className="flex min-h-0 flex-1">
-          <SidebarProvider
-            defaultOpen={true}
-            // The provider's own wrapper asks for `min-h-svh`, which is a floor
-            // for a page that grows and a trap for one that does not: anything
-            // above it here -- a permission prompt, a banner -- makes the row
-            // it sits in shorter than a screen, and the wrapper refuses to
-            // follow. Everything below then measures itself against a box
-            // taller than the one on screen, and the app scrolls into space
-            // that was never there. The shell has a real height; take it.
-            className="h-full min-h-0"
-            style={
-              {
-                "--sidebar-width": "20rem",
-                "--sidebar-width-mobile": "90vw",
-              } as React.CSSProperties
-            }
-          >
-            <AppSidebar />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
-              <div
-                className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
-                style={{ paddingTop: "var(--safe-area-inset-top)" }}
-              >
-                {/* Mobile hamburger lives in BottomNav and search now lives in
+          {/* The live editor's headings, shared by the page that hosts the
+              editor and the sidebar beside it — a wiki lists a page's headings
+              under the page. The scope is a store, so it costs nothing on the
+              screens that mount no editor. */}
+          <DocumentOutlineScope>
+            <SidebarProvider
+              defaultOpen={true}
+              // The provider's own wrapper asks for `min-h-svh`, which is a floor
+              // for a page that grows and a trap for one that does not: anything
+              // above it here -- a permission prompt, a banner -- makes the row
+              // it sits in shorter than a screen, and the wrapper refuses to
+              // follow. Everything below then measures itself against a box
+              // taller than the one on screen, and the app scrolls into space
+              // that was never there. The shell has a real height; take it.
+              className="h-full min-h-0"
+              style={
+                {
+                  "--sidebar-width": "20rem",
+                  "--sidebar-width-mobile": "90vw",
+                } as React.CSSProperties
+              }
+            >
+              <AppSidebar />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
+                <div
+                  className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
+                  style={{ paddingTop: "var(--safe-area-inset-top)" }}
+                >
+                  {/* Mobile hamburger lives in BottomNav and search now lives in
                     the sidebar, so this desktop-only row is just recents — and
                     with nothing recent it takes up no room at all. */}
-                {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
-                  <div className="hidden h-12 lg:flex">
-                    <div className="min-w-0 flex-1">
-                      <RecentTabsBar
-                        items={recentItems}
-                        loading={recentQuery.isLoading}
-                        activeKey={activeRecentKey}
-                        onClose={handleClearRecent}
-                        onCloseOthers={handleCloseOtherRecents}
-                        onCloseAll={handleCloseAllRecents}
-                      />
+                  {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
+                    <div className="hidden h-12 lg:flex">
+                      <div className="min-w-0 flex-1">
+                        <RecentTabsBar
+                          items={recentItems}
+                          loading={recentQuery.isLoading}
+                          activeKey={activeRecentKey}
+                          onClose={handleClearRecent}
+                          onCloseOthers={handleCloseOtherRecents}
+                          onCloseAll={handleCloseAllRecents}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-                <OfflineBanner />
-                <GuildAccessBanner />
-              </div>
-              <div className="flex min-h-0 flex-1 justify-between">
-                {/*<div
+                  )}
+                  <OfflineBanner />
+                  <GuildAccessBanner />
+                </div>
+                <div className="flex min-h-0 flex-1 justify-between">
+                  {/*<div
                   className="h-full w-full opacity-20 fixed"
                   style={{
                     backgroundImage: `url(${isDark ? "/images/hexWhite.svg" : "/images/hexBlack.svg"})`,
@@ -293,7 +299,7 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
-                {/* The app's scroller. Named twice over: the router restores
+                  {/* The app's scroller. Named twice over: the router restores
                     this element's position across navigations rather than the
                     window's, and pull-to-refresh asks it how far down it is.
 
@@ -327,12 +333,12 @@ function AppLayout() {
                     Measured: fifteen comments made the document 3057px tall in
                     a 900px window. Inside `main` they scroll with the comment
                     they label. */}
-                <main
-                  data-app-scroll=""
-                  data-scroll-restoration-id="app-main"
-                  className="relative min-w-0 flex-1 overflow-y-auto overflow-x-clip"
-                >
-                  {/* A grid, and `min-h-full` rather than `h-full`, because
+                  <main
+                    data-app-scroll=""
+                    data-scroll-restoration-id="app-main"
+                    className="relative min-w-0 flex-1 overflow-y-auto overflow-x-clip"
+                  >
+                    {/* A grid, and `min-h-full` rather than `h-full`, because
                       this sits between the scrollport and the page and must
                       pass a height through without capping one.
 
@@ -359,20 +365,21 @@ function AppLayout() {
                       centred. Flooring the track at 0 hands the item the
                       container's width and lets what is inside scroll or
                       truncate on its own terms. */}
-                  <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
-                    <Suspense fallback={<PageLoader />}>
-                      <Outlet />
-                    </Suspense>
-                  </div>
-                </main>
+                    <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
+                      <Suspense fallback={<PageLoader />}>
+                        <Outlet />
+                      </Suspense>
+                    </div>
+                  </main>
+                </div>
               </div>
-            </div>
-            <ProjectActivitySidebar
-              projectId={activeProjectId}
-              initiativeId={activeProjectInitiativeId}
-            />
-            <BottomNav />
-          </SidebarProvider>
+              <ProjectActivitySidebar
+                projectId={activeProjectId}
+                initiativeId={activeProjectInitiativeId}
+              />
+              <BottomNav />
+            </SidebarProvider>
+          </DocumentOutlineScope>
         </div>
         <UpdateAnnouncementDialog
           open={updateAvailable.show}

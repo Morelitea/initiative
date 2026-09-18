@@ -881,6 +881,8 @@ class WikiMessages:
     PAGE_PARENT_DESCENDANT = "WIKI_PAGE_PARENT_DESCENDANT"
     #: A home page has to be one of the wiki's own pages.
     HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
+    #: So does the page new ones are copied from.
+    TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
 
 
 class MarketplaceMessages:

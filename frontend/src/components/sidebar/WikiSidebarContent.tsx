@@ -115,6 +115,7 @@ export const WikiSidebarContent = ({
               hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
               onAddChild={canWrite ? addPage : undefined}
               onMove={canWrite ? movePageTo : undefined}
+              showCounts={wikiQuery.data?.show_page_counts ?? false}
             />
           )}
         </SidebarGroup>

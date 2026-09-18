@@ -1,19 +1,32 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { ArrowUpRight, Link2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageLink } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
+import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
+import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
+import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import { WikiSettingsSheet } from "@/components/initiativeTools/wikis/WikiSettingsSheet";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useUpdateWikiPage, useWiki, useWikiPage, useWikiPageLinks } from "@/hooks/useWikis";
+import {
+  useCreateWikiPage,
+  useUpdateWikiPage,
+  useWiki,
+  useWikiPage,
+  useWikiPages,
+} from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { entityRefRoute, toolKebabSingular, wikiPageRoute } from "@/lib/tools";
+import { wikiPageRoute } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 /**
  * One page of a wiki: its title, its body, and what connects to it.
@@ -58,7 +71,6 @@ export const WikiPageView = () => {
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pageQuery = useWikiPage(validIds ? wikiId : null, validIds ? pageId : null);
-  const linksQuery = useWikiPageLinks(validIds ? wikiId : null, validIds ? pageId : null);
   // `mutate` is referentially stable, so effects can depend on it without
   // re-running every render the way the mutation object would make them.
   const { mutate: savePage } = useUpdateWikiPage(wikiId, pageId);
@@ -124,6 +136,35 @@ export const WikiPageView = () => {
     [pageQuery.data?.content]
   );
 
+  const wiki = wikiQuery.data;
+  const page = pageQuery.data;
+
+  // Both drawers. A wiki is browsed, so neither the conversation about it nor
+  // its configuration sits on the page pushing the words down.
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Whether the connections rail is showing. A per-visit choice: it is
+  // reading furniture, not a setting.
+  const [showConnections, setShowConnections] = useState(true);
+
+  const pagesQuery = useWikiPages(validIds ? wikiId : null);
+  const pages = pagesQuery.data?.items ?? [];
+  const createPage = useCreateWikiPage(wikiId);
+  const navigate = useNavigate();
+
+  const addPage = () =>
+    createPage.mutate(
+      { title: t("pages.untitled"), parent_page_id: null },
+      {
+        onSuccess: (created) =>
+          void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, created.id)) }),
+      }
+    );
+
+  // The screen's primary create action is a page, not another wiki — this is
+  // the inside of one.
+  useRegisterPrimaryCreateAction(canWrite ? { run: addPage, label: t("newPage") } : null);
+
   if (!validIds || pageQuery.isError) {
     return (
       <Card className="mx-auto mt-10 max-w-md">
@@ -135,98 +176,99 @@ export const WikiPageView = () => {
     );
   }
 
-  if (pageQuery.isLoading) {
+  if (pageQuery.isLoading || !page || !wiki) {
     return <p className="p-6 text-muted-foreground text-sm">{t("pages.loading")}</p>;
   }
 
-  const incoming = linksQuery.data?.incoming ?? [];
-  const outgoing = linksQuery.data?.outgoing ?? [];
-
-  /**
-   * Where a link points.
-   *
-   * A page of any wiki is addressed directly — the server sends the wiki and
-   * the initiative along with the link, so nothing has to be looked up. Every
-   * other kind goes through `/go`, which resolves the id to wherever it lives.
-   */
-  const hrefOf = (link: WikiPageLink) => {
-    if (link.entity_type === "wiki_page" && link.tool_id != null) {
-      return wikiPageRoute(link.initiative_id ?? null, link.tool_id, link.entity_id);
-    }
-    return entityRefRoute(toolKebabSingular(link.entity_type as never), link.entity_id);
-  };
-
-  const renderLink = (link: WikiPageLink) => (
-    <li key={`${link.entity_type}-${link.entity_id}-${link.relationship_type}`}>
-      <Link
-        to={gp(hrefOf(link))}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-accent/50"
-      >
-        <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="truncate">{link.title}</span>
-      </Link>
-    </li>
-  );
+  const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 p-6">
-      <Input
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        readOnly={!canWrite}
-        aria-label={t("pages.titleLabel")}
-        placeholder={t("pages.titlePlaceholder")}
-        className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
-      />
+    <>
+      <div className="flex h-full min-h-0 flex-col">
+        <WikiChrome
+          wiki={wiki}
+          canWrite={canWrite}
+          onAddPage={addPage}
+          onOpenComments={() => setCommentsOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleConnections={() => setShowConnections((shown) => !shown)}
+          connectionsOpen={showConnections}
+        />
 
-      <Editor
-        key={pageId}
-        editorSerializedState={initialBody ?? undefined}
-        onSerializedChange={onBodyChange}
-        readOnly={!canWrite}
-        collaborative={collaboration.isReady}
-        providerFactory={collaboration.providerFactory}
-        // Always on, so the body the room is handed stays current between
-        // sweeps for anyone reading it over REST.
-        trackChanges
-        isSynced={collaboration.isSynced}
-        initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
-        subject={`wiki_page:${pageId}`}
-        supportsEntityMentions
-        compact
-      />
-
-      <section className="space-y-3 border-t pt-6">
-        <h2 className="flex items-center gap-1.5 font-semibold text-sm">
-          <Link2 className="size-4 text-muted-foreground" aria-hidden />
-          {t("links.title")}
-        </h2>
-
-        {linksQuery.isLoading ? (
-          <p className="text-muted-foreground text-sm">{t("links.loading")}</p>
-        ) : incoming.length === 0 && outgoing.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("links.noneDescription")}</p>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
-            {outgoing.length > 0 ? (
-              <div className="space-y-1">
-                <h3 className="px-2 font-medium text-muted-foreground text-xs">
-                  {t("links.outgoing")}
-                </h3>
-                <ul>{outgoing.map(renderLink)}</ul>
+        <div className="flex min-h-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            <div
+              className={cn(
+                "px-6 py-6 lg:px-10",
+                isComfortable && "mx-auto w-full max-w-3xl lg:px-6"
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <Input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  readOnly={!canWrite}
+                  aria-label={t("pages.titleLabel")}
+                  placeholder={t("pages.titlePlaceholder")}
+                  className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
+                />
+                <WikiPageActions
+                  wiki={wiki}
+                  page={page}
+                  canWrite={canWrite}
+                  initiativeId={initiativeId}
+                />
               </div>
-            ) : null}
-            {incoming.length > 0 ? (
-              <div className="space-y-1">
-                <h3 className="px-2 font-medium text-muted-foreground text-xs">
-                  {t("links.incoming")}
-                </h3>
-                <ul>{incoming.map(renderLink)}</ul>
-              </div>
-            ) : null}
+
+              <Editor
+                key={pageId}
+                editorSerializedState={initialBody ?? undefined}
+                onSerializedChange={onBodyChange}
+                readOnly={!canWrite}
+                collaborative={collaboration.isReady}
+                providerFactory={collaboration.providerFactory}
+                // Always on, so the body the room is handed stays current
+                // between sweeps for anyone reading it over REST.
+                trackChanges
+                isSynced={collaboration.isSynced}
+                initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
+                subject={`wiki_page:${pageId}`}
+                supportsEntityMentions
+                compact
+              />
+            </div>
           </div>
-        )}
-      </section>
-    </div>
+
+          {/* The rail: where this page leads. The contents of the page
+              itself are in the sidebar, under the page — one outline, in the
+              column that already carries the navigation. */}
+          {showConnections && wiki.show_connections ? (
+            <div className="hidden w-72 shrink-0 flex-col overflow-y-auto py-4 pr-4 lg:flex">
+              <WikiPageConnections wikiId={wikiId} pageId={pageId} className="min-h-0" />
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Hidden until asked for: browsing a wiki is reading it, and the
+          conversation about it is a different activity. */}
+      <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+          <SheetHeader className="border-b px-5 py-4">
+            <SheetTitle>{t("comments")}</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <ToolCommentsPanel tool={Tool.wiki} entity={wiki} />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <WikiSettingsSheet
+        wiki={wiki}
+        pages={pages}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
+    </>
   );
 };
