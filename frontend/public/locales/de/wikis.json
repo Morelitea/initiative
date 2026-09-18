@@ -30,8 +30,6 @@
     "searchPlaceholder": "Dieses Wiki durchsuchen",
     "searchEmpty": "Keine Seite passt zu „{{query}}“",
     "newPage": "Neue Seite",
-    "newSubPage": "Neue Unterseite",
-    "reorder": "Seite verschieben",
     "untitled": "Ohne Titel",
     "titleLabel": "Titel",
     "titlePlaceholder": "Worum es auf dieser Seite geht",

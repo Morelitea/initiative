@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,8 +163,19 @@ export const WikiSidebarContent = ({
                 activePageId={activePageId}
                 homePageId={wikiQuery.data?.home_page_id}
                 hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
-                onAddChild={canWrite ? addPage : undefined}
                 onMove={canWrite ? movePageTo : undefined}
+                renderRowMenu={
+                  canWrite && wikiQuery.data
+                    ? (page) => (
+                        <WikiPageActions
+                          wiki={wikiQuery.data}
+                          page={page}
+                          canWrite={canWrite}
+                          initiativeId={initiativeId}
+                        />
+                      )
+                    : undefined
+                }
                 showCounts={wikiQuery.data?.show_page_counts ?? false}
                 accentColor={wikiQuery.data?.accent_color}
               />

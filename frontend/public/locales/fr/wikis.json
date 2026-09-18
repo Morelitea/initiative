@@ -30,8 +30,6 @@
     "searchPlaceholder": "Rechercher dans ce wiki",
     "searchEmpty": "Aucune page ne correspond à « {{query}} »",
     "newPage": "Nouvelle page",
-    "newSubPage": "Nouvelle sous-page",
-    "reorder": "Réorganiser la page",
     "untitled": "Sans titre",
     "titleLabel": "Titre",
     "titlePlaceholder": "De quoi parle cette page",
