@@ -9,9 +9,10 @@ auth-policy check and the ``app.satisfied_providers`` GUC behind
 ``public.guild_auth_satisfied()``, without the value being threaded through
 every helper between the validator and the sink (mirroring ``role_context``).
 
-Alongside it, the communities whose own single sign-on the session completed
-(read back from its ``amr`` markers), which the same gate gives to
-``app.sso_guilds``.
+Alongside it, what each of those providers asserted for the claims some
+community narrows it by — its token's ``satd`` claim — which the same gate
+gives to ``app.satisfied_claims``. The session carries the fact; the
+connection carries the rule, and the two meet in the gate.
 
 The value is either the frozenset of provider ids the session proved, or the
 ``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
@@ -47,24 +48,53 @@ def satisfied_provider_ids() -> frozenset[int]:
     return value if isinstance(value, frozenset) else frozenset()
 
 
-_sso_guilds: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
-    "auth_sso_guilds", default=frozenset()
+_satisfied_claims: contextvars.ContextVar[dict[str, dict[str, list[str]]]] = (
+    contextvars.ContextVar("auth_satisfied_claims", default={})
 )
 
 
-def set_sso_guilds(value: frozenset[int] | None) -> None:
-    """Record the communities whose own single sign-on this session completed."""
-    _sso_guilds.set(frozenset() if value is None else value)
+def set_satisfied_claims(value: dict[str, dict[str, list[str]]] | None) -> None:
+    """Record what each satisfied provider asserted, keyed by provider id."""
+    _satisfied_claims.set(value or {})
 
 
-def sso_guilds() -> frozenset[int]:
-    """Those communities, for this request/task.
+def satisfied_claims() -> dict[str, dict[str, list[str]]]:
+    """Those assertions, for this request/task.
 
     Empty for every credential that records nothing about how its owner signed
     in — device tokens, API keys, delegation JWTs — which is the fail-closed
-    answer against a community asking for its own sign-in.
+    answer against a community that narrows the way in.
     """
-    return _sso_guilds.get()
+    return _satisfied_claims.get()
+
+
+def claims_from_provider_auth(
+    record: dict | None,
+) -> dict[str, dict[str, list[str]]]:
+    """The narrowing assertions out of a ``satd``/``provider_auth`` record.
+
+    Shaped for the gate: ``{"12": {"hd": ["acme.com"]}}``. Anything that is
+    not that shape is dropped rather than coerced.
+    """
+    found: dict[str, dict[str, list[str]]] = {}
+    for provider_id, entry in (record or {}).items():
+        # A decoded token hands these over as models; the session row's own
+        # column hands them over as plain JSON.
+        claims = (
+            entry.get("claims")
+            if isinstance(entry, dict)
+            else getattr(entry, "claims", None)
+        )
+        if not isinstance(claims, dict):
+            continue
+        kept = {
+            str(name): [str(v) for v in values]
+            for name, values in claims.items()
+            if isinstance(values, (list, tuple)) and values
+        }
+        if kept:
+            found[str(provider_id)] = kept
+    return found
 
 
 #: The ``user_tokens`` row that authenticated this request, when the credential

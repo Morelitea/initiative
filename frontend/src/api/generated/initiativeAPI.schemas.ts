@@ -2145,6 +2145,20 @@ export interface CommunitySettingsUpdate {
 }
 
 /**
+ * One provider a community may connect to, as the community sees it.
+ *
+ * Deliberately less than the operator's view: a community picks a provider by
+ * name. It holds no issuer and no client id, so it is shown neither — which
+ * also keeps one customer's identity provider out of another's list.
+ */
+export interface ConnectableProviderRead {
+  id: number;
+  display_name: string;
+  icon: string | null;
+  login_ready: boolean;
+}
+
+/**
  * A connection is addressed by handle, never by id.
  *
  * One shape whatever the target's policy, and the shape the app-wide people
@@ -4132,6 +4146,45 @@ export interface GuildNotificationSettings {
 export interface GuildOrderUpdate {
   /** @minItems 1 */
   guildIds: number[];
+}
+
+/**
+ * Connect to one of the providers on offer.
+ */
+export interface GuildProviderConnectionCreate {
+  provider_id: number;
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean;
+  auto_join?: boolean;
+}
+
+/**
+ * One community signing its members in through one provider.
+ */
+export interface GuildProviderConnectionRead {
+  id: number;
+  provider_id: number;
+  provider_slug: string;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+  auto_join: boolean;
+  login_ready: boolean;
+}
+
+/**
+ * Change the narrowing, or take the button away. The provider a
+ * connection is to is not editable: pointing it elsewhere would change who
+ * gets in without saying so. Disconnect and connect instead.
+ */
+export interface GuildProviderConnectionUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
+  auto_join?: boolean | null;
 }
 
 /**
@@ -7923,19 +7976,10 @@ export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   username: string;
 };
 
-export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams = {
-  next?: string;
-};
-
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
-};
-
-export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams = {
-  code?: string | null;
-  state?: string | null;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {

@@ -86,6 +86,9 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth import session_lifetime
 from app.services.auth.identity import has_federated_identity
+from app.services.auth import (
+    guild_provider_connections as guild_connections,
+)
 from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption, effective_options
 from app.models.platform.access_grant import AccessGrantPurpose
@@ -1181,11 +1184,16 @@ async def set_guild_auth_policy(
         # would be taken on the system engine while the write happens on the
         # request path, which is two connections contending for one row.
         provider = await admin_session.get(AuthProvider, payload.provider_id)
-        if (
-            provider is None
-            or provider.guild_id != guild_id
-            or not is_login_ready(provider)
-        ):
+        # Theirs because they connect to it. Every provider is the operator's,
+        # so a connection is what makes one this community's to require.
+        connection = (
+            None
+            if provider is None
+            else await guild_connections.connection_for(
+                admin_session, guild_id=guild_id, provider_id=provider.id
+            )
+        )
+        if provider is None or connection is None or not is_login_ready(provider):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
@@ -1201,7 +1209,9 @@ async def set_guild_auth_policy(
     # community has a provider that works, so there is nothing else to ask.
     # One check per method the list may hold; ``sso`` is the only one it can
     # hold today, and a method added to the vocabulary brings its own.
-    if LoginMethod.sso in require_methods and guild_id not in auth_context.sso_guilds():
+    if LoginMethod.sso in require_methods and not (
+        await guild_connections.admits_this_session(admin_session, guild_id=guild_id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,

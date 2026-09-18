@@ -48,6 +48,88 @@ __all__ = [
     "ensure_authorization_functions",
 ]
 
+#: Gate 0a: the rule itself — does an authentication satisfy one of a
+#: community's connections?
+#:
+#: Takes the facts rather than reading them, so the request path can ask the
+#: same question before a session's context exists. ``p_providers`` is what
+#: the credential proved; ``p_claims`` is what those providers asserted,
+#: ``{"12": {"hd": ["acme.com"]}}``.
+GUILD_CONNECTION_ADMITS = """\
+CREATE OR REPLACE FUNCTION public.guild_connection_admits(p_guild_id integer, p_providers integer[], p_claims jsonb, p_provider_id integer DEFAULT NULL::integer)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.guild_provider_connections c
+        WHERE c.guild_id = p_guild_id
+          AND c.enabled
+          AND (p_provider_id IS NULL OR c.provider_id = p_provider_id)
+          AND c.provider_id = ANY(COALESCE(p_providers, ARRAY[]::integer[]))
+          -- A connection naming no claim counts everybody the provider does.
+          AND (
+              c.claim IS NULL
+              OR c.claim_values IS NULL
+              OR EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements_text(
+                      CASE
+                          WHEN jsonb_typeof(
+                                   COALESCE(p_claims, '{}'::jsonb)
+                                       -> c.provider_id::text -> c.claim
+                               ) = 'array'
+                          THEN COALESCE(p_claims, '{}'::jsonb)
+                                   -> c.provider_id::text -> c.claim
+                          ELSE '[]'::jsonb
+                      END
+                  ) AS asserted(value)
+                  WHERE lower(asserted.value) = ANY (
+                      SELECT lower(counted) FROM unnest(c.claim_values) AS counted
+                  )
+              )
+          )
+    )
+$function$
+
+"""
+
+
+#: Gate 0b: the same question for the current request, off the GUCs the
+#: session context sets. This is what the policy legs call.
+GUILD_CONNECTION_SATISFIED = """\
+CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL::integer)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT public.guild_connection_admits(
+        p_guild_id,
+        -- NULLIF twice: an unset value and the system sentinel both leave
+        -- nothing to cast, and a bare ''::int[] would fault every policy on
+        -- the table.
+        COALESCE(
+            string_to_array(
+                NULLIF(
+                    NULLIF(current_setting('app.satisfied_providers', true), ''),
+                    'system'
+                ),
+                ','
+            )::integer[],
+            ARRAY[]::integer[]
+        ),
+        COALESCE(
+            NULLIF(current_setting('app.satisfied_claims', true), '')::jsonb,
+            '{}'::jsonb
+        ),
+        p_provider_id
+    )
+$function$
+
+"""
+
+
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
 GUILD_AUTH_SATISFIED = """\
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()
@@ -67,21 +149,13 @@ AS $function$
                   )::int
               AND p.policy <> 'open'
               AND (
-                  -- The provider this guild names, if it names one.
+                  -- The provider this guild names, if it names one: the
+                  -- session came through it, and this community counts the
+                  -- arrival as one of its own.
                   (
                       p.provider_id IS NOT NULL
-                      AND NOT COALESCE(
-                            p.provider_id = ANY(
-                                string_to_array(
-                                    NULLIF(
-                                        current_setting(
-                                            'app.satisfied_providers', true
-                                        ), ''
-                                    ),
-                                    ','
-                                )::int[]
-                            ),
-                            false
+                      AND NOT public.guild_connection_satisfied(
+                            p.guild_id, p.provider_id
                           )
                   )
                   -- Or the account's own second factor, where the community
@@ -93,24 +167,12 @@ AS $function$
                             current_setting('app.session_mfa', true), 'false'
                           ) <> 'true'
                   )
-                  -- Or its own single sign-on, whichever of its providers
-                  -- served it. The session records each community whose sign-in
-                  -- it completed, so this is answered without reading the
-                  -- provider registry. Named rather than counted, so a list
-                  -- holding some other method is not read as this one.
+                  -- Or any of its own, whichever provider served it. Named
+                  -- rather than counted, so a list holding some other method
+                  -- is not read as this one.
                   OR (
                       'sso' = ANY(p.require_methods)
-                      AND NOT COALESCE(
-                            p.guild_id = ANY(
-                                string_to_array(
-                                    NULLIF(
-                                        current_setting('app.sso_guilds', true), ''
-                                    ),
-                                    ','
-                                )::int[]
-                            ),
-                            false
-                          )
+                      AND NOT public.guild_connection_satisfied(p.guild_id)
                   )
               )
         )
@@ -317,10 +379,14 @@ $function$
 """
 
 
-#: Name -> definition, in dependency order: ``initiative_access`` and
-#: ``initiative_full_access`` call ``guild_auth_satisfied``, so it is created
-#: first. Applied in this order, a fresh database never sees a dangling call.
+#: Name -> definition, in dependency order: ``guild_connection_satisfied``
+#: calls ``guild_connection_admits``, ``guild_auth_satisfied`` calls
+#: ``guild_connection_satisfied``, and ``initiative_access`` and
+#: ``initiative_full_access`` call ``guild_auth_satisfied``. Applied in this
+#: order, a fresh database never sees a dangling call.
 AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    ("guild_connection_admits", GUILD_CONNECTION_ADMITS),
+    ("guild_connection_satisfied", GUILD_CONNECTION_SATISFIED),
     ("guild_auth_satisfied", GUILD_AUTH_SATISFIED),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),

@@ -181,6 +181,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # per-guild sign-in requirement — written via the guild-admin endpoint
     # (provider validation happens on the system engine)
     "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # which of the platform's providers a community signs in through — read at
+    # login and written by the connection CRUD, both on the system engine
+    "guild_provider_connections": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # session/refresh store — validated pre-auth by refresh-token hash (user
     # unknown), so all session ops run on the system engine; request path revoked
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -345,6 +348,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "federated_identity_secrets": None,
     # the guild-access gate reads the policy on the bare login role, pre-routing
     "guild_auth_policies": frozenset({"SELECT"}),
+    # the gate reads the narrowing here on every request, so the rule it
+    # applies is the one in force now; a policy scopes a row to its own guild
+    "guild_provider_connections": frozenset({"SELECT"}),
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "user_emails": None,

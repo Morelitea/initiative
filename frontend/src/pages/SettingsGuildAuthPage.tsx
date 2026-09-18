@@ -19,9 +19,9 @@ import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
-  useGuildAuthProviders,
   useGuildAuthSettings,
   useGuildLoginProviders,
+  useGuildProviderConnections,
   useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
   useUpdateGuildSessionLimit,
@@ -102,17 +102,27 @@ export const SettingsGuildAuthPage = () => {
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && mayRequireSignIn,
   });
-  // Read for either grant. A requirement names one of the guild's providers, so
-  // choosing one needs the list even where editing it is not on offer — the two
-  // grants are independent and a guild may hold only the requirement half.
-  const providersQuery = useGuildAuthProviders(guildId, {
+  // Read for either grant. A requirement names a provider this community
+  // connects to, so choosing one needs the list even where changing the
+  // connections is not on offer — the two grants are independent and a
+  // community may hold only the requirement half.
+  const connectionsQuery = useGuildProviderConnections(guildId, {
     enabled: guildId > 0 && guildPostureActive,
   });
-  // Only the guild's enabled providers can be required — a disabled row can't
-  // serve a sign-in, so requiring it would lock the guild.
+  // Only a live connection can be required. A disconnected or switched-off
+  // one cannot serve a sign-in, and neither can one whose provider the
+  // operator has since withdrawn — requiring any of those would lock the
+  // community out of itself.
   const eligibleProviders = useMemo(
-    () => (providersQuery.data ?? []).filter((entry) => entry.enabled),
-    [providersQuery.data]
+    () =>
+      (connectionsQuery.data ?? [])
+        .filter((row) => row.enabled && row.login_ready)
+        .map((row) => ({
+          id: row.provider_id,
+          slug: row.provider_slug,
+          display_name: row.provider_display_name,
+        })),
+    [connectionsQuery.data]
   );
 
   // Chosen here, saved by the button below — a refetch in between must not

@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
@@ -23,6 +23,8 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     scopes: Optional[str] = None
     role_claim_path: Optional[str] = None
     allow_jit: bool
+    #: Whether communities may connect to this provider. Off keeps one
+    #: registered for a single customer out of everybody else's picker.
     icon: Optional[str] = None
     button_style: Optional[str] = None
     # Whether a client secret is stored (write-only; its value is never read
@@ -143,6 +145,80 @@ class AuthProviderProbeResult(SanitizedBaseModel):
     #: to match exactly at the far end. Returned by the look-up because that is
     #: when somebody is about to need it.
     callback_url_template: str = ""
+
+
+class ConnectableProviderRead(SanitizedBaseModel):
+    """One provider a community may connect to, as the community sees it.
+
+    Deliberately less than the operator's view: a community picks a provider by
+    name. It holds no issuer and no client id, so it is shown neither — which
+    also keeps one customer's identity provider out of another's list.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    display_name: str
+    icon: Optional[str] = None
+    #: False where the operator has switched it off or left it half
+    #: configured — said here so a community is not offered a button that
+    #: cannot work.
+    login_ready: bool = True
+
+
+#: One value a narrowing counts, bounded to what the column holds so an
+#: over-long one is answered with a validation error rather than a database
+#: one. The list is bounded too: a narrowing names a tenant, not a directory.
+ClaimValue = Annotated[str, Field(max_length=256)]
+MAX_CLAIM_VALUES = 64
+
+
+class GuildProviderConnectionRead(SanitizedBaseModel):
+    """One community signing its members in through one provider."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    provider_id: int
+    provider_slug: str
+    provider_display_name: str
+    provider_icon: Optional[str] = None
+    #: Which verified claim decides whether somebody belongs here — ``hd`` for
+    #: a Google Workspace domain, ``tid`` for an Entra tenant. Null with an
+    #: empty ``claim_values`` is unnarrowed, which is right where the provider
+    #: is already the community's own.
+    claim: Optional[str] = None
+    claim_values: List[str] = Field(default_factory=list)
+    enabled: bool
+    #: Whether somebody this connection counts as theirs joins on arrival.
+    auto_join: bool = False
+    login_ready: bool = True
+
+
+class GuildProviderConnectionCreate(SanitizedBaseModel):
+    """Connect to one of the providers on offer."""
+
+    provider_id: int
+    claim: Optional[str] = Field(default=None, max_length=64)
+    claim_values: Optional[List[ClaimValue]] = Field(
+        default=None, max_length=MAX_CLAIM_VALUES
+    )
+    enabled: bool = True
+    #: Whether somebody this connection counts as theirs joins on arrival.
+    auto_join: bool = False
+
+
+class GuildProviderConnectionUpdate(SanitizedBaseModel):
+    """Change the narrowing, or take the button away. The provider a
+    connection is to is not editable: pointing it elsewhere would change who
+    gets in without saying so. Disconnect and connect instead."""
+
+    claim: Optional[str] = Field(default=None, max_length=64)
+    claim_values: Optional[List[ClaimValue]] = Field(
+        default=None, max_length=MAX_CLAIM_VALUES
+    )
+    enabled: Optional[bool] = None
+    auto_join: Optional[bool] = None
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

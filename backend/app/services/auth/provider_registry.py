@@ -1,17 +1,13 @@
-"""The login-provider registry's CRUD core, shared by its two namespaces.
+"""The login-provider registry's CRUD core.
 
-``auth_providers`` holds two disjoint namespaces in one table: operator-global
-rows (``guild_id IS NULL``, the platform login page's registry) and
-guild-scoped rows (a set ``guild_id``, that guild's own IdPs under per-guild
-auth). Every function here takes the namespace as ``guild_id`` and implements
-the scoping, slug rules, write-only secret handling, and delete semantics
-once — the routers own only their gates (operator ``config.manage`` vs.
-per-guild posture + guild admin) and delegate here.
+``auth_providers`` is the **operator's**, all of it. A community does not own a
+provider; it owns a connection to one (see
+``app.services.auth.guild_provider_connections``), so there is one namespace
+here and one set of slugs.
 
-The client secret is write-only across both namespaces: encrypted into the
-``auth_provider_secrets`` companion and never returned; reads carry
-``secret_set`` instead. All callers run on the system engine — neither table
-carries request-path grants.
+The client secret is write-only: encrypted into the ``auth_provider_secrets``
+companion and never returned; reads carry ``secret_set`` instead. Every caller
+runs on the system engine — neither table carries request-path grants.
 """
 
 import logging
@@ -42,25 +38,21 @@ logger = logging.getLogger(__name__)
 
 
 def provider_callback_url(slug: str, guild_id: int | None = None) -> str:
-    """Where this provider sends the browser back, which is what an operator
+    """Where a provider sends the browser back, which is what an operator
     registers with their IdP.
 
-    Guild-scoped providers are addressed through their guild, because a slug is
-    only unique inside one. Built here so the address shown in settings and the
-    address sent to the IdP come from one place.
+    ``guild_id`` addresses the community a sign-in is *for*, not the owner of
+    the provider — a community's sign-in comes in on its own route and has to
+    go back out on it, because that is the address already registered at the
+    far end. It comes from the request path, never from the provider row.
+
+    Built here so the address shown in settings and the address sent to the IdP
+    come from one place.
     """
     base = app_config.APP_URL.rstrip("/")
     if guild_id is not None:
         return f"{base}{API_V1_STR}/auth/g/{guild_id}/{slug}/callback"
     return f"{base}{API_V1_STR}/auth/{slug}/callback"
-
-
-def _namespace_clause(guild_id: int | None):
-    return (
-        AuthProvider.guild_id.is_(None)
-        if guild_id is None
-        else AuthProvider.guild_id == guild_id
-    )
 
 
 def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
@@ -78,7 +70,7 @@ def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
         icon=row.icon,
         button_style=row.button_style,
         secret_set=secret_set,
-        callback_url=provider_callback_url(row.slug, row.guild_id),
+        callback_url=provider_callback_url(row.slug),
     )
 
 
@@ -108,21 +100,10 @@ async def set_provider_secret(
     session.add(secret)
 
 
-async def editable_provider(
-    session: AsyncSession, provider_id: int, *, guild_id: int | None
-) -> AuthProvider:
-    """The namespace's row for one id, or the 404/400 the CRUD contract
-    promises. An id from any other namespace is indistinguishable from a
-    missing one; the reserved platform row (operator namespace only — no
-    guild row can carry its slug) is configured through the SSO settings
-    form, not a registry CRUD."""
+async def editable_provider(session: AsyncSession, provider_id: int) -> AuthProvider:
+    """The row for one id, or the 404 the CRUD contract promises."""
     row = (
-        await session.exec(
-            select(AuthProvider).where(
-                AuthProvider.id == provider_id,
-                _namespace_clause(guild_id),
-            )
-        )
+        await session.exec(select(AuthProvider).where(AuthProvider.id == provider_id))
     ).one_or_none()
     if row is None:
         raise HTTPException(
@@ -132,15 +113,9 @@ async def editable_provider(
     return row
 
 
-async def list_providers(
-    session: AsyncSession, *, guild_id: int | None
-) -> list[AuthProviderAdminRead]:
+async def list_providers(session: AsyncSession) -> list[AuthProviderAdminRead]:
     rows = (
-        await session.exec(
-            select(AuthProvider)
-            .where(_namespace_clause(guild_id))
-            .order_by(AuthProvider.display_name)
-        )
+        await session.exec(select(AuthProvider).order_by(AuthProvider.display_name))
     ).all()
     row_ids = [row.id for row in rows]
     with_secret: set[int] = set()
@@ -159,18 +134,12 @@ async def list_providers(
 
 
 async def create_provider(
-    session: AsyncSession,
-    provider_in: AuthProviderCreate,
-    *,
-    guild_id: int | None,
+    session: AsyncSession, provider_in: AuthProviderCreate
 ) -> AuthProviderAdminRead:
-    """Create a row in the namespace. Slugs are unique within one (409)."""
+    """Create a provider. Slugs are unique across the registry (409)."""
     existing = (
         await session.exec(
-            select(AuthProvider.id).where(
-                AuthProvider.slug == provider_in.slug,
-                _namespace_clause(guild_id),
-            )
+            select(AuthProvider.id).where(AuthProvider.slug == provider_in.slug)
         )
     ).first()
     if existing is not None:
@@ -179,13 +148,10 @@ async def create_provider(
             detail=AuthProviderMessages.SLUG_TAKEN,
         )
 
-    row = AuthProvider(
-        **provider_in.model_dump(exclude={"client_secret"}),
-        guild_id=guild_id,
-    )
+    row = AuthProvider(**provider_in.model_dump(exclude={"client_secret"}))
     session.add(row)
-    # The namespace's unique constraints back the check above; a concurrent
-    # create that slips between them still gets the promised 409.
+    # The unique constraint backs the check above; a concurrent create that
+    # slips between them still gets the promised 409.
     try:
         await session.flush()
     except IntegrityError as exc:
@@ -199,23 +165,14 @@ async def create_provider(
     await set_provider_secret(session, row.id, provider_in.client_secret)
     await session.commit()
     await session.refresh(row)
-    logger.info(
-        "auth provider %s (%s) created in namespace %s",
-        row.slug,
-        row.id,
-        "global" if guild_id is None else f"guild {guild_id}",
-    )
+    logger.info("auth provider %s (%s) created", row.slug, row.id)
     return admin_read(row, secret_set=bool(provider_in.client_secret))
 
 
 async def update_provider(
-    session: AsyncSession,
-    provider_id: int,
-    provider_in: AuthProviderUpdate,
-    *,
-    guild_id: int | None,
+    session: AsyncSession, provider_id: int, provider_in: AuthProviderUpdate
 ) -> AuthProviderAdminRead:
-    row = await editable_provider(session, provider_id, guild_id=guild_id)
+    row = await editable_provider(session, provider_id)
     update_data = provider_in.model_dump(exclude_unset=True)
 
     # Write-only secret: absent = keep, empty = clear, value = replace.
@@ -256,19 +213,18 @@ async def _release_initiative_memberships(
     await db_session.set_rls_context(session)
 
 
-async def delete_provider(
-    session: AsyncSession, provider_id: int, *, guild_id: int | None
-) -> None:
-    """Delete a row from the namespace. Its linked identities (and their
-    stored refresh tokens) go with it via cascade — users who signed in
-    through it keep their accounts and any other sign-in methods.
+async def delete_provider(session: AsyncSession, provider_id: int) -> None:
+    """Delete a provider. Its linked identities (and their stored refresh
+    tokens) go with it via cascade — users who signed in through it keep their
+    accounts and any other sign-in methods.
 
-    Two refusals, both 409. A provider some guild's auth policy requires:
-    drop or repoint the policy first. And a provider that is some account's
-    only credential: those people set a password or link another provider
-    first, and then it deletes.
+    Three refusals, all 409. A provider some community's sign-in requirement
+    names, or one some community connects through: both are foreign keys with
+    ``RESTRICT``, and both mean somebody's way in. And a provider that is some
+    account's only credential: those people set a password or link another
+    provider first, and then it deletes.
     """
-    row = await editable_provider(session, provider_id, guild_id=guild_id)
+    row = await editable_provider(session, provider_id)
     # Lock the row before counting. Inserting a ``federated_identities`` row
     # takes FOR KEY SHARE on the provider it references, which FOR UPDATE
     # conflicts with — so a login provisioning an account either lands before

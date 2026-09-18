@@ -1097,11 +1097,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Proveedores de identidad",
-      "description": "Los proveedores de inicio de sesión único con los que se autentican los miembros de esta comunidad. Los configuran los administradores de esta comunidad y solo se aplican aquí.",
-      "dialogDescription": "Detalles OpenID Connect. La URL de callback para tu IdP es /api/v1/auth/g/{{guildId}}/{slug}/callback en este servidor."
-    },
     "shareUrl": {
       "title": "Enlace de inicio de sesión para miembros",
       "description": "Comparte este enlace con los miembros: ofrece los proveedores de inicio de sesión de esta comunidad y los lleva directamente a la comunidad.",
@@ -1143,6 +1138,40 @@
       "offHelp": "Los miembros siguen con la sesión iniciada mientras lo permita la instalación.",
       "saved": "Límite de sesión guardado",
       "error": "No se pudo guardar el límite de sesión"
+    },
+    "connections": {
+      "title": "Qué inicios de sesión son vuestros",
+      "description": "La gente inicia sesión en esta instalación. Di cuáles de sus proveedores cuentan como de vuestra comunidad, y quién en ellos cuenta como vuestro.",
+      "connect": "Conectar un proveedor",
+      "connected": "Proveedor conectado",
+      "connectError": "No se pudo cambiar esa conexión",
+      "disconnect": "Desconectar",
+      "disconnected": "Proveedor desconectado",
+      "disconnectTitle": "¿Desconectar {{name}}?",
+      "disconnectDescription": "Deja de contar como vuestra: el botón desaparece de vuestra página de inicio de sesión y nadie nuevo entra por ahí. Nadie cierra sesión y ninguna cuenta cambia. Si exigís entrar por él, levantad eso primero.",
+      "empty": "Aún no hay proveedores conectados: vuestros miembros inician sesión como siempre.",
+      "noneOffered": "Quien gestiona esta instalación aún no ha ofrecido ningún proveedor para conectar.",
+      "notReady": "No disponible",
+      "narrowedTo": "Solo cuentas cuyo {{claim}} sea {{values}}",
+      "anyoneItVouchesFor": "Cualquiera por quien responda este proveedor",
+      "dialogTitle": "Conectar un proveedor de inicio de sesión",
+      "dialogDescription": "Elige el proveedor que usan vuestros miembros y luego di qué cuentas suyas son vuestras.",
+      "providerLabel": "Proveedor",
+      "providerPlaceholder": "Elige uno",
+      "claimLabel": "Qué cuentas cuentan como vuestras",
+      "claimHelp": "Un proveedor como Google responde por cualquiera con una cuenta, así que di cuáles de sus cuentas son vuestras: un dominio de Workspace, o un tenant. Déjalo en blanco si el proveedor ya es solo vuestra gente.",
+      "claimPlaceholder": "En blanco para cualquiera por quien responda",
+      "claimValuesLabel": "Valores válidos",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Añadirles a esta comunidad",
+      "autoJoinHelp": "Quien cuente como vuestro se hace miembro la primera vez que inicia sesión. Déjalo apagado si preferís invitar vosotros.",
+      "joinsOnArrival": "Quien llega se une automáticamente",
+      "claimOptions": {
+        "hd": "Dominio de Google Workspace",
+        "tid": "Tenant de Microsoft Entra",
+        "groups": "Pertenencia a un grupo",
+        "domain": "Dominio"
+      }
     }
   },
   "authProviders": {

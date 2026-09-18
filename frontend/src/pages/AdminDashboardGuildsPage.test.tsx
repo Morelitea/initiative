@@ -23,7 +23,7 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
-    auth_options: [],
+    auth_options: ["restrictions"],
     banner_image_enabled: true,
     support_enabled: false,
   },
@@ -36,7 +36,7 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
-    auth_options: ["providers", "require_sign_in"],
+    auth_options: ["restrictions", "providers", "require_sign_in"],
     banner_image_enabled: true,
     support_enabled: true,
   },
@@ -318,7 +318,7 @@ describe("AdminDashboardGuildsPage", () => {
       await user.click(option("Its own sign-in providers"));
       expect(mutate).toHaveBeenCalledWith({
         guildId: 7,
-        data: { auth_options: ["providers"] },
+        data: { auth_options: ["restrictions", "providers"] },
       });
     });
 
@@ -331,7 +331,7 @@ describe("AdminDashboardGuildsPage", () => {
 
       expect(mutate).toHaveBeenCalledWith({
         guildId: 8,
-        data: { auth_options: ["providers"] },
+        data: { auth_options: ["restrictions", "providers"] },
       });
     });
   });

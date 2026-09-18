@@ -82,6 +82,7 @@ from app.models.tenant.task import (
 )
 from app.models.tenant.upload import Upload
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
@@ -388,6 +389,7 @@ def get_auth_token(
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    asserted_claims: dict[int, dict[str, list[str]]] | None = None,
     token_version: int | None = None,
     expires_in: timedelta | None = None,
 ) -> str:
@@ -401,6 +403,9 @@ def get_auth_token(
 
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
+    ``asserted_claims`` is what those providers said about the person, keyed by
+    provider id (``{7: {"hd": ["acme.com"]}}``), which is what a community
+    narrowing a connection compares against.
 
     ``token_version`` and ``expires_in`` are for the tests about a credential
     that is no longer good: one minted before a version bump, and one whose
@@ -426,6 +431,11 @@ def get_auth_token(
         satisfied_providers=satisfied_providers
         if satisfied_providers is not None
         else [],
+        provider_auth={
+            str(pid): {"claims": {k: list(v) for k, v in claims.items()}}
+            for pid, claims in (asserted_claims or {}).items()
+        }
+        or None,
         expires_in=expires_in,
     )
     return token
@@ -2114,7 +2124,8 @@ async def create_auth_provider(
     commit: bool = True,
     **overrides: Any,
 ) -> AuthProvider:
-    """Create an operator-global auth provider registry row.
+    """Create an auth provider registry row. Every provider is the operator's;
+    a community reaches one through ``create_guild_provider_connection``.
 
     Defaults to a login-ready OIDC row pointing at the test IdP constants
     (``app.testing.oidc``), so a fake-IdP flow verifies against it as-is.
@@ -2126,7 +2137,6 @@ async def create_auth_provider(
         "display_name": "Corp SSO",
         "kind": AuthProviderKind.oidc.value,
         "enabled": True,
-        "guild_id": None,
         "issuer": _TEST_ISSUER,
         "client_id": _TEST_CLIENT_ID,
         "scopes": "openid email",
@@ -2142,6 +2152,35 @@ async def create_auth_provider(
     return provider
 
 
+async def create_guild_provider_connection(
+    session: AsyncSession,
+    *,
+    guild,
+    provider: AuthProvider,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildProviderConnection:
+    """Connect a community to one of the operator's providers.
+
+    Unnarrowed by default, which is the shape a community bringing its own
+    identity provider has: it admits whoever that provider vouched for. Pass
+    ``claim`` and ``claim_values`` for the Google-Workspace shape.
+    """
+    defaults = {
+        "guild_id": guild.id,
+        "provider_id": provider.id,
+        "claim": None,
+        "claim_values": None,
+        "enabled": True,
+    }
+    connection = GuildProviderConnection(**{**defaults, **overrides})
+    session.add(connection)
+    if commit:
+        await session.commit()
+        await session.refresh(connection)
+    return connection
+
+
 async def create_guild_auth_policy(
     session: AsyncSession,
     guild: "Guild",
@@ -2152,10 +2191,28 @@ async def create_guild_auth_policy(
 ) -> GuildAuthPolicy:
     """Make ``guild`` require a sign-in through ``provider``.
 
+    Connects the community to the provider first where it is not connected
+    already: the endpoint refuses a requirement naming a provider the
+    community does not count as its own, and the gate answers the same way, so
+    a policy without a connection is a state production cannot reach.
+
     ``provider_slug`` is denormalised onto the row in production so a step-up
     response can name the provider without a registry read; this keeps the two
     in step the same way.
     """
+    connected = (
+        await session.exec(
+            select(GuildProviderConnection).where(
+                GuildProviderConnection.guild_id == guild.id,
+                GuildProviderConnection.provider_id == provider.id,
+            )
+        )
+    ).first()
+    if connected is None:
+        await create_guild_provider_connection(
+            session, guild=guild, provider=provider, commit=commit
+        )
+
     defaults = {
         "guild_id": guild.id,
         "policy": "required",
@@ -2187,10 +2244,7 @@ async def create_federated_identity(
     if provider is None:
         provider = (
             await session.exec(
-                select(AuthProvider).where(
-                    AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                    AuthProvider.guild_id.is_(None),
-                )
+                select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
             )
         ).one_or_none()
         if provider is None:

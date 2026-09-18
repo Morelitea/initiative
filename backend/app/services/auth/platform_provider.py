@@ -1,6 +1,6 @@
 """The operator-global platform OIDC provider — registry-row native.
 
-The ``auth_providers`` row with slug ``oidc`` (``guild_id IS NULL``) is the
+The ``auth_providers`` row with slug ``oidc`` is the
 **single source of truth** for the platform provider: the settings endpoints
 write it directly, the login path and refresh sweep read it, and the client
 secret lives in its ``auth_provider_secrets`` companion (write-only, shared
@@ -74,15 +74,11 @@ def can_serve_login_clause() -> ColumnElement[bool]:
     ``_active_platform_provider``). Row-form callers branch between the two
     halves; a query that must ask of rows it is not loading needs them as one.
 
-    The platform row is ``guild_id IS NULL`` **and** the platform slug, which
-    is how :func:`get_platform_provider` names it. Both halves matter: a guild
-    may carry any slug in its own namespace, the platform's included, and a
-    guild row is reached through its guild rather than through this one.
+    The platform row is the one carrying the platform slug, which is how
+    :func:`get_platform_provider` names it. One registry means one namespace,
+    so the slug alone identifies it.
     """
-    is_platform_row = and_(
-        AuthProvider.guild_id.is_(None),
-        AuthProvider.slug == PLATFORM_OIDC_SLUG,
-    )
+    is_platform_row = AuthProvider.slug == PLATFORM_OIDC_SLUG
     return and_(
         login_ready_clause(),
         or_(
@@ -116,13 +112,10 @@ def _join_scopes(scopes: list[str] | None) -> str | None:
 
 
 async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
-    """The operator-global (``guild_id IS NULL``) platform provider row."""
+    """The platform provider row — the one carrying the platform slug."""
     return (
         await session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                AuthProvider.guild_id.is_(None),
-            )
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
         )
     ).first()
 
@@ -133,7 +126,6 @@ async def _create_platform_row(session: AsyncSession, **fields) -> AuthProvider:
     provider = AuthProvider(
         slug=PLATFORM_OIDC_SLUG,
         kind=AuthProviderKind.oidc.value,
-        guild_id=None,  # operator-global: platform-level login
         allow_jit=True,  # the platform flow JIT-provisions unknown users
         **fields,
     )

@@ -64,19 +64,38 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
-  useGuildAuthProviders: () => ({
+  useGuildProviderConnections: () => ({
     data: [
-      { id: 11, slug: "corp", display_name: "Corp SSO", enabled: true },
-      { id: 12, slug: "contractors", display_name: "Contractors", enabled: true },
+      {
+        id: 1,
+        provider_id: 11,
+        provider_slug: "corp",
+        provider_display_name: "Corp SSO",
+        provider_icon: null,
+        claim: null,
+        claim_values: [],
+        enabled: true,
+        login_ready: true,
+      },
+      {
+        id: 2,
+        provider_id: 12,
+        provider_slug: "contractors",
+        provider_display_name: "Contractors",
+        provider_icon: null,
+        claim: null,
+        claim_values: [],
+        enabled: true,
+        login_ready: true,
+      },
     ],
     isLoading: false,
   }),
+  useConnectableProviders: () => ({ data: [], isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
-  useCreateGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
-  useUpdateGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
-  useTestGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
-  useDiscoverGuildAuthProvider: () => ({ mutate: vi.fn(), isPending: false }),
+  useConnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateProviderConnection: () => ({ mutate: vi.fn(), isPending: false }),
+  useDisconnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { SettingsGuildAuthPage } from "./SettingsGuildAuthPage";

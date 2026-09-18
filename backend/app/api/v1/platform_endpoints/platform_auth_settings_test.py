@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import UserRole
 from app.testing import (
+    create_guild_provider_connection,
     create_auth_provider,
     create_federated_identity,
     create_guild,
@@ -94,7 +95,8 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
     its own, so it is lifted first and the withdrawal then goes through."""
     _, headers = await _owner(session)
     guild = await create_guild(session)
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     policy = await create_guild_auth_policy(session, guild, provider)
 
     refused = await client.put(
@@ -124,7 +126,8 @@ async def test_a_guild_only_identity_is_counted_when_sso_is_withdrawn(
     provider is one the count has to report."""
     _, headers = await _owner(session)
     guild = await create_guild(session)
-    provider = await create_auth_provider(session, slug="guild", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="guild")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
@@ -171,7 +174,8 @@ async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
     """The guild-addressed listing and login go with it."""
     _, headers = await _owner(session)
     guild = await create_guild(session)
-    await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    theirs = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=theirs)
 
     listed = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
     assert any(p["slug"] == "corp" for p in listed.json()["providers"])
@@ -234,7 +238,8 @@ async def test_an_account_with_only_a_guild_provider_counts_as_signed_in(
     is not counted as stranded by withdrawing the password."""
     owner, headers = await _owner(session)
     guild = await create_guild(session, creator=owner)
-    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     before = await client.get(READ_URL, headers=headers)
     baseline = next(m for m in before.json()["methods"] if m["method"] == "password")[

@@ -1097,11 +1097,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identity providers",
-      "description": "The single sign-on providers this community's members sign in with. Configured by this community's admins and applying only here.",
-      "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
-    },
     "shareUrl": {
       "title": "Member sign-in link",
       "description": "Share this link with members — it offers this community's sign-in providers and brings them straight into the community.",
@@ -1143,6 +1138,40 @@
       "offHelp": "Members stay signed in for as long as the deployment allows.",
       "saved": "Session limit saved",
       "error": "Could not save the session limit"
+    },
+    "connections": {
+      "title": "Which sign-ins are yours",
+      "description": "People sign in to this deployment. Say which of its sign-in providers count as your community's, and who on them counts as yours.",
+      "connect": "Connect a provider",
+      "connected": "Provider connected",
+      "connectError": "Could not change that connection",
+      "disconnect": "Disconnect",
+      "disconnected": "Provider disconnected",
+      "disconnectTitle": "Disconnect {{name}}?",
+      "disconnectDescription": "It stops counting as yours: the button comes off your sign-in page and nobody new arrives through it. Nobody is signed out and no account changes. If you require a sign-in through it, lift that first.",
+      "empty": "No providers connected yet — your members sign in the usual way.",
+      "noneOffered": "Whoever runs this deployment has not offered any providers to connect to yet.",
+      "notReady": "Unavailable",
+      "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+      "anyoneItVouchesFor": "Anyone this provider vouches for",
+      "dialogTitle": "Connect a sign-in provider",
+      "dialogDescription": "Pick the provider your members use, then say which accounts on it are yours.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "claimLabel": "Whose accounts count as yours",
+      "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
+      "claimPlaceholder": "Leave blank for anyone it vouches for",
+      "claimValuesLabel": "Values that count",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Join them to this community",
+      "autoJoinHelp": "Anyone who counts as yours becomes a member the first time they sign in. Leave it off to invite people yourself.",
+      "joinsOnArrival": "New arrivals join automatically",
+      "claimOptions": {
+        "hd": "Google Workspace domain",
+        "tid": "Microsoft Entra tenant",
+        "groups": "Group membership",
+        "domain": "Domain"
+      }
     }
   },
   "authProviders": {
