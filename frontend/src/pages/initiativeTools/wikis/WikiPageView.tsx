@@ -8,8 +8,10 @@ import type { WikiPageLink } from "@/api/generated/initiativeAPI.schemas";
 import { Editor } from "@/components/documents/editor/editor";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useUpdateWikiPage, useWiki, useWikiPage, useWikiPageLinks } from "@/hooks/useWikis";
+import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { entityRefRoute, toolKebabSingular, wikiPageRoute } from "@/lib/tools";
 
@@ -42,6 +44,17 @@ export const WikiPageView = () => {
   const pageId = Number(pageIdParam);
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(pageId);
+
+  // Live co-editing, over the same room documents use — a page is just
+  // another body the server keeps a Yjs document for. The path names the page
+  // through its wiki, the way every other address for it does.
+  const collaboration = useCollaboration({
+    socketPath: validIds ? `wikis/${wikiId}/pages/${pageId}/collaborate` : null,
+    enabled: validIds,
+    onError: (error) => {
+      toast.error(t("error"), { description: error.message });
+    },
+  });
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pageQuery = useWikiPage(validIds ? wikiId : null, validIds ? pageId : null);
@@ -85,16 +98,26 @@ export const WikiPageView = () => {
     [canWrite]
   );
 
+  // While a room is live it owns the page's content column — it writes the
+  // JSON and the Yjs state from one snapshot, so the two always describe the
+  // same moment. This tab reports its rendering to the room and stops writing
+  // over REST; with no room, this is the only writer.
+  const isCollaborating = collaboration.isCollaborating;
+  const sendContent = collaboration.sendContent;
   useEffect(() => {
     if (bodyRevision === 0 || pendingBody.current === null) return;
     const timer = setTimeout(() => {
       const body = pendingBody.current;
       if (body === null) return;
       pendingBody.current = null;
+      if (isCollaborating) {
+        sendContent(body);
+        return;
+      }
       savePage({ content: body as unknown as Record<string, unknown> });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [bodyRevision, savePage]);
+  }, [bodyRevision, savePage, isCollaborating, sendContent]);
 
   const initialBody = useMemo(
     () => (pageQuery.data?.content ?? null) as SerializedEditorState | null,
@@ -161,6 +184,12 @@ export const WikiPageView = () => {
         editorSerializedState={initialBody ?? undefined}
         onSerializedChange={onBodyChange}
         readOnly={!canWrite}
+        collaborative={collaboration.isReady}
+        providerFactory={collaboration.providerFactory}
+        // Always on, so the body the room is handed stays current between
+        // sweeps for anyone reading it over REST.
+        trackChanges
+        isSynced={collaboration.isSynced}
         initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
         subject={`wiki_page:${pageId}`}
         supportsEntityMentions

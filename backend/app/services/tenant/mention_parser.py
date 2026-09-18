@@ -180,4 +180,6 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     guild_id = routed_guild_id(session)
     if guild_id is not None:
         for doc_id in affected_doc_ids:
-            await collaboration_manager.invalidate_room_if_empty(guild_id, doc_id)
+            await collaboration_manager.invalidate_room_if_empty(
+                guild_id, SearchEntityType.document.value, doc_id
+            )

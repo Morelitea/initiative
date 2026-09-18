@@ -1,12 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Plus } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { Button } from "@/components/ui/button";
 import { SidebarContent, SidebarGroup, SidebarHeader } from "@/components/ui/sidebar";
-import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
+import { useCreateWikiPage, useMoveWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
 import { wikiPageRoute } from "@/lib/tools";
 
@@ -44,6 +45,11 @@ export const WikiSidebarContent = ({
   const wikiQuery = useWiki(wikiId);
   const pagesQuery = useWikiPages(wikiId);
   const createPage = useCreateWikiPage(wikiId);
+  // The page a drag is moving. The mutation is per page, so the hook is built
+  // for whichever one the tree hands over — `0` while none is in flight, which
+  // the tree never triggers.
+  const [movingPageId, setMovingPageId] = useState(0);
+  const movePage = useMoveWikiPage(wikiId, movingPageId);
 
   const pages = pagesQuery.data?.items ?? [];
   // Writing is the wiki's own gate, so the add affordances appear exactly
@@ -60,6 +66,13 @@ export const WikiSidebarContent = ({
           void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, page.id)) }),
       }
     );
+
+  // A drop tells the server where the page landed; the tree is then redrawn
+  // from what comes back rather than from what the drag guessed.
+  const movePageTo = (page: WikiPageSummary, parentPageId: number | null, position: number) => {
+    setMovingPageId(page.id);
+    movePage.mutate({ parent_page_id: parentPageId, position });
+  };
 
   return (
     <>
@@ -101,6 +114,7 @@ export const WikiSidebarContent = ({
               homePageId={wikiQuery.data?.home_page_id}
               hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
               onAddChild={canWrite ? addPage : undefined}
+              onMove={canWrite ? movePageTo : undefined}
             />
           )}
         </SidebarGroup>

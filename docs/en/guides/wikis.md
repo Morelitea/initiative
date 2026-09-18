@@ -23,7 +23,9 @@ That is deliberate. A wiki is read by moving around it, so the shape of it stays
 
 Pages nest. Hover any page in the tree and a **+** appears to start one underneath it — so "Bar" can have "Float", "Stock" and "The till that hates everyone" filed under it. Nest as deep as makes sense, which is usually two levels and occasionally three.
 
-A page is written in the same editor as a document, with the same toolbar and the same shortcuts. If you've written a document here, you already know how.
+Drag a page onto another to file it underneath. Drag it to a row's top or bottom edge to put it beside instead. A page cannot be dropped inside itself, which is the one move the tree will not let you make.
+
+A page is written in the same editor as a document, with the same toolbar and the same shortcuts. If you've written a document here, you already know how — and like a document, several people can write on the same page at once, each with their own cursor.
 
 ## Linking, which is the actual point
 

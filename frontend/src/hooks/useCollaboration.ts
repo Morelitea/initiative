@@ -27,7 +27,17 @@ import { useGuilds } from "./useGuilds";
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export interface UseCollaborationOptions {
-  documentId: number;
+  /**
+   * The room, as the server addresses it: the collaboration path under
+   * `/g/{guildId}/collaboration/`. A document is
+   * `documents/{id}/collaborate`; a wiki page is
+   * `wikis/{wikiId}/pages/{pageId}/collaborate`.
+   *
+   * The path IS the identity — changing it is what tears the old socket down
+   * and opens the new one — so nothing else needs to say which body this is.
+   * `null` while the caller does not know yet, which keeps the hook idle.
+   */
+  socketPath: string | null;
   enabled?: boolean;
   onSynced?: () => void;
   onError?: (error: Error) => void;
@@ -69,7 +79,7 @@ export interface UseCollaborationResult {
 }
 
 export function useCollaboration({
-  documentId,
+  socketPath,
   enabled = true,
   onSynced,
   onError,
@@ -101,7 +111,7 @@ export function useCollaboration({
   }, [onSynced, onError]);
 
   // Check if we have all required values
-  const isReady = Boolean(enabled && user && activeGuildId && documentId);
+  const isReady = Boolean(enabled && user && activeGuildId && socketPath);
 
   // Build the WebSocket URL (memoized to detect changes). The token is sent
   // via MSG_AUTH message, not URL params; the guild is the /g/{guildId} path
@@ -110,8 +120,8 @@ export function useCollaboration({
     if (!isReady || !activeGuildId) {
       return null;
     }
-    return buildGuildWsUrl(activeGuildId, `collaboration/documents/${documentId}/collaborate`);
-  }, [isReady, activeGuildId, documentId]);
+    return buildGuildWsUrl(activeGuildId, `collaboration/${socketPath}`);
+  }, [isReady, activeGuildId, socketPath]);
 
   // Auth params to pass to the provider (sent via MSG_AUTH message)
   // token may be null for web cookie sessions; backend falls back to session cookie
@@ -120,12 +130,13 @@ export function useCollaboration({
     return { token: token ?? null };
   }, [token, activeGuildId]);
 
-  // Clean up provider when URL changes (token refresh, guild change, document change, etc.)
+  // Clean up provider when URL changes (token refresh, guild change, or a
+  // move to another body entirely).
   useEffect(() => {
     if (currentWsUrlRef.current && currentWsUrlRef.current !== wsUrl) {
       providerRef.current?.destroy();
       providerRef.current = null;
-      // Reset state when switching documents - critical for navigation
+      // Reset state when switching bodies - critical for navigation
       setConnectionStatus("disconnected");
       setIsSynced(false);
       setCollaborators([]);
@@ -289,7 +300,7 @@ export function useCollaboration({
     };
   }, [wsUrl, authParams]);
 
-  // Reset state when documentId changes or collaboration is disabled
+  // Reset state when the room changes or collaboration is disabled
   useEffect(() => {
     if (!isReady) {
       setConnectionStatus("disconnected");
