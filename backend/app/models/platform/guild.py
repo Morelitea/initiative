@@ -301,10 +301,11 @@ class GuildRole(str, Enum):
     # NOT a member of. Synthesized for the request only — never a persisted
     # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
     # admin/member, and the member-role endpoints reject assigning it). Unlike
-    # ``admin``, ``support`` is bound by its grant's read/write level: it can
-    # always reach the guild settings surface, with writes allowed only under a
-    # ``read_write`` grant (enforced at the Postgres role level — a read grant
-    # assumes ``guild_<id>_ro``). Break-glass grantees are ``admin``, not this.
+    # ``admin``, ``support`` is bound by its grant's read/write level, enforced
+    # at the Postgres role level — a read grant assumes ``guild_<id>_ro``. It
+    # is the content axis only: what of the community's configuration a
+    # grantee may work is a settings grant, held at its own rung beside this.
+    # Break-glass grantees are ``admin``, not this.
     support = "support"
 
 

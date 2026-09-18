@@ -823,12 +823,13 @@ async def _load_guild_context(
             auth_context.session_mfa(),
         )
         # Every grantee gets the ``support`` role — a first-class identity for
-        # PAM access rather than a ``member`` masquerade. ``support`` clears no
-        # admin guard (it is not ``admin``) but does open the guild settings
-        # surface, bound by the grant's read/write level at the Postgres role
-        # layer. The role is in-memory only; it never reaches
-        # ``set_rls_context`` (the ``is_pam`` branch passes ``guild_role=None``),
-        # so the ``guild_role`` GUC and DB enum stay admin/member.
+        # PAM access rather than a ``member`` masquerade. It is the content
+        # grant's identity and clears no guard of its own: what of the
+        # community's configuration this request may work is the settings grant
+        # beside it, read at its own rung (``settings_rung_reaches``). The role
+        # is in-memory only; it never reaches ``set_rls_context`` (the
+        # ``is_pam`` branch passes ``guild_role=None``), so the ``guild_role``
+        # GUC and DB enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,

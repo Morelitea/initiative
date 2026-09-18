@@ -363,7 +363,7 @@ class TestWhatAnAdminGoverns:
     async def test_an_admin_sees_who_authorized_the_app(
         self, client: AsyncClient, session: AsyncSession, acting_user
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         app = await _installed_for(session, a)
         await client.put(
@@ -392,7 +392,7 @@ class TestWhatAnAdminGoverns:
     async def test_an_admin_can_end_one_members_authorization(
         self, client: AsyncClient, session: AsyncSession, acting_user
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         app = await _installed_for(session, a)
         await client.put(
@@ -417,7 +417,7 @@ class TestWhatAnAdminGoverns:
     ):
         """For a suspected app compromise: reacting fast should not cost the
         guild its install."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         app = await _installed_for(session, a)
         for actor in (a, b):
@@ -482,7 +482,7 @@ class TestWhenTheRelationshipEnds:
     async def test_uninstalling_takes_every_authorization(
         self, client: AsyncClient, session: AsyncSession, acting_user
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _installed_for(session, a)
         await client.put(
             a.g(f"/apps/{app.id}/delegation"),
