@@ -8067,6 +8067,18 @@ export interface WikiPageCreate {
 }
 
 /**
+ * One heading written on a page.
+ *
+ * Carried with the page rather than read from an editor: the navigation draws
+ * the headings of every page in a wiki, and only one of them is ever open.
+ */
+export interface WikiPageHeading {
+  text: string;
+  level: number;
+  anchor: string;
+}
+
+/**
  * One end of a connection a page has.
  *
  * Deliberately not a page-shaped object: the other end of an edge is often
@@ -8121,6 +8133,7 @@ export interface WikiPageRead {
   created_by: number;
   created_at: string;
   updated_at: string;
+  headings: WikiPageHeading[];
   tags: TagSummary[];
   content: WikiPageReadContent;
   comment_count: number;
@@ -8144,6 +8157,7 @@ export interface WikiPageSummary {
   created_by: number;
   created_at: string;
   updated_at: string;
+  headings: WikiPageHeading[];
   tags: TagSummary[];
 }
 

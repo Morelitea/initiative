@@ -144,6 +144,23 @@ class WikiPageMove(SanitizedBaseModel):
     position: int = Field(default=0, ge=0)
 
 
+class WikiPageHeading(SanitizedBaseModel):
+    """One heading written on a page.
+
+    Carried with the page rather than read from an editor: the navigation draws
+    the headings of every page in a wiki, and only one of them is ever open.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    text: str
+    #: 1-6, from the heading tag.
+    level: int
+    #: What the rendered heading's ``id`` is, so a link from the navigation
+    #: lands on it.
+    anchor: str
+
+
 class WikiPageSummary(SanitizedBaseModel):
     """One page as the navigation draws it — no body.
 
@@ -166,6 +183,9 @@ class WikiPageSummary(SanitizedBaseModel):
     created_by: int
     created_at: datetime
     updated_at: datetime
+    #: What is written on the page, so the navigation can nest it without
+    #: opening it.
+    headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
 
 
@@ -269,6 +289,7 @@ def serialize_wiki(wiki: "Any", *, user_id: Optional[int] = None) -> WikiRead:
 
 def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
     from app.schemas.tenant.tag import annotated_tags
+    from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
         id=page.id,
@@ -281,6 +302,7 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
         created_by=page.created_by,
         created_at=page.created_at,
         updated_at=page.updated_at,
+        headings=[WikiPageHeading(**h) for h in page_headings(page.content)],
         tags=annotated_tags(page),
     )
 

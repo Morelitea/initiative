@@ -192,6 +192,64 @@ async def load_pages(
     )
 
 
+#: What an anchor keeps. Mirrors ``slugify`` in the frontend, which is what
+#: stamps the ``id`` on a rendered heading — the two have to agree or a link
+#: from the navigation lands nowhere.
+_ANCHOR_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_-")
+
+
+def anchor_slug(text: str) -> str:
+    """A heading's anchor, as the editor stamps it on the rendered element."""
+    kept = "".join(
+        ch if ch in _ANCHOR_CHARS else "-" if ch.isspace() else ""
+        for ch in text.strip().lower()
+    )
+    while "--" in kept:
+        kept = kept.replace("--", "-")
+    return kept.strip("-")
+
+
+def _node_text(node: Any) -> str:
+    """Every bit of text under a node, in order."""
+    if not isinstance(node, dict):
+        return ""
+    own = node.get("text")
+    parts = [own] if isinstance(own, str) else []
+    children = node.get("children")
+    if isinstance(children, list):
+        parts.extend(_node_text(child) for child in children)
+    return "".join(parts)
+
+
+def page_headings(content: Any) -> list[dict[str, Any]]:
+    """The headings written on a page, in the order they appear.
+
+    Read from the stored body rather than from an editor, because the
+    navigation draws the headings of every page in a wiki and only one of them
+    is ever open. Level comes from the tag, and the anchor is what the editor
+    stamps on the heading when it renders it.
+    """
+    found: list[dict[str, Any]] = []
+
+    def walk(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == "heading":
+            text = _node_text(node).strip()
+            tag = node.get("tag")
+            level = int(tag[1:]) if isinstance(tag, str) and tag[1:].isdigit() else 2
+            if text:
+                found.append(
+                    {"text": text, "level": level, "anchor": anchor_slug(text)}
+                )
+        for child in node.get("children") or []:
+            walk(child)
+
+    if isinstance(content, dict):
+        walk(content.get("root"))
+    return found
+
+
 async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> None:
     """Set ``page_count`` on each wiki from one grouped query.
 

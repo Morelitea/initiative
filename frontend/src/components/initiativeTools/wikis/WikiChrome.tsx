@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { WikiRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,8 @@ interface WikiChromeProps {
   wiki: WikiRead;
   /** The page being read. This bar names where you are, not where you are in general. */
   pageTitle: string;
+  /** Renames the page. Present only while it is open for editing. */
+  onRename?: (title: string) => void;
   /** When that page was last written to, shown when the wiki asks for it. */
   pageUpdatedAt?: string | null;
   /** Whether the reader may write, which is what makes editing offerable. */
@@ -41,6 +44,7 @@ interface WikiChromeProps {
 export const WikiChrome = ({
   wiki,
   pageTitle,
+  onRename,
   pageUpdatedAt,
   canWrite,
   editing,
@@ -67,7 +71,19 @@ export const WikiChrome = ({
       </span>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate font-semibold text-base leading-tight">{pageTitle}</h1>
+        {/* The page's name lives here and nowhere else. A wiki page is a page
+            on a site, and a site does not print its own address twice. */}
+        {onRename ? (
+          <Input
+            value={pageTitle}
+            onChange={(event) => onRename(event.target.value)}
+            aria-label={t("pages.titleLabel")}
+            placeholder={t("pages.titlePlaceholder")}
+            className="h-auto border-0 px-0 py-0 font-semibold text-base leading-tight shadow-none focus-visible:ring-0"
+          />
+        ) : (
+          <h1 className="truncate font-semibold text-base leading-tight">{pageTitle}</h1>
+        )}
         {/* A handbook people act on needs to say how old it is; the wiki
             decides whether that is true of it. */}
         {wiki.show_updated_at && pageUpdatedAt ? (
