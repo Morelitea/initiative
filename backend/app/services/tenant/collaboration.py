@@ -38,6 +38,40 @@ from app.services.tenant.collaborative_resources import (
 logger = logging.getLogger(__name__)
 
 
+def body_says_nothing(content: Any) -> bool:
+    """Whether a Lexical body carries no content at all.
+
+    True for a body with no root, no children, or children that are all empty
+    themselves — which is what an editor renders before it has taken up the
+    document it was handed.
+    """
+    if not isinstance(content, dict):
+        return True
+    root = content.get("root")
+    children = root.get("children") if isinstance(root, dict) else None
+    if not children:
+        return True
+    return all(_node_says_nothing(node) for node in children)
+
+
+def _node_says_nothing(node: Any) -> bool:
+    """Whether one node contributes nothing a reader would see.
+
+    Text is content; so is anything that is not text and not a container — an
+    image, a table, a horizontal rule — because those say something without
+    saying words.
+    """
+    if not isinstance(node, dict):
+        return True
+    if node.get("text"):
+        return False
+    children = node.get("children")
+    if children is None:
+        # A leaf that is not text: an image, a rule, an embed.
+        return node.get("type") in {None, "paragraph", "text"}
+    return all(_node_says_nothing(child) for child in children)
+
+
 class CollaborationRoom:
     """The live Yjs state of one body, and what it owes the database.
 
@@ -460,6 +494,29 @@ class CollaborationManager:
             return
 
         revision, state, content = room.snapshot()
+
+        # The second guard, and the one that does not rely on the room's own
+        # account of itself: a rendering with nothing in it never replaces a
+        # stored body that has something. An editor renders nothing while it is
+        # still taking up the document it was handed, and a room cannot tell
+        # that apart from somebody having cleared the page — but the row can,
+        # because it still holds what was there.
+        if content is not None and body_says_nothing(content):
+            stored = (
+                await session.exec(
+                    select(getattr(spec.model, spec.content_column)).where(
+                        spec.model.id == room.resource_id
+                    )
+                )
+            ).one_or_none()
+            if not body_says_nothing(stored):
+                logger.warning(
+                    f"{room.resource_type} {room.resource_id} in guild "
+                    f"{room.guild_id} rendered as empty over a body that is not; "
+                    f"leaving the stored body alone"
+                )
+                return
+
         values: Dict[str, Any] = {
             YJS_STATE_COLUMN: state,
             YJS_UPDATED_COLUMN: datetime.now(timezone.utc),

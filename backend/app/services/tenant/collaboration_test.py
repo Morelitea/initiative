@@ -15,11 +15,42 @@ from app.services.stream_authz import RoomMember
 from app.services.tenant import collaboration as collaboration_module
 from app.core.search import SearchEntityType
 from app.services.tenant.collaboration import (
+    body_says_nothing,
     CollaborationManager,
     CollaborationRoom,
     room_roster,
     user_has_connection,
 )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "body",
+    [
+        None,
+        {},
+        {"root": {}},
+        {"root": {"children": []}},
+        {"root": {"children": [{"type": "paragraph", "children": []}]}},
+        {"root": {"children": [{"type": "paragraph", "children": [{"text": ""}]}]}},
+    ],
+)
+def test_these_bodies_say_nothing(body) -> None:
+    assert body_says_nothing(body) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"root": {"children": [{"type": "paragraph", "children": [{"text": "a"}]}]}},
+        # Not words, but not nothing either.
+        {"root": {"children": [{"type": "image", "src": "x.png"}]}},
+        {"root": {"children": [{"type": "horizontalrule"}]}},
+    ],
+)
+def test_these_bodies_say_something(body) -> None:
+    assert body_says_nothing(body) is False
 
 
 def _an_update() -> bytes:
