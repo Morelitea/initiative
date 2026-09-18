@@ -9,6 +9,8 @@ import {
   type WikiRead,
   WikiReadingWidth,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Button } from "@/components/ui/button";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -32,17 +34,8 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
-/** The accents a wiki can wear. Enough to tell a handful apart, not a palette. */
-const ACCENTS = [
-  "#6366f1",
-  "#0ea5e9",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#ec4899",
-  "#8b5cf6",
-  "#64748b",
-] as const;
+/** What the picker opens on when the wiki has no accent of its own. */
+const DEFAULT_ACCENT = "#6366F1";
 
 /** How many heading levels the contents list may show. */
 const DEPTHS = [2, 3, 4] as const;
@@ -241,31 +234,22 @@ export const WikiSettingsSheet = ({ wiki, pages, open, onOpenChange }: WikiSetti
             hint={t("settings.accentHint")}
             className="items-center"
             control={
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => save({ accent_color: null })}
-                  aria-label={t("settings.accentNone")}
-                  aria-pressed={!wiki.accent_color}
-                  className={cn(
-                    "size-6 rounded-full border-2 bg-muted transition",
-                    wiki.accent_color ? "border-transparent" : "border-foreground"
-                  )}
+              <div className="flex items-center gap-2">
+                <ColorPickerPopover
+                  value={wiki.accent_color ?? DEFAULT_ACCENT}
+                  onChangeComplete={(colour) => save({ accent_color: colour })}
+                  triggerLabel={t("settings.accent")}
                 />
-                {ACCENTS.map((colour) => (
-                  <button
-                    key={colour}
-                    type="button"
-                    onClick={() => save({ accent_color: colour })}
-                    aria-label={colour}
-                    aria-pressed={wiki.accent_color === colour}
-                    style={{ backgroundColor: colour }}
-                    className={cn(
-                      "size-6 rounded-full border-2 transition",
-                      wiki.accent_color === colour ? "border-foreground" : "border-transparent"
-                    )}
-                  />
-                ))}
+                {wiki.accent_color ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => save({ accent_color: null })}
+                  >
+                    {t("settings.accentNone")}
+                  </Button>
+                ) : null}
               </div>
             }
           />

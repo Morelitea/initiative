@@ -9,20 +9,14 @@ import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
-import { WikiSettingsSheet } from "@/components/initiativeTools/wikis/WikiSettingsSheet";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import {
-  useCreateWikiPage,
-  useUpdateWikiPage,
-  useWiki,
-  useWikiPage,
-  useWikiPages,
-} from "@/hooks/useWikis";
+import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { wikiPageRoute } from "@/lib/tools";
@@ -139,16 +133,13 @@ export const WikiPageView = () => {
   const wiki = wikiQuery.data;
   const page = pageQuery.data;
 
-  // Both drawers. A wiki is browsed, so neither the conversation about it nor
-  // its configuration sits on the page pushing the words down.
+  // The conversation is a drawer: a wiki is browsed, and talking about a page
+  // is a different activity from reading it.
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // Whether the connections rail is showing. A per-visit choice: it is
   // reading furniture, not a setting.
   const [showConnections, setShowConnections] = useState(true);
 
-  const pagesQuery = useWikiPages(validIds ? wikiId : null);
-  const pages = pagesQuery.data?.items ?? [];
   const createPage = useCreateWikiPage(wikiId);
   const navigate = useNavigate();
 
@@ -176,7 +167,11 @@ export const WikiPageView = () => {
     );
   }
 
-  if (pageQuery.isLoading || !page || !wiki) {
+  // The wiki is what the chrome is made of, and it is cached across every page
+  // in it — so only the first arrival waits. After that the chrome stays put
+  // and the column beneath it is what changes, which is what stops a click on
+  // a page from blanking the screen and the sidebar with it.
+  if (!wiki) {
     return <p className="p-6 text-muted-foreground text-sm">{t("pages.loading")}</p>;
   }
 
@@ -187,63 +182,79 @@ export const WikiPageView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          canWrite={canWrite}
-          onAddPage={addPage}
           onOpenComments={() => setCommentsOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
           onToggleConnections={() => setShowConnections((shown) => !shown)}
           connectionsOpen={showConnections}
         />
 
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-y-auto">
+            {/* The measure. The surface is the window; the words are not, so
+                the column is centred in whatever space is left and capped at a
+                line length somebody can actually read. Capping it is also what
+                keeps the rail from moving the text: on a wide screen the rail
+                takes gutter, and the column does not shift at all. */}
             <div
               className={cn(
-                "px-6 py-6 lg:px-10",
-                isComfortable && "mx-auto w-full max-w-3xl lg:px-6"
+                "mx-auto w-full px-6 py-8 lg:px-10",
+                isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
-              <div className="flex items-start gap-2">
-                <Input
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  readOnly={!canWrite}
-                  aria-label={t("pages.titleLabel")}
-                  placeholder={t("pages.titlePlaceholder")}
-                  className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
-                />
-                <WikiPageActions
-                  wiki={wiki}
-                  page={page}
-                  canWrite={canWrite}
-                  initiativeId={initiativeId}
-                />
-              </div>
+              {page ? (
+                <>
+                  <div className="flex items-start gap-2">
+                    <Input
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      readOnly={!canWrite}
+                      aria-label={t("pages.titleLabel")}
+                      placeholder={t("pages.titlePlaceholder")}
+                      className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
+                    />
+                    <WikiPageActions
+                      wiki={wiki}
+                      page={page}
+                      canWrite={canWrite}
+                      initiativeId={initiativeId}
+                    />
+                  </div>
 
-              <Editor
-                key={pageId}
-                editorSerializedState={initialBody ?? undefined}
-                onSerializedChange={onBodyChange}
-                readOnly={!canWrite}
-                collaborative={collaboration.isReady}
-                providerFactory={collaboration.providerFactory}
-                // Always on, so the body the room is handed stays current
-                // between sweeps for anyone reading it over REST.
-                trackChanges
-                isSynced={collaboration.isSynced}
-                initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
-                subject={`wiki_page:${pageId}`}
-                supportsEntityMentions
-                compact
-              />
+                  <Editor
+                    key={pageId}
+                    editorSerializedState={initialBody ?? undefined}
+                    onSerializedChange={onBodyChange}
+                    readOnly={!canWrite}
+                    collaborative={collaboration.isReady}
+                    providerFactory={collaboration.providerFactory}
+                    // Always on, so the body the room is handed stays current
+                    // between sweeps for anyone reading it over REST.
+                    trackChanges
+                    isSynced={collaboration.isSynced}
+                    initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
+                    subject={`wiki_page:${pageId}`}
+                    supportsEntityMentions
+                    compact
+                  />
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-2/3" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-11/12" />
+                  <Skeleton className="h-4 w-4/5" />
+                </div>
+              )}
             </div>
           </div>
 
           {/* The rail: where this page leads. The contents of the page
               itself are in the sidebar, under the page — one outline, in the
-              column that already carries the navigation. */}
-          {showConnections && wiki.show_connections ? (
-            <div className="hidden w-72 shrink-0 flex-col overflow-y-auto py-4 pr-4 lg:flex">
+              column that already carries the navigation.
+
+              Only from `xl`, because below that there is no gutter to put it
+              in and it would be taking the words' room instead. */}
+          {showConnections && wiki.show_connections && page ? (
+            <div className="hidden w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6 xl:flex">
               <WikiPageConnections wikiId={wikiId} pageId={pageId} className="min-h-0" />
             </div>
           ) : null}
@@ -262,13 +273,6 @@ export const WikiPageView = () => {
           </div>
         </SheetContent>
       </Sheet>
-
-      <WikiSettingsSheet
-        wiki={wiki}
-        pages={pages}
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-      />
     </>
   );
 };

@@ -1,15 +1,23 @@
-import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, Plus } from "lucide-react";
-import { useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronLeft, FileText, Plus, Search, Settings } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { Button } from "@/components/ui/button";
-import { SidebarContent, SidebarGroup, SidebarHeader } from "@/components/ui/sidebar";
+import {
+  SidebarContent,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { useCreateWikiPage, useMoveWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { wikiPageRoute } from "@/lib/tools";
+import { toolSettingsRoute, wikiPageRoute } from "@/lib/tools";
 
 interface WikiSidebarContentProps {
   wikiId: number;
@@ -52,6 +60,16 @@ export const WikiSidebarContent = ({
   const movePage = useMoveWikiPage(wikiId, movingPageId);
 
   const pages = pagesQuery.data?.items ?? [];
+
+  // Searching a wiki is finding a page in it, so this filters the tree rather
+  // than opening the palette: the answer is a list of pages, and the list is
+  // already on screen.
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const matches = useMemo(
+    () => (needle ? pages.filter((page) => page.title.toLowerCase().includes(needle)) : []),
+    [pages, needle]
+  );
   // Writing is the wiki's own gate, so the add affordances appear exactly
   // where the server would accept one.
   const canWrite =
@@ -89,34 +107,82 @@ export const WikiSidebarContent = ({
             {wikiQuery.data?.name ?? t("title")}
           </h2>
           {canWrite ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0"
-              onClick={() => addPage()}
-              disabled={createPage.isPending}
-            >
-              <Plus className="size-4" aria-hidden />
-              <span className="sr-only">{t("pages.newPage")}</span>
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" asChild>
+              <Link to={gp(toolSettingsRoute(Tool.wiki, initiativeId, wikiId))}>
+                <Settings className="size-4" aria-hidden />
+                <span className="sr-only">{t("settings.title")}</span>
+              </Link>
             </Button>
           ) : null}
         </div>
       </SidebarHeader>
 
+      <div className="relative border-b">
+        <Search
+          className="pointer-events-none absolute top-2.5 left-4 size-4 text-muted-foreground"
+          aria-hidden
+        />
+        <SidebarInput
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("pages.searchPlaceholder")}
+          aria-label={t("pages.search")}
+          className="h-9 border-0 bg-transparent pl-9 shadow-none focus-visible:ring-0"
+        />
+      </div>
+
       <SidebarContent className="h-full overflow-y-auto overflow-x-hidden">
         <SidebarGroup>
           {pagesQuery.isLoading ? (
             <p className="px-2 py-1.5 text-muted-foreground text-sm">{t("pages.loading")}</p>
+          ) : needle ? (
+            matches.length === 0 ? (
+              <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                {t("pages.searchEmpty", { query: query.trim() })}
+              </p>
+            ) : (
+              <SidebarMenu>
+                {matches.map((page) => (
+                  <SidebarMenuItem key={page.id}>
+                    <SidebarMenuButton asChild size="sm" isActive={page.id === activePageId}>
+                      <Link to={gp(wikiPageRoute(initiativeId, wikiId, page.id))}>
+                        <FileText className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate">
+                          {page.title || t("pages.untitled")}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            )
           ) : (
-            <WikiPageTree
-              pages={pages}
-              activePageId={activePageId}
-              homePageId={wikiQuery.data?.home_page_id}
-              hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
-              onAddChild={canWrite ? addPage : undefined}
-              onMove={canWrite ? movePageTo : undefined}
-              showCounts={wikiQuery.data?.show_page_counts ?? false}
-            />
+            <>
+              <WikiPageTree
+                pages={pages}
+                activePageId={activePageId}
+                homePageId={wikiQuery.data?.home_page_id}
+                hrefOf={(page) => gp(wikiPageRoute(initiativeId, wikiId, page.id))}
+                onAddChild={canWrite ? addPage : undefined}
+                onMove={canWrite ? movePageTo : undefined}
+                showCounts={wikiQuery.data?.show_page_counts ?? false}
+                accentColor={wikiQuery.data?.accent_color}
+              />
+              {canWrite ? (
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      size="sm"
+                      onClick={() => addPage()}
+                      disabled={createPage.isPending}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>{t("pages.newPage")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              ) : null}
+            </>
           )}
         </SidebarGroup>
       </SidebarContent>

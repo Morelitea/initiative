@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useLocation,
+  useMatches,
+} from "@tanstack/react-router";
 import { Loader2, LogOut, Plus, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -46,6 +53,7 @@ import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
+import { cn } from "@/lib/utils";
 
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
@@ -83,6 +91,12 @@ function AppLayout() {
   const { user, loading, logout } = useAuth();
   const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
   const location = useLocation();
+  // Whether the route on screen lays itself out against the window. Read off
+  // the matched routes rather than the path, so a route says it once where it
+  // is declared.
+  const fullBleed = useMatches({
+    select: (matches) => matches.some((match) => match.staticData?.fullBleed === true),
+  });
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
@@ -365,7 +379,19 @@ function AppLayout() {
                       centred. Flooring the track at 0 hands the item the
                       container's width and lets what is inside scroll or
                       truncate on its own terms. */}
-                    <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
+                    {/* A full-bleed route takes the scrollport itself: no
+                      measure, no padding, and a definite height, so a surface
+                      that pins its own header and scrolls its own middle has
+                      an area to do it in. `pb-16` on small screens keeps the
+                      bottom bar off the end of it. */}
+                    <div
+                      className={cn(
+                        "grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr]",
+                        fullBleed
+                          ? "h-full pb-16 md:pb-0"
+                          : "container mx-auto p-4 pb-24 md:p-8 md:pb-24"
+                      )}
+                    >
                       <Suspense fallback={<PageLoader />}>
                         <Outlet />
                       </Suspense>

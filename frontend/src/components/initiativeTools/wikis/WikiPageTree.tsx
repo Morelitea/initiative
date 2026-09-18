@@ -13,8 +13,8 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, FileText, Home, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CircleChevronRight, FileText, GripVertical, Home, Plus } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -24,7 +24,8 @@ import {
   useOutlineNodes,
 } from "@/components/documents/DocumentOutline";
 import { Button } from "@/components/ui/button";
-import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 /** A page plus the pages filed under it. Built once from the flat list. */
@@ -69,10 +70,57 @@ interface Landing {
 }
 
 /**
- * One heading of the open page, in the page tree.
+ * One step of indent. Depth is drawn with this and nothing else — the row at
+ * depth three is three steps in, whether it is a page or a heading — so there
+ * is one ruler down the tree instead of one per kind of row.
+ */
+const STEP = 12;
+
+/** A row of the flattened list: what to draw, and how far in. */
+interface Row {
+  kind: "page" | "heading";
+  key: string;
+  depth: number;
+  page?: WikiTreeNode;
+  heading?: OutlineNode;
+}
+
+/** Every heading of the open page, flattened to rows at increasing depth. */
+const headingRows = (nodes: OutlineNode[], depth: number): Row[] =>
+  nodes.flatMap((node) => [
+    { kind: "heading" as const, key: `h-${node.key}`, depth, heading: node },
+    ...headingRows(node.children, depth + 1),
+  ]);
+
+/**
+ * Everything under a top-level page, in reading order.
+ *
+ * A sub-page is not its own nest surface: only the top-level page collapses,
+ * and everything inside it is one list that indents. Two collapsing levels was
+ * the thing that made this unreadable — a branch inside a branch, each with its
+ * own line, and no way to tell at a glance how deep anything was.
+ *
+ * The open page's own headings sit immediately under it, one step further in,
+ * because they are what is *on* that page.
+ */
+const descendantRows = (
+  nodes: WikiTreeNode[],
+  depth: number,
+  activePageId: number | null | undefined,
+  headings: OutlineNode[]
+): Row[] =>
+  nodes.flatMap((node) => [
+    { kind: "page" as const, key: `p-${node.page.id}`, depth, page: node },
+    ...(node.page.id === activePageId ? headingRows(headings, depth + 1) : []),
+    ...descendantRows(node.children, depth + 1, activePageId, headings),
+  ]);
+
+/**
+ * One heading of the open page.
  *
  * A button rather than a link: a heading has no address of its own, and this
- * scrolls the page already on screen to it.
+ * scrolls the page already on screen to it. Drawn muted and iconless so a
+ * glance separates what is on this page from the pages under it.
  */
 const WikiHeadingRow = ({
   node,
@@ -83,32 +131,28 @@ const WikiHeadingRow = ({
   depth: number;
   onSelect: (key: string) => void;
 }) => (
-  <li>
-    <button
-      type="button"
+  <SidebarMenuItem style={{ paddingLeft: depth * STEP }}>
+    <SidebarMenuButton
+      size="sm"
+      className="min-w-0 text-muted-foreground hover:text-foreground"
       onClick={() => onSelect(node.key)}
-      className="flex w-full min-w-0 items-center gap-2 rounded-md py-1 text-left text-muted-foreground text-xs hover:bg-accent/50 hover:text-foreground"
-      style={{ paddingLeft: `${depth * 10 + 8}px` }}
     >
-      <span className="truncate">{node.text}</span>
-    </button>
-    {node.children.length > 0 ? (
-      <ul>
-        {node.children.map((child) => (
-          <WikiHeadingRow key={child.key} node={child} depth={depth + 1} onSelect={onSelect} />
-        ))}
-      </ul>
-    ) : null}
-  </li>
+      <span className="min-w-0 flex-1 truncate text-left">{node.text}</span>
+    </SidebarMenuButton>
+  </SidebarMenuItem>
 );
 
 /**
- * One row, and the rows filed under it.
+ * One page, as a row.
  *
- * Declared here rather than inside {@link WikiPageTree}: a component defined
- * during a render is a new type on every render, so React would remount the
- * whole tree each time — and a drag in progress would lose the very nodes it
- * is tracking.
+ * The same parts an initiative's rows are made of. Whether it collapses is not
+ * its own business: a top-level page is handed the disclosure, and a page
+ * inside one is handed an indent.
+ *
+ * Declared at module scope rather than inside {@link WikiPageTree}: a component
+ * defined during a render is a new type on every render, so React would remount
+ * the whole tree each time, and a drag in progress would lose the nodes it is
+ * tracking.
  */
 const WikiPageRow = ({
   node,
@@ -120,10 +164,7 @@ const WikiPageRow = ({
   draggableRows,
   showCounts,
   landing,
-  isOpen,
-  onToggle,
-  headings,
-  onSelectHeading,
+  disclosure,
 }: {
   node: WikiTreeNode;
   depth: number;
@@ -134,16 +175,11 @@ const WikiPageRow = ({
   draggableRows: boolean;
   showCounts: boolean;
   landing: Landing | null;
-  isOpen: (id: number) => boolean;
-  onToggle: (id: number) => void;
-  /** The open page's own headings. Empty for every other row. */
-  headings: OutlineNode[];
-  onSelectHeading: (key: string) => void;
+  /** The chevron, for the one level that has one. A spacer keeps the rest aligned. */
+  disclosure?: ReactNode;
 }) => {
   const { t } = useTranslation("wikis");
   const { page, children } = node;
-  const hasChildren = children.length > 0;
-  const open = isOpen(page.id);
   const active = page.id === activePageId;
   const showing = landing?.id === page.id ? landing.intent : null;
 
@@ -151,111 +187,182 @@ const WikiPageRow = ({
   const droppable = useDroppable({ id: page.id, disabled: !draggableRows });
 
   return (
-    <li>
-      <div
-        ref={droppable.setNodeRef}
-        className={cn(
-          "group/page flex min-w-0 items-center gap-1 rounded-md pr-1",
-          active && "bg-accent text-accent-foreground",
-          draggable.isDragging && "opacity-40",
-          // Filing it under this page rings the row; placing it beside draws
-          // the line it would land on.
-          showing === "into" && "ring-1 ring-primary ring-inset",
-          showing === "before" && "border-primary border-t-2",
-          showing === "after" && "border-primary border-b-2"
-        )}
-        style={{ paddingLeft: `${depth * 12}px` }}
-      >
-        {/* The same disclosure an initiative row uses, so a page opens the way
-            everything else in this column does. The open page gets one even
-            with no sub-pages, because its headings hang off it. */}
-        {hasChildren || (active && headings.length > 0) ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            onClick={() => onToggle(page.id)}
-            aria-expanded={open}
-            aria-label={open ? t("pages.collapse") : t("pages.expand")}
-          >
-            <CircleChevronRight
-              className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
-            />
-          </Button>
-        ) : (
-          <span className="h-7 w-7 shrink-0" />
-        )}
+    <div
+      ref={droppable.setNodeRef}
+      className={cn(
+        "group/page flex min-w-0 items-center gap-1 rounded-md",
+        draggable.isDragging && "opacity-40",
+        // Filing it under this page rings the row; placing it beside draws the
+        // line it would land on.
+        showing === "into" && "ring-1 ring-primary ring-inset",
+        showing === "before" && "border-primary border-t-2",
+        showing === "after" && "border-primary border-b-2"
+      )}
+      style={{ marginLeft: depth * STEP }}
+    >
+      <div className="flex min-w-0 flex-1 items-center">
+        {disclosure ?? <span className="h-7 w-7 shrink-0" />}
 
-        <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-          <Link
-            ref={draggable.setNodeRef}
-            to={hrefOf(page)}
-            className="flex min-w-0 items-center gap-2"
-            title={page.title}
-            {...draggable.listeners}
-            {...draggable.attributes}
-          >
+        <SidebarMenuButton asChild size="sm" isActive={active} className="min-w-0 flex-1">
+          <Link to={hrefOf(page)} className="flex min-w-0 items-center gap-2" title={page.title}>
             {page.id === homePageId ? (
               <Home className="h-4 w-4 shrink-0" aria-label={t("pages.isHome")} />
             ) : (
               <FileText className="h-4 w-4 shrink-0" aria-hidden />
             )}
             <span className="min-w-0 flex-1 truncate">{page.title || t("pages.untitled")}</span>
-            {showCounts && hasChildren ? (
+            {showCounts && children.length > 0 ? (
               <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
                 {children.length}
               </span>
             ) : null}
           </Link>
         </SidebarMenuButton>
-
-        {onAddChild ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
-            onClick={() => onAddChild(page)}
-            aria-label={t("pages.newSubPage")}
-          >
-            <Plus className="size-3.5" aria-hidden />
-          </Button>
-        ) : null}
       </div>
 
-      {/* What is ON the page somebody is reading. Only the open page has
-          headings to show, and getting to one is navigation of the same kind
-          as getting to a page — so it lives in the same column. */}
-      {active && open && headings.length > 0 ? (
-        <ul style={{ paddingLeft: `${depth * 12 + 28}px` }}>
-          {headings.map((heading) => (
-            <WikiHeadingRow key={heading.key} node={heading} depth={0} onSelect={onSelectHeading} />
-          ))}
-        </ul>
+      {/* Dragging has its own grip. The row is a link, and a link that is also
+          the drag handle cannot be clicked without starting a gesture first.
+          Revealed on hover, the way the initiative row reveals its settings. */}
+      {draggableRows ? (
+        <Button
+          ref={draggable.setNodeRef}
+          variant="ghost"
+          size="icon"
+          className="hidden h-6 w-0 shrink-0 cursor-grab overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
+          aria-label={t("pages.reorder")}
+          {...draggable.listeners}
+          {...draggable.attributes}
+        >
+          <GripVertical className="size-3.5" aria-hidden />
+        </Button>
       ) : null}
 
-      {hasChildren && open ? (
-        <ul className="space-y-px">
-          {children.map((child) => (
-            <WikiPageRow
-              key={child.page.id}
-              node={child}
-              depth={depth + 1}
-              activePageId={activePageId}
-              homePageId={homePageId}
-              hrefOf={hrefOf}
-              onAddChild={onAddChild}
-              draggableRows={draggableRows}
-              showCounts={showCounts}
-              landing={landing}
-              isOpen={isOpen}
-              onToggle={onToggle}
-              headings={headings}
-              onSelectHeading={onSelectHeading}
-            />
-          ))}
-        </ul>
+      {onAddChild ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
+          onClick={() => onAddChild(page)}
+          aria-label={t("pages.newSubPage")}
+        >
+          <Plus className="size-3.5" aria-hidden />
+        </Button>
       ) : null}
-    </li>
+    </div>
+  );
+};
+
+/**
+ * A top-level page and everything filed under it.
+ *
+ * This is the only thing in the tree that opens and shuts, and the only place
+ * a guide line is drawn. Inside it is one flat list in reading order: each
+ * sub-page one step further in, and the open page's headings under it.
+ */
+const WikiSection = ({
+  node,
+  open,
+  onToggle,
+  activePageId,
+  homePageId,
+  hrefOf,
+  onAddChild,
+  draggableRows,
+  showCounts,
+  landing,
+  headings,
+  onSelectHeading,
+  accentColor,
+}: {
+  node: WikiTreeNode;
+  open: boolean;
+  onToggle: () => void;
+  activePageId?: number | null;
+  homePageId?: number | null;
+  hrefOf: (page: WikiPageSummary) => string;
+  onAddChild?: (parent: WikiPageSummary) => void;
+  draggableRows: boolean;
+  showCounts: boolean;
+  landing: Landing | null;
+  headings: OutlineNode[];
+  onSelectHeading: (key: string) => void;
+  /** The wiki's own colour, worn by the disclosure and the guide line. */
+  accentColor?: string | null;
+}) => {
+  const { t } = useTranslation("wikis");
+  const active = node.page.id === activePageId;
+  const rows = [
+    ...(active ? headingRows(headings, 0) : []),
+    ...descendantRows(node.children, 0, activePageId, headings),
+  ];
+
+  return (
+    <SidebarMenuItem>
+      <Collapsible open={open} onOpenChange={onToggle}>
+        <WikiPageRow
+          node={node}
+          depth={0}
+          activePageId={activePageId}
+          homePageId={homePageId}
+          hrefOf={hrefOf}
+          onAddChild={onAddChild}
+          draggableRows={draggableRows}
+          showCounts={showCounts}
+          landing={landing}
+          disclosure={
+            rows.length > 0 ? (
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  aria-label={open ? t("pages.collapse") : t("pages.expand")}
+                >
+                  <CircleChevronRight
+                    className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
+                    style={{ color: accentColor || undefined }}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            ) : undefined
+          }
+        />
+
+        {rows.length > 0 ? (
+          <CollapsibleContent
+            className="ml-3 space-y-0.5 border-l"
+            style={{ borderColor: accentColor || undefined }}
+          >
+            <SidebarMenu>
+              {rows.map((row) =>
+                row.kind === "heading" && row.heading ? (
+                  <WikiHeadingRow
+                    key={row.key}
+                    node={row.heading}
+                    depth={row.depth}
+                    onSelect={onSelectHeading}
+                  />
+                ) : row.page ? (
+                  <SidebarMenuItem key={row.key}>
+                    <WikiPageRow
+                      node={row.page}
+                      depth={row.depth}
+                      activePageId={activePageId}
+                      homePageId={homePageId}
+                      hrefOf={hrefOf}
+                      onAddChild={onAddChild}
+                      draggableRows={draggableRows}
+                      showCounts={showCounts}
+                      landing={landing}
+                    />
+                  </SidebarMenuItem>
+                ) : null
+              )}
+            </SidebarMenu>
+          </CollapsibleContent>
+        ) : null}
+      </Collapsible>
+    </SidebarMenuItem>
   );
 };
 
@@ -267,6 +374,8 @@ interface WikiPageTreeProps {
   homePageId?: number | null;
   /** Whether a row says how many pages sit under it — the wiki's own choice. */
   showCounts?: boolean;
+  /** The wiki's accent, so its branches read as its own the way an initiative's do. */
+  accentColor?: string | null;
   /** Builds the link for a page. The tree does not know the route shape. */
   hrefOf: (page: WikiPageSummary) => string;
   /** Offered per row when the reader may write. Omitted otherwise. */
@@ -282,16 +391,18 @@ interface WikiPageTreeProps {
 /**
  * A wiki's pages, as the tree they sit in.
  *
- * Rows are links rather than buttons — a page is an address, and opening one
- * in a new tab is something people do with a handbook — and the disclosure
- * triangle is a separate control so that following a link and expanding its
- * children are never the same click.
+ * Built out of the same parts an initiative's section is, so moving around a
+ * wiki feels like moving around anything else in this column: a disclosure
+ * that turns the branch, a link that opens the page, and children inset behind
+ * a guide line.
  *
- * Dragging goes through dnd-kit, the same library every other draggable list
- * here uses, so a page moves under a pointer, a finger or the keyboard alike.
- * A tree is not a sortable list though: dropping ON a row files the page under
- * it and dropping at a row's edge places it beside, so rows are plain
- * draggable/droppable pairs rather than a `SortableContext`.
+ * Rows are links rather than buttons — a page is an address, and opening one
+ * in a new tab is something people do with a handbook. Dragging is a separate
+ * grip for the same reason: the row's job is to be clicked.
+ *
+ * A tree is not a sortable list, so rows are plain draggable/droppable pairs
+ * rather than a `SortableContext`: dropping ON a row files the page under it
+ * and dropping at a row's edge places it beside.
  */
 export const WikiPageTree = ({
   pages,
@@ -301,6 +412,7 @@ export const WikiPageTree = ({
   onAddChild,
   onMove,
   showCounts = false,
+  accentColor,
   className,
 }: WikiPageTreeProps) => {
   const { t } = useTranslation("wikis");
@@ -310,24 +422,22 @@ export const WikiPageTree = ({
   const headings = useOutlineNodes();
   const goToHeading = useOutlineNavigate();
 
-  // The ancestors of the open page. A branch somebody collapsed is forced back
-  // open when the page they navigate to lives inside it — otherwise following a
-  // link from the body would appear to do nothing.
-  const ancestors = useMemo(() => {
+  // The section the open page lives in. One somebody collapsed is forced back
+  // open when they navigate into it — otherwise following a link from the body
+  // would appear to do nothing.
+  const openSection = useMemo(() => {
     const byId = new Map(pages.map((page) => [page.id, page]));
-    const chain = new Set<number>();
     let current = activePageId == null ? undefined : byId.get(activePageId);
     while (current?.parent_page_id != null) {
-      chain.add(current.parent_page_id);
       current = byId.get(current.parent_page_id);
     }
-    return chain;
+    return current?.id ?? null;
   }, [pages, activePageId]);
 
   // Expanded is the default — a wiki is a thing you skim — so this records the
   // branches somebody has deliberately folded away.
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set());
-  const isOpen = (id: number) => !collapsed.has(id) || ancestors.has(id);
+  const isOpen = (id: number) => !collapsed.has(id) || id === openSection;
 
   const toggle = (id: number) =>
     setCollapsed((previous) => {
@@ -452,12 +562,13 @@ export const WikiPageTree = ({
         onDragEnd={onDragEnd}
         onDragCancel={clearDrag}
       >
-        <ul className="space-y-px">
+        <SidebarMenu>
           {tree.map((node) => (
-            <WikiPageRow
+            <WikiSection
               key={node.page.id}
               node={node}
-              depth={0}
+              open={isOpen(node.page.id)}
+              onToggle={() => toggle(node.page.id)}
               activePageId={activePageId}
               homePageId={homePageId}
               hrefOf={hrefOf}
@@ -465,13 +576,12 @@ export const WikiPageTree = ({
               draggableRows={Boolean(onMove)}
               showCounts={showCounts}
               landing={landing}
-              isOpen={isOpen}
-              onToggle={toggle}
               headings={headings}
               onSelectHeading={goToHeading}
+              accentColor={accentColor}
             />
           ))}
-        </ul>
+        </SidebarMenu>
       </DndContext>
     </nav>
   );
