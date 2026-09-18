@@ -1171,7 +1171,9 @@
         "tid": "Microsoft Entra tenant",
         "groups": "Group membership",
         "domain": "Domain"
-      }
+      },
+      "inherited": "From the deployment",
+      "makeItOurs": "Make it ours"
     },
     "rules": {
       "title": "Where your people land",
@@ -1511,5 +1513,23 @@
     "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
     "copyUnavailable": "Couldn't copy — write the codes down instead.",
     "notOffered": "This deployment does not offer the authenticator app."
+  },
+  "providerDefaults": {
+    "title": "What a community inherits",
+    "description": "Answer once for a provider and every community inherits that answer until it gives its own. Useful where this deployment is one organisation: one provider, one tenant, communities that are its teams.",
+    "noAnswer": "No answer — each community says for itself",
+    "noProviders": "Add a sign-in provider first, then say what communities inherit from it.",
+    "answer": "Answer for it",
+    "change": "Change",
+    "withdraw": "Withdraw",
+    "withdrawn": "Answer withdrawn",
+    "save": "Save",
+    "saved": "Answer saved",
+    "saveError": "Could not save that answer",
+    "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+    "anyoneItVouchesFor": "Anyone this provider vouches for",
+    "claimLabel": "Which claim decides",
+    "valuesLabel": "Values that count",
+    "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
   }
 }

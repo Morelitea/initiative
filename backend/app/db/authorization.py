@@ -61,11 +61,28 @@ CREATE OR REPLACE FUNCTION public.guild_connection_admits(p_guild_id integer, p_
  LANGUAGE sql
  STABLE
 AS $function$
-    SELECT EXISTS (
-        SELECT 1
+    WITH effective AS (
+        -- What this community said, and the deployment's own answer for a
+        -- provider it has said nothing about. One row shadows one row: a
+        -- community's own connection replaces the default outright, including
+        -- one it wrote with `enabled` off to decline it.
+        SELECT c.provider_id, c.enabled, c.claim, c.claim_values
         FROM public.guild_provider_connections c
         WHERE c.guild_id = p_guild_id
-          AND c.enabled
+        UNION ALL
+        SELECT d.provider_id, d.enabled, d.claim, d.claim_values
+        FROM public.platform_provider_defaults d
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM public.guild_provider_connections own
+            WHERE own.guild_id = p_guild_id
+              AND own.provider_id = d.provider_id
+        )
+    )
+    SELECT EXISTS (
+        SELECT 1
+        FROM effective c
+        WHERE c.enabled
           AND (p_provider_id IS NULL OR c.provider_id = p_provider_id)
           AND c.provider_id = ANY(COALESCE(p_providers, ARRAY[]::integer[]))
           -- A connection naming no claim counts everybody the provider does.

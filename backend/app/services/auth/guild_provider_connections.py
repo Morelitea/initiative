@@ -32,6 +32,7 @@ from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_provider_connection import GuildProviderConnection
+from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
     GuildProviderConnectionCreate,
@@ -59,6 +60,27 @@ def connection_read(
     )
 
 
+def default_read(
+    default: PlatformProviderDefault, provider: AuthProvider
+) -> GuildProviderConnectionRead:
+    """The deployment's answer for a provider, in the shape a community's own
+    connection has — so one surface renders both."""
+    return GuildProviderConnectionRead(
+        id=None,
+        inherited=True,
+        provider_id=default.provider_id,
+        provider_slug=provider.slug,
+        provider_display_name=provider.display_name,
+        provider_icon=provider.icon,
+        claim=default.claim,
+        claim_values=list(default.claim_values or []),
+        enabled=default.enabled,
+        # Never inherited: joining a community is the community's own say.
+        auto_join=False,
+        login_ready=is_login_ready_provider(provider),
+    )
+
+
 def is_login_ready_provider(provider: AuthProvider) -> bool:
     """Whether the provider behind a connection could serve a sign-in.
 
@@ -74,6 +96,13 @@ def is_login_ready_provider(provider: AuthProvider) -> bool:
 async def list_connections(
     session: AsyncSession, *, guild_id: int
 ) -> list[GuildProviderConnectionRead]:
+    """What this community signs in through — what it said, and what the
+    deployment answered for it where it has said nothing.
+
+    Both are shown, because a community cannot override an arrangement it
+    cannot see. An inherited row carries no id: connecting to that provider is
+    what turns it into one of this community's own.
+    """
     rows = (
         await session.exec(
             select(GuildProviderConnection, AuthProvider)
@@ -82,7 +111,26 @@ async def list_connections(
             .order_by(AuthProvider.display_name)
         )
     ).all()
-    return [connection_read(connection, provider) for connection, provider in rows]
+    entries = [connection_read(connection, provider) for connection, provider in rows]
+    spoken_for = {connection.provider_id for connection, _ in rows}
+
+    inherited = (
+        await session.exec(
+            select(PlatformProviderDefault, AuthProvider)
+            .join(
+                AuthProvider,
+                AuthProvider.id == PlatformProviderDefault.provider_id,
+            )
+            .order_by(AuthProvider.display_name)
+        )
+    ).all()
+    entries.extend(
+        default_read(default, provider)
+        for default, provider in inherited
+        if default.provider_id not in spoken_for
+    )
+    entries.sort(key=lambda entry: entry.provider_display_name)
+    return entries
 
 
 async def list_connectable(
@@ -189,10 +237,13 @@ async def _connectable_provider(
     return row
 
 
-def _clean_claim(
+def clean_claim(
     claim: str | None, claim_values: list[str] | None
 ) -> tuple[str | None, list[str] | None]:
     """A narrowing is both halves or neither.
+
+    Shared with the deployment-level defaults, so an operator answering for a
+    community and a community answering for itself are held to one rule.
 
     A claim says which value to read and the values say which ones count, so
     one without the other is a half-written rule. Either alone is cleared.
@@ -218,7 +269,7 @@ async def create_connection(
     provider = await _connectable_provider(
         session, payload.provider_id, guild_id=guild_id
     )
-    claim, claim_values = _clean_claim(payload.claim, payload.claim_values)
+    claim, claim_values = clean_claim(payload.claim, payload.claim_values)
     row = GuildProviderConnection(
         guild_id=guild_id,
         provider_id=provider.id,
@@ -262,7 +313,7 @@ async def update_connection(
     # The provider a connection is to is what it is; pointing an existing one
     # somewhere else would silently change who gets in. Disconnect and connect.
     if "claim" in data or "claim_values" in data:
-        row.claim, row.claim_values = _clean_claim(
+        row.claim, row.claim_values = clean_claim(
             data.get("claim", row.claim), data.get("claim_values", row.claim_values)
         )
     if "enabled" in data and data["enabled"] is not None:
@@ -302,21 +353,37 @@ async def connected_providers(
     community because the community connects to it, not because it belongs to
     one.
     """
-    rows = (
+    own = (
         await session.exec(
-            select(AuthProvider)
+            select(AuthProvider, GuildProviderConnection.enabled)
             .join(
                 GuildProviderConnection,
                 GuildProviderConnection.provider_id == AuthProvider.id,
             )
-            .where(
-                GuildProviderConnection.guild_id == guild_id,
-                GuildProviderConnection.enabled.is_(True),
-            )
-            .order_by(AuthProvider.display_name)
+            .where(GuildProviderConnection.guild_id == guild_id)
         )
     ).all()
-    return list(rows)
+    spoken_for = {provider.id for provider, _ in own}
+    offered = {provider.id: provider for provider, enabled in own if enabled}
+
+    # And the deployment's own answer, for a provider this community has said
+    # nothing about. A community that connected to it — even with the button
+    # off — has spoken, and what it said stands instead.
+    inherited = (
+        await session.exec(
+            select(AuthProvider)
+            .join(
+                PlatformProviderDefault,
+                PlatformProviderDefault.provider_id == AuthProvider.id,
+            )
+            .where(PlatformProviderDefault.enabled.is_(True))
+        )
+    ).all()
+    for provider in inherited:
+        if provider.id not in spoken_for:
+            offered[provider.id] = provider
+
+    return sorted(offered.values(), key=lambda row: row.display_name)
 
 
 async def connection_for(

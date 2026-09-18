@@ -1,11 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete,
   createAuthProviderApiV1SettingsAuthProvidersPost,
   deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete,
   discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost,
+  getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey,
   getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey,
+  getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet,
   listAuthProvidersApiV1SettingsAuthProvidersGet,
+  setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut,
   testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost,
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
@@ -33,6 +37,8 @@ import type {
   PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  PlatformProviderDefaultRead,
+  PlatformProviderDefaultUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
@@ -452,3 +458,48 @@ export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
     },
     options
   );
+
+/** The deployment's own answer for one provider, for communities that have
+ *  not made their own arrangement. Null where it has made none. */
+export const useProviderDefault = (
+  providerId: number | null,
+  options?: QueryOpts<PlatformProviderDefaultRead | null>
+) => {
+  return useQuery<PlatformProviderDefaultRead | null>({
+    queryKey: getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(
+      providerId as number
+    ),
+    queryFn: () =>
+      getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet(providerId as number),
+    enabled: providerId !== null,
+    ...options,
+  });
+};
+
+const useInvalidateProviderDefault = (providerId: number) => {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({
+      queryKey:
+        getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(providerId),
+    });
+  };
+};
+
+export const useSetProviderDefault = (providerId: number) => {
+  const invalidate = useInvalidateProviderDefault(providerId);
+  return useMutation({
+    mutationFn: (data: PlatformProviderDefaultUpdate) =>
+      setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut(providerId, data),
+    onSuccess: invalidate,
+  });
+};
+
+export const useClearProviderDefault = (providerId: number) => {
+  const invalidate = useInvalidateProviderDefault(providerId);
+  return useMutation({
+    mutationFn: () =>
+      clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete(providerId),
+    onSuccess: invalidate,
+  });
+};

@@ -174,11 +174,20 @@ MAX_CLAIM_VALUES = 64
 
 
 class GuildProviderConnectionRead(SanitizedBaseModel):
-    """One community signing its members in through one provider."""
+    """One community signing its members in through one provider.
+
+    Also how an arrangement the community has not made itself is shown: the
+    deployment's default for that provider, marked ``inherited``, which the
+    community replaces by connecting to the provider itself.
+    """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    id: int
+    #: Null on an inherited arrangement — there is no row of this community's
+    #: to edit until it makes one.
+    id: Optional[int] = None
+    #: Whether this is the deployment's answer rather than the community's.
+    inherited: bool = False
     provider_id: int
     provider_slug: str
     provider_display_name: str
@@ -219,6 +228,32 @@ class GuildProviderConnectionUpdate(SanitizedBaseModel):
     )
     enabled: Optional[bool] = None
     auto_join: Optional[bool] = None
+
+
+class PlatformProviderDefaultRead(SanitizedBaseModel):
+    """How one provider is arranged for a community that has not said."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    provider_id: int
+    claim: Optional[str] = None
+    claim_values: List[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class PlatformProviderDefaultUpdate(SanitizedBaseModel):
+    """Answer for a provider on behalf of the communities that have not.
+
+    Carries the arrangement and nothing else. There is no ``auto_join`` here:
+    a default names a provider, never a community, so who joins a community
+    stays that community's to say.
+    """
+
+    claim: Optional[str] = Field(default=None, max_length=64)
+    claim_values: Optional[List[ClaimValue]] = Field(
+        default=None, max_length=MAX_CLAIM_VALUES
+    )
+    enabled: Optional[bool] = None
 
 
 class GuildClaimRuleRead(SanitizedBaseModel):

@@ -18,7 +18,7 @@ Both go through ``app.services.auth.provider_probe`` and are rate limited,
 because both spend the deployment's egress.
 """
 
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,8 +32,10 @@ from app.schemas.platform.settings import (
     AuthProviderDiscoverRequest,
     AuthProviderProbeResult,
     AuthProviderUpdate,
+    PlatformProviderDefaultRead,
+    PlatformProviderDefaultUpdate,
 )
-from app.services.auth import provider_probe, provider_registry
+from app.services.auth import provider_defaults, provider_probe, provider_registry
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -109,3 +111,43 @@ async def test_auth_provider(
     """Look up a saved provider's own issuer. The address comes off the row."""
     result = await provider_probe.probe_provider(session, provider_id)
     return AuthProviderProbeResult.model_validate(result, from_attributes=True)
+
+
+@router.get(
+    "/{provider_id}/default", response_model=Optional[PlatformProviderDefaultRead]
+)
+async def get_provider_default(
+    provider_id: int,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> Optional[PlatformProviderDefaultRead]:
+    """The deployment's own answer for this provider, or null where it has
+    made none and every community speaks for itself."""
+    return await provider_defaults.get_default(session, provider_id)
+
+
+@router.put("/{provider_id}/default", response_model=PlatformProviderDefaultRead)
+async def set_provider_default(
+    provider_id: int,
+    payload: PlatformProviderDefaultUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PlatformProviderDefaultRead:
+    """Answer once for the communities that have not.
+
+    A community's own connection to this provider is untouched and goes on
+    overriding this outright. Nobody is signed out: the gate reads the
+    arrangement in force when it is asked, so this reaches the next request.
+    """
+    return await provider_defaults.set_default(session, provider_id, payload)
+
+
+@router.delete("/{provider_id}/default", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_provider_default(
+    provider_id: int,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> None:
+    """Withdraw the answer. Communities that wrote their own keep them; the
+    rest stop counting this provider as theirs."""
+    await provider_defaults.clear_default(session, provider_id)

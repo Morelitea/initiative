@@ -1171,7 +1171,9 @@
         "tid": "Microsoft-Entra-Mandant",
         "groups": "Gruppenmitgliedschaft",
         "domain": "Domain"
-      }
+      },
+      "inherited": "Von der Installation",
+      "makeItOurs": "Zu unserer machen"
     },
     "rules": {
       "title": "Wo eure Leute landen",
@@ -1511,5 +1513,23 @@
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
     "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+  },
+  "providerDefaults": {
+    "title": "Was eine Community erbt",
+    "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",
+    "noAnswer": "Keine Antwort – jede Community entscheidet selbst",
+    "noProviders": "Fügt zuerst einen Anmeldeanbieter hinzu, dann legt fest, was Communities von ihm erben.",
+    "answer": "Dafür antworten",
+    "change": "Ändern",
+    "withdraw": "Zurückziehen",
+    "withdrawn": "Antwort zurückgezogen",
+    "save": "Speichern",
+    "saved": "Antwort gespeichert",
+    "saveError": "Antwort konnte nicht gespeichert werden",
+    "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+    "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+    "claimLabel": "Welcher Claim entscheidet",
+    "valuesLabel": "Gültige Werte",
+    "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   }
 }

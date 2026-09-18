@@ -4228,9 +4228,14 @@ export interface GuildProviderConnectionCreate {
 
 /**
  * One community signing its members in through one provider.
+ *
+ * Also how an arrangement the community has not made itself is shown: the
+ * deployment's default for that provider, marked ``inherited``, which the
+ * community replaces by connecting to the provider itself.
  */
 export interface GuildProviderConnectionRead {
-  id: number;
+  id: number | null;
+  inherited: boolean;
   provider_id: number;
   provider_slug: string;
   provider_display_name: string;
@@ -5532,6 +5537,29 @@ export interface PlatformGuildStorageUpdate {
   auth_options?: GuildAuthOption[] | null;
   banner_image_enabled?: boolean | null;
   support_enabled?: boolean | null;
+}
+
+/**
+ * How one provider is arranged for a community that has not said.
+ */
+export interface PlatformProviderDefaultRead {
+  provider_id: number;
+  claim: string | null;
+  claim_values: string[];
+  enabled: boolean;
+}
+
+/**
+ * Answer for a provider on behalf of the communities that have not.
+ *
+ * Carries the arrangement and nothing else. There is no ``auto_join`` here:
+ * a default names a provider, never a community, so who joins a community
+ * stays that community's to say.
+ */
+export interface PlatformProviderDefaultUpdate {
+  claim?: string | null;
+  claim_values?: string[] | null;
+  enabled?: boolean | null;
 }
 
 /**

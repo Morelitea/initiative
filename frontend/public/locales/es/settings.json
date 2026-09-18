@@ -1171,7 +1171,9 @@
         "tid": "Tenant de Microsoft Entra",
         "groups": "Pertenencia a un grupo",
         "domain": "Dominio"
-      }
+      },
+      "inherited": "De la instalación",
+      "makeItOurs": "Hacerla nuestra"
     },
     "rules": {
       "title": "Dónde llega vuestra gente",
@@ -1511,5 +1513,23 @@
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
     "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
     "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
+  },
+  "providerDefaults": {
+    "title": "Lo que hereda una comunidad",
+    "description": "Responded una vez por proveedor y cada comunidad heredará esa respuesta hasta que dé la suya. Útil cuando esta instalación es una sola organización: un proveedor, un inquilino y comunidades que son sus equipos.",
+    "noAnswer": "Sin respuesta: cada comunidad decide por sí misma",
+    "noProviders": "Añadid primero un proveedor de inicio de sesión y luego decid qué heredan las comunidades de él.",
+    "answer": "Responder por él",
+    "change": "Cambiar",
+    "withdraw": "Retirar",
+    "withdrawn": "Respuesta retirada",
+    "save": "Guardar",
+    "saved": "Respuesta guardada",
+    "saveError": "No se pudo guardar esa respuesta",
+    "narrowedTo": "Solo cuentas cuyo {{claim}} sea {{values}}",
+    "anyoneItVouchesFor": "Cualquiera por quien responda este proveedor",
+    "claimLabel": "Qué reclamación decide",
+    "valuesLabel": "Valores que cuentan",
+    "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
   }
 }
