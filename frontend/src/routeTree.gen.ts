@@ -114,6 +114,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsExport
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsMembersRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings/members'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsPropertiesRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings/properties'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRolesRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings/roles'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/index'
@@ -132,6 +133,8 @@ import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjec
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/index'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAdvancedRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced'
@@ -160,6 +163,10 @@ import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjec
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/access'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvancedRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/index'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings'
 
@@ -840,6 +847,12 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRolesRoute =
         ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute,
     } as any,
   )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRouteImport.update({
+    id: '/wikis/',
+    path: '/wikis/',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+  } as any)
 const ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRoute =
   ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRouteImport.update(
     {
@@ -996,6 +1009,24 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute
     {
       id: '/queues/$queueId/settings',
       path: '/queues/$queueId/settings',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRouteImport.update(
+    {
+      id: '/wikis/$wikiId/',
+      path: '/wikis/$wikiId/',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteImport.update(
+    {
+      id: '/wikis/$wikiId/settings',
+      path: '/wikis/$wikiId/settings',
       getParentRoute: () =>
         ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
     } as any,
@@ -1252,6 +1283,42 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvan
         ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute,
     } as any,
   )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRouteImport.update(
+    {
+      id: '/wikis/$wikiId/pages/$pageId',
+      path: '/wikis/$wikiId/pages/$pageId',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRouteImport.update(
+    {
+      id: '/access',
+      path: '/access',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRouteImport.update(
+    {
+      id: '/advanced',
+      path: '/advanced',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute =
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRouteImport.update(
     {
@@ -1375,6 +1442,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/i/$initiativeId/projects/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute
   '/c/$guildId/i/$initiativeId/queues/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute
   '/c/$guildId/i/$initiativeId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute
   '/c/$guildId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRouteWithChildren
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsRouteWithChildren
@@ -1384,6 +1452,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/i/$initiativeId/posts/$postId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsRouteWithChildren
   '/c/$guildId/i/$initiativeId/projects/$projectId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRouteWithChildren
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteWithChildren
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteWithChildren
   '/c/$guildId/calendars/$calendarId/events/$eventId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdIndexRoute
@@ -1393,6 +1462,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/i/$initiativeId/posts/$postId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdIndexRoute
   '/c/$guildId/i/$initiativeId/projects/$projectId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAccessRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAdvancedRoute
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute
@@ -1413,6 +1483,9 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAccessRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvancedRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdSettingsIndexRoute
@@ -1421,6 +1494,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/i/$initiativeId/posts/$postId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/projects/$projectId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute
 }
@@ -1520,6 +1594,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/i/$initiativeId/projects': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute
   '/c/$guildId/i/$initiativeId/queues': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute
   '/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute
   '/c/$guildId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/c/$guildId/calendars/$calendarId/events/$eventId': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute
@@ -1530,6 +1605,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/i/$initiativeId/posts/$postId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdIndexRoute
   '/c/$guildId/i/$initiativeId/projects/$projectId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAccessRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAdvancedRoute
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute
@@ -1550,6 +1626,9 @@ export interface FileRoutesByTo {
   '/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAccessRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvancedRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdSettingsIndexRoute
@@ -1558,6 +1637,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/i/$initiativeId/posts/$postId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/projects/$projectId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/queues/$queueId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsIndexRoute
+  '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute
 }
@@ -1668,6 +1748,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsIndexRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsRouteWithChildren
@@ -1677,6 +1758,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteWithChildren
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdEventsEventIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdIndexRoute
@@ -1686,6 +1768,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAccessRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsAdvancedRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute
@@ -1706,6 +1789,9 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAccessRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvancedRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdSettingsIndexRoute
@@ -1714,6 +1800,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsIndexRoute
+  '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute
 }
@@ -1823,6 +1910,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/projects/'
     | '/c/$guildId/i/$initiativeId/queues/'
     | '/c/$guildId/i/$initiativeId/settings/'
+    | '/c/$guildId/i/$initiativeId/wikis/'
     | '/c/$guildId/calendars/$calendarId/events/$eventId/settings'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings'
@@ -1832,6 +1920,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/posts/$postId/settings'
     | '/c/$guildId/i/$initiativeId/projects/$projectId/settings'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
     | '/c/$guildId/calendars/$calendarId/events/$eventId/'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/'
@@ -1841,6 +1930,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/posts/$postId/'
     | '/c/$guildId/i/$initiativeId/projects/$projectId/'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId'
@@ -1861,6 +1951,9 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings/access'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings/'
     | '/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings/'
@@ -1869,6 +1962,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/posts/$postId/settings/'
     | '/c/$guildId/i/$initiativeId/projects/$projectId/settings/'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings/'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/'
   fileRoutesByTo: FileRoutesByTo
@@ -1968,6 +2062,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/projects'
     | '/c/$guildId/i/$initiativeId/queues'
     | '/c/$guildId/i/$initiativeId/settings'
+    | '/c/$guildId/i/$initiativeId/wikis'
     | '/c/$guildId/calendars/$calendarId/events/$eventId/settings'
     | '/c/$guildId/calendars/$calendarId/events/$eventId'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId'
@@ -1978,6 +2073,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/posts/$postId'
     | '/c/$guildId/i/$initiativeId/projects/$projectId'
     | '/c/$guildId/i/$initiativeId/queues/$queueId'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId'
@@ -1998,6 +2094,9 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings/access'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/settings'
     | '/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings'
     | '/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings'
@@ -2006,6 +2105,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/i/$initiativeId/posts/$postId/settings'
     | '/c/$guildId/i/$initiativeId/projects/$projectId/settings'
     | '/c/$guildId/i/$initiativeId/queues/$queueId/settings'
+    | '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings'
     | '/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId'
   id:
@@ -2115,6 +2215,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings/'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings'
@@ -2124,6 +2225,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/'
@@ -2133,6 +2235,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/access'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/advanced'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId'
@@ -2153,6 +2256,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/access'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/counter-groups/$counterGroupId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/dashboards/$dashboardId/settings/'
@@ -2161,6 +2267,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/posts/$postId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/queues/$queueId/settings/'
+    | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/settings'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/'
   fileRoutesById: FileRoutesById
@@ -2908,6 +3015,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRolesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute
     }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/'
+      path: '/wikis'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
     '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/': {
       id: '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/events/$eventId/'
       path: '/calendars/$calendarId/events/$eventId'
@@ -3032,6 +3146,20 @@ declare module '@tanstack/react-router' {
       path: '/queues/$queueId/settings'
       fullPath: '/c/$guildId/i/$initiativeId/queues/$queueId/settings'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/'
+      path: '/wikis/$wikiId'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
+      path: '/wikis/$wikiId/settings'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/settings/': {
@@ -3229,6 +3357,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/c/$guildId/i/$initiativeId/queues/$queueId/settings/advanced'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsAdvancedRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+      path: '/wikis/$wikiId/pages/$pageId'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/pages/$pageId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/'
+      path: '/'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+      path: '/access'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/access'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced': {
+      id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
+      path: '/advanced'
+      fullPath: '/c/$guildId/i/$initiativeId/wikis/$wikiId/settings/advanced'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/': {
       id: '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/calendars/$calendarId/events/$eventId/'
@@ -3622,6 +3778,27 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteChildren,
   )
 
+interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteChildren {
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute
+}
+
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteChildren: ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteChildren =
+  {
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAccessRoute,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsAdvancedRoute,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsIndexRoute,
+  }
+
+const ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteWithChildren =
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute._addFileChildren(
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteChildren,
+  )
+
 interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
@@ -3636,6 +3813,7 @@ interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdSettingsRouteWithChildren
@@ -3644,6 +3822,7 @@ interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteWithChildren
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdDashboardsDashboardIdIndexRoute
@@ -3652,8 +3831,10 @@ interface ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren {
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdPostsPostIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute
+  ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute
   ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute
 }
@@ -3686,6 +3867,8 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren: ServerRequi
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsIndexRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesIndexRoute,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisIndexRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdSettingsRoute:
@@ -3702,6 +3885,8 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren: ServerRequi
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdSettingsRouteWithChildren,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdIndexRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdIndexRoute:
@@ -3718,10 +3903,14 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteChildren: ServerRequi
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdIndexRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdQueuesQueueIdIndexRoute,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdIndexRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdCounterGroupsCounterGroupIdCounterCounterIdRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdProjectsProjectIdTasksTaskIdRoute,
+    ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute:
+      ServerRequiredAuthenticatedCGuildIdIInitiativeIdWikisWikiIdPagesPageIdRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute:
       ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdSettingsRoute,
     ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsEventIdIndexRoute:

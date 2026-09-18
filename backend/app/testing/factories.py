@@ -45,6 +45,7 @@ from app.models.platform.marketplace import (
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
@@ -91,6 +92,7 @@ from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant.wikis import slugify_page_title
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -1867,6 +1869,7 @@ async def create_comment(
     author: User,
     *,
     task: Task | None = None,
+    wiki: Wiki | None = None,
     document: Document | None = None,
     project: Project | None = None,
     queue: Queue | None = None,
@@ -1880,18 +1883,25 @@ async def create_comment(
     **overrides: Any,
 ) -> Comment:
     """Create a comment on exactly one parent — a task or any tool entity."""
-    parents = {
-        "task_id": task,
-        "document_id": document,
-        "project_id": project,
-        "queue_id": queue,
-        "counter_group_id": counter_group,
-        "calendar_id": calendar,
-        "dashboard_id": dashboard,
-        "post_id": post,
-        "gallery_id": gallery,
+    named = {
+        "task": task,
+        Tool.project.value: project,
+        Tool.document.value: document,
+        Tool.queue.value: queue,
+        Tool.counter_group.value: counter_group,
+        Tool.calendar.value: calendar,
+        Tool.dashboard.value: dashboard,
+        Tool.post.value: post,
+        Tool.gallery.value: gallery,
+        Tool.wiki.value: wiki,
     }
-    provided = {column: row for column, row in parents.items() if row is not None}
+    # Keyed by the enum rather than by string literals, and checked against it:
+    # a new tool that has no keyword here fails on the first test that comments
+    # on one, naming the tool, instead of looking like a caller mistake.
+    missing = [tool.value for tool in Tool if tool.value not in named]
+    if missing:
+        raise ValueError(f"create_comment has no parent keyword for: {missing}")
+    provided = {f"{name}_id": row for name, row in named.items() if row is not None}
     if len(provided) != 1:
         raise ValueError("pass exactly one comment parent")
     column, parent = next(iter(provided.items()))
@@ -2278,6 +2288,98 @@ async def create_federated_identity(
 
 # --- generic tool construction ---------------------------------------------
 #
+async def create_wiki(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Wiki:
+    """Create a test wiki with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. The initiative is expected to be
+    wikis-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by": creator.id,
+        "name": name or f"Wiki {datetime.now(timezone.utc).timestamp()}",
+    }
+    wiki = Wiki(**{**defaults, **overrides})
+    session.add(wiki)
+
+    if commit:
+        await session.commit()
+        await session.refresh(wiki)
+
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=wiki.guild_id,
+                initiative_id=wiki.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=wiki.guild_id,
+                initiative_id=wiki.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return wiki
+
+
+async def create_wiki_page(
+    session: AsyncSession,
+    wiki: Wiki,
+    creator: User,
+    *,
+    title: str | None = None,
+    parent: "WikiPage | None" = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> WikiPage:
+    """Create a page in a wiki, optionally beneath another page.
+
+    ``parent`` is the spine, so a test builds a tree by passing the page it
+    wants this one under rather than setting the column by hand.
+    """
+    await route_session_to_guild(session, wiki.guild_id)
+
+    stamp = datetime.now(timezone.utc).timestamp()
+    page_title = title or f"Page {stamp}"
+    defaults: dict[str, Any] = {
+        "guild_id": wiki.guild_id,
+        "wiki_id": wiki.id,
+        "created_by": creator.id,
+        "title": page_title,
+        "slug": slugify_page_title(page_title, fallback=f"page-{stamp}"),
+        "parent_page_id": parent.id if parent is not None else None,
+    }
+    page = WikiPage(**{**defaults, **overrides})
+    session.add(page)
+
+    if commit:
+        await session.commit()
+        await session.refresh(page)
+
+    return page
+
+
 # One arm per Tool, so a test that needs "an instance of every tool" derives it
 # from the enum instead of restating the list. The completeness check runs at
 # import time: a new Tool member fails here once, with a message naming it,
@@ -2292,6 +2394,7 @@ TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.dashboard: create_dashboard,
     Tool.post: create_post,
     Tool.gallery: create_gallery,
+    Tool.wiki: create_wiki,
 }
 
 if set(TOOL_FACTORIES) != set(Tool):

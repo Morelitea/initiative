@@ -84,5 +84,7 @@
   "createPost": "Neuer Beitrag",
   "galleries": "Galerien",
   "createGallery": "Neue Galerie",
-  "moderation": "Moderation"
+  "moderation": "Moderation",
+  "wikis": "Wikis",
+  "createWiki": "Neues Wiki"
 }

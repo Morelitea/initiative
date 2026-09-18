@@ -564,9 +564,27 @@ class CommentParent:
     chain: tuple[tuple[str, str], ...]
 
 
+def _tool_comment_parent(tool: Tool) -> CommentParent:
+    """The comment parent for one tool — every tool's is the same shape.
+
+    A tool entity names its own initiative, so the join is the table itself and
+    the table stands as its own alias. Derived rather than listed so a comment
+    thread arrives with a new tool instead of waiting to be wired.
+    """
+    table = tool.plural
+    return CommentParent(
+        f"{tool.value}_id",
+        table,
+        f"{table}.id",
+        f"{table}.initiative_id",
+        ((table, f"{table}.id"),),
+    )
+
+
 #: Every Tool appears here plus the task, matching the comment table's
 #: single-parent constraint. A comment on a task names the project too: it is
-#: the surface a task comment shows up on, and the join is already made.
+#: the surface a task comment shows up on, and the join is already made — which
+#: is why the task is the one entry written out rather than derived.
 _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     CommentParent(
         "task_id",
@@ -575,50 +593,7 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
         "pr.initiative_id",
         (("tasks", "tk.id"), ("projects", "pr.id")),
     ),
-    CommentParent(
-        "document_id",
-        "documents d",
-        "d.id",
-        "d.initiative_id",
-        (("documents", "d.id"),),
-    ),
-    CommentParent(
-        "project_id", "projects p", "p.id", "p.initiative_id", (("projects", "p.id"),)
-    ),
-    CommentParent(
-        "queue_id", "queues q", "q.id", "q.initiative_id", (("queues", "q.id"),)
-    ),
-    CommentParent(
-        "counter_group_id",
-        "counter_groups cg",
-        "cg.id",
-        "cg.initiative_id",
-        (("counter_groups", "cg.id"),),
-    ),
-    CommentParent(
-        "calendar_id",
-        "calendars cal",
-        "cal.id",
-        "cal.initiative_id",
-        (("calendars", "cal.id"),),
-    ),
-    CommentParent(
-        "dashboard_id",
-        "dashboards dsh",
-        "dsh.id",
-        "dsh.initiative_id",
-        (("dashboards", "dsh.id"),),
-    ),
-    CommentParent(
-        "post_id", "posts po", "po.id", "po.initiative_id", (("posts", "po.id"),)
-    ),
-    CommentParent(
-        "gallery_id",
-        "galleries ga",
-        "ga.id",
-        "ga.initiative_id",
-        (("galleries", "ga.id"),),
-    ),
+    *(_tool_comment_parent(tool) for tool in Tool),
 )
 
 
@@ -1083,6 +1058,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "dashboards": direct(),
     "posts": direct(),
     "galleries": direct(),
+    "wikis": direct(),
     "property_definitions": direct(),
     # Sharing itself. It carries no sharing leg of its own: resource_access
     # reads this table, so a policy here that called it would not resolve.
@@ -1118,6 +1094,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "queue_items": via("queues", "queue_id"),
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
+    # One hop -> wikis. The page tree is a column on this table, not a
+    # second path: every page of a wiki is reached exactly as hard as the
+    # wiki, however deep it sits.
+    "wiki_pages": via("wikis", "wiki_id"),
     # One hop -> calendars
     "calendar_events": via("calendars", "calendar_id"),
     # One hop -> dashboards

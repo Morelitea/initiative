@@ -41,6 +41,7 @@ import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
 import type tasks from "../../public/locales/en/tasks.json";
 import type trash from "../../public/locales/en/trash.json";
+import type wikis from "../../public/locales/en/wikis.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -82,6 +83,7 @@ declare module "i18next" {
       properties: typeof properties;
       posts: typeof posts;
       galleries: typeof galleries;
+      wikis: typeof wikis;
       queues: typeof queues;
       relations: typeof relations;
       search: typeof search;

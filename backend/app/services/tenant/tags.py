@@ -59,6 +59,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.tag import Tag
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.task import Task
 from app.schemas.tenant.tag import tag_summaries
 
@@ -124,6 +125,7 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
     Tool.dashboard: TagLinkSpec(Dashboard, SearchEntityType.dashboard),
     Tool.post: TagLinkSpec(Post, SearchEntityType.post),
     Tool.gallery: TagLinkSpec(Gallery, SearchEntityType.gallery),
+    Tool.wiki: TagLinkSpec(Wiki, SearchEntityType.wiki),
 }
 
 # Content-level extras: sub-resources of a tool that also carry tags. These are
@@ -133,6 +135,7 @@ EXTRA_TAG_LINKS: dict[str, TagLinkSpec] = {
     "queue_item": TagLinkSpec(QueueItem, SearchEntityType.queue_item),
     "calendar_event": TagLinkSpec(CalendarEvent, SearchEntityType.calendar_event),
     "gallery_image": TagLinkSpec(GalleryImage, SearchEntityType.gallery_image),
+    "wiki_page": TagLinkSpec(WikiPage, SearchEntityType.wiki_page),
 }
 
 # Keyed by the wire name (`Tool.value` or the extra's key) — the bulk endpoint's

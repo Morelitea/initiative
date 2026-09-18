@@ -1014,6 +1014,7 @@ export const ArchivableType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   initiative: "initiative",
 } as const;
@@ -1957,6 +1958,7 @@ export interface CommentCreate {
   dashboard_id?: number | null;
   post_id?: number | null;
   gallery_id?: number | null;
+  wiki_id?: number | null;
   parent_comment_id?: number | null;
 }
 
@@ -1993,6 +1995,7 @@ export interface CommentRead {
   dashboard_id: number | null;
   post_id: number | null;
   gallery_id: number | null;
+  wiki_id: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
@@ -3055,6 +3058,7 @@ export interface InitiativeMemberRead {
   can_view_dashboards: boolean;
   can_view_posts: boolean;
   can_view_galleries: boolean;
+  can_view_wikis: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
@@ -3063,6 +3067,7 @@ export interface InitiativeMemberRead {
   can_create_dashboards: boolean;
   can_create_posts: boolean;
   can_create_galleries: boolean;
+  can_create_wikis: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -3082,6 +3087,7 @@ export interface InitiativeRead {
   dashboards_enabled: boolean;
   posts_enabled: boolean;
   galleries_enabled: boolean;
+  wikis_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
@@ -3271,6 +3277,8 @@ export const SearchEntityType = {
   queue_item: "queue_item",
   tag: "tag",
   task: "task",
+  wiki: "wiki",
+  wiki_page: "wiki_page",
 } as const;
 
 /**
@@ -3295,6 +3303,7 @@ export const EntityType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -3303,6 +3312,7 @@ export const EntityType = {
   initiative: "initiative",
   tag: "tag",
   gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
 } as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
@@ -4406,6 +4416,7 @@ export interface InitiativeCreate {
   dashboards_enabled?: boolean;
   posts_enabled?: boolean;
   galleries_enabled?: boolean;
+  wikis_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
@@ -4563,6 +4574,8 @@ export const PermissionKey = {
   create_posts: "create_posts",
   galleries_enabled: "galleries_enabled",
   create_galleries: "create_galleries",
+  wikis_enabled: "wikis_enabled",
+  create_wikis: "create_wikis",
 } as const;
 
 /**
@@ -4658,6 +4671,7 @@ export interface InitiativeUpdate {
   dashboards_enabled?: boolean | null;
   posts_enabled?: boolean | null;
   galleries_enabled?: boolean | null;
+  wikis_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
@@ -4992,6 +5006,7 @@ export const Tool = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
 } as const;
 
 /**
@@ -6343,6 +6358,7 @@ export const RecentEntityType = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
 } as const;
 
 /**
@@ -6937,10 +6953,12 @@ export const TagTarget = {
   dashboard: "dashboard",
   post: "post",
   gallery: "gallery",
+  wiki: "wiki",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
   gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
 } as const;
 
 /**
@@ -7876,6 +7894,208 @@ export interface WidgetCatalog {
   presets: WidgetPresetEntry[];
 }
 
+export interface WikiCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  tag_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
+export interface WikiSummary {
+  archived_at: string | null;
+  can_unarchive: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  page_count: number;
+  home_page_id: number | null;
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface WikiListResponse {
+  items: WikiSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export type WikiPageCreateContent = { [key: string]: unknown } | null;
+
+export interface WikiPageCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  parent_page_id?: number | null;
+  content?: WikiPageCreateContent;
+  tag_ids?: number[] | null;
+}
+
+/**
+ * One end of a connection a page has.
+ *
+ * Deliberately not a page-shaped object: the other end of an edge is often
+ * not a page at all — a task, a calendar event — so this is what any of them
+ * have in common, and the kind says which route addresses it.
+ */
+export interface WikiPageLink {
+  entity_type: string;
+  entity_id: number;
+  title: string;
+  relationship_type: string;
+  initiative_id: number | null;
+  tool: string | null;
+  tool_id: number | null;
+}
+
+/**
+ * What a page connects to, both ways.
+ *
+ * ``outgoing`` is what this page names; ``incoming`` is what names it — the
+ * backlinks, which are the thing that makes a wiki more than a folder.
+ */
+export interface WikiPageLinks {
+  outgoing: WikiPageLink[];
+  incoming: WikiPageLink[];
+}
+
+/**
+ * Where a page should sit after a drag.
+ *
+ * The two facts the tree needs, together: a page dropped into a new parent
+ * almost always lands at a particular place among its new siblings, and
+ * sending them separately would draw the tree wrong in between.
+ */
+export interface WikiPageMove {
+  parent_page_id?: number | null;
+  /** @minimum 0 */
+  position?: number;
+}
+
+export type WikiPageReadContent = { [key: string]: unknown };
+
+/**
+ * One page, opened.
+ */
+export interface WikiPageRead {
+  id: number;
+  wiki_id: number;
+  guild_id: number;
+  parent_page_id: number | null;
+  position: number;
+  title: string;
+  slug: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  tags: TagSummary[];
+  content: WikiPageReadContent;
+  comment_count: number;
+}
+
+/**
+ * One page as the tree draws it — no body.
+ *
+ * The navigation renders every page of a wiki at once, so this carries what a
+ * row needs and nothing that would make the payload grow with what people
+ * have written.
+ */
+export interface WikiPageSummary {
+  id: number;
+  wiki_id: number;
+  guild_id: number;
+  parent_page_id: number | null;
+  position: number;
+  title: string;
+  slug: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  tags: TagSummary[];
+}
+
+/**
+ * Every page of a wiki, flat, in reading order.
+ *
+ * Flat rather than nested: each row names its parent, and the client builds
+ * the shape. A nested payload would have to be walked to find one page and
+ * re-walked to move it, and the tree is drawn from the same rows either way.
+ */
+export interface WikiPageTree {
+  items: WikiPageSummary[];
+}
+
+export type WikiPageUpdateContent = { [key: string]: unknown } | null;
+
+/**
+ * A change to one page.
+ *
+ * Every field is optional and only what is sent is written, so renaming a
+ * page and moving it are the same request shape as editing its body.
+ * ``parent_page_id`` is the one field that is meaningfully ``null``: it means
+ * "make this a top-level page", which is different from not sending it.
+ */
+export interface WikiPageUpdate {
+  title?: string | null;
+  content?: WikiPageUpdateContent;
+  tag_ids?: number[] | null;
+}
+
+/**
+ * A wiki on its own page. The same shape as its summary: the pages are
+ * fetched as a tree of their own, because a wiki is navigated rather than
+ * read end to end.
+ */
+export interface WikiRead {
+  archived_at: string | null;
+  can_unarchive: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  page_count: number;
+  home_page_id: number | null;
+  my_permission_level: string | null;
+  comments_enabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface WikiUpdate {
+  name?: string | null;
+  description?: string | null;
+  home_page_id?: number | null;
+}
+
 /**
  * A single field comparison.
  *
@@ -8228,6 +8448,7 @@ export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   dashboard_id?: number | null;
   post_id?: number | null;
   gallery_id?: number | null;
+  wiki_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
@@ -8885,6 +9106,35 @@ export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimeline
   tz?: string | null;
 };
 
+export type ListWikisApiV1GGuildIdWikisGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the wiki's name and description, through the same index the search page reads.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 500
+   */
+  page_size?: number;
+};
+
 export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
@@ -9007,7 +9257,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -9035,7 +9285,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
 
 export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -9063,7 +9313,7 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -9307,6 +9557,29 @@ export type ListMyPostsApiV1MePostsGetParams = {
 };
 
 export type ListMyGalleriesApiV1MeGalleriesGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyWikisApiV1MeWikisGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;

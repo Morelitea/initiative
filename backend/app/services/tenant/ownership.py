@@ -35,6 +35,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
@@ -44,6 +45,7 @@ from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
+from app.models.tenant.wiki import Wiki
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
 
@@ -64,15 +66,27 @@ class OwnableSpec:
         return self.model.display_field()
 
 
+#: Every tool's model, imported so it is *registered*: a class has to have been
+#: imported before it can be found by table name. Naming them here is what makes
+#: the lookup below independent of whatever import order got us this far.
+_REGISTERED = (
+    Calendar,
+    CounterGroup,
+    Dashboard,
+    Document,
+    Gallery,
+    Post,
+    Project,
+    Queue,
+    Wiki,
+)
+
+#: Derived from the enum rather than listed: a tool's table is its plural, so the
+#: model is found by that name and the pairing cannot drift. A tool whose model
+#: is missing from ``_REGISTERED`` fails here at import, naming its table, rather
+#: than going quietly unowned.
 OWNABLE: dict[Tool, OwnableSpec] = {
-    Tool.project: OwnableSpec(Project),
-    Tool.document: OwnableSpec(Document),
-    Tool.queue: OwnableSpec(Queue),
-    Tool.counter_group: OwnableSpec(CounterGroup),
-    Tool.calendar: OwnableSpec(Calendar),
-    Tool.dashboard: OwnableSpec(Dashboard),
-    Tool.post: OwnableSpec(Post),
-    Tool.gallery: OwnableSpec(Gallery),
+    tool: OwnableSpec(tool_models()[tool.plural]) for tool in Tool
 }
 
 

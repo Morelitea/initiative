@@ -107,7 +107,8 @@
     "dashboards": "Tableaux de bord",
     "counterGroups": "Compteurs",
     "posts": "Publications",
-    "galleries": "Galeries"
+    "galleries": "Galeries",
+    "wikis": "Wikis"
   },
   "settings": {
     "title": "Paramètres de l'initiative",
@@ -237,7 +238,8 @@
       "dashboards": "Tableaux de bord",
       "counterGroups": "Compteurs",
       "posts": "Publications",
-      "galleries": "Galeries"
+      "galleries": "Galeries",
+      "wikis": "Wikis"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -257,7 +259,9 @@
       "viewGalleries": "Voir les galeries",
       "createGalleries": "Créer des galeries",
       "viewShort": "Voir",
-      "createShort": "Créer"
+      "createShort": "Créer",
+      "viewWikis": "Voir les wikis",
+      "createWikis": "Créer des wikis"
     },
     "handleColumn": "Identifiant",
     "toolAudience": {
@@ -327,5 +331,7 @@
     "nextJoining": "Suivant : Adhésion",
     "nextMembers": "Suivant : Permissions",
     "firstIntroLink": "En savoir plus ici"
-  }
+  },
+  "wikisFeature": "Wikis",
+  "wikisFeatureDescription": "Des pages qui se renvoient les unes aux autres. Manuels, références, la question que tout le monde repose."
 }

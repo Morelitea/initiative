@@ -212,6 +212,8 @@ _KIND_CODES: dict[str, int] = {
     "queue_item": 12,
     "tag": 13,
     "task": 14,
+    "wiki": 15,
+    "wiki_page": 16,
 }
 
 #: What may sit on either end of an edge, keyed by kind. Derived from
@@ -230,7 +232,7 @@ ENDPOINT_KIND_VALUES: tuple[str, ...] = tuple(
 
 #: How many low bits of a node id hold the entity id. Entity ids are ``int4``,
 #: so 31 bits are in use and 32 is the natural boundary; the kind code occupies
-#: the bits above. 14 kinds need 4 bits, leaving a bigint's remaining range
+#: the bits above. 16 kinds need 5 bits, leaving a bigint's remaining range
 #: spare for both to grow.
 NODE_ID_SHIFT = 32
 

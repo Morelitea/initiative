@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from app.core.tools import Tool
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
@@ -63,16 +64,10 @@ class CommentBase(SanitizedBaseModel):
 # Every comment parent, in one place: the task plus one field per tool. The
 # comments table carries a matching FK per entry, and the create/list surfaces
 # take exactly one of them.
+# Derived from the enum: a new tool's field joins by existing.
 COMMENT_TARGET_FIELDS: tuple[str, ...] = (
     "task_id",
-    "document_id",
-    "project_id",
-    "queue_id",
-    "counter_group_id",
-    "calendar_id",
-    "dashboard_id",
-    "post_id",
-    "gallery_id",
+    *(f"{tool.value}_id" for tool in Tool),
 )
 
 
@@ -86,6 +81,7 @@ class CommentCreate(CommentBase):
     dashboard_id: Optional[int] = Field(default=None, gt=0)
     post_id: Optional[int] = Field(default=None, gt=0)
     gallery_id: Optional[int] = Field(default=None, gt=0)
+    wiki_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
@@ -134,6 +130,7 @@ class CommentRead(CommentBase):
     dashboard_id: Optional[int] = None
     post_id: Optional[int] = None
     gallery_id: Optional[int] = None
+    wiki_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
