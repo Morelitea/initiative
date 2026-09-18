@@ -222,7 +222,7 @@ export const DocumentDetailPage = () => {
   // first render where `<Editor>` appears, which regresses the collab
   // bootstrap and leaves Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
-    documentId: parsedId,
+    socketPath: Number.isFinite(parsedId) ? `documents/${parsedId}/collaborate` : null,
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {

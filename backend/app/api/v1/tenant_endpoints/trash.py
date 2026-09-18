@@ -44,6 +44,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
@@ -89,6 +90,8 @@ ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "gallery_image": (GalleryImage, "title"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
+    "wiki": (Wiki, "name"),
+    "wiki_page": (WikiPage, "title"),
 }
 
 

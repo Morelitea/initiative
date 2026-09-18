@@ -110,6 +110,8 @@
     "resource_post_one": "publication",
     "resource_post_other": "publications",
     "resource_gallery_one": "galerie",
-    "resource_gallery_other": "galeries"
+    "resource_gallery_other": "galeries",
+    "resource_wiki_one": "wiki",
+    "resource_wiki_other": "wikis"
   }
 }

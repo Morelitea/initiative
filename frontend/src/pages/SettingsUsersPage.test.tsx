@@ -7,7 +7,7 @@
  * no operator is reachable to raise it — so the notice names the plan and
  * offers the way to change it.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -93,5 +93,30 @@ describe("SettingsUsersPage seat cap", () => {
 
     await screen.findByRole("button", { name: "Generate invite" });
     expect(screen.queryByText(/seats/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsUsersPage roles", () => {
+  beforeEach(() => {
+    state.billing = null;
+  });
+
+  it("explains what each role is, where the choice is made", async () => {
+    setup({});
+
+    expect(await screen.findByText(/runs the community/i)).toBeInTheDocument();
+    expect(screen.getByText(/plus how people get in/i)).toBeInTheDocument();
+  });
+
+  it("offers the seat only to somebody already holding it", async () => {
+    setup({});
+    expect(await screen.findByText("Superadmin")).toBeInTheDocument();
+
+    cleanup();
+    setup({ role: "admin" });
+    // The rung below neither appoints the seat nor takes it away, so it is
+    // not on the list it is offered.
+    expect(await screen.findByText("Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Superadmin")).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
@@ -43,6 +43,20 @@ describe("GuildSettingsLayout", () => {
     render();
 
     expect(await screen.findByRole("tab", { name: /authentication/i })).toBeInTheDocument();
+  });
+
+  it.each(["ai", "apps"])("offers %s to the seat and not to an admin", async (tab) => {
+    // What the community hands to somebody outside it is the seat's, the way
+    // its sign-in is.
+    const label = tab === "ai" ? /^ai$/i : /^apps$/i;
+    render();
+    expect(await screen.findByRole("tab", { name: label })).toBeInTheDocument();
+
+    cleanup();
+    guildRole = "admin";
+    render();
+    expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: label })).not.toBeInTheDocument();
   });
 
   it.each(["admin", "member"])("does not offer it to %s", async (role) => {

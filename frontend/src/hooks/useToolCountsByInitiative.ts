@@ -20,6 +20,7 @@ import { useGalleryCountsByInitiative } from "@/hooks/useGalleries";
 import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useProjectCountsByInitiative } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
+import { useWikiCountsByInitiative } from "@/hooks/useWikis";
 import { TOOLS } from "@/lib/tools";
 
 /** One tool's counts, by initiative id. */
@@ -59,6 +60,7 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
   const dashboards = useDashboardCountsByInitiative(queryOptions);
   const posts = usePostCountsByInitiative(queryOptions);
   const galleries = useGalleryCountsByInitiative(queryOptions);
+  const wikis = useWikiCountsByInitiative(queryOptions);
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the query that counts it.
@@ -71,6 +73,7 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
     [Tool.gallery]: galleries,
+    [Tool.wiki]: wikis,
   };
 
   // One small map per tool, read during render only — cheap enough to rebuild

@@ -36,6 +36,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 
 
 SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
@@ -55,6 +56,8 @@ SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     GalleryImage,
     CounterGroup,
     Counter,
+    Wiki,
+    WikiPage,
 )
 
 # The table names behind SOFT_DELETE_MODELS — the single source of truth for

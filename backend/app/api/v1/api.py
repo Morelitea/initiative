@@ -60,6 +60,7 @@ from app.api.v1.tenant_endpoints import (
     tasks,
     tools,
     trash,
+    wikis,
 )
 from app.api.v1.platform_endpoints import (
     field_catalog,
@@ -249,6 +250,7 @@ guild_router.include_router(
 )
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
+guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #

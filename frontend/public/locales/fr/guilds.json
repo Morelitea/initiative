@@ -163,7 +163,13 @@
     "adminRequired": "Vous avez besoin des permissions administrateur pour voir cette page.",
     "guildRole": {
       "admin": "Administrateur",
-      "member": "Membre"
+      "member": "Membre",
+      "superadmin": "Superadmin"
+    },
+    "guildRoleHelp": {
+      "member": "Participe à ce à quoi on l'ajoute.",
+      "admin": "Gère la communauté : membres, invitations, initiatives, paramètres.",
+      "superadmin": "Tout cela, plus la façon dont les gens entrent : connexion, IA et applications. Seul un superadmin peut en nommer un autre."
     },
     "loadingSettings": "Chargement des paramètres…",
     "unableToLoadSettings": "Impossible de charger les paramètres.",

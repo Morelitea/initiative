@@ -25,6 +25,7 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { usePostsList } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useWikisList } from "@/hooks/useWikis";
 import type { ToolResponses, ToolRow } from "@/lib/toolRows";
 import { buildToolRows } from "@/lib/toolRows";
 
@@ -81,6 +82,7 @@ export function useGuildToolRows(
   const dashboards = useDashboardsList(params, only(Tool.dashboard));
   const posts = usePostsList(params, only(Tool.post));
   const galleries = useGalleriesList(params, only(Tool.gallery));
+  const wikis = useWikisList(params, only(Tool.wiki));
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the query that lists it.
@@ -93,6 +95,7 @@ export function useGuildToolRows(
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
     [Tool.gallery]: galleries,
+    [Tool.wiki]: wikis,
   }[tool];
 
   const rows = useMemo<ToolRow[]>(() => {
@@ -105,6 +108,7 @@ export function useGuildToolRows(
       [Tool.dashboard]: dashboards.data,
       [Tool.post]: posts.data,
       [Tool.gallery]: galleries.data,
+      [Tool.wiki]: wikis.data,
     };
     return buildToolRows(tool, responses, t, guildId);
   }, [
@@ -119,6 +123,7 @@ export function useGuildToolRows(
     dashboards.data,
     posts.data,
     galleries.data,
+    wikis.data,
   ]);
 
   return {

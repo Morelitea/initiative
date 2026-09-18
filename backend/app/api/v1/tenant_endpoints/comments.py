@@ -235,6 +235,7 @@ async def list_comments(
     dashboard_id: Optional[int] = Query(default=None, gt=0),
     post_id: Optional[int] = Query(default=None, gt=0),
     gallery_id: Optional[int] = Query(default=None, gt=0),
+    wiki_id: Optional[int] = Query(default=None, gt=0),
 ) -> List[CommentRead]:
     try:
         comments = await comments_service.list_comments(
@@ -250,6 +251,7 @@ async def list_comments(
             dashboard_id=dashboard_id,
             post_id=post_id,
             gallery_id=gallery_id,
+            wiki_id=wiki_id,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(

@@ -30,6 +30,7 @@ from app.core.messages import (
     TaskMessages,
 )
 from app.core.tools import Tool
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import CounterGroup
@@ -41,6 +42,7 @@ from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
+from app.models.tenant.wiki import Wiki
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -91,51 +93,42 @@ class CommentTarget:
         return f"{self.tool.value}_id"
 
 
-# Every Tool is commentable — comments_test asserts this spans the enum, and
-# that the columns here match the model and the RLS parent registry
-# (app.db.initiative_rls._COMMENT_PARENTS).
+#: Every tool's model, imported so it is *registered*: a class has to have been
+#: imported before ``tool_models`` can find it by table name. Naming them here is
+#: what makes the lookup below independent of import order.
+_REGISTERED = (
+    Calendar,
+    CounterGroup,
+    Dashboard,
+    Document,
+    Gallery,
+    Post,
+    Project,
+    Queue,
+    Wiki,
+)
+
+#: The one tool whose "no such thing" code is its own rather than the generic
+#: comment-target one. A document comment is the oldest surface here and its
+#: refusal is already mapped in every locale under that code.
+_OWN_NOT_FOUND_CODE = frozenset({Tool.document})
+
+# Every Tool is commentable, derived from the enum rather than listed — a new
+# tool carries a comment thread the day its model exists. comments_test asserts
+# this spans the enum, and that the columns here match the model and the RLS
+# parent registry (app.db.initiative_rls._COMMENT_PARENTS).
 TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
-    Tool.project: CommentTarget(
-        Tool.project, Project, CommentMessages.TARGET_NOT_FOUND
-    ),
-    Tool.document: CommentTarget(Tool.document, Document, Tool.document.not_found_code),
-    Tool.queue: CommentTarget(
-        Tool.queue,
-        Queue,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.queue.feature_disabled_code,
-    ),
-    Tool.counter_group: CommentTarget(
-        Tool.counter_group,
-        CounterGroup,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.counter_group.feature_disabled_code,
-    ),
-    Tool.calendar: CommentTarget(
-        Tool.calendar,
-        Calendar,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.calendar.feature_disabled_code,
-    ),
-    Tool.dashboard: CommentTarget(
-        Tool.dashboard,
-        Dashboard,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.dashboard.feature_disabled_code,
-    ),
-    Tool.post: CommentTarget(
-        Tool.post,
-        Post,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.post.feature_disabled_code,
-    ),
-    Tool.gallery: CommentTarget(
-        Tool.gallery,
-        Gallery,
-        CommentMessages.TARGET_NOT_FOUND,
-        Tool.gallery.feature_disabled_code,
-    ),
+    tool: CommentTarget(
+        tool,
+        tool_models()[tool.plural],
+        tool.not_found_code
+        if tool in _OWN_NOT_FOUND_CODE
+        else CommentMessages.TARGET_NOT_FOUND,
+        tool.feature_disabled_code,
+    )
+    for tool in Tool
 }
+
 
 _TARGETS_BY_COLUMN: dict[str, CommentTarget] = {
     target.column: target for target in TOOL_COMMENT_TARGETS.values()
@@ -575,6 +568,7 @@ async def create_comment(
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
     gallery_id: Optional[int] = None,
+    wiki_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
     parent_comment = None
@@ -594,6 +588,7 @@ async def create_comment(
             "dashboard_id": dashboard_id,
             "post_id": post_id,
             "gallery_id": gallery_id,
+            "wiki_id": wiki_id,
         }
     )
     ctx = await _resolved_parent(
@@ -852,6 +847,7 @@ async def list_comments(
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
     gallery_id: Optional[int] = None,
+    wiki_id: Optional[int] = None,
 ) -> Sequence[Comment]:
     column, entity_id = _single_target(
         {
@@ -864,6 +860,7 @@ async def list_comments(
             "dashboard_id": dashboard_id,
             "post_id": post_id,
             "gallery_id": gallery_id,
+            "wiki_id": wiki_id,
         }
     )
     ctx = await _resolved_parent(

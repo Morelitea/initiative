@@ -141,6 +141,16 @@ def _post_text(row: str) -> str:
     return _json_text(row, "strict $.**.text", column="body")
 
 
+def _wiki_page_text(row: str) -> str:
+    """A wiki page's searchable text: every word in its Lexical body.
+
+    The same recursive ``text`` path a post and a native document use. A page
+    needs no branch of its own — a page is always prose, where a document's
+    ``content`` holds a different shape per type.
+    """
+    return _json_text(row, "strict $.**.text")
+
+
 def _gallery_image_text(row: str) -> str:
     """A picture's searchable text: its caption, and the filename split into
     words so ``round-4-detail.png`` is found by ``detail``."""
@@ -343,6 +353,17 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         body_sql=_gallery_image_text,
         dac_tool=Tool.gallery,
         dac_id="gallery_id",
+    ),
+    # A page is found by its title and by what is written on it. Its body is a
+    # Lexical state, the same shape a native document's is, so it is read by the
+    # same extractor rather than a second one.
+    "wiki_pages": SearchSource(
+        SearchEntityType.wiki_page,
+        title="title",
+        body=("content",),
+        body_sql=_wiki_page_text,
+        dac_tool=Tool.wiki,
+        dac_id="wiki_id",
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.

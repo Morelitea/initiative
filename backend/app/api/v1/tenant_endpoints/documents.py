@@ -1445,7 +1445,7 @@ async def update_document(
     # on an interval and at teardown. Everything else in the patch (the name,
     # the featured image) is unrelated to that and still applies.
     if "content" in update_data and collaboration_manager.has_active_collaborators(
-        guild_context.guild_id, document.id
+        guild_context.guild_id, SearchEntityType.document.value, document.id
     ):
         # An editor inside the session reports its content to the room over its
         # own socket, which is what ties a rendering to the state it was made
@@ -1511,7 +1511,7 @@ async def update_document(
         # collaborators their in-memory state wins until they disconnect.
         if content_updated:
             await collaboration_manager.invalidate_room_if_empty(
-                guild_context.guild_id, document.id
+                guild_context.guild_id, SearchEntityType.document.value, document.id
             )
     hydrated = await _get_document_or_404(
         session,
