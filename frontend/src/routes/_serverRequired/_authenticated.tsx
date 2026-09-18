@@ -141,7 +141,7 @@ function AppLayout() {
   }
 
   // No-guild empty-state branch. The user-scoped settings routes
-  // (``/profile/*``) and platform-admin settings (``/settings/admin/*``
+  // (``/profile/*``) and platform-admin settings (``/settings/operator/*``
   // for an admin) don't need guild context — the APIs they call work
   // without a server-held guild — and a user with zero
   // memberships would otherwise have no path to delete their account
@@ -499,7 +499,7 @@ function NoGuildState({
           </Button>
           {isPlatformAdmin && (
             <Button variant="outline" asChild>
-              <Link to="/settings/admin">
+              <Link to="/settings/operator">
                 <Settings className="h-4 w-4" />
                 {t("noGuild.platformSettings")}
               </Link>
@@ -519,7 +519,7 @@ function NoGuildState({
 /**
  * Minimal layout shown when the user has zero guild memberships but
  * is on a route that doesn't need guild context (``/profile/*``,
- * ``/settings/admin/*``). Renders the matched outlet inside a
+ * ``/settings/operator/*``). Renders the matched outlet inside a
  * narrow container with just enough chrome (Back-to-start + logout)
  * to navigate away.
  */

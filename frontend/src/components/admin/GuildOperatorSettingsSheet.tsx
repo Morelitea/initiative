@@ -19,11 +19,10 @@ import type {
   GuildAuthOption,
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -35,7 +34,6 @@ import { Switch } from "@/components/ui/switch";
 import { useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { cn } from "@/lib/utils";
 
 const GIB = 1024 ** 3;
 
@@ -59,47 +57,6 @@ const parseUserLimitInput = (raw: string): { limit: number | null; invalid: bool
 };
 
 const userLimitToInput = (limit: number | null): string => (limit == null ? "" : String(limit));
-
-/** One labelled control with its explanation, so every row reads the same. */
-const SettingRow = ({
-  label,
-  help,
-  htmlFor,
-  control,
-  indent = 0,
-}: {
-  label: string;
-  help: string;
-  htmlFor?: string;
-  control: React.ReactNode;
-  /** How far under the row above this reads as sitting: 0 stands on its own,
-   * 1 is part of the row above it, 2 is part of that. */
-  indent?: 0 | 1 | 2;
-}) => (
-  <div
-    className={cn(
-      "flex items-start justify-between gap-6 py-3",
-      indent === 1 && "ml-3 border-border border-l pl-4",
-      indent === 2 && "ml-7 border-border border-l pl-4"
-    )}
-  >
-    <div className="space-y-1">
-      <Label htmlFor={htmlFor} className="font-medium">
-        {label}
-      </Label>
-      <p className="text-muted-foreground text-sm">{help}</p>
-    </div>
-    <div className="shrink-0 pt-0.5">{control}</div>
-  </div>
-);
-
-const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="space-y-1">
-    <h3 className="font-semibold text-sm">{title}</h3>
-    <Separator />
-    <div className="divide-y">{children}</div>
-  </section>
-);
 
 export const GuildOperatorSettingsSheet = ({
   guild,

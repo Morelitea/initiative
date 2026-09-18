@@ -17,6 +17,7 @@ import {
   listAllUsersApiV1AdminUsersGet,
   listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
+  removeUserAvatarApiV1AdminUsersUserIdAvatarDelete,
   setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
   setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
@@ -250,6 +251,17 @@ export const useAdminClearAgeBlock = (options?: MutationOpts<AdminUserRead, numb
   useApiMutation<AdminUserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId),
+      invalidate: () => invalidate(q.adminUsers()),
+    },
+    options
+  );
+
+/** Take down somebody's profile picture (``content.moderate``). Removal only —
+ *  there is no route by which one account sets another's picture. */
+export const useAdminRemoveAvatar = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (userId) => removeUserAvatarApiV1AdminUsersUserIdAvatarDelete(userId),
       invalidate: () => invalidate(q.adminUsers()),
     },
     options

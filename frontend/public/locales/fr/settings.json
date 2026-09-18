@@ -663,9 +663,7 @@
     "filterPlaceholder": "Filtrer par identifiant…",
     "columnId": "ID utilisateur",
     "columnHandle": "Identifiant",
-    "columnName": "Nom",
     "columnEmail": "E-mail",
-    "columnRole": "Rôle",
     "columnStatus": "Statut",
     "columnActions": "Actions",
     "active": "Actif",
@@ -712,18 +710,35 @@
     "roleChangeSuccess": "Rôle de plateforme changé en {{role}}",
     "deactivated": "Désactivé",
     "anonymized": "Anonymisé",
-    "changeUsername": "Changer le nom d'utilisateur",
+    "suspended": "Suspendu",
     "usernameChanged": "Nom d'utilisateur modifié.",
-    "changeUsernameTitle": "Changer le nom d'utilisateur de {{handle}}",
-    "changeUsernameBody": "La personne en sera informée et ne pourra pas revenir en arrière elle-même. Le numéro reste le même.",
     "suspend": "Suspendre",
-    "unsuspend": "Lever la suspension",
     "suspendTitle": "Suspendre {{handle}} ?",
     "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
     "actionError": "L'opération n'a pas abouti. Réessayez.",
     "clearAgeBlock": "Réinitialiser la question d'âge",
-    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau."
+    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau.",
+    "sheet": {
+      "open": "Gérer",
+      "openLabel": "Gérer le compte {{handle}}",
+      "description": "Ce qu'un opérateur tient pour ce compte. Chaque modification est enregistrée séparément.",
+      "identity": "Identité",
+      "usernameLabel": "Nom d'utilisateur",
+      "usernameHelp": "L'identifiant sous lequel cette personne est désignée. Le numéro qui le suit reste inchangé.",
+      "avatarLabel": "Photo de profil",
+      "avatarHelp": "Retirer la photo. Elle ne peut pas être remplacée d'ici.",
+      "avatarRemove": "Retirer",
+      "avatarRemoved": "Photo de profil retirée.",
+      "avatarConfirmTitle": "Retirer cette photo de profil ?",
+      "avatarConfirmBody": "La photo de {{handle}} est retirée et la personne en est informée. Elle peut en téléverser une autre.",
+      "access": "Accès",
+      "suspendLabel": "Suspendu",
+      "suspendHelp": "Un compte suspendu peut toujours se connecter et lire le motif, mais n'atteint aucune de ses communautés.",
+      "role": "Rôle de plateforme",
+      "roleLabel": "Rôle",
+      "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
+    }
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",
@@ -961,8 +976,8 @@
     "manifestChangedDescription": "Le manifeste de cette application ne correspond plus à celui enregistré lors de son inscription : ses fonctionnalités, ses connexions ou ses pages intégrées ont pu changer. Accepter adopte le nouveau manifeste et marque l'application comme vérifiée. N'acceptez que si vous attendiez ce changement.",
     "manifestChangedConfirm": "Accepter le nouveau manifeste"
   },
-  "adminDashboard": {
-    "title": "Tableau de bord admin",
+  "operatorDashboard": {
+    "title": "Tableau de bord opérateur",
     "subtitle": "Gérez les utilisateurs de la plateforme et les accès temporaires.",
     "tabs": {
       "users": "Utilisateurs",

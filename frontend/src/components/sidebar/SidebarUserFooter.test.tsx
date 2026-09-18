@@ -30,7 +30,7 @@ const renderFooter = (overrides: Partial<UserRead> = {}) => {
       <SidebarUserFooter
         user={user}
         canManagePlatformConfig={false}
-        canAccessAdminDashboard={false}
+        canAccessOperatorDashboard={false}
         currentVersion="0.65.0"
         latestVersion={null}
         hasUpdate={false}
@@ -188,7 +188,7 @@ describe("SidebarUserFooter", () => {
         <SidebarUserFooter
           user={buildUser({ full_name: "Admin User", presence: "online" })}
           canManagePlatformConfig
-          canAccessAdminDashboard
+          canAccessOperatorDashboard
           currentVersion="0.65.0"
           latestVersion={null}
           hasUpdate={false}
@@ -203,7 +203,7 @@ describe("SidebarUserFooter", () => {
     const menu = await openMenu(user);
     const rows = within(menu).getAllByRole("menuitem");
     const labels = rows.map((row) => row.textContent?.trim());
-    const admin = labels.indexOf("Admin Dashboard");
+    const admin = labels.indexOf("Operator Dashboard");
 
     expect(admin).toBeGreaterThan(-1);
     expect(labels[admin + 1]).toBe("Platform Settings");

@@ -50,7 +50,7 @@ export interface SidebarUserFooterProps {
   /** The signed-in account, or null while it is still being fetched. */
   user: UserRead | null;
   canManagePlatformConfig: boolean;
-  canAccessAdminDashboard: boolean;
+  canAccessOperatorDashboard: boolean;
   currentVersion: string;
   latestVersion: string | null;
   hasUpdate: boolean;
@@ -63,7 +63,7 @@ export interface SidebarUserFooterProps {
 export const SidebarUserFooter = ({
   user,
   canManagePlatformConfig,
-  canAccessAdminDashboard,
+  canAccessOperatorDashboard,
   currentVersion,
   latestVersion,
   hasUpdate,
@@ -331,13 +331,13 @@ export const SidebarUserFooter = ({
                           are somebody's other hat, not another thing about
                           their account. The rule only appears for the people
                           who have them. */}
-                      {(canAccessAdminDashboard || canManagePlatformConfig) && (
+                      {(canAccessOperatorDashboard || canManagePlatformConfig) && (
                         <>
                           <DropdownMenuSeparator />
-                          {canAccessAdminDashboard && (
+                          {canAccessOperatorDashboard && (
                             <DropdownMenuItem asChild>
-                              <Link to="/settings/admin">
-                                <ShieldCheck className="h-4 w-4" /> {t("adminDashboard")}
+                              <Link to="/settings/operator">
+                                <ShieldCheck className="h-4 w-4" /> {t("operatorDashboard")}
                               </Link>
                             </DropdownMenuItem>
                           )}

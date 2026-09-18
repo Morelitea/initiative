@@ -7,7 +7,7 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
-  canAccessAdminDashboard,
+  canAccessOperatorDashboard,
   canManagePlatformConfig,
   hasCapability,
 } from "@/lib/permissions";
@@ -18,7 +18,7 @@ import { matchActiveTab } from "@/lib/tabs";
  * Reachable by support/moderator/operator/owner depending on capability.
  * App-wide *configuration* lives in the separate Platform settings area.
  */
-export const AdminDashboardLayout = () => {
+export const OperatorDashboardLayout = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const location = useLocation();
@@ -29,39 +29,39 @@ export const AdminDashboardLayout = () => {
     const all: { value: string; label: string; path: string; capabilities: Capability[] }[] = [
       {
         value: "users",
-        label: t("adminDashboard.tabs.users"),
-        path: "/settings/admin/users",
+        label: t("operatorDashboard.tabs.users"),
+        path: "/settings/operator/users",
         capabilities: [Capability.usersRead],
       },
       {
         value: "guilds",
-        label: t("adminDashboard.tabs.guilds"),
-        path: "/settings/admin/communities",
+        label: t("operatorDashboard.tabs.guilds"),
+        path: "/settings/operator/communities",
         capabilities: [Capability.guildsManage],
       },
       {
         value: "announcements",
-        label: t("adminDashboard.tabs.announcements"),
-        path: "/settings/admin/announcements",
+        label: t("operatorDashboard.tabs.announcements"),
+        path: "/settings/operator/announcements",
         capabilities: [Capability.announcementsManage],
       },
       {
         value: "audit",
-        label: t("adminDashboard.tabs.audit"),
-        path: "/settings/admin/audit",
+        label: t("operatorDashboard.tabs.audit"),
+        path: "/settings/operator/audit",
         capabilities: [Capability.auditRead],
       },
       {
         value: "access",
-        label: t("adminDashboard.tabs.access"),
-        path: "/settings/admin/access",
+        label: t("operatorDashboard.tabs.access"),
+        path: "/settings/operator/access",
         capabilities: [Capability.accessRequest, Capability.accessApprove],
       },
     ];
     return all.filter((tab) => tab.capabilities.some((c) => hasCapability(user, c)));
   }, [t, user]);
 
-  if (!canAccessAdminDashboard(user)) {
+  if (!canAccessOperatorDashboard(user)) {
     return (
       <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/settings"} replace />
     );
@@ -73,8 +73,8 @@ export const AdminDashboardLayout = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("adminDashboard.title")}</h1>
-        <p className="text-muted-foreground">{t("adminDashboard.subtitle")}</p>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("operatorDashboard.title")}</h1>
+        <p className="text-muted-foreground">{t("operatorDashboard.subtitle")}</p>
       </div>
       <SettingsTabsNav
         tabs={tabs}

@@ -2092,7 +2092,7 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
 }
 
 /**
- * List every guild with its storage cap, for the Admin dashboard Guilds tab.
+ * List every guild with its storage cap, for the Operator dashboard Guilds tab.
  *
  * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
  * (``guilds``, ``guild_administration``, ``guild_memberships``) — no

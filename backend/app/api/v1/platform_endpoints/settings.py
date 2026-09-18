@@ -556,7 +556,7 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     )
 
 
-# --- Guild storage limits (Admin dashboard → Guilds tab) ---
+# --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
@@ -564,7 +564,7 @@ async def list_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> list[PlatformGuildStorageRead]:
-    """List every guild with its storage cap, for the Admin dashboard Guilds tab.
+    """List every guild with its storage cap, for the Operator dashboard Guilds tab.
 
     Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
     (``guilds``, ``guild_administration``, ``guild_memberships``) — no

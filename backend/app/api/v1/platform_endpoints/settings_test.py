@@ -870,7 +870,7 @@ async def test_guild_storage_endpoints_allow_admin(
     session: AsyncSession,
 ) -> None:
     """A platform ``admin`` (guilds.manage) can list guilds and set a storage
-    cap from the Admin dashboard Guilds tab."""
+    cap from the Operator dashboard Guilds tab."""
     admin = await create_user(
         session, email="gstor-admin@example.com", role=UserRole.operator
     )

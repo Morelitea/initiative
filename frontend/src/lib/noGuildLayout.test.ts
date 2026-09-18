@@ -21,7 +21,7 @@ describe("chooseNoGuildLayout", () => {
       expect(
         chooseNoGuildLayout({
           hasGuilds: true,
-          pathname: "/settings/admin",
+          pathname: "/settings/operator",
           isPlatformAdmin: true,
         })
       ).toBe("main");
@@ -104,14 +104,14 @@ describe("chooseNoGuildLayout", () => {
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
-          pathname: "/settings/admin",
+          pathname: "/settings/operator",
           isPlatformAdmin: true,
         })
       ).toBe("shell");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
-          pathname: "/settings/admin/users",
+          pathname: "/settings/operator/users",
           isPlatformAdmin: true,
         })
       ).toBe("shell");
@@ -132,7 +132,7 @@ describe("chooseNoGuildLayout", () => {
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
-          pathname: "/settings/admin",
+          pathname: "/settings/operator",
           isPlatformAdmin: false,
         })
       ).toBe("empty");

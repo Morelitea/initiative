@@ -63,7 +63,7 @@ import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
 import { useWikiCountsByInitiative } from "@/hooks/useWikis";
 import { guildPath } from "@/lib/guildUrl";
-import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -84,9 +84,9 @@ export const AppSidebar = () => {
   const isGuildAdmin = activeGuild?.is_admin ?? false;
   const { filterVisible, permissionsFor, canManage } = useInitiativeAccess();
   // Two separate platform areas: config (Platform settings) vs operational
-  // (Admin dashboard). Each surfaced independently per capability.
+  // (Operator dashboard). Each surfaced independently per capability.
   const showPlatformSettings = canManagePlatformConfig(user);
-  const showAdminDashboard = canAccessAdminDashboard(user);
+  const showOperatorDashboard = canAccessOperatorDashboard(user);
 
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/c/");
@@ -699,7 +699,7 @@ export const AppSidebar = () => {
         <SidebarUserFooter
           user={user}
           canManagePlatformConfig={showPlatformSettings}
-          canAccessAdminDashboard={showAdminDashboard}
+          canAccessOperatorDashboard={showOperatorDashboard}
           currentVersion={currentVersion}
           latestVersion={latestVersion ?? null}
           hasUpdate={Boolean(hasUpdate)}
