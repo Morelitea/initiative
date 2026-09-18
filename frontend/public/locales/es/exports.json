@@ -105,7 +105,9 @@
       "document": "Documento",
       "queue": "Cola",
       "counter-group": "Grupo de contadores",
-      "calendar-event": "Calendario",
+      "calendar": "Calendario",
+      "post": "Publicación",
+      "wiki": "Wiki",
       "initiative": "Iniciativa",
       "guild": "Comunidad"
     },

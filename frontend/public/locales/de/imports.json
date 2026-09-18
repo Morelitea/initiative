@@ -100,7 +100,9 @@
       "initiative-document": "Dokument",
       "initiative-queue": "Warteschlange",
       "initiative-counter-group": "Zählergruppe",
-      "initiative-calendar-events": "Kalender"
+      "initiative-calendar": "Kalender",
+      "initiative-post": "Beitrag",
+      "initiative-wiki": "Wiki"
     },
     "cancel": "Abbrechen",
     "viewReport": "Bericht anzeigen",

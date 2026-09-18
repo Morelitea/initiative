@@ -105,7 +105,9 @@
       "document": "Dokument",
       "queue": "Warteschlange",
       "counter-group": "Zählergruppe",
-      "calendar-event": "Kalender",
+      "calendar": "Kalender",
+      "post": "Beitrag",
+      "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Community"
     },

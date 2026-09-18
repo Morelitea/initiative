@@ -100,7 +100,9 @@
       "initiative-document": "Document",
       "initiative-queue": "File",
       "initiative-counter-group": "Groupe de compteurs",
-      "initiative-calendar-events": "Calendrier"
+      "initiative-calendar": "Calendrier",
+      "initiative-post": "Publication",
+      "initiative-wiki": "Wiki"
     },
     "cancel": "Annuler",
     "viewReport": "Voir le rapport",

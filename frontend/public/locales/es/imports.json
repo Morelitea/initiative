@@ -100,7 +100,9 @@
       "initiative-document": "Documento",
       "initiative-queue": "Cola",
       "initiative-counter-group": "Grupo de contadores",
-      "initiative-calendar-events": "Calendario"
+      "initiative-calendar": "Calendario",
+      "initiative-post": "Publicación",
+      "initiative-wiki": "Wiki"
     },
     "cancel": "Cancelar",
     "viewReport": "Ver informe",

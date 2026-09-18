@@ -105,7 +105,9 @@
       "document": "Document",
       "queue": "File",
       "counter-group": "Groupe de compteurs",
-      "calendar-event": "Calendrier",
+      "calendar": "Calendrier",
+      "post": "Publication",
+      "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Communauté"
     },
