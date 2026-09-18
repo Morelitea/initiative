@@ -1609,6 +1609,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.
     "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
+    # A wiki page is addressed through its wiki — `/wikis/{id}/pages/{id}` —
+    # and an envelope carries ids rather than paths, so a change to one reports
+    # as the wiki it is in. A subscriber re-reads the wiki's list, which is
+    # where the page's place in it lives anyway.
+    "wiki_pages": Emit(reports_as=reports_as("wikis", "wiki_id", "pages")),
     "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),

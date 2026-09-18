@@ -73,6 +73,11 @@ _SAFE_WRITES = {
     # write surface stops at the wall itself.
     "create_gallery",
     "update_gallery",
+    # A wiki is made and configured here. Its PAGES are not: they live under
+    # `/wikis/{id}/pages`, a shape no RouteMap matches, so writing what a wiki
+    # says stays a job for a person in the editor.
+    "create_wiki",
+    "update_wiki",
     # And what those tools hold: a project's tasks, a queue's items, a counter
     # group's counters, a calendar's events, and the comments on any of them.
     "create_task",
