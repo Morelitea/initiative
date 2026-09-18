@@ -688,8 +688,9 @@ export const useUpdateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsCo
 /**
  * Disconnect. Nobody is signed out and no account changes — what goes is
  * the button on this community's sign-in page, and its claim on who arrives
- * through that provider. A sign-in requirement naming the provider is left
- * standing, so lift that first if the community means to reopen.
+ * through that provider. Lift any sign-in requirement that depends on this
+ * connection first: the gate reads the connections, so a requirement without
+ * one has nothing left to satisfy it.
  * @summary Delete Guild Provider Connection
  */
 export const deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete = (
