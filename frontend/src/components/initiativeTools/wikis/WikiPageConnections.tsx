@@ -6,7 +6,13 @@ import type { WikiPageLink } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useWikiPageLinks } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { entityRefRoute, TOOL_ICONS, toolKebabSingular, wikiPageRoute } from "@/lib/tools";
+import {
+  entityRefRoute,
+  TOOL_ICONS,
+  toolDetailRoute,
+  toolKebabSingular,
+  wikiPageRoute,
+} from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,13 +31,25 @@ const iconFor = (link: WikiPageLink) => {
 /**
  * Where a link points.
  *
- * A page of any wiki is addressed directly — the server sends the wiki and the
- * initiative with the link, so nothing has to be looked up. Everything else
- * goes through `/go`, which resolves the id to wherever it lives.
+ * Directly, wherever the server has said enough to say where — which is most of
+ * the time: every link carries the initiative and the tool it belongs to, and a
+ * tool's own entity is addressable from those alone.
+ *
+ * `/go` is the fallback, not the rule. It is a page that mounts, looks the id
+ * up and then redirects, so a link through it is two navigations where one
+ * would do — and the surface being navigated to is left starting, stopping and
+ * starting again. Only something `/go` can resolve and this cannot — a
+ * sub-resource, whose id is not its tool's — is worth that.
  */
 const hrefOf = (link: WikiPageLink) => {
   if (link.entity_type === "wiki_page" && link.tool_id != null) {
     return wikiPageRoute(link.initiative_id ?? null, link.tool_id, link.entity_id);
+  }
+  // A tool's own entity: the link's kind IS the tool, so its id is the one the
+  // tool's route wants.
+  const tool = link.tool as Tool | null;
+  if (tool && tool === (link.entity_type as unknown as Tool) && link.initiative_id != null) {
+    return toolDetailRoute(tool, link.initiative_id, link.entity_id);
   }
   return entityRefRoute(toolKebabSingular(link.entity_type as never), link.entity_id);
 };
