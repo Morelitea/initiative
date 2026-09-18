@@ -7,7 +7,7 @@ icon: lucide/shield-half
 Two role systems, kept deliberately separate:
 
 - **Community roles** (superadmin / admin / member) govern a single workspace. See [Working with communities](../guides/communities.md).
-- **Platform roles** govern the **whole server** — every community, every user. That's this page. The tier below owner is called **operator**, to keep it clear of the community "admin" role.
+- **Platform roles** govern the **whole server** — every community, every user. That's this page. The ladder runs member → support → moderator → operator → owner. **Admin** belongs to the community ladder above, and stays there.
 
 Platform roles are managed by the [owner](#the-owner) — and for some actions, operators — from **Settings → Platform** and the **Operator dashboard**.
 
@@ -42,7 +42,7 @@ The **first person to register** on a new server becomes the **owner**. The owne
 **Manage** opens everything you can change about one account:
 
 - **Username** — the handle they're addressed by. The four digits after it stay as they are.
-- **Profile picture** — take one down. There's no way to put one up on somebody else's behalf.
+- **Profile picture** — take one down. Putting one up stays theirs.
 - **Suspend** — freezes the account. They can still sign in and read why, and reach none of their communities. Nothing is deleted; lifting it hands everything back.
 - **Platform role** — move them up or down the ladder. You can't grant a rung above your own.
 

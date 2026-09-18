@@ -1089,7 +1089,8 @@ export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
   );
 };
 /**
- * Get the count of platform admins (``users.read``, role-scoped session).
+ * Count the accounts that can manage platform configuration —
+ * owners (``users.read``, role-scoped session).
  * @summary Get Platform Admin Count
  */
 export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = (
@@ -1337,7 +1338,7 @@ export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
  *
  * Restrictions:
  * - Cannot change your own role
- * - Cannot demote the last platform admin
+ * - Cannot demote the last owner
  * @summary Update Platform Role
  */
 export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
@@ -1666,7 +1667,7 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
  *
  * Restrictions:
  * - Cannot delete yourself (use /users/me/delete-account)
- * - Cannot delete the last platform admin
+ * - Cannot delete the last owner
  * @summary Delete User
  */
 export const deleteUserApiV1AdminUsersUserIdDelete = (
@@ -1849,7 +1850,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
   );
 };
 /**
- * Delete an initiative (platform admin only).
+ * Delete an initiative (``guilds.manage``).
  *
  * Used by the user-deletion blocker-resolution flow when a target user is
  * the sole project manager of an initiative with no other members the
@@ -1860,7 +1861,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
  *
  * Default initiatives are deletable here — that restriction exists for
  * guild admins (so the guild always has a default for new project
- * creation), but a platform admin cleaning up a soon-to-be-deleted
+ * creation), but an operator cleaning up a soon-to-be-deleted
  * user shouldn't be blocked by it.
  *
  * ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
@@ -1974,9 +1975,9 @@ export const useAdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = <
   );
 };
 /**
- * Update a guild member's role (platform admin only).
+ * Update a guild member's role (``guilds.manage``).
  *
- * This allows platform admins to change guild member roles in any guild,
+ * This allows operators to change guild member roles in any guild,
  * even if they're not a member. Useful for resolving "last admin" blockers.
  *
  * Restrictions:
@@ -2093,7 +2094,7 @@ export const useAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRo
   );
 };
 /**
- * List members of any initiative (platform admin only).
+ * List members of any initiative (``guilds.manage``).
  *
  * ``guild_id`` is required: initiatives live in per-guild schemas with
  * independent id sequences. We route into that guild's schema as a guild
@@ -2315,9 +2316,9 @@ export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMem
 }
 
 /**
- * Update an initiative member's role (platform admin only).
+ * Update an initiative member's role (``guilds.manage``).
  *
- * This allows platform admins to change initiative member roles in any initiative,
+ * This allows operators to change initiative member roles in any initiative,
  * even if they're not a member. Useful for resolving "sole PM" blockers.
  *
  * ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique

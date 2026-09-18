@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Read-only",
-        "message": "This community is read-only. Contact your platform administrator to restore full access."
+        "message": "This community is read-only. Contact whoever runs this server to restore full access."
       },
       "suspended": {
         "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact your platform administrator."
+        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
     "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
-    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. A platform admin can reactivate your account on request. Your name, email, and content remain intact.",
+    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Account deleted permanently"
   },
   "branding": {
-    "adminOnly": "Only platform admins can manage branding settings.",
+    "adminOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only platform admins can manage email settings.",
+    "adminOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -553,7 +553,7 @@
     "saveError": "Unable to save email settings"
   },
   "auth": {
-    "adminOnly": "Only platform admins can manage authentication settings.",
+    "adminOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
@@ -667,16 +667,9 @@
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
-    "inactive": "Inactive",
     "deactivated": "Deactivated",
     "anonymized": "Anonymized",
     "suspended": "Suspended",
-    "admin": "Admin",
-    "user": "User",
-    "promoteToAdmin": "Promote to admin",
-    "promoteDescription": "This will give {{email}} platform admin permissions, allowing them to manage platform settings, users, and configurations.",
-    "demoteToUser": "Demote to user",
-    "demoteDescription": "This will remove platform admin permissions from {{email}}. They will no longer be able to access platform settings.",
     "resetPassword": "Reset password",
     "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
@@ -684,15 +677,11 @@
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
-    "promoteSuccess": "User promoted to admin",
-    "demoteSuccess": "User demoted to member",
     "roleChangeError": "Unable to change user role",
     "resetSuccess": "Password reset email sent to {{email}}",
     "resetError": "Unable to send password reset",
     "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
-    "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
-    "cannotChangeOwnRole": "Cannot change your own role",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
       "member": "Member",

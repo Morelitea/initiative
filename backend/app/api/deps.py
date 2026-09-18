@@ -1219,7 +1219,7 @@ async def get_user_session(
     to route. Guild-addressed work uses ``get_guild_session`` instead, which
     ``SET ROLE``s into the guild role.
 
-    No standing all-guild bypass: a platform admin's cross-user/guild
+    No standing all-guild bypass: a platform role's cross-user/guild
     reach on this path is authorized by the ``platform_<tier>`` RLS policies
     (Phase 2), and reaching a guild's *data* requires an explicit break-glass
     PAM grant (§7), never an ambient flag.

@@ -450,7 +450,7 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     if not user.username_chosen:
         user.username = usernames.random_name()
         user.discriminator = usernames.random_discriminator()
-    # Demote any platform admin to member. The row is now an empty husk
+    # Drop any platform role back to member. The row is now an empty husk
     # that can't act on anything; leaving the admin role on it would be
     # misleading in audit views and would inflate any role-only count
     # that doesn't also filter by status.
@@ -951,7 +951,7 @@ async def to_self_read(user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
-    unmasked. A platform admin reading another account gets ``to_admin_read``.
+    unmasked. Reading somebody else's account gets ``to_admin_read``.
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
@@ -968,7 +968,7 @@ async def to_self_read(user: User) -> "UserRead":
 
 
 async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
-    """The same, for a platform admin reading other people's accounts.
+    """The same, for staff reading other people's accounts.
 
     The shape masks the address itself.
     """

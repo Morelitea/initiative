@@ -1330,7 +1330,8 @@ async def delete_own_account(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent last platform admin deletion (use FOR UPDATE to prevent race condition)
+    # Keep at least one owner, who is the only rung that can manage platform
+    # configuration (FOR UPDATE to prevent a race).
     if await users_service.is_last_platform_admin(
         session, current_user.id, for_update=True
     ):

@@ -46,8 +46,8 @@ from app.core.config import settings
 # * An address never reaches a guild. ``email`` is absent from every
 #   guild-scoped shape — roster, picker and member management alike — and kept
 #   in full only on ``UserRead``, which is served for your own account.
-# * An address is read back in full only by its owner. The platform admin
-#   reads use ``AdminUserRead``, which is ``UserRead`` with the address
+# * An address is read back in full only by its owner. Staff reads use
+#   ``AdminUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
 # * A real name is shown only where a guild has asked for it.
@@ -568,9 +568,9 @@ class UserRead(UserBase):
 
 
 class AdminUserRead(UserRead):
-    """A platform admin's view of somebody else's account: the address masked.
+    """A staff view of somebody else's account: the address masked.
 
-    Everything a platform admin does to an account — reset its password, rename
+    Everything staff do to an account — reset its password, rename
     it, change its tier, suspend it, delete it — is addressed by id, and the
     roster is read and searched by handle, so none of it needs the address
     itself. What the mask leaves is enough to match a row against an address
@@ -666,7 +666,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     """Request from a user to deactivate or anonymize (soft-delete) their own account.
 
     `hard_delete` is intentionally not allowed from this self-service endpoint;
-    only platform admins can purge a row, and they do so via the admin endpoint.
+    only an operator can purge a row, and they do so via the admin endpoint.
     """
 
     action: Literal["deactivate", "soft_delete"]

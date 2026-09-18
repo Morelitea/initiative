@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Lecture seule",
-        "message": "Cette communauté est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+        "message": "Cette communauté est en lecture seule. Contactez la personne qui gère ce serveur pour rétablir l'accès complet."
       },
       "suspended": {
         "label": "Suspendu",
-        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez la personne qui gère ce serveur."
       }
     },
     "tabs": {
@@ -446,13 +446,13 @@
     "deactivateSuccess": "Compte désactivé avec succès",
     "deleteSuccess": "Compte supprimé définitivement",
     "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
-    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère le serveur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
     "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
     "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
     "softDeleteSuccess": "Votre compte a été anonymisé."
   },
   "branding": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'image de marque.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
     "colorsTitle": "Couleurs de marque",
     "colorsDescription": "Personnalisez les couleurs d'accent pour le mode clair et sombre.",
     "loadingInterface": "Chargement des paramètres d'interface…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres e-mail.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
     "title": "E-mail SMTP",
     "description": "Configurez le serveur SMTP utilisé pour les e-mails transactionnels.",
     "loading": "Chargement des paramètres e-mail…",
@@ -553,7 +553,7 @@
     "saveError": "Impossible d'enregistrer les paramètres e-mail"
   },
   "auth": {
-    "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'authentification.",
+    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
     "postLoginRedirect": "Redirection post-connexion :",
@@ -667,13 +667,6 @@
     "columnStatus": "Statut",
     "columnActions": "Actions",
     "active": "Actif",
-    "inactive": "Inactif",
-    "admin": "Administrateur",
-    "user": "Utilisateur",
-    "promoteToAdmin": "Promouvoir en administrateur",
-    "promoteDescription": "Cela donnera à {{email}} des permissions d'administrateur de plateforme, lui permettant de gérer les paramètres, utilisateurs et configurations de la plateforme.",
-    "demoteToUser": "Rétrograder en utilisateur",
-    "demoteDescription": "Cela retirera les permissions d'administrateur de plateforme de {{email}}. Il ne pourra plus accéder aux paramètres de la plateforme.",
     "resetPassword": "Réinitialiser le mot de passe",
     "resetDescription": "Cela enverra un e-mail de réinitialisation de mot de passe à {{email}}.",
     "reactivate": "Réactiver",
@@ -681,15 +674,11 @@
     "exportAll": "Tout exporter en CSV",
     "exportError": "Impossible d'exporter les utilisateurs.",
     "deleteUser": "Supprimer l'utilisateur",
-    "promoteSuccess": "Utilisateur promu administrateur",
-    "demoteSuccess": "Utilisateur rétrogradé en membre",
     "roleChangeError": "Impossible de changer le rôle de l'utilisateur",
     "resetSuccess": "E-mail de réinitialisation du mot de passe envoyé à {{email}}",
     "resetError": "Impossible d'envoyer la réinitialisation du mot de passe",
     "reactivateSuccess": "{{email}} a été réactivé",
     "reactivateError": "Impossible de réactiver l'utilisateur",
-    "cannotDemoteLastAdmin": "Impossible de rétrograder le dernier administrateur de plateforme",
-    "cannotChangeOwnRole": "Impossible de changer votre propre rôle",
     "permissionRequired": "Vous n'avez pas la permission de voir les utilisateurs de la plateforme.",
     "roles": {
       "member": "Membre",

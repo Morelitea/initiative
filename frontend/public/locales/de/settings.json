@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
-        "message": "Diese Community ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+        "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       },
       "suspended": {
         "label": "Gesperrt",
-        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an die Betreiber dieses Servers."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
     "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
-    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Konto dauerhaft gelöscht"
   },
   "branding": {
-    "adminOnly": "Nur Plattformadministratoren können die Branding-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur Plattformadministratoren können die E-Mail-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -553,7 +553,7 @@
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
   "auth": {
-    "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
@@ -667,16 +667,9 @@
     "columnStatus": "Status",
     "columnActions": "Aktionen",
     "active": "Aktiv",
-    "inactive": "Inaktiv",
     "deactivated": "Deaktiviert",
     "anonymized": "Anonymisiert",
     "suspended": "Gesperrt",
-    "admin": "Administrator",
-    "user": "Benutzer",
-    "promoteToAdmin": "Zum Administrator befördern",
-    "promoteDescription": "Dadurch erhält {{email}} Plattformadministrator-Berechtigungen und kann Plattformeinstellungen, Benutzer und Konfigurationen verwalten.",
-    "demoteToUser": "Zum Benutzer herabstufen",
-    "demoteDescription": "Dadurch werden {{email}} die Plattformadministrator-Berechtigungen entzogen. Die Person kann dann nicht mehr auf die Plattformeinstellungen zugreifen.",
     "resetPassword": "Passwort zurücksetzen",
     "resetDescription": "Dadurch wird eine E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet.",
     "reactivate": "Wieder aktivieren",
@@ -684,15 +677,11 @@
     "exportAll": "Alle als CSV exportieren",
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "deleteUser": "Benutzer löschen",
-    "promoteSuccess": "Benutzer zum Administrator befördert",
-    "demoteSuccess": "Benutzer zum Mitglied herabgestuft",
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
     "resetSuccess": "E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
     "reactivateSuccess": "{{email}} wurde wieder aktiviert",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
-    "cannotDemoteLastAdmin": "Der letzte Plattformadministrator kann nicht herabgestuft werden",
-    "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
     "roles": {
       "member": "Mitglied",
