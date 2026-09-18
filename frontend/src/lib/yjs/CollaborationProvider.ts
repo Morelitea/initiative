@@ -94,6 +94,20 @@ const MAX_ATTEMPTS_PER_MINUTE = 10;
  * This prevents the issue where the editor appears empty because the old provider's
  * Y.Doc doesn't match Lexical's new Y.Doc.
  */
+/**
+ * The provider already serving this address, if one is alive.
+ *
+ * A caller that is about to build a fresh Y.Doc asks this first: a provider
+ * that is mid-handshake holds the only socket for that address, and the doc it
+ * is bound to is the one the server is already answering. Taking that doc
+ * instead of making another is what lets a remount join the connection in
+ * progress rather than replace it.
+ */
+export function getLiveProvider(wsUrl: string): CollaborationProvider | null {
+  const existing = activeProviders.get(new URL(wsUrl).pathname);
+  return existing && !existing.destroyed ? existing : null;
+}
+
 export function getOrCreateProvider(
   wsUrl: string,
   roomName: string,
@@ -394,6 +408,15 @@ export class CollaborationProvider implements Provider {
       return;
     }
     this.destroyed = true;
+
+    // A socket torn down before it ever opened was not a failed attempt — it
+    // was a provider that stopped being wanted. Counting it would spend the
+    // reconnect budget for this address on connections nothing was waiting
+    // for, and the next real attempt would be made to wait for a window that
+    // nothing had actually used.
+    if (this.websocket && this.websocket.readyState === WebSocket.CONNECTING) {
+      connectionAttempts.delete(this.connectionId);
+    }
 
     // Remove from global tracking
     if (activeProviders.get(this.connectionId) === this) {
