@@ -7,15 +7,17 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
+import { holdsGuildSeat } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.is_admin ?? false;
-  // The seat above admin, which holds this community's sign-in configuration.
+  // The seat above admin, which holds this community's sign-in, its AI and
+  // its apps — held outright, or lent for a window by a settings grant.
   const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
-  const isSuperadmin = activeGuild?.role === "superadmin" || onTheGrantedSeat;
+  const isSuperadmin = holdsGuildSeat(activeGuild);
   // Where the community has a sign-in of its own to configure, that is. Most
   // never do: the operator grants the surface, and without it there is nothing
   // on the tab to show anybody. A grantee's entry carries no options — the
@@ -37,11 +39,18 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.guild"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings") : "/settings",
       },
-      {
-        value: "ai",
-        label: t("guildLayout.tabs.ai"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/ai") : "/settings/ai",
-      },
+      // What the community hands to somebody outside it — an AI provider, an
+      // app — is the seat's to decide, the way its sign-in is. An ordinary
+      // admin runs the community; these say who else gets to see it.
+      ...(isSuperadmin
+        ? [
+            {
+              value: "ai",
+              label: t("guildLayout.tabs.ai"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/ai") : "/settings/ai",
+            },
+          ]
+        : []),
       {
         value: "users",
         label: t("guildLayout.tabs.users"),
@@ -63,11 +72,15 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.initiatives"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
       },
-      {
-        value: "apps",
-        label: t("guildLayout.tabs.apps"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/apps") : "/settings/apps",
-      },
+      ...(isSuperadmin
+        ? [
+            {
+              value: "apps",
+              label: t("guildLayout.tabs.apps"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/apps") : "/settings/apps",
+            },
+          ]
+        : []),
       {
         value: "trash",
         label: t("guildLayout.tabs.trash"),
@@ -87,7 +100,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, configuresItsOwnSignIn]);
+  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin]);
 
   const canViewSettings = isGuildAdmin || isSuperadmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
@@ -98,9 +111,10 @@ export const GuildSettingsLayout = () => {
   const workingTabs = isSuspended
     ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
     : guildSettingsTabs;
+  const seatOnly = new Set(["auth", "ai", "apps"]);
   const availableTabs = isGuildAdmin
     ? workingTabs
-    : workingTabs.filter((tab) => tab.value === "auth");
+    : workingTabs.filter((tab) => seatOnly.has(tab.value));
 
   if (!canViewSettings) {
     return (

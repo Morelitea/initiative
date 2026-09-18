@@ -163,7 +163,13 @@
     "adminRequired": "Du benötigst Administrator-Berechtigungen, um diese Seite anzuzeigen.",
     "guildRole": {
       "admin": "Administrator",
-      "member": "Mitglied"
+      "member": "Mitglied",
+      "superadmin": "Superadmin"
+    },
+    "guildRoleHelp": {
+      "member": "Nimmt an dem teil, wozu die Person hinzugefügt wurde.",
+      "admin": "Führt die Community — Mitglieder, Einladungen, Initiativen, Einstellungen.",
+      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Apps. Nur ein Superadmin kann einen weiteren ernennen."
     },
     "loadingSettings": "Einstellungen werden geladen…",
     "unableToLoadSettings": "Einstellungen konnten nicht geladen werden.",

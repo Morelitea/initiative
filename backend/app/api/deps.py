@@ -966,26 +966,40 @@ async def get_guild_membership(
         ) from exc
 
 
-def require_guild_roles(*roles: GuildRole) -> Callable:
-    """Guard an endpoint on the caller's role in the guild named by the path.
+def holds_guild_role(context: GuildContext, *roles: GuildRole) -> bool:
+    """Whether this request answers a guard asking for any of ``roles``.
 
-    Asking for ``admin`` asks for admin *or above*, so a superadmin
-    satisfies every guard an ordinary admin satisfies — the seat sits above
-    ``admin``, and this is the one place that has to know it for all of them.
+    Asking for ``admin`` asks for admin *or above*, so a superadmin satisfies
+    every guard an ordinary admin satisfies — the seat sits above ``admin``,
+    and this is the one place that has to know it for all of them.
+
+    A live settings grant answers at its own rung. It confers no content access
+    with it: the session is still routed as the grant's read/write level says.
+
+    The predicate behind :func:`require_guild_roles`, separate from it because
+    some endpoints ask the same question part-way through a handler rather than
+    at the door — and the two must never drift into different answers.
     """
     accepted = frozenset(roles)
     if GuildRole.admin in accepted:
         accepted |= GUILD_ADMIN_ROLES
+    if not accepted:
+        return True
+    if any(context.settings_rung_reaches(role) for role in accepted):
+        return True
+    return context.membership.role in accepted
+
+
+def require_guild_roles(*roles: GuildRole) -> Callable:
+    """Guard an endpoint on the caller's role in the guild named by the path.
+
+    See :func:`holds_guild_role`, which is what it asks.
+    """
 
     async def dependency(
         context: Annotated[GuildContext, Depends(get_guild_membership)],
     ) -> GuildContext:
-        # A settings grant answers a role guard at its own rung. It confers no
-        # content access with it: the session is still routed as the grant's
-        # read/write level says.
-        if accepted and any(context.settings_rung_reaches(r) for r in accepted):
-            return context
-        if accepted and context.membership.role not in accepted:
+        if not holds_guild_role(context, *roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_PERMISSION_REQUIRED,

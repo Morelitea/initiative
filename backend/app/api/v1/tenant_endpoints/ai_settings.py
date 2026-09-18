@@ -40,12 +40,12 @@ from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
 
-# Guild connection management: real guild admins OR a ``support`` (scoped PAM)
-# grantee. Reads work for any support grant; writes are denied at the Postgres
-# role level for a read grant (it assumes ``guild_<id>_ro``), so the read/write
-# split is DB-enforced.
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin, GuildRole.support))
+# Connecting a community to an AI provider decides what leaves it, and for
+# whom — the same kind of question as who may sign in, so it answers to the
+# same seat rather than to running the community day to day. A settings grant
+# at the superadmin rung stands in for the seat, as it does everywhere else.
+GuildSeatContext = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.superadmin))
 ]
 GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
@@ -55,7 +55,7 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 @router.get("/ai/connections", response_model=list[AIConnectionResponse])
 async def list_guild_connections(
     session: RLSSessionDep,
-    _ctx: GuildAdminContext,
+    _ctx: GuildSeatContext,
 ) -> list[AIConnectionResponse]:
     return await ai_settings_service.list_guild_connections(session)
 
@@ -64,7 +64,7 @@ async def list_guild_connections(
 async def create_guild_connection(
     payload: AIConnectionCreate,
     session: RLSSessionDep,
-    ctx: GuildAdminContext,
+    ctx: GuildSeatContext,
     user: CurrentUser,
 ) -> AIConnectionResponse:
     return await ai_settings_service.create_guild_connection(
@@ -77,7 +77,7 @@ async def update_guild_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
     session: RLSSessionDep,
-    _ctx: GuildAdminContext,
+    _ctx: GuildSeatContext,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_guild_connection(
         session, connection_id, payload
@@ -90,7 +90,7 @@ async def update_guild_connection(
 async def delete_guild_connection(
     connection_id: int,
     session: RLSSessionDep,
-    _ctx: GuildAdminContext,
+    _ctx: GuildSeatContext,
 ) -> None:
     await ai_settings_service.delete_guild_connection(session, connection_id)
 
@@ -101,7 +101,7 @@ async def delete_guild_connection(
 async def test_guild_connection(
     connection_id: int,
     session: RLSSessionDep,
-    _ctx: GuildAdminContext,
+    _ctx: GuildSeatContext,
 ) -> AIConnectionTestResponse:
     return await ai_settings_service.test_guild_connection(session, connection_id)
 
@@ -110,7 +110,7 @@ async def test_guild_connection(
 async def fetch_guild_connection_models(
     connection_id: int,
     session: RLSSessionDep,
-    _ctx: GuildAdminContext,
+    _ctx: GuildSeatContext,
 ) -> AIModelsResponse:
     return await ai_settings_service.fetch_guild_connection_models(
         session, connection_id
