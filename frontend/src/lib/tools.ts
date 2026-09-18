@@ -94,9 +94,6 @@ export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
   // Export/import ships with the marketplace, which owns the definition
   // envelope format.
   Tool.dashboard,
-  // A gallery is its image files, and the export engine carries JSON
-  // envelopes — mirrors backend `NON_EXPORTABLE_TOOLS`.
-  Tool.gallery,
 ]);
 
 /** Tools with an export-engine source (single + bulk selection export), and

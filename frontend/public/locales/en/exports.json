@@ -109,7 +109,8 @@
       "post": "Post",
       "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Community"
+      "guild": "Community",
+      "gallery": "Gallery"
     },
     "download": "Download",
     "empty": "No exports yet.",

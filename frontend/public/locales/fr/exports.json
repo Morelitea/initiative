@@ -109,7 +109,8 @@
       "post": "Publication",
       "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Communauté"
+      "guild": "Communauté",
+      "gallery": "Galerie"
     },
     "download": "Télécharger",
     "empty": "Aucun export pour l’instant.",
