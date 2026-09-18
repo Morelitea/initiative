@@ -22,6 +22,10 @@ import type {
 
 import type {
   ConnectableProviderRead,
+  GuildClaimRuleCreate,
+  GuildClaimRuleRead,
+  GuildClaimRuleUpdate,
+  GuildClaimRulesResponse,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
@@ -804,6 +808,457 @@ export const useDeleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsCo
     getDeleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDeleteMutationOptions(
       options
     ),
+    queryClient
+  );
+};
+/**
+ * Where this community places the people its providers vouch for.
+ * @summary List Guild Claim Rules
+ */
+export const listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildClaimRulesResponse>(
+    { url: `/api/v1/guilds/${guildId}/auth/rules`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey = (guildId: number) => {
+  return [`/api/v1/guilds/${guildId}/auth/rules`] as const;
+};
+
+export const getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>
+  > = ({ signal }) =>
+    listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>
+>;
+export type ListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet<
+  TData = Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet<
+  TData = Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet<
+  TData = Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Guild Claim Rules
+ */
+
+export function useListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet<
+  TData = Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Place the people carrying one group. The rule reads a provider this
+ * community already counts as its own — saying what a group means is the
+ * same sentence as saying whose people arrive through it.
+ * @summary Create Guild Claim Rule
+ */
+export const createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost = (
+  guildId: number,
+  guildClaimRuleCreate: BodyType<GuildClaimRuleCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildClaimRuleRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/auth/rules`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: guildClaimRuleCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>,
+    TError,
+    { guildId: number; data: BodyType<GuildClaimRuleCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>,
+  TError,
+  { guildId: number; data: BodyType<GuildClaimRuleCreate> },
+  TContext
+> => {
+  const mutationKey = ["createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>,
+    { guildId: number; data: BodyType<GuildClaimRuleCreate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>
+>;
+export type CreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPostMutationBody =
+  BodyType<GuildClaimRuleCreate>;
+export type CreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Guild Claim Rule
+ */
+export const useCreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>,
+      TError,
+      { guildId: number; data: BodyType<GuildClaimRuleCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost>>,
+  TError,
+  { guildId: number; data: BodyType<GuildClaimRuleCreate> },
+  TContext
+> => {
+  return useMutation(
+    getCreateGuildClaimRuleApiV1GuildsGuildIdAuthRulesPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Update Guild Claim Rule
+ */
+export const updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch = (
+  guildId: number,
+  ruleId: number,
+  guildClaimRuleUpdate: BodyType<GuildClaimRuleUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildClaimRuleRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/auth/rules/${ruleId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: guildClaimRuleUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>,
+    TError,
+    { guildId: number; ruleId: number; data: BodyType<GuildClaimRuleUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>,
+  TError,
+  { guildId: number; ruleId: number; data: BodyType<GuildClaimRuleUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>,
+    { guildId: number; ruleId: number; data: BodyType<GuildClaimRuleUpdate> }
+  > = (props) => {
+    const { guildId, ruleId, data } = props ?? {};
+
+    return updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch(
+      guildId,
+      ruleId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>
+>;
+export type UpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatchMutationBody =
+  BodyType<GuildClaimRuleUpdate>;
+export type UpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Guild Claim Rule
+ */
+export const useUpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>,
+      TError,
+      { guildId: number; ruleId: number; data: BodyType<GuildClaimRuleUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch>>,
+  TError,
+  { guildId: number; ruleId: number; data: BodyType<GuildClaimRuleUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Stop placing the people carrying one group. Nobody loses a standing
+ * they already hold until their next sign-in through that provider, which
+ * reconciles against the rules as they stand then.
+ * @summary Delete Guild Claim Rule
+ */
+export const deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete = (
+  guildId: number,
+  ruleId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/guilds/${guildId}/auth/rules/${ruleId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>,
+    TError,
+    { guildId: number; ruleId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>,
+  TError,
+  { guildId: number; ruleId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>,
+    { guildId: number; ruleId: number }
+  > = (props) => {
+    const { guildId, ruleId } = props ?? {};
+
+    return deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete(
+      guildId,
+      ruleId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>
+>;
+
+export type DeleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete Guild Claim Rule
+ */
+export const useDeleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>,
+      TError,
+      { guildId: number; ruleId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete>>,
+  TError,
+  { guildId: number; ruleId: number },
+  TContext
+> => {
+  return useMutation(
+    getDeleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDeleteMutationOptions(options),
     queryClient
   );
 };

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
+import { GuildClaimRulesSection } from "@/components/auth/GuildClaimRulesSection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -514,6 +515,8 @@ export const SettingsGuildAuthPage = () => {
       </Card>
 
       {mayConfigureProviders ? <GuildAuthProvidersSection guildId={guildId} /> : null}
+
+      {mayConfigureProviders ? <GuildClaimRulesSection guildId={guildId} /> : null}
 
       {guildPostureActive ? (
         <Card className="shadow-sm">

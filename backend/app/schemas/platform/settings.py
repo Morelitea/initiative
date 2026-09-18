@@ -221,6 +221,65 @@ class GuildProviderConnectionUpdate(SanitizedBaseModel):
     auto_join: Optional[bool] = None
 
 
+class GuildClaimRuleRead(SanitizedBaseModel):
+    """One rule a community wrote: a group this provider asserts, and where
+    somebody carrying it lands."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    provider_id: int
+    provider_display_name: str
+    provider_icon: Optional[str] = None
+    claim_value: str
+    guild_role: str
+    initiative_id: Optional[int] = None
+    initiative_name: Optional[str] = None
+    initiative_role_id: Optional[int] = None
+    initiative_role_name: Optional[str] = None
+
+
+class GuildClaimRuleCreate(SanitizedBaseModel):
+    """Place the people carrying one group.
+
+    Naming an initiative places them there as well as in the community, since
+    somebody has to be in the community to be in one of its initiatives.
+    """
+
+    provider_id: int
+    claim_value: str = Field(max_length=500)
+    guild_role: str = "member"
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class GuildClaimRuleUpdate(SanitizedBaseModel):
+    """Change where a group lands. Its provider is not editable: a group value
+    means nothing without knowing who asserted it, so a rule pointed at
+    another provider is a different rule."""
+
+    claim_value: Optional[str] = Field(default=None, max_length=500)
+    guild_role: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class GuildClaimRulesResponse(SanitizedBaseModel):
+    """The rules, and whether the providers behind them report groups at all.
+
+    Which claim carries groups is the operator's to set per provider. A
+    community can write rules against a provider that has none, and they will
+    never match anything, so the surface says which of its connections are
+    ready to be written against rather than letting somebody find out later.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    rules: List[GuildClaimRuleRead] = Field(default_factory=list)
+    #: Provider ids this community connects to that report groups.
+    reporting_provider_ids: List[int] = Field(default_factory=list)
+
+
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

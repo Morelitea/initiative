@@ -327,6 +327,14 @@ class AuthProviderMessages:
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
+    #: A community's rule, by an id that is not one of its own.
+    RULE_NOT_FOUND = "AUTH_PROVIDER_RULE_NOT_FOUND"
+    #: A rule reads a provider's groups, so the community has to count that
+    #: provider as one of its own before it can say what its groups mean.
+    RULE_PROVIDER_NOT_CONNECTED = "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED"
+    #: One group lands in one place. A second rule for the same group and the
+    #: same destination would be two answers to one question.
+    RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
 
 
 class TagMessages:

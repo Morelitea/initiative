@@ -4042,6 +4042,63 @@ export interface GuildBannerWrite {
   fade: BannerFade;
 }
 
+/**
+ * Place the people carrying one group.
+ *
+ * Naming an initiative places them there as well as in the community, since
+ * somebody has to be in the community to be in one of its initiatives.
+ */
+export interface GuildClaimRuleCreate {
+  provider_id: number;
+  /** @maxLength 500 */
+  claim_value: string;
+  guild_role?: string;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * One rule a community wrote: a group this provider asserts, and where
+ * somebody carrying it lands.
+ */
+export interface GuildClaimRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+}
+
+/**
+ * Change where a group lands. Its provider is not editable: a group value
+ * means nothing without knowing who asserted it, so a rule pointed at
+ * another provider is a different rule.
+ */
+export interface GuildClaimRuleUpdate {
+  claim_value?: string | null;
+  guild_role?: string | null;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * The rules, and whether the providers behind them report groups at all.
+ *
+ * Which claim carries groups is the operator's to set per provider. A
+ * community can write rules against a provider that has none, and they will
+ * never match anything, so the surface says which of its connections are
+ * ready to be written against rather than letting somebody find out later.
+ */
+export interface GuildClaimRulesResponse {
+  rules: GuildClaimRuleRead[];
+  reporting_provider_ids: number[];
+}
+
 export interface GuildCreate {
   name: string;
   description?: string | null;

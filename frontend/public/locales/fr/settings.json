@@ -1172,6 +1172,39 @@
         "groups": "Appartenance à un groupe",
         "domain": "Domaine"
       }
+    },
+    "rules": {
+      "title": "Où arrivent vos membres",
+      "description": "Votre fournisseur indique les groupes auxquels appartient chaque personne. Dites ici ce que ces groupes signifient : qui rejoint comme membre, qui comme administrateur, et dans quelle initiative.",
+      "add": "Ajouter une règle",
+      "added": "Règle ajoutée",
+      "addError": "Impossible d'ajouter cette règle",
+      "empty": "Aucune règle pour l'instant : les personnes arrivant par vos fournisseurs rejoignent sans affectation particulière.",
+      "connectFirst": "Connectez d'abord un fournisseur, puis dites ce que ses groupes signifient.",
+      "noGroupsBadge": "Aucun groupe signalé",
+      "noGroupsHint": "L'équipe qui gère ce déploiement n'a pas indiqué à ce fournisseur où se trouvent ses groupes : cette règle ne s'appliquera à personne tant que ce n'est pas fait.",
+      "landsInCommunity": "Arrive par {{provider}} — rejoint comme {{role}}",
+      "landsInInitiative": "Arrive par {{provider}} — rejoint comme {{role}}, et {{initiative}} comme {{initiativeRole}}",
+      "dialogDescription": "Nommez un groupe signalé par votre fournisseur et dites où appartiennent ses membres.",
+      "providerLabel": "Fournisseur",
+      "providerPlaceholder": "En choisir un",
+      "groupLabel": "Groupe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactement comme votre fournisseur l'écrit.",
+      "standingLabel": "Ils rejoignent comme",
+      "role": {
+        "member": "membre",
+        "admin": "administrateur"
+      },
+      "initiativeLabel": "Et démarrent dans",
+      "communityOnly": "La communauté seulement",
+      "initiativeRoleLabel": "Dans cette initiative, comme",
+      "initiativeRolePlaceholder": "Choisir un rôle",
+      "remove": "Supprimer",
+      "removed": "Règle supprimée",
+      "removeError": "Impossible de supprimer cette règle",
+      "removeTitle": "Supprimer cette règle ?",
+      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur."
     }
   },
   "authProviders": {

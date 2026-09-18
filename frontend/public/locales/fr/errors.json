@@ -683,5 +683,8 @@
   "AUTH_PROVIDER_CONNECTION_NOT_FOUND": "Cette connexion n’est pas l’une des vôtres",
   "AUTH_PROVIDER_CONNECTION_EXISTS": "Vous êtes déjà connectés à ce fournisseur",
   "AUTH_PROVIDER_CONNECTION_HALF_NARROWED": "Indiquez les deux : quel claim décide et quelles valeurs comptent ; l’un seul n’admet personne",
-  "AUTH_PROVIDER_CONNECTION_NOT_YOURS": "Ce compte n’est pas un compte que cette communauté reconnaît"
+  "AUTH_PROVIDER_CONNECTION_NOT_YOURS": "Ce compte n’est pas un compte que cette communauté reconnaît",
+  "AUTH_PROVIDER_RULE_NOT_FOUND": "Cette règle n'est pas la vôtre",
+  "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connectez ce fournisseur à votre communauté avant de dire ce que ses groupes signifient",
+  "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là"
 }

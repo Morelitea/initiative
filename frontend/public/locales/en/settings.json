@@ -1172,6 +1172,39 @@
         "groups": "Group membership",
         "domain": "Domain"
       }
+    },
+    "rules": {
+      "title": "Where your people land",
+      "description": "Your provider reports which groups somebody is in. Say what those groups mean here — who joins as a member, who joins as an admin, and which initiative they start in.",
+      "add": "Add a rule",
+      "added": "Rule added",
+      "addError": "Could not add that rule",
+      "empty": "No rules yet — people arriving through your providers join with nothing in particular.",
+      "connectFirst": "Connect a provider first, then say what its groups mean.",
+      "noGroupsBadge": "No groups reported",
+      "noGroupsHint": "Whoever runs this deployment has not told this provider where its groups live, so this rule will not match anybody until they do.",
+      "landsInCommunity": "Arriving through {{provider}} — joins as {{role}}",
+      "landsInInitiative": "Arriving through {{provider}} — joins as {{role}}, and {{initiative}} as {{initiativeRole}}",
+      "dialogDescription": "Name a group your provider reports, and say where the people in it belong.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "groupLabel": "Group",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactly as your provider spells it.",
+      "standingLabel": "They join as",
+      "role": {
+        "member": "a member",
+        "admin": "an admin"
+      },
+      "initiativeLabel": "And start in",
+      "communityOnly": "The community only",
+      "initiativeRoleLabel": "In that initiative, as",
+      "initiativeRolePlaceholder": "Choose a role",
+      "remove": "Remove",
+      "removed": "Rule removed",
+      "removeError": "Could not remove that rule",
+      "removeTitle": "Remove this rule?",
+      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
     }
   },
   "authProviders": {
