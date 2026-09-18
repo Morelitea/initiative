@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useAISettings";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getProvidersForScope } from "@/lib/ai-providers";
+import { holdsGuildSeat } from "@/lib/permissions";
 
 /**
  * Guild-ADMIN AI surface: manage the guild's own AI connections (destinations)
@@ -28,15 +29,17 @@ export const SettingsGuildAIPage = () => {
   const { t } = useTranslation("settings");
   const { activeGuild, activeGuildReadOnly } = useGuilds();
   const guildId = useActiveGuildId();
-  const isGuildAdmin = (activeGuild?.is_admin ?? false) && !activeGuildReadOnly;
+  // The seat, not admin-or-above: connecting a provider says what leaves
+  // the community. The tab is gated the same way; this is the direct-URL half.
+  const holdsTheSeat = holdsGuildSeat(activeGuild) && !activeGuildReadOnly;
 
   // The member view is the readable-by-anyone source of the global AI mode.
-  const modeQuery = useMemberAI(guildId, { enabled: isGuildAdmin });
+  const modeQuery = useMemberAI(guildId, { enabled: holdsTheSeat });
   const mode = modeQuery.data?.mode;
   const canManageConnections = mode === "guild";
 
   const connectionsQuery = useGuildConnections({
-    enabled: Boolean(isGuildAdmin) && canManageConnections,
+    enabled: Boolean(holdsTheSeat) && canManageConnections,
   });
 
   const mutations: ConnectionMutations = {
@@ -47,7 +50,7 @@ export const SettingsGuildAIPage = () => {
     fetchModels: useFetchGuildConnectionModels(),
   };
 
-  if (!isGuildAdmin) {
+  if (!holdsTheSeat) {
     return <p className="text-muted-foreground text-sm">{t("guildAI.adminOnly")}</p>;
   }
 
