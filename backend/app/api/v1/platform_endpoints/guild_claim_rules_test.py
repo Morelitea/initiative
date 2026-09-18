@@ -61,7 +61,7 @@ async def _a_role(session: AsyncSession, initiative) -> tuple[int, str]:
             .order_by(InitiativeRoleModel.id)
         )
     ).first()
-    assert row is not None
+    assert row is not None and row.id is not None
     return row.id, row.display_name
 
 
