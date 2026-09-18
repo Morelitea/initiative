@@ -1,4 +1,4 @@
-import { BookText, MessageSquare, PanelRight } from "lucide-react";
+import { BookText, Eye, MessageSquare, PanelRight, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiRead } from "@/api/generated/initiativeAPI.schemas";
@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 
 interface WikiChromeProps {
   wiki: WikiRead;
+  /** Whether the reader may write, which is what makes editing offerable. */
+  canWrite: boolean;
+  /** Whether the page is open for editing rather than being read. */
+  editing: boolean;
+  onToggleEditing: () => void;
   onOpenComments: () => void;
   onToggleConnections: () => void;
   connectionsOpen: boolean;
@@ -28,6 +33,9 @@ interface WikiChromeProps {
  */
 export const WikiChrome = ({
   wiki,
+  canWrite,
+  editing,
+  onToggleEditing,
   onOpenComments,
   onToggleConnections,
   connectionsOpen,
@@ -57,6 +65,31 @@ export const WikiChrome = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {/* Reading is the default, and editing is a mode somebody enters. A
+            wiki is read far more often than it is written, and what a reader
+            sees is the thing a writer most needs to check. */}
+        {canWrite ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editing ? "secondary" : "ghost"}
+                size="icon"
+                className="size-8"
+                onClick={onToggleEditing}
+                aria-pressed={editing}
+                aria-label={editing ? t("viewMode.read") : t("viewMode.edit")}
+              >
+                {editing ? (
+                  <Eye className="size-4" aria-hidden />
+                ) : (
+                  <Pencil className="size-4" aria-hidden />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{editing ? t("viewMode.read") : t("viewMode.edit")}</TooltipContent>
+          </Tooltip>
+        ) : null}
+
         {wiki.comments_enabled ? (
           <Tooltip>
             <TooltipTrigger asChild>

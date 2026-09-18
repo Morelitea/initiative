@@ -103,7 +103,16 @@
     "templateDescription": "Copia el contenido de una página en cada página nueva. Útil para que las entradas mantengan la misma forma.",
     "templateNone": "Una página vacía",
     "saved": "Configuración guardada",
-    "more": "Compartir, renombrar y eliminar"
+    "tabSite": "Sitio",
+    "reading": "Lectura",
+    "readingDescription": "Cuánto se extiende una página y qué la acompaña.",
+    "appearance": "Apariencia",
+    "appearanceDescription": "El color por el que se reconoce este wiki.",
+    "pages": "Páginas",
+    "pagesDescription": "Dónde abre el wiki y a partir de qué empieza una página nueva.",
+    "home": "Página de inicio",
+    "homeDescription": "La página con la que abre el wiki.",
+    "homeNone": "Primera página"
   },
   "page": {
     "actions": "Acciones de la página",
@@ -114,5 +123,9 @@
   },
   "comments": "Comentarios",
   "closeComments": "Cerrar comentarios",
-  "newPage": "Nueva página"
+  "newPage": "Nueva página",
+  "viewMode": {
+    "read": "Ver como lector",
+    "edit": "Editar esta página"
+  }
 }

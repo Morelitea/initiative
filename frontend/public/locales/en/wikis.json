@@ -103,7 +103,16 @@
     "templateDescription": "Copy a page's contents into every new page. Good for keeping entries the same shape.",
     "templateNone": "An empty page",
     "saved": "Settings saved",
-    "more": "Sharing, renaming and deleting"
+    "tabSite": "Site",
+    "reading": "Reading",
+    "readingDescription": "How wide a page runs, and what sits beside it.",
+    "appearance": "Appearance",
+    "appearanceDescription": "The colour this wiki is recognised by.",
+    "pages": "Pages",
+    "pagesDescription": "Where the wiki opens, and what a new page starts from.",
+    "home": "Home page",
+    "homeDescription": "The page the wiki opens on.",
+    "homeNone": "First page"
   },
   "page": {
     "actions": "Page actions",
@@ -114,5 +123,9 @@
   },
   "comments": "Comments",
   "closeComments": "Close comments",
-  "newPage": "New page"
+  "newPage": "New page",
+  "viewMode": {
+    "read": "View as a reader",
+    "edit": "Edit this page"
+  }
 }

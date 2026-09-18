@@ -136,6 +136,11 @@ export const WikiPageView = () => {
   // The conversation is a drawer: a wiki is browsed, and talking about a page
   // is a different activity from reading it.
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // Reading or writing. Held here rather than per page, so somebody who opens
+  // the editor keeps it open as they move around the wiki — and somebody who
+  // drops back to reading stays there. Reading is where everyone starts,
+  // writers included: what a reader sees is the thing worth checking.
+  const [editing, setEditing] = useState(false);
   // Whether the connections rail is showing. A per-visit choice: it is
   // reading furniture, not a setting.
   const [showConnections, setShowConnections] = useState(true);
@@ -176,12 +181,18 @@ export const WikiPageView = () => {
   }
 
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
+  // Editing needs both the right and the intent — somebody who may write is
+  // still reading until they say otherwise.
+  const isEditing = canWrite && editing;
 
   return (
     <>
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
+          canWrite={canWrite}
+          editing={editing}
+          onToggleEditing={() => setEditing((on) => !on)}
           onOpenComments={() => setCommentsOpen(true)}
           onToggleConnections={() => setShowConnections((shown) => !shown)}
           connectionsOpen={showConnections}
@@ -203,27 +214,39 @@ export const WikiPageView = () => {
               {page ? (
                 <>
                   <div className="flex items-start gap-2">
-                    <Input
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      readOnly={!canWrite}
-                      aria-label={t("pages.titleLabel")}
-                      placeholder={t("pages.titlePlaceholder")}
-                      className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
-                    />
-                    <WikiPageActions
-                      wiki={wiki}
-                      page={page}
-                      canWrite={canWrite}
-                      initiativeId={initiativeId}
-                    />
+                    {isEditing ? (
+                      <Input
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        aria-label={t("pages.titleLabel")}
+                        placeholder={t("pages.titlePlaceholder")}
+                        className="!text-3xl h-auto border-0 px-0 font-bold shadow-none focus-visible:ring-0"
+                      />
+                    ) : (
+                      <h1 className="min-w-0 flex-1 py-1 font-bold text-3xl">
+                        {page.title || t("pages.untitled")}
+                      </h1>
+                    )}
+                    {isEditing ? (
+                      <WikiPageActions
+                        wiki={wiki}
+                        page={page}
+                        canWrite={canWrite}
+                        initiativeId={initiativeId}
+                      />
+                    ) : null}
                   </div>
 
                   <Editor
                     key={pageId}
                     editorSerializedState={initialBody ?? undefined}
                     onSerializedChange={onBodyChange}
-                    readOnly={!canWrite}
+                    readOnly={!isEditing}
+                    // Reading a wiki is reading a web page, so the sheet a
+                    // document draws itself comes off. Wiki-local: the class
+                    // overrides the variant here and changes nothing about how
+                    // a document renders.
+                    className={cn(!isEditing && "rounded-none border-0 bg-transparent shadow-none")}
                     collaborative={collaboration.isReady}
                     providerFactory={collaboration.providerFactory}
                     // Always on, so the body the room is handed stays current
