@@ -14,7 +14,8 @@
     "dashboards": "Dashboards",
     "results": "Results",
     "posts": "Posts",
-    "galleries": "Galleries"
+    "galleries": "Galleries",
+    "wikis": "Wikis"
   },
   "actions": {
     "addTask": "Add Task",

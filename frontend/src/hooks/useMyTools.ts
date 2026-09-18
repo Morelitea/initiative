@@ -19,6 +19,7 @@ import type {
   MyToolCountsResponse,
   PostListResponse,
   QueueListResponse,
+  WikiListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -28,12 +29,14 @@ import {
   getListMyGalleriesApiV1MeGalleriesGetQueryKey,
   getListMyPostsApiV1MePostsGetQueryKey,
   getListMyQueuesApiV1MeQueuesGetQueryKey,
+  getListMyWikisApiV1MeWikisGetQueryKey,
   getMyToolCountsApiV1MeToolsCountsGet,
   listMyCounterGroupsApiV1MeCounterGroupsGet,
   listMyDashboardsApiV1MeDashboardsGet,
   listMyGalleriesApiV1MeGalleriesGet,
   listMyPostsApiV1MePostsGet,
   listMyQueuesApiV1MeQueuesGet,
+  listMyWikisApiV1MeWikisGet,
 } from "@/api/generated/my-tools/my-tools";
 import { useMyCalendars } from "@/hooks/useCalendars";
 import { useGlobalDocuments } from "@/hooks/useDocuments";
@@ -114,6 +117,13 @@ export const useMyGalleries = (
     ...options,
   });
 
+export const useMyWikis = (params?: MyToolListParams, options?: QueryOpts<WikiListResponse>) =>
+  useQuery<WikiListResponse>({
+    queryKey: getListMyWikisApiV1MeWikisGetQueryKey(params),
+    queryFn: () => listMyWikisApiV1MeWikisGet(params),
+    ...options,
+  });
+
 /** How the My Tools table is narrowed and ordered. */
 export interface MyToolQuery {
   /** Communities to keep, or none for all of them. */
@@ -157,6 +167,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
   const dashboards = useMyDashboards(params, only(Tool.dashboard));
   const posts = useMyPosts(params, only(Tool.post));
   const galleries = useMyGalleries(params, only(Tool.gallery));
+  const wikis = useMyWikis(params, only(Tool.wiki));
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the cross-guild query that lists it.
@@ -169,6 +180,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     [Tool.dashboard]: dashboards,
     [Tool.post]: posts,
     [Tool.gallery]: galleries,
+    [Tool.wiki]: wikis,
   }[tool];
 
   const rows = useMemo<ToolRow[]>(() => {
@@ -181,6 +193,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
       [Tool.dashboard]: dashboards.data,
       [Tool.post]: posts.data,
       [Tool.gallery]: galleries.data,
+      [Tool.wiki]: wikis.data,
     };
     // Every row across communities carries its own guild id, so there is no
     // community for a fallback to stand in for.
@@ -196,6 +209,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     dashboards.data,
     posts.data,
     galleries.data,
+    wikis.data,
   ]);
 
   return {

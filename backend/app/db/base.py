@@ -57,6 +57,7 @@ from app.models.tenant.gallery import (
     GalleryImage,
     GalleryImageVersion,
 )
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
 from app.models.tenant.counter import (
@@ -182,6 +183,8 @@ __all__ = [
     "Gallery",
     "GalleryImage",
     "GalleryImageVersion",
+    "Wiki",
+    "WikiPage",
     "PostRead",
     "PostPoll",
     "PostPollOption",

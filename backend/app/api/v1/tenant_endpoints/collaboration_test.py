@@ -22,9 +22,8 @@ from app.testing import (
     create_user,
     get_auth_token,
 )
-from app.api.v1.tenant_endpoints.collaboration import (
-    _get_document_with_permissions,
-)
+from app.core.search import SearchEntityType
+from app.services.tenant.collaborative_resources import resource_for
 from app.core.pam_context import set_active_grant
 from app.core.role_context import set_active_role
 from app.models.platform.guild import GuildRole
@@ -49,7 +48,13 @@ async def test_collaboration_guild_admin_gets_full_access(
     # admin is deliberately NOT a member of this initiative and holds no grant.
     admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
     doc = await create_document(session, owner.initiative, owner.user)
-    document = await _get_document_with_permissions(session, doc.id, owner.guild.id)
+    # The socket resolves a body through the resource registry, so the test
+    # asks the same way the endpoint does.
+    resolved = await resource_for(SearchEntityType.document.value).load(
+        session, doc.id, owner.guild.id
+    )
+    assert resolved is not None
+    document = resolved.body
 
     set_active_grant(None, None)
 

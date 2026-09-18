@@ -56,6 +56,10 @@ import {
   getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1GGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
+import {
+  getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey,
+  readWikiApiV1GGuildIdWikisWikiIdGet,
+} from "@/api/generated/wikis/wikis";
 import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 
 /**
@@ -72,6 +76,7 @@ export type EntityRefType =
   | "dashboard"
   | "post"
   | "gallery"
+  | "wiki"
   | "task"
   | "event";
 
@@ -84,6 +89,7 @@ const REF_TYPES = new Set<string>([
   "dashboard",
   "post",
   "gallery",
+  "wiki",
   "task",
   "event",
 ]);
@@ -184,6 +190,13 @@ export async function resolveEntityPath(
           () => readGalleryApiV1GGuildIdGalleriesGalleryIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.gallery, gallery.initiative_id, entityId);
+      }
+      case "wiki": {
+        const wiki = await fetch(
+          getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey(guildId, entityId),
+          () => readWikiApiV1GGuildIdWikisWikiIdGet(guildId, entityId)
+        );
+        return toolDetailRoute(Tool.wiki, wiki.initiative_id, entityId);
       }
       case "task": {
         const task = await fetch(
