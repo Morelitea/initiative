@@ -24,7 +24,6 @@ const state = vi.hoisted(() => ({ roster: [] as AdminUserRead[] }));
 
 vi.mock("@/hooks/useAdmin", () => ({
   usePlatformUsers: () => ({ data: state.roster, isLoading: false, isError: false }),
-  usePlatformAdminCount: () => ({ data: { count: 2 } }),
   useAdminTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),

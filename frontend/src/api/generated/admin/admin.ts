@@ -37,7 +37,6 @@ import type {
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   HTTPValidationError,
   ListAuditEventsApiV1AdminAuditEventsGetParams,
-  PlatformAdminCountResponse,
   PlatformRoleUpdate,
   UserPublic,
   VerificationSendResponse,
@@ -1089,153 +1088,6 @@ export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
   );
 };
 /**
- * Count the accounts that can manage platform configuration —
- * owners (``users.read``, role-scoped session).
- * @summary Get Platform Admin Count
- */
-export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<PlatformAdminCountResponse>(
-    { url: `/api/v1/admin/platform-admin-count`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey = () => {
-  return [`/api/v1/admin/platform-admin-count`] as const;
-};
-
-export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-  > = ({ signal }) => getPlatformAdminCountApiV1AdminPlatformAdminCountGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
->;
-export type GetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-          TError,
-          Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Platform Admin Count
- */
-
-export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
-  TData = Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
  * Let an account answer the age question again.
  *
  * An account that answered as under age keeps that answer, and the question
@@ -1334,7 +1186,7 @@ export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
   );
 };
 /**
- * Update a user's platform role (admin only).
+ * Update a user's platform role (``roles.assign``).
  *
  * Restrictions:
  * - Cannot change your own role

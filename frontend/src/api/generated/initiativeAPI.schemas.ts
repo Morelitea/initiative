@@ -5484,13 +5484,6 @@ export interface PlatformAIModeUpdate {
 }
 
 /**
- * Response schema for the count of accounts that can manage configuration.
- */
-export interface PlatformAdminCountResponse {
-  count: number;
-}
-
-/**
  * The ways in this deployment permits, with the facts a change would turn
  * on.
  */

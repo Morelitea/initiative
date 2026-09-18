@@ -619,27 +619,6 @@ async def is_last_capability_holder(
     return (await session.exec(others_stmt)).one() == 0
 
 
-# Backwards-compatible wrappers. The invariant we protect is "can the platform
-# still manage its own configuration", i.e. at least one ``owner`` remains
-# (``config.manage`` is owner-only).
-async def count_platform_admins(
-    session: AsyncSession, *, for_update: bool = False
-) -> int:
-    """Count active users who can manage platform configuration (owners)."""
-    return await count_capability_holders(
-        session, Capability.CONFIG_MANAGE, for_update=for_update
-    )
-
-
-async def is_last_platform_admin(
-    session: AsyncSession, user_id: int, *, for_update: bool = False
-) -> bool:
-    """True iff removing this user would leave the platform with no config managers."""
-    return await is_last_capability_holder(
-        session, user_id, Capability.CONFIG_MANAGE, for_update=for_update
-    )
-
-
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,

@@ -32,7 +32,6 @@ from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
     AdminUsernameUpdate,
     PlatformRoleUpdate,
-    PlatformAdminCountResponse,
     AdminUserDeleteRequest,
     AdminDeletionEligibilityResponse,
     AdminGuildRoleUpdate,
@@ -585,18 +584,6 @@ async def set_user_suspension(
     return await users_service.to_admin_read_one(user)
 
 
-@router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
-async def get_platform_admin_count(
-    session: UserSessionDep,
-    _current_user: UsersReadDep,
-) -> PlatformAdminCountResponse:
-    """Count the accounts that can manage platform configuration —
-    owners (``users.read``, role-scoped session).
-    """
-    count = await users_service.count_platform_admins(session)
-    return PlatformAdminCountResponse(count=count)
-
-
 @router.delete("/users/{user_id}/age-block", response_model=AdminUserRead)
 async def clear_age_block(
     user_id: int,
@@ -656,7 +643,7 @@ async def update_platform_role(
     session: AdminSessionDep,
     current_user: RolesAssignDep,
 ) -> AdminUserRead:
-    """Update a user's platform role (admin only).
+    """Update a user's platform role (``roles.assign``).
 
     Restrictions:
     - Cannot change your own role
@@ -679,9 +666,8 @@ async def update_platform_role(
     # Refuse role changes on non-active accounts. A deactivated row's role
     # change is meaningless until the user is reactivated, and an
     # anonymized row should never gain or lose elevated privileges (the
-    # account is permanently gone). ``count_platform_admins`` already
-    # excludes non-active users from its count, so promoting a husk to
-    # admin would also confuse the last-admin invariant.
+    # account is permanently gone). The last-owner check counts active
+    # holders only, so promoting a husk would also confuse it.
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -713,9 +699,19 @@ async def update_platform_role(
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_OWNER,
             )
 
+    previous_role = user.role
     user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_PLATFORM_ROLE_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"from": previous_role.value, "to": payload.role.value},
+    )
     # What this account may do just changed, and it was not their doing. Their
     # open tabs re-read it rather than showing a rung they no longer hold.
     account_stream.queue_account_signal(session, user_id, "role")

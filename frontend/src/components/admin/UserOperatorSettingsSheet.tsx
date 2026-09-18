@@ -104,7 +104,6 @@ export const UserOperatorSettingsSheet = ({
   abilities,
   actorId,
   actorRole,
-  platformOwnerCount,
 }: {
   user: AdminUserRead | null;
   open: boolean;
@@ -112,8 +111,6 @@ export const UserOperatorSettingsSheet = ({
   abilities: UserSheetAbilities;
   actorId: number | undefined;
   actorRole: UserRole;
-  /** How many accounts still hold ``config.manage``, so the last one is not demoted. */
-  platformOwnerCount: number;
 }) => {
   const { t } = useTranslation(["settings", "common"]);
 
@@ -187,8 +184,6 @@ export const UserOperatorSettingsSheet = ({
     abilities.canManageUsers && !isSelf && (user.status === "active" || isSuspended);
   const showRole =
     abilities.canManageRoles && !isSelf && user.status === "active" && actorRank >= targetRank;
-  // The platform must not be left without somebody who can configure it.
-  const isLastOwner = user.role === "owner" && platformOwnerCount <= 1;
 
   const commitUsername = () => {
     const next = usernameDraft.trim().toLowerCase();
@@ -295,12 +290,10 @@ export const UserOperatorSettingsSheet = ({
                           <SelectItem
                             key={role}
                             value={role}
-                            // You cannot mint a role above your own rung, and
-                            // the last owner can only stay one.
-                            disabled={
-                              platformRoleRank(role) > actorRank ||
-                              (isLastOwner && role !== "owner")
-                            }
+                            // You cannot mint a role above your own rung.
+                            // Demoting the platform's last owner is refused
+                            // by the server, which says so.
+                            disabled={platformRoleRank(role) > actorRank}
                           >
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium">

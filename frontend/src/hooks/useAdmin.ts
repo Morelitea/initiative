@@ -10,10 +10,8 @@ import {
   deleteUserApiV1AdminUsersUserIdDelete,
   exportPlatformUsersCsvApiV1AdminUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
-  getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey,
   getListAllUsersApiV1AdminUsersGetQueryKey,
   getListAuditEventsApiV1AdminAuditEventsGetQueryKey,
-  getPlatformAdminCountApiV1AdminPlatformAdminCountGet,
   listAllUsersApiV1AdminUsersGet,
   listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
@@ -32,7 +30,6 @@ import type {
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   ListAuditEventsApiV1AdminAuditEventsGetParams,
-  PlatformAdminCountResponse,
   UserRole,
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -65,15 +62,6 @@ export const usePlatformAuditEvents = (
   return useQuery<AuditEventListResponse>({
     queryKey: getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params),
     queryFn: () => listAuditEventsApiV1AdminAuditEventsGet(params),
-    ...options,
-  });
-};
-
-/** Fetch the current count of platform admins (admin only). */
-export const usePlatformAdminCount = (options?: QueryOpts<PlatformAdminCountResponse>) => {
-  return useQuery<PlatformAdminCountResponse>({
-    queryKey: getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey(),
-    queryFn: () => getPlatformAdminCountApiV1AdminPlatformAdminCountGet(),
     ...options,
   });
 };

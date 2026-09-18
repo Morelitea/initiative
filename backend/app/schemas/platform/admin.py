@@ -17,14 +17,6 @@ class PlatformRoleUpdate(SanitizedBaseModel):
     role: UserRole
 
 
-class PlatformAdminCountResponse(SanitizedBaseModel):
-    """Response schema for the count of accounts that can manage configuration."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    count: int
-
-
 class AdminUserDeleteRequest(SanitizedBaseModel):
     """Request to deactivate, anonymize (soft delete), or hard delete another account."""
 

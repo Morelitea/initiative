@@ -23,7 +23,6 @@ import {
   useAdminReactivateUser,
   useAdminTriggerPasswordReset,
   useExportPlatformUsersCsv,
-  usePlatformAdminCount,
   usePlatformUsers,
 } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
@@ -94,8 +93,6 @@ export const SettingsPlatformUsersPage = () => {
   };
 
   const usersQuery = usePlatformUsers({ enabled: canView });
-
-  const adminCountQuery = usePlatformAdminCount({ enabled: canView });
 
   // Read the row back out of the query, so a save re-renders the sheet with
   // what was actually persisted.
@@ -365,7 +362,6 @@ export const SettingsPlatformUsersPage = () => {
           abilities={abilities}
           actorId={user?.id}
           actorRole={(user?.role ?? "member") as UserRole}
-          platformOwnerCount={adminCountQuery.data?.count ?? 0}
         />
       </Card>
 
