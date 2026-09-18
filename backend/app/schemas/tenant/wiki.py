@@ -119,8 +119,13 @@ class WikiPageCreate(SanitizedBaseModel):
     #: delete before typing their own. Every surface that draws a page falls
     #: back to "Untitled" for one that has not been named yet.
     title: Optional[TitleStr] = Field(default=None, max_length=255)
-    #: A page still being written: only people who can write the wiki see it.
-    is_draft: bool = False
+    #: What to file the new page under. Absent means the top of the wiki.
+    parent_page_id: Optional[int] = None
+    #: A page starts as a draft, and is published when somebody says so. A new
+    #: page is empty and unnamed for as long as it takes to write it, and a
+    #: wiki people read should not be showing them that — so the default is the
+    #: safe half of the answer, and publishing is a decision.
+    is_draft: bool = True
     content: Optional[Dict[str, Any]] = None
     tag_ids: Optional[List[int]] = None
 
@@ -139,13 +144,18 @@ class WikiPageUpdate(SanitizedBaseModel):
 
 
 class WikiPageMove(SanitizedBaseModel):
-    """Where a page should sit after a drag.
+    """Where a page should sit after a drag — two facts, sent together.
 
-    Pages are a flat list, so a move is one fact: where in it this page now
-    goes.
+    What it is filed under and where it sits among what else is filed there.
+    One request, because a drag is one gesture and half of it landing is a
+    tree nobody arranged.
     """
 
-    #: Index in the wiki's page list, after the move. Out-of-range clamps.
+    #: What the page is now filed under. Absent — the default — is the top of
+    #: the wiki, so a move that says nothing about filing unfiles the page.
+    parent_page_id: Optional[int] = None
+    #: Index among the pages filed in the same place, after the move.
+    #: Out-of-range clamps.
     position: int = Field(default=0, ge=0)
 
 
@@ -199,6 +209,10 @@ class WikiPageSummary(SanitizedBaseModel):
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
+    #: What this row is filed under. A document borrowed into a wiki is always
+    #: at the top of it: where it is filed would be a fact about a document
+    #: that belongs to other places too.
+    parent_page_id: Optional[int] = None
     position: int = 0
     #: A document placed in a wiki is never a draft: it is not this wiki's to
     #: hold back, and it is readable wherever else it already lives.
@@ -222,10 +236,11 @@ class WikiPageRead(WikiPageSummary):
 
 
 class WikiPageTree(SanitizedBaseModel):
-    """Every page of a wiki, in reading order.
+    """Every page of a wiki, in reading order — each page, then what is filed
+    under it.
 
-    The navigation nests, but the pages do not: what sits under a page in the
-    sidebar is that page's own headings, read out of its body by the editor.
+    Flat on the wire and a tree by ``parent_page_id``: the navigation draws all
+    of it at once, and the order it arrives in is the order it reads in.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -321,6 +336,7 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
         wiki_id=page.wiki_id,
         guild_id=page.guild_id,
         kind=WikiPageKind.page,
+        parent_page_id=page.parent_page_id,
         position=page.position,
         is_draft=page.is_draft,
         title=page.title,

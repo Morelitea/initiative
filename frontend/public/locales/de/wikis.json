@@ -50,7 +50,10 @@
     "collapse": "Einklappen",
     "expand": "Ausklappen",
     "moved": "Seite verschoben",
-    "draft": "Entwurf"
+    "draft": "Entwurf",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "nav": "Seiten neben dieser"
   },
   "links": {
     "title": "Verbindungen",

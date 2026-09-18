@@ -3,11 +3,12 @@ import type { SerializedEditorState } from "lexical";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, WikiPageKind, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -137,17 +138,27 @@ export const WikiDocumentView = () => {
               )}
             >
               {document_ ? (
-                <Editor
-                  key={documentId}
-                  editorSerializedState={body ?? undefined}
-                  readOnly
-                  showToolbar={false}
-                  className="rounded-none border-0 bg-transparent shadow-none"
-                  initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
-                  subject={`document:${documentId}`}
-                  supportsEntityMentions
-                  compact
-                />
+                <>
+                  <Editor
+                    key={documentId}
+                    editorSerializedState={body ?? undefined}
+                    readOnly
+                    showToolbar={false}
+                    className="rounded-none border-0 bg-transparent shadow-none"
+                    initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
+                    subject={`document:${documentId}`}
+                    supportsEntityMentions
+                    compact
+                  />
+                  {/* A borrowed document is a page of this wiki while you are
+                      reading it here, so it leads on like one. */}
+                  <WikiPageNav
+                    wikiId={wikiId}
+                    initiativeId={initiativeId}
+                    currentId={documentId}
+                    currentKind={WikiPageKind.document}
+                  />
+                </>
               ) : (
                 <div className="space-y-4">
                   <Skeleton className="h-4 w-full" />

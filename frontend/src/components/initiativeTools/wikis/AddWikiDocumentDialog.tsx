@@ -1,8 +1,7 @@
-import { FileText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentType, Tool, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +14,9 @@ import { Input } from "@/components/ui/input";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useAddWikiDocument } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
+import { TOOL_ICONS } from "@/lib/tools";
+
+const DocumentIcon = TOOL_ICONS[Tool.document];
 
 interface AddWikiDocumentDialogProps {
   wikiId: number;
@@ -33,6 +35,11 @@ interface AddWikiDocumentDialogProps {
  *
  * Nothing is copied. The document keeps its address and its sharing, and this
  * only records that it belongs here too.
+ *
+ * Only WRITTEN documents are offered. A wiki draws a page it has borrowed with
+ * the same editor it draws its own, so a spreadsheet or a whiteboard put in
+ * one would be opened as prose it is not — and it is better not to be offered
+ * a thing than to be handed it broken.
  */
 export const AddWikiDocumentDialog = ({
   wikiId,
@@ -46,7 +53,7 @@ export const AddWikiDocumentDialog = ({
   const add = useAddWikiDocument(wikiId);
 
   const documentsQuery = useDocumentsList(
-    { initiative_id: initiativeId, page_size: 0 },
+    { initiative_id: initiativeId, document_type: DocumentType.native, page_size: 0 },
     { enabled: open }
   );
 
@@ -97,7 +104,7 @@ export const AddWikiDocumentDialog = ({
                       })
                     }
                   >
-                    <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <DocumentIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="min-w-0 flex-1 truncate">{document.name}</span>
                   </Button>
                 </li>

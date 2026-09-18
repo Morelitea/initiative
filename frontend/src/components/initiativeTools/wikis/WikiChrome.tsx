@@ -1,4 +1,4 @@
-import { BookText, Eye, MessageSquare, PanelRight, Pencil } from "lucide-react";
+import { BookText, Eye, MessageSquare, PanelRight, Pencil, Send } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,12 +15,19 @@ interface WikiChromeProps {
   pageTitle: string;
   /** Renames the page. Present only while it is open for editing. */
   onRename?: (title: string) => void;
+  /** Sends the name now, rather than waiting out the pause — on blur, or Enter. */
+  onRenameCommit?: () => void;
   /** When that page was last written to, shown when the wiki asks for it. */
   pageUpdatedAt?: string | null;
   /** Whether the reader may write, which is what makes editing offerable. */
   canWrite: boolean;
   /** Whether the page is open for editing rather than being read. */
   editing: boolean;
+  /** Whether this page is still a draft — written, but not yet part of the
+   *  wiki for the people who only read it. */
+  isDraft?: boolean;
+  /** Publishes the draft. Absent when there is nothing to publish. */
+  onPublish?: () => void;
   onToggleEditing: () => void;
   onOpenComments: () => void;
   onToggleConnections: () => void;
@@ -48,9 +55,12 @@ export const WikiChrome = ({
   wiki,
   pageTitle,
   onRename,
+  onRenameCommit,
   pageUpdatedAt,
   canWrite,
   editing,
+  isDraft = false,
+  onPublish,
   onToggleEditing,
   onOpenComments,
   onToggleConnections,
@@ -81,12 +91,28 @@ export const WikiChrome = ({
           <Input
             value={pageTitle}
             onChange={(event) => onRename(event.target.value)}
+            onBlur={onRenameCommit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onRenameCommit?.();
+              }
+            }}
             aria-label={t("pages.titleLabel")}
             placeholder={t("pages.titlePlaceholder")}
             className="h-auto border-0 px-0 py-0 font-semibold text-base leading-tight shadow-none focus-visible:ring-0"
           />
         ) : (
-          <h1 className="truncate font-semibold text-base leading-tight">{pageTitle}</h1>
+          <h1 className="flex min-w-0 items-center gap-2 font-semibold text-base leading-tight">
+            <span className="truncate">{pageTitle}</span>
+            {/* Said where the page is named, because "who can see this" is the
+                first thing to know about a page you are looking at. */}
+            {isDraft ? (
+              <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
+                {t("pages.draft")}
+              </span>
+            ) : null}
+          </h1>
         )}
         {/* A handbook people act on needs to say how old it is; the wiki
             decides whether that is true of it. */}
@@ -99,6 +125,17 @@ export const WikiChrome = ({
 
       <div className="flex shrink-0 items-center gap-1">
         {trailing}
+
+        {/* A page is written before it is published, so the one thing a writer
+            is most likely to want next has a button of its own rather than a
+            place in a menu. It goes when the page is published, because then
+            there is nothing left to do. */}
+        {canWrite && isDraft && onPublish ? (
+          <Button variant="default" size="sm" className="h-8 gap-1.5" onClick={onPublish}>
+            <Send className="size-4" aria-hidden />
+            {t("page.publish")}
+          </Button>
+        ) : null}
 
         {/* Reading is the default, and editing is a mode somebody enters. A
             wiki is read far more often than it is written, and what a reader

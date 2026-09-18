@@ -8,6 +8,7 @@ import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -80,21 +81,61 @@ export const WikiPageView = () => {
   const canWrite =
     wikiQuery.data?.my_permission_level === "write" ||
     wikiQuery.data?.my_permission_level === "owner";
+  // Editing needs both the right and the intent — somebody who may write is
+  // still reading until they say otherwise.
+  const isEditing = canWrite && editWanted;
 
   // The title is edited in place, and saved on a pause rather than on every
   // keystroke — renaming a page rewrites its slug, which is an address.
-  const [title, setTitle] = useState("");
-  useEffect(() => setTitle(pageQuery.data?.title ?? ""), [pageQuery.data?.title]);
-  const debouncedTitle = useDebouncedValue(title, 600);
+  //
+  // What is being typed carries the page it is being typed INTO. Following a
+  // link swaps the page under this component without remounting it, so a name
+  // still waiting out its pause would otherwise be saved against whichever
+  // page is open when the pause ends — the page you arrive at taking the name
+  // of the page you came from.
+  const [draft, setDraft] = useState<{ pageId: number; title: string } | null>(null);
+  // What the server has already been told, so a pause and the blur behind it
+  // do not both send the same rename. Cleared when the page changes.
+  const sentTitle = useRef<string | null>(null);
+  const loadedPageId = pageQuery.data?.id;
+  const loadedTitle = pageQuery.data?.title;
+  useEffect(() => {
+    sentTitle.current = null;
+  }, [pageId]);
+  useEffect(() => {
+    if (loadedPageId === undefined) return;
+    // Our own rename coming back from the server is not news, and the field
+    // may have moved on since it was sent — so it is left as it is.
+    if (sentTitle.current !== null && sentTitle.current === (loadedTitle ?? "")) return;
+    sentTitle.current = null;
+    setDraft({ pageId: loadedPageId, title: loadedTitle ?? "" });
+  }, [loadedPageId, loadedTitle]);
+
+  const debouncedDraft = useDebouncedValue(draft, 600);
+
+  // One rename, however it is asked for — by the pause, or by leaving the
+  // field, which is what a click straight into the tree does.
+  const rename = useCallback(
+    (pending: { pageId: number; title: string } | null) => {
+      // `current` is compared, not required: a page starts with no name, and
+      // naming one is the first thing anybody does to it.
+      const current = pageQuery.data?.title ?? "";
+      const next = pending?.title.trim() ?? "";
+      if (!canWrite || !pending || pending.pageId !== pageId) return;
+      if (!next || next === current || next === sentTitle.current) return;
+      sentTitle.current = next;
+      savePage({ title: next });
+    },
+    [canWrite, pageId, pageQuery.data?.title, savePage]
+  );
 
   useEffect(() => {
-    // `current` is compared, not required: a page starts with no name, and
-    // naming one is the first thing anybody does to it.
-    const current = pageQuery.data?.title ?? "";
-    const next = debouncedTitle.trim();
-    if (!canWrite || !pageQuery.data || !next || next === current) return;
-    savePage({ title: next });
-  }, [debouncedTitle, canWrite, pageQuery.data, savePage]);
+    rename(debouncedDraft);
+  }, [debouncedDraft, rename]);
+
+  // What the field shows: what is being typed, or — in the moment between
+  // following a link and that page arriving — the name of the page we are on.
+  const draftTitle = draft?.pageId === pageId ? draft.title : (pageQuery.data?.title ?? "");
 
   // The editor reports every keystroke; the server hears about them 2s after
   // somebody stops, the same window a document autosaves on. Saving per change
@@ -102,17 +143,43 @@ export const WikiPageView = () => {
   // links it names.
   // The newest body, and a counter that says one arrived. The body itself is a
   // ref so a keystroke does not re-render the editor around the person typing.
-  const pendingBody = useRef<SerializedEditorState | null>(null);
+  // It names its page for the same reason the title draft does: the words are
+  // only ever meant for the page they were typed into.
+  const pendingBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
   const [bodyRevision, setBodyRevision] = useState(0);
+  // The newest body regardless of whether it has been sent, which is what the
+  // reading view is shown the moment somebody stops writing. The server hears
+  // about a body on a pause and, in a live room, writes it on a sweep of its
+  // own — both of which finish long after the eye does.
+  const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
+  const [writtenBody, setWrittenBody] = useState<{
+    pageId: number;
+    state: SerializedEditorState;
+    at: number;
+  } | null>(null);
 
   const onBodyChange = useCallback(
     (state: SerializedEditorState) => {
       if (!canWrite) return;
-      pendingBody.current = state;
+      pendingBody.current = { pageId, state };
+      latestBody.current = { pageId, state };
       setBodyRevision((revision) => revision + 1);
     },
-    [canWrite]
+    [canWrite, pageId]
   );
+
+  // A page's words never travel to another page, not even in a ref. Which
+  // page they belong to is read from the address, and an address being
+  // followed names no page for a moment — so this waits for the next real one
+  // rather than treating that moment as a page of its own.
+  const bodyOwner = useRef(pageId);
+  useEffect(() => {
+    if (!Number.isFinite(pageId) || bodyOwner.current === pageId) return;
+    bodyOwner.current = pageId;
+    pendingBody.current = null;
+    latestBody.current = null;
+    setWrittenBody(null);
+  }, [pageId]);
 
   // While a room is live it owns the page's content column — it writes the
   // JSON and the Yjs state from one snapshot, so the two always describe the
@@ -126,20 +193,23 @@ export const WikiPageView = () => {
       const body = pendingBody.current;
       if (body === null) return;
       pendingBody.current = null;
+      // Words left over from the page before are not this page's words, and
+      // the page they were written into has been rebuilt behind us.
+      if (body.pageId !== pageId) return;
       if (isCollaborating) {
-        sendContent(body);
+        sendContent(body.state);
         return;
       }
-      savePage({ content: body as unknown as Record<string, unknown> });
+      savePage({ content: body.state as unknown as Record<string, unknown> });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [bodyRevision, savePage, isCollaborating, sendContent]);
+  }, [bodyRevision, pageId, savePage, isCollaborating, sendContent]);
 
   // A page nobody has typed in yet is stored as `{}` — the column's default —
   // and a root with no children is the same thing said differently. Lexical
   // refuses either as a starting state, so both are handed over as "no state"
   // and it builds its own empty document.
-  const initialBody = useMemo(() => {
+  const servedBody = useMemo(() => {
     const stored = pageQuery.data?.content as SerializedEditorState | undefined;
     const children = stored?.root?.children;
     return Array.isArray(children) && children.length > 0 ? stored : null;
@@ -147,6 +217,45 @@ export const WikiPageView = () => {
 
   const wiki = wikiQuery.data;
   const page = pageQuery.data;
+
+  // Putting the eye back on. What was just typed is kept for the reading view,
+  // and what has not been sent is sent now rather than waiting out a pause
+  // nobody is going to finish — otherwise the page is read back as it was
+  // before the edit, or as nothing at all if it had never been written to.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (!validIds) return;
+    if (isEditing) {
+      wasEditing.current = true;
+      return;
+    }
+    if (!wasEditing.current) return;
+    wasEditing.current = false;
+
+    const written = latestBody.current;
+    if (!written || written.pageId !== pageId) return;
+    setWrittenBody({ ...written, at: Date.now() });
+
+    const unsent = pendingBody.current;
+    if (!unsent || unsent.pageId !== pageId) return;
+    pendingBody.current = null;
+    if (isCollaborating) {
+      sendContent(unsent.state);
+      return;
+    }
+    savePage({ content: unsent.state as unknown as Record<string, unknown> });
+  }, [isEditing, validIds, pageId, isCollaborating, sendContent, savePage]);
+
+  // What the editor is handed, and a token that changes with it.
+  //
+  // Lexical reads its starting state ONCE, at mount, so a body that arrives
+  // later — the save that just landed, the page you clicked — only reaches the
+  // screen if the editor is rebuilt for it. The token is part of the reading
+  // key alone: rebuilding the editor somebody is typing in would take their
+  // cursor with it.
+  const ownBody = writtenBody?.pageId === pageId ? writtenBody : null;
+  const body = ownBody?.state ?? servedBody;
+  const bodyToken = ownBody ? `own:${ownBody.at}` : `served:${page?.updated_at ?? "none"}`;
 
   // Arriving at a heading. The editor stamps each heading's anchor on the
   // element as it renders, so this waits for the body to be on screen rather
@@ -223,9 +332,6 @@ export const WikiPageView = () => {
   }
 
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
-  // Editing needs both the right and the intent — somebody who may write is
-  // still reading until they say otherwise.
-  const isEditing = canWrite && edit === true;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
 
@@ -234,11 +340,19 @@ export const WikiPageView = () => {
       <div className="flex h-full min-h-0 flex-col">
         <WikiChrome
           wiki={wiki}
-          pageTitle={isEditing ? title : page?.title || t("pages.untitled")}
-          onRename={isEditing ? setTitle : undefined}
+          pageTitle={isEditing ? draftTitle : page?.title || t("pages.untitled")}
+          onRename={isEditing ? (value) => setDraft({ pageId, title: value }) : undefined}
+          // Leaving the field sends the name now. Clicking a page in the tree
+          // blurs before it navigates, so a rename typed and immediately
+          // walked away from lands on the page it was typed into.
+          onRenameCommit={isEditing ? () => rename(draft) : undefined}
           pageUpdatedAt={page?.updated_at}
           canWrite={canWrite}
           editing={isEditing}
+          isDraft={page?.is_draft ?? false}
+          onPublish={() =>
+            savePage({ is_draft: false }, { onSuccess: () => toast.success(t("page.published")) })
+          }
           onToggleEditing={() =>
             void navigate({
               to: gp(wikiPageRoute(initiativeId, wikiId, pageId)),
@@ -267,7 +381,9 @@ export const WikiPageView = () => {
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
-              {page ? (
+              {/* The row has to BE this page: a body from the page before it
+                  is not this page's body, however briefly it is held. */}
+              {page && page.id === pageId ? (
                 <>
                   <Editor
                     // Rebuilt rather than switched: the editor captures
@@ -275,8 +391,8 @@ export const WikiPageView = () => {
                     // re-reads it, so flipping that on a live instance is
                     // outside its contract. Changing the key hands it a fresh
                     // one for the mode being entered.
-                    key={`${pageId}:${isEditing ? "edit" : "read"}`}
-                    editorSerializedState={initialBody ?? undefined}
+                    key={`${pageId}:${isEditing ? "edit" : `read:${bodyToken}`}`}
+                    editorSerializedState={body ?? undefined}
                     onSerializedChange={onBodyChange}
                     readOnly={!isEditing}
                     showToolbar={isEditing}
@@ -294,8 +410,18 @@ export const WikiPageView = () => {
                     initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
                     subject={`wiki_page:${pageId}`}
                     supportsEntityMentions
-                    compact
+                    // Being read, the body has no sheet of its own and the
+                    // reading column is its gutter. Being written, it is back
+                    // inside a bordered editor, and words against that border
+                    // are words with no margin — so it takes the same gutter a
+                    // document's editor does.
+                    compact={!isEditing}
                   />
+                  {/* Where to go from here. Reading furniture: somebody who is
+                      writing is not looking for the way out of the page. */}
+                  {isEditing ? null : (
+                    <WikiPageNav wikiId={wikiId} initiativeId={initiativeId} currentId={pageId} />
+                  )}
                 </>
               ) : (
                 <div className="space-y-4">

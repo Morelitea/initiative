@@ -31,6 +31,7 @@ import {
   getWikiCountsByInitiativeApiV1GGuildIdWikisCountsByInitiativeGet,
   listWikiPagesApiV1GGuildIdWikisWikiIdPagesGet,
   listWikisApiV1GGuildIdWikisGet,
+  moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
   moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost,
   readWikiApiV1GGuildIdWikisWikiIdGet,
   readWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdGet,
@@ -259,15 +260,43 @@ export const useUpdateWikiPage = (
     options
   );
 
+/** Which row of the list is being moved, and where it now goes. The row
+ *  travels in the variables rather than in the hook, because a drag names it
+ *  at the moment it ends — a hook bound to a row would still be bound to the
+ *  last one. */
+export type MoveWikiPageVars = WikiPageMove & { pageId: number };
+
 export const useMoveWikiPage = (
   wikiId: number,
-  pageId: number,
-  options?: MutationOpts<WikiPageRead, WikiPageMove>
+  options?: MutationOpts<WikiPageRead, MoveWikiPageVars>
 ) =>
-  useGuildMutation<WikiPageRead, WikiPageMove>(
+  useGuildMutation<WikiPageRead, MoveWikiPageVars>(
     {
-      mutationFn: (guildId, data) =>
-        moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost(guildId, wikiId, pageId, data),
+      mutationFn: (guildId, { pageId, ...move }) =>
+        moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost(guildId, wikiId, pageId, move),
+      invalidate: () => invalidate(q.wikiPages(wikiId)),
+      errorKey: "wikis:error",
+    },
+    options
+  );
+
+export type MoveWikiDocumentVars = WikiPageMove & { documentId: number };
+
+/** A borrowed document is a row of the same list, so it moves the same way —
+ *  the wiki records where it put it, and the document is not touched. */
+export const useMoveWikiDocument = (
+  wikiId: number,
+  options?: MutationOpts<WikiPageTree, MoveWikiDocumentVars>
+) =>
+  useGuildMutation<WikiPageTree, MoveWikiDocumentVars>(
+    {
+      mutationFn: (guildId, { documentId, ...move }) =>
+        moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost(
+          guildId,
+          wikiId,
+          documentId,
+          move
+        ),
       invalidate: () => invalidate(q.wikiPages(wikiId)),
       errorKey: "wikis:error",
     },

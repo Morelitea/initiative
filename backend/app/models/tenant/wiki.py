@@ -117,6 +117,17 @@ class Wiki(
             String(length=16), nullable=False, server_default=WikiPageOrder.manual.value
         ),
     )
+    #: Where the documents borrowed into this wiki sit in its list, as
+    #: ``{"<document id>": position}`` on the same scale a page's ``position``
+    #: uses. A document is not the wiki's to own — it belongs to whatever else
+    #: it is in too — so where it sits is a fact about THIS wiki and is kept
+    #: here, rather than on the document or on the edge that put it in. A
+    #: document nobody has placed yet sorts to the end, which is where it
+    #: arrived.
+    document_positions: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
     #: How deep the contents rail goes. A page with four heading levels makes a
     #: forty-row rail nobody can use; most wikis want the top one or two.
     contents_depth: int = Field(
@@ -217,10 +228,11 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     Two different structures meet on this row, and keeping them apart is the
     whole design of the tool:
 
-    ``position`` is the **spine** — the order the navigation draws. A wiki's
-    pages are a flat list: structure inside a page is its headings, which are
-    content and live in the body, so nothing here nests. Order is a column
-    because reordering is an ordinary indexed operation that wants to be one
+    ``parent_page_id`` and ``position`` are the **spine** — the shape the
+    navigation draws. Pages file under pages, and siblings hold an order; the
+    headings inside a page are a third structure again, content rather than
+    filing, and they live in the body. Both are columns because both are read
+    on every draw of the sidebar and rewritten by a drag, which wants to be one
     statement and one transaction.
 
     Everything else a page connects to is an edge in ``relationships``: a page
@@ -236,9 +248,10 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
 
     __tablename__ = "wiki_pages"
     __table_args__ = (
-        # Unique among a wiki's LIVE pages: a trashed page keeps its slug out
-        # of the way of the one that replaced it, and restoring it is then the
-        # conflict rather than trashing it.
+        # One page of a wiki per address, always — a page on its way to the bin
+        # parks its slug out of the alphabet first (see RELEASED_NAMES in
+        # app.services.tenant.soft_delete), so what is unique here in practice
+        # is the set of addresses a reader can reach.
         UniqueConstraint("wiki_id", "slug", name="uq_wiki_pages_wiki_slug"),
     )
     # What labels a page in a bare list of mixed things (the trash can).
@@ -251,6 +264,18 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
             Integer,
             ForeignKey("wikis.id", ondelete="CASCADE"),
             nullable=False,
+            index=True,
+        ),
+    )
+    #: What this page is filed under, or nothing if it sits at the top of the
+    #: wiki. ``CASCADE`` so a purge takes the branch with it; a soft-delete
+    #: walks the same edge through ``CASCADE_CHILDREN``.
+    parent_page_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("wiki_pages.id", ondelete="CASCADE"),
+            nullable=True,
             index=True,
         ),
     )

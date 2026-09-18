@@ -8057,6 +8057,7 @@ export type WikiPageCreateContent = { [key: string]: unknown } | null;
 
 export interface WikiPageCreate {
   title?: string | null;
+  parent_page_id?: number | null;
   is_draft?: boolean;
   content?: WikiPageCreateContent;
   tag_ids?: number[] | null;
@@ -8118,12 +8119,14 @@ export interface WikiPageLinks {
 }
 
 /**
- * Where a page should sit after a drag.
+ * Where a page should sit after a drag — two facts, sent together.
  *
- * Pages are a flat list, so a move is one fact: where in it this page now
- * goes.
+ * What it is filed under and where it sits among what else is filed there.
+ * One request, because a drag is one gesture and half of it landing is a
+ * tree nobody arranged.
  */
 export interface WikiPageMove {
+  parent_page_id?: number | null;
   /** @minimum 0 */
   position?: number;
 }
@@ -8138,6 +8141,7 @@ export interface WikiPageRead {
   wiki_id: number;
   guild_id: number;
   kind: WikiPageKind;
+  parent_page_id: number | null;
   position: number;
   is_draft: boolean;
   title: string;
@@ -8163,6 +8167,7 @@ export interface WikiPageSummary {
   wiki_id: number;
   guild_id: number;
   kind: WikiPageKind;
+  parent_page_id: number | null;
   position: number;
   is_draft: boolean;
   title: string;
@@ -8175,10 +8180,11 @@ export interface WikiPageSummary {
 }
 
 /**
- * Every page of a wiki, in reading order.
+ * Every page of a wiki, in reading order — each page, then what is filed
+ * under it.
  *
- * The navigation nests, but the pages do not: what sits under a page in the
- * sidebar is that page's own headings, read out of its body by the editor.
+ * Flat on the wire and a tree by ``parent_page_id``: the navigation draws all
+ * of it at once, and the order it arrives in is the order it reads in.
  */
 export interface WikiPageTree {
   items: WikiPageSummary[];

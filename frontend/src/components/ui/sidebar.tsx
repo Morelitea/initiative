@@ -4,6 +4,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +19,35 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getItem, setItem } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
+//: The narrowest the column goes when the app has not said otherwise — the
+//: 16rem this component has always defaulted to. Widening it is for a wiki
+//: with pages filed three deep; nobody needs it narrower than the navigation
+//: was designed for.
+const SIDEBAR_MIN_WIDTH = 256;
+//: How much of the window the column may take. Half is the point at which a
+//: navigation column stops being one.
+const SIDEBAR_MAX_FRACTION = 0.5;
+//: Per device, not per account: how wide a column should be is a fact about
+//: the screen somebody is looking at, not about who they are.
+const SIDEBAR_WIDTH_KEY = "sidebar-width";
+
+/** A CSS length in pixels, for the two units a sidebar width is ever written
+ *  in. Anything else is somebody's business and not this component's. */
+function toPixels(value: string | undefined): number | null {
+  if (!value) return null;
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount)) return null;
+  if (value.trim().endsWith("rem")) {
+    const root = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return Math.round(amount * (Number.isFinite(root) ? root : 16));
+  }
+  return Math.round(amount);
+}
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -42,6 +67,14 @@ type SidebarContextProps = {
   isMobile: boolean;
   toggleSidebar: () => void;
   sidebarWidthMobile: string;
+  /** How wide the column is, in pixels. */
+  width: number;
+  /** Whether a drag is under way, so transitions can get out of its way. */
+  isResizing: boolean;
+  /** Begins a drag from the sidebar's edge. */
+  startResize: (event: React.PointerEvent<HTMLElement>) => void;
+  /** Back to the width it has always had. */
+  resetWidth: () => void;
   /** Suppress the next navigation-triggered auto-close (e.g. switching guilds
    * navigates but should leave the sidebar open). Consumed once. */
   suppressNextAutoClose: () => void;
@@ -92,6 +125,90 @@ const SidebarProvider = React.forwardRef<
     const sidebarWidthMobile =
       (style?.["--sidebar-width-mobile" as keyof React.CSSProperties] as string) ||
       SIDEBAR_WIDTH_MOBILE;
+
+    // The narrowest the column goes is the width the app asked for: whatever
+    // `--sidebar-width` the caller set is what the navigation was designed
+    // around, so dragging only ever makes it wider.
+    const minWidth = React.useMemo(
+      () =>
+        toPixels(style?.["--sidebar-width" as keyof React.CSSProperties] as string | undefined) ??
+        SIDEBAR_MIN_WIDTH,
+      [style]
+    );
+
+    // How wide the column is. Kept on the device (see SIDEBAR_WIDTH_KEY), so
+    // the same person on a laptop and a desktop gets the width each screen
+    // deserves rather than one answer following them around.
+    const [width, setWidth] = React.useState<number>(() => {
+      const saved = Number(getItem(SIDEBAR_WIDTH_KEY));
+      return Number.isFinite(saved) && saved > 0 ? saved : minWidth;
+    });
+    const [isResizing, setIsResizing] = React.useState(false);
+
+    const clampWidth = React.useCallback(
+      (value: number) => {
+        const ceiling = Math.max(minWidth, Math.round(window.innerWidth * SIDEBAR_MAX_FRACTION));
+        return Math.min(Math.max(Math.round(value), minWidth), ceiling);
+      },
+      [minWidth]
+    );
+
+    // A window that got narrower takes the column with it: half of it is the
+    // limit whatever the width was when it was last dragged. Runs on mount
+    // too, so a width remembered from a wider screen arrives already inside
+    // what this one can give it.
+    React.useEffect(() => {
+      const fitToWindow = () => setWidth((current) => clampWidth(current));
+      fitToWindow();
+      window.addEventListener("resize", fitToWindow);
+      return () => window.removeEventListener("resize", fitToWindow);
+    }, [clampWidth]);
+
+    const startResize = React.useCallback(
+      (event: React.PointerEvent<HTMLElement>) => {
+        // The column is a whole drawer on a phone, and a drawer has no edge to
+        // pull.
+        if (isMobile || event.button !== 0) return;
+        event.preventDefault();
+
+        // Which way widening runs, read off the sidebar this rail belongs to.
+        const side = event.currentTarget.closest("[data-side]")?.getAttribute("data-side");
+        const towards = side === "right" ? -1 : 1;
+        const startX = event.clientX;
+        const startWidth = width;
+        let dragged = false;
+
+        const onPointerMove = (move: PointerEvent) => {
+          const travelled = (move.clientX - startX) * towards;
+          if (!dragged && Math.abs(travelled) < 3) return;
+          if (!dragged) {
+            dragged = true;
+            setIsResizing(true);
+          }
+          setWidth(clampWidth(startWidth + travelled));
+        };
+
+        const onPointerUp = () => {
+          window.removeEventListener("pointermove", onPointerMove);
+          if (!dragged) return;
+          setIsResizing(false);
+          // Written once the drag is over rather than on every pixel of it.
+          setWidth((settled) => {
+            setItem(SIDEBAR_WIDTH_KEY, String(settled));
+            return settled;
+          });
+        };
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", onPointerUp, { once: true });
+      },
+      [clampWidth, isMobile, width]
+    );
+
+    const resetWidth = React.useCallback(() => {
+      setWidth(minWidth);
+      setItem(SIDEBAR_WIDTH_KEY, String(minWidth));
+    }, [minWidth]);
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
@@ -166,6 +283,10 @@ const SidebarProvider = React.forwardRef<
         setOpenMobile,
         toggleSidebar,
         sidebarWidthMobile,
+        width,
+        isResizing,
+        startResize,
+        resetWidth,
         suppressNextAutoClose,
         consumeAutoCloseSuppression,
         setSwipeCloseLocked,
@@ -179,6 +300,10 @@ const SidebarProvider = React.forwardRef<
         openMobile,
         toggleSidebar,
         sidebarWidthMobile,
+        width,
+        isResizing,
+        startResize,
+        resetWidth,
         suppressNextAutoClose,
         consumeAutoCloseSuppression,
         setSwipeCloseLocked,
@@ -192,14 +317,21 @@ const SidebarProvider = React.forwardRef<
           <div
             style={
               {
-                "--sidebar-width": SIDEBAR_WIDTH,
                 "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
                 "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
                 ...style,
+                // Last, because what the caller wrote is the FLOOR (read into
+                // `minWidth` above) and this is where the column actually is.
+                "--sidebar-width": `${width}px`,
               } as React.CSSProperties
             }
+            data-resizing={isResizing ? "true" : undefined}
             className={cn(
               "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
+              // A drag is direct manipulation: the column follows the pointer,
+              // so nothing inside it may animate towards where it is going,
+              // and nothing may be selected on the way past.
+              "data-[resizing=true]:select-none [&[data-resizing=true]_*]:transition-none",
               className
             )}
             ref={ref}
@@ -513,13 +645,16 @@ const Sidebar = React.forwardRef<
       return (
         <div
           className={cn(
-            "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
+            // `relative` so the edge has something to hang off: this column
+            // cannot be folded away, but it can still be made wider.
+            "relative flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
             className
           )}
           ref={ref}
           {...props}
         >
           {children}
+          <SidebarResizeHandle side={side} collapsible={collapsible} />
         </div>
       );
     }
@@ -579,6 +714,7 @@ const Sidebar = React.forwardRef<
           >
             {children}
           </div>
+          <SidebarResizeHandle side={side} collapsible={collapsible} />
         </div>
       </div>
     );
@@ -589,6 +725,53 @@ Sidebar.displayName = "Sidebar";
 interface SidebarTriggerProps extends React.ComponentProps<typeof Button> {
   icon: React.ReactNode;
 }
+
+/**
+ * The edge you pull to decide how wide the navigation is.
+ *
+ * It sits on the inner edge of the column, is invisible until a pointer is
+ * near it, and does one thing — a click toggles nothing, because folding the
+ * column away already has a control and a keystroke. Double-click puts the
+ * width back to what the app asked for.
+ *
+ * Not offered on a phone: there the column is a whole drawer, and a drawer has
+ * no edge to pull.
+ */
+const SidebarResizeHandle = ({
+  side,
+  collapsible,
+}: {
+  side: "left" | "right";
+  collapsible: "offcanvas" | "icon" | "none";
+}) => {
+  const { t } = useTranslation("nav");
+  const { startResize, resetWidth, isResizing, isMobile, state } = useSidebar();
+
+  // Nothing to size while the column is folded away — and a column that cannot
+  // fold is never folded, whatever the toggle thinks.
+  if (isMobile || (collapsible !== "none" && state === "collapsed")) return null;
+
+  return (
+    <button
+      type="button"
+      data-sidebar="resize"
+      aria-label={t("sidebar.resize")}
+      title={t("sidebar.resize")}
+      tabIndex={-1}
+      onPointerDown={startResize}
+      onDoubleClick={resetWidth}
+      className={cn(
+        "absolute inset-y-0 z-20 hidden w-2 cursor-col-resize touch-none md:block",
+        side === "left" ? "right-0" : "left-0",
+        // A line under the pointer, and while the drag is on: enough to say
+        // the edge is a thing you can take hold of, not enough to draw a
+        // border down a column that already has one.
+        "after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:-translate-x-1/2 hover:after:bg-sidebar-border",
+        isResizing && "after:bg-sidebar-border"
+      )}
+    />
+  );
+};
 
 const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, SidebarTriggerProps>(
   ({ className, onClick, icon, ...props }, ref) => {

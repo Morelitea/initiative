@@ -520,27 +520,21 @@ async def list_wiki_pages(
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
-    pages = await wikis_service.load_pages(
-        session,
-        wiki.id,
-        page_order=wiki.page_order,
-        include_drafts=_may_write(wiki, current_user),
+    rows = await wikis_service.load_list(
+        session, wiki, include_drafts=_may_write(wiki, current_user)
     )
-    await tags_service.annotate_tags(session, pages)
-    items = [serialize_wiki_page_summary(p) for p in pages]
-
-    # Documents somebody put in this wiki come after the pages written in it.
-    # They have no place of their own in the order — a document belongs to
-    # whatever else it is in too, so nothing here may renumber it — and putting
-    # them last is the only arrangement that says so.
-    documents = await wikis_service.linked_documents(session, wiki.id)
-    documents.sort(key=lambda d: (d.name or "").lower())
-    items.extend(
-        serialize_document_as_page(
-            document, wiki_id=wiki.id, position=len(items) + index
-        )
-        for index, document in enumerate(documents)
+    await tags_service.annotate_tags(
+        session, [row for row in rows if isinstance(row, WikiPage)]
     )
+    # The position each row is SERVED with is its place in the list as drawn —
+    # a document's is kept on the wiki and a page's in its own column, and
+    # neither is what a client counts with.
+    items = [
+        serialize_wiki_page_summary(row)
+        if isinstance(row, WikiPage)
+        else serialize_document_as_page(row, wiki_id=wiki.id, position=spot)
+        for spot, row in enumerate(rows)
+    ]
     return WikiPageTree(items=items)
 
 
@@ -583,6 +577,41 @@ async def add_document_to_wiki(
     return await list_wiki_pages(wiki_id, session, current_user, guild_context)
 
 
+@router.post("/{wiki_id}/documents/{document_id}/move", response_model=WikiPageTree)
+async def move_wiki_document(
+    wiki_id: int,
+    document_id: int,
+    move: WikiPageMove,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> WikiPageTree:
+    """Put a borrowed document somewhere else in this wiki's list.
+
+    At the top of it, always: which page a document is filed under would be a
+    fact about a document that belongs to other places too, and this wiki does
+    not get to decide that.
+
+    Write on the wiki is the whole gate, and read on the document is implied by
+    it already being in a wiki this person may write: where it sits is a
+    decision about the wiki, not a change to the document — which is why the
+    document itself is never written.
+    """
+    wiki = await resource_access.load_authorized(
+        session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
+    )
+    documents = await wikis_service.linked_documents(session, wiki.id)
+    document = next((d for d in documents if d.id == document_id), None)
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
+        )
+
+    await wikis_service.place_in_list(session, wiki, document, move.position)
+    await session.commit()
+    return await list_wiki_pages(wiki_id, session, current_user, guild_context)
+
+
 @router.delete(
     "/{wiki_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
 )
@@ -609,6 +638,8 @@ async def remove_document_from_wiki(
     )
     if edge is not None:
         await relationships_service.remove(session, edge, removed_by=current_user.id)
+        wikis_service.forget_document_placement(wiki, document_id)
+        session.add(wiki)
         await session.commit()
 
 
@@ -625,11 +656,24 @@ async def create_wiki_page(
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
     """Add a page. Write access on the wiki is the whole gate — a page is the
-    wiki's content."""
+    wiki's content.
+
+    It arrives as a draft unless the request says otherwise: for as long as it
+    takes to write one, a new page is empty and unnamed, and the people who
+    only read this wiki have no use for that.
+    """
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
     )
     title = (page_in.title or "").strip()
+
+    if page_in.parent_page_id is not None:
+        parent = await wikis_service.get_page(session, wiki.id, page_in.parent_page_id)
+        if parent is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=WikiMessages.PAGE_NOT_FOUND,
+            )
 
     # A new page starts as a copy of the wiki's template, where it has one and
     # the request did not bring a body of its own. That is what keeps two
@@ -644,7 +688,10 @@ async def create_wiki_page(
         guild_id=guild_context.guild_id,
         wiki_id=wiki.id,
         created_by=current_user.id,
-        position=await wikis_service.next_position(session, wiki.id),
+        parent_page_id=page_in.parent_page_id,
+        position=await wikis_service.next_position(
+            session, wiki, page_in.parent_page_id
+        ),
         is_draft=page_in.is_draft,
         title=title,
         slug=await wikis_service.unique_page_slug(session, wiki.id, title),
@@ -749,27 +796,18 @@ async def move_wiki_page(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    """Put a page somewhere else in the list — what a drag is.
+    """File a page and place it there in one request — what a drag is.
 
-    The whole list is renumbered rather than the moved page alone: positions
-    are only ever read in order, and one pass leaves no two pages sharing one.
+    Only the page's new neighbours are renumbered: a position means something
+    among the pages filed together and nothing across the wiki.
     """
-    _wiki, page = await _load_page(
+    wiki, page = await _load_page(
         session, wiki_id, page_id, current_user, guild_context, access="write"
     )
-
-    others = [
-        p
-        for p in await wikis_service.load_pages(session, page.wiki_id)
-        if p.id != page.id
-    ]
-    index = min(move.position, len(others))
-    ordered = [*others[:index], page, *others[index:]]
-
-    for position, sibling in enumerate(ordered):
-        sibling.position = position
-        session.add(sibling)
-
+    await wikis_service.validate_reparent(session, page, move.parent_page_id)
+    await wikis_service.place_in_list(
+        session, wiki, page, move.position, move.parent_page_id
+    )
     await session.commit()
     await session.refresh(page)
     return serialize_wiki_page(page)

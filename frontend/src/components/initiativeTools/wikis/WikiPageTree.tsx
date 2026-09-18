@@ -12,11 +12,12 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, FileText, Home } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { CircleChevronRight, Home } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  Tool,
   type WikiPageHeading,
   WikiPageKind,
   type WikiPageSummary,
@@ -24,16 +25,59 @@ import {
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { TOOL_ICONS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
-/** Which side of a row a dragged page would land on. */
-type DropIntent = "before" | "after";
+// A borrowed document is marked by the tool it comes from, so the row says
+// where it lives rather than carrying a mark invented for this list.
+const DocumentIcon = TOOL_ICONS[Tool.document];
+
+/** Which of a row's three bands a dragged page is over. */
+type DropIntent = "before" | "into" | "after";
 
 /** Where a drag would land, as the list is drawing it. */
 interface Landing {
-  id: number;
+  /** The row it would land on, as {@link rowKey} names it. */
+  key: string;
   intent: DropIntent;
 }
+
+/**
+ * What names a row in a drag.
+ *
+ * Not the id: a page and a borrowed document are different rows of the same
+ * list and can both be number 11, so the kind goes in the name — otherwise a
+ * drag on one marks the other.
+ */
+const rowKey = (row: Pick<WikiPageSummary, "id" | "kind">) => `${row.kind}:${row.id}`;
+
+/**
+ * Which of the three bands of a row a dragged row may land in.
+ *
+ * Two rules, and between them they are the whole of what the tree permits:
+ *
+ * A page cannot be filed inside itself or inside anything filed under it —
+ * that would take the branch out of the wiki, and the server refuses it too.
+ *
+ * A borrowed document lives at the top of the wiki and nowhere else. It
+ * belongs to whatever else it is in as well, so this wiki does not get to file
+ * it under one of its pages: over a nested row it may land nowhere at all,
+ * rather than appearing to land there and snapping back to the top. For the
+ * same reason a document is never a place to file anything, so only its edges
+ * answer a page being dragged.
+ */
+export const dropIntents = (
+  dragged: Pick<WikiPageSummary, "id" | "kind">,
+  target: Pick<WikiPageSummary, "id" | "kind" | "parent_page_id">,
+  descendantsOfDragged: ReadonlySet<number>
+): DropIntent[] => {
+  if (rowKey(dragged) === rowKey(target)) return [];
+  if (descendantsOfDragged.has(target.id)) return [];
+  if (dragged.kind === WikiPageKind.document) {
+    return (target.parent_page_id ?? null) === null ? ["before", "after"] : [];
+  }
+  return target.kind === WikiPageKind.document ? ["before", "after"] : ["before", "into", "after"];
+};
 
 /**
  * The indent, and the line down it.
@@ -143,6 +187,7 @@ const WikiPageRow = ({
   onToggle,
   accentColor,
   rowMenu,
+  children,
 }: {
   page: WikiPageSummary;
   active: boolean;
@@ -154,18 +199,28 @@ const WikiPageRow = ({
   onToggle: () => void;
   accentColor?: string | null;
   rowMenu?: ReactNode;
+  /** The rows for the pages filed under this one. */
+  children: ReactNode[];
 }) => {
   const { t } = useTranslation("wikis");
-  const showing = landing?.id === page.id ? landing.intent : null;
+  const showing = landing?.key === rowKey(page) ? landing.intent : null;
   // Every page's headings come with the page, so a row is collapsible from the
   // moment it is drawn — nobody has to open a page to find out that it has
   // anything in it.
   const headings = useMemo(() => buildHeadingTree(page.headings), [page.headings]);
-  const expandable = headings.length > 0;
+  // A row opens onto two different things: the pages filed under it, and the
+  // headings written on it. Both are what is "inside" this page, so both sit
+  // behind the one disclosure — the pages first, because they are places and
+  // the headings are only parts of this one.
+  const expandable = headings.length > 0 || children.length > 0;
+  const isDocument = page.kind === WikiPageKind.document;
 
-  const movable = draggableRows && page.kind === WikiPageKind.page;
-  const draggable = useDraggable({ id: page.id, disabled: !movable });
-  const droppable = useDroppable({ id: page.id, disabled: !movable });
+  // Pages and borrowed documents are one list, and one list is arranged as a
+  // whole — so a document is dragged, and dropped onto, like anything else.
+  const movable = draggableRows;
+  const key = rowKey(page);
+  const draggable = useDraggable({ id: key, disabled: !movable });
+  const droppable = useDroppable({ id: key, disabled: !movable });
   // One element is both ends of the gesture — what you pick up and what you
   // drop onto — and dnd-kit hands out a ref for each.
   const setRowRef = (node: HTMLElement | null) => {
@@ -185,10 +240,18 @@ const WikiPageRow = ({
             movable && "cursor-grab active:cursor-grabbing",
             draggable.isDragging && "opacity-40",
             showing === "before" && "border-primary border-t-2",
-            showing === "after" && "border-primary border-b-2"
+            showing === "after" && "border-primary border-b-2",
+            // Filed INSIDE this one, which is a different promise from landing
+            // beside it, so it is drawn differently.
+            showing === "into" && "ring-1 ring-primary ring-inset"
           )}
         >
           <div className="flex min-w-0 flex-1 items-center">
+            {/* One column at the head of every row, saying what the row is and
+                opening what is inside it. A page shows a disclosure; a
+                document shows the tool it comes from, because that is the more
+                useful of the two things to know about a row you did not write
+                here — and it opens the headings all the same. */}
             {expandable ? (
               <CollapsibleTrigger asChild>
                 <Button
@@ -197,12 +260,25 @@ const WikiPageRow = ({
                   className="h-7 w-7 shrink-0"
                   aria-label={open ? t("pages.collapse") : t("pages.expand")}
                 >
-                  <CircleChevronRight
-                    className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
-                    style={{ color: accentColor || undefined }}
-                  />
+                  {isDocument ? (
+                    <DocumentIcon
+                      className={cn("size-4", open ? "text-foreground" : "text-muted-foreground")}
+                    />
+                  ) : (
+                    <CircleChevronRight
+                      className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
+                      style={{ color: accentColor || undefined }}
+                    />
+                  )}
                 </Button>
               </CollapsibleTrigger>
+            ) : isDocument ? (
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+                <DocumentIcon
+                  className="size-4 text-muted-foreground"
+                  aria-label={t("documents.openDocument")}
+                />
+              </span>
             ) : (
               <span className="h-7 w-7 shrink-0" />
             )}
@@ -224,12 +300,6 @@ const WikiPageRow = ({
                     {t("pages.draft")}
                   </span>
                 ) : null}
-                {page.kind === WikiPageKind.document ? (
-                  <FileText
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                    aria-label={t("documents.openDocument")}
-                  />
-                ) : null}
                 {isHome ? (
                   <Home
                     className="size-3.5 shrink-0 text-muted-foreground"
@@ -244,11 +314,7 @@ const WikiPageRow = ({
         </div>
 
         {expandable ? (
-          <CollapsibleContent
-            className={BRANCH}
-            style={{ borderColor: accentColor || undefined }}
-            forceMount
-          >
+          <CollapsibleContent className={BRANCH} style={{ borderColor: accentColor || undefined }}>
             <SidebarMenu>
               {headings.map((node) => (
                 <WikiHeadingRow
@@ -259,6 +325,7 @@ const WikiPageRow = ({
                   accentColor={accentColor}
                 />
               ))}
+              {children}
             </SidebarMenu>
           </CollapsibleContent>
         ) : null}
@@ -283,19 +350,25 @@ interface WikiPageTreeProps {
    */
   renderRowMenu?: (page: WikiPageSummary) => ReactNode;
   /**
-   * Where a dragged page was dropped, as its new index in the list. Omitted
-   * when the reader may not write, which is also what makes rows undraggable.
+   * Where a dragged page was dropped: what it is now filed under, and its
+   * index among what else is filed there. Omitted when the reader may not
+   * write, which is also what makes rows undraggable.
    */
-  onMove?: (page: WikiPageSummary, position: number) => void;
+  onMove?: (page: WikiPageSummary, parentPageId: number | null, position: number) => void;
   className?: string;
 }
 
 /**
- * A wiki's pages, and the headings of the one being read.
+ * A wiki's pages, what is filed under each, and the headings written on them.
  *
- * There are no sub-pages. A wiki is a flat list of pages, and the structure
- * people actually write is the headings inside each one — so the nesting in
- * this column comes out of the open page's body rather than out of the table.
+ * Two structures meet in this one column. Pages file under pages, which is the
+ * wiki's shape and lives in the table; the headings of a page are what is
+ * written ON it, and live in its body. A row's disclosure opens both, pages
+ * first — they are places, and a heading is only part of one.
+ *
+ * Dragging says both things at once: the middle of a row files the dragged
+ * page under it, and the quarter at each edge places it before or after as a
+ * sibling.
  *
  * Rows are links rather than buttons — a page is an address, and opening one in
  * a new tab is something people do with a handbook. The row is also the surface
@@ -314,16 +387,40 @@ export const WikiPageTree = ({
 }: WikiPageTreeProps) => {
   const { t } = useTranslation("wikis");
 
-  // Expanded is the default — a wiki is a thing you skim — so this records the
-  // pages somebody has deliberately folded away.
-  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set());
+  // Closed is the default: this column is a list of pages, and a page's
+  // headings are what you ask for once you are interested in that page. So
+  // this records the pages somebody has deliberately opened.
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
   const toggle = (id: number) =>
-    setCollapsed((previous) => {
+    setExpanded((previous) => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+
+  // Arriving at a page that is filed inside something opens what it is filed
+  // inside, so the column shows where you are rather than a closed row you
+  // have to guess at. Only ever opened — what somebody opened for themselves
+  // stays open — and only once per page, so collapsing a branch you are
+  // standing in is allowed to hold.
+  const revealed = useRef<number | null>(null);
+  useEffect(() => {
+    if (activePageId == null || revealed.current === activePageId) return;
+    const active = pages.find((page) => page.id === activePageId);
+    if (!active) return;
+    revealed.current = activePageId;
+
+    const byId = new Map(pages.map((page) => [page.id, page]));
+    const ancestors: number[] = [];
+    let parent = active.parent_page_id ?? null;
+    while (parent !== null && !ancestors.includes(parent)) {
+      ancestors.push(parent);
+      parent = byId.get(parent)?.parent_page_id ?? null;
+    }
+    if (ancestors.length === 0) return;
+    setExpanded((previous) => new Set([...previous, ...ancestors]));
+  }, [activePageId, pages]);
 
   // The same activation distances the guild rail uses, so a drag started
   // anywhere in the sidebar feels the same.
@@ -335,39 +432,121 @@ export const WikiPageTree = ({
 
   const [landing, setLanding] = useState<Landing | null>(null);
 
-  /** Which half of a row the dragged page now sits over. */
+  /** The rows filed in each place, in the order they arrived — which is the
+   *  order the server sent, and therefore reading order. */
+  const filed = useMemo(() => {
+    const byParent = new Map<number | null, WikiPageSummary[]>();
+    for (const page of pages) {
+      const parent = page.parent_page_id ?? null;
+      const group = byParent.get(parent) ?? [];
+      group.push(page);
+      byParent.set(parent, group);
+    }
+    return byParent;
+  }, [pages]);
+
+  /** Every page beneath a given one. */
+  const descendantsOf = (rootId: number): Set<number> => {
+    const found = new Set<number>();
+    const frontier = [rootId];
+    while (frontier.length > 0) {
+      const id = frontier.pop();
+      if (id === undefined) continue;
+      for (const child of filed.get(id) ?? []) {
+        if (found.has(child.id)) continue;
+        found.add(child.id);
+        frontier.push(child.id);
+      }
+    }
+    return found;
+  };
+
+  const rowFor = (key: string | number | null) =>
+    pages.find((candidate) => rowKey(candidate) === String(key)) ?? null;
+
+  const intentsFor = (dragged: WikiPageSummary | null, target: WikiPageSummary | null) =>
+    dragged && target
+      ? dropIntents(dragged, target, descendantsOf(dragged.id))
+      : ([] as DropIntent[]);
+
   const landingOf = (event: DragMoveEvent): Landing | null => {
     const over = event.over;
     const moving = event.active.rect.current.translated;
     if (!over || !moving) return null;
-    const targetId = Number(over.id);
-    if (!Number.isFinite(targetId) || targetId === Number(event.active.id)) return null;
+
+    const target = rowFor(over.id);
+    const allowed = intentsFor(rowFor(event.active.id), target);
+    if (!target || allowed.length === 0) return null;
 
     const centre = moving.top + moving.height / 2;
-    const past = centre > over.rect.top + over.rect.height / 2;
-    return { id: targetId, intent: past ? "after" : "before" };
+    const offset = (centre - over.rect.top) / over.rect.height;
+    const intent: DropIntent = !allowed.includes("into")
+      ? offset < 0.5
+        ? "before"
+        : "after"
+      : offset < 0.25
+        ? "before"
+        : offset > 0.75
+          ? "after"
+          : "into";
+    return { key: rowKey(target), intent };
   };
+
+  const clearDrag = () => setLanding(null);
 
   const onDragMove = (event: DragMoveEvent) => {
     const next = landingOf(event);
-    if (next?.id !== landing?.id || next?.intent !== landing?.intent) {
+    if (next?.key !== landing?.key || next?.intent !== landing?.intent) {
       setLanding(next);
     }
   };
 
   const onDragEnd = (event: DragEndEvent) => {
-    const page = pages.find((candidate) => candidate.id === Number(event.active.id));
+    const page = rowFor(event.active.id);
     const dropped = landing;
-    setLanding(null);
+    clearDrag();
     if (!onMove || !page || !dropped) return;
 
-    // Counted without the page being moved, so the index means the same before
-    // and after it lands.
-    const others = pages.filter((candidate) => candidate.id !== page.id);
-    const index = others.findIndex((candidate) => candidate.id === dropped.id);
+    const target = rowFor(dropped.key);
+    if (!target || !intentsFor(page, target).includes(dropped.intent)) return;
+
+    if (dropped.intent === "into") {
+      // At the end of what is already filed there, which is where a thing put
+      // INTO something goes — nobody dropping onto a folder means "first".
+      onMove(page, target.id, (filed.get(target.id) ?? []).length);
+      return;
+    }
+    // A sibling drop: its index among the target's own neighbours, counted
+    // without the page being moved so the number means the same before and
+    // after it lands.
+    const parent = target.parent_page_id ?? null;
+    const neighbours = (filed.get(parent) ?? []).filter(
+      (candidate) => rowKey(candidate) !== rowKey(page)
+    );
+    const index = neighbours.findIndex((candidate) => rowKey(candidate) === rowKey(target));
     if (index < 0) return;
-    onMove(page, dropped.intent === "before" ? index : index + 1);
+    onMove(page, parent, dropped.intent === "before" ? index : index + 1);
   };
+
+  /** One row, and under it every row filed there. */
+  const rowsUnder = (parent: number | null): ReactNode[] =>
+    (filed.get(parent) ?? []).map((page) => (
+      <WikiPageRow
+        key={`${page.kind}:${page.id}`}
+        page={page}
+        active={page.id === activePageId}
+        isHome={page.id === homePageId}
+        href={hrefOf(page)}
+        draggable={Boolean(onMove)}
+        landing={landing}
+        open={expanded.has(page.id)}
+        onToggle={() => toggle(page.id)}
+        accentColor={accentColor}
+        rowMenu={renderRowMenu?.(page)}
+      >
+        {rowsUnder(page.id)}
+      </WikiPageRow>
+    ));
 
   if (pages.length === 0) {
     return (
@@ -384,25 +563,9 @@ export const WikiPageTree = ({
         collisionDetection={pointerWithin}
         onDragMove={onDragMove}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setLanding(null)}
+        onDragCancel={clearDrag}
       >
-        <SidebarMenu>
-          {pages.map((page) => (
-            <WikiPageRow
-              key={page.id}
-              page={page}
-              active={page.id === activePageId}
-              isHome={page.id === homePageId}
-              href={hrefOf(page)}
-              draggable={Boolean(onMove)}
-              landing={landing}
-              open={!collapsed.has(page.id)}
-              onToggle={() => toggle(page.id)}
-              accentColor={accentColor}
-              rowMenu={renderRowMenu?.(page)}
-            />
-          ))}
-        </SidebarMenu>
+        <SidebarMenu>{rowsUnder(null)}</SidebarMenu>
       </DndContext>
     </nav>
   );

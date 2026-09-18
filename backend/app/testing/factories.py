@@ -2354,8 +2354,9 @@ async def create_wiki_page(
 ) -> WikiPage:
     """Create a page in a wiki.
 
-    A wiki's pages are a flat list; what sits under a page in the navigation is
-    that page's own headings, which are content in its body.
+    Pass ``parent_page_id`` to file it under another page; without one it sits
+    at the top of the wiki. What nests inside a page — its headings — is
+    content, and lives in its body.
     """
     await route_session_to_guild(session, wiki.guild_id)
 
