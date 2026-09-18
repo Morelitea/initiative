@@ -355,3 +355,76 @@ def mirror_version(image: GalleryImage, version: GalleryImageVersion) -> None:
 def image_blob_urls(image: Any) -> list[str]:
     """Every stored blob a picture row names — the file and its thumbnail."""
     return [url for url in (image.file_url, image.thumbnail_url) if url]
+
+
+async def list_gallery_ids_for_export(
+    session: AsyncSession,
+    current_user: Any,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every gallery the user may export in the given initiatives —
+    DAC-visible to the user (a request that reaches the whole guild sees all),
+    feature-flag respected. Deterministic order for stable backup output."""
+
+    if not initiative_ids:
+        return []
+    statement = (
+        select(Gallery.id)
+        .join(Initiative, Initiative.id == Gallery.initiative_id)
+        .where(
+            Gallery.initiative_id.in_(initiative_ids),
+            Initiative.galleries_enabled == True,  # noqa: E712
+        )
+        .order_by(Gallery.id.asc())
+    )
+    return list(await session.exec(statement))
+
+
+async def get_gallery_for_export(
+    session: AsyncSession,
+    current_user: Any,
+    guild_id: int,
+    *,
+    gallery_id: int,
+) -> tuple[Gallery, list[GalleryImage]]:
+    """The gallery-export seam: fetch + authorize in one place so the rule
+    holds on the worker's render-time replay too. READ access suffices —
+    exporting is a formatted read.
+
+    The pictures come back with it, oldest first, because that is the order
+    they were put in and a restore should read the same way round.
+    """
+    from fastapi import HTTPException, status
+
+    from app.core.tools import Tool
+    from app.services import permissions as permissions_service
+
+    gallery = await get_gallery(session, gallery_id)
+    if gallery is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.gallery.not_found_code,
+        )
+    if gallery.initiative is not None and not gallery.initiative.galleries_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=Tool.gallery.feature_disabled_code,
+        )
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.gallery],
+        gallery,
+        current_user,
+        access="read",
+    )
+    images = list(
+        await session.exec(
+            select(GalleryImage)
+            .where(GalleryImage.gallery_id == gallery.id)
+            .options(*image_loader_options())
+            .order_by(*image_order(oldest_first=True))
+        )
+    )
+    await tags_service.annotate_tags(session, images)
+    return gallery, images

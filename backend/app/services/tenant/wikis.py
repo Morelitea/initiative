@@ -498,6 +498,31 @@ async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> N
         object.__setattr__(wiki, "page_count", counts.get(wiki.id, 0))
 
 
+async def list_wiki_ids_for_export(
+    session: AsyncSession,
+    current_user: Any,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every wiki the user may export in the given initiatives —
+    DAC-visible to the user (a request that reaches the whole guild sees all),
+    feature-flag respected. Deterministic order for stable backup output."""
+
+    if not initiative_ids:
+        return []
+    statement = (
+        select(Wiki.id)
+        .join(Initiative, Initiative.id == Wiki.initiative_id)
+        .where(
+            Wiki.initiative_id.in_(initiative_ids),
+            Initiative.wikis_enabled == True,  # noqa: E712
+        )
+        .order_by(Wiki.id.asc())
+    )
+    return list(await session.exec(statement))
+
+
 async def get_wiki_for_export(
     session: AsyncSession,
     current_user: Any,
