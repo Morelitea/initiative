@@ -8056,11 +8056,7 @@ export interface WikiListResponse {
 export type WikiPageCreateContent = { [key: string]: unknown } | null;
 
 export interface WikiPageCreate {
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  title: string;
+  title?: string | null;
   is_draft?: boolean;
   content?: WikiPageCreateContent;
   tag_ids?: number[] | null;

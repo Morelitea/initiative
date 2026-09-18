@@ -114,7 +114,11 @@ class WikiListResponse(SanitizedBaseModel):
 
 
 class WikiPageCreate(SanitizedBaseModel):
-    title: TitleStr = Field(..., min_length=1, max_length=255)
+    #: Optional, and usually absent: a page is made before it is about
+    #: anything, so it starts with no name rather than one somebody has to
+    #: delete before typing their own. Every surface that draws a page falls
+    #: back to "Untitled" for one that has not been named yet.
+    title: Optional[TitleStr] = Field(default=None, max_length=255)
     #: A page still being written: only people who can write the wiki see it.
     is_draft: bool = False
     content: Optional[Dict[str, Any]] = None

@@ -133,6 +133,24 @@ async def test_create_page_records_its_author_and_slug(
 
 
 @pytest.mark.integration
+async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, session):
+    """A page is made before it is about anything, so nothing names it for you."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    response = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={}
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["title"] == ""
+    # It still has an address, which is what a page needs to be linkable at all.
+    assert body["slug"]
+
+
+@pytest.mark.integration
 async def test_two_pages_with_one_title_get_distinct_slugs(
     client: AsyncClient, acting_user, session
 ):

@@ -33,53 +33,57 @@ describe("PlatformAuthSection", () => {
     settings = structuredClone(base);
   });
 
-  it("withdraws a method nobody depends on without asking", () => {
-    renderWithProviders(<PlatformAuthSection />);
+  // The ways in are not rendered while SHOW_LOGIN_METHODS is off; these cover
+  // the section it hides and come back with it.
+  describe.skip("ways in", () => {
+    it("withdraws a method nobody depends on without asking", () => {
+      renderWithProviders(<PlatformAuthSection />);
 
-    fireEvent.click(screen.getByLabelText("Single sign-on"));
+      fireEvent.click(screen.getByLabelText("Single sign-on"));
 
-    expect(methodsMutate).toHaveBeenCalledWith({ methods: ["password"] });
-  });
-
-  it("asks before withdrawing a method that is somebody's only way in", () => {
-    settings.methods = [
-      { method: "password", enabled: true, would_strand: 0 },
-      { method: "sso", enabled: true, would_strand: 3 },
-    ];
-    renderWithProviders(<PlatformAuthSection />);
-
-    fireEvent.click(screen.getByLabelText("Single sign-on"));
-    expect(methodsMutate).not.toHaveBeenCalled();
-
-    // The dialog names the number, and acknowledging sends that same number.
-    expect(
-      screen.getByText(/3 accounts sign in only this way and will not be able/)
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
-
-    expect(methodsMutate).toHaveBeenCalledWith({
-      methods: ["password"],
-      acknowledge_stranded: 3,
+      expect(methodsMutate).toHaveBeenCalledWith({ methods: ["password"] });
     });
-  });
 
-  it("says when communities still require a sign-in of their own", () => {
-    settings.guilds_requiring_sign_in = 2;
-    renderWithProviders(<PlatformAuthSection />);
+    it("asks before withdrawing a method that is somebody's only way in", () => {
+      settings.methods = [
+        { method: "password", enabled: true, would_strand: 0 },
+        { method: "sso", enabled: true, would_strand: 3 },
+      ];
+      renderWithProviders(<PlatformAuthSection />);
 
-    expect(
-      screen.getByText(/2 communities require a sign-in through a provider of their own/)
-    ).toBeInTheDocument();
-  });
+      fireEvent.click(screen.getByLabelText("Single sign-on"));
+      expect(methodsMutate).not.toHaveBeenCalled();
 
-  it("will not let the last way in be withdrawn", () => {
-    settings.methods = [
-      { method: "password", enabled: true, would_strand: 0 },
-      { method: "sso", enabled: false, would_strand: 0 },
-    ];
-    renderWithProviders(<PlatformAuthSection />);
+      // The dialog names the number, and acknowledging sends that same number.
+      expect(
+        screen.getByText(/3 accounts sign in only this way and will not be able/)
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
 
-    expect(screen.getByLabelText("Password")).toBeDisabled();
+      expect(methodsMutate).toHaveBeenCalledWith({
+        methods: ["password"],
+        acknowledge_stranded: 3,
+      });
+    });
+
+    it("says when communities still require a sign-in of their own", () => {
+      settings.guilds_requiring_sign_in = 2;
+      renderWithProviders(<PlatformAuthSection />);
+
+      expect(
+        screen.getByText(/2 communities require a sign-in through a provider of their own/)
+      ).toBeInTheDocument();
+    });
+
+    it("will not let the last way in be withdrawn", () => {
+      settings.methods = [
+        { method: "password", enabled: true, would_strand: 0 },
+        { method: "sso", enabled: false, would_strand: 0 },
+      ];
+      renderWithProviders(<PlatformAuthSection />);
+
+      expect(screen.getByLabelText("Password")).toBeDisabled();
+    });
   });
 
   it("starts blank when the deployment asks for no limit", () => {

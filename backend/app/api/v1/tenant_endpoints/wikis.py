@@ -629,7 +629,7 @@ async def create_wiki_page(
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
     )
-    title = page_in.title.strip()
+    title = (page_in.title or "").strip()
 
     # A new page starts as a copy of the wiki's template, where it has one and
     # the request did not bring a body of its own. That is what keeps two

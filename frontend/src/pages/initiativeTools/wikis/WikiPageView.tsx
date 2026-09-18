@@ -88,11 +88,13 @@ export const WikiPageView = () => {
   const debouncedTitle = useDebouncedValue(title, 600);
 
   useEffect(() => {
-    const current = pageQuery.data?.title;
+    // `current` is compared, not required: a page starts with no name, and
+    // naming one is the first thing anybody does to it.
+    const current = pageQuery.data?.title ?? "";
     const next = debouncedTitle.trim();
-    if (!canWrite || !current || !next || next === current) return;
+    if (!canWrite || !pageQuery.data || !next || next === current) return;
     savePage({ title: next });
-  }, [debouncedTitle, canWrite, pageQuery.data?.title, savePage]);
+  }, [debouncedTitle, canWrite, pageQuery.data, savePage]);
 
   // The editor reports every keystroke; the server hears about them 2s after
   // somebody stops, the same window a document autosaves on. Saving per change
@@ -190,7 +192,7 @@ export const WikiPageView = () => {
 
   const addPage = () =>
     createPage.mutate(
-      { title: t("pages.untitled") },
+      {},
       {
         onSuccess: (created) =>
           void navigate({ to: gp(wikiPageRoute(initiativeId, wikiId, created.id)) }),
