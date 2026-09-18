@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, FileText, Plus, Search, Settings } from "lucide-react";
+import { ChevronLeft, Plus, Search, Settings } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -146,7 +146,6 @@ export const WikiSidebarContent = ({
                   <SidebarMenuItem key={page.id}>
                     <SidebarMenuButton asChild size="sm" isActive={page.id === activePageId}>
                       <Link to={gp(wikiPageRoute(initiativeId, wikiId, page.id))}>
-                        <FileText className="h-4 w-4 shrink-0" aria-hidden />
                         <span className="min-w-0 flex-1 truncate">
                           {page.title || t("pages.untitled")}
                         </span>

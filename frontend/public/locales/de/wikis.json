@@ -103,7 +103,16 @@
     "templateDescription": "Kopiert den Inhalt einer Seite in jede neue Seite. Gut, damit Einträge dieselbe Form behalten.",
     "templateNone": "Einer leeren Seite",
     "saved": "Einstellungen gespeichert",
-    "more": "Teilen, umbenennen und löschen"
+    "tabSite": "Website",
+    "reading": "Lesen",
+    "readingDescription": "Wie breit eine Seite läuft und was daneben steht.",
+    "appearance": "Erscheinungsbild",
+    "appearanceDescription": "Die Farbe, an der dieses Wiki erkannt wird.",
+    "pages": "Seiten",
+    "pagesDescription": "Womit das Wiki öffnet und womit eine neue Seite beginnt.",
+    "home": "Startseite",
+    "homeDescription": "Die Seite, mit der das Wiki öffnet.",
+    "homeNone": "Erste Seite"
   },
   "page": {
     "actions": "Seitenaktionen",
@@ -114,5 +123,9 @@
   },
   "comments": "Kommentare",
   "closeComments": "Kommentare schließen",
-  "newPage": "Neue Seite"
+  "newPage": "Neue Seite",
+  "viewMode": {
+    "read": "Als Leser ansehen",
+    "edit": "Diese Seite bearbeiten"
+  }
 }

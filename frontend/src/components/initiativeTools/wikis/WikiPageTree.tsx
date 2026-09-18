@@ -13,8 +13,8 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, FileText, GripVertical, Home, Plus } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { CircleChevronRight, GripVertical, Home, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -70,50 +70,15 @@ interface Landing {
 }
 
 /**
- * One step of indent. Depth is drawn with this and nothing else — the row at
- * depth three is three steps in, whether it is a page or a heading — so there
- * is one ruler down the tree instead of one per kind of row.
- */
-const STEP = 12;
-
-/** A row of the flattened list: what to draw, and how far in. */
-interface Row {
-  kind: "page" | "heading";
-  key: string;
-  depth: number;
-  page?: WikiTreeNode;
-  heading?: OutlineNode;
-}
-
-/** Every heading of the open page, flattened to rows at increasing depth. */
-const headingRows = (nodes: OutlineNode[], depth: number): Row[] =>
-  nodes.flatMap((node) => [
-    { kind: "heading" as const, key: `h-${node.key}`, depth, heading: node },
-    ...headingRows(node.children, depth + 1),
-  ]);
-
-/**
- * Everything under a top-level page, in reading order.
+ * The indent, and the line down it.
  *
- * A sub-page is not its own nest surface: only the top-level page collapses,
- * and everything inside it is one list that indents. Two collapsing levels was
- * the thing that made this unreadable — a branch inside a branch, each with its
- * own line, and no way to tell at a glance how deep anything was.
- *
- * The open page's own headings sit immediately under it, one step further in,
- * because they are what is *on* that page.
+ * One rule for every level, pages and headings alike, taken from the initiative
+ * section: a child list is inset by `ml-3` and carries a `border-l` in the
+ * wiki's own colour. Depth comes from the nesting and from nothing else — no
+ * row multiplies a step by its depth, which is what previously left three
+ * indents stacking on top of each other.
  */
-const descendantRows = (
-  nodes: WikiTreeNode[],
-  depth: number,
-  activePageId: number | null | undefined,
-  headings: OutlineNode[]
-): Row[] =>
-  nodes.flatMap((node) => [
-    { kind: "page" as const, key: `p-${node.page.id}`, depth, page: node },
-    ...(node.page.id === activePageId ? headingRows(headings, depth + 1) : []),
-    ...descendantRows(node.children, depth + 1, activePageId, headings),
-  ]);
+const BRANCH = "ml-3 space-y-0.5 border-l";
 
 /**
  * One heading of the open page.
@@ -124,14 +89,14 @@ const descendantRows = (
  */
 const WikiHeadingRow = ({
   node,
-  depth,
+  accentColor,
   onSelect,
 }: {
   node: OutlineNode;
-  depth: number;
+  accentColor?: string | null;
   onSelect: (key: string) => void;
 }) => (
-  <SidebarMenuItem style={{ paddingLeft: depth * STEP }}>
+  <SidebarMenuItem>
     <SidebarMenuButton
       size="sm"
       className="min-w-0 text-muted-foreground hover:text-foreground"
@@ -139,15 +104,34 @@ const WikiHeadingRow = ({
     >
       <span className="min-w-0 flex-1 truncate text-left">{node.text}</span>
     </SidebarMenuButton>
+    {node.children.length > 0 ? (
+      <div className={BRANCH} style={{ borderColor: accentColor || undefined }}>
+        <SidebarMenu>
+          {node.children.map((child) => (
+            <WikiHeadingRow
+              key={child.key}
+              node={child}
+              accentColor={accentColor}
+              onSelect={onSelect}
+            />
+          ))}
+        </SidebarMenu>
+      </div>
+    ) : null}
   </SidebarMenuItem>
 );
 
 /**
- * One page, as a row.
+ * One page, and everything filed under it.
  *
- * The same parts an initiative's rows are made of. Whether it collapses is not
- * its own business: a top-level page is handed the disclosure, and a page
- * inside one is handed an indent.
+ * The same shape an initiative section has, at every level: the title is the
+ * collapse point, the disclosure beside it turns that branch and nothing else,
+ * and what is inside sits behind the guide line. A page with sub-pages
+ * collapses whether it is at the root or six deep — there is no level that is
+ * merely indented.
+ *
+ * Under the page being read, its own headings come first: what is *on* this
+ * page, before what is beneath it.
  *
  * Declared at module scope rather than inside {@link WikiPageTree}: a component
  * defined during a render is a new type on every render, so React would remount
@@ -156,7 +140,6 @@ const WikiHeadingRow = ({
  */
 const WikiPageRow = ({
   node,
-  depth,
   activePageId,
   homePageId,
   hrefOf,
@@ -164,10 +147,13 @@ const WikiPageRow = ({
   draggableRows,
   showCounts,
   landing,
-  disclosure,
+  isOpen,
+  onToggle,
+  headings,
+  onSelectHeading,
+  accentColor,
 }: {
   node: WikiTreeNode;
-  depth: number;
   activePageId?: number | null;
   homePageId?: number | null;
   hrefOf: (page: WikiPageSummary) => string;
@@ -175,142 +161,44 @@ const WikiPageRow = ({
   draggableRows: boolean;
   showCounts: boolean;
   landing: Landing | null;
-  /** The chevron, for the one level that has one. A spacer keeps the rest aligned. */
-  disclosure?: ReactNode;
+  isOpen: (id: number) => boolean;
+  onToggle: (id: number) => void;
+  /** The open page's own headings. Empty for every other row. */
+  headings: OutlineNode[];
+  onSelectHeading: (key: string) => void;
+  /** The wiki's colour, worn by the disclosure and the guide line. */
+  accentColor?: string | null;
 }) => {
   const { t } = useTranslation("wikis");
   const { page, children } = node;
   const active = page.id === activePageId;
+  const open = isOpen(page.id);
+  // Only the page being read has headings to show; every other row draws its
+  // sub-pages alone.
+  const ownHeadings = active ? headings : [];
+  const expandable = children.length > 0 || ownHeadings.length > 0;
   const showing = landing?.id === page.id ? landing.intent : null;
 
   const draggable = useDraggable({ id: page.id, disabled: !draggableRows });
   const droppable = useDroppable({ id: page.id, disabled: !draggableRows });
 
   return (
-    <div
-      ref={droppable.setNodeRef}
-      className={cn(
-        "group/page flex min-w-0 items-center gap-1 rounded-md",
-        draggable.isDragging && "opacity-40",
-        // Filing it under this page rings the row; placing it beside draws the
-        // line it would land on.
-        showing === "into" && "ring-1 ring-primary ring-inset",
-        showing === "before" && "border-primary border-t-2",
-        showing === "after" && "border-primary border-b-2"
-      )}
-      style={{ marginLeft: depth * STEP }}
-    >
-      <div className="flex min-w-0 flex-1 items-center">
-        {disclosure ?? <span className="h-7 w-7 shrink-0" />}
-
-        <SidebarMenuButton asChild size="sm" isActive={active} className="min-w-0 flex-1">
-          <Link to={hrefOf(page)} className="flex min-w-0 items-center gap-2" title={page.title}>
-            {page.id === homePageId ? (
-              <Home className="h-4 w-4 shrink-0" aria-label={t("pages.isHome")} />
-            ) : (
-              <FileText className="h-4 w-4 shrink-0" aria-hidden />
-            )}
-            <span className="min-w-0 flex-1 truncate">{page.title || t("pages.untitled")}</span>
-            {showCounts && children.length > 0 ? (
-              <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-                {children.length}
-              </span>
-            ) : null}
-          </Link>
-        </SidebarMenuButton>
-      </div>
-
-      {/* Dragging has its own grip. The row is a link, and a link that is also
-          the drag handle cannot be clicked without starting a gesture first.
-          Revealed on hover, the way the initiative row reveals its settings. */}
-      {draggableRows ? (
-        <Button
-          ref={draggable.setNodeRef}
-          variant="ghost"
-          size="icon"
-          className="hidden h-6 w-0 shrink-0 cursor-grab overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
-          aria-label={t("pages.reorder")}
-          {...draggable.listeners}
-          {...draggable.attributes}
-        >
-          <GripVertical className="size-3.5" aria-hidden />
-        </Button>
-      ) : null}
-
-      {onAddChild ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
-          onClick={() => onAddChild(page)}
-          aria-label={t("pages.newSubPage")}
-        >
-          <Plus className="size-3.5" aria-hidden />
-        </Button>
-      ) : null}
-    </div>
-  );
-};
-
-/**
- * A top-level page and everything filed under it.
- *
- * This is the only thing in the tree that opens and shuts, and the only place
- * a guide line is drawn. Inside it is one flat list in reading order: each
- * sub-page one step further in, and the open page's headings under it.
- */
-const WikiSection = ({
-  node,
-  open,
-  onToggle,
-  activePageId,
-  homePageId,
-  hrefOf,
-  onAddChild,
-  draggableRows,
-  showCounts,
-  landing,
-  headings,
-  onSelectHeading,
-  accentColor,
-}: {
-  node: WikiTreeNode;
-  open: boolean;
-  onToggle: () => void;
-  activePageId?: number | null;
-  homePageId?: number | null;
-  hrefOf: (page: WikiPageSummary) => string;
-  onAddChild?: (parent: WikiPageSummary) => void;
-  draggableRows: boolean;
-  showCounts: boolean;
-  landing: Landing | null;
-  headings: OutlineNode[];
-  onSelectHeading: (key: string) => void;
-  /** The wiki's own colour, worn by the disclosure and the guide line. */
-  accentColor?: string | null;
-}) => {
-  const { t } = useTranslation("wikis");
-  const active = node.page.id === activePageId;
-  const rows = [
-    ...(active ? headingRows(headings, 0) : []),
-    ...descendantRows(node.children, 0, activePageId, headings),
-  ];
-
-  return (
     <SidebarMenuItem>
-      <Collapsible open={open} onOpenChange={onToggle}>
-        <WikiPageRow
-          node={node}
-          depth={0}
-          activePageId={activePageId}
-          homePageId={homePageId}
-          hrefOf={hrefOf}
-          onAddChild={onAddChild}
-          draggableRows={draggableRows}
-          showCounts={showCounts}
-          landing={landing}
-          disclosure={
-            rows.length > 0 ? (
+      <Collapsible open={open} onOpenChange={() => onToggle(page.id)}>
+        <div
+          ref={droppable.setNodeRef}
+          className={cn(
+            "group/page flex min-w-0 items-center gap-1 rounded-md",
+            draggable.isDragging && "opacity-40",
+            // Filing it under this page rings the row; placing it beside draws
+            // the line it would land on.
+            showing === "into" && "ring-1 ring-primary ring-inset",
+            showing === "before" && "border-primary border-t-2",
+            showing === "after" && "border-primary border-b-2"
+          )}
+        >
+          <div className="flex min-w-0 flex-1 items-center">
+            {expandable ? (
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
@@ -324,43 +212,99 @@ const WikiSection = ({
                   />
                 </Button>
               </CollapsibleTrigger>
-            ) : undefined
-          }
-        />
+            ) : (
+              <span className="h-7 w-7 shrink-0" />
+            )}
 
-        {rows.length > 0 ? (
+            <SidebarMenuButton asChild size="sm" isActive={active} className="min-w-0 flex-1">
+              <Link
+                to={hrefOf(page)}
+                className="flex min-w-0 items-center gap-2"
+                title={page.title}
+              >
+                <span className="min-w-0 flex-1 truncate">{page.title || t("pages.untitled")}</span>
+                {page.id === homePageId ? (
+                  <Home
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    aria-label={t("pages.isHome")}
+                  />
+                ) : null}
+                {showCounts && children.length > 0 ? (
+                  <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                    {children.length}
+                  </span>
+                ) : null}
+              </Link>
+            </SidebarMenuButton>
+          </div>
+
+          {/* Dragging has its own grip. The row is a link, and a link that is
+              also the drag handle cannot be clicked without starting a gesture
+              first. Revealed on hover, the way the initiative row reveals its
+              settings. */}
+          {draggableRows ? (
+            <Button
+              ref={draggable.setNodeRef}
+              variant="ghost"
+              size="icon"
+              className="hidden h-6 w-0 shrink-0 cursor-grab overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
+              aria-label={t("pages.reorder")}
+              {...draggable.listeners}
+              {...draggable.attributes}
+            >
+              <GripVertical className="size-3.5" aria-hidden />
+            </Button>
+          ) : null}
+
+          {onAddChild ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
+              onClick={() => onAddChild(page)}
+              aria-label={t("pages.newSubPage")}
+            >
+              <Plus className="size-3.5" aria-hidden />
+            </Button>
+          ) : null}
+        </div>
+
+        {expandable && open && (
           <CollapsibleContent
-            className="ml-3 space-y-0.5 border-l"
+            className={BRANCH}
             style={{ borderColor: accentColor || undefined }}
+            forceMount
           >
             <SidebarMenu>
-              {rows.map((row) =>
-                row.kind === "heading" && row.heading ? (
-                  <WikiHeadingRow
-                    key={row.key}
-                    node={row.heading}
-                    depth={row.depth}
-                    onSelect={onSelectHeading}
-                  />
-                ) : row.page ? (
-                  <SidebarMenuItem key={row.key}>
-                    <WikiPageRow
-                      node={row.page}
-                      depth={row.depth}
-                      activePageId={activePageId}
-                      homePageId={homePageId}
-                      hrefOf={hrefOf}
-                      onAddChild={onAddChild}
-                      draggableRows={draggableRows}
-                      showCounts={showCounts}
-                      landing={landing}
-                    />
-                  </SidebarMenuItem>
-                ) : null
-              )}
+              {ownHeadings.map((heading) => (
+                <WikiHeadingRow
+                  key={heading.key}
+                  node={heading}
+                  accentColor={accentColor}
+                  onSelect={onSelectHeading}
+                />
+              ))}
+              {children.map((child) => (
+                <WikiPageRow
+                  key={child.page.id}
+                  node={child}
+                  activePageId={activePageId}
+                  homePageId={homePageId}
+                  hrefOf={hrefOf}
+                  onAddChild={onAddChild}
+                  draggableRows={draggableRows}
+                  showCounts={showCounts}
+                  landing={landing}
+                  isOpen={isOpen}
+                  onToggle={onToggle}
+                  headings={headings}
+                  onSelectHeading={onSelectHeading}
+                  accentColor={accentColor}
+                />
+              ))}
             </SidebarMenu>
           </CollapsibleContent>
-        ) : null}
+        )}
       </Collapsible>
     </SidebarMenuItem>
   );
@@ -422,22 +366,24 @@ export const WikiPageTree = ({
   const headings = useOutlineNodes();
   const goToHeading = useOutlineNavigate();
 
-  // The section the open page lives in. One somebody collapsed is forced back
-  // open when they navigate into it — otherwise following a link from the body
-  // would appear to do nothing.
-  const openSection = useMemo(() => {
+  // The ancestors of the open page. A branch somebody collapsed is forced back
+  // open when the page they navigate to lives inside it — otherwise following a
+  // link from the body would appear to do nothing.
+  const ancestors = useMemo(() => {
     const byId = new Map(pages.map((page) => [page.id, page]));
+    const chain = new Set<number>();
     let current = activePageId == null ? undefined : byId.get(activePageId);
     while (current?.parent_page_id != null) {
+      chain.add(current.parent_page_id);
       current = byId.get(current.parent_page_id);
     }
-    return current?.id ?? null;
+    return chain;
   }, [pages, activePageId]);
 
   // Expanded is the default — a wiki is a thing you skim — so this records the
   // branches somebody has deliberately folded away.
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set());
-  const isOpen = (id: number) => !collapsed.has(id) || id === openSection;
+  const isOpen = (id: number) => !collapsed.has(id) || ancestors.has(id);
 
   const toggle = (id: number) =>
     setCollapsed((previous) => {
@@ -564,11 +510,11 @@ export const WikiPageTree = ({
       >
         <SidebarMenu>
           {tree.map((node) => (
-            <WikiSection
+            <WikiPageRow
               key={node.page.id}
               node={node}
-              open={isOpen(node.page.id)}
-              onToggle={() => toggle(node.page.id)}
+              isOpen={isOpen}
+              onToggle={toggle}
               activePageId={activePageId}
               homePageId={homePageId}
               hrefOf={hrefOf}
