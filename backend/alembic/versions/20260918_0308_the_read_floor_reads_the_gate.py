@@ -22,15 +22,15 @@ stands.
 Grants only. No table, no policy, no data: the read floor gets the SELECT the
 writable floor already had, and nothing else changes.
 
-Revision ID: 20260918_0306
-Revises: 20260917_0305
+Revision ID: 20260918_0308
+Revises: 20260918_0307
 Create Date: 2026-09-18
 """
 
 from alembic import op
 
-revision = "20260918_0306"
-down_revision = "20260917_0305"
+revision = "20260918_0308"
+down_revision = "20260918_0307"
 branch_labels = None
 depends_on = None
 
