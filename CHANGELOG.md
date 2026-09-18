@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app on your phone renews its session** — signing in on mobile handed the app one credential good for months. It now gets a session of the same kind the browser has, renewed quietly in the background and replaced each time it is used. An app you are already signed in to moves across by itself; nobody is asked to sign in again.
 - **The roles screen shows what you can actually change** — Project Manager used to render sixteen switches pinned on that refused every click; it says so in a sentence now. The rest is one row per tool with its View and Create together, and granting Create grants View with it. Tools the initiative has switched off are gathered under one explanation instead of repeating it.
 - **Document and spreadsheet toolbars fit the pane, not the window** — both swapped layouts at a screen width, so a document beside the sidebar got the narrow toolbar on a wide monitor and the spreadsheet's wrapped into three rows. Both are now one row that measures the width it has, shedding controls into a **⋯** menu that names them.
+- **Joining sits with the roster** — how people get into an initiative was on the Details tab, two screens away from the requests to join and the members it decides. It now sits on **Initiative settings → Members**, above the roster and under the requests waiting on it. Details keeps the name, description, colour and tools.
 
 ### Fixed
 

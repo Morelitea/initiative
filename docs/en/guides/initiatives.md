@@ -47,7 +47,7 @@ An initiative that opens itself up (below) shows its name, description and size 
 
 ## How people join an initiative
 
-Each initiative sets its own front door, under **settings → Details → Joining**:
+Each initiative sets its own front door, under **settings → Members → Joining**:
 
 | Setting | What it means |
 |---|---|
@@ -124,8 +124,8 @@ There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md)
 
 ## Initiative settings
 
-- **Details** — name, colour, description, and **Joining**.
-- **Members** — who's in, their roles, and any waiting requests.
+- **Details** — name, colour, description, and which tools it offers.
+- **Members** — **Joining**, any waiting requests, and who's in with their roles.
 - **Roles** — make roles and set what they can do.
 - **Properties** — custom fields this initiative's tasks, documents and events can carry.
 - **Export** — download the initiative's data (managers and above).
