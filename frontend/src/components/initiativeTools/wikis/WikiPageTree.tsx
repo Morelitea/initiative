@@ -13,12 +13,18 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, FileText, Home, Plus } from "lucide-react";
+import { CircleChevronRight, FileText, Home, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type OutlineNode,
+  useOutlineNavigate,
+  useOutlineNodes,
+} from "@/components/documents/DocumentOutline";
 import { Button } from "@/components/ui/button";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 /** A page plus the pages filed under it. Built once from the flat list. */
@@ -63,6 +69,40 @@ interface Landing {
 }
 
 /**
+ * One heading of the open page, in the page tree.
+ *
+ * A button rather than a link: a heading has no address of its own, and this
+ * scrolls the page already on screen to it.
+ */
+const WikiHeadingRow = ({
+  node,
+  depth,
+  onSelect,
+}: {
+  node: OutlineNode;
+  depth: number;
+  onSelect: (key: string) => void;
+}) => (
+  <li>
+    <button
+      type="button"
+      onClick={() => onSelect(node.key)}
+      className="flex w-full min-w-0 items-center gap-2 rounded-md py-1 text-left text-muted-foreground text-xs hover:bg-accent/50 hover:text-foreground"
+      style={{ paddingLeft: `${depth * 10 + 8}px` }}
+    >
+      <span className="truncate">{node.text}</span>
+    </button>
+    {node.children.length > 0 ? (
+      <ul>
+        {node.children.map((child) => (
+          <WikiHeadingRow key={child.key} node={child} depth={depth + 1} onSelect={onSelect} />
+        ))}
+      </ul>
+    ) : null}
+  </li>
+);
+
+/**
  * One row, and the rows filed under it.
  *
  * Declared here rather than inside {@link WikiPageTree}: a component defined
@@ -78,9 +118,12 @@ const WikiPageRow = ({
   hrefOf,
   onAddChild,
   draggableRows,
+  showCounts,
   landing,
   isOpen,
   onToggle,
+  headings,
+  onSelectHeading,
 }: {
   node: WikiTreeNode;
   depth: number;
@@ -89,9 +132,13 @@ const WikiPageRow = ({
   hrefOf: (page: WikiPageSummary) => string;
   onAddChild?: (parent: WikiPageSummary) => void;
   draggableRows: boolean;
+  showCounts: boolean;
   landing: Landing | null;
   isOpen: (id: number) => boolean;
   onToggle: (id: number) => void;
+  /** The open page's own headings. Empty for every other row. */
+  headings: OutlineNode[];
+  onSelectHeading: (key: string) => void;
 }) => {
   const { t } = useTranslation("wikis");
   const { page, children } = node;
@@ -108,58 +155,65 @@ const WikiPageRow = ({
       <div
         ref={droppable.setNodeRef}
         className={cn(
-          "group flex items-center gap-0.5 rounded-md pr-1 transition",
-          active ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
+          "group/page flex min-w-0 items-center gap-1 rounded-md pr-1",
+          active && "bg-accent text-accent-foreground",
           draggable.isDragging && "opacity-40",
-          // Filing it under this page highlights the row; placing it beside
-          // draws the line it would land on.
+          // Filing it under this page rings the row; placing it beside draws
+          // the line it would land on.
           showing === "into" && "ring-1 ring-primary ring-inset",
           showing === "before" && "border-primary border-t-2",
           showing === "after" && "border-primary border-b-2"
         )}
         style={{ paddingLeft: `${depth * 12}px` }}
       >
-        {hasChildren ? (
-          <button
-            type="button"
+        {/* The same disclosure an initiative row uses, so a page opens the way
+            everything else in this column does. The open page gets one even
+            with no sub-pages, because its headings hang off it. */}
+        {hasChildren || (active && headings.length > 0) ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
             onClick={() => onToggle(page.id)}
-            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
             aria-expanded={open}
             aria-label={open ? t("pages.collapse") : t("pages.expand")}
           >
-            <ChevronRight
-              className={cn("size-3.5 transition-transform", open && "rotate-90")}
-              aria-hidden
+            <CircleChevronRight
+              className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
             />
-          </button>
+          </Button>
         ) : (
-          <span className="size-5 shrink-0" />
+          <span className="h-7 w-7 shrink-0" />
         )}
 
-        <Link
-          ref={draggable.setNodeRef}
-          to={hrefOf(page)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-sm"
-          title={page.title}
-          {...draggable.listeners}
-          {...draggable.attributes}
-        >
-          {page.id === homePageId ? (
-            <Home
-              className="size-3.5 shrink-0 text-muted-foreground"
-              aria-label={t("pages.isHome")}
-            />
-          ) : (
-            <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          )}
-          <span className="truncate">{page.title || t("pages.untitled")}</span>
-        </Link>
+        <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+          <Link
+            ref={draggable.setNodeRef}
+            to={hrefOf(page)}
+            className="flex min-w-0 items-center gap-2"
+            title={page.title}
+            {...draggable.listeners}
+            {...draggable.attributes}
+          >
+            {page.id === homePageId ? (
+              <Home className="h-4 w-4 shrink-0" aria-label={t("pages.isHome")} />
+            ) : (
+              <FileText className="h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <span className="min-w-0 flex-1 truncate">{page.title || t("pages.untitled")}</span>
+            {showCounts && hasChildren ? (
+              <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                {children.length}
+              </span>
+            ) : null}
+          </Link>
+        </SidebarMenuButton>
 
         {onAddChild ? (
           <Button
             variant="ghost"
             size="icon"
-            className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100"
+            className="size-6 shrink-0 opacity-0 transition focus-visible:opacity-100 group-hover/page:opacity-100"
             onClick={() => onAddChild(page)}
             aria-label={t("pages.newSubPage")}
           >
@@ -167,6 +221,17 @@ const WikiPageRow = ({
           </Button>
         ) : null}
       </div>
+
+      {/* What is ON the page somebody is reading. Only the open page has
+          headings to show, and getting to one is navigation of the same kind
+          as getting to a page — so it lives in the same column. */}
+      {active && open && headings.length > 0 ? (
+        <ul style={{ paddingLeft: `${depth * 12 + 28}px` }}>
+          {headings.map((heading) => (
+            <WikiHeadingRow key={heading.key} node={heading} depth={0} onSelect={onSelectHeading} />
+          ))}
+        </ul>
+      ) : null}
 
       {hasChildren && open ? (
         <ul className="space-y-px">
@@ -180,9 +245,12 @@ const WikiPageRow = ({
               hrefOf={hrefOf}
               onAddChild={onAddChild}
               draggableRows={draggableRows}
+              showCounts={showCounts}
               landing={landing}
               isOpen={isOpen}
               onToggle={onToggle}
+              headings={headings}
+              onSelectHeading={onSelectHeading}
             />
           ))}
         </ul>
@@ -197,6 +265,8 @@ interface WikiPageTreeProps {
   activePageId?: number | null;
   /** The wiki's chosen home page, marked so it reads as the way in. */
   homePageId?: number | null;
+  /** Whether a row says how many pages sit under it — the wiki's own choice. */
+  showCounts?: boolean;
   /** Builds the link for a page. The tree does not know the route shape. */
   hrefOf: (page: WikiPageSummary) => string;
   /** Offered per row when the reader may write. Omitted otherwise. */
@@ -230,10 +300,15 @@ export const WikiPageTree = ({
   hrefOf,
   onAddChild,
   onMove,
+  showCounts = false,
   className,
 }: WikiPageTreeProps) => {
   const { t } = useTranslation("wikis");
   const tree = useMemo(() => buildWikiTree(pages), [pages]);
+  // The headings the open page's editor is reporting. Empty on every screen
+  // that has no editor mounted, which is what makes this safe to read here.
+  const headings = useOutlineNodes();
+  const goToHeading = useOutlineNavigate();
 
   // The ancestors of the open page. A branch somebody collapsed is forced back
   // open when the page they navigate to lives inside it — otherwise following a
@@ -388,9 +463,12 @@ export const WikiPageTree = ({
               hrefOf={hrefOf}
               onAddChild={onAddChild}
               draggableRows={Boolean(onMove)}
+              showCounts={showCounts}
               landing={landing}
               isOpen={isOpen}
               onToggle={toggle}
+              headings={headings}
+              onSelectHeading={goToHeading}
             />
           ))}
         </ul>

@@ -17,7 +17,7 @@ Every group has this knowledge and most groups keep it in a person. That works b
 
 ## Pages, and the shape they make
 
-Open a wiki and it takes the sidebar over. The navigation you were using slides away and the wiki's pages take its place, with an arrow at the top to climb back out — the same thing My Messages does with conversations.
+Open a wiki and it takes the screen. The navigation you were using slides away and the wiki's pages take its place, with an arrow at the top to climb back out — the same thing My Messages does with conversations. The page you are reading lists its own headings underneath itself in that column, so a long page is one click away from any part of it.
 
 That is deliberate. A wiki is read by moving around it, so the shape of it stays in front of you the whole time.
 
@@ -50,6 +50,19 @@ The test is roughly: *would somebody ask this in the group chat, and would someb
 - **The onboarding you currently do out loud**, in full, every time, to each new person.
 
 What doesn't go in one: anything with a date and a person attached. That's a task. Anything that's a conversation — comment on the thing you're discussing, and the conversation stays on it.
+
+## Making it yours
+
+The gear in a wiki's header opens what that wiki is *for*. None of it is required, and all of it is one switch:
+
+| Setting | What it changes |
+|---|---|
+| **Page order** | By hand, by title, or most recently edited first. Hand-ordering suits something read front to back; by title suits anything with more pages than you want to arrange. |
+| **New pages start from** | Nominate a page and every new one begins as a copy of it. This is how two hundred entries stay the same shape. |
+| **Page width** | Full width for tables and screenshots; reading width for prose. |
+| **Contents depth** | How many heading levels the list under the page shows. |
+| **Accent colour** | Marks the wiki, so two open at once are told apart. |
+| **Connections** | Turn off the "what links here" panel for a wiki nobody cross-references. |
 
 ## Sharing
 

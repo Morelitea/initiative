@@ -313,6 +313,7 @@ const OutlineBranch = ({
   collapsed,
   onToggle,
   onSelect,
+  maxDepth,
 }: {
   nodes: readonly OutlineNode[];
   depth: number;
@@ -320,13 +321,16 @@ const OutlineBranch = ({
   collapsed: ReadonlySet<string>;
   onToggle: (key: string) => void;
   onSelect: (key: string) => void;
+  /** How many levels to draw. Deeper headings still exist in the document and
+   *  still scroll past; they are simply not listed. */
+  maxDepth: number;
 }) => {
   const { t } = useTranslation("documents");
 
   return (
     <ul className="space-y-px">
       {nodes.map((node) => {
-        const hasChildren = node.children.length > 0;
+        const hasChildren = node.children.length > 0 && depth + 1 < maxDepth;
         const isCollapsed = collapsed.has(node.key);
         const label = node.text.trim();
         const isActive = node.key === activeKey;
@@ -375,6 +379,7 @@ const OutlineBranch = ({
                 collapsed={collapsed}
                 onToggle={onToggle}
                 onSelect={onSelect}
+                maxDepth={maxDepth}
               />
             ) : null}
           </li>
@@ -384,7 +389,16 @@ const OutlineBranch = ({
   );
 };
 
-const OutlineTree = ({ onNavigate }: { onNavigate?: () => void }) => {
+/** Levels the rail draws unless a caller asks for fewer. */
+const DEFAULT_OUTLINE_DEPTH = 6;
+
+const OutlineTree = ({
+  onNavigate,
+  maxDepth = DEFAULT_OUTLINE_DEPTH,
+}: {
+  onNavigate?: () => void;
+  maxDepth?: number;
+}) => {
   const { t } = useTranslation("documents");
   const store = useContext(DocumentOutlineContext);
   const snapshot = useSyncExternalStore(
@@ -431,6 +445,7 @@ const OutlineTree = ({ onNavigate }: { onNavigate?: () => void }) => {
         collapsed={collapsed}
         onToggle={toggle}
         onSelect={select}
+        maxDepth={maxDepth}
       />
     </nav>
   );
@@ -447,10 +462,14 @@ export const DocumentOutlinePanel = ({
   isOpen,
   onOpenChange,
   className,
+  maxDepth,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
+  /** Levels to draw. A surface that knows its own answer — a wiki does — says
+   *  so; everything else gets the whole outline. */
+  maxDepth?: number;
 }) => {
   const { t } = useTranslation("documents");
   const isMobile = useIsMobile();
@@ -472,7 +491,7 @@ export const DocumentOutlinePanel = ({
             <SheetTitle className="text-base">{t("outline.title")}</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-4">
-            <OutlineTree onNavigate={() => onOpenChange(false)} />
+            <OutlineTree onNavigate={() => onOpenChange(false)} maxDepth={maxDepth} />
           </div>
         </SheetContent>
       </Sheet>
@@ -492,9 +511,40 @@ export const DocumentOutlinePanel = ({
     >
       <div className="border-b px-3 py-2 font-medium text-sm">{t("outline.title")}</div>
       <div className="flex-1 overflow-y-auto p-2">
-        <OutlineTree />
+        <OutlineTree maxDepth={maxDepth} />
       </div>
     </aside>
+  );
+};
+
+/**
+ * The headings the live editor is reporting, as a tree.
+ *
+ * For a surface that draws the outline somewhere other than the panel — the
+ * wiki sidebar lists a page's headings under the page itself. Empty wherever
+ * no editor is mounted inside the scope, which is every other screen.
+ */
+export const useOutlineNodes = (): OutlineNode[] => {
+  const store = useContext(DocumentOutlineContext);
+  const snapshot = useSyncExternalStore(
+    store?.subscribe ?? NO_SUBSCRIBE,
+    store?.getSnapshot ?? NO_SNAPSHOT
+  );
+  return useMemo(() => buildOutlineTree(snapshot.entries), [snapshot.entries]);
+};
+
+/**
+ * Jump to a heading. The same scroll the panel performs, for a caller that
+ * draws its own list.
+ */
+export const useOutlineNavigate = () => {
+  const store = useContext(DocumentOutlineContext);
+  return useCallback(
+    (key: string) => {
+      const heading = store?.getSnapshot().editor?.getElementByKey(key);
+      if (heading) scrollToHeading(heading);
+    },
+    [store]
   );
 };
 

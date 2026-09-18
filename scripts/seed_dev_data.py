@@ -129,6 +129,13 @@ from app.models.tenant.post_poll import (  # noqa: E402
     PostPollVote,
 )
 from app.models.tenant.post_read import PostRead  # noqa: E402
+from app.services.tenant.wikis import slugify_page_title  # noqa: E402
+from app.models.tenant.wiki import (  # noqa: E402
+    Wiki,
+    WikiPage,
+    WikiPageOrder,
+    WikiReadingWidth,
+)
 from app.models.tenant.gallery import (  # noqa: E402
     Gallery,
     GalleryImage,
@@ -795,6 +802,10 @@ class IDTracker:
             "gallery_images": [],
             "gallery_image_tags": [],
             "gallery_image_versions": [],
+            "wikis": [],
+            "wiki_tags": [],
+            "wiki_pages": [],
+            "wiki_page_tags": [],
         }
 
     def add(self, key: str, value) -> None:
@@ -2766,6 +2777,123 @@ async def _create_posts(
     return posts
 
 
+async def _create_wikis(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    tags: dict[str, Tag],
+    wiki_defs: list[dict],
+) -> dict[str, Wiki]:
+    """Create wikis and the pages inside them.
+
+    Each ``wiki_def`` has:
+        initiative_id, name, description, created_by (user name),
+        general_access (default read; ``None`` shares with named people only),
+        tags: list of tag names,
+        page_order / reading_width / contents_depth / show_page_counts /
+        show_connections / accent_color (each optional — the defaults are what
+        a wiki arrives with),
+        home: title of the page it opens on,
+        template: title of the page new ones are copied from,
+        pages: list of page defs.
+
+    Each page def has:
+        title, paragraphs (plain strings, rendered to a Lexical body),
+        parent (title of the page it sits under), created_by, tags.
+
+    Pages are written parent-first so a child can name the page it belongs to
+    by title, which is what makes these definitions readable — nothing here
+    carries an id.
+    """
+    wikis: dict[str, Wiki] = {}
+    for wd in wiki_defs:
+        creator = all_users[wd["created_by"]]
+        wiki = Wiki(
+            guild_id=guild.id,
+            initiative_id=wd["initiative_id"],
+            name=wd["name"],
+            description=wd.get("description"),
+            created_by=creator.id,
+            page_order=wd.get("page_order", WikiPageOrder.manual),
+            reading_width=wd.get("reading_width", WikiReadingWidth.wide),
+            contents_depth=wd.get("contents_depth", 3),
+            show_page_counts=wd.get("show_page_counts", False),
+            show_connections=wd.get("show_connections", True),
+            accent_color=wd.get("accent_color"),
+        )
+        session.add(wiki)
+        await session.flush()
+        ids.add("wikis", wiki.id)
+        wikis[wd["name"]] = wiki
+
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                user_id=creator.id,
+                guild_id=guild.id,
+                initiative_id=wiki.initiative_id,
+                level=ResourceAccessLevel.owner,
+            )
+        )
+        general = wd.get("general_access", ResourceAccessLevel.read)
+        if general is not None:
+            session.add(
+                ResourceGrant(
+                    resource_type="wiki",
+                    resource_id=wiki.id,
+                    guild_id=guild.id,
+                    initiative_id=wiki.initiative_id,
+                    level=general,
+                    all_initiative_members=True,
+                )
+            )
+        for tag_name in wd.get("tags", []):
+            tag = tags.get(tag_name)
+            if tag is not None:
+                session.add(_tag_edge("wiki", wiki.id, tag))
+                ids.add("wiki_tags", (wiki.id, tag.id))
+
+        by_title: dict[str, WikiPage] = {}
+        for position, pd in enumerate(wd.get("pages", [])):
+            author = all_users[pd.get("created_by", wd["created_by"])]
+            parent = by_title.get(pd["parent"]) if pd.get("parent") else None
+            title = pd["title"]
+            page = WikiPage(
+                guild_id=guild.id,
+                wiki_id=wiki.id,
+                parent_page_id=parent.id if parent is not None else None,
+                position=position,
+                title=title,
+                slug=slugify_page_title(title, fallback=f"page-{position}"),
+                content=_doc(pd.get("paragraphs", [])),
+                created_by=author.id,
+            )
+            session.add(page)
+            await session.flush()
+            ids.add("wiki_pages", page.id)
+            by_title[title] = page
+
+            for tag_name in pd.get("tags", []):
+                tag = tags.get(tag_name)
+                if tag is not None:
+                    session.add(_tag_edge("wiki_page", page.id, tag))
+                    ids.add("wiki_page_tags", (page.id, tag.id))
+
+        home = by_title.get(wd.get("home", ""))
+        if home is not None:
+            wiki.home_page_id = home.id
+        template = by_title.get(wd.get("template", ""))
+        if template is not None:
+            wiki.template_page_id = template.id
+        if home is not None or template is not None:
+            session.add(wiki)
+        await session.flush()
+
+    return wikis
+
+
 async def _create_galleries(
     session: AsyncSession,
     ids: IDTracker,
@@ -3350,9 +3478,7 @@ async def seed() -> None:
         # rows. The result: guild_1.initiatives exists with zero rows, and
         # the previous code here (a SELECT followed by .one()) crashed with
         # NoResultFound.
-        g1_default_init = await seed_initiative(
-            session, admin_user, guild_id=g1_id
-        )
+        g1_default_init = await seed_initiative(session, admin_user, guild_id=g1_id)
         # guild_1.guild_settings has the same gap: normally one row is
         # inserted when a community is created, but a startup back-fill leaves
         # the table empty — create the row if it isn't there.
@@ -5719,6 +5845,146 @@ async def seed() -> None:
             ],
         )
 
+        await _enable_role_feature(
+            session, [g1_strahd_mem, g1_lmop_mem], "wikis_enabled"
+        )
+
+        # -- Wikis --
+        # Two shapes on purpose: a setting bible nobody could hand-order, and a
+        # table handbook read front to back. They differ only in their
+        # settings, which is the thing the tool is for.
+        print("  Creating Community 1 wikis...")
+        await _create_wikis(
+            session,
+            ids,
+            g1,
+            all_users,
+            g1_tags,
+            [
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Barovia gazetteer",
+                    "description": "Every place, person and faction the table has met.",
+                    "created_by": "Dungeon Master",
+                    "tags": ["lore"],
+                    # A setting bible: alphabetical, because nobody arranges
+                    # eighty entries by hand, and every entry the same shape.
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "show_page_counts": True,
+                    "accent_color": "#8b5cf6",
+                    "home": "Barovia",
+                    "template": "Entry template",
+                    "pages": [
+                        {
+                            "title": "Barovia",
+                            "created_by": "Dungeon Master",
+                            "tags": ["lore"],
+                            "paragraphs": [
+                                "A valley under permanent cloud, walled in by mist that turns "
+                                "travellers back the way they came.",
+                                "Everything below is somewhere in it. Start with Vallaki if the "
+                                "party has just arrived; start with Castle Ravenloft if they "
+                                "have done something unwise.",
+                            ],
+                        },
+                        {
+                            "title": "Entry template",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "What it is, in a sentence.",
+                                "What the party knows.",
+                                "What they do not, and what it would cost to find out.",
+                            ],
+                        },
+                        {
+                            "title": "Vallaki",
+                            "parent": "Barovia",
+                            "created_by": "Dungeon Master",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "A walled town that insists everything is fine. Festivals "
+                                "weekly, by order of the Baron.",
+                                "The Blue Water Inn is the only safe bed, and the only place "
+                                "anybody will talk.",
+                            ],
+                        },
+                        {
+                            "title": "The Blue Water Inn",
+                            "parent": "Vallaki",
+                            "created_by": "Elara Moonwhisper",
+                            "paragraphs": [
+                                "Run by the Martikovs, who are not what they appear and would "
+                                "rather that stayed the case.",
+                            ],
+                        },
+                        {
+                            "title": "Castle Ravenloft",
+                            "parent": "Barovia",
+                            "created_by": "Dungeon Master",
+                            "tags": ["lore"],
+                            "paragraphs": [
+                                "Strahd's seat, and the last place anybody should go first.",
+                                "The ground floor alone has four ways in, three of which are "
+                                "a mistake.",
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "How this table runs",
+                    "description": "Session zero, in writing, so nobody has to remember it.",
+                    "created_by": "Dungeon Master",
+                    # A handbook: read front to back, so the order is the one
+                    # somebody chose, and the measure is a reading one.
+                    "page_order": WikiPageOrder.manual,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "show_connections": False,
+                    "accent_color": "#0ea5e9",
+                    "home": "Start here",
+                    "pages": [
+                        {
+                            "title": "Start here",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Three pages. Read them once and you will not need them again.",
+                            ],
+                        },
+                        {
+                            "title": "When we play",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Thursdays, 7pm, four hours. We start on time and finish on "
+                                "time; nobody has to apologise for either.",
+                                "Cancel in the channel by Wednesday and nothing is owed.",
+                            ],
+                        },
+                        {
+                            "title": "Lines and veils",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Lines are things that do not happen at this table. Veils are "
+                                "things that happen off-screen.",
+                                "Add to either list at any time, without saying why. Nobody "
+                                "is asked to justify one.",
+                            ],
+                        },
+                        {
+                            "title": "Rolling dice",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "In the open, where everyone can see. That includes mine.",
+                                "A roll happens when the outcome is genuinely in doubt and "
+                                "failing is interesting. Otherwise it just works.",
+                            ],
+                        },
+                    ],
+                },
+            ],
+        )
+
         await _apply_pending_archives(session)
 
         # ==============================================================
@@ -5768,9 +6034,7 @@ async def seed() -> None:
         )
 
         # Default initiative for g2
-        g2_default_init = await seed_initiative(
-            session, admin_user, guild_id=g2_id
-        )
+        g2_default_init = await seed_initiative(session, admin_user, guild_id=g2_id)
         # Track the roles and members that seed_initiative created
         result = await session.exec(
             select(InitiativeRoleModel).where(
@@ -7245,9 +7509,7 @@ async def seed() -> None:
         )
 
         # Default initiative (admin3, the community creator, becomes its PM)
-        g3_default_init = await seed_initiative(
-            session, admin3, guild_id=g3_id
-        )
+        g3_default_init = await seed_initiative(session, admin3, guild_id=g3_id)
         result = await session.exec(
             select(InitiativeRoleModel).where(
                 InitiativeRoleModel.initiative_id == g3_default_init.id,
