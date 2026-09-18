@@ -692,6 +692,8 @@
   "WIKI_GRANT_CANNOT_MANAGE_MEMBERS": "Geteilter Zugriff kann nicht verwalten, wer dieses Wiki sonst noch sehen darf",
   "WIKIS_NOT_ENABLED": "Wikis sind für diese Initiative ausgeschaltet",
   "WIKI_PAGE_NOT_FOUND": "Diese Seite ist nicht in diesem Wiki",
+  "WIKI_PAGE_PARENT_ITSELF": "Eine Seite kann nicht unter sich selbst abgelegt werden",
+  "WIKI_PAGE_PARENT_DESCENDANT": "Eine Seite kann nicht unter einer ihrer Unterseiten abgelegt werden",
   "WIKI_HOME_NOT_IN_WIKI": "Die Startseite muss eine Seite dieses Wikis sein",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Die Vorlage muss eine Seite dieses Wikis sein",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Diese Regel gehört nicht zu euch",

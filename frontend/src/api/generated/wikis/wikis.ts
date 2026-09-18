@@ -1196,6 +1196,10 @@ export function useListWikiPagesApiV1GGuildIdWikisWikiIdPagesGet<
 /**
  * Add a page. Write access on the wiki is the whole gate — a page is the
  * wiki's content.
+ *
+ * It arrives as a draft unless the request says otherwise: for as long as it
+ * takes to write one, a new page is empty and unnamed, and the people who
+ * only read this wiki have no use for that.
  * @summary Create Wiki Page
  */
 export const createWikiPageApiV1GGuildIdWikisWikiIdPagesPost = (
@@ -1500,6 +1504,122 @@ export const useRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentI
     getRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDeleteMutationOptions(
       options
     ),
+    queryClient
+  );
+};
+/**
+ * Put a borrowed document somewhere else in this wiki's list.
+ *
+ * At the top of it, always: which page a document is filed under would be a
+ * fact about a document that belongs to other places too, and this wiki does
+ * not get to decide that.
+ *
+ * Write on the wiki is the whole gate, and read on the document is implied by
+ * it already being in a wiki this person may write: where it sits is a
+ * decision about the wiki, not a change to the document — which is why the
+ * document itself is never written.
+ * @summary Move Wiki Document
+ */
+export const moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost = (
+  guildId: number,
+  wikiId: number,
+  documentId: number,
+  wikiPageMove: BodyType<WikiPageMove>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageTree>(
+    {
+      url: `/api/v1/g/${guildId}/wikis/${wikiId}/documents/${documentId}/move`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: wikiPageMove,
+      signal,
+    },
+    options
+  );
+};
+
+export const getMoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>
+      >,
+      TError,
+      { guildId: number; wikiId: number; documentId: number; data: BodyType<WikiPageMove> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>>,
+    TError,
+    { guildId: number; wikiId: number; documentId: number; data: BodyType<WikiPageMove> },
+    TContext
+  > => {
+    const mutationKey = ["moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>
+      >,
+      { guildId: number; wikiId: number; documentId: number; data: BodyType<WikiPageMove> }
+    > = (props) => {
+      const { guildId, wikiId, documentId, data } = props ?? {};
+
+      return moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost(
+        guildId,
+        wikiId,
+        documentId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type MoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>>
+  >;
+export type MoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePostMutationBody =
+  BodyType<WikiPageMove>;
+export type MoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Move Wiki Document
+ */
+export const useMoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>
+      >,
+      TError,
+      { guildId: number; wikiId: number; documentId: number; data: BodyType<WikiPageMove> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost>>,
+  TError,
+  { guildId: number; wikiId: number; documentId: number; data: BodyType<WikiPageMove> },
+  TContext
+> => {
+  return useMutation(
+    getMoveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePostMutationOptions(options),
     queryClient
   );
 };
@@ -1892,10 +2012,10 @@ export const useDeleteWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdDelete = <
   );
 };
 /**
- * Put a page somewhere else in the list — what a drag is.
+ * File a page and place it there in one request — what a drag is.
  *
- * The whole list is renumbered rather than the moved page alone: positions
- * are only ever read in order, and one pass leaves no two pages sharing one.
+ * Only the page's new neighbours are renumbered: a position means something
+ * among the pages filed together and nothing across the wiki.
  * @summary Move Wiki Page
  */
 export const moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost = (

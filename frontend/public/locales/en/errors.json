@@ -692,6 +692,8 @@
   "WIKI_GRANT_CANNOT_MANAGE_MEMBERS": "Shared access cannot manage who else can see this wiki",
   "WIKIS_NOT_ENABLED": "Wikis are switched off for this initiative",
   "WIKI_PAGE_NOT_FOUND": "That page is not in this wiki",
+  "WIKI_PAGE_PARENT_ITSELF": "A page cannot be filed under itself",
+  "WIKI_PAGE_PARENT_DESCENDANT": "A page cannot be filed under one of its own sub-pages",
   "WIKI_HOME_NOT_IN_WIKI": "The home page has to be one of this wiki's own pages",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "The template has to be one of this wiki’s own pages",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",

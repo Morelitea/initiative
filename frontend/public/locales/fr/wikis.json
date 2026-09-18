@@ -50,7 +50,10 @@
     "collapse": "Réduire",
     "expand": "Développer",
     "moved": "Page déplacée",
-    "draft": "Brouillon"
+    "draft": "Brouillon",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "nav": "Les pages de part et d’autre de celle-ci"
   },
   "links": {
     "title": "Connexions",

@@ -86,5 +86,8 @@
   "createGallery": "Nouvelle galerie",
   "moderation": "Modération",
   "wikis": "Wikis",
-  "createWiki": "Nouveau wiki"
+  "createWiki": "Nouveau wiki",
+  "sidebar": {
+    "resize": "Faites glisser pour redimensionner la barre latérale"
+  }
 }

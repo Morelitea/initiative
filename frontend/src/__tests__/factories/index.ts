@@ -91,6 +91,7 @@ export {
   buildUserSummary,
   resetCounter as resetUserCounter,
 } from "./user.factory";
+export { buildWiki, buildWikiPage } from "./wiki.factory";
 
 import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
@@ -110,6 +111,7 @@ import { resetCounter as resetSearchCounter } from "./search.factory";
 import { resetCounter as resetTagCounter } from "./tag.factory";
 import { resetCounter as resetTaskCounter } from "./task.factory";
 import { resetCounter as resetUserCounter } from "./user.factory";
+import { resetCounter as resetWikiCounter } from "./wiki.factory";
 
 /**
  * Resets all factory counters back to 0.
@@ -134,4 +136,5 @@ export function resetFactories(): void {
   resetDmCounter();
   resetPostCounter();
   resetGalleryCounter();
+  resetWikiCounter();
 }
