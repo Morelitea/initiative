@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Restoring something from the trash brings back what is archived inside it** — restoring an initiative was refused whenever anything inside it had been archived first. Comments, queue items, counters, pictures and calendar events cannot be archived on their own, and the database was refusing to let them out of the trash on that basis.
 - **Saving a renamed document while others are editing it** — the Save button and Ctrl+S were refused with "This document is being edited live", though the same rename went through on its own moments later. A manual save now hands the body to the editing session and saves the name itself.
 - **Opening a task in another project from the one you were on** — following a relation left the Status field blank, then refused to let you leave without saving and refused the save for want of a status. A list that has not caught up yet clears nothing.
+- **Importing a calendar file** — every .ics file came back unreadable, so **Import Calendar Events** could not import anything at all. The preview and the import both reach the community you are in now, and the events land in the calendar you picked.
 
 ## [0.69.0] - 2026-09-14
 
