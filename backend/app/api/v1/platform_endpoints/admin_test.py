@@ -282,7 +282,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
 async def test_demote_admin_uses_for_update_path_without_postgres_error(
     client: AsyncClient, session: AsyncSession
 ):
-    """Regression: ``is_last_platform_admin(..., for_update=True)`` ran
+    """Regression: ``is_last_capability_holder(..., for_update=True)`` ran
     a ``SELECT COUNT(...) FOR UPDATE``, which PostgreSQL rejects with
     "FOR UPDATE is not allowed with aggregate functions". Every valid
     demote of an active admin would crash with an unhandled

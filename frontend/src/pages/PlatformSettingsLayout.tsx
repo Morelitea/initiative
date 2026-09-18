@@ -7,7 +7,7 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
-  canAccessAdminDashboard,
+  canAccessOperatorDashboard,
   canManagePlatformConfig,
   hasCapability,
 } from "@/lib/permissions";
@@ -16,7 +16,7 @@ import { matchActiveTab } from "@/lib/tabs";
 /**
  * App-wide *configuration* area: authentication, branding, email, AI, storage,
  * and app service registrations. Owner-only (`config.manage` / `apps.manage`).
- * Operational tools (users, access) live in the separate Admin dashboard.
+ * Operational tools (users, access) live in the separate Operator dashboard.
  */
 export const PlatformSettingsLayout = () => {
   const { t } = useTranslation("settings");
@@ -69,7 +69,10 @@ export const PlatformSettingsLayout = () => {
   if (!canManagePlatformConfig(user)) {
     // Send operational staff to their dashboard; everyone else to guild settings.
     return (
-      <Navigate to={canAccessAdminDashboard(user) ? "/settings/admin" : "/settings"} replace />
+      <Navigate
+        to={canAccessOperatorDashboard(user) ? "/settings/operator" : "/settings"}
+        replace
+      />
     );
   }
 

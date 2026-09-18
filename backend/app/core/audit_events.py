@@ -33,6 +33,11 @@ class AuditEventType(str, Enum):
     USER_UNSUSPENDED = "user.unsuspended"
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
 
+    # The platform ladder. Granting a rung is an operator's job (``roles.assign``),
+    # not a moderator's, so it is recorded apart from the account actions above:
+    # the account it happened to, and the two roles it moved between.
+    USER_PLATFORM_ROLE_CHANGED = "user.platform_role_changed"
+
     # Authentication: who got in, who did not, and what changed about the
     # credentials. Every failed attempt is recorded, whether or not it
     # resolved to an account; one that did not carries no target and no
@@ -86,6 +91,9 @@ class AuditCategory(str, Enum):
     #: Privileged access: who was let into a community they are not in, on
     #: whose say-so, and how far.
     AUTHORIZATION = "authorization"
+    #: The platform itself: who holds which rung of its ladder. Operator
+    #: work, which is a different job from moderating an account.
+    PLATFORM = "platform"
 
 
 @dataclass(frozen=True)
@@ -115,6 +123,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.USER_AGE_BLOCK_CLEARED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_PLATFORM_ROLE_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.PLATFORM, is_write=True
     ),
     # A sign-in opens a session, so it is a write; a refused one changed
     # nothing and is not.

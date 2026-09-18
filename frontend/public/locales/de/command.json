@@ -31,7 +31,7 @@
     "guildSettings": "Community-Einstellungen",
     "allInitiatives": "Alle Initiativen",
     "platformSettings": "Plattformeinstellungen",
-    "adminDashboard": "Admin-Dashboard"
+    "operatorDashboard": "Operator-Dashboard"
   },
   "shortcutHint": "Suchen",
   "shortcutTooltip": "Schnellsuche ({{shortcut}})",

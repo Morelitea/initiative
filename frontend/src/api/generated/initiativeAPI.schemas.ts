@@ -230,7 +230,7 @@ export const AccountDeletionRequestAction = {
  * Request from a user to deactivate or anonymize (soft-delete) their own account.
  *
  * `hard_delete` is intentionally not allowed from this self-service endpoint;
- * only platform admins can purge a row, and they do so via the admin endpoint.
+ * only an operator can purge a row, and they do so via the admin endpoint.
  */
 export interface AccountDeletionRequest {
   action: AccountDeletionRequestAction;
@@ -340,7 +340,7 @@ export const AdminUserDeleteRequestAction = {
 export type AdminUserDeleteRequestProjectTransfers = { [key: string]: number } | null;
 
 /**
- * Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin.
+ * Request to deactivate, anonymize (soft delete), or hard delete another account.
  */
 export interface AdminUserDeleteRequest {
   action: AdminUserDeleteRequestAction;
@@ -437,9 +437,9 @@ export interface UserInitiativeRole {
 }
 
 /**
- * A platform admin's view of somebody else's account: the address masked.
+ * A staff view of somebody else's account: the address masked.
  *
- * Everything a platform admin does to an account — reset its password, rename
+ * Everything staff do to an account — reset its password, rename
  * it, change its tier, suspend it, delete it — is addressed by id, and the
  * roster is read and searched by handle, so none of it needs the address
  * itself. What the mask leaves is enough to match a row against an address
@@ -5481,13 +5481,6 @@ export interface PlatformAIModeResponse {
 
 export interface PlatformAIModeUpdate {
   mode: AIConfigMode;
-}
-
-/**
- * Response schema for platform admin count.
- */
-export interface PlatformAdminCountResponse {
-  count: number;
 }
 
 /**

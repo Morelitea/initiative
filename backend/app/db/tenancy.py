@@ -7,7 +7,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 
 - **Shared tables** stay in the ``public`` schema — identity, the tenancy
   roster, platform config, and per-user / cross-guild concerns read *without* a
-  guild context (login, "list my guilds", platform admin, SSO auto-join, the
+  guild context (login, "list my guilds", platform staff, SSO auto-join, the
   notification inbox). Listed explicitly in ``SHARED_TABLES``.
 - **Guild-scoped tables** move into a per-guild schema (``guild_<id>``) — the
   actual tenant content. ``GUILD_SCOPED_TABLES`` is *derived* as

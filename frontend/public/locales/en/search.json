@@ -32,6 +32,8 @@
     "calendar": "Calendar",
     "calendar_event": "Event",
     "dashboard": "Dashboard",
+    "wiki": "Wiki",
+    "wiki_page": "Wiki page",
     "tag": "Tag",
     "comment": "Comment",
     "post": "Post",

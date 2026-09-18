@@ -155,7 +155,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
  * closes that config surface and stops new-account onboarding, but never deletes
  * providers or signs existing members out.
  */
-export const AdminDashboardGuildsPage = () => {
+export const OperatorDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const canManageGuilds = hasCapability(user, Capability.guildsManage);

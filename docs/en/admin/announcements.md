@@ -16,13 +16,13 @@ There are two sources, and they read identically to whoever receives them.
 |---|---|---|
 | Who writes it | An operator or owner on your server | The Initiative team, as part of a release |
 | What it's for | Anything about *your* deployment — "we're upgrading on Sunday" | Something every deployment needs to hear |
-| Where to edit it | **Admin dashboard → Announcements** | Nowhere — it arrives with the version |
+| Where to edit it | **Operator dashboard → Announcements** | Nowhere — it arrives with the version |
 
 Shipped announcements are marked **Built in** in the list. You can preview one to see exactly what your users get, but you can't edit or delete it; it retires when a later release drops it.
 
 ## Writing one
 
-Open **Admin dashboard → Announcements** and choose **New announcement**. You need the *manage announcements* capability, which operators and owners have — see [Platform roles](platform-roles.md).
+Open **Operator dashboard → Announcements** and choose **New announcement**. You need the *manage announcements* capability, which operators and owners have — see [Platform roles](platform-roles.md).
 
 An announcement is a **title** plus one or more **sections**. Each section has an optional heading, a body in Markdown, and optionally a picture with alt text. Add sections in the order you want them read; the arrows move one up or down.
 

@@ -92,10 +92,10 @@ vi.mock("@/hooks/useSettings", () => ({
   },
 }));
 
-import { AdminDashboardGuildsPage } from "./AdminDashboardGuildsPage";
+import { OperatorDashboardGuildsPage } from "./OperatorDashboardGuildsPage";
 
 const renderPage = () =>
-  renderWithProviders(<AdminDashboardGuildsPage />, {
+  renderWithProviders(<OperatorDashboardGuildsPage />, {
     auth: { user: buildUser({ role: "owner" }) },
   });
 
@@ -109,7 +109,7 @@ const openSheet = async (user: ReturnType<typeof userEvent.setup>, guildName: st
 const storageInput = () => screen.getByLabelText("Storage limit") as HTMLInputElement;
 const userLimitInput = () => screen.getByLabelText("Members") as HTMLInputElement;
 
-describe("AdminDashboardGuildsPage", () => {
+describe("OperatorDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
     mintHandoff.mockReset();

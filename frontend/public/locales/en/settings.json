@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Read-only",
-        "message": "This community is read-only. Contact your platform administrator to restore full access."
+        "message": "This community is read-only. Contact whoever runs this server to restore full access."
       },
       "suspended": {
         "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact your platform administrator."
+        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
     "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
-    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. A platform admin can reactivate your account on request. Your name, email, and content remain intact.",
+    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Account deleted permanently"
   },
   "branding": {
-    "adminOnly": "Only platform admins can manage branding settings.",
+    "adminOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only platform admins can manage email settings.",
+    "adminOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -553,7 +553,7 @@
     "saveError": "Unable to save email settings"
   },
   "auth": {
-    "adminOnly": "Only platform admins can manage authentication settings.",
+    "adminOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
@@ -663,21 +663,13 @@
     "filterPlaceholder": "Filter by handle…",
     "columnId": "User ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "Email",
-    "columnRole": "Role",
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
-    "inactive": "Inactive",
     "deactivated": "Deactivated",
     "anonymized": "Anonymized",
-    "admin": "Admin",
-    "user": "User",
-    "promoteToAdmin": "Promote to admin",
-    "promoteDescription": "This will give {{email}} platform admin permissions, allowing them to manage platform settings, users, and configurations.",
-    "demoteToUser": "Demote to user",
-    "demoteDescription": "This will remove platform admin permissions from {{email}}. They will no longer be able to access platform settings.",
+    "suspended": "Suspended",
     "resetPassword": "Reset password",
     "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
@@ -685,15 +677,11 @@
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
-    "promoteSuccess": "User promoted to admin",
-    "demoteSuccess": "User demoted to member",
     "roleChangeError": "Unable to change user role",
     "resetSuccess": "Password reset email sent to {{email}}",
     "resetError": "Unable to send password reset",
     "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
-    "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
-    "cannotChangeOwnRole": "Cannot change your own role",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
       "member": "Member",
@@ -712,18 +700,34 @@
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
     "roleChangeSuccess": "Platform role changed to {{role}}",
-    "changeUsername": "Change username",
     "usernameChanged": "Username changed.",
-    "changeUsernameTitle": "Change {{handle}}'s username",
-    "changeUsernameBody": "They will be told, and they cannot change it back themselves. The number stays as it is.",
     "suspend": "Suspend",
-    "unsuspend": "Lift suspension",
     "suspendTitle": "Suspend {{handle}}?",
     "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
     "suspendReasonLabel": "Reason (shown to them)",
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
-    "ageBlockCleared": "They can answer the age question again."
+    "ageBlockCleared": "They can answer the age question again.",
+    "sheet": {
+      "open": "Manage",
+      "openLabel": "Manage account {{handle}}",
+      "description": "What an operator keeps for this account. Each change saves on its own.",
+      "identity": "Identity",
+      "usernameLabel": "Username",
+      "usernameHelp": "The handle they are addressed by. The number after it stays as it is.",
+      "avatarLabel": "Profile picture",
+      "avatarHelp": "Take the picture down. It cannot be replaced from here.",
+      "avatarRemove": "Remove",
+      "avatarRemoved": "Profile picture removed.",
+      "avatarConfirmTitle": "Remove this profile picture?",
+      "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
+      "access": "Access",
+      "suspendLabel": "Suspended",
+      "suspendHelp": "A suspended account can still sign in and read why, but reaches none of its communities.",
+      "role": "Platform role",
+      "roleLabel": "Role",
+      "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
+    }
   },
   "adminDeleteUser": {
     "title": "Delete User",
@@ -1034,8 +1038,8 @@
     },
     "unlimited": "No limit"
   },
-  "adminDashboard": {
-    "title": "Admin dashboard",
+  "operatorDashboard": {
+    "title": "Operator dashboard",
     "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",

@@ -24,11 +24,11 @@
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
-        "message": "Diese Community ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+        "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       },
       "suspended": {
         "label": "Gesperrt",
-        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an die Betreiber dieses Servers."
       }
     },
     "tabs": {
@@ -421,7 +421,7 @@
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
     "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
-    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
@@ -452,7 +452,7 @@
     "deleteSuccess": "Konto dauerhaft gelöscht"
   },
   "branding": {
-    "adminOnly": "Nur Plattformadministratoren können die Branding-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -522,7 +522,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur Plattformadministratoren können die E-Mail-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -553,7 +553,7 @@
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
   "auth": {
-    "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
@@ -663,21 +663,13 @@
     "filterPlaceholder": "Nach Handle filtern…",
     "columnId": "Benutzer-ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "E-Mail",
-    "columnRole": "Rolle",
     "columnStatus": "Status",
     "columnActions": "Aktionen",
     "active": "Aktiv",
-    "inactive": "Inaktiv",
     "deactivated": "Deaktiviert",
     "anonymized": "Anonymisiert",
-    "admin": "Administrator",
-    "user": "Benutzer",
-    "promoteToAdmin": "Zum Administrator befördern",
-    "promoteDescription": "Dadurch erhält {{email}} Plattformadministrator-Berechtigungen und kann Plattformeinstellungen, Benutzer und Konfigurationen verwalten.",
-    "demoteToUser": "Zum Benutzer herabstufen",
-    "demoteDescription": "Dadurch werden {{email}} die Plattformadministrator-Berechtigungen entzogen. Die Person kann dann nicht mehr auf die Plattformeinstellungen zugreifen.",
+    "suspended": "Gesperrt",
     "resetPassword": "Passwort zurücksetzen",
     "resetDescription": "Dadurch wird eine E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet.",
     "reactivate": "Wieder aktivieren",
@@ -685,15 +677,11 @@
     "exportAll": "Alle als CSV exportieren",
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "deleteUser": "Benutzer löschen",
-    "promoteSuccess": "Benutzer zum Administrator befördert",
-    "demoteSuccess": "Benutzer zum Mitglied herabgestuft",
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
     "resetSuccess": "E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
     "reactivateSuccess": "{{email}} wurde wieder aktiviert",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
-    "cannotDemoteLastAdmin": "Der letzte Plattformadministrator kann nicht herabgestuft werden",
-    "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
     "roles": {
       "member": "Mitglied",
@@ -712,18 +700,34 @@
     "changeRoleTitle": "Plattformrolle ändern",
     "changeRoleDescription": "Dadurch wird die Plattformrolle von {{email}} in {{role}} geändert.",
     "roleChangeSuccess": "Plattformrolle in {{role}} geändert",
-    "changeUsername": "Benutzernamen ändern",
     "usernameChanged": "Benutzername geändert.",
-    "changeUsernameTitle": "Benutzernamen von {{handle}} ändern",
-    "changeUsernameBody": "Die Person wird benachrichtigt und kann die Änderung nicht selbst rückgängig machen. Die Nummer bleibt unverändert.",
     "suspend": "Sperren",
-    "unsuspend": "Sperre aufheben",
     "suspendTitle": "{{handle}} sperren?",
     "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
-    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden."
+    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
+    "sheet": {
+      "open": "Verwalten",
+      "openLabel": "Konto {{handle}} verwalten",
+      "description": "Was ein Operator für dieses Konto pflegt. Jede Änderung wird einzeln gespeichert.",
+      "identity": "Identität",
+      "usernameLabel": "Benutzername",
+      "usernameHelp": "Das Handle, unter dem die Person angesprochen wird. Die Nummer dahinter bleibt unverändert.",
+      "avatarLabel": "Profilbild",
+      "avatarHelp": "Das Bild entfernen. Von hier aus kann es nicht ersetzt werden.",
+      "avatarRemove": "Entfernen",
+      "avatarRemoved": "Profilbild entfernt.",
+      "avatarConfirmTitle": "Dieses Profilbild entfernen?",
+      "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
+      "access": "Zugriff",
+      "suspendLabel": "Gesperrt",
+      "suspendHelp": "Ein gesperrtes Konto kann sich weiterhin anmelden und den Grund lesen, erreicht aber keine seiner Communitys.",
+      "role": "Plattformrolle",
+      "roleLabel": "Rolle",
+      "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
+    }
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",
@@ -961,8 +965,8 @@
     "manifestChangedDescription": "Das Manifest dieser App entspricht nicht mehr dem bei der Registrierung hinterlegten Stand; Funktionen, Verbindungen oder eingebettete Seiten können sich also geändert haben. Beim Annehmen wird das neue Manifest übernommen und die App als überprüft markiert. Nimm es nur an, wenn du mit dieser Änderung gerechnet hast.",
     "manifestChangedConfirm": "Neues Manifest annehmen"
   },
-  "adminDashboard": {
-    "title": "Administrator-Dashboard",
+  "operatorDashboard": {
+    "title": "Operator-Dashboard",
     "subtitle": "Verwalte Plattformbenutzer und zeitlich begrenzte Zugriffsrechte.",
     "tabs": {
       "users": "Benutzer",

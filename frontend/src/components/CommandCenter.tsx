@@ -40,7 +40,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useUserSearch } from "@/hooks/useUsers";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import {
@@ -243,7 +243,7 @@ export function CommandCenter() {
   const isGuildAdmin = activeGuild?.is_admin ?? false;
   const dmEnabled = useDirectMessagesEnabled();
   const showPlatformSettings = canManagePlatformConfig(user);
-  const showAdminDashboard = canAccessAdminDashboard(user);
+  const showOperatorDashboard = canAccessOperatorDashboard(user);
 
   // Static pages
   const pages = useMemo(() => {
@@ -273,10 +273,10 @@ export function CommandCenter() {
       });
     }
 
-    if (showAdminDashboard) {
+    if (showOperatorDashboard) {
       items.push({
-        label: t("pages.adminDashboard"),
-        path: "/settings/admin",
+        label: t("pages.operatorDashboard"),
+        path: "/settings/operator",
         icon: ShieldCheck,
       });
     }
@@ -290,7 +290,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, dmEnabled, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, dmEnabled, isGuildAdmin, showOperatorDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);
