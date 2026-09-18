@@ -107,16 +107,14 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "description": wiki.description,
         "home_page": home.slug if home is not None else None,
         "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
-        "pages": [_page_envelope(page, by_id) for page in pages],
+        "pages": [_page_envelope(page) for page in pages],
     }
 
 
-def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]:
-    parent = by_id.get(page.parent_page_id) if page.parent_page_id else None
+def _page_envelope(page: WikiPage) -> dict[str, Any]:
     return {
         "title": page.title,
         "slug": page.slug,
-        "parent": parent.slug if parent is not None else None,
         "position": page.position,
         "content": page.content or {},
         "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),

@@ -41,11 +41,11 @@ class WikiSettings(SanitizedBaseModel):
     #: How siblings are ordered in the tree.
     page_order: Optional[WikiPageOrder] = None
     #: Whether the tree shows how many pages sit under each one.
-    show_page_counts: Optional[bool] = None
     #: How deep the contents rail goes — 2 to 4 heading levels.
     contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
     #: Whether a page shows what links to it.
     show_connections: Optional[bool] = None
+    show_updated_at: Optional[bool] = None
     #: Whether a page's body fills the screen or holds to a reading measure.
     reading_width: Optional[WikiReadingWidth] = None
     #: The wiki's own accent, as a CSS colour. ``null`` takes the app's.
@@ -81,9 +81,9 @@ class WikiSummary(WikiBase, ArchiveState):
     home_page_id: Optional[int] = None
     #: What this wiki is for — see :class:`WikiSettings`.
     page_order: WikiPageOrder = WikiPageOrder.manual
-    show_page_counts: bool = False
     contents_depth: int = 3
     show_connections: bool = True
+    show_updated_at: bool = True
     reading_width: WikiReadingWidth = WikiReadingWidth.wide
     accent_color: Optional[str] = None
     template_page_id: Optional[int] = None
@@ -114,8 +114,8 @@ class WikiListResponse(SanitizedBaseModel):
 
 class WikiPageCreate(SanitizedBaseModel):
     title: TitleStr = Field(..., min_length=1, max_length=255)
-    #: Where it sits in the tree. ``null`` is a top-level page.
-    parent_page_id: Optional[int] = None
+    #: A page still being written: only people who can write the wiki see it.
+    is_draft: bool = False
     content: Optional[Dict[str, Any]] = None
     tag_ids: Optional[List[int]] = None
 
@@ -124,12 +124,11 @@ class WikiPageUpdate(SanitizedBaseModel):
     """A change to one page.
 
     Every field is optional and only what is sent is written, so renaming a
-    page and moving it are the same request shape as editing its body.
-    ``parent_page_id`` is the one field that is meaningfully ``null``: it means
-    "make this a top-level page", which is different from not sending it.
+    page is the same request shape as editing its body.
     """
 
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
+    is_draft: Optional[bool] = None
     content: Optional[Dict[str, Any]] = None
     tag_ids: Optional[List[int]] = None
 
@@ -137,19 +136,16 @@ class WikiPageUpdate(SanitizedBaseModel):
 class WikiPageMove(SanitizedBaseModel):
     """Where a page should sit after a drag.
 
-    The two facts the tree needs, together: a page dropped into a new parent
-    almost always lands at a particular place among its new siblings, and
-    sending them separately would draw the tree wrong in between.
+    Pages are a flat list, so a move is one fact: where in it this page now
+    goes.
     """
 
-    #: ``null`` makes it a top-level page.
-    parent_page_id: Optional[int] = None
-    #: Index among its siblings, after the move. Out-of-range clamps.
+    #: Index in the wiki's page list, after the move. Out-of-range clamps.
     position: int = Field(default=0, ge=0)
 
 
 class WikiPageSummary(SanitizedBaseModel):
-    """One page as the tree draws it — no body.
+    """One page as the navigation draws it — no body.
 
     The navigation renders every page of a wiki at once, so this carries what a
     row needs and nothing that would make the payload grow with what people
@@ -163,8 +159,8 @@ class WikiPageSummary(SanitizedBaseModel):
     id: int
     wiki_id: int
     guild_id: int
-    parent_page_id: Optional[int] = None
     position: int = 0
+    is_draft: bool = False
     title: str
     slug: str
     created_by: int
@@ -181,11 +177,10 @@ class WikiPageRead(WikiPageSummary):
 
 
 class WikiPageTree(SanitizedBaseModel):
-    """Every page of a wiki, flat, in reading order.
+    """Every page of a wiki, in reading order.
 
-    Flat rather than nested: each row names its parent, and the client builds
-    the shape. A nested payload would have to be walked to find one page and
-    re-walked to move it, and the tree is drawn from the same rows either way.
+    The navigation nests, but the pages do not: what sits under a page in the
+    sidebar is that page's own headings, read out of its body by the editor.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -253,9 +248,9 @@ def serialize_wiki_summary(
         page_count=int(getattr(wiki, "page_count", 0)),
         home_page_id=wiki.home_page_id,
         page_order=wiki.page_order,
-        show_page_counts=wiki.show_page_counts,
         contents_depth=wiki.contents_depth,
         show_connections=wiki.show_connections,
+        show_updated_at=wiki.show_updated_at,
         reading_width=wiki.reading_width,
         accent_color=wiki.accent_color,
         template_page_id=wiki.template_page_id,
@@ -279,8 +274,8 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
         id=page.id,
         wiki_id=page.wiki_id,
         guild_id=page.guild_id,
-        parent_page_id=page.parent_page_id,
         position=page.position,
+        is_draft=page.is_draft,
         title=page.title,
         slug=page.slug,
         created_by=page.created_by,

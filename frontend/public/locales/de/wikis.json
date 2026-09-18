@@ -49,7 +49,8 @@
     "noMatches": "Keine Seite passt dazu",
     "collapse": "Einklappen",
     "expand": "Ausklappen",
-    "moved": "Seite verschoben"
+    "moved": "Seite verschoben",
+    "draft": "Entwurf"
   },
   "links": {
     "title": "Verbindungen",
@@ -81,8 +82,6 @@
     "orderTitleHint": "Ideal, sobald es mehr Seiten gibt, als jemand sortieren möchte.",
     "orderRecent": "Zuletzt bearbeitete zuerst",
     "orderRecentHint": "Ideal für Notizen und Entscheidungen, bei denen das Neueste zählt.",
-    "counts": "Anzahl der untergeordneten Seiten anzeigen",
-    "countsHint": "Nützlich in einem großen Wiki, störend in einem kleinen.",
     "contents": "Inhaltstiefe",
     "contentsDescription": "Wie viele Überschriftenebenen das Inhaltsverzeichnis zeigt.",
     "contentsLevels_one": "{{count}} Ebene",
@@ -110,14 +109,20 @@
     "pagesDescription": "Womit das Wiki öffnet und womit eine neue Seite beginnt.",
     "home": "Startseite",
     "homeDescription": "Die Seite, mit der das Wiki öffnet.",
-    "homeNone": "Erste Seite"
+    "homeNone": "Erste Seite",
+    "updated": "Änderungsdatum anzeigen",
+    "updatedHint": "Ein Handbuch, nach dem gehandelt wird, braucht das; eine Weltchronik nicht."
   },
   "page": {
     "actions": "Seitenaktionen",
     "setHome": "Als Startseite festlegen",
     "useAsTemplate": "Als Vorlage für neue Seiten verwenden",
     "isTemplate": "Neue Seiten beginnen mit dieser",
-    "delete": "Seite löschen"
+    "delete": "Seite löschen",
+    "markDraft": "Als Entwurf markieren",
+    "publish": "Veröffentlichen",
+    "published": "Seite veröffentlicht",
+    "drafted": "Seite als Entwurf markiert"
   },
   "comments": "Kommentare",
   "closeComments": "Kommentare schließen",
@@ -125,5 +130,6 @@
   "viewMode": {
     "read": "Als Leser ansehen",
     "edit": "Diese Seite bearbeiten"
-  }
+  },
+  "updated": "Aktualisiert"
 }

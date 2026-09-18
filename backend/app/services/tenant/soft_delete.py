@@ -80,7 +80,6 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
     Wiki: [(WikiPage, "wiki_id"), (Comment, "wiki_id")],
     # A page takes its sub-pages with it: a section is put away whole,
     # the same self-cascade a comment thread uses.
-    WikiPage: [(WikiPage, "parent_page_id")],
     Comment: [(Comment, "parent_comment_id")],
 }
 

@@ -692,8 +692,6 @@
   "WIKI_GRANT_CANNOT_MANAGE_MEMBERS": "Un accès partagé ne permet pas de gérer qui d’autre voit ce wiki",
   "WIKIS_NOT_ENABLED": "Les wikis sont désactivés pour cette initiative",
   "WIKI_PAGE_NOT_FOUND": "Cette page n’est pas dans ce wiki",
-  "WIKI_PAGE_PARENT_ITSELF": "Une page ne peut pas être classée sous elle-même",
-  "WIKI_PAGE_PARENT_DESCENDANT": "Une page ne peut pas être classée sous l’une de ses propres sous-pages",
   "WIKI_HOME_NOT_IN_WIKI": "La page d’accueil doit être une page de ce wiki",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Le modèle doit être une page de ce wiki",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Cette règle n'est pas la vôtre",

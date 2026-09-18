@@ -1,10 +1,10 @@
-"""Tests for the wiki endpoints — CRUD, the page tree, moves, and the links
-both ways.
+"""Tests for the wiki endpoints — CRUD, the page list, moves, drafts, and the
+links both ways.
 
 The wiki-specific concerns beyond the usual tool contract are the two things a
-body of linked pages owns: the **spine** (a page's parent and its place among
-its siblings, and the rules that keep that a tree) and the **web** (what a
-page's body names, and what names it back).
+body of linked pages owns: the **spine** (a page's place in the list, and who
+is shown it) and the **web** (what a page's body names, and what names it
+back).
 """
 
 import pytest
@@ -129,7 +129,7 @@ async def test_create_page_records_its_author_and_slug(
     body = response.json()
     assert body["created_by"] == a.user.id
     assert body["slug"] == "the-bar-float"
-    assert body["parent_page_id"] is None
+    assert body["is_draft"] is False
 
 
 @pytest.mark.integration
@@ -157,14 +157,14 @@ async def test_two_pages_with_one_title_get_distinct_slugs(
 async def test_the_tree_comes_back_in_reading_order(
     client: AsyncClient, acting_user, session
 ):
-    """Each page then its children, so a client can draw the tree without
+    """In the order somebody arranged them, so a client draws the list without
     sorting it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
-    bar = await create_wiki_page(session, wiki, a.user, title="Bar")
-    await create_wiki_page(session, wiki, a.user, title="Float", parent=bar)
+    await create_wiki_page(session, wiki, a.user, title="Bar")
+    await create_wiki_page(session, wiki, a.user, title="Float")
     await create_wiki_page(session, wiki, a.user, title="Kitchen")
 
     response = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
@@ -175,52 +175,11 @@ async def test_the_tree_comes_back_in_reading_order(
 
 
 @pytest.mark.integration
-async def test_a_page_cannot_be_filed_under_its_own_descendant(
-    client: AsyncClient, acting_user, session
-):
-    """The move that would detach a subtree from the tree."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    wiki = await create_wiki(session, a.initiative, a.user)
-
-    parent = await create_wiki_page(session, wiki, a.user, title="Bar")
-    child = await create_wiki_page(session, wiki, a.user, title="Float", parent=parent)
-
-    response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}/move"),
-        headers=a.headers,
-        json={"parent_page_id": child.id, "position": 0},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "WIKI_PAGE_PARENT_DESCENDANT"
-
-
-@pytest.mark.integration
-async def test_a_page_cannot_be_its_own_parent(
-    client: AsyncClient, acting_user, session
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _wikis_enabled(session, a.initiative)
-    wiki = await create_wiki(session, a.initiative, a.user)
-    page = await create_wiki_page(session, wiki, a.user, title="Bar")
-
-    response = await client.post(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}/move"),
-        headers=a.headers,
-        json={"parent_page_id": page.id, "position": 0},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "WIKI_PAGE_PARENT_ITSELF"
-
-
-@pytest.mark.integration
 async def test_moving_a_page_renumbers_its_new_siblings(
     client: AsyncClient, acting_user, session
 ):
-    """A move is a reparent and a placement together, so the order it lands in
-    is the order the tree draws."""
+    """A move is one fact — where in the list this page now goes — and the
+    whole list is renumbered so the order it lands in is the order drawn."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
@@ -232,7 +191,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
     response = await client.post(
         a.g(f"/wikis/{wiki.id}/pages/{moved.id}/move"),
         headers=a.headers,
-        json={"parent_page_id": None, "position": 0},
+        json={"position": 0},
     )
     assert response.status_code == 200, response.text
 
@@ -264,22 +223,94 @@ async def test_a_page_from_another_wiki_reads_as_missing(
 async def test_deleting_a_page_takes_its_sub_pages(
     client: AsyncClient, acting_user, session
 ):
-    """A section is put away whole."""
+    """The page goes, and the ones around it stay."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
 
-    parent = await create_wiki_page(session, wiki, a.user, title="Bar")
-    await create_wiki_page(session, wiki, a.user, title="Float", parent=parent)
+    doomed = await create_wiki_page(session, wiki, a.user, title="Bar")
     await create_wiki_page(session, wiki, a.user, title="Kitchen")
 
     response = await client.delete(
-        a.g(f"/wikis/{wiki.id}/pages/{parent.id}"), headers=a.headers
+        a.g(f"/wikis/{wiki.id}/pages/{doomed.id}"), headers=a.headers
     )
     assert response.status_code == 204, response.text
 
     tree = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [p["title"] for p in tree.json()["items"]] == ["Kitchen"]
+
+
+# ---------------------------------------------------------------------------
+# Drafts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_draft_is_not_in_the_list_a_reader_gets(
+    client: AsyncClient, acting_user, session
+):
+    """A page somebody is still writing belongs to the people writing it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    await create_wiki_page(session, wiki, a.user, title="Finished")
+    await create_wiki_page(session, wiki, a.user, title="Half written", is_draft=True)
+
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    response = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=b.headers)
+
+    assert response.status_code == 200, response.text
+    assert [p["title"] for p in response.json()["items"]] == ["Finished"]
+
+
+@pytest.mark.integration
+async def test_a_writer_sees_their_own_drafts(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    await create_wiki_page(session, wiki, a.user, title="Finished")
+    await create_wiki_page(session, wiki, a.user, title="Half written", is_draft=True)
+
+    response = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+
+    assert response.status_code == 200, response.text
+    titles = {p["title"]: p["is_draft"] for p in response.json()["items"]}
+    assert titles == {"Finished": False, "Half written": True}
+
+
+@pytest.mark.integration
+async def test_a_draft_page_reads_as_missing_to_a_reader(
+    client: AsyncClient, acting_user, session
+):
+    """Missing rather than refused: being told a page exists is being told
+    something about it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(
+        session, wiki, a.user, title="Half written", is_draft=True
+    )
+
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    response = await client.get(
+        a.g(f"/wikis/{wiki.id}/pages/{page.id}"), headers=b.headers
+    )
+
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

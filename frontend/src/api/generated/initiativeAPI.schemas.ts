@@ -8032,9 +8032,9 @@ export interface WikiSummary {
   page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
-  show_page_counts: boolean;
   contents_depth: number;
   show_connections: boolean;
+  show_updated_at: boolean;
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
@@ -8061,7 +8061,7 @@ export interface WikiPageCreate {
    * @maxLength 255
    */
   title: string;
-  parent_page_id?: number | null;
+  is_draft?: boolean;
   content?: WikiPageCreateContent;
   tag_ids?: number[] | null;
 }
@@ -8097,12 +8097,10 @@ export interface WikiPageLinks {
 /**
  * Where a page should sit after a drag.
  *
- * The two facts the tree needs, together: a page dropped into a new parent
- * almost always lands at a particular place among its new siblings, and
- * sending them separately would draw the tree wrong in between.
+ * Pages are a flat list, so a move is one fact: where in it this page now
+ * goes.
  */
 export interface WikiPageMove {
-  parent_page_id?: number | null;
   /** @minimum 0 */
   position?: number;
 }
@@ -8116,8 +8114,8 @@ export interface WikiPageRead {
   id: number;
   wiki_id: number;
   guild_id: number;
-  parent_page_id: number | null;
   position: number;
+  is_draft: boolean;
   title: string;
   slug: string;
   created_by: number;
@@ -8129,7 +8127,7 @@ export interface WikiPageRead {
 }
 
 /**
- * One page as the tree draws it — no body.
+ * One page as the navigation draws it — no body.
  *
  * The navigation renders every page of a wiki at once, so this carries what a
  * row needs and nothing that would make the payload grow with what people
@@ -8139,8 +8137,8 @@ export interface WikiPageSummary {
   id: number;
   wiki_id: number;
   guild_id: number;
-  parent_page_id: number | null;
   position: number;
+  is_draft: boolean;
   title: string;
   slug: string;
   created_by: number;
@@ -8150,11 +8148,10 @@ export interface WikiPageSummary {
 }
 
 /**
- * Every page of a wiki, flat, in reading order.
+ * Every page of a wiki, in reading order.
  *
- * Flat rather than nested: each row names its parent, and the client builds
- * the shape. A nested payload would have to be walked to find one page and
- * re-walked to move it, and the tree is drawn from the same rows either way.
+ * The navigation nests, but the pages do not: what sits under a page in the
+ * sidebar is that page's own headings, read out of its body by the editor.
  */
 export interface WikiPageTree {
   items: WikiPageSummary[];
@@ -8166,12 +8163,11 @@ export type WikiPageUpdateContent = { [key: string]: unknown } | null;
  * A change to one page.
  *
  * Every field is optional and only what is sent is written, so renaming a
- * page and moving it are the same request shape as editing its body.
- * ``parent_page_id`` is the one field that is meaningfully ``null``: it means
- * "make this a top-level page", which is different from not sending it.
+ * page is the same request shape as editing its body.
  */
 export interface WikiPageUpdate {
   title?: string | null;
+  is_draft?: boolean | null;
   content?: WikiPageUpdateContent;
   tag_ids?: number[] | null;
 }
@@ -8199,9 +8195,9 @@ export interface WikiRead {
   page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
-  show_page_counts: boolean;
   contents_depth: number;
   show_connections: boolean;
+  show_updated_at: boolean;
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
@@ -8214,9 +8210,9 @@ export interface WikiRead {
 
 export interface WikiUpdate {
   page_order?: WikiPageOrder | null;
-  show_page_counts?: boolean | null;
   contents_depth?: number | null;
   show_connections?: boolean | null;
+  show_updated_at?: boolean | null;
   reading_width?: WikiReadingWidth | null;
   accent_color?: string | null;
   template_page_id?: number | null;

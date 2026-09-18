@@ -117,12 +117,6 @@ class Wiki(
             String(length=16), nullable=False, server_default=WikiPageOrder.manual.value
         ),
     )
-    #: Whether the tree shows how many pages sit under each one. Off by default:
-    #: a number beside every row is noise until a wiki is big enough to need it.
-    show_page_counts: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
-    )
     #: How deep the contents rail goes. A page with four heading levels makes a
     #: forty-row rail nobody can use; most wikis want the top one or two.
     contents_depth: int = Field(
@@ -132,6 +126,13 @@ class Wiki(
     #: Whether a page shows what links to it. A world bible lives on that
     #: question; a handbook read front to back never asks it.
     show_connections: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
+    )
+    #: Whether a page says when it was last touched. A handbook people act on
+    #: needs it — a rota nobody has revised since March is worth knowing about
+    #: — and a world bible is timeless and does not.
+    show_updated_at: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default=text("true")),
     )
@@ -216,9 +217,10 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     Two different structures meet on this row, and keeping them apart is the
     whole design of the tool:
 
-    ``parent_page_id`` and ``position`` are the **spine** — the tree the
-    navigation draws. They are columns because reordering, reparenting and
-    deleting a subtree are ordinary indexed operations that want to be one
+    ``position`` is the **spine** — the order the navigation draws. A wiki's
+    pages are a flat list: structure inside a page is its headings, which are
+    content and live in the body, so nothing here nests. Order is a column
+    because reordering is an ordinary indexed operation that wants to be one
     statement and one transaction.
 
     Everything else a page connects to is an edge in ``relationships``: a page
@@ -252,23 +254,18 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
             index=True,
         ),
     )
-    # The spine. NULL is a top-level page; CASCADE so removing a page removes
-    # what hung beneath it, which is what moving a section out of a handbook
-    # means.
-    parent_page_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("wiki_pages.id", ondelete="CASCADE"),
-            nullable=True,
-            index=True,
-        ),
-    )
-    # Order among siblings. Sparse on purpose — pages are inserted between
-    # their neighbours far more often than they are appended.
+    # The spine. Sparse on purpose — pages are inserted between their
+    # neighbours far more often than they are appended.
     position: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
+    # A page somebody is still writing. Editors see it, greyed; everybody else
+    # is not told it exists, which is what makes a draft safe to leave lying
+    # around in a wiki people read.
+    is_draft: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     title: str = Field(nullable=False, max_length=255)
     slug: str = Field(sa_column=Column(String(length=255), nullable=False))
@@ -297,13 +294,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     wiki: Optional[Wiki] = Relationship(
         back_populates="pages",
         sa_relationship_kwargs={"foreign_keys": "WikiPage.wiki_id"},
-    )
-    parent: Optional["WikiPage"] = Relationship(
-        sa_relationship_kwargs={
-            "remote_side": "WikiPage.id",
-            "foreign_keys": "WikiPage.parent_page_id",
-            "viewonly": True,
-        }
     )
     author: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={

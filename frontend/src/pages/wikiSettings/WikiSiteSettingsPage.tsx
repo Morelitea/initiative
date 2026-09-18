@@ -141,21 +141,6 @@ export const WikiSiteSettingsPage = () => {
               </div>
             ))}
           </RadioGroup>
-
-          <Separator className="my-2" />
-
-          <Setting
-            label={t("settings.counts")}
-            hint={t("settings.countsHint")}
-            control={
-              <Switch
-                checked={wiki.show_page_counts}
-                onCheckedChange={(checked) => save({ show_page_counts: checked })}
-                disabled={!canWrite}
-                aria-label={t("settings.counts")}
-              />
-            }
-          />
         </CardContent>
       </Card>
 
@@ -208,6 +193,21 @@ export const WikiSiteSettingsPage = () => {
                   ))}
                 </SelectContent>
               </Select>
+            }
+          />
+
+          <Separator />
+
+          <Setting
+            label={t("settings.updated")}
+            hint={t("settings.updatedHint")}
+            control={
+              <Switch
+                checked={wiki.show_updated_at}
+                onCheckedChange={(checked) => save({ show_updated_at: checked })}
+                disabled={!canWrite}
+                aria-label={t("settings.updated")}
+              />
             }
           />
 
