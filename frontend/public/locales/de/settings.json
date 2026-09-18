@@ -1165,7 +1165,13 @@
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Sie dieser Community hinzufügen",
       "autoJoinHelp": "Wer als eure Leute zählt, wird bei der ersten Anmeldung Mitglied. Lasst es aus, wenn ihr selbst einladen wollt.",
-      "joinsOnArrival": "Neue treten automatisch bei"
+      "joinsOnArrival": "Neue treten automatisch bei",
+      "claimOptions": {
+        "hd": "Google-Workspace-Domain",
+        "tid": "Microsoft-Entra-Mandant",
+        "groups": "Gruppenmitgliedschaft",
+        "domain": "Domain"
+      }
     }
   },
   "authProviders": {

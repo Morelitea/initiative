@@ -56,7 +56,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 
 /** Which claim narrows which provider. Each one spells "our tenant"
  *  differently, and only the provider knows which word it uses. */
-const NARROWING_CLAIMS = ["hd", "tid", "groups", "domain"];
+const NARROWING_CLAIMS = ["hd", "tid", "groups", "domain"] as const;
 
 export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
   const { t } = useTranslation("settings");
@@ -256,7 +256,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
                 <SelectContent>
                   {NARROWING_CLAIMS.map((name) => (
                     <SelectItem key={name} value={name}>
-                      {name}
+                      {t(`guildAuth.connections.claimOptions.${name}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

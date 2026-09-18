@@ -39,6 +39,7 @@ from app.schemas.platform.settings import (
     GuildProviderConnectionUpdate,
 )
 from app.services.auth import guild_provider_connections as connections
+from app.services.platform import guilds as guilds_service
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -143,6 +144,8 @@ async def update_guild_provider_connection(
     await _require_connection_admin(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
+    if payload.enabled is False:
+        await guilds_service.lock_guild_seats(session, guild_id)
     return await connections.update_connection(
         admin_session, connection_id, payload, guild_id=guild_id
     )
@@ -161,9 +164,14 @@ async def delete_guild_provider_connection(
 ) -> None:
     """Disconnect. Nobody is signed out and no account changes — what goes is
     the button on this community's sign-in page, and its claim on who arrives
-    through that provider. A sign-in requirement naming the provider is left
-    standing, so lift that first if the community means to reopen."""
+    through that provider. Lift any sign-in requirement that depends on this
+    connection first: the gate reads the connections, so a requirement without
+    one has nothing left to satisfy it."""
     await _require_connection_admin(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
+    # Setting a requirement takes the same lock. Whichever wins commits before
+    # the other checks, so a provider cannot become required while its
+    # connection is being removed through the separate system session.
+    await guilds_service.lock_guild_seats(session, guild_id)
     await connections.delete_connection(admin_session, connection_id, guild_id=guild_id)

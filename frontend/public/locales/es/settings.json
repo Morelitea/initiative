@@ -1165,7 +1165,13 @@
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Añadirles a esta comunidad",
       "autoJoinHelp": "Quien cuente como vuestro se hace miembro la primera vez que inicia sesión. Déjalo apagado si preferís invitar vosotros.",
-      "joinsOnArrival": "Quien llega se une automáticamente"
+      "joinsOnArrival": "Quien llega se une automáticamente",
+      "claimOptions": {
+        "hd": "Dominio de Google Workspace",
+        "tid": "Tenant de Microsoft Entra",
+        "groups": "Pertenencia a un grupo",
+        "domain": "Dominio"
+      }
     }
   },
   "authProviders": {

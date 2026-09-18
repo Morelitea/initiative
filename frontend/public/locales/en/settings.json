@@ -1165,7 +1165,13 @@
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Join them to this community",
       "autoJoinHelp": "Anyone who counts as yours becomes a member the first time they sign in. Leave it off to invite people yourself.",
-      "joinsOnArrival": "New arrivals join automatically"
+      "joinsOnArrival": "New arrivals join automatically",
+      "claimOptions": {
+        "hd": "Google Workspace domain",
+        "tid": "Microsoft Entra tenant",
+        "groups": "Group membership",
+        "domain": "Domain"
+      }
     }
   },
   "authProviders": {

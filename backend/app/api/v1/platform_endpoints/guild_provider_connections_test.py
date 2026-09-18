@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthProviderMessages
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild import GuildRole
 from app.testing.factories import (
     create_auth_provider,
@@ -217,3 +218,111 @@ async def test_one_communitys_connection_is_not_anothers_to_change(
     # Somebody else's is indistinguishable from one that is not there.
     assert response.status_code == 404, response.text
     assert response.json()["detail"] == AuthProviderMessages.CONNECTION_NOT_FOUND
+
+
+# ── What a requirement keeps ───────────────────────────────────────────────
+
+
+async def test_a_required_provider_cannot_be_disconnected(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seat(session)
+    provider = await create_auth_provider(session, slug="corp")
+    connection = await create_guild_provider_connection(
+        session, guild=guild, provider=provider
+    )
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            policy="required",
+            provider_id=provider.id,
+            provider_slug=provider.slug,
+        )
+    )
+    await session.commit()
+
+    response = await client.delete(
+        f"{_base(guild.id)}/{connection.id}", headers=get_auth_headers(admin)
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == AuthProviderMessages.IN_USE
+
+
+async def test_a_required_provider_cannot_be_disabled(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seat(session)
+    provider = await create_auth_provider(session, slug="corp")
+    connection = await create_guild_provider_connection(
+        session, guild=guild, provider=provider
+    )
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            policy="required",
+            provider_id=provider.id,
+            provider_slug=provider.slug,
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        f"{_base(guild.id)}/{connection.id}",
+        headers=get_auth_headers(admin),
+        json={"enabled": False},
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == AuthProviderMessages.IN_USE
+
+
+async def test_the_last_connection_for_an_sso_requirement_cannot_be_removed(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seat(session)
+    provider = await create_auth_provider(session, slug="corp")
+    connection = await create_guild_provider_connection(
+        session, guild=guild, provider=provider
+    )
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            policy="required",
+            require_methods=["sso"],
+        )
+    )
+    await session.commit()
+
+    response = await client.delete(
+        f"{_base(guild.id)}/{connection.id}", headers=get_auth_headers(admin)
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == AuthProviderMessages.IN_USE
+
+
+async def test_an_sso_requirement_allows_one_of_multiple_connections_to_be_removed(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seat(session)
+    first = await create_auth_provider(session, slug="first")
+    second = await create_auth_provider(session, slug="second")
+    connection = await create_guild_provider_connection(
+        session, guild=guild, provider=first
+    )
+    await create_guild_provider_connection(session, guild=guild, provider=second)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            policy="required",
+            require_methods=["sso"],
+        )
+    )
+    await session.commit()
+
+    response = await client.delete(
+        f"{_base(guild.id)}/{connection.id}", headers=get_auth_headers(admin)
+    )
+
+    assert response.status_code == 204, response.text

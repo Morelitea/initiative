@@ -26,9 +26,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
 
+from app.core.login_methods import LoginMethod
 from app.core.messages import AuthProviderMessages
 from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
 from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
@@ -131,6 +133,44 @@ async def editable_connection(
     return row
 
 
+async def _ensure_not_required(
+    session: AsyncSession,
+    connection: GuildProviderConnection,
+    *,
+    guild_id: int,
+) -> None:
+    """Refuse a change that would leave a requirement with nothing to satisfy.
+
+    The gate asks the connections, so a community that requires a sign-in
+    through a provider needs the connection that says the provider is theirs.
+    Lifting the requirement first is the way round it.
+    """
+    policy = await session.get(GuildAuthPolicy, guild_id)
+    required = policy is not None and policy.policy == "required"
+    names_this_provider = required and policy.provider_id == connection.provider_id
+    is_last_live_connection = False
+    if (
+        required
+        and connection.enabled
+        and LoginMethod.sso.value in (policy.require_methods or ())
+    ):
+        another = (
+            await session.exec(
+                select(GuildProviderConnection.id).where(
+                    GuildProviderConnection.guild_id == guild_id,
+                    GuildProviderConnection.enabled.is_(True),
+                    GuildProviderConnection.id != connection.id,
+                )
+            )
+        ).first()
+        is_last_live_connection = another is None
+    if names_this_provider or is_last_live_connection:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AuthProviderMessages.IN_USE,
+        )
+
+
 async def _connectable_provider(
     session: AsyncSession, provider_id: int, *, guild_id: int
 ) -> AuthProvider:
@@ -226,6 +266,8 @@ async def update_connection(
             data.get("claim", row.claim), data.get("claim_values", row.claim_values)
         )
     if "enabled" in data and data["enabled"] is not None:
+        if not data["enabled"]:
+            await _ensure_not_required(session, row, guild_id=guild_id)
         row.enabled = data["enabled"]
     if "auto_join" in data and data["auto_join"] is not None:
         row.auto_join = data["auto_join"]
@@ -242,6 +284,7 @@ async def delete_connection(
     """Disconnect. Nobody is signed out and no account changes — what goes is
     the button, and the community's claim on who arrives through it."""
     row = await editable_connection(session, connection_id, guild_id=guild_id)
+    await _ensure_not_required(session, row, guild_id=guild_id)
     await session.delete(row)
     await session.commit()
     logger.info("guild %s disconnected connection %s", guild_id, connection_id)
