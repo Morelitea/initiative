@@ -36,6 +36,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import InitiativeMessages, WikiMessages
+from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db import reference_targets
@@ -60,6 +61,7 @@ from app.schemas.tenant.wiki import (
     WikiUpdate,
     serialize_wiki,
     serialize_wiki_page,
+    serialize_document_as_page,
     serialize_wiki_page_summary,
     serialize_wiki_summary,
 )
@@ -525,7 +527,89 @@ async def list_wiki_pages(
         include_drafts=_may_write(wiki, current_user),
     )
     await tags_service.annotate_tags(session, pages)
-    return WikiPageTree(items=[serialize_wiki_page_summary(p) for p in pages])
+    items = [serialize_wiki_page_summary(p) for p in pages]
+
+    # Documents somebody put in this wiki come after the pages written in it.
+    # They have no place of their own in the order — a document belongs to
+    # whatever else it is in too, so nothing here may renumber it — and putting
+    # them last is the only arrangement that says so.
+    documents = await wikis_service.linked_documents(session, wiki.id)
+    documents.sort(key=lambda d: (d.name or "").lower())
+    items.extend(
+        serialize_document_as_page(
+            document, wiki_id=wiki.id, position=len(items) + index
+        )
+        for index, document in enumerate(documents)
+    )
+    return WikiPageTree(items=items)
+
+
+@router.put(
+    "/{wiki_id}/documents/{document_id}",
+    response_model=WikiPageTree,
+)
+async def add_document_to_wiki(
+    wiki_id: int,
+    document_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> WikiPageTree:
+    """Put an existing document in this wiki.
+
+    Two gates, because two things are involved: write on the wiki, because the
+    wiki is what gains a page, and read on the document, because you cannot put
+    something in front of people that you cannot see yourself.
+
+    The document is not moved or copied. It joins by an edge — ``document
+    part_of wiki`` — so it keeps its address, its sharing and its history, and
+    goes on belonging to whatever else it already belonged to.
+    """
+    wiki = await resource_access.load_authorized(
+        session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
+    )
+    document = await resource_access.load_authorized(
+        session, Tool.document, document_id, current_user, guild_context
+    )
+
+    await relationships_service.create(
+        session,
+        source=relationships_service.Endpoint(SearchEntityType.document, document.id),
+        relationship_type=RelationshipType.part_of,
+        target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
+        created_by=current_user.id,
+    )
+    await session.commit()
+    return await list_wiki_pages(wiki_id, session, current_user, guild_context)
+
+
+@router.delete(
+    "/{wiki_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def remove_document_from_wiki(
+    wiki_id: int,
+    document_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> None:
+    """Take a document back out of this wiki.
+
+    The wiki loses a page; the document loses nothing. Write on the wiki is the
+    only gate — this is a decision about what the wiki contains.
+    """
+    wiki = await resource_access.load_authorized(
+        session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
+    )
+    edge = await relationships_service.find(
+        session,
+        source=relationships_service.Endpoint(SearchEntityType.document, document_id),
+        relationship_type=RelationshipType.part_of,
+        target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
+    )
+    if edge is not None:
+        await relationships_service.remove(session, edge, removed_by=current_user.id)
+        await session.commit()
 
 
 @router.post(

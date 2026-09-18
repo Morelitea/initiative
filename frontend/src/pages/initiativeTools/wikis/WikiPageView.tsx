@@ -133,10 +133,15 @@ export const WikiPageView = () => {
     return () => clearTimeout(timer);
   }, [bodyRevision, savePage, isCollaborating, sendContent]);
 
-  const initialBody = useMemo(
-    () => (pageQuery.data?.content ?? null) as SerializedEditorState | null,
-    [pageQuery.data?.content]
-  );
+  // A page nobody has typed in yet is stored as `{}` — the column's default —
+  // and a root with no children is the same thing said differently. Lexical
+  // refuses either as a starting state, so both are handed over as "no state"
+  // and it builds its own empty document.
+  const initialBody = useMemo(() => {
+    const stored = pageQuery.data?.content as SerializedEditorState | undefined;
+    const children = stored?.root?.children;
+    return Array.isArray(children) && children.length > 0 ? stored : null;
+  }, [pageQuery.data?.content]);
 
   const wiki = wikiQuery.data;
   const page = pageQuery.data;

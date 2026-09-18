@@ -12,11 +12,15 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, Home } from "lucide-react";
+import { CircleChevronRight, FileText, Home } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiPageHeading, WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type WikiPageHeading,
+  WikiPageKind,
+  type WikiPageSummary,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
@@ -159,8 +163,9 @@ const WikiPageRow = ({
   const headings = useMemo(() => buildHeadingTree(page.headings), [page.headings]);
   const expandable = headings.length > 0;
 
-  const draggable = useDraggable({ id: page.id, disabled: !draggableRows });
-  const droppable = useDroppable({ id: page.id, disabled: !draggableRows });
+  const movable = draggableRows && page.kind === WikiPageKind.page;
+  const draggable = useDraggable({ id: page.id, disabled: !movable });
+  const droppable = useDroppable({ id: page.id, disabled: !movable });
   // One element is both ends of the gesture — what you pick up and what you
   // drop onto — and dnd-kit hands out a ref for each.
   const setRowRef = (node: HTMLElement | null) => {
@@ -177,7 +182,7 @@ const WikiPageRow = ({
           {...draggable.attributes}
           className={cn(
             "group/page flex min-w-0 items-center gap-1 rounded-md",
-            draggableRows && "cursor-grab active:cursor-grabbing",
+            movable && "cursor-grab active:cursor-grabbing",
             draggable.isDragging && "opacity-40",
             showing === "before" && "border-primary border-t-2",
             showing === "after" && "border-primary border-b-2"
@@ -218,6 +223,12 @@ const WikiPageRow = ({
                   <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
                     {t("pages.draft")}
                   </span>
+                ) : null}
+                {page.kind === WikiPageKind.document ? (
+                  <FileText
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    aria-label={t("documents.openDocument")}
+                  />
                 ) : null}
                 {isHome ? (
                   <Home

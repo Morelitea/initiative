@@ -8079,6 +8079,21 @@ export interface WikiPageHeading {
 }
 
 /**
+ * What a row in a wiki's navigation actually is.
+ *
+ * A wiki holds pages of its own and documents somebody put in it. The second
+ * kind is a document still — it is not copied in, it keeps its own address,
+ * its own sharing and its own history — so the navigation has to say which it
+ * is looking at rather than pretend they are the same row.
+ */
+export type WikiPageKind = (typeof WikiPageKind)[keyof typeof WikiPageKind];
+
+export const WikiPageKind = {
+  page: "page",
+  document: "document",
+} as const;
+
+/**
  * One end of a connection a page has.
  *
  * Deliberately not a page-shaped object: the other end of an edge is often
@@ -8126,6 +8141,7 @@ export interface WikiPageRead {
   id: number;
   wiki_id: number;
   guild_id: number;
+  kind: WikiPageKind;
   position: number;
   is_draft: boolean;
   title: string;
@@ -8150,6 +8166,7 @@ export interface WikiPageSummary {
   id: number;
   wiki_id: number;
   guild_id: number;
+  kind: WikiPageKind;
   position: number;
   is_draft: boolean;
   title: string;

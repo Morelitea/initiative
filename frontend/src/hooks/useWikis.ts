@@ -17,6 +17,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut,
   createWikiApiV1GGuildIdWikisPost,
   createWikiPageApiV1GGuildIdWikisWikiIdPagesPost,
   deleteWikiApiV1GGuildIdWikisWikiIdDelete,
@@ -34,6 +35,7 @@ import {
   readWikiApiV1GGuildIdWikisWikiIdGet,
   readWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdGet,
   readWikiPageLinksApiV1GGuildIdWikisWikiIdPagesPageIdLinksGet,
+  removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete,
   setWikiGrantsApiV1GGuildIdWikisWikiIdGrantsPut,
   updateWikiApiV1GGuildIdWikisWikiIdPatch,
   updateWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdPatch,
@@ -197,6 +199,43 @@ export const useCreateWikiPage = (
       mutationFn: (guildId, data) =>
         createWikiPageApiV1GGuildIdWikisWikiIdPagesPost(guildId, wikiId, data),
       // The tree gains a row and the wiki's page count changes with it.
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      errorKey: "wikis:error",
+    },
+    options
+  );
+
+/**
+ * Put an existing document in this wiki, or take it back out.
+ *
+ * Neither writes the document. A document joins a wiki by an edge, so what
+ * changes is what the wiki contains — which is why both invalidate the page
+ * list and the wiki, and nothing belonging to the document itself.
+ */
+export const useAddWikiDocument = (wikiId: number, options?: MutationOpts<WikiPageTree, number>) =>
+  useGuildMutation<WikiPageTree, number>(
+    {
+      mutationFn: (guildId, documentId) =>
+        addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut(
+          guildId,
+          wikiId,
+          documentId
+        ),
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      errorKey: "wikis:error",
+    },
+    options
+  );
+
+export const useRemoveWikiDocument = (wikiId: number, options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, documentId) =>
+        removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete(
+          guildId,
+          wikiId,
+          documentId
+        ),
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
     },

@@ -131,5 +131,14 @@
     "read": "Als Leser ansehen",
     "edit": "Diese Seite bearbeiten"
   },
-  "updated": "Aktualisiert"
+  "updated": "Aktualisiert",
+  "documents": {
+    "openDocument": "Dokument öffnen",
+    "addDocument": "Dokument hinzufügen",
+    "added": "Dokument zum Wiki hinzugefügt",
+    "removed": "Dokument aus dem Wiki entfernt",
+    "remove": "Aus diesem Wiki entfernen",
+    "none": "Keine Dokumente zum Hinzufügen",
+    "pick": "Welches Dokument?"
+  }
 }

@@ -1289,6 +1289,221 @@ export const useCreateWikiPageApiV1GGuildIdWikisWikiIdPagesPost = <
   );
 };
 /**
+ * Put an existing document in this wiki.
+ *
+ * Two gates, because two things are involved: write on the wiki, because the
+ * wiki is what gains a page, and read on the document, because you cannot put
+ * something in front of people that you cannot see yourself.
+ *
+ * The document is not moved or copied. It joins by an edge — ``document
+ * part_of wiki`` — so it keeps its address, its sharing and its history, and
+ * goes on belonging to whatever else it already belonged to.
+ * @summary Add Document To Wiki
+ */
+export const addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut = (
+  guildId: number,
+  wikiId: number,
+  documentId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageTree>(
+    { url: `/api/v1/g/${guildId}/wikis/${wikiId}/documents/${documentId}`, method: "PUT", signal },
+    options
+  );
+};
+
+export const getAddDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>,
+    TError,
+    { guildId: number; wikiId: number; documentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>,
+  TError,
+  { guildId: number; wikiId: number; documentId: number },
+  TContext
+> => {
+  const mutationKey = ["addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>,
+    { guildId: number; wikiId: number; documentId: number }
+  > = (props) => {
+    const { guildId, wikiId, documentId } = props ?? {};
+
+    return addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut(
+      guildId,
+      wikiId,
+      documentId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>
+  >;
+
+export type AddDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Add Document To Wiki
+ */
+export const useAddDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>,
+      TError,
+      { guildId: number; wikiId: number; documentId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut>>,
+  TError,
+  { guildId: number; wikiId: number; documentId: number },
+  TContext
+> => {
+  return useMutation(
+    getAddDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take a document back out of this wiki.
+ *
+ * The wiki loses a page; the document loses nothing. Write on the wiki is the
+ * only gate — this is a decision about what the wiki contains.
+ * @summary Remove Document From Wiki
+ */
+export const removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete = (
+  guildId: number,
+  wikiId: number,
+  documentId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/g/${guildId}/wikis/${wikiId}/documents/${documentId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
+
+export const getRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+      >,
+      TError,
+      { guildId: number; wikiId: number; documentId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+    >,
+    TError,
+    { guildId: number; wikiId: number; documentId: number },
+    TContext
+  > => {
+    const mutationKey = ["removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+      >,
+      { guildId: number; wikiId: number; documentId: number }
+    > = (props) => {
+      const { guildId, wikiId, documentId } = props ?? {};
+
+      return removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete(
+        guildId,
+        wikiId,
+        documentId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type RemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+    >
+  >;
+
+export type RemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Document From Wiki
+ */
+export const useRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+      >,
+      TError,
+      { guildId: number; wikiId: number; documentId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete>
+  >,
+  TError,
+  { guildId: number; wikiId: number; documentId: number },
+  TContext
+> => {
+  return useMutation(
+    getRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDeleteMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
  * @summary Read Wiki Page
  */
 export const readWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdGet = (

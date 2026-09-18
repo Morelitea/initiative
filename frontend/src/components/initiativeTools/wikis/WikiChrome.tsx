@@ -1,4 +1,5 @@
 import { BookText, Eye, MessageSquare, PanelRight, Pencil } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WikiRead } from "@/api/generated/initiativeAPI.schemas";
@@ -24,6 +25,8 @@ interface WikiChromeProps {
   onOpenComments: () => void;
   onToggleConnections: () => void;
   connectionsOpen: boolean;
+  /** Anything this particular surface adds — a way out to a document, say. */
+  trailing?: ReactNode;
 }
 
 /**
@@ -52,6 +55,7 @@ export const WikiChrome = ({
   onOpenComments,
   onToggleConnections,
   connectionsOpen,
+  trailing,
 }: WikiChromeProps) => {
   const { t } = useTranslation("wikis");
   const accent = wiki.accent_color ?? undefined;
@@ -94,6 +98,8 @@ export const WikiChrome = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {trailing}
+
         {/* Reading is the default, and editing is a mode somebody enters. A
             wiki is read far more often than it is written, and what a reader
             sees is the thing a writer most needs to check. */}

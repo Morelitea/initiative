@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceGrant
-from app.testing import create_wiki, create_wiki_page
+from app.testing import create_document, create_wiki, create_wiki_page
 
 
 async def _wikis_enabled(session: AsyncSession, initiative) -> None:
@@ -238,6 +238,74 @@ async def test_deleting_a_page_takes_its_sub_pages(
 
     tree = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
     assert [p["title"] for p in tree.json()["items"]] == ["Kitchen"]
+
+
+# ---------------------------------------------------------------------------
+# Documents put in a wiki
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
+    client: AsyncClient, acting_user, session
+):
+    """It joins by an edge, so it reads as a page without becoming one."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    await create_wiki_page(session, wiki, a.user, title="Written here")
+    document = await create_document(session, a.initiative, a.user)
+
+    response = await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+
+    rows = {row["title"]: row["kind"] for row in response.json()["items"]}
+    assert rows == {"Written here": "page", document.name: "document"}
+
+
+@pytest.mark.integration
+async def test_a_document_in_a_wiki_is_never_a_draft(
+    client: AsyncClient, acting_user, session
+):
+    """It is readable wherever else it lives, so this wiki cannot hold it back."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    document = await create_document(session, a.initiative, a.user)
+
+    response = await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    row = next(r for r in response.json()["items"] if r["kind"] == "document")
+    assert row["is_draft"] is False
+
+
+@pytest.mark.integration
+async def test_taking_a_document_out_leaves_the_document(
+    client: AsyncClient, acting_user, session
+):
+    """The wiki loses a page. The document loses nothing."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    document = await create_document(session, a.initiative, a.user)
+
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    removed = await client.delete(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    assert removed.status_code == 204, removed.text
+
+    pages = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert pages.json()["items"] == []
+
+    still_there = await client.get(a.g(f"/documents/{document.id}"), headers=a.headers)
+    assert still_there.status_code == 200
 
 
 # ---------------------------------------------------------------------------
