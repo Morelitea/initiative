@@ -224,3 +224,39 @@ async def test_guild_schema_context_restores_a_callers_own_context(
     )
     assert s.info[_RLS_ESTABLISHED_INFO_KEY] == stamp
     assert s.info[_RLS_PARAMS_INFO_KEY]["user_id"] == user.id
+
+
+# ---------------------------------------------------------------------------
+# Every branch answers the whole statement
+# ---------------------------------------------------------------------------
+
+
+def test_every_context_branch_binds_every_parameter():
+    """One statement sets the context, and it takes the same binds whichever
+    kind of session is being routed.
+
+    Written against the SQL rather than against a list kept beside it, so a GUC
+    added to the statement and to only one branch fails here. That is what
+    happened to ``app.session_mfa``: the billing branch returns early and did
+    not gain it, and every billing-service session raised on the missing bind.
+    """
+    import re
+
+    from app.db.session import _CONTEXT_SQL, _render_context_bind_params
+
+    required = set(re.findall(r":(\w+)", _CONTEXT_SQL))
+
+    branches = {
+        "billing": {"billing_guild_id": 1},
+        "unrouted": {},
+        "platform": {"user_id": 7},
+        "guild": {"user_id": 7, "guild_id": 3, "guild_role": "admin"},
+        "pam": {"user_id": 7, "pam_guild_id": 3, "pam_read": True},
+    }
+    for name, params in branches.items():
+        rendered = set(_render_context_bind_params(params))
+        assert rendered == required, (
+            f"the {name} branch does not bind exactly the statement's "
+            f"parameters — missing {sorted(required - rendered)}, "
+            f"extra {sorted(rendered - required)}"
+        )
