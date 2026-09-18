@@ -90,7 +90,7 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 ## What you decide per community
 
-**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-run-its-own-sign-in), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
+**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
 ## Related
 
