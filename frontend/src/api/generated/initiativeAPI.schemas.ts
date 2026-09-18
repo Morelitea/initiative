@@ -7991,6 +7991,36 @@ export interface WikiCreate {
   grants?: ResourceGrantSchema[];
 }
 
+/**
+ * How a wiki's page tree is sorted.
+ *
+ * ``manual`` is the spine — where somebody dragged each page. ``title`` sorts
+ * siblings alphabetically instead, which is what a reference wants: nobody
+ * arranges a glossary by hand, and a new entry should land where it belongs
+ * rather than at the end.
+ */
+export type WikiPageOrder = (typeof WikiPageOrder)[keyof typeof WikiPageOrder];
+
+export const WikiPageOrder = {
+  manual: "manual",
+  title: "title",
+  recently_updated: "recently_updated",
+} as const;
+
+/**
+ * How wide a page's body runs.
+ *
+ * ``wide`` fills the screen, which is what a runbook full of tables and
+ * screenshots wants. ``comfortable`` holds prose to a measure you can read
+ * without losing your place, which is what a handbook wants.
+ */
+export type WikiReadingWidth = (typeof WikiReadingWidth)[keyof typeof WikiReadingWidth];
+
+export const WikiReadingWidth = {
+  wide: "wide",
+  comfortable: "comfortable",
+} as const;
+
 export interface WikiSummary {
   archived_at: string | null;
   can_unarchive: boolean;
@@ -8008,6 +8038,13 @@ export interface WikiSummary {
   updated_at: string;
   page_count: number;
   home_page_id: number | null;
+  page_order: WikiPageOrder;
+  show_page_counts: boolean;
+  contents_depth: number;
+  show_connections: boolean;
+  reading_width: WikiReadingWidth;
+  accent_color: string | null;
+  template_page_id: number | null;
   my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
@@ -8168,6 +8205,13 @@ export interface WikiRead {
   updated_at: string;
   page_count: number;
   home_page_id: number | null;
+  page_order: WikiPageOrder;
+  show_page_counts: boolean;
+  contents_depth: number;
+  show_connections: boolean;
+  reading_width: WikiReadingWidth;
+  accent_color: string | null;
+  template_page_id: number | null;
   my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
@@ -8176,6 +8220,13 @@ export interface WikiRead {
 }
 
 export interface WikiUpdate {
+  page_order?: WikiPageOrder | null;
+  show_page_counts?: boolean | null;
+  contents_depth?: number | null;
+  show_connections?: boolean | null;
+  reading_width?: WikiReadingWidth | null;
+  accent_color?: string | null;
+  template_page_id?: number | null;
   name?: string | null;
   description?: string | null;
   home_page_id?: number | null;

@@ -20,6 +20,7 @@ Three things here are the wiki's own rather than the generic tool shape:
   makes a wiki a web rather than a folder.
 """
 
+from copy import deepcopy
 from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -383,16 +384,36 @@ async def update_wiki(
         wiki.name = data["name"].strip()
     if "description" in data:
         wiki.description = (data["description"] or "").strip() or None
-    if "home_page_id" in data:
-        home_page_id = data["home_page_id"]
-        if home_page_id is not None:
-            page = await wikis_service.get_page(session, wiki.id, home_page_id)
+    # Both of these name one of the wiki's own pages, and neither is believed
+    # without checking — a page id from another wiki would otherwise point this
+    # wiki at somebody else's words.
+    for field, refusal in (
+        ("home_page_id", WikiMessages.HOME_NOT_IN_WIKI),
+        ("template_page_id", WikiMessages.TEMPLATE_NOT_IN_WIKI),
+    ):
+        if field not in data:
+            continue
+        page_id = data[field]
+        if page_id is not None:
+            page = await wikis_service.get_page(session, wiki.id, page_id)
             if page is None:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=WikiMessages.HOME_NOT_IN_WIKI,
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=refusal
                 )
-        wiki.home_page_id = home_page_id
+        setattr(wiki, field, page_id)
+
+    # The settings proper: each is written exactly when it was sent.
+    for field in (
+        "page_order",
+        "show_page_counts",
+        "contents_depth",
+        "show_connections",
+        "reading_width",
+    ):
+        if field in data and data[field] is not None:
+            setattr(wiki, field, data[field])
+    if "accent_color" in data:
+        setattr(wiki, "accent_color", (data["accent_color"] or "").strip() or None)
 
     session.add(wiki)
     await session.commit()
@@ -485,7 +506,7 @@ async def list_wiki_pages(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     pages = wikis_service.order_depth_first(
-        await wikis_service.load_tree(session, wiki.id)
+        await wikis_service.load_tree(session, wiki.id, page_order=wiki.page_order)
     )
     await tags_service.annotate_tags(session, pages)
     return WikiPageTree(items=[serialize_wiki_page_summary(p) for p in pages])
@@ -518,6 +539,15 @@ async def create_wiki_page(
                 detail=WikiMessages.PAGE_NOT_FOUND,
             )
 
+    # A new page starts as a copy of the wiki's template, where it has one and
+    # the request did not bring a body of its own. That is what keeps two
+    # hundred character pages the same shape without anybody policing it.
+    content = page_in.content
+    if content is None and wiki.template_page_id is not None:
+        template = await wikis_service.get_page(session, wiki.id, wiki.template_page_id)
+        if template is not None:
+            content = deepcopy(template.content or {})
+
     page = WikiPage(
         guild_id=guild_context.guild_id,
         wiki_id=wiki.id,
@@ -528,7 +558,7 @@ async def create_wiki_page(
         ),
         title=title,
         slug=await wikis_service.unique_page_slug(session, wiki.id, title),
-        content=page_in.content or {},
+        content=content or {},
     )
     session.add(page)
     await session.flush()

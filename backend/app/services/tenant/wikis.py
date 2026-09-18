@@ -26,7 +26,7 @@ from app.core.messages import WikiMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.wiki import Wiki, WikiPage
+from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.tenant import tags as tags_service
 
 #: Slugs are addresses, so they are bounded by what stays readable in a URL
@@ -162,7 +162,25 @@ async def next_position(
     return (max(positions) + 1) if positions else 0
 
 
-async def load_tree(session: AsyncSession, wiki_id: int) -> list[WikiPage]:
+#: How each ordering sorts siblings. ``manual`` reads the spine somebody
+#: dragged; the others ignore it, which is the point — nobody hand-orders two
+#: hundred entries, and a decisions log wants the newest at the top.
+_ORDERINGS = {
+    WikiPageOrder.manual: lambda: (WikiPage.position, WikiPage.id),
+    WikiPageOrder.title: lambda: (func.lower(WikiPage.title), WikiPage.id),
+    WikiPageOrder.recently_updated: lambda: (
+        WikiPage.updated_at.desc(),
+        WikiPage.id.desc(),
+    ),
+}
+
+
+async def load_tree(
+    session: AsyncSession,
+    wiki_id: int,
+    *,
+    page_order: WikiPageOrder = WikiPageOrder.manual,
+) -> list[WikiPage]:
     """Every live page of a wiki, in the order the navigation draws them.
 
     One query for the whole tree. A wiki is read far more often than it is
@@ -172,7 +190,7 @@ async def load_tree(session: AsyncSession, wiki_id: int) -> list[WikiPage]:
     statement = (
         select(WikiPage)
         .where(WikiPage.wiki_id == wiki_id)
-        .order_by(WikiPage.position, WikiPage.id)
+        .order_by(*_ORDERINGS[page_order]())
     )
     return list((await session.exec(statement)).all())
 
