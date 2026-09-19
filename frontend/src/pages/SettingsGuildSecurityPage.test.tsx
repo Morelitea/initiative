@@ -9,14 +9,29 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 let guildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
-let authOptions: string[] | null = ["restrictions", "providers", "require_sign_in"];
+let authOptions: string[] | null = ["restrictions", "providers"];
 let allowApiKeys: boolean | null = true;
 let sessionLimit: boolean | null = false;
 let grantedAuthSettings = {
-  auth_options: ["restrictions", "providers", "require_sign_in"],
+  auth_options: ["restrictions", "providers"],
   allow_api_keys: true,
   enforce_compliance_session: false,
 };
+const connection = (id: number, providerId: number, slug: string, name: string) => ({
+  id,
+  provider_id: providerId,
+  provider_slug: slug,
+  provider_display_name: name,
+  provider_icon: null,
+  claim: null,
+  claim_values: [],
+  enabled: true,
+  login_ready: true,
+});
+let connections = [
+  connection(1, 11, "corp", "Corp SSO"),
+  connection(2, 12, "contractors", "Contractors"),
+];
 let policy: {
   policy: "open" | "required";
   provider_id: number | null;
@@ -64,33 +79,7 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
-  useGuildProviderConnections: () => ({
-    data: [
-      {
-        id: 1,
-        provider_id: 11,
-        provider_slug: "corp",
-        provider_display_name: "Corp SSO",
-        provider_icon: null,
-        claim: null,
-        claim_values: [],
-        enabled: true,
-        login_ready: true,
-      },
-      {
-        id: 2,
-        provider_id: 12,
-        provider_slug: "contractors",
-        provider_display_name: "Contractors",
-        provider_icon: null,
-        claim: null,
-        claim_values: [],
-        enabled: true,
-        login_ready: true,
-      },
-    ],
-    isLoading: false,
-  }),
+  useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectableProviders: () => ({ data: [], isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
   useConnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
@@ -105,10 +94,10 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useDeleteClaimRule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { SettingsGuildAuthPage } from "./SettingsGuildAuthPage";
+import { SettingsGuildSecurityPage } from "./SettingsGuildSecurityPage";
 
 const render = () =>
-  renderWithProviders(<SettingsGuildAuthPage />, { auth: { user: buildUser() } });
+  renderWithProviders(<SettingsGuildSecurityPage />, { auth: { user: buildUser() } });
 
 const requirementRadio = () => screen.getByLabelText(/require single sign-on/i);
 
@@ -119,7 +108,7 @@ const chooseOption = async (user: ReturnType<typeof userEvent.setup>, name: stri
   await user.click(await screen.findByRole("option", { name }));
 };
 
-describe("SettingsGuildAuthPage", () => {
+describe("SettingsGuildSecurityPage", () => {
   beforeEach(() => {
     savePolicy.mockClear();
     saveApiAccess.mockClear();
@@ -128,11 +117,15 @@ describe("SettingsGuildAuthPage", () => {
     guildRole = "superadmin";
     grantSettingsLevel = null;
     guildId = 4;
-    authOptions = ["restrictions", "providers", "require_sign_in"];
+    authOptions = ["restrictions", "providers"];
     allowApiKeys = true;
     sessionLimit = false;
+    connections = [
+      connection(1, 11, "corp", "Corp SSO"),
+      connection(2, 12, "contractors", "Contractors"),
+    ];
     grantedAuthSettings = {
-      auth_options: ["restrictions", "providers", "require_sign_in"],
+      auth_options: ["restrictions", "providers"],
       allow_api_keys: true,
       enforce_compliance_session: false,
     };
@@ -143,6 +136,68 @@ describe("SettingsGuildAuthPage", () => {
       provider_display_name: null,
       require_methods: [],
     };
+  });
+
+  describe("how the page is laid out", () => {
+    /** Where each snippet falls in the rendered text, so order can be read. */
+    const positions = (...snippets: string[]) => {
+      const text = document.body.textContent ?? "";
+      return snippets.map((snippet) => text.indexOf(snippet));
+    };
+
+    it("puts who gets in before the terms of a session", () => {
+      render();
+
+      const [whoGetsIn, onWhatTerms] = positions("Who gets in", "On what terms");
+      expect(whoGetsIn).toBeGreaterThanOrEqual(0);
+      expect(onWhatTerms).toBeGreaterThan(whoGetsIn);
+    });
+
+    it("asks for a requirement after the connections it can name", () => {
+      // The requirement picks from the providers above it, and the rules
+      // between them say where the people arriving on those providers land.
+      render();
+
+      const found = positions(
+        "Which sign-ins are yours",
+        "Where your people land",
+        "Sign-in requirement",
+        "Member sign-in link"
+      );
+      expect(found.every((index) => index >= 0)).toBe(true);
+      expect(found).toEqual([...found].sort((a, b) => a - b));
+    });
+
+    it("puts session length before API access", () => {
+      render();
+
+      const [length, api] = positions("Session length", "API access");
+      expect(length).toBeGreaterThanOrEqual(0);
+      expect(api).toBeGreaterThan(length);
+    });
+  });
+
+  describe("a community that has connected nothing", () => {
+    it("leads with a prompt to set sign-in up", () => {
+      connections = [];
+      render();
+
+      const prompt = screen.getByText(/nothing connected yet/i);
+      const button = screen.getByRole("button", { name: /set up sign-in/i });
+      expect(prompt).toBeInTheDocument();
+      const text = document.body.textContent ?? "";
+      expect(text.indexOf("Nothing connected yet")).toBeLessThan(
+        text.indexOf("Which sign-ins are yours")
+      );
+      expect(button).toBeEnabled();
+    });
+
+    it("drops the prompt once something is connected", () => {
+      render();
+
+      expect(screen.queryByText(/nothing connected yet/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /set up sign-in/i })).not.toBeInTheDocument();
+    });
   });
 
   describe("choosing what the community requires", () => {
@@ -199,7 +254,7 @@ describe("SettingsGuildAuthPage", () => {
       });
     });
 
-    it("has nothing to save until something changes", async () => {
+    it("has nothing to save until something changes", () => {
       policy = {
         policy: "required",
         provider_id: null,
@@ -235,7 +290,7 @@ describe("SettingsGuildAuthPage", () => {
       allowApiKeys = null;
       sessionLimit = null;
       grantedAuthSettings = {
-        auth_options: ["restrictions", "providers", "require_sign_in"],
+        auth_options: ["restrictions", "providers"],
         allow_api_keys: false,
         enforce_compliance_session: true,
       };
@@ -244,7 +299,7 @@ describe("SettingsGuildAuthPage", () => {
 
       expect(requirementRadio()).toBeInTheDocument();
       expect(screen.getByLabelText(/allow personal api keys/i)).not.toBeChecked();
-      expect(screen.getByLabelText(/twelve-hour session limit/i)).toBeChecked();
+      expect(screen.getByLabelText(/sign in again every twelve hours/i)).toBeChecked();
     });
   });
 
@@ -283,6 +338,35 @@ describe("SettingsGuildAuthPage", () => {
     });
   });
 
+  describe("what each grant brings with it", () => {
+    it("renders nothing where the operator has granted neither", () => {
+      authOptions = [];
+      const { container } = render();
+
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it("shows only the terms half where that is all that is granted", () => {
+      authOptions = ["restrictions"];
+      render();
+
+      expect(screen.getByLabelText(/allow personal api keys/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/sign in again every twelve hours/i)).toBeInTheDocument();
+      expect(screen.queryByText("Who gets in")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
+    });
+
+    it("shows only the sign-in half where that is all that is granted", () => {
+      authOptions = ["providers"];
+      render();
+
+      expect(requirementRadio()).toBeInTheDocument();
+      expect(screen.getByText(/member sign-in link/i)).toBeInTheDocument();
+      expect(screen.queryByText("On what terms")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
+    });
+  });
+
   describe("declining personal API keys", () => {
     const apiSwitch = () => screen.getByLabelText(/allow personal api keys/i);
 
@@ -311,30 +395,10 @@ describe("SettingsGuildAuthPage", () => {
 
       expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
     });
-
-    it("goes with the rest of the page where the master option is not held", () => {
-      // A community that configures no part of its own sign-in is not asked
-      // about API keys either.
-      authOptions = [];
-      render();
-
-      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/member sign-in link/i)).not.toBeInTheDocument();
-    });
-
-    it("stays on offer to a community granted the master and nothing else", () => {
-      // The two beneath it are separate grants; this one is not.
-      authOptions = ["restrictions"];
-      render();
-
-      expect(apiSwitch()).toBeInTheDocument();
-      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
-    });
   });
 
   describe("how often members sign in again", () => {
-    const limitSwitch = () => screen.getByLabelText(/twelve-hour session limit/i);
+    const limitSwitch = () => screen.getByLabelText(/sign in again every twelve hours/i);
 
     it("saves as it is switched, with no button to press", async () => {
       const user = userEvent.setup();
@@ -347,19 +411,19 @@ describe("SettingsGuildAuthPage", () => {
       expect(saveSessionLimit.mock.calls[0][0]).toEqual({ enforce_compliance_session: true });
     });
 
-    it("shows what a community held to the standard has chosen", () => {
+    it("says what it is for in one line either way", () => {
       sessionLimit = true;
       render();
 
       expect(limitSwitch()).toBeChecked();
-      expect(screen.getByText(/sign in again every twelve hours/i)).toBeInTheDocument();
+      expect(screen.getByText(/cap how long people stay signed in/i)).toBeInTheDocument();
     });
 
     it("is the seat's, not an ordinary admin's", () => {
       guildRole = "admin";
       render();
 
-      expect(screen.queryByLabelText(/twelve-hour session limit/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/sign in again every twelve hours/i)).not.toBeInTheDocument();
     });
 
     it("does not carry a pending choice or failure into another community", async () => {
@@ -373,7 +437,7 @@ describe("SettingsGuildAuthPage", () => {
 
       guildId = 5;
       sessionLimit = false;
-      view.rerender(<SettingsGuildAuthPage />);
+      view.rerender(<SettingsGuildSecurityPage />);
 
       expect(limitSwitch()).not.toBeChecked();
 

@@ -1283,3 +1283,116 @@ class TestResourceAccessRollback:
             "schema and leave its tables with row-level security on and no "
             "policy to answer for them"
         )
+
+
+_PRE_TWO_SWITCHES = "20260918_0312"
+_TWO_SWITCHES = "20260918_0313"
+
+# Every shape a row could hold under the ladder, and what each becomes once
+# the master rule goes. The ones with no master are the point: the old rules
+# discarded them, so a screen never showed them, and they must not start
+# counting on their own.
+_AUTH_OPTION_SEED_SQL = """
+ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.guilds (id, name, created_at, updated_at) VALUES
+    (1, 'master only', now(), now()),
+    (2, 'master and both', now(), now()),
+    (3, 'providers left behind', now(), now()),
+    (4, 'requirement left behind', now(), now()),
+    (5, 'nothing', now(), now());
+
+INSERT INTO public.guild_administration (guild_id, auth_options) VALUES
+    (1, ARRAY['restrictions']::guild_auth_option[]),
+    (2, ARRAY['restrictions', 'providers', 'require_sign_in']::guild_auth_option[]),
+    (3, ARRAY['providers']::guild_auth_option[]),
+    (4, ARRAY['providers', 'require_sign_in']::guild_auth_option[]),
+    (5, ARRAY[]::guild_auth_option[]);
+
+ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;
+"""
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestTwoSwitchesNotThreeTicks:
+    """Revision 0313 replayed over rows that hold every shape the ladder allowed."""
+
+    def _stage(self) -> None:
+        _run_alembic("upgrade", _PRE_TWO_SWITCHES)
+        _execute_sql(_AUTH_OPTION_SEED_SQL)
+
+    def _options(self, guild_id: int) -> list[str]:
+        """The row as stored. The table FORCEs row-level security, which binds
+        this connection too, so the read lifts it the way the seed does."""
+        _execute_sql(
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY"
+        )
+        try:
+            return list(
+                _fetchval(
+                    "SELECT auth_options::text[] FROM public.guild_administration "
+                    f"WHERE guild_id = {guild_id}"
+                )
+            )
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY"
+            )
+
+    def test_the_type_is_rebuilt_without_the_retired_value(
+        self, fresh_migrations_db: str
+    ) -> None:
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        labels = _fetchval(
+            "SELECT array_agg(e.enumlabel::text ORDER BY e.enumsortorder) "
+            "FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+            "WHERE t.typname = 'guild_auth_option'"
+        )
+        assert list(labels) == ["providers", "restrictions"]
+        leftover = _fetchval(
+            "SELECT count(*) FROM pg_type WHERE typname = 'guild_auth_option_old'"
+        )
+        assert leftover == 0, "the old type was dropped"
+
+    def test_a_grant_the_ladder_discarded_does_not_start_counting(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Ticking both and unticking the master stored ``['providers']``, which
+        no screen showed. It is cleared rather than promoted."""
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        assert self._options(3) == []
+        assert self._options(4) == []
+
+    def test_a_grant_the_ladder_honoured_is_kept(
+        self, fresh_migrations_db: str
+    ) -> None:
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        assert self._options(1) == ["restrictions"]
+        assert self._options(2) == ["providers", "restrictions"]
+        assert self._options(5) == []
+
+    def test_the_default_survives_the_rebuild(self, fresh_migrations_db: str) -> None:
+        """The column default names the type, so it has to come off and go
+        back; a row inserted without options afterwards gets an empty array."""
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (id, name, created_at, updated_at) "
+            "VALUES (6, 'after', now(), now());"
+            "INSERT INTO public.guild_administration (guild_id) VALUES (6);"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+        )
+        assert self._options(6) == []

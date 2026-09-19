@@ -789,7 +789,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
       guild?.accessType === "grant" &&
       guild.grantAccessLevel == null &&
       guild.grantSettingsLevel === "superadmin"
-        ? "/settings/auth"
+        ? "/settings/security"
         : "/";
     router.navigate({ to: guildPath(guildId, destination) });
   };

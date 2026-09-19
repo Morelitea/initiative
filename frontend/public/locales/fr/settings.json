@@ -33,14 +33,13 @@
     },
     "tabs": {
       "guild": "Communauté",
-      "ai": "IA",
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
       "trash": "Corbeille",
       "data": "Données",
       "dangerZone": "Zone de danger",
-      "auth": "Authentification",
-      "apps": "Applications"
+      "security": "Sécurité",
+      "integrations": "Intégrations"
     }
   },
   "profile": {
@@ -858,16 +857,16 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'annuaire des communautés, l'IA, le stockage des communautés et les services applicatifs pour toute la plateforme.",
+    "subtitle": "Connexion, sécurité, image de marque, e-mail, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
       "community": "Communauté",
-      "ai": "IA",
       "storage": "Stockage",
       "intake": "Réception",
-      "appServices": "Services applicatifs"
+      "security": "Sécurité",
+      "integrations": "Intégrations"
     }
   },
   "appServices": {
@@ -1022,7 +1021,6 @@
       "openLabel": "Gérer les réglages de {{name}}",
       "description": "Des réglages que vous seul pouvez changer. Les administrateurs de cette communauté les voient sans pouvoir les modifier.",
       "limits": "Limites",
-      "signIn": "Connexion",
       "features": "Fonctionnalités",
       "usersHelp": "Combien de personnes peuvent en faire partie. Laissez vide pour ne pas limiter.",
       "storageHelp": "Combien elles peuvent stocker, en gigaoctets. Laissez vide pour ne pas limiter.",
@@ -1032,20 +1030,17 @@
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
       "authOption": {
         "restrictions": {
-          "label": "Configurer sa propre connexion",
-          "help": "Donne à cette communauté l'onglet Authentification : clés d'API personnelles, limite de session de douze heures et tout ce qui est coché en dessous. Désactivé pour la plupart des communautés — sans cela, elles ne voient jamais l'onglet."
+          "label": "Son propre standard de sécurité",
+          "help": "Ses administrateurs peuvent refuser les clés d'API personnelles et limiter les membres à une session de douze heures. Pour les communautés qui rendent des comptes à un auditeur ; la plupart n'en ont jamais besoin."
         },
         "providers": {
-          "label": "Ses propres fournisseurs de connexion",
-          "help": "Permet à leurs administrateurs de connecter un fournisseur d'identité et d'y créer de nouveaux comptes."
-        },
-        "require_sign_in": {
-          "label": "Exiger une connexion",
-          "help": "Permet à leurs administrateurs d'exiger que les membres passent par l'un de ces fournisseurs. C'est une autorisation distincte : une communauté peut proposer son fournisseur sans l'imposer."
+          "label": "Sa propre connexion",
+          "help": "Ses administrateurs indiquent lesquels des fournisseurs de connexion de cette installation sont les leurs, où arrivent les personnes qui passent par eux — y compris comme administrateur de leur communauté — et si les membres doivent passer par là."
         }
       },
       "usersLabel": "Membres",
-      "storageLabel": "Limite de stockage"
+      "storageLabel": "Limite de stockage",
+      "decidesForItself": "Ce qu'elle décide elle-même"
     },
     "unlimited": "Sans limite"
   },
@@ -1115,7 +1110,7 @@
       "requiredLabel": "Exiger l'authentification unique",
       "requiredHelp": "Les membres ne peuvent accéder à cette communauté qu'après s'être connectés avec le fournisseur sélectionné.",
       "providerPlaceholder": "Choisir un fournisseur…",
-      "noProviders": "Aucun fournisseur n'est configuré pour l'instant. Ajoutez-en un dans Fournisseurs d'identité ci-dessous, puis exigez-le ici.",
+      "noProviders": "Connectez d'abord un fournisseur sous « Qui entre ».",
       "saved": "Exigence de connexion enregistrée",
       "error": "Impossible d'enregistrer l'exigence de connexion",
       "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
@@ -1135,13 +1130,11 @@
       "error": "Impossible d'enregistrer l'accès par API"
     },
     "sessionLimit": {
-      "title": "Limite de session",
-      "description": "À quelle fréquence les membres de cette communauté se reconnectent.",
-      "allowLabel": "Limite de session de douze heures",
-      "onHelp": "Les membres de cette communauté se reconnectent toutes les douze heures, quelle que soit la limite du déploiement. Pour les communautés soumises à une norme de conformité.",
-      "offHelp": "Les membres restent connectés aussi longtemps que le déploiement l'autorise.",
+      "title": "Durée de session",
+      "allowLabel": "Se reconnecter toutes les douze heures",
       "saved": "Limite de session enregistrée",
-      "error": "Impossible d'enregistrer la limite de session"
+      "error": "Impossible d'enregistrer la limite de session",
+      "help": "Pour les communautés à qui l’on a demandé de limiter la durée de connexion. Cela s’applique à vos membres partout, pas seulement ici."
     },
     "connections": {
       "title": "Quelles connexions sont les vôtres",
@@ -1211,6 +1204,40 @@
       "removeError": "Impossible de supprimer cette règle",
       "removeTitle": "Supprimer cette règle ?",
       "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur."
+    },
+    "sections": {
+      "whoGetsIn": "Qui entre",
+      "onWhatTerms": "À quelles conditions"
+    },
+    "emptyState": {
+      "title": "Rien de connecté pour l’instant",
+      "body": "Indiquez quels fournisseurs de connexion de ce déploiement sont les vôtres, et où atterrissent les personnes qui arrivent par eux.",
+      "button": "Configurer la connexion"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Par où l'on entre",
+          "prompt": "Choisissez le fournisseur avec lequel vos membres se connectent déjà."
+        },
+        "narrowing": {
+          "title": "Quelles personnes",
+          "prompt": "Indiquez quels comptes chez lui sont les vôtres, ou passez cette étape s'il ne réunit déjà que vos gens."
+        },
+        "landing": {
+          "title": "Où ils arrivent",
+          "prompt": "Ce qui se passe quand l'un d'eux arrive."
+        },
+        "insist": {
+          "title": "L'exige-t-on",
+          "prompt": "Si cela devient la seule façon d'entrer."
+        }
+      },
+      "skip": "Passer",
+      "ruleTitle": "Un premier groupe",
+      "ruleHelp": "Facultatif. Nommez un groupe signalé par votre fournisseur et l'endroit où ses membres arrivent. Vous pourrez en ajouter d'autres ensuite.",
+      "requireLabel": "Exiger que les membres passent par ce fournisseur",
+      "requireHelp": "Les membres se connectent uniquement par ce biais. Vous pourrez le modifier plus tard."
     }
   },
   "authProviders": {
@@ -1535,5 +1562,9 @@
     "claimLabel": "Quelle revendication décide",
     "valuesLabel": "Valeurs acceptées",
     "valuesHint": "Séparez-en plusieurs par des virgules. La connexion propre d'une communauté remplace ceci entièrement : rien d'ici n'est fusionné avec ce qu'elle dit."
+  },
+  "platformSecurity": {
+    "title": "Sécurité",
+    "description": "Combien de temps une personne peut rester connectée avant de devoir se reconnecter."
   }
 }

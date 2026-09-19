@@ -83,6 +83,34 @@ def _strip(values: str) -> str:
 
 
 def upgrade() -> None:
+    # ``guild_administration`` FORCEs row-level security, which binds the owner
+    # this migration runs as, and its policies key on request GUCs a migration
+    # has no value for. Lifted for the two row fixes and restored in the same
+    # transaction, the way 0302 writes to it.
+    op.execute(f"ALTER TABLE {TABLE} NO FORCE ROW LEVEL SECURITY")
+    try:
+        _fix_rows()
+    finally:
+        op.execute(f"ALTER TABLE {TABLE} FORCE ROW LEVEL SECURITY")
+
+    # ── 3. The type without the retired value ─────────────────────────────
+    #
+    # The default names the type, so it comes off first and goes back after.
+    op.execute(f"ALTER TABLE {TABLE} ALTER COLUMN auth_options DROP DEFAULT")
+    op.execute(f"ALTER TYPE {TYPE} RENAME TO guild_auth_option_old")
+    op.execute(f"CREATE TYPE {TYPE} AS ENUM ('providers', 'restrictions')")
+    op.execute(
+        f"ALTER TABLE {TABLE} ALTER COLUMN auth_options TYPE guild_auth_option[] "
+        f"USING auth_options::text[]::guild_auth_option[]"
+    )
+    op.execute(
+        f"ALTER TABLE {TABLE} ALTER COLUMN auth_options "
+        f"SET DEFAULT '{{}}'::guild_auth_option[]"
+    )
+    op.execute("DROP TYPE public.guild_auth_option_old")
+
+
+def _fix_rows() -> None:
     # ── 1. The withdrawn grants, while the master still means something ───
     op.execute(
         f"""
@@ -107,22 +135,6 @@ def upgrade() -> None:
 
     # ── 2. The retired value, off every remaining row ─────────────────────
     op.execute(_strip("require_sign_in"))
-
-    # ── 3. The type without it ────────────────────────────────────────────
-    #
-    # The default names the type, so it comes off first and goes back after.
-    op.execute(f"ALTER TABLE {TABLE} ALTER COLUMN auth_options DROP DEFAULT")
-    op.execute(f"ALTER TYPE {TYPE} RENAME TO guild_auth_option_old")
-    op.execute(f"CREATE TYPE {TYPE} AS ENUM ('providers', 'restrictions')")
-    op.execute(
-        f"ALTER TABLE {TABLE} ALTER COLUMN auth_options TYPE guild_auth_option[] "
-        f"USING auth_options::text[]::guild_auth_option[]"
-    )
-    op.execute(
-        f"ALTER TABLE {TABLE} ALTER COLUMN auth_options "
-        f"SET DEFAULT '{{}}'::guild_auth_option[]"
-    )
-    op.execute("DROP TYPE public.guild_auth_option_old")
 
 
 def downgrade() -> None:

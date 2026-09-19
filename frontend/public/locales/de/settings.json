@@ -33,14 +33,13 @@
     },
     "tabs": {
       "guild": "Community",
-      "ai": "KI",
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
       "data": "Daten",
       "dangerZone": "Gefahrenzone",
-      "auth": "Authentifizierung",
-      "apps": "Apps"
+      "security": "Sicherheit",
+      "integrations": "Integrationen"
     }
   },
   "profile": {
@@ -858,16 +857,16 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Community-Speicher und App-Dienste für die gesamte Plattform.",
+    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
       "community": "Community",
-      "ai": "KI",
       "storage": "Speicher",
       "intake": "Eingang",
-      "appServices": "App-Dienste"
+      "security": "Sicherheit",
+      "integrations": "Integrationen"
     }
   },
   "appServices": {
@@ -1022,7 +1021,6 @@
       "openLabel": "Einstellungen für {{name}} verwalten",
       "description": "Einstellungen, die nur du ändern kannst. Die Admins dieser Community sehen sie und können sie nicht bearbeiten.",
       "limits": "Grenzen",
-      "signIn": "Anmeldung",
       "features": "Funktionen",
       "usersHelp": "Wie viele Personen dazugehören dürfen. Für unbegrenzt leer lassen.",
       "storageHelp": "Wie viel sie speichern dürfen, in Gigabyte. Für unbegrenzt leer lassen.",
@@ -1032,20 +1030,17 @@
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
       "authOption": {
         "restrictions": {
-          "label": "Eigene Anmeldung konfigurieren",
-          "help": "Gibt dieser Community den Tab „Authentifizierung“: persönliche API-Schlüssel, ein Zwölf-Stunden-Sitzungslimit und alles darunter Angehakte. Für die meisten Communities aus — ohne diese Option sehen sie den Tab nie."
+          "label": "Eigener Sicherheitsstandard",
+          "help": "Ihre Admins können persönliche API-Schlüssel ablehnen und Mitglieder auf eine Sitzung von zwölf Stunden begrenzen. Für Communities, die einem Prüfer Rechenschaft schulden; die meisten brauchen das nie."
         },
         "providers": {
-          "label": "Eigene Anmeldeanbieter",
-          "help": "Erlaubt ihren Admins, einen Identitätsanbieter einzurichten und neue Konten darüber aufzunehmen."
-        },
-        "require_sign_in": {
-          "label": "Anmeldung verlangen",
-          "help": "Erlaubt ihren Admins zu verlangen, dass Mitglieder über einen dieser Anbieter kommen. Eine eigene Freigabe — eine Community kann ihren Anbieter anbieten, ohne ihn zu verlangen."
+          "label": "Eigene Anmeldung",
+          "help": "Ihre Admins legen fest, welche Anmeldeanbieter dieser Installation als ihre gelten, wo die darüber ankommenden Personen landen – auch als Admin ihrer Community – und ob Mitglieder diesen Weg nehmen müssen."
         }
       },
       "usersLabel": "Mitglieder",
-      "storageLabel": "Speicherlimit"
+      "storageLabel": "Speicherlimit",
+      "decidesForItself": "Was sie selbst entscheidet"
     },
     "unlimited": "Unbegrenzt"
   },
@@ -1115,7 +1110,7 @@
       "requiredLabel": "Single Sign-on erforderlich",
       "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Community zugreifen.",
       "providerPlaceholder": "Anbieter auswählen …",
-      "noProviders": "Es sind noch keine Anbieter konfiguriert. Füge unten unter Identitätsanbieter einen hinzu und mache ihn dann hier verpflichtend.",
+      "noProviders": "Verbindet zuerst einen Anbieter unter „Wer hereinkommt“.",
       "saved": "Anmeldeanforderung gespeichert",
       "error": "Anmeldeanforderung konnte nicht gespeichert werden",
       "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
@@ -1135,13 +1130,11 @@
       "error": "API-Zugriff konnte nicht gespeichert werden"
     },
     "sessionLimit": {
-      "title": "Sitzungslimit",
-      "description": "Wie oft sich die Mitglieder dieser Community neu anmelden.",
-      "allowLabel": "Zwölf-Stunden-Sitzungslimit",
-      "onHelp": "Mitglieder dieser Community melden sich alle zwölf Stunden neu an, unabhängig vom Limit der Installation. Für Communities, die einem Compliance-Standard unterliegen.",
-      "offHelp": "Mitglieder bleiben so lange angemeldet, wie es die Installation zulässt.",
+      "title": "Sitzungsdauer",
+      "allowLabel": "Alle zwölf Stunden neu anmelden",
       "saved": "Sitzungslimit gespeichert",
-      "error": "Sitzungslimit konnte nicht gespeichert werden"
+      "error": "Sitzungslimit konnte nicht gespeichert werden",
+      "help": "Für Communities, die angehalten wurden, die Anmeldedauer zu begrenzen. Es gilt überall für eure Mitglieder, nicht nur hier."
     },
     "connections": {
       "title": "Welche Anmeldungen eure sind",
@@ -1211,6 +1204,40 @@
       "removeError": "Regel konnte nicht entfernt werden",
       "removeTitle": "Diese Regel entfernen?",
       "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
+    },
+    "sections": {
+      "whoGetsIn": "Wer hereinkommt",
+      "onWhatTerms": "Zu welchen Bedingungen"
+    },
+    "emptyState": {
+      "title": "Noch nichts verbunden",
+      "body": "Legt fest, welche Anmeldeanbieter dieser Installation als eure zählen und wo die Ankommenden landen.",
+      "button": "Anmeldung einrichten"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Welcher Weg hinein",
+          "prompt": "Wählen Sie den Anbieter, mit dem sich Ihre Mitglieder bereits anmelden."
+        },
+        "narrowing": {
+          "title": "Wessen Leute",
+          "prompt": "Geben Sie an, welche Konten dort zu Ihnen gehören, oder überspringen Sie dies, wenn der Anbieter ohnehin nur Ihre Leute führt."
+        },
+        "landing": {
+          "title": "Wo sie landen",
+          "prompt": "Was geschieht, wenn jemand von ihnen ankommt."
+        },
+        "insist": {
+          "title": "Bestehen wir darauf",
+          "prompt": "Ob dies der einzige Weg herein wird."
+        }
+      },
+      "skip": "Überspringen",
+      "ruleTitle": "Eine erste Gruppe",
+      "ruleHelp": "Optional. Nennen Sie eine Gruppe, die Ihr Anbieter meldet, und wo ihre Leute landen. Weitere können Sie später hinzufügen.",
+      "requireLabel": "Mitglieder müssen über diesen Anbieter kommen",
+      "requireHelp": "Mitglieder melden sich nur darüber an. Sie können das später ändern."
     }
   },
   "authProviders": {
@@ -1535,5 +1562,9 @@
     "claimLabel": "Welcher Claim entscheidet",
     "valuesLabel": "Gültige Werte",
     "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
+  },
+  "platformSecurity": {
+    "title": "Sicherheit",
+    "description": "Wie lange jemand angemeldet bleiben darf, bevor eine erneute Anmeldung nötig ist."
   }
 }

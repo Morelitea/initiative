@@ -8,12 +8,9 @@ const methodsMutate = vi.fn();
 
 let settings: PlatformAuthSettingsResponse;
 
-const lifetimeMutate = vi.fn();
-
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
   useUpdateLoginMethods: () => ({ mutate: methodsMutate, isPending: false }),
-  useUpdateSessionLifetime: () => ({ mutate: lifetimeMutate, isPending: false }),
 }));
 
 import { PlatformAuthSection } from "./PlatformAuthSection";
@@ -31,6 +28,12 @@ describe("PlatformAuthSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     settings = structuredClone(base);
+  });
+
+  it("renders nothing while the ways in are held back", () => {
+    const { container } = renderWithProviders(<PlatformAuthSection />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 
   // The ways in are not rendered while SHOW_LOGIN_METHODS is off; these cover
@@ -84,39 +87,5 @@ describe("PlatformAuthSection", () => {
 
       expect(screen.getByLabelText("Password")).toBeDisabled();
     });
-  });
-
-  it("starts blank when the deployment asks for no limit", () => {
-    settings = { ...base, session_max_hours: null };
-    renderWithProviders(<PlatformAuthSection />);
-
-    expect(screen.getByLabelText(/hours/i)).toHaveValue(null);
-  });
-
-  it("saves a session limit", () => {
-    settings = { ...base, session_max_hours: null };
-    renderWithProviders(<PlatformAuthSection />);
-
-    fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(lifetimeMutate).toHaveBeenCalledWith({ session_max_hours: 12 });
-  });
-
-  it("clears the limit when the field is emptied", () => {
-    settings = { ...base, session_max_hours: 12 };
-    renderWithProviders(<PlatformAuthSection />);
-
-    fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(lifetimeMutate).toHaveBeenCalledWith({ session_max_hours: null });
-  });
-
-  it("will not save an unchanged limit", () => {
-    settings = { ...base, session_max_hours: 12 };
-    renderWithProviders(<PlatformAuthSection />);
-
-    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
   });
 });
