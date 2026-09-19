@@ -1167,7 +1167,9 @@ async def test_a_withdrawn_method_stops_new_registrations(
     await _withdraw_passkeys(session)
 
     began = await client.post(
-        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop"},
+        headers=get_auth_headers(user),
     )
     assert began.status_code == 403
     assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
