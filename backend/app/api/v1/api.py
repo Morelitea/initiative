@@ -86,6 +86,7 @@ from app.api.v1.platform_endpoints import (
     push,
     intake,
     passkeys,
+    passwordless,
     second_factor,
     settings,
     user_view_preferences,
@@ -110,6 +111,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # their own module rather than growing the sign-in one.
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
+api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

@@ -438,6 +438,42 @@ describe("silent session renewal", () => {
     }
   });
 
+  it("announces a change that wants a session opened a moment ago", async () => {
+    let refreshCalls = 0;
+    server.use(
+      http.post("/api/v1/auth/passkeys/register/options", () =>
+        HttpResponse.json({ detail: "RECENT_PROOF_REQUIRED" }, { status: 403 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    const onFactor = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+
+    try {
+      await expect(apiClient.post("/auth/passkeys/register/options")).rejects.toMatchObject({
+        response: { status: 403 },
+      });
+      expect(refreshCalls).toBe(0);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect(onFactor).toHaveBeenCalledTimes(1);
+      // The ask is the account's own, so it names no community.
+      expect((onFactor.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        guildId: null,
+        kind: "proof",
+      });
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+      setHasActiveSession(false);
+    }
+  });
+
   it("does not renew for auth lifecycle endpoints", async () => {
     let refreshCalls = 0;
     server.use(

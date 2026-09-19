@@ -1456,7 +1456,16 @@
     "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
-    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
+    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo.",
+    "setPasswordTitle": "Définir un mot de passe",
+    "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",
+    "removePassword": "Supprimer votre mot de passe",
+    "removePasswordFromBrowser": "Abandonnez votre mot de passe depuis un navigateur connecté à ce site.",
+    "removePasswordTitle": "Supprimer votre mot de passe",
+    "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. S'il vous en reste moins de trois, un nouveau jeu vous sera présenté : conservez-le.",
+    "removePasswordCodes": "Conservez-les en lieu sûr. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Chaque code sert une fois, et ils ne vous seront plus montrés. Les codes que vous déteniez auparavant ne fonctionnent plus.",
+    "passwordRemoved": "Votre mot de passe a été supprimé.",
+    "removePasswordError": "Impossible de supprimer votre mot de passe."
   },
   "privacy": {
     "title": "Confidentialité",
@@ -1555,7 +1564,8 @@
     "codePlaceholder": "123456",
     "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
     "copyUnavailable": "Copie impossible — notez les codes à la main.",
-    "notOffered": "Cette installation ne propose pas l'application d'authentification."
+    "notOffered": "Cette installation ne propose pas l'application d'authentification.",
+    "passwordlessCodes": "Votre compte se connecte sans mot de passe. Ces codes vous permettent d'en redéfinir un si vous perdez votre clé d'accès."
   },
   "passkeys": {
     "title": "Clés d'accès",

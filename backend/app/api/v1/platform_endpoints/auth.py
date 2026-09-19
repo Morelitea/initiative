@@ -1908,14 +1908,7 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    # Device tokens are revoked and committed on the request path first: they
-    # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction, and this is the order that fails safely — a
-    # failure after this point signs the account out everywhere and leaves the
-    # old password standing, rather than changing the password while a device
-    # token survives it.
-    await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
-    await session.commit()
+    await user_tokens.revoke_device_tokens_first(session, user_id=user.id)
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)

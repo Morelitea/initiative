@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
-import { renderPage, renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 import { AUTH_FACTOR_REQUIRED_EVENT } from "@/api/client";
 
 import { SecondFactorStepUpDialog } from "./SecondFactorStepUpDialog";
@@ -23,12 +23,25 @@ const passkeysAre = (passkeys: { id: string; name: string }[]) =>
     )
   );
 
+/**
+ * Mounted the way the app mounts it: inside the router, on the page the
+ * refused request was made from. The listener is attached on mount, so the
+ * challenge waits for the router to settle.
+ */
+const mount = async (options: Parameters<typeof renderPage>[1] = {}) => {
+  const result = renderPage(SecondFactorStepUpDialog, options);
+  await waitFor(() => {
+    expect(result.router.state.status).toBe("idle");
+  });
+  return result;
+};
+
 const fireChallenge = ({
   guildId = 4,
   kind = "totp",
 }: {
   guildId?: number | null;
-  kind?: "totp" | "passkey";
+  kind?: "totp" | "passkey" | "proof";
 } = {}) => {
   act(() => {
     window.dispatchEvent(
@@ -38,9 +51,9 @@ const fireChallenge = ({
 };
 
 describe("SecondFactorStepUpDialog", () => {
-  it("stays shut until a community asks", () => {
+  it("stays shut until a community asks", async () => {
     statusIs(true);
-    renderWithProviders(<SecondFactorStepUpDialog />);
+    await mount();
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -48,7 +61,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("adds the authenticator code to the session already open", async () => {
     statusIs(true);
     const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithFactor } });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -68,7 +81,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("reads a code the way an authenticator shows it", async () => {
     statusIs(true);
     const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithFactor } });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -85,7 +98,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("takes a recovery code instead", async () => {
     statusIs(true);
     const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithFactor } });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -102,7 +115,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("keeps the dialog open and says so when the code is refused", async () => {
     statusIs(true);
     const stepUpWithFactor = vi.fn().mockRejectedValue(new Error("nope"));
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithFactor } });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -119,12 +132,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("sends an account with no factor to set one up", async () => {
     statusIs(false);
     const stepUpWithFactor = vi.fn();
-    // Routed, because the way out of this branch is a link into the app. The
-    // listener is attached on mount, so the challenge waits for the router.
-    const { router } = renderPage(SecondFactorStepUpDialog, { auth: { stepUpWithFactor } });
-    await waitFor(() => {
-      expect(router.state.status).toBe("idle");
-    });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -143,12 +151,7 @@ describe("SecondFactorStepUpDialog", () => {
     // A failed status query knows nothing, so the form stays for the enrolled
     // majority and the way to get a factor is offered beside it.
     server.use(http.get("/api/v1/auth/totp", () => HttpResponse.error()));
-    const { router } = renderPage(SecondFactorStepUpDialog, {
-      auth: { stepUpWithFactor: vi.fn() },
-    });
-    await waitFor(() => {
-      expect(router.state.status).toBe("idle");
-    });
+    await mount({ auth: { stepUpWithFactor: vi.fn() } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -161,7 +164,7 @@ describe("SecondFactorStepUpDialog", () => {
 
   it("opens once when a page's many requests are all refused", async () => {
     statusIs(true);
-    renderWithProviders(<SecondFactorStepUpDialog />);
+    await mount();
 
     fireChallenge({ guildId: 4 });
     fireChallenge({ guildId: 4 });
@@ -174,7 +177,7 @@ describe("SecondFactorStepUpDialog", () => {
   it("dismisses without stepping up", async () => {
     statusIs(true);
     const stepUpWithFactor = vi.fn();
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithFactor } });
+    await mount({ auth: { stepUpWithFactor } });
 
     fireChallenge();
     await screen.findByRole("dialog");
@@ -190,7 +193,7 @@ describe("SecondFactorStepUpDialog", () => {
 describe("SecondFactorStepUpDialog, asked for a passkey", () => {
   it("offers the passkey rather than a code box", async () => {
     passkeysAre([{ id: "pk-1", name: "Laptop" }]);
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithPasskey: vi.fn() } });
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
@@ -202,7 +205,7 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
   it("adds the passkey to the session already open", async () => {
     passkeysAre([{ id: "pk-1", name: "Laptop" }]);
     const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
-    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithPasskey } });
+    await mount({ auth: { stepUpWithPasskey } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
@@ -220,11 +223,7 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
   it("sends an account holding none to add one", async () => {
     passkeysAre([]);
     const stepUpWithPasskey = vi.fn();
-    // Routed, because the way out of this branch is a link into the app.
-    const { router } = renderPage(SecondFactorStepUpDialog, { auth: { stepUpWithPasskey } });
-    await waitFor(() => {
-      expect(router.state.status).toBe("idle");
-    });
+    await mount({ auth: { stepUpWithPasskey } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
@@ -238,12 +237,7 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
 
   it("keeps the passkey on offer when the account cannot be read", async () => {
     server.use(http.get("/api/v1/auth/passkeys", () => HttpResponse.error()));
-    const { router } = renderPage(SecondFactorStepUpDialog, {
-      auth: { stepUpWithPasskey: vi.fn() },
-    });
-    await waitFor(() => {
-      expect(router.state.status).toBe("idle");
-    });
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
@@ -256,7 +250,7 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
 
   it("says where to present one when the app cannot", async () => {
     const stepUpWithPasskey = vi.fn();
-    renderWithProviders(<SecondFactorStepUpDialog />, {
+    await mount({
       auth: { stepUpWithPasskey },
       server: { isNativePlatform: true },
     });
@@ -271,5 +265,79 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     expect(stepUpWithPasskey).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A change to how the account itself signs in wants a session opened a moment
+ * ago. Presenting a passkey opens one; for an account that holds none, only
+ * starting the sign-in over does.
+ */
+describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
+  it("offers the passkey the account already holds", async () => {
+    passkeysAre([{ id: "pk-1", name: "Laptop" }]);
+    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
+    await mount({ auth: { stepUpWithPasskey } });
+
+    fireChallenge({ guildId: null, kind: "proof" });
+    await screen.findByRole("dialog");
+
+    expect(screen.getByText(/prove it's you/i)).toBeInTheDocument();
+    expect(screen.getByText(/present your passkey/i)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
+
+    await waitFor(() => {
+      expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("asks an account holding none to sign in again", async () => {
+    passkeysAre([]);
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
+
+    fireChallenge({ guildId: null, kind: "proof" });
+    await screen.findByRole("dialog");
+
+    expect(await screen.findByRole("button", { name: /sign in again/i })).toBeInTheDocument();
+    expect(screen.getByText(/sign out and back in/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /use your passkey/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps both ways open when the account cannot be read", async () => {
+    server.use(http.get("/api/v1/auth/passkeys", () => HttpResponse.error()));
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
+
+    fireChallenge({ guildId: null, kind: "proof" });
+    await screen.findByRole("dialog");
+
+    expect(screen.getByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /sign in again/i })).toBeInTheDocument();
+    });
+  });
+
+  it("signs out and returns them to the page they were on", async () => {
+    passkeysAre([]);
+    const logout = vi.fn().mockResolvedValue(undefined);
+    const { router } = await mount({
+      auth: { logout, stepUpWithPasskey: vi.fn() },
+      initialRoute: "/profile/security",
+    });
+
+    fireChallenge({ guildId: null, kind: "proof" });
+    await screen.findByRole("dialog");
+    await userEvent.click(await screen.findByRole("button", { name: /sign in again/i }));
+
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/login");
+    });
+    expect((router.state.location.search as { next?: string }).next).toBe("/profile/security");
   });
 });

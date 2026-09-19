@@ -10,6 +10,10 @@ What each route keeps for itself is the proving. What they hand over is
 record should say), so the one place that writes a session does not have to
 know how many ways there are to reach it.
 
+:func:`replace_session` is the same idea for the changes that retire every
+credential an account holds: the caller revokes, and this opens the session the
+caller carries on with.
+
 :func:`upgrade_session` is the same idea for a session that is already open:
 the step-ups prove something more against it and hand over the ``amr`` that
 adds, and the one place that rewrites a session does the rest. It is shared for
@@ -21,9 +25,11 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException, Request, Response, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.platform_endpoints.session_cookies import (
@@ -84,6 +90,42 @@ def require_session_row(request: Request) -> uuid.UUID:
         status_code=status.HTTP_403_FORBIDDEN,
         detail=AuthMessages.SESSION_REQUIRED,
     )
+
+
+# Walk a session back up its rotation chain and read the oldest row there.
+# ``parent_id`` always points at an older, pre-existing row and
+# ``ck_auth_sessions_parent_not_self`` blocks the only reachable self-loop, so
+# the graph is a strict in-tree and the recursion terminates.
+_CHAIN_ROOT_SQL = text(
+    """
+    WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id, created_at FROM auth_sessions WHERE id = :sid
+        UNION
+        SELECT s.id, s.parent_id, s.created_at
+        FROM auth_sessions s JOIN ancestors a ON s.id = a.parent_id
+    )
+    SELECT created_at FROM ancestors ORDER BY created_at LIMIT 1
+    """
+)
+
+
+async def chain_started_at(
+    admin_session: AsyncSession, *, session_id: uuid.UUID
+) -> datetime | None:
+    """When the sign-in this session descends from was opened.
+
+    Every refresh mints a new row pointing at the one it replaced, so a session
+    that has been renewed for a week is still the same chain; its root is the
+    sign-in. A step-up and a replacement each start a chain of their own, so
+    both read as the moment they happened.
+
+    ``None`` where there is no such row.
+    """
+    # One round trip on the session's own connection: a chain gains a row per
+    # refresh, so walking it a row at a time would be as many.
+    connection = await admin_session.connection()
+    result = await connection.execute(_CHAIN_ROOT_SQL, {"sid": session_id})
+    return result.scalar_one_or_none()
 
 
 async def record_sign_in_failure(
@@ -206,6 +248,74 @@ async def open_session(
         access_token=access_token,
         refresh_token=issued.refresh_token if return_refresh_token else None,
     )
+
+
+async def replace_session(
+    request: Request,
+    response: Response,
+    admin_session: AsyncSession,
+    *,
+    user: User,
+    amr: list[str],
+    satisfied_providers: list[int],
+    provider_auth: dict[str, Any] | None = None,
+) -> Token:
+    """Open a session in place of the one this request is on, and hand the
+    caller back onto it.
+
+    For the changes that retire every credential an account holds — a password
+    set, a password given up — which would otherwise take the caller's own
+    session with them. What the account held is revoked by the caller and
+    staged on ``admin_session``; the session opened here joins that staging, so
+    one commit carries both and a failure leaves the account holding what it
+    had.
+
+    Both cookies are re-issued: the access token names the new session, and the
+    refresh cookie is the chain it rotates on. What carries into it is the
+    caller's to decide — ``amr`` is what the replacement may claim was proved,
+    and the satisfied providers and their own account of it come forward where
+    the request has one to carry.
+
+    A session is the only credential there is, so a store that cannot be
+    written ends the request rather than answering with a lesser one.
+    """
+    # Read before the writes below: ``user`` may be staged on ``admin_session``,
+    # and a rollback leaves its columns to be fetched again.
+    user_id = user.id
+    token_version = user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=amr,
+            satisfied_providers=satisfied_providers,
+            provider_auth=provider_auth,
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+        )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
+    return Token(access_token=access_token)
 
 
 async def upgrade_session(

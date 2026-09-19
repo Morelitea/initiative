@@ -251,6 +251,14 @@
       "textBody": "La verificación en dos pasos ya está desactivada en tu cuenta y tus códigos de recuperación se han descartado."
     }
   },
+  "passwordRemoved": {
+    "subject": "Se ha eliminado tu contraseña",
+    "title": "Se ha eliminado tu contraseña",
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "body": "Tu cuenta ya no tiene contraseña. A partir de ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad. Guarda bien tus códigos de recuperación: son la forma de volver a establecer una contraseña si la necesitas.",
+    "fallbackText": "Si no has sido tú, usa uno de tus códigos de recuperación para establecer una contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "textBody": "Tu cuenta ya no tiene contraseña. Ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad."
+  },
   "passkey": {
     "greeting": "Hola <strong>{{name}}</strong>:",
     "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",

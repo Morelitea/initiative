@@ -679,6 +679,7 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — a password, single sign-on or a passkey. An authenticator code goes alongside one of those, not instead of one.",
   "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "This community asks for a passkey. Present one to carry on.",
+  "RECENT_PROOF_REQUIRED": "This change needs a fresh sign-in first.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Enter your authenticator code to break glass.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Breaking glass needs an authenticator, and this account has none. Set one up under Security first.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Nothing answered at that address",
@@ -705,5 +706,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "The template has to be one of this wiki’s own pages",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connect that provider to your community before saying what its groups mean",
-  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there"
+  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there",
+  "PASSWORD_IS_LAST_METHOD": "Your password is the only way into this account. Add a passkey first.",
+  "PASSKEY_IS_LAST_METHOD": "This passkey is the only way into this account. Set a password or add another passkey first.",
+  "PASSWORD_NOT_HELD": "This account doesn't have a password."
 }

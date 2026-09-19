@@ -482,6 +482,7 @@ export interface AdminUserRead {
   task_completion_haptic_feedback: boolean;
   locale: string;
   has_federated_identity: boolean;
+  has_password: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**
@@ -4127,9 +4128,11 @@ export interface GuildCreate {
  *
  * - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
  *   phrase uppercased) so the action can't be triggered by a stray click.
- * - ``password`` is the current user's password. It is ignored for
- *   OIDC-only users (who have no usable password), mirroring the
- *   account-deletion endpoint, which is why it defaults to empty.
+ * - ``password`` is the current user's password. An account that holds
+ *   none — one that signs in with a passkey or through an identity
+ *   provider — has nothing to confirm with and answers with the phrase
+ *   alone, mirroring the account-deletion endpoint, which is why it
+ *   defaults to empty.
  */
 export interface GuildDeletionRequest {
   password?: string;
@@ -5592,6 +5595,35 @@ export interface PasskeyStepUpFinish {
   credential: PasskeyStepUpFinishCredential;
 }
 
+/**
+ * Setting a password with a recovery code, for an account that holds none.
+ *
+ * The address names the account, the code proves it, and the password is what
+ * the account signs in with from now on.
+ */
+export interface PasswordRecover {
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  recovery_code: string;
+  /** @maxLength 256 */
+  password: string;
+}
+
+/**
+ * Giving up the password. It is asked for one last time, as a change asks
+ * for it; an account holding none has nothing to remove.
+ */
+export interface PasswordRemove {
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  current_password: string;
+}
+
 export interface PasswordResetRequest {
   email: string;
 }
@@ -6928,6 +6960,7 @@ export interface SecondFactorStatus {
   recovery_codes_remaining?: number;
   password_required?: boolean;
   offered?: boolean;
+  passwordless?: boolean;
 }
 
 /**
@@ -7782,6 +7815,7 @@ export interface UserRead {
   task_completion_haptic_feedback: boolean;
   locale: string;
   has_federated_identity: boolean;
+  has_password: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**

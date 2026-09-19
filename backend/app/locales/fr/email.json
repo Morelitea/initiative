@@ -251,6 +251,14 @@
       "textBody": "La double authentification est désormais désactivée sur votre compte et vos codes de secours ont été supprimés."
     }
   },
+  "passwordRemoved": {
+    "subject": "Votre mot de passe a été supprimé",
+    "title": "Votre mot de passe a été supprimé",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body": "Votre compte n'a plus de mot de passe. Vous vous connectez désormais avec votre clé d'accès ou votre fournisseur d'identité. Conservez vos codes de secours en lieu sûr : ils permettent de définir à nouveau un mot de passe si vous en avez besoin.",
+    "fallbackText": "Si ce n'était pas vous, utilisez un code de secours pour redéfinir immédiatement un mot de passe et prévenez les responsables du site.",
+    "textBody": "Votre compte n'a plus de mot de passe. Vous vous connectez désormais avec votre clé d'accès ou votre fournisseur d'identité."
+  },
   "passkey": {
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "fallbackText": "Si ce n'était pas vous, changez votre mot de passe immédiatement et prévenez les responsables du site.",

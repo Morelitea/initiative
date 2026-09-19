@@ -25,9 +25,11 @@ from __future__ import annotations
 import hashlib
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import false, or_
@@ -36,9 +38,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import encrypt_token
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, methods_from_values
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
@@ -47,6 +50,7 @@ from app.models.platform.user_passkey import UserPasskey
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 
 logger = logging.getLogger(__name__)
 
@@ -316,21 +320,28 @@ def _holds_login_ready_identity_clause():
     )
 
 
+#: What each way in is answered with, as a predicate on ``User``. The one
+#: place a method is paired with the credential that presents it: the counts
+#: below ask whether an account has any of them, :func:`ways_in` asks which.
+#: ``totp`` is absent — a second factor accompanies a sign-in rather than
+#: beginning one.
+_HELD_CLAUSES: dict[LoginMethod, Callable[[], Any]] = {
+    LoginMethod.password: lambda: ~_no_usable_password_clause(),
+    LoginMethod.sso: _holds_login_ready_identity_clause,
+    LoginMethod.passkey: _holds_a_passkey_clause,
+}
+
+
 def _can_sign_in_clause(permitted: frozenset[LoginMethod]):
     """Accounts that can begin a session while ``permitted`` is what is offered.
 
     A credential is a way in only while its method is in the set: a password
     where passwords are offered, an identity link where single sign-on is, a
-    registered passkey where passkeys are. A second factor accompanies a
-    sign-in rather than beginning one, so it is none of these.
+    registered passkey where passkeys are.
     """
-    ways_in = []
-    if LoginMethod.password in permitted:
-        ways_in.append(~_no_usable_password_clause())
-    if LoginMethod.sso in permitted:
-        ways_in.append(_holds_login_ready_identity_clause())
-    if LoginMethod.passkey in permitted:
-        ways_in.append(_holds_a_passkey_clause())
+    ways_in = [
+        build() for method, build in _HELD_CLAUSES.items() if method in permitted
+    ]
     if not ways_in:
         return false()
     return or_(*ways_in)
@@ -360,6 +371,53 @@ async def stranded_between(
             )
         )
     ).one()
+
+
+async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:
+    """Which ways in this deployment permits.
+
+    Read from the settings row here rather than through ``auth_posture``, which
+    is the module that answers this everywhere else and reads this one. The
+    same resolution: a row holding nothing this version recognises falls back
+    to the default set.
+    """
+    row = (
+        await session.exec(
+            select(AppSetting.login_methods).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).first()
+    return methods_from_values(row)
+
+
+async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMethod]:
+    """Which methods could start a session for this account today.
+
+    Three questions asked together, because the answer to each depends on both
+    halves — what the account holds, and what the deployment permits. A
+    credential the deployment no longer accepts is not a way in, and a method
+    the deployment offers is not a way in for an account that holds nothing to
+    present.
+
+    ``totp`` is never a member: it accompanies a sign-in rather than beginning
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
+    keys, which are derived from a sign-in that already happened.
+
+    The same predicates the counts are built from, asked of one account: the
+    settings row is read once and the credentials in one query, so a caller
+    weighing a change reads one consistent posture rather than three.
+    """
+    permitted = await _permitted_methods(session)
+    candidates = [method for method in _HELD_CLAUSES if method in permitted]
+    if not candidates:
+        return frozenset()
+
+    held = [_HELD_CLAUSES[method]() for method in candidates]
+    row = (await session.exec(select(User.id, *held).where(User.id == user_id))).first()
+    if row is None:
+        return frozenset()
+    return frozenset(
+        method for method, answered in zip(candidates, row[1:]) if answered
+    )
 
 
 async def password_only_user_count(

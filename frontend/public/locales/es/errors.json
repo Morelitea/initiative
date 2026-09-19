@@ -679,6 +679,7 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: una contraseña, el inicio de sesión único o una clave de acceso. Un código de autenticación las acompaña, no las sustituye.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Esta comunidad pide un código de tu aplicación de autenticación. Introduce uno para continuar.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Esta comunidad pide una clave de acceso. Presenta una para continuar.",
+  "RECENT_PROOF_REQUIRED": "Este cambio necesita antes un inicio de sesión reciente.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Introduce tu código de autenticación para usar el acceso de emergencia.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "El acceso de emergencia necesita una aplicación de autenticación y esta cuenta no tiene ninguna. Configúrala primero en Seguridad.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Nada respondió en esa dirección",
@@ -705,5 +706,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "La plantilla debe ser una página de este wiki",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Esa regla no es vuestra",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Conectad ese proveedor a vuestra comunidad antes de decir qué significan sus grupos",
-  "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí"
+  "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí",
+  "PASSWORD_IS_LAST_METHOD": "Tu contraseña es la única forma de entrar en esta cuenta. Añade antes una clave de acceso.",
+  "PASSKEY_IS_LAST_METHOD": "Esta clave de acceso es la única forma de entrar en esta cuenta. Establece antes una contraseña o añade otra clave de acceso.",
+  "PASSWORD_NOT_HELD": "Esta cuenta no tiene contraseña."
 }

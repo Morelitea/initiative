@@ -534,3 +534,60 @@ async def test_two_ways_in_withdrawn_together_strand_the_account(session):
         )
         == 1
     )
+
+
+# ---------------------------------------------------------------------------
+# Which ways in an account has today
+# ---------------------------------------------------------------------------
+
+
+async def _withdraw_passkeys(session) -> None:
+    """Leave the deployment permitting the other three."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso", "totp"]
+    session.add(row)
+    await session.commit()
+
+
+async def test_ways_in_reads_the_account_and_the_deployment(session):
+    """Both halves decide it: what the account holds, and what is permitted."""
+    from app.core.login_methods import LoginMethod
+    from app.services.auth.identity import ways_in
+    from app.testing.factories import create_auth_provider, create_federated_identity
+
+    holder = await create_user(session)
+    assert await ways_in(session, user_id=holder.id) == frozenset(
+        {LoginMethod.password}
+    )
+
+    await _store_passkey(session, holder)
+    assert await ways_in(session, user_id=holder.id) == frozenset(
+        {LoginMethod.password, LoginMethod.passkey}
+    )
+
+    provider = await create_auth_provider(session, slug="corp")
+    await create_federated_identity(session, holder, provider=provider)
+    assert await ways_in(session, user_id=holder.id) == frozenset(
+        {LoginMethod.password, LoginMethod.passkey, LoginMethod.sso}
+    )
+
+    # Withdrawn, the credential the account still holds opens nothing.
+    await _withdraw_passkeys(session)
+    assert await ways_in(session, user_id=holder.id) == frozenset(
+        {LoginMethod.password, LoginMethod.sso}
+    )
+
+
+async def test_an_account_holding_nothing_has_no_way_in(session):
+    from app.core.login_methods import LoginMethod
+    from app.services.auth.identity import ways_in
+
+    stranded = await create_user(session, hashed_password=None)
+    assert await ways_in(session, user_id=stranded.id) == frozenset()
+
+    await _store_passkey(session, stranded)
+    assert await ways_in(session, user_id=stranded.id) == frozenset(
+        {LoginMethod.passkey}
+    )

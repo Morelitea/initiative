@@ -679,6 +679,7 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un mot de passe, l'authentification unique ou une clé d'accès. Un code d'authentification s'y ajoute, il ne les remplace pas.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Cette communauté demande un code de votre application d'authentification. Saisissez-en un pour continuer.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Cette communauté demande une clé d'accès. Présentez-en une pour continuer.",
+  "RECENT_PROOF_REQUIRED": "Ce changement demande d'abord une connexion récente.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Saisissez votre code d'authentification pour utiliser l'accès d'urgence.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "L'accès d'urgence nécessite une application d'authentification, et ce compte n'en a pas. Configurez-en une dans Sécurité d'abord.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Rien n’a répondu à cette adresse",
@@ -705,5 +706,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Le modèle doit être une page de ce wiki",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Cette règle n'est pas la vôtre",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connectez ce fournisseur à votre communauté avant de dire ce que ses groupes signifient",
-  "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là"
+  "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là",
+  "PASSWORD_IS_LAST_METHOD": "Votre mot de passe est le seul accès à ce compte. Ajoutez d'abord une clé d'accès.",
+  "PASSKEY_IS_LAST_METHOD": "Cette clé d'accès est le seul accès à ce compte. Définissez d'abord un mot de passe ou ajoutez une autre clé d'accès.",
+  "PASSWORD_NOT_HELD": "Ce compte n'a pas de mot de passe."
 }

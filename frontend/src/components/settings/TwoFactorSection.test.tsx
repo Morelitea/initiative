@@ -74,6 +74,18 @@ const notEnrolled = {
   isLoading: false,
   isError: false,
 };
+/** No password at all, and not enrolled: the codes are still the way back. */
+const passwordless = {
+  data: {
+    enrolled: false,
+    recovery_codes_remaining: 7,
+    password_required: false,
+    offered: true,
+    passwordless: true,
+  },
+  isLoading: false,
+  isError: false,
+};
 const enrolled = {
   data: {
     enrolled: true,
@@ -213,6 +225,24 @@ describe("TwoFactorSection", () => {
 
     await user.click(screen.getByRole("button", { name: /set up/i }));
     expect(await screen.findByLabelText(/current password/i)).not.toBeRequired();
+  });
+
+  it("keeps the recovery codes on offer for an account with no password", async () => {
+    // Not enrolled, so the block above says nothing about codes — and for this
+    // account they are the way to set a password again.
+    const user = userEvent.setup();
+    mocks.status.mockReturnValue(passwordless);
+    renderWithProviders(<TwoFactorSection />);
+
+    expect(screen.getByText(/7 recovery codes left/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /set up/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /new recovery codes/i }));
+
+    // Nothing to re-check, so no password step stands between the two.
+    expect(mocks.regenerate).toHaveBeenCalledWith({ data: { current_password: null } });
+    expect(await screen.findByText("eeeee-fffff")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
   });
 
   it("does not offer setup where the deployment does not offer it", () => {

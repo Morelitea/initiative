@@ -358,6 +358,23 @@ async def revoke_active_device_tokens(
     )
 
 
+async def revoke_device_tokens_first(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> None:
+    """Revoke the account's device tokens and commit them, ahead of the rest.
+
+    They live on a table the system engine holds no UPDATE on, so the two
+    halves of a credential change cannot share a transaction. This half goes
+    first, which is the order that fails safely: everything after it is staged,
+    so a failure there leaves the account signed out on its phones with the
+    password where it was.
+    """
+    await revoke_active_device_tokens(session, user_id=user_id)
+    await session.commit()
+
+
 async def revoke_user_sessions(
     session: AsyncSession,
     *,

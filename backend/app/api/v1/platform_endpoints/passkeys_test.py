@@ -1565,3 +1565,96 @@ async def test_a_withdrawn_method_stops_a_step_up(
     )
     assert finished.status_code == 403
     assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+
+
+# ---------------------------------------------------------------------------
+# The last way in
+# ---------------------------------------------------------------------------
+
+
+async def _passwordless(session: AsyncSession, email: str) -> User:
+    return await create_user(
+        session,
+        email=email,
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+
+
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
+
+
+async def test_the_last_credential_of_a_passwordless_account_stays(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing else opens a session for this account, so the credential is not
+    somebody's to remove."""
+    user = await _passwordless(session, "pk-last@example.com")
+    row = await _credential_for(session, user, credential_id="last-one")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove",
+        json={},
+        headers=await _just_signed_in(session, user),
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
+
+
+async def test_a_withdrawn_method_does_not_free_the_last_credential(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment that stopped accepting passkeys leaves such an account
+    with nothing that opens a session, so the credential stays."""
+    user = await _passwordless(session, "pk-last-withdrawn@example.com")
+    row = await _credential_for(session, user, credential_id="last-withdrawn")
+    headers = await _just_signed_in(session, user)
+    await _withdraw_passkeys(session)
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove", json={}, headers=headers
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
+
+
+async def test_a_password_beside_it_lets_the_credential_go(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "pk-last-password@example.com")
+    row = await _credential_for(session, user, credential_id="last-with-password")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove",
+        json={"current_password": PASSWORD},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 204, response.text
+
+
+async def test_a_second_credential_lets_the_first_go(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _passwordless(session, "pk-two-keys@example.com")
+    first = await _credential_for(session, user, credential_id="one-of-two")
+    await _credential_for(session, user, credential_id="two-of-two")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{first.id}/remove",
+        json={},
+        headers=await _just_signed_in(session, user),
+    )
+    assert response.status_code == 204, response.text

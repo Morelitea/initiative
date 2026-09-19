@@ -1456,7 +1456,16 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
+    "setPasswordTitle": "Passwort festlegen",
+    "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
+    "removePassword": "Passwort entfernen",
+    "removePasswordFromBrowser": "Gib dein Passwort in einem Browser auf, der bei dieser Seite angemeldet ist.",
+    "removePasswordTitle": "Passwort entfernen",
+    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Wenn du weniger als drei Codes hast, bekommst du einen neuen Satz angezeigt – bewahre ihn auf.",
+    "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal. Alle Codes, die du vorher hattest, funktionieren nicht mehr.",
+    "passwordRemoved": "Dein Passwort wurde entfernt.",
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
   },
   "privacy": {
     "title": "Privatsphäre",
@@ -1555,7 +1564,8 @@
     "codePlaceholder": "123456",
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
-    "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+    "notOffered": "Diese Installation bietet die Authenticator-App nicht an.",
+    "passwordlessCodes": "Dein Konto meldet sich ohne Passwort an. Mit diesen Codes legst du wieder eines fest, falls du deinen Passkey verlierst."
   },
   "passkeys": {
     "title": "Passkeys",

@@ -251,6 +251,14 @@
       "textBody": "Two-factor authentication is now off for your account, and your recovery codes have been discarded."
     }
   },
+  "passwordRemoved": {
+    "subject": "Your password was removed",
+    "title": "Your password was removed",
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "body": "Your account no longer has a password. From now on you sign in with your passkey or your sign-in provider. Keep your recovery codes somewhere safe — they are how you set a password again if you ever need one.",
+    "fallbackText": "If this wasn't you, use one of your recovery codes to set a password straight away and get in touch with whoever runs this site.",
+    "textBody": "Your account no longer has a password. You now sign in with your passkey or your sign-in provider."
+  },
   "passkey": {
     "greeting": "Hello <strong>{{name}}</strong>,",
     "fallbackText": "If this wasn't you, change your password straight away and get in touch with whoever runs this site.",

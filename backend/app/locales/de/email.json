@@ -251,6 +251,14 @@
       "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto deaktiviert, und deine Wiederherstellungscodes wurden verworfen."
     }
   },
+  "passwordRemoved": {
+    "subject": "Dein Passwort wurde entfernt",
+    "title": "Dein Passwort wurde entfernt",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "Dein Konto hat kein Passwort mehr. Ab jetzt meldest du dich mit deinem Passkey oder über deinen Anmeldedienst an. Bewahre deine Wiederherstellungscodes gut auf – damit kannst du wieder ein Passwort festlegen, falls du eines brauchst.",
+    "fallbackText": "Falls du das nicht warst, lege mit einem deiner Wiederherstellungscodes sofort wieder ein Passwort fest und wende dich an die Betreiber dieser Seite.",
+    "textBody": "Dein Konto hat kein Passwort mehr. Du meldest dich jetzt mit deinem Passkey oder über deinen Anmeldedienst an."
+  },
   "passkey": {
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",
