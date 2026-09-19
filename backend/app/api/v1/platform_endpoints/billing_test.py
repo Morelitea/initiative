@@ -499,6 +499,72 @@ async def test_support_source_may_only_raise_storage(
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
 
 
+async def test_trial_expiry_sets_status_unattributed(
+    client: AsyncClient, session: AsyncSession
+):
+    guild = await create_guild(session, max_storage_bytes=4096)
+
+    expired = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            source="trial_expiry",
+            event_id="evt-trial-expiry",
+            status="read_only",
+        ),
+    )
+    assert expired.status_code == 200, expired.text
+    assert expired.json()["status"] == "read_only"
+    assert expired.json()["max_storage_bytes"] == 4096
+
+    row = (
+        await session.exec(
+            select(BillingEventLog).where(
+                BillingEventLog.event_id == "evt-trial-expiry"
+            )
+        )
+    ).one()
+    assert (row.source, row.actor) == ("trial_expiry", None)
+
+
+async def test_admin_manual_sets_status_and_names_the_actor(
+    client: AsyncClient, session: AsyncSession
+):
+    guild = await create_guild(session)
+
+    suspended = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            source="admin_manual",
+            actor="staff:7",
+            event_id="evt-admin-suspend",
+            status="suspended",
+        ),
+    )
+    assert suspended.status_code == 200, suspended.text
+    assert suspended.json()["status"] == "suspended"
+
+    anonymous = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(guild.id, source="admin_manual", status="active"),
+    )
+    assert anonymous.status_code == 422
+    assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
+
+    row = (
+        await session.exec(
+            select(BillingEventLog).where(
+                BillingEventLog.event_id == "evt-admin-suspend"
+            )
+        )
+    ).one()
+    assert (row.source, row.actor) == ("admin_manual", "staff:7")
+
+
 async def test_support_source_cannot_lower_storage(
     client: AsyncClient, session: AsyncSession
 ):

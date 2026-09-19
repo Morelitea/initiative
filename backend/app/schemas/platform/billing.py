@@ -18,6 +18,11 @@ from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
 
+_ACTOR_REQUIRED_SOURCES = frozenset(
+    {BillingSource.support_manual, BillingSource.admin_manual}
+)
+
+
 class BillingGuildTierApply(SanitizedBaseModel):
     """Body of ``POST /billing/guild-tier``.
 
@@ -52,9 +57,9 @@ class BillingGuildTierApply(SanitizedBaseModel):
         actor; other fields require paddle_webhook or platinum_invoice.
         (The cannot-lower rule for the storage cap needs the current DB value
         and lives in the service — see ``apply_guild_tier``.)"""
+        if self.source in _ACTOR_REQUIRED_SOURCES and not self.actor:
+            raise ValueError(BillingMessages.ACTOR_REQUIRED)
         if self.source is BillingSource.support_manual:
-            if not self.actor:
-                raise ValueError(BillingMessages.ACTOR_REQUIRED)
             forbidden = {"tier_name", "max_users", "status"}
             if forbidden & self.model_fields_set:
                 raise ValueError(BillingMessages.SUPPORT_SOURCE_RESTRICTED)
