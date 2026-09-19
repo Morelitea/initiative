@@ -3,6 +3,13 @@ services:
     image: postgres:17
     container_name: initiative-db
     restart: unless-stopped
+    # Docker keeps this container's output in a file on disk. These lines cap
+    # it at the last 50 MB, in five files it rotates through.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-initiative}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-initiative}
@@ -22,6 +29,14 @@ services:
     image: morelitea/initiative:latest
     container_name: initiative
     restart: unless-stopped
+    # The same cap here. The audit stream is part of this container's output,
+    # so raise it if you keep that record on this box rather than shipping it
+    # to a log platform.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     volumes:
       - ./uploads:/app/uploads
     environment:

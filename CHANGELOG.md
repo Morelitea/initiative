@@ -30,6 +30,7 @@ below them are held here until the grant is offered, rather than announced in
 
 ### Changed
 
+- **The example compose file says how much log to keep** — Docker holds a container's output in a file on disk, and the example never said when to stop, so on a server left running it grew until somebody went looking for the disk space. It now keeps the last 50 MB per container, rotated through five files. Deployed from an earlier copy? The same four lines under each service bring yours in line. If you ship your logs somewhere else, that is where the audit record belongs; this is the buffer in front of it.
 - **What a community may decide for itself is two switches** — **Its own sign-in** (connect providers, place people, require arrival through one) and **Its own security standard** (refuse API keys, shorten sessions), in the community's **Manage** panel. Neither needs the other, replacing a ladder of three nested ticks where the master quietly bundled the compliance settings.
 - **A community's Authentication tab is now Security** — in two sections, *Who gets in* and *On what terms*, each appearing only where the operator granted it. AI and Apps become one **Integrations** tab.
 - **Quiet hours tell you what happened, not how much** — when the window closes, the mail it held arrives as itself, grouped by community, instead of a line counting what you missed.
