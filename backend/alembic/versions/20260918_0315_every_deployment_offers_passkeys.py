@@ -21,8 +21,9 @@ issued.
 
 The backfill writes to a table that already carries ``FORCE ROW LEVEL
 SECURITY``, so it lifts and restores it around the write (CLAUDE.md's rule for
-an existing table, and what 0292 does). The row count is asserted rather than
-assumed: a policy-bound UPDATE that matches nothing reports success.
+an existing table, and what 0292 does). The rows waiting for the value are
+counted first and the update is asserted to have matched exactly that many, so
+a write that reaches none of them fails here rather than reporting success.
 
 Revision ID: 20260918_0315
 Revises: 20260918_0314
@@ -48,6 +49,14 @@ def upgrade() -> None:
 
     op.execute("ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY")
     try:
+        # The singleton, or nothing at all on a database that has not seeded
+        # yet — and nothing either where the value is already in the set.
+        waiting = conn.execute(
+            sa.text(
+                "SELECT count(*) FROM public.app_settings "
+                "WHERE NOT ('passkey' = ANY(login_methods))"
+            )
+        ).scalar_one()
         result = conn.execute(
             sa.text(
                 "UPDATE public.app_settings "
@@ -55,9 +64,9 @@ def upgrade() -> None:
                 "WHERE NOT ('passkey' = ANY(login_methods))"
             )
         )
-        # One settings row, or none on a database that has not seeded yet.
-        assert result.rowcount <= 1, (
-            f"app_settings is a singleton; {result.rowcount} rows matched"
+        assert result.rowcount == waiting, (
+            f"{waiting} app_settings row(s) were to gain the value; "
+            f"{result.rowcount} matched"
         )
     finally:
         op.execute("ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY")

@@ -437,27 +437,44 @@ async def finish_passkey_sign_in(
         await admin_session.commit()
         raise _sign_in_invalid()
 
-    assertion = await passkey_service.finish_authentication(
+    outcome = await passkey_service.finish_authentication(
         admin_session,
         credential=payload.credential,
         expected_challenge=webauthn.base64url_to_bytes(value),
     )
-    if assertion is None:
-        # No account resolved — the credential is the only thing that would
-        # have named one — so the record keeps a method and a reason and no
-        # identity. It commits on its own.
+    if isinstance(outcome, passkey_service.AssertionRefusal):
+        # Recorded against the account the credential belongs to where the id
+        # named a row, and against nobody where it named none — the credential
+        # is the only thing that would have said who. The client is answered
+        # the same either way. The record commits on its own.
+        refused_for = (
+            await admin_session.get(User, outcome.passkey.user_id)
+            if outcome.passkey is not None
+            else None
+        )
         await record_sign_in_failure(
-            admin_session, None, method="passkey", reason="assertion"
+            admin_session, refused_for, method="passkey", reason=outcome.reason
         )
         raise _sign_in_invalid()
 
     # Read off the credential while the row is attached: the helpers below may
     # roll the transaction back, which expires its attributes.
-    passkey_id = str(assertion.passkey.id)
-    backed_up = assertion.passkey.backed_up
-    user = await admin_session.get(User, assertion.passkey.user_id)
+    passkey_id = str(outcome.passkey.id)
+    backed_up = outcome.passkey.backed_up
+    account_id = outcome.passkey.user_id
+
+    user = await admin_session.get(User, account_id)
     if user is None or user.status != UserStatus.active:
-        await admin_session.commit()
+        # No session to open, so the counter the assertion moved goes back with
+        # the transaction and the refusal is recorded on its own. The account
+        # is read again because the rollback expired the row.
+        await admin_session.rollback()
+        await record_sign_in_failure(
+            admin_session,
+            await admin_session.get(User, account_id),
+            method="passkey",
+            reason="inactive",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )

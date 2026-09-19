@@ -935,17 +935,56 @@ async def test_a_credential_nobody_registered_is_refused(
     assert len(events) == 1
     detail = events[0].envelope["detail"]
     assert detail["method"] == "passkey"
-    assert detail["reason"] == "assertion"
+    assert detail["reason"] == "unknown"
     # Nobody resolved, so the record names nobody.
     assert events[0].target_user_id is None
+
+
+async def test_a_credential_that_does_not_verify_names_its_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The client is told the same thing either way; the record is not. A
+    credential this deployment holds names the account it belongs to."""
+    user = await _account(session, "pk-unverified@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+
+    def refuse(**kwargs):
+        raise ValueError("signature")
+
+    monkeypatch.setattr(
+        passkey_service.webauthn, "verify_authentication_response", refuse
+    )
+
+    challenge = await _begin_sign_in(client)
+    response = await client.post(
+        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+    session.expire_all()
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].target_user_id == user_id
+    assert events[0].envelope["detail"]["reason"] == "invalid"
 
 
 async def test_an_inactive_account_is_refused(
     client: AsyncClient, session: AsyncSession, assertion
 ):
+    """No session, nothing kept from the assertion, and the refusal written
+    down against the account the credential named."""
     user = await _account(session, "pk-gone@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    row = await _credential_for(session, user)
+    row_id = row.id
 
     user.status = UserStatus.deactivated
     session.add(user)
@@ -963,6 +1002,24 @@ async def test_an_inactive_account_is_refused(
         await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
     ).all()
     assert sessions == []
+
+    # The counter the assertion moved went back with the transaction.
+    stored = await session.get(UserPasskey, row_id)
+    assert stored.sign_count == 0
+    assert stored.last_used_at is None
+
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].target_user_id == user_id
+    detail = events[0].envelope["detail"]
+    assert detail["method"] == "passkey"
+    assert detail["reason"] == "inactive"
 
 
 async def test_a_registration_challenge_cannot_finish_a_sign_in(

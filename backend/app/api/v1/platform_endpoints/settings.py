@@ -14,6 +14,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
@@ -112,10 +113,6 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
-def _mobile_redirect_uri() -> str:
-    return "initiative://oidc/callback"
-
-
 def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
@@ -142,7 +139,7 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
         client_id=provider.client_id if provider else None,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
-        mobile_redirect_uri=_mobile_redirect_uri(),
+        mobile_redirect_uri=MOBILE_CALLBACK_URI,
         provider_name=provider.display_name if provider else None,
         scopes=platform_provider_service.scopes_list(provider)
         if provider
@@ -176,8 +173,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             LoginMethodStatus(
                 method=method,
                 enabled=method in permitted,
-                would_strand=await auth_posture.stranded_by_withdrawing(
-                    session, method
+                would_strand=await auth_posture.stranded_between(
+                    session, current=permitted, requested=permitted - {method}
                 ),
             )
             for method in LoginMethod

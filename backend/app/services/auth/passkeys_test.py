@@ -264,7 +264,9 @@ async def test_a_credential_nobody_registered_does_not_answer(session, monkeypat
         credential={"rawId": "bm90LWEtY3JlZGVudGlhbA"},
         expected_challenge=b"challenge",
     )
-    assert result is None
+    assert result.reason == "unknown"
+    # Nothing to name an account with.
+    assert result.passkey is None
 
 
 @pytest.mark.integration
@@ -286,7 +288,10 @@ async def test_a_credential_from_another_domain_does_not_answer(session, monkeyp
     result = await passkeys.finish_authentication(
         session, credential={"rawId": raw_id}, expected_challenge=b"challenge"
     )
-    assert result is None
+    assert result.reason == "wrong_rp"
+    # The row is handed back, so the caller can write the refusal down against
+    # the account whose credential it is.
+    assert result.passkey.user_id == user.id
 
 
 @pytest.mark.integration
@@ -345,12 +350,37 @@ async def test_a_malformed_credential_id_does_not_raise(session, monkeypatch):
 
     monkeypatch.setattr(settings, "APP_URL", "https://bad.example.org")
 
-    assert (
-        await passkeys.finish_authentication(
-            session, credential={}, expected_challenge=b"challenge"
-        )
-        is None
+    result = await passkeys.finish_authentication(
+        session, credential={}, expected_challenge=b"challenge"
     )
+    assert result.reason == "unknown"
+    assert result.passkey is None
+
+
+@pytest.mark.integration
+async def test_an_assertion_that_does_not_verify_names_its_credential(
+    session, monkeypatch
+):
+    """The refusal the caller writes down is about an account, even though
+    what it answers the client with says nothing about one."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://unverified.example.org")
+    user = await create_user(session, email="pk-unverified@example.com")
+    await passkeys.store(session, user_id=user.id, registered=_registered(), name="Key")
+
+    def refuse(**kwargs):
+        raise ValueError("signature")
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", refuse)
+
+    result = await passkeys.finish_authentication(
+        session,
+        credential={"rawId": "Y3JlZGVudGlhbC1vbmU"},
+        expected_challenge=b"challenge",
+    )
+    assert result.reason == "invalid"
+    assert result.passkey.user_id == user.id
 
 
 # ---------------------------------------------------------------------------

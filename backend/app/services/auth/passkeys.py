@@ -19,7 +19,7 @@ import ipaddress
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import webauthn
@@ -342,35 +342,51 @@ class Assertion:
     user_verified: bool
 
 
+@dataclass(frozen=True)
+class AssertionRefusal:
+    """Why an assertion proved nothing, and the credential it named.
+
+    ``unknown`` is a credential id this deployment holds no row for,
+    ``wrong_rp`` one registered while it answered to another domain, and
+    ``invalid`` one whose signature did not check out. ``passkey`` is the row
+    the id named where there is one, so the caller can write the refusal down
+    against the account it belongs to. What the caller answers the client with
+    is the same for all three.
+    """
+
+    reason: Literal["unknown", "wrong_rp", "invalid"]
+    passkey: UserPasskey | None = None
+
+
 async def finish_authentication(
     session: AsyncSession, *, credential: dict[str, Any], expected_challenge: bytes
-) -> Assertion | None:
+) -> Assertion | AssertionRefusal:
     """Check an assertion and record that the credential was used.
 
-    ``None`` when the credential is unknown, was made for another domain, or
-    does not verify — one answer for all three, because the caller's refusal is
-    the same either way. An assertion that did not verify the person is one of
-    the ones that does not verify: user verification is required here.
+    An :class:`AssertionRefusal` where nothing was proved, carrying which of
+    the three it was and the credential the id named. An assertion that did not
+    verify the person is one of the ones that does not verify: user
+    verification is required here.
     """
     raw_id = credential.get("rawId") or credential.get("id")
     if not raw_id:
-        return None
+        return AssertionRefusal(reason="unknown")
     try:
         credential_id = webauthn.base64url_to_bytes(raw_id)
     except Exception:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     row = await find_by_credential_id(
         session, credential_id=credential_id, for_update=True
     )
     if row is None:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     rp_id = relying_party_id()
     if row.rp_id != rp_id:
         # Registered when this deployment answered to another name. It cannot
         # verify here, and saying so is better than a failed signature.
-        return None
+        return AssertionRefusal(reason="wrong_rp", passkey=row)
 
     try:
         verified = webauthn.verify_authentication_response(
@@ -383,7 +399,7 @@ async def finish_authentication(
             require_user_verification=True,
         )
     except Exception:
-        return None
+        return AssertionRefusal(reason="invalid", passkey=row)
 
     row.sign_count = int(verified.new_sign_count)
     row.last_used_at = _now()

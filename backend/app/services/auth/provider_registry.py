@@ -33,6 +33,7 @@ from app.schemas.platform.settings import (
     AuthProviderUpdate,
 )
 from app.services.auth import identity as identity_service
+from app.services.platform import auth_posture
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,9 @@ async def delete_provider(session: AsyncSession, provider_id: int) -> None:
         select(AuthProvider.id).where(AuthProvider.id == row.id).with_for_update()
     )
     stranded = await identity_service.sole_credential_user_count(
-        session, provider_id=row.id
+        session,
+        provider_id=row.id,
+        permitted=await auth_posture.resolve_login_methods(session),
     )
     if stranded:
         logger.info(
