@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -655,6 +656,108 @@ async def test_create_from_template_shifts_task_dates(
     assert _as_utc(tasks["Three weeks in"]["due_date"]) == datetime(
         2026, 4, 27, 12, 0, tzinfo=timezone.utc
     )
+
+
+async def _relations_of(client: AsyncClient, actor, task_id: int) -> list[dict]:
+    response = await client.get(
+        actor.g(f"/relationships/?entity=task:{task_id}"), headers=actor.headers
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+async def _template_with_dependency(session: AsyncSession, admin) -> tuple:
+    """A template whose second task is blocked by its first."""
+    template = await create_project(
+        session, admin.initiative, admin.user, name="Tpl", is_template=True
+    )
+    first = await create_task(session, template, title="Design")
+    second = await create_task(session, template, title="Build")
+    await create_relationship(
+        session,
+        admin.guild,
+        source=(SearchEntityType.task, second.id),
+        target=(SearchEntityType.task, first.id),
+        relationship_type=RelationshipType.depends_on,
+    )
+    return template, first, second
+
+
+@pytest.mark.integration
+async def test_create_from_template_copies_task_relations(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A dependency between two template tasks lands between their copies.
+
+    Both ends are remapped to the new project's tasks; the template's own
+    tasks keep their edge and gain nothing pointing at the copies.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    template, first, second = await _template_with_dependency(session, admin)
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={
+            "name": "From template",
+            "initiative_id": admin.initiative.id,
+            "template_id": template.id,
+        },
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    new_first, new_second = tasks["Design"], tasks["Build"]
+    assert {new_first["id"], new_second["id"]}.isdisjoint({first.id, second.id})
+
+    blocked = await _relations_of(client, admin, new_second["id"])
+    assert [
+        (r["relationship_type"], r["direction"], r["other"]["id"]) for r in blocked
+    ] == [("depends_on", "outbound", new_first["id"])]
+    blocking = await _relations_of(client, admin, new_first["id"])
+    assert [(r["direction"], r["other"]["id"]) for r in blocking] == [
+        ("inbound", new_second["id"])
+    ]
+
+    original = await _relations_of(client, admin, first.id)
+    assert [r["other"]["id"] for r in original] == [second.id]
+
+
+@pytest.mark.integration
+async def test_duplicate_project_copies_task_relations(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Duplicating a project carries its task relations, ids remapped, and
+    a symmetric relation to something outside the project is kept as-is."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    source, first, second = await _template_with_dependency(session, admin)
+    other_project = await create_project(
+        session, admin.initiative, admin.user, name="Elsewhere"
+    )
+    outside = await create_task(session, other_project, title="Outside")
+    await create_relationship(
+        session,
+        admin.guild,
+        source=(SearchEntityType.task, outside.id),
+        target=(SearchEntityType.task, first.id),
+        relationship_type=RelationshipType.related_to,
+    )
+
+    response = await client.post(
+        admin.g(f"/projects/{source.id}/duplicate"),
+        headers=admin.headers,
+        json={"name": "Copy"},
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    new_first, new_second = tasks["Design"], tasks["Build"]
+
+    relations = await _relations_of(client, admin, new_first["id"])
+    assert sorted((r["relationship_type"], r["other"]["id"]) for r in relations) == [
+        ("depends_on", new_second["id"]),
+        ("related_to", outside.id),
+    ]
 
 
 @pytest.mark.integration
