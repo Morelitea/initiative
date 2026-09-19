@@ -276,12 +276,6 @@
     "timezone": "Zeitzone",
     "timezonePlaceholder": "Zeitzone auswählen",
     "timezoneEmpty": "Keine Zeitzone gefunden.",
-    "overdueTime": "Erinnerungszeit für Überfälligkeiten",
-    "overdueTimeHelp": "Tägliche Erinnerungszeit (verwendet die Zeitzone oben).",
-    "saveSchedule": "Zeitplan speichern",
-    "savingSchedule": "Speichern…",
-    "scheduleSuccess": "Benachrichtigungszeitplan aktualisiert",
-    "scheduleError": "Benachrichtigungszeitplan konnte nicht aktualisiert werden",
     "toggleError": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
     "categoryHeader": "Kategorie",
     "categories": {
@@ -311,8 +305,6 @@
       "day_one": "{{count}} Tag vorher",
       "day_other": "{{count}} Tage vorher"
     },
-    "scheduleTitle": "Tägliche Erinnerung",
-    "scheduleDescription": "Wann die Erinnerung an Überfälliges rausgeht – und nach welcher Uhr.",
     "channelsTitle": "Worüber du informiert wirst",
     "channelsDescription": "Eine Zeile pro Art von Neuigkeit, ein Schalter pro Kanal. Nichts ist aktiv, was du nicht aktiv gelassen hast.",
     "switchLabel": "{{category}} über {{channel}}",
@@ -360,6 +352,52 @@
         "personal": "Nur was mich nennt",
         "nothing": "Nichts"
       }
+    },
+    "timing": {
+      "title": "Wann du davon erfährst",
+      "description": "E-Mails können sofort oder gesammelt ankommen. Zurückgehalten wird nur, worum du gebeten hast.",
+      "cadence": {
+        "label": "E-Mail kommt",
+        "instant": "Sofort",
+        "hourly": "Einmal pro Stunde",
+        "daily": "Einmal pro Tag",
+        "weekly": "Einmal pro Woche",
+        "help": "Alles Zurückgehaltene kommt in einer Nachricht."
+      },
+      "day": "Am",
+      "time": "Um",
+      "timeHelp": "Deine geplante E-Mail und die Erinnerung an überfällige Aufgaben gehen zu dieser Zeit raus.",
+      "personalInstant": "An mich gerichtetes sofort senden",
+      "personalInstantHelp": "Erwähnungen, Antworten, dir zugewiesene Aufgaben, Einladungen und Direktnachrichten überspringen die Warteschlange.",
+      "respectPresence": "Nicht stören, während ich Initiative nutze",
+      "respectPresenceHelp": "Wenn du schon hier bist, hat die Glocke es dir gesagt. E-Mail wartet ein paar Minuten, Mobil bleibt still.",
+      "pause": {
+        "title": "Benachrichtigungen pausieren",
+        "description": "E-Mail und Mobil pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
+        "active": "Pausiert bis {{until}}",
+        "scheduled": "Pause von {{from}} bis {{until}}",
+        "resume": "Fortsetzen",
+        "cancel": "Abbrechen",
+        "resumed": "Benachrichtigungen fortgesetzt",
+        "from": "Von",
+        "until": "Bis",
+        "fromPlaceholder": "Heute",
+        "untilPlaceholder": "Tag wählen",
+        "confirm": "Pausieren",
+        "help": "Lass den Beginn leer, um sofort zu starten. Beide Tage zählen dazu.",
+        "note": "Passwort-Zurücksetzungen und Anmelde-E-Mails kommen weiterhin an. Das sind keine Benachrichtigungen."
+      },
+      "saved": "Gespeichert",
+      "saveError": "Einstellung konnte nicht gespeichert werden"
+    },
+    "weekdays": {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag",
+      "7": "Sonntag"
     }
   },
   "dangerZone": {

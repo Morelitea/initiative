@@ -274,5 +274,55 @@
       "body": "The passkey called <strong>{{passkey}}</strong> can no longer be used to sign in. The other ways you sign in are unchanged, and you are still signed in everywhere you were.",
       "textBody": "The passkey called {{passkey}} was removed from your account and can no longer be used to sign in."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "The last hour on Initiative",
+      "subject_one": "{{count}} thing from the last hour",
+      "subject_other": "{{count}} things from the last hour"
+    },
+    "daily": {
+      "title": "Your day on Initiative",
+      "subject_one": "{{count}} thing from yesterday",
+      "subject_other": "{{count}} things from yesterday"
+    },
+    "weekly": {
+      "title": "Your week on Initiative",
+      "subject_one": "{{count}} thing from last week",
+      "subject_other": "{{count}} things from last week"
+    },
+    "away": {
+      "title": "While you were away",
+      "subject_one": "{{count}} thing happened while you were away",
+      "subject_other": "{{count}} things happened while you were away"
+    },
+    "recent": {
+      "title": "What just happened",
+      "subject_one": "{{count}} new thing on Initiative",
+      "subject_other": "{{count}} new things on Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Direct messages",
+      "connections": "Connections",
+      "account": "Your account",
+      "other": "Across your communities"
+    },
+    "category": {
+      "mentions": "Mentions",
+      "replies": "Replies",
+      "comments": "Comments on your work",
+      "reactions": "Reactions",
+      "assignments": "Task assignments",
+      "due_dates": "Overdue tasks",
+      "membership": "Joining things",
+      "approvals": "Waiting on you",
+      "posts": "Posts",
+      "events": "Events",
+      "event_reminders": "Event reminders",
+      "direct_messages": "Direct messages",
+      "connections": "Connections",
+      "jobs": "Exports and imports",
+      "account": "Your account"
+    }
   }
 }

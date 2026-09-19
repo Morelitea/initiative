@@ -42,7 +42,6 @@ from app.core.security import (
     has_usable_password,
 )
 from app.core.user_input_validators import (
-    normalize_notification_time,
     normalize_reminder_minutes,
     normalize_timezone,
     normalize_week_starts_on,
@@ -1069,12 +1068,6 @@ async def update_users_me(
         normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:
             current_user.timezone = normalized_timezone
-    if "overdue_notification_time" in update_data:
-        normalized_time = normalize_notification_time(
-            update_data["overdue_notification_time"]
-        )
-        if normalized_time:
-            current_user.overdue_notification_time = normalized_time
     if "event_reminder_minutes_before" in update_data:
         # ``None`` is a valid value here (reminders off), so assign directly.
         current_user.event_reminder_minutes_before = normalize_reminder_minutes(

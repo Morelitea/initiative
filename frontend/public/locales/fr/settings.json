@@ -276,12 +276,6 @@
     "timezone": "Fuseau horaire",
     "timezonePlaceholder": "Sélectionner un fuseau horaire",
     "timezoneEmpty": "Aucun fuseau horaire trouvé.",
-    "overdueTime": "Heure de rappel des retards",
-    "overdueTimeHelp": "Heure de rappel quotidien (utilise le fuseau horaire ci-dessus).",
-    "saveSchedule": "Enregistrer le calendrier",
-    "savingSchedule": "Enregistrement…",
-    "scheduleSuccess": "Calendrier de notifications mis à jour",
-    "scheduleError": "Impossible de mettre à jour le calendrier de notifications",
     "toggleError": "Impossible de mettre à jour les paramètres de notifications",
     "categoryHeader": "Catégorie",
     "categories": {
@@ -311,8 +305,6 @@
       "day_one": "{{count}} jour avant",
       "day_other": "{{count}} jours avant"
     },
-    "scheduleTitle": "Rappel quotidien",
-    "scheduleDescription": "Quand part le rappel des retards, et à quelle horloge.",
     "channelsTitle": "Ce dont on vous informe",
     "channelsDescription": "Une ligne par type de nouvelle, un interrupteur par canal. Rien n'est actif que vous n'ayez laissé actif.",
     "switchLabel": "{{category}} par {{channel}}",
@@ -360,6 +352,52 @@
         "personal": "Seulement ce qui me nomme",
         "nothing": "Rien"
       }
+    },
+    "timing": {
+      "title": "Quand vous êtes prévenu",
+      "description": "Les e-mails peuvent arriver aussitôt ou groupés. Rien n'est retenu sans que vous l'ayez demandé.",
+      "cadence": {
+        "label": "L'e-mail arrive",
+        "instant": "Tout de suite",
+        "hourly": "Une fois par heure",
+        "daily": "Une fois par jour",
+        "weekly": "Une fois par semaine",
+        "help": "Tout ce qui est retenu arrive en un seul message."
+      },
+      "day": "Le",
+      "time": "À",
+      "timeHelp": "Votre e-mail programmé, et le rappel des tâches en retard, partent à cette heure.",
+      "personalInstant": "Envoyer tout de suite ce qui m'est adressé",
+      "personalInstantHelp": "Mentions, réponses, tâches qui vous sont assignées, invitations et messages directs passent devant.",
+      "respectPresence": "Ne pas me déranger pendant que j'utilise Initiative",
+      "respectPresenceHelp": "Si vous êtes déjà là, la cloche vous l'a dit. L'e-mail attend quelques minutes et le mobile reste silencieux.",
+      "pause": {
+        "title": "Mettre les notifications en pause",
+        "description": "L'e-mail et le mobile s'arrêtent les jours que vous choisissez. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
+        "active": "En pause jusqu'au {{until}}",
+        "scheduled": "Pause du {{from}} au {{until}}",
+        "resume": "Reprendre",
+        "cancel": "Annuler",
+        "resumed": "Notifications réactivées",
+        "from": "Du",
+        "until": "Au",
+        "fromPlaceholder": "Aujourd'hui",
+        "untilPlaceholder": "Choisir un jour",
+        "confirm": "Mettre en pause",
+        "help": "Laissez le début vide pour commencer maintenant. Les deux jours sont compris.",
+        "note": "Les réinitialisations de mot de passe et les e-mails de connexion arrivent toujours. Ce ne sont pas des notifications."
+      },
+      "saved": "Enregistré",
+      "saveError": "Impossible de mettre à jour quand vous êtes prévenu"
+    },
+    "weekdays": {
+      "1": "lundi",
+      "2": "mardi",
+      "3": "mercredi",
+      "4": "jeudi",
+      "5": "vendredi",
+      "6": "samedi",
+      "7": "dimanche"
     }
   },
   "dangerZone": {

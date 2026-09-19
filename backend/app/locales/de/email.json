@@ -274,5 +274,55 @@
       "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst.",
       "textBody": "Der Passkey {{passkey}} wurde von deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "Die letzte Stunde auf Initiative",
+      "subject_one": "{{count}} Sache aus der letzten Stunde",
+      "subject_other": "{{count}} Sachen aus der letzten Stunde"
+    },
+    "daily": {
+      "title": "Dein Tag auf Initiative",
+      "subject_one": "{{count}} Sache von gestern",
+      "subject_other": "{{count}} Sachen von gestern"
+    },
+    "weekly": {
+      "title": "Deine Woche auf Initiative",
+      "subject_one": "{{count}} Sache aus der letzten Woche",
+      "subject_other": "{{count}} Sachen aus der letzten Woche"
+    },
+    "away": {
+      "title": "Während du weg warst",
+      "subject_one": "{{count}} Sache ist passiert, während du weg warst",
+      "subject_other": "{{count}} Sachen sind passiert, während du weg warst"
+    },
+    "recent": {
+      "title": "Das ist gerade passiert",
+      "subject_one": "{{count}} Neuigkeit auf Initiative",
+      "subject_other": "{{count}} Neuigkeiten auf Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Direktnachrichten",
+      "connections": "Kontakte",
+      "account": "Dein Konto",
+      "other": "Aus deinen Communities"
+    },
+    "category": {
+      "mentions": "Erwähnungen",
+      "replies": "Antworten",
+      "comments": "Kommentare zu deiner Arbeit",
+      "reactions": "Reaktionen",
+      "assignments": "Aufgabenzuweisungen",
+      "due_dates": "Überfällige Aufgaben",
+      "membership": "Neue Mitgliedschaften",
+      "approvals": "Wartet auf dich",
+      "posts": "Beiträge",
+      "events": "Termine",
+      "event_reminders": "Terminerinnerungen",
+      "direct_messages": "Direktnachrichten",
+      "connections": "Kontakte",
+      "jobs": "Exporte und Importe",
+      "account": "Dein Konto"
+    }
   }
 }

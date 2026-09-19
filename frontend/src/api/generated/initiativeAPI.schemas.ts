@@ -483,7 +483,6 @@ export interface AdminUserRead {
   week_starts_on: number;
   recent_tabs_limit: number;
   timezone: string;
-  overdue_notification_time: string;
   event_reminder_minutes_before: number | null;
   last_overdue_notification_at: string | null;
   last_task_assignment_digest_at: string | null;
@@ -3206,6 +3205,55 @@ export interface DocumentUpdate {
   is_template?: boolean | null;
 }
 
+/**
+ * How often email is allowed to arrive.
+ *
+ * One value for the whole account rather than one per category: the category
+ * grid says *whether* something is worth an email and the community dial says
+ * how much a community may say, so a third per-category axis would be a
+ * fifteen-row schedule nobody would fill in. This says when the account reads
+ * its mail, which is one fact about a person.
+ *
+ * There is deliberately no ``never``. Two controls already switch email off,
+ * and standing down for a while is a pause, which has an end date.
+ */
+export type EmailCadence = (typeof EmailCadence)[keyof typeof EmailCadence];
+
+export const EmailCadence = {
+  instant: "instant",
+  hourly: "hourly",
+  daily: "daily",
+  weekly: "weekly",
+} as const;
+
+/**
+ * When this account reads its mail.
+ */
+export interface EmailScheduleInput {
+  cadence?: EmailCadence;
+  at?: string;
+  /**
+   * @minimum 1
+   * @maximum 7
+   */
+  weekday?: number;
+  personal_instant?: boolean;
+}
+
+/**
+ * When this account reads its mail.
+ */
+export interface EmailScheduleOutput {
+  cadence: EmailCadence;
+  at: string;
+  /**
+   * @minimum 1
+   * @maximum 7
+   */
+  weekday: number;
+  personal_instant: boolean;
+}
+
 export interface EmailSettingsResponse {
   host: string | null;
   port: number | null;
@@ -5277,10 +5325,21 @@ export interface QuietHours {
   end: string;
 }
 
+/**
+ * A stand-down in force, as the settings page shows it.
+ */
+export interface PauseRead {
+  since: string;
+  until: string;
+}
+
 export interface NotificationPreferencesRead {
   categories: NotificationCategoryRead[];
   settings: NotificationPreferencesReadSettings;
   quiet_hours: QuietHours | null;
+  email: EmailScheduleOutput;
+  pause: PauseRead | null;
+  respect_presence: boolean;
   guilds: GuildNotificationSettings[];
 }
 
@@ -5295,6 +5354,11 @@ export interface NotificationPreferencesUpdate {
   levels?: NotificationLevelSet[];
   quiet_hours?: QuietHours | null;
   clear_quiet_hours?: boolean;
+  email?: EmailScheduleInput | null;
+  pause_from?: string | null;
+  pause_until?: string | null;
+  clear_pause?: boolean;
+  respect_presence?: boolean | null;
 }
 
 export interface OIDCClaimMappingCreate {
@@ -7815,7 +7879,6 @@ export interface UserRead {
   week_starts_on: number;
   recent_tabs_limit: number;
   timezone: string;
-  overdue_notification_time: string;
   event_reminder_minutes_before: number | null;
   last_overdue_notification_at: string | null;
   last_task_assignment_digest_at: string | null;
@@ -7848,7 +7911,6 @@ export interface UserSelfUpdate {
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;
   timezone?: string | null;
-  overdue_notification_time?: string | null;
   event_reminder_minutes_before?: number | null;
   color_theme?: string | null;
   task_completion_visual_feedback?: string | null;

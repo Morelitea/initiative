@@ -174,5 +174,12 @@
       "jobs": "{{count}} exports and imports",
       "account": "{{count}} account notices"
     }
+  },
+  "holds": {
+    "pause": {
+      "title": "Notifications resumed",
+      "body_one": "{{count}} thing happened while you were away.",
+      "body_other": "{{count}} things happened while you were away."
+    }
   }
 }

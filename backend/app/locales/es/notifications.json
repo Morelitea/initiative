@@ -174,5 +174,12 @@
       "jobs": "{{count}} exportaciones e importaciones",
       "account": "{{count}} avisos de cuenta"
     }
+  },
+  "holds": {
+    "pause": {
+      "title": "Notificaciones reanudadas",
+      "body_one": "{{count}} cosa ocurrió mientras no estabas.",
+      "body_other": "{{count}} cosas ocurrieron mientras no estabas."
+    }
   }
 }

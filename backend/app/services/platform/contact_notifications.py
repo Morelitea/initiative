@@ -139,10 +139,12 @@ async def _write(
     )
 
     prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
-    if notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone):
-        return
-    if not notification_prefs.wants(
-        prefs, notification_type=notification_type, channel=Channel.push
+    if not notification_prefs.reachable(
+        prefs,
+        notification_type=notification_type,
+        channel=Channel.push,
+        tz_name=recipient.timezone,
+        last_active_at=recipient.last_active_at,
     ):
         return
     await push_notifications.send_push_to_user(

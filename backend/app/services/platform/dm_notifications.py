@@ -307,8 +307,9 @@ async def _roll_up(
         # listed them back to themselves would be naming the one person who
         # already knows they are there.
         line["member_names"] = others
+    written = existing
     if existing is None:
-        await user_notifications.create_notification(
+        written = await user_notifications.create_notification(
             session,
             user_id=recipient.id,
             notification_type=NotificationType.direct_message,
@@ -318,15 +319,14 @@ async def _roll_up(
         await user_notifications.refresh_notification(session, existing, data=line)
 
     prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
-    quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
 
     def _wanted(channel: Channel) -> bool:
-        if quiet and channel in notification_prefs.QUIET_CHANNELS:
-            return False
-        return notification_prefs.wants(
+        return notification_prefs.reachable(
             prefs,
             notification_type=NotificationType.direct_message,
             channel=channel,
+            tz_name=recipient.timezone,
+            last_active_at=recipient.last_active_at,
         )
 
     # Push fires per message. A reply to a conversation somebody has already
@@ -341,27 +341,47 @@ async def _roll_up(
 
     # Email does not. It is the channel for somebody who is not there at all,
     # and one per message would be a mailbox nobody could use -- so it fires on
-    # the transition into unread, and again once the line has been read.
-    if existing is None and _wanted(Channel.email):
-        await _email(session, recipient=recipient, sender_name=sender_name)
+    # the transition into unread, and again once the line has been read. It is
+    # asked of ``wants`` rather than ``reachable`` because a held email is
+    # deferred rather than dropped; when it goes out is the outbox's to decide.
+    if existing is None and notification_prefs.wants(
+        prefs,
+        notification_type=NotificationType.direct_message,
+        channel=Channel.email,
+    ):
+        await _email(
+            session, recipient=recipient, sender_name=sender_name, notification=written
+        )
 
 
-async def _email(session: AsyncSession, *, recipient: User, sender_name: str) -> None:
+async def _email(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    sender_name: str,
+    notification: Notification | None,
+) -> None:
     """Say a message is waiting. The name, and nothing else.
 
-    A deployment with no SMTP configured is not an error here -- the bell line
-    and the push have already been written, and email is the optional channel.
+    Written to the outbox rather than sent, so it follows the account's own
+    cadence and stands down while they are paused -- and so reading the thread
+    before it goes withdraws it, which is the one thing a mailbox most wants.
     """
     from app.core.config import settings as app_config
+    from app.core.notification_categories import NotificationCategory
     from app.services import email as email_service
+    from app.services.platform import email_outbox
 
     link = f"{app_config.APP_URL.rstrip('/') or 'http://localhost:5173'}/messages"
-    try:
-        await email_service.send_direct_message_email(
-            session, recipient, sender_name=sender_name, link=link
-        )
-    except email_service.EmailNotConfiguredError:
-        return
+    await email_outbox.enqueue(
+        session,
+        recipient,
+        category=NotificationCategory.direct_messages,
+        notification_id=notification.id if notification is not None else None,
+        pieces=email_service.direct_message_pieces(
+            recipient, sender_name=sender_name, link=link
+        ),
+    )
 
 
 async def _push(

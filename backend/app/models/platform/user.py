@@ -252,14 +252,20 @@ class User(SQLModel, table=True):
         default="UTC",
         sa_column=Column(String(64), nullable=False, server_default="UTC"),
     )
-    overdue_notification_time: str = Field(
-        default="21:00",
-        sa_column=Column(String(5), nullable=False, server_default="21:00"),
-    )
     # Lead time (minutes) for the scheduled event reminder. NULL = reminders off.
     event_reminder_minutes_before: Optional[int] = Field(
         default=15,
         sa_column=Column(Integer, nullable=True, server_default="15"),
+    )
+    #: When this account was last doing something, to within a few minutes.
+    #: One mutable stamp rather than a history: it answers "were they here
+    #: recently", which is what decides whether to interrupt somebody who is
+    #: already reading the same news in the app. Never serialized to any
+    #: response: it belongs to no profile family, which is what decides where a
+    #: column goes (see ``app.db.user_columns``).
+    last_active_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     last_overdue_notification_at: Optional[datetime] = Field(
         default=None,

@@ -17,10 +17,10 @@ from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.core.tools import Tool
 from app.core.notification_categories import (
-    CATEGORY_SPECS,
     Channel,
     NotificationCategory,
     category_of,
+    sample_type,
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -36,9 +36,11 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
+from app.models.platform.user_notification_prefs import EmailCadence
 from app.services.platform import accounts as accounts_service
 from app.models.platform.notification import Notification, NotificationType
 from app.services import email as email_service
+from app.services.platform import email_outbox
 from app.services.platform import notification_prefs
 from app.services.platform import user_notifications
 from app.services.platform import push_notifications
@@ -54,9 +56,9 @@ logger = logging.getLogger(__name__)
 
 DIGEST_POLL_SECONDS = 60
 OVERDUE_POLL_SECONDS = 300
-# The summary goes out when a window closes, so the poll only has to be finer
-# than the grace period it is bounded by.
-QUIET_SUMMARY_POLL_SECONDS = 600
+# A summary goes out when a hold lifts, so the poll only has to be finer than
+# the grace period it is bounded by.
+HOLD_SUMMARY_POLL_SECONDS = 600
 # A task-assignment digest waits for the flurry to end rather than firing on
 # the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
 # lone assignment still lands promptly while a burst collapses into one
@@ -91,6 +93,10 @@ class Channels:
     in_app: bool
     email: bool
     push: bool
+    #: The document the three answers above came from. Every notifier needs it
+    #: twice — once to pick channels, once to decide when the email may go —
+    #: so resolving it here saves loading the same row again.
+    prefs: Mapping[str, Any]
 
 
 #: How many commenters one rolled-up line remembers by name. ``comment_count``
@@ -172,11 +178,12 @@ async def _roll_up_comment(
     data: dict[str, Any],
     commenter_name: str,
     commenter_id: int,
-) -> bool:
+) -> tuple[bool, Notification | None]:
     """Write or extend the one unread line for this thread.
 
-    Returns True when this comment opened a new window — which is when the
-    reaching channels fire. A second comment updates the line instead and sends
+    Returns whether this comment opened a new window — which is when the
+    reaching channels fire — and the line it wrote, so the email can ride on it
+    and be withdrawn if the thread is read before the mail goes out. A second comment updates the line instead and sends
     nothing: the flurry is one interruption, not twenty. Once the line has been
     read, the next comment starts a fresh one and they fire again.
 
@@ -205,25 +212,15 @@ async def _roll_up_comment(
     )
     line = {**data, "rollup_key": rollup_key, **rolled}
     if existing is None:
-        await user_notifications.create_notification(
+        written = await user_notifications.create_notification(
             session,
             user_id=recipient.id,
             notification_type=notification_type,
             data=line,
         )
-        return True
+        return True, written
     await user_notifications.refresh_notification(session, existing, data=line)
-    return False
-
-
-def _sample_type(category: NotificationCategory) -> NotificationType:
-    """Any one type from a category.
-
-    Preference resolution is keyed on a notification type, but a digest is
-    about a whole category, and every type in one resolves identically. Sorted
-    so the choice is stable rather than set-ordering dependent.
-    """
-    return sorted(CATEGORY_SPECS[category].types, key=lambda t: t.value)[0]
+    return False, None
 
 
 async def _channels(
@@ -241,26 +238,66 @@ async def _channels(
     """
     if prefs is None:
         prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
+    # Holds are folded in here rather than left to each caller to remember,
+    # through the one resolver the other two fan-out paths also use. Email is
+    # the exception it makes for itself: a held email is deferred rather than
+    # refused, so this asks only whether the account wants it and lets
+    # ``email_due_at`` decide when it goes.
     allowed = {
-        channel: notification_prefs.wants(
+        channel: notification_prefs.reachable(
             prefs,
             notification_type=notification_type,
             channel=channel,
             guild_id=guild_id,
+            tz_name=recipient.timezone,
+            last_active_at=recipient.last_active_at,
         )
-        for channel in Channel
+        for channel in (Channel.in_app, Channel.push)
     }
-    # Quiet hours are folded in here rather than left to each caller to
-    # remember. They hold back the reaching channels only: the bell collects as
-    # it always does, which is what makes holding the other two safe — nothing
-    # is lost, it is simply where it was always going to be in the morning.
-    if notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone):
-        for channel in notification_prefs.QUIET_CHANNELS:
-            allowed[channel] = False
+    allowed[Channel.email] = notification_prefs.wants(
+        prefs,
+        notification_type=notification_type,
+        channel=Channel.email,
+        guild_id=guild_id,
+    )
     return Channels(
         in_app=allowed[Channel.in_app],
         email=allowed[Channel.email],
         push=allowed[Channel.push],
+        prefs=prefs,
+    )
+
+
+async def _queue_email(
+    session: AsyncSession,
+    recipient: User,
+    *,
+    notification_type: NotificationType,
+    guild_id: int | None,
+    notification: Notification | None,
+    prefs: Mapping[str, Any],
+    subject: str,
+    headline: str,
+    body: str,
+    link: str | None = None,
+) -> None:
+    """Write one notification email down for the outbox to send.
+
+    Every notifier in this module goes through here, which is what keeps three
+    things attached to the row that a digest cannot be composed without: the
+    category it groups under, the community it belongs to, and the bell line it
+    is the email of — so reading the thing in the app withdraws the mail.
+    """
+    await email_outbox.enqueue(
+        session,
+        recipient,
+        category=category_of(notification_type),
+        guild_id=guild_id,
+        notification_id=notification.id if notification is not None else None,
+        prefs=prefs,
+        pieces=email_service.EmailPieces(
+            subject=subject, headline=headline, body=body, link=link
+        ),
     )
 
 
@@ -485,7 +522,7 @@ async def notify_initiative_membership(
         notification_type=NotificationType.initiative_added,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=user.id,
         notification_type=NotificationType.initiative_added,
@@ -499,17 +536,15 @@ async def notify_initiative_membership(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_initiative_added_email(
-                session, user, initiative_name
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping initiative notification for %s",
-                user.id,
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send initiative notification: %s", exc)
+        await email_outbox.enqueue(
+            session,
+            user,
+            category=category_of(NotificationType.initiative_added),
+            guild_id=guild_id,
+            notification_id=notification.id if notification is not None else None,
+            prefs=channels.prefs,
+            pieces=email_service.initiative_added_pieces(user, initiative_name),
+        )
     # Push notification
     if channels.push:
         locale = _recipient_locale(user)
@@ -607,22 +642,25 @@ async def _send_join_request_email(
         _build_smart_link(target_path=target_path, guild_id=guild_id)
         or app_config.APP_URL
     )
-    try:
-        await email_service.send_initiative_join_request_email(
-            session,
+    # No bell line is named here: this helper is the email half of three
+    # different notifiers, and which line it belongs to is not in hand. The
+    # cost is only that reading the request in the app does not withdraw the
+    # mail, which for something waiting on a decision is the safer way round.
+    await email_outbox.enqueue(
+        session,
+        recipient,
+        category=category_of(notification_type),
+        guild_id=guild_id,
+        prefs=channels.prefs,
+        pieces=email_service.initiative_join_request_pieces(
             recipient,
             event=event,
             initiative_name=initiative_name,
             link=link,
             requester=requester,
             message=message,
-        )
-    except email_service.EmailNotConfiguredError:
-        logger.warning(
-            "SMTP not configured; skipping join-request email for %s", recipient.id
-        )
-    except Exception as exc:
-        logger.error("Failed to send join-request email: %s", exc, exc_info=True)
+        ),
+    )
 
 
 async def notify_initiative_join_requested(
@@ -779,7 +817,7 @@ async def notify_project_added(
         notification_type=NotificationType.project_added,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=user.id,
         notification_type=NotificationType.project_added,
@@ -798,20 +836,20 @@ async def notify_project_added(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_project_added_to_initiative_email(
-                session,
+        await email_outbox.enqueue(
+            session,
+            user,
+            category=category_of(NotificationType.project_added),
+            guild_id=guild_id,
+            notification_id=notification.id if notification is not None else None,
+            prefs=channels.prefs,
+            pieces=email_service.project_added_pieces(
                 user,
                 initiative_name=initiative_name,
                 project_name=project_name,
                 project_id=project_id,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping project notification for %s", user.id
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send project notification: %s", exc)
+            ),
+        )
     # Push notification
     if channels.push:
         locale = _recipient_locale(user)
@@ -862,7 +900,7 @@ async def notify_document_mention(
         notification_type=NotificationType.mention,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=mentioned_user.id,
         notification_type=NotificationType.mention,
@@ -880,32 +918,28 @@ async def notify_document_mention(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_mention_email(
-                session,
-                mentioned_user,
-                subject=email_t(
-                    "mention.document.subject",
-                    locale,
-                    document=document_name,
-                    escape=False,
-                ),
-                headline=email_t("mention.document.title", locale),
-                body_text=email_t(
-                    "mention.document.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    document=document_name,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping mention email for %s",
-                mentioned_user.id,
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send mention email: %s", exc)
+        await _queue_email(
+            session,
+            mentioned_user,
+            notification_type=NotificationType.mention,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t(
+                "mention.document.subject",
+                locale,
+                document=document_name,
+                escape=False,
+            ),
+            headline=email_t("mention.document.title", locale),
+            body=email_t(
+                "mention.document.body",
+                locale,
+                actor=mentioned_by_name,
+                document=document_name,
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push:
         try:
@@ -971,7 +1005,7 @@ async def notify_comment_mention(
         notification_type=NotificationType.mention,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=mentioned_user.id,
         notification_type=NotificationType.mention,
@@ -993,27 +1027,23 @@ async def notify_comment_mention(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_mention_email(
-                session,
-                mentioned_user,
-                subject=email_t("mention.comment.subject", locale, escape=False),
-                headline=email_t("mention.comment.title", locale),
-                body_text=email_t(
-                    "mention.comment.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    context=context_title,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping mention email for %s",
-                mentioned_user.id,
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send mention email: %s", exc)
+        await _queue_email(
+            session,
+            mentioned_user,
+            notification_type=NotificationType.mention,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t("mention.comment.subject", locale, escape=False),
+            headline=email_t("mention.comment.title", locale),
+            body=email_t(
+                "mention.comment.body",
+                locale,
+                actor=mentioned_by_name,
+                context=context_title,
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push:
         try:
@@ -1081,7 +1111,7 @@ async def notify_task_mentioned_in_comment(
         notification_type=NotificationType.mention,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=assignee.id,
         notification_type=NotificationType.mention,
@@ -1105,27 +1135,24 @@ async def notify_task_mentioned_in_comment(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_mention_email(
-                session,
-                assignee,
-                subject=email_t("mention.task.subject", locale, escape=False),
-                headline=email_t("mention.task.title", locale),
-                body_text=email_t(
-                    "mention.task.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    task=mentioned_task_title,
-                    context=context_title,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping mention email for %s", assignee.id
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send mention email: %s", exc)
+        await _queue_email(
+            session,
+            assignee,
+            notification_type=NotificationType.mention,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t("mention.task.subject", locale, escape=False),
+            headline=email_t("mention.task.title", locale),
+            body=email_t(
+                "mention.task.body",
+                locale,
+                actor=mentioned_by_name,
+                task=mentioned_task_title,
+                context=context_title,
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push:
         try:
@@ -1181,7 +1208,7 @@ async def notify_comment_on_task(
         notification_type=NotificationType.comment_on_task,
         guild_id=guild_id,
     )
-    opened = await _roll_up_comment(
+    opened, notification = await _roll_up_comment(
         session,
         recipient=assignee,
         notification_type=NotificationType.comment_on_task,
@@ -1204,25 +1231,22 @@ async def notify_comment_on_task(
     )
     # Email
     if channels.email and opened:
-        try:
-            await email_service.send_mention_email(
-                session,
-                assignee,
-                subject=email_t(
-                    "comment.onTask.subject", locale, task=task_title, escape=False
-                ),
-                headline=email_t("comment.onTask.title", locale),
-                body_text=email_t(
-                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping comment email for %s", assignee.id
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send comment email: %s", exc)
+        await _queue_email(
+            session,
+            assignee,
+            notification_type=NotificationType.comment_on_task,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t(
+                "comment.onTask.subject", locale, task=task_title, escape=False
+            ),
+            headline=email_t("comment.onTask.title", locale),
+            body=email_t(
+                "comment.onTask.body", locale, actor=commenter_name, task=task_title
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push and opened:
         try:
@@ -1283,7 +1307,7 @@ async def notify_comment_on_resource(
         notification_type=NotificationType.comment_on_resource,
         guild_id=guild_id,
     )
-    opened = await _roll_up_comment(
+    opened, notification = await _roll_up_comment(
         session,
         recipient=owner,
         notification_type=NotificationType.comment_on_resource,
@@ -1306,31 +1330,28 @@ async def notify_comment_on_resource(
     )
     # Email
     if channels.email and opened:
-        try:
-            await email_service.send_mention_email(
-                session,
-                owner,
-                subject=email_t(
-                    "comment.onResource.subject",
-                    locale,
-                    context=entity_name,
-                    escape=False,
-                ),
-                headline=email_t("comment.onResource.title", locale),
-                body_text=email_t(
-                    "comment.onResource.body",
-                    locale,
-                    actor=commenter_name,
-                    context=entity_name,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping comment email for %s", owner.id
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send comment email: %s", exc)
+        await _queue_email(
+            session,
+            owner,
+            notification_type=NotificationType.comment_on_resource,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t(
+                "comment.onResource.subject",
+                locale,
+                context=entity_name,
+                escape=False,
+            ),
+            headline=email_t("comment.onResource.title", locale),
+            body=email_t(
+                "comment.onResource.body",
+                locale,
+                actor=commenter_name,
+                context=entity_name,
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push and opened:
         try:
@@ -1396,7 +1417,7 @@ async def notify_comment_reply(
         notification_type=NotificationType.comment_reply,
         guild_id=guild_id,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=parent_author.id,
         notification_type=NotificationType.comment_reply,
@@ -1418,26 +1439,23 @@ async def notify_comment_reply(
     )
     # Email
     if channels.email:
-        try:
-            await email_service.send_mention_email(
-                session,
-                parent_author,
-                subject=email_t("comment.reply.subject", locale, escape=False),
-                headline=email_t("comment.reply.title", locale),
-                body_text=email_t(
-                    "comment.reply.body",
-                    locale,
-                    actor=replier_name,
-                    context=context_title,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping reply email for %s", parent_author.id
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send reply email: %s", exc)
+        await _queue_email(
+            session,
+            parent_author,
+            notification_type=NotificationType.comment_reply,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_t("comment.reply.subject", locale, escape=False),
+            headline=email_t("comment.reply.title", locale),
+            body=email_t(
+                "comment.reply.body",
+                locale,
+                actor=replier_name,
+                context=context_title,
+            ),
+            link=smart_link,
+        )
     # Push notification
     if channels.push:
         try:
@@ -1510,30 +1528,25 @@ async def _deliver_notification(
         notification_type=notification_type,
         guild_id=guild_id if isinstance(guild_id, int) else None,
     )
-    await user_notifications.create_notification(
+    notification = await user_notifications.create_notification(
         session,
         user_id=recipient.id,
         notification_type=notification_type,
         data=data,
     )
     if channels.email:
-        try:
-            await email_service.send_mention_email(
-                session,
-                recipient,
-                subject=email_subject,
-                headline=email_headline,
-                body_text=email_body,
-                link=data.get("smart_link"),
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping %s email for %s",
-                notification_type.value,
-                recipient.id,
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send %s email: %s", notification_type.value, exc)
+        await _queue_email(
+            session,
+            recipient,
+            notification_type=notification_type,
+            guild_id=guild_id if isinstance(guild_id, int) else None,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_subject,
+            headline=email_headline,
+            body=email_body,
+            link=data.get("smart_link"),
+        )
     if channels.push:
         try:
             await push_notifications.send_push_to_user(
@@ -1921,8 +1934,11 @@ class DigestSpec:
     #: What one queued row looks like to the senders, given the guild schema it
     #: was found in (which IS the row's guild).
     row: Callable[[object, int], dict]
-    #: Send the batch. The push half returns ``(delivered, retry_worth_it)``.
-    send_email: Callable[[AsyncSession, User, list[dict]], Awaitable[None]]
+    #: The batch as an email, for the outbox to time and send. Pieces rather
+    #: than a message: under a digest cadence this becomes one section of a
+    #: larger one.
+    pieces: Callable[[User, list[dict]], email_service.EmailPieces]
+    #: Send the batch as a push. Returns ``(delivered, retry_worth_it)``.
     send_push: Callable[[AsyncSession, User, list[dict]], Awaitable[tuple[bool, bool]]]
     #: ``User`` column recording when the last one went out, if any. A record,
     #: never a gate — the send window comes from the queue itself.
@@ -1943,7 +1959,7 @@ def wants_digest(
     clearing it because the email was switched off would silently take the
     push with it.
     """
-    sample = _sample_type(category)
+    sample = sample_type(category)
     return any(
         notification_prefs.wants(
             prefs, notification_type=sample, channel=channel, guild_id=guild_id
@@ -2050,22 +2066,26 @@ async def _run_digest_pass(
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
         channels = await _channels(
-            session, user, notification_type=_sample_type(spec.category)
+            session, user, notification_type=sample_type(spec.category)
         )
         if channels.email:
-            try:
-                await spec.send_email(session, user, batch)
-                delivered = True
+            # No community: a digest gathers from every guild the account is
+            # in, so there is no one of them it happened in.
+            delivered = await email_outbox.enqueue(
+                session,
+                user,
+                category=spec.category,
+                prefs=channels.prefs,
+                pieces=spec.pieces(user, batch),
+            )
+            if delivered:
                 logger.info(
-                    "%s: sent %d item(s) to user %s", spec.name, len(batch), user_id
+                    "%s: queued %d item(s) for user %s", spec.name, len(batch), user_id
                 )
-            except email_service.EmailNotConfiguredError:
+            else:
                 logger.warning(
-                    "SMTP not configured; skipping %s for %s", spec.name, user_id
+                    "SMTP not configured; holding %s for %s", spec.name, user_id
                 )
-            except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send %s: %s", spec.name, exc)
-                retry = True
         if channels.push:
             pushed, push_retry = await spec.send_push(session, user, batch)
             delivered = delivered or pushed
@@ -2170,9 +2190,7 @@ ASSIGNMENT_DIGEST = DigestSpec(
     model=TaskAssignmentDigestItem,
     category=NotificationCategory.assignments,
     row=_assignment_row,
-    send_email=lambda session, user, items: (
-        email_service.send_task_assignment_digest_email(session, user, items)
-    ),
+    pieces=email_service.task_assignment_digest_pieces,
     send_push=_send_assignment_push,
     stamp="last_task_assignment_digest_at",
 )
@@ -2192,6 +2210,14 @@ async def process_task_assignment_digests() -> None:
 
 async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
     await _run_gc_pass(session, (TaskAssignmentDigestItem, ReactionDigestItem), now=now)
+    # Mail that has gone out, or run out of attempts, is bookkeeping on the
+    # same terms as a spent digest row — so it goes in the same sweep rather
+    # than growing a second one.
+    await set_rls_context(session)
+    dropped = await email_outbox.sweep_settled(session, now=now)
+    if dropped:
+        logger.info("digest-gc: dropped %d settled email row(s)", dropped)
+    await session.commit()
 
 
 async def process_assignment_digest_gc() -> None:
@@ -2562,9 +2588,7 @@ REACTION_DIGEST = DigestSpec(
     model=ReactionDigestItem,
     category=NotificationCategory.reactions,
     row=_reaction_row,
-    send_email=lambda session, user, items: email_service.send_reaction_digest_email(
-        session, user, items
-    ),
+    pieces=email_service.reaction_digest_pieces,
     send_push=_send_reaction_push,
 )
 
@@ -2706,22 +2730,30 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         (
             u.id,
             u.timezone,
-            u.overdue_notification_time,
+            notification_prefs.email_schedule(all_prefs.get(u.id)),
             u.last_overdue_notification_at,
         )
         for u in users
     ]
-    for user_id, user_tz, notify_time, last_at in candidates:
+    for user_id, user_tz, schedule, last_at in candidates:
         tz = _resolve_timezone(user_tz)
         now_local = now.astimezone(tz)
         try:
-            hour, minute = map(int, notify_time.split(":"))
-        except Exception:
+            hour, minute = map(int, schedule.at.split(":"))
+        except ValueError:
             hour, minute = 21, 0
         target_local = now_local.replace(
             hour=hour, minute=minute, second=0, microsecond=0
         )
         if now_local < target_local:
+            continue
+        # A weekly cadence gets this with its weekly mail rather than daily:
+        # somebody who asked to hear from us once a week did not ask to be
+        # chased about the same tasks on the other six days.
+        if (
+            schedule.cadence is EmailCadence.weekly
+            and now_local.isoweekday() != schedule.weekday
+        ):
             continue
         if last_at and last_at.astimezone(tz).date() == now_local.date():
             continue
@@ -2760,20 +2792,23 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             session, user, notification_type=NotificationType.overdue_tasks
         )
         if channels.email:
-            try:
-                await email_service.send_overdue_tasks_email(session, user, tasks)
-                delivered = True
+            delivered = await email_outbox.enqueue(
+                session,
+                user,
+                category=NotificationCategory.due_dates,
+                prefs=channels.prefs,
+                pieces=email_service.overdue_tasks_pieces(user, tasks),
+            )
+            if delivered:
                 logger.info(
-                    "overdue-digest: sent %d overdue task(s) to user %s",
+                    "overdue-digest: queued %d overdue task(s) for user %s",
                     len(tasks),
                     user_id,
                 )
-            except email_service.EmailNotConfiguredError:
+            else:
                 logger.warning(
                     "SMTP not configured; skipping overdue digest for %s", user_id
                 )
-            except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send overdue digest: %s", exc)
         if channels.push:
             delivered = await _send_overdue_push(session, user, tasks) or delivered
         if not delivered:
@@ -2789,18 +2824,31 @@ async def process_overdue_notifications() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Quiet hours: one summary when the window closes
+# Holds: one summary when a hold lifts
+#
+# Two of the three holds end with somebody coming back to news they have not
+# seen: a pause, and the nightly quiet-hours window. Both say the same thing
+# when they lift, so they say it through one pass.
+#
+# What arrives is split by channel, and deliberately so. The **email** is the
+# content itself — the held rows drain out of the outbox as one digest, which
+# is what they were waiting for, and nothing here composes it. The **push** is
+# a count, because a push is a thing you glance at and a fortnight of headlines
+# is not glanceable. The bell needs neither: it has been collecting all along.
+#
+# The third hold, being at the keyboard, has nothing to summarise. They were
+# here; the bell told them.
 # ---------------------------------------------------------------------------
 
 
-async def _quiet_summary_rows(
+async def _hold_summary_rows(
     session: AsyncSession, *, user_id: int, since: datetime, until: datetime
 ) -> list[tuple[NotificationCategory, int | None, int]]:
     """What was held back, grouped by category and community.
 
-    A query, not a queue. Everything suppressed overnight is already sitting in
-    the inbox unread and stamped inside the window, so there is nothing else to
-    record and nothing to drain.
+    A query, not a queue. Everything suppressed while the hold was on is
+    already sitting in the inbox unread and stamped inside the stretch, so
+    there is nothing else to record and nothing to drain.
     """
     stmt = (
         select(
@@ -2826,69 +2874,27 @@ async def _quiet_summary_rows(
     ]
 
 
-def _quiet_summary_body(
-    rows: list[tuple[NotificationCategory, int | None, int]],
-    *,
-    guild_names: Mapping[int, str],
-    locale: str,
-) -> str:
-    """The summary's text, from the grouped counts.
-
-    One function over the rows, deliberately — it is the seam a written summary
-    would replace, and replacing it would be replacing this and nothing else.
-    """
-    by_guild: dict[int | None, list[str]] = {}
-    for category, guild_id, total in sorted(
-        rows, key=lambda row: (row[1] or 0, row[0].value)
-    ):
-        line = _nt(f"quietHours.category.{category.value}", locale, count=total)
-        by_guild.setdefault(guild_id, []).append(line)
-    parts: list[str] = []
-    for guild_id, lines in by_guild.items():
-        name = guild_names.get(guild_id) if guild_id is not None else None
-        joined = ", ".join(lines)
-        parts.append(f"{name} — {joined}" if name else joined)
-    return "<br>".join(parts)
-
-
-def _rows_for_channel(
+def _rows_for_push(
     rows: list[tuple[NotificationCategory, int | None, int]],
     *,
     prefs: Mapping[str, Any],
-    channel: Channel,
 ) -> list[tuple[NotificationCategory, int | None, int]]:
-    """The part of a summary one channel is allowed to carry.
+    """The part of a summary the push may carry.
 
     Resolved per (category, community) exactly as the live path resolves it, so
-    a summary never mentions something the account has switched off for that
-    channel, and a channel with nothing left to say is not sent at all.
+    a summary never counts something the account has switched off, and a
+    summary with nothing left to say is not sent at all.
     """
     return [
         (category, guild_id, count)
         for category, guild_id, count in rows
         if notification_prefs.wants(
             prefs,
-            notification_type=_sample_type(category),
-            channel=channel,
+            notification_type=sample_type(category),
+            channel=Channel.push,
             guild_id=guild_id,
         )
     ]
-
-
-def _window_stamps(prefs: Mapping[str, Any]) -> dict[str, str]:
-    """When each channel last covered a window.
-
-    Per channel, because email and push can fail independently: one stamp for
-    both would let a successful email mark the window done and strand the push
-    that never went.
-    """
-    raw = _section_of(prefs, "quiet_hours").get("last_summary_at")
-    if isinstance(raw, Mapping):
-        return {k: v for k, v in raw.items() if isinstance(v, str)}
-    # The single-value shape this started as: both channels, one time.
-    if isinstance(raw, str):
-        return {channel.value: raw for channel in notification_prefs.QUIET_CHANNELS}
-    return {}
 
 
 def _section_of(prefs: Mapping[str, Any], key: str) -> Mapping[str, Any]:
@@ -2896,8 +2902,33 @@ def _section_of(prefs: Mapping[str, Any], key: str) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _covered(stamps: Mapping[str, str], channel: Channel, closed: datetime) -> bool:
-    raw = stamps.get(channel.value)
+def _lift_stamps(prefs: Mapping[str, Any]) -> dict[str, str]:
+    """When each kind of hold was last summarised.
+
+    Per kind, because a pause and a quiet-hours window end independently and
+    one covering the other's stretch would strand a summary that never went.
+    """
+    raw = _section_of(_section_of(prefs, "holds"), "last_summary_at")
+    stamps = {k: v for k, v in raw.items() if isinstance(v, str)}
+    if stamps:
+        return stamps
+    # The shape this started as, when only quiet hours could hold anything and
+    # each channel stamped itself. Only the push half survives, so that is the
+    # half worth carrying over.
+    legacy = _section_of(prefs, "quiet_hours").get("last_summary_at")
+    if isinstance(legacy, Mapping) and isinstance(legacy.get("push"), str):
+        return {notification_prefs.HoldKind.quiet_hours.value: legacy["push"]}
+    if isinstance(legacy, str):
+        return {notification_prefs.HoldKind.quiet_hours.value: legacy}
+    return {}
+
+
+def _covered(
+    stamps: Mapping[str, str],
+    kind: notification_prefs.HoldKind,
+    closed: datetime,
+) -> bool:
+    raw = stamps.get(kind.value)
     if not isinstance(raw, str):
         return False
     try:
@@ -2906,40 +2937,46 @@ def _covered(stamps: Mapping[str, str], channel: Channel, closed: datetime) -> b
         return False
 
 
-async def _stamp_window(
+async def _record_lift(
     session: AsyncSession,
     *,
     user_id: int,
-    closed: datetime,
-    channels: set[Channel],
+    lift: notification_prefs.Lift,
+    summarised: bool,
 ) -> None:
-    """Record that these channels have covered this window.
+    """Write down that this hold has been dealt with.
 
     The document is re-read here rather than reused from the top of the pass:
     sending is network I/O, the account may have changed a setting while it
     ran, and saving replaces the whole document — so a copy loaded before the
     send would carry their change back out.
+
+    A lapsed pause is cleared whether or not its push went, and only the push
+    is at stake: the content itself left through the outbox when the hold
+    lifted, so a failed push costs the count, never the news. A quiet-hours
+    window keeps a stamp instead, because the window comes round again.
     """
-    if not channels:
-        return
     fresh = await notification_prefs.load_prefs(session, user_id)
-    window = dict(_section_of(fresh, "quiet_hours"))
-    if not window.get("start") or not window.get("end"):
-        # The window was switched off while this ran. Nothing to stamp against.
+    if lift.kind is notification_prefs.HoldKind.pause:
+        fresh.pop("pause", None)
+    elif summarised:
+        holds = dict(_section_of(fresh, "holds"))
+        stamps = dict(_lift_stamps(fresh))
+        stamps[lift.kind.value] = lift.closed.isoformat()
+        holds["last_summary_at"] = stamps
+        fresh["holds"] = holds
+        # The per-channel stamp this replaced has nothing left to say.
+        window = dict(_section_of(fresh, "quiet_hours"))
+        if window.pop("last_summary_at", None) is not None:
+            fresh["quiet_hours"] = window
+    else:
         return
-    stamps = _window_stamps(fresh)
-    for channel in channels:
-        stamps[channel.value] = closed.isoformat()
-    window["last_summary_at"] = stamps
-    fresh["quiet_hours"] = window
     await notification_prefs.save_prefs(session, user_id, fresh)
     await session.commit()
 
 
-async def _run_quiet_hours_summary_pass(
-    session: AsyncSession, *, now: datetime
-) -> None:
-    """Tell each account what it missed, once per channel, when its window closes."""
+async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Tell each account what it missed, once, when a hold lifts."""
     users = (await session.exec(select(User))).scalars().all()
     all_prefs = await notification_prefs.load_prefs_for(
         session, [user.id for user in users]
@@ -2948,110 +2985,58 @@ async def _run_quiet_hours_summary_pass(
         prefs = all_prefs.get(user.id)
         if not prefs:
             continue
-        window = notification_prefs.last_window_close(
-            prefs, tz_name=user.timezone, now=now
-        )
-        if window is None:
+        lift = notification_prefs.last_lift(prefs, tz_name=user.timezone, now=now)
+        if lift is None:
             continue
-        opened, closed = window
-        stamps = _window_stamps(prefs)
-        outstanding = {
-            channel
-            for channel in notification_prefs.QUIET_CHANNELS
-            if not _covered(stamps, channel, closed)
-        }
-        if not outstanding:
-            continue  # this window is fully summarised
+        if _covered(_lift_stamps(prefs), lift.kind, lift.closed):
+            continue
 
-        rows = await _quiet_summary_rows(
-            session, user_id=user.id, since=opened, until=closed
+        rows = _rows_for_push(
+            await _hold_summary_rows(
+                session, user_id=user.id, since=lift.opened, until=lift.closed
+            ),
+            prefs=prefs,
         )
-        per_channel = {
-            channel: _rows_for_channel(rows, prefs=prefs, channel=channel)
-            for channel in outstanding
-        }
-        # A channel with nothing it may carry is covered by having nothing to
-        # say, so a quiet night is not reconsidered on every poll.
-        covered = {channel for channel, rows_ in per_channel.items() if not rows_}
-        if covered == outstanding:
-            await _stamp_window(
-                session, user_id=user.id, closed=closed, channels=covered
-            )
+        if not rows:
+            # Nothing the push may carry is a covered summary, not one to
+            # reconsider on every poll.
+            await _record_lift(session, user_id=user.id, lift=lift, summarised=True)
             continue
 
         locale = _recipient_locale(user)
-        guild_ids = {guild_id for _, guild_id, _ in rows if guild_id is not None}
-        guild_names: dict[int, str] = {}
-        if guild_ids:
-            found = (
-                (
-                    await session.exec(
-                        select(Guild).where(Guild.id.in_(sorted(guild_ids)))
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            guild_names = {guild.id: guild.name for guild in found}
-        headline = _nt("quietHours.summary.title", locale)
-
-        # Each channel is stamped by its own delivery, so one that is merely
-        # unconfigured (no SMTP, no FCM) is retried on the next poll instead of
-        # riding the other's success.
-        email_rows = per_channel.get(Channel.email) or []
-        if email_rows:
-            try:
-                await email_service.send_mention_email(
-                    session,
-                    user,
-                    subject=email_t(
-                        "quietHours.summary.subject",
-                        locale,
-                        count=sum(count for _, _, count in email_rows),
-                    ),
-                    headline=headline,
-                    body_text=_quiet_summary_body(
-                        email_rows, guild_names=guild_names, locale=locale
-                    ),
-                    link=_build_smart_link(target_path="/notifications", guild_id=None),
-                )
-                covered.add(Channel.email)
-            except email_service.EmailNotConfiguredError:
-                logger.warning("SMTP not configured; skipping quiet-hours summary")
-            except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send quiet-hours summary: %s", exc)
-
-        push_rows = per_channel.get(Channel.push) or []
-        if push_rows:
-            try:
-                sent = await push_notifications.send_push_to_user(
+        key = (
+            "holds.pause"
+            if lift.kind is notification_prefs.HoldKind.pause
+            else "quietHours.summary"
+        )
+        summarised = False
+        try:
+            summarised = bool(
+                await push_notifications.send_push_to_user(
                     session=session,
                     user_id=user.id,
-                    notification_type=_sample_type(push_rows[0][0]),
-                    title=headline,
+                    notification_type=sample_type(rows[0][0]),
+                    title=_nt(f"{key}.title", locale),
                     body=_nt(
-                        "quietHours.summary.body",
+                        f"{key}.body",
                         locale,
-                        count=sum(count for _, _, count in push_rows),
+                        count=sum(count for _, _, count in rows),
                     ),
                     data={
-                        "type": "quiet_hours_summary",
+                        "type": f"{lift.kind.value}_summary",
                         "target_path": "/notifications",
                     },
                 )
-                if sent:
-                    covered.add(Channel.push)
-            except Exception as exc:
-                logger.error(
-                    "Failed to push quiet-hours summary: %s", exc, exc_info=True
-                )
+            )
+        except Exception as exc:
+            logger.error("Failed to push hold summary: %s", exc, exc_info=True)
 
-        await _stamp_window(session, user_id=user.id, closed=closed, channels=covered)
+        await _record_lift(session, user_id=user.id, lift=lift, summarised=summarised)
 
 
-async def process_quiet_hours_summaries() -> None:
+async def process_hold_summaries() -> None:
     async with AdminSessionLocal() as session:
-        await _run_quiet_hours_summary_pass(session, now=datetime.now(timezone.utc))
+        await _run_hold_summary_pass(session, now=datetime.now(timezone.utc))
 
 
 async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:

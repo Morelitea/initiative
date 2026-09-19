@@ -274,5 +274,55 @@
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez.",
       "textBody": "La clé d'accès {{passkey}} a été retirée de votre compte et ne permet plus de vous connecter."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "La dernière heure sur Initiative",
+      "subject_one": "{{count}} chose de la dernière heure",
+      "subject_other": "{{count}} choses de la dernière heure"
+    },
+    "daily": {
+      "title": "Votre journée sur Initiative",
+      "subject_one": "{{count}} chose d'hier",
+      "subject_other": "{{count}} choses d'hier"
+    },
+    "weekly": {
+      "title": "Votre semaine sur Initiative",
+      "subject_one": "{{count}} chose de la semaine dernière",
+      "subject_other": "{{count}} choses de la semaine dernière"
+    },
+    "away": {
+      "title": "Pendant votre absence",
+      "subject_one": "{{count}} chose s'est passée pendant votre absence",
+      "subject_other": "{{count}} choses se sont passées pendant votre absence"
+    },
+    "recent": {
+      "title": "Ce qui vient de se passer",
+      "subject_one": "{{count}} nouveauté sur Initiative",
+      "subject_other": "{{count}} nouveautés sur Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Messages directs",
+      "connections": "Contacts",
+      "account": "Votre compte",
+      "other": "Dans vos communautés"
+    },
+    "category": {
+      "mentions": "Mentions",
+      "replies": "Réponses",
+      "comments": "Commentaires sur votre travail",
+      "reactions": "Réactions",
+      "assignments": "Tâches assignées",
+      "due_dates": "Tâches en retard",
+      "membership": "Nouvelles arrivées",
+      "approvals": "En attente de vous",
+      "posts": "Publications",
+      "events": "Événements",
+      "event_reminders": "Rappels d'événements",
+      "direct_messages": "Messages directs",
+      "connections": "Contacts",
+      "jobs": "Exports et imports",
+      "account": "Votre compte"
+    }
   }
 }

@@ -5,16 +5,25 @@ this build has rather than carrying its own copy of the list. Adding a category
 is then one entry in ``app.core.notification_categories`` and four locale files.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.notification_categories import (
     CategoryGroup,
     Channel,
     NotificationCategory,
 )
-from app.models.platform.user_notification_prefs import NotificationLevel
+from app.models.platform.user_notification_prefs import (
+    EmailCadence,
+    NotificationLevel,
+)
+from app.services.platform.notification_prefs import (
+    DEFAULT_DIGEST_CLOCK,
+    DEFAULT_DIGEST_WEEKDAY,
+    MAX_PAUSE_DAYS,
+)
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -39,6 +48,35 @@ class QuietHours(SanitizedBaseModel):
     @classmethod
     def _clock(cls, value: str) -> str:
         return _valid_clock(value)
+
+
+class EmailSchedule(SanitizedBaseModel):
+    """When this account reads its mail."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    cadence: EmailCadence = EmailCadence.instant
+    #: HH:MM in the account's own timezone. Governs the daily and weekly slots
+    #: and, whatever the cadence, the time the overdue reminder goes out.
+    at: str = DEFAULT_DIGEST_CLOCK
+    #: ISO weekday, Monday is 1.
+    weekday: int = Field(default=DEFAULT_DIGEST_WEEKDAY, ge=1, le=7)
+    #: Whether what another person addressed to this account skips the queue.
+    personal_instant: bool = True
+
+    @field_validator("at")
+    @classmethod
+    def _clock(cls, value: str) -> str:
+        return _valid_clock(value)
+
+
+class PauseRead(SanitizedBaseModel):
+    """A stand-down in force, as the settings page shows it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    since: datetime
+    until: datetime
 
 
 class NotificationCategoryRead(SanitizedBaseModel):
@@ -77,6 +115,13 @@ class NotificationPreferencesRead(SanitizedBaseModel):
     #: Account-wide overrides. Sparse — absent means the registry default.
     settings: dict[str, dict[str, bool]] = Field(default_factory=dict)
     quiet_hours: Optional[QuietHours] = None
+    #: When email goes out. Always present — an account that has chosen nothing
+    #: reads its own defaults here rather than the page carrying a copy.
+    email: EmailSchedule = Field(default_factory=EmailSchedule)
+    #: The stand-down in force, or None. A lapsed one reads as None.
+    pause: Optional[PauseRead] = None
+    #: Whether to hold off while the account is plainly already looking.
+    respect_presence: bool = True
     guilds: list[GuildNotificationSettings] = Field(default_factory=list)
 
 
@@ -107,3 +152,38 @@ class NotificationPreferencesUpdate(SanitizedBaseModel):
     #: Explicit, because ``quiet_hours: null`` is indistinguishable from
     #: "not mentioned" in a partial write.
     clear_quiet_hours: bool = False
+    email: Optional[EmailSchedule] = None
+    #: When a stand-down begins. Omitted means now, which is the ordinary case;
+    #: a date is how somebody books next week's holiday before they go.
+    pause_from: Optional[datetime] = None
+    #: When it ends. Every pause has one: permanent silence is what the
+    #: category grid and the community dial are for, and both are visible on
+    #: the page that owns them.
+    pause_until: Optional[datetime] = None
+    #: Explicit, for the same reason ``clear_quiet_hours`` is. This is what
+    #: "Resume" sends, and it releases everything the pause was holding.
+    clear_pause: bool = False
+    respect_presence: Optional[bool] = None
+
+    @field_validator("pause_from", "pause_until")
+    @classmethod
+    def _aware(cls, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    @model_validator(mode="after")
+    def _a_real_window(self) -> "NotificationPreferencesUpdate":
+        if self.pause_until is None:
+            if self.pause_from is not None:
+                raise ValueError("a pause needs an end date")
+            return self
+        now = datetime.now(timezone.utc)
+        start = self.pause_from or now
+        if self.pause_until <= start:
+            raise ValueError("a pause must end after it begins")
+        if self.pause_until <= now:
+            raise ValueError("a pause must end in the future")
+        if self.pause_until - now > timedelta(days=MAX_PAUSE_DAYS):
+            raise ValueError(f"a pause may not run beyond {MAX_PAUSE_DAYS} days")
+        return self

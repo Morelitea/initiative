@@ -26,13 +26,21 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_reaction_digests,
         process_task_assignment_digests,
         process_overdue_notifications,
-        process_quiet_hours_summaries,
+        process_hold_summaries,
         process_event_reminders,
         ASSIGNMENT_GC_POLL_SECONDS,
         DIGEST_POLL_SECONDS,
         OVERDUE_POLL_SECONDS,
-        QUIET_SUMMARY_POLL_SECONDS,
+        HOLD_SUMMARY_POLL_SECONDS,
         EVENT_REMINDER_POLL_SECONDS,
+    )
+    from app.services.platform.email_outbox import (
+        EMAIL_OUTBOX_POLL_SECONDS,
+        process_email_outbox,
+    )
+    from app.services.platform.presence import (
+        ACTIVITY_FLUSH_SECONDS,
+        process_activity_flush,
     )
     from app.services.oidc_refresh import (
         process_oidc_refresh_sync,
@@ -123,9 +131,27 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(
-                process_quiet_hours_summaries,
-                QUIET_SUMMARY_POLL_SECONDS,
-                "quiet-hours-summary",
+                process_hold_summaries,
+                HOLD_SUMMARY_POLL_SECONDS,
+                "hold-summary",
+            )
+        ),
+        # The one way notification email leaves the building.
+        asyncio.create_task(
+            _loop_worker(
+                process_email_outbox,
+                EMAIL_OUTBOX_POLL_SECONDS,
+                "email-outbox",
+            )
+        ),
+        # What the presence roll has seen, written where another process can
+        # read it. The roll is this worker's own memory; delivery decides
+        # elsewhere.
+        asyncio.create_task(
+            _loop_worker(
+                process_activity_flush,
+                ACTIVITY_FLUSH_SECONDS,
+                "activity-flush",
             )
         ),
         asyncio.create_task(

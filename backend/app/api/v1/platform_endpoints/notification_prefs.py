@@ -4,6 +4,7 @@ Everything here is about the signed-in account and nobody else, so both routes
 resolve their subject from the credential rather than a path parameter.
 """
 
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
@@ -22,13 +23,16 @@ from app.models.platform.user_notification_prefs import NotificationLevel
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.notification_prefs import (
+    EmailSchedule,
     GuildNotificationSettings,
     NotificationCategoryRead,
     NotificationPreferencesRead,
     NotificationPreferencesUpdate,
+    PauseRead,
     QuietHours,
 )
 from app.services import notifications as notifications_service
+from app.services.platform import email_outbox
 from app.services.platform import notification_prefs as prefs_service
 
 me_router = APIRouter()
@@ -59,6 +63,21 @@ def _registry() -> list[NotificationCategoryRead]:
 def _section(doc: dict[str, Any], key: str) -> dict[str, Any]:
     value = doc.get(key)
     return value if isinstance(value, dict) else {}
+
+
+def _retimes(payload: NotificationPreferencesUpdate) -> bool:
+    """Whether this write changes *when* mail may go, as against whether."""
+    return any(
+        (
+            payload.email is not None,
+            payload.pause_until is not None,
+            payload.pause_from is not None,
+            payload.clear_pause,
+            payload.quiet_hours is not None,
+            payload.clear_quiet_hours,
+            payload.respect_presence is not None,
+        )
+    )
 
 
 def _prune(doc: dict[str, Any]) -> dict[str, Any]:
@@ -107,6 +126,7 @@ async def read_my_notification_preferences(
         for guild, _membership in rows
     ]
     window = prefs_service.quiet_hours(doc)
+    schedule = prefs_service.email_schedule(doc)
     return NotificationPreferencesRead(
         categories=_registry(),
         settings=_section(doc, "categories"),
@@ -117,6 +137,25 @@ async def read_my_notification_preferences(
             if window
             else None
         ),
+        email=EmailSchedule(
+            cadence=schedule.cadence,
+            at=schedule.at,
+            weekday=schedule.weekday,
+            personal_instant=schedule.personal_instant,
+        ),
+        # A lapsed pause reads as no pause. The sweep that summarises a lift
+        # clears the key, but a deployment with nothing to summarise should not
+        # show somebody a stand-down that ended last week either.
+        # A stand-down that has not started yet is still one to show: it is
+        # what somebody booked, and the page says so rather than looking as
+        # though the booking did not take.
+        pause=(
+            PauseRead(since=paused[0], until=paused[1])
+            if (paused := prefs_service.pause_window(doc)) is not None
+            and paused[1] > datetime.now(timezone.utc)
+            else None
+        ),
+        respect_presence=prefs_service.respects_presence(doc),
         guilds=guilds,
     )
 
@@ -169,8 +208,41 @@ async def update_my_notification_preferences(
             "end": payload.quiet_hours.end,
         }
 
+    if payload.email is not None:
+        # Stored whole rather than as a partial: the four fields are one
+        # answer to one question, and the page sends them together.
+        doc["email"] = {
+            "cadence": payload.email.cadence.value,
+            "at": payload.email.at,
+            "weekday": payload.email.weekday,
+            "personal_instant": payload.email.personal_instant,
+        }
+
+    if payload.clear_pause:
+        doc.pop("pause", None)
+    elif payload.pause_until is not None:
+        doc["pause"] = {
+            "since": (payload.pause_from or datetime.now(timezone.utc)).isoformat(),
+            "until": payload.pause_until.isoformat(),
+        }
+
+    if payload.respect_presence is not None:
+        doc["away"] = {"respect": payload.respect_presence}
+
     doc = _prune(doc)
     await prefs_service.save_prefs(session, current_user.id, doc)
+
+    # Anything already waiting is re-timed against what they just chose, so
+    # Resume releases what a pause was holding and a cadence changed at noon
+    # applies from noon.
+    if _retimes(payload):
+        await email_outbox.recompute_pending(
+            session,
+            user_id=current_user.id,
+            prefs=doc,
+            tz_name=current_user.timezone,
+            last_active_at=current_user.last_active_at,
+        )
 
     # A queue nobody will ever be sent is discarded, not kept: it is guild
     # scoped, so this reaches into each of the account's guild schemas.

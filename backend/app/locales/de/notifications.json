@@ -174,5 +174,12 @@
       "jobs": "{{count}} Exporte und Importe",
       "account": "{{count}} Kontohinweise"
     }
+  },
+  "holds": {
+    "pause": {
+      "title": "Benachrichtigungen wieder aktiv",
+      "body_one": "{{count}} Sache ist passiert, während du weg warst.",
+      "body_other": "{{count}} Sachen sind passiert, während du weg warst."
+    }
   }
 }

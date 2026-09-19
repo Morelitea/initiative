@@ -155,3 +155,30 @@ def test_notifications_namespace_is_not_escaped_by_default():
         )
         == "Tom & Jerry (8pm)"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("locale", ["en", "de", "es", "fr"])
+def test_every_category_has_a_digest_heading(locale: str):
+    """A digest groups by category, so a category with no heading would print
+    its own key at somebody. The registry is the list; this is the check that
+    the four locales keep up with it."""
+    from app.core.notification_categories import NotificationCategory
+
+    for category in NotificationCategory:
+        key = f"digest.category.{category.value}"
+        assert email_t(key, locale=locale) != key, (
+            f"{locale}/email.json is missing {key}"
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("locale", ["en", "de", "es", "fr"])
+def test_every_reason_a_digest_goes_out_has_copy(locale: str):
+    for reason in ("hourly", "daily", "weekly", "away", "recent"):
+        assert email_t(f"digest.{reason}.title", locale=locale) != (
+            f"digest.{reason}.title"
+        )
+        subject = email_t(f"digest.{reason}.subject", locale=locale, count=2)
+        assert subject != f"digest.{reason}.subject"
+        assert "2" in subject

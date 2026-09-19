@@ -75,34 +75,74 @@ Three things ignore the dial, because they were never a community's to silence: 
 
 Most people set the dial and never open the grid again. If you do want one community to differ category by category, it's in there.
 
-## Timing
+## When it reaches you
 
-A few of these are about *when*, not just *whether*:
+Everything above is *whether*. This is *when*, and it's one setting: **User settings → Notifications → When you hear about it**.
+
+| Email arrives | What lands in your inbox |
+|---|---|
+| **Right away** | One message per thing, as it happens. The default. |
+| **Once an hour** | On the hour, everything since the last one. |
+| **Once a day** | One message at a time you pick. |
+| **Once a week** | One message on a day you pick. |
+
+Anything held comes as a **single** message, grouped by community and then by what it was:
+
+```
+Foundry
+  Mentions
+    Alice mentioned you in a comment on Fix the login redirect
+  Comments on your work
+    Alice and 2 others — 5 comments on Fix the login redirect
+Acme
+  Events
+    Dana invited you to Sprint review (Tue 10:00)
+```
+
+Two things soften the edges of that, both on by default and both switchable:
+
+- **Things addressed to you skip the queue.** A mention, a reply, a task landing on you, an invitation, a direct message — those go out straight away whatever you've chosen. The ambient stuff waits.
+- **Anything you've already read is dropped.** If you saw it in the bell before the email went, it doesn't go. The digest is what's still waiting, not a recap of your afternoon.
+
+## While you're using Initiative
+
+If you're sat here with Initiative open, the bell has already told you. So it doesn't also tap you on the shoulder: **mobile stays quiet, and email waits about ten minutes** to see whether you read it yourself. If you did, it never sends. If you wandered off, it does.
+
+"Here" means *at the keyboard* — clicking, typing, scrolling. A tab left open on a second monitor since Tuesday doesn't count, and neither does a phone in a pocket.
+
+Switch it off in the same place if you'd rather always be told.
+
+## Pausing
+
+Going away? **Pause notifications** stands email and mobile down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
+
+While it's on, nothing reaches you — not a mention, not a direct message, not somebody typing your name in capitals. That's the point. A pause you have to keep checking isn't one.
+
+The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile gets a count.
+
+A digest that would have landed in the middle of a booked pause waits for the end of it too, so the days you marked off stay marked off.
+
+!!! note "Password resets still arrive"
+    Pausing covers notifications. It doesn't cover the email that turns up because you just clicked "forgot password" — that isn't a notification, it's an answer.
+
+## Other timings worth knowing
 
 - **Comments** on the same thing arrive as **one line**, however many there are. Twenty comments on a task you're on is one notification naming who commented and how many — not twenty. Once you've read it, the next comment starts a fresh one, so new activity is still news.
-- **Task assignments** arrive as one summary once the dust has settled. Initiative waits until nothing new has landed on you for a few minutes, so somebody assigning you ten things reaches you as one message rather than ten separate ones — and sends anyway within half an hour if they're still going. Email and mobile follow the same schedule, so you're never told the same news twice at different times of day.
+- **Task assignments** arrive as one summary once the dust has settled. Somebody assigning you ten things reaches you as one message rather than ten.
 - **Reactions** work the same way, for the same reason: they arrive in flurries.
-- **Overdue tasks** come as one **daily digest** at a time you pick, in your **timezone**.
+- **Overdue tasks** ride along with your scheduled email. Chose weekly? You hear about them weekly, rather than being chased daily about the same list.
 - **Event reminders** are set per event — at the start, or a chosen number of minutes, hours or days before.
 
 !!! tip "Set your timezone. Genuinely."
-    Daily digests, quiet hours, due dates and repeating-task maths all run on your timezone. Initiative guesses it from your browser at sign-up and is usually right.
+    Digests, quiet hours, due dates and repeating-task maths all run on your timezone. Initiative guesses it from your browser at sign-up and is usually right.
 
-    But if your daily reminder is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Interface**.
+    But if your daily email is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Interface**.
 
 ## Quiet hours
 
-Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it. The bell keeps collecting quietly; it was never going to wake you.
+A pause is for a fortnight in Portugal. **Quiet hours** are for every night.
 
-When the window ends you get **one** message per channel saying what happened, grouped by community:
-
-```
-While you were away
-  Foundry — 3 mentions, 5 comments
-  Acme    — 1 event invitation
-```
-
-One message, not a night of them replayed at seven in the morning. If nothing happened, nothing arrives.
+Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it. The bell keeps collecting quietly; it was never going to wake you. When the window ends, everything held arrives as one message, the same digest shape as above. If nothing happened, nothing arrives.
 
 ## Turning on mobile push
 

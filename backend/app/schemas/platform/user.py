@@ -532,7 +532,6 @@ class UserRead(UserBase):
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
-    overdue_notification_time: str = "21:00"
     event_reminder_minutes_before: Optional[int] = 15
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
@@ -658,7 +657,6 @@ class UserSelfUpdate(SanitizedBaseModel):
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
-    overdue_notification_time: Optional[str] = None
     event_reminder_minutes_before: Optional[int] = None
     color_theme: Optional[str] = None
     task_completion_visual_feedback: Optional[str] = None

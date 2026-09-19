@@ -145,7 +145,6 @@ async def create_user(
         "status": UserStatus.active,
         "week_starts_on": 0,
         "timezone": "UTC",
-        "overdue_notification_time": "21:00",
         "event_reminder_minutes_before": 15,
     }
 
