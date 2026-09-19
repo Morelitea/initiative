@@ -11,7 +11,7 @@
 
 > **Pre-release software** — this project hasn't reached v1.0.0 yet. The API may change between minor releases.
 
-<img width="2264" height="1315" alt="initiative screenshot" src="https://github.com/user-attachments/assets/c2c6b9c8-3f6f-4d17-a1ba-9338c033674d" />
+<img width="1920" height="1080" alt="initiative" src="https://github.com/user-attachments/assets/f4036737-8aee-4a7c-adb3-d657d10e3833" />
 
 ---
 
