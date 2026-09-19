@@ -318,3 +318,36 @@ async def test_settled_mail_is_swept_and_waiting_mail_is_not(
     await session.commit()
     assert dropped == 1
     assert [row.id for row in await _rows(session, user.id)] == [rows[1].id]
+
+
+async def test_going_back_to_instant_releases_what_a_digest_was_holding(
+    session: AsyncSession, configured
+):
+    """Choosing a digest and changing your mind has to let the mail out.
+
+    Otherwise somebody who tried "once a week" on a Tuesday would wait until
+    the following Monday to discover they had gone back to instant.
+    """
+    user = await create_user(
+        session, email="back-to-instant@example.com", timezone="UTC"
+    )
+    weekly = {"email": {"cadence": "weekly", "at": "09:00", "weekday": 1}}
+    await set_notification_prefs(session, user, weekly)
+    await email_outbox.enqueue(
+        session, user, category=NotificationCategory.comments, pieces=_pieces()
+    )
+    await session.commit()
+
+    (row,) = await _rows(session, user.id)
+    assert row.deliver_after > datetime.now(timezone.utc) + timedelta(days=1)
+
+    moved = await email_outbox.recompute_pending(
+        session,
+        user_id=user.id,
+        prefs={"email": {"cadence": "instant"}},
+        tz_name="UTC",
+    )
+    await session.commit()
+    assert moved == 1
+    (row,) = await _rows(session, user.id)
+    assert row.deliver_after <= datetime.now(timezone.utc) + timedelta(seconds=5)
