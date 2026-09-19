@@ -20,7 +20,7 @@ def emitted(capfd, event_type: AuditEventType | None = None) -> list[dict[str, A
     envelopes = [
         json.loads(line)
         for line in out.splitlines()
-        if line.startswith("{") and '"event_type"' in line
+        if line.startswith("{") and '"stream":"audit"' in line
     ]
     if event_type is None:
         return envelopes

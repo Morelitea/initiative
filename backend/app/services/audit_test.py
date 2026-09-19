@@ -23,7 +23,7 @@ def _audit_lines(out: str) -> list[dict]:
     return [
         json.loads(line)
         for line in out.splitlines()
-        if line.startswith("{") and '"event_type"' in line
+        if line.startswith("{") and '"stream":"audit"' in line
     ]
 
 

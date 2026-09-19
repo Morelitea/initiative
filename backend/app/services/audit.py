@@ -108,6 +108,9 @@ async def record(
     """
     meta = meta_for(event_type)
     envelope: dict[str, Any] = {
+        # The key a collector routes on: this line is the audit stream, and
+        # the application's own logs are not.
+        "stream": "audit",
         "schema_version": SCHEMA_VERSION,
         "event_uuid": str(uuid4()),
         "event_type": event_type.value,

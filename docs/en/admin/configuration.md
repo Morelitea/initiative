@@ -145,7 +145,7 @@ Two streams come out of the container, and they are for different readers.
 
 **Standard error** is the application talking: what it checked at start-up, what it repaired, anything it thinks you should know. `LOG_LEVEL` says how much. It's `INFO` unless you set it; `WARNING` if you would rather only hear about trouble; `DEBUG` when you are chasing something and want all of it.
 
-**Standard output** is the audit stream: one JSON object per line, one line per recorded action — who did what, to which account or community, when — and nothing else on that stream. Whatever already ships your container's logs carries it, and a log platform reads it as records rather than text.
+**Standard output** is the audit stream: one JSON object per line, one line per recorded action — who did what, to which account or community, when — and nothing else on that stream. Every line carries `"stream": "audit"`, so a collector can route these and nothing else. Whatever already ships your container's logs carries it, and a log platform reads it as records rather than text.
 
 That is where the record is kept, searched and alerted on. A filter on `event_type` is an alert; `guild_id` is on every line about a community. `LOG_LEVEL` has no say over any of it. Accounts appear as ids, and no line ever holds a secret, an address or a name.
 
