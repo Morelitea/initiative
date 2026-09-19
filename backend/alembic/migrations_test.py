@@ -757,6 +757,94 @@ class TestMigrationsAgainstDatabase:
         finally:
             _execute_sql("ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY")
 
+    def test_claim_rules_and_memberships_are_attributed_to_their_provider(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260915_0270 attributes what a deployment already has.
+
+        Every table the revision reads FORCEs row-level security, and a
+        migration runs as the owner with no request context, so a count taken
+        with FORCE on is zero whatever the table holds. That is what the
+        0.69 → 0.70 upgrade hit: nothing was attributed, and ``SET NOT NULL``
+        — DDL, which no policy filters — then found the rows the count had
+        not. Staged at 0269 with the rows a deployment that used claim rules
+        has; a fresh database has none and cannot exercise this.
+        """
+        _run_alembic("upgrade", "20260915_0269")
+        _execute_sql(_CLAIM_RULE_SEED_SQL)
+
+        _run_alembic("upgrade", "20260915_0270")
+
+        _execute_sql(_OIDC_TABLES_NO_FORCE_SQL)
+        try:
+            platform_id = _fetchval(
+                "SELECT id FROM public.auth_providers "
+                "WHERE slug = 'oidc' AND guild_id IS NULL"
+            )
+            assert platform_id is not None
+            assert (
+                _fetchval(
+                    "SELECT provider_id FROM public.oidc_claim_mappings WHERE id = 1"
+                )
+                == platform_id
+            ), "an existing rule belongs to the platform provider"
+            assert (
+                _fetchval(
+                    "SELECT oidc_provider_id FROM public.guild_memberships "
+                    "WHERE user_id = 1"
+                )
+                == platform_id
+            ), "a managed membership names the provider that made it"
+            assert (
+                _fetchval(
+                    "SELECT oidc_provider_id FROM public.guild_memberships "
+                    "WHERE user_id = 2"
+                )
+                is None
+            ), "a membership nobody synced stays unmanaged"
+        finally:
+            _execute_sql(_OIDC_TABLES_FORCE_SQL)
+
+    def test_initiative_memberships_are_attributed_to_their_provider(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260915_0271 reads the platform provider through FORCE RLS too.
+
+        ``initiative_members`` carries no RLS, so its own count is honest, but
+        the provider it attributes to is read from ``public.auth_providers``,
+        which does. Read with FORCE on, there is no provider, and the revision
+        stops a deployment that has managed rows with "nothing to attribute
+        them to". Staged at 0270 with a managed row in ``guild_template``.
+        """
+        _run_alembic("upgrade", "20260915_0270")
+        _execute_sql(_INITIATIVE_MEMBER_SEED_SQL)
+
+        _run_alembic("upgrade", "20260915_0271")
+
+        _execute_sql("ALTER TABLE public.auth_providers NO FORCE ROW LEVEL SECURITY")
+        try:
+            platform_id = _fetchval(
+                "SELECT id FROM public.auth_providers "
+                "WHERE slug = 'oidc' AND guild_id IS NULL"
+            )
+            assert platform_id is not None
+            assert (
+                _fetchval(
+                    "SELECT oidc_provider_id FROM guild_template.initiative_members "
+                    "WHERE user_id = 1"
+                )
+                == platform_id
+            ), "a managed membership names the provider that made it"
+            assert (
+                _fetchval(
+                    "SELECT oidc_provider_id FROM guild_template.initiative_members "
+                    "WHERE user_id = 2"
+                )
+                is None
+            ), "a membership nobody synced stays unmanaged"
+        finally:
+            _execute_sql("ALTER TABLE public.auth_providers FORCE ROW LEVEL SECURITY")
+
     def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
         self, fresh_migrations_db: str
     ) -> None:
@@ -1297,6 +1385,92 @@ _TWO_SWITCHES = "20260918_0313"
 # the master rule goes. The ones with no master are the point: the old rules
 # discarded them, so a screen never showed them, and they must not start
 # counting on their own.
+_OIDC_TABLES_NO_FORCE_SQL = """
+ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guild_memberships NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.auth_providers NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.oidc_claim_mappings NO FORCE ROW LEVEL SECURITY;
+"""
+
+_OIDC_TABLES_FORCE_SQL = """
+ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guild_memberships FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.auth_providers FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.oidc_claim_mappings FORCE ROW LEVEL SECURITY;
+"""
+
+# What a deployment that configured OIDC and let it place people looks like at
+# 0269: the platform provider row the settings form wrote, one rule against it,
+# and a membership that rule made next to one somebody added by hand. Written
+# the same lift-and-restore way as ``_SEED_SQL``, so the revision meets the
+# tables in the mode it ships against.
+_CLAIM_RULE_SEED_SQL = (
+    _OIDC_TABLES_NO_FORCE_SQL
+    + """
+INSERT INTO public.guilds (id, name, created_at, updated_at)
+VALUES (1, 'Seed', now(), now());
+
+INSERT INTO public.users (
+    id, email_hash, email_encrypted, username, discriminator, created_at, updated_at
+) VALUES
+    (1, 'synced-hash', 'synced-encrypted', 'synced', '0001', now(), now()),
+    (2, 'manual-hash', 'manual-encrypted', 'manual', '0001', now(), now());
+
+INSERT INTO public.auth_providers (
+    id, slug, display_name, guild_id, created_at, updated_at
+) VALUES (1, 'oidc', 'Seed provider', NULL, now(), now());
+
+INSERT INTO public.oidc_claim_mappings (id, claim_value, target_type, guild_id)
+VALUES (1, 'staff', 'guild', 1);
+
+INSERT INTO public.guild_memberships (guild_id, user_id, oidc_managed)
+VALUES (1, 1, true), (1, 2, false);
+"""
+    + _OIDC_TABLES_FORCE_SQL
+)
+
+# The guild-side counterpart at 0270: a managed initiative membership in
+# ``guild_template`` (the one guild schema a migrated-from-scratch database
+# has), plus the provider it should be attributed to.
+_INITIATIVE_MEMBER_SEED_SQL = """
+ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.auth_providers NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.guilds (id, name, created_at, updated_at)
+VALUES (1, 'Seed', now(), now());
+
+INSERT INTO public.users (
+    id, email_hash, email_encrypted, username, discriminator, created_at, updated_at
+) VALUES
+    (1, 'synced-hash', 'synced-encrypted', 'synced', '0001', now(), now()),
+    (2, 'manual-hash', 'manual-encrypted', 'manual', '0001', now(), now());
+
+INSERT INTO public.auth_providers (
+    id, slug, display_name, guild_id, created_at, updated_at
+) VALUES (1, 'oidc', 'Seed provider', NULL, now(), now());
+
+ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.auth_providers FORCE ROW LEVEL SECURITY;
+
+SET search_path = guild_template, public;
+
+ALTER TABLE initiatives NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO initiatives (id, guild_id, name, is_default, created_at, updated_at)
+VALUES (1, 1, 'Seed initiative', true, now(), now());
+
+INSERT INTO initiative_members (initiative_id, user_id, guild_id, joined_at, oidc_managed)
+VALUES (1, 1, 1, now(), true), (1, 2, 1, now(), false);
+
+ALTER TABLE initiatives FORCE ROW LEVEL SECURITY;
+
+SET search_path = public;
+"""
+
 _AUTH_OPTION_SEED_SQL = """
 ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;

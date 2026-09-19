@@ -9,6 +9,12 @@ A plain integer and no foreign key: this table lives in a guild schema and
 reference across that line uses. It carries no RLS — the structural initiative
 tables are guild-level, guarded by the schema boundary — so the backfill needs
 no FORCE lifted.
+
+Edited after it shipped in 0.70.0, for the same reason as 0270: the provider
+it attributes to is read from ``public.auth_providers``, which FORCEs RLS and
+admits nothing to the owner a migration runs as. A database with a managed
+membership therefore stopped with "nothing to attribute them to". Nothing that
+passed the released version had such a row, so this one leaves it as it was.
 """
 
 import sqlalchemy as sa
@@ -25,20 +31,28 @@ PLATFORM_SLUG = "oidc"
 
 
 def _platform_provider_id(bind) -> int | None:
-    return bind.execute(
-        sa.text(
-            "SELECT id FROM public.auth_providers "
-            "WHERE slug = :slug AND guild_id IS NULL"
-        ),
-        {"slug": PLATFORM_SLUG},
-    ).scalar()
+    # Read once, with FORCE lifted for the length of the read, since the table
+    # has no policy a migration's empty request context could match.
+    op.execute("ALTER TABLE public.auth_providers NO FORCE ROW LEVEL SECURITY")
+    try:
+        return bind.execute(
+            sa.text(
+                "SELECT id FROM public.auth_providers "
+                "WHERE slug = :slug AND guild_id IS NULL"
+            ),
+            {"slug": PLATFORM_SLUG},
+        ).scalar()
+    finally:
+        op.execute("ALTER TABLE public.auth_providers FORCE ROW LEVEL SECURITY")
 
 
 def upgrade() -> None:
-    run_for_each_guild_schema(op.get_bind(), _apply_upgrade)
+    bind = op.get_bind()
+    platform_id = _platform_provider_id(bind)
+    run_for_each_guild_schema(bind, lambda: _apply_upgrade(platform_id))
 
 
-def _apply_upgrade() -> None:
+def _apply_upgrade(platform_id: int | None) -> None:
     bind = op.get_bind()
     op.add_column(
         "initiative_members", sa.Column("oidc_provider_id", sa.Integer(), nullable=True)
@@ -53,7 +67,6 @@ def _apply_upgrade() -> None:
         sa.text("SELECT count(*) FROM initiative_members WHERE oidc_managed")
     ).scalar()
     if managed:
-        platform_id = _platform_provider_id(bind)
         if platform_id is None:
             raise RuntimeError(
                 "initiative_members carries OIDC-managed rows but no "
