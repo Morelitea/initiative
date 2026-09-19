@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
 import { ConnectSignInWizard } from "@/components/auth/ConnectSignInWizard";
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
 import { GuildClaimRulesSection } from "@/components/auth/GuildClaimRulesSection";
@@ -47,6 +48,34 @@ import { getErrorMessage } from "@/lib/errorMessage";
 /** The select's value for "any of ours" — a requirement that names no single
  * provider. Not a number, so it can never collide with a provider id. */
 const ANY_PROVIDER = "any";
+
+/**
+ * What this admin's own session is missing, when saving a requirement is
+ * refused because it does not meet the requirement itself. The server names
+ * it; a provider is answered by signing in again, a factor of the account's
+ * own by presenting it here.
+ */
+type Unmet = { kind: "provider"; slug: string } | { kind: FactorChallengeDetail["kind"] };
+
+/** The two lines each factor needs: what to do, and the button that does it. */
+const FACTOR_COPY = {
+  totp: {
+    line: "guildAuth.policy.unmetFactor",
+    button: "guildAuth.policy.presentFactor",
+  },
+  passkey: {
+    line: "guildAuth.policy.unmetPasskey",
+    button: "guildAuth.policy.presentPasskey",
+  },
+} as const;
+
+/** The method the server named on a refusal. Axios lower-cases header keys. */
+const unmetMethod = (error: unknown): string | null => {
+  const named = (error as { response?: { headers?: Record<string, unknown> } }).response?.headers?.[
+    "x-auth-policy-unmet"
+  ];
+  return typeof named === "string" ? named : null;
+};
 
 /**
  * The state behind a switch that saves as it is flipped rather than waiting
@@ -149,7 +178,7 @@ export const SettingsGuildSecurityPage = () => {
   const { policy, providerId, anyProvider, requireFactor, requirePasskey } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
   const [error, setError] = useState<string | null>(null);
-  const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
+  const [unmet, setUnmet] = useState<Unmet | null>(null);
 
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
@@ -248,23 +277,38 @@ export const SettingsGuildSecurityPage = () => {
       {
         onSuccess: () => {
           setError(null);
-          setSelfUnsatisfiedSlug(null);
+          setUnmet(null);
           form.settle(sent);
           toast.success(t("guildAuth.policy.saved"));
         },
         onError: (err: unknown) => {
           const detail = (err as { response?: { data?: { detail?: string } } }).response?.data
             ?.detail;
+          const method = unmetMethod(err);
           if (detail === "GUILD_AUTH_POLICY_SELF_UNSATISFIED") {
-            // "Any of ours" is satisfied by any of them, so offer the first.
-            const chosen = anyProvider
-              ? eligibleProviders[0]
-              : eligibleProviders.find((entry) => entry.id === providerId);
-            setSelfUnsatisfiedSlug(chosen?.slug ?? null);
-            setError(null);
-            return;
+            // A factor of the account's own is presented against the session
+            // already open, so the prompt for it belongs here rather than at
+            // a provider's sign-in page.
+            if (method === "totp" || method === "passkey") {
+              setUnmet({ kind: method });
+              setError(null);
+              return;
+            }
+            if (method === "provider" || method === "sso") {
+              // "Any of ours" is satisfied by any of them, so offer the first.
+              const chosen = anyProvider
+                ? eligibleProviders[0]
+                : eligibleProviders.find((entry) => entry.id === providerId);
+              if (chosen) {
+                setUnmet({ kind: "provider", slug: chosen.slug });
+                setError(null);
+                return;
+              }
+            }
+            // A server that names no method, or a provider this page has no
+            // name for: the refusal still gets its own line to stand on.
           }
-          setSelfUnsatisfiedSlug(null);
+          setUnmet(null);
           setError(getErrorMessage(err, "settings:guildAuth.policy.error"));
         },
       }
@@ -276,7 +320,7 @@ export const SettingsGuildSecurityPage = () => {
   // alert's button could name one provider while targeting another).
   const changePolicy = (value: "open" | "required") => {
     setPolicy(value);
-    setSelfUnsatisfiedSlug(null);
+    setUnmet(null);
     setError(null);
   };
   const changeProvider = (value: string) => {
@@ -285,7 +329,12 @@ export const SettingsGuildSecurityPage = () => {
         ? { anyProvider: true, providerId: null }
         : { anyProvider: false, providerId: Number(value) }
     );
-    setSelfUnsatisfiedSlug(null);
+    setUnmet(null);
+    setError(null);
+  };
+  const changeRequirement = (patch: { requireFactor?: boolean; requirePasskey?: boolean }) => {
+    form.set(patch);
+    setUnmet(null);
     setError(null);
   };
 
@@ -295,10 +344,13 @@ export const SettingsGuildSecurityPage = () => {
     enabled: guildId > 0 && mayConfigureProviders,
   });
 
+  const unmetProviderSlug = unmet?.kind === "provider" ? unmet.slug : null;
+  const unmetFactor = unmet != null && unmet.kind !== "provider" ? unmet.kind : null;
+
   // Completing the required provider's sign-in updates this admin session's
   // satisfied set, after which saving the requirement succeeds.
   const signInWithRequiredProvider = () => {
-    const entry = loginProvidersQuery.data?.providers.find((e) => e.slug === selfUnsatisfiedSlug);
+    const entry = loginProvidersQuery.data?.providers.find((e) => e.slug === unmetProviderSlug);
     if (!entry) {
       return;
     }
@@ -306,8 +358,18 @@ export const SettingsGuildSecurityPage = () => {
     window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
   };
   const canSignInWithRequired =
-    selfUnsatisfiedSlug != null &&
-    loginProvidersQuery.data?.providers.some((e) => e.slug === selfUnsatisfiedSlug);
+    unmetProviderSlug != null &&
+    loginProvidersQuery.data?.providers.some((e) => e.slug === unmetProviderSlug);
+
+  // The same dialog every refused request opens, asked for here so a factor
+  // is presented without leaving the page the requirement is being written on.
+  const presentFactor = (kind: FactorChallengeDetail["kind"]) => {
+    window.dispatchEvent(
+      new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
+        detail: { guildId, kind },
+      })
+    );
+  };
 
   // The guild's shareable sign-in URL, built on the server's origin (which is
   // the app's own origin on web, or the configured server on native).
@@ -449,7 +511,9 @@ export const SettingsGuildSecurityPage = () => {
                   <Checkbox
                     id="require-second-factor"
                     checked={requireFactor}
-                    onCheckedChange={(checked) => form.set({ requireFactor: Boolean(checked) })}
+                    onCheckedChange={(checked) =>
+                      changeRequirement({ requireFactor: Boolean(checked) })
+                    }
                   />
                   <div className="space-y-1">
                     <Label htmlFor="require-second-factor" className="font-medium">
@@ -467,7 +531,9 @@ export const SettingsGuildSecurityPage = () => {
                   <Checkbox
                     id="require-passkey"
                     checked={requirePasskey}
-                    onCheckedChange={(checked) => form.set({ requirePasskey: Boolean(checked) })}
+                    onCheckedChange={(checked) =>
+                      changeRequirement({ requirePasskey: Boolean(checked) })
+                    }
                   />
                   <div className="space-y-1">
                     <Label htmlFor="require-passkey" className="font-medium">
@@ -480,21 +546,31 @@ export const SettingsGuildSecurityPage = () => {
                 </div>
               )}
 
-              {selfUnsatisfiedSlug && (
+              {unmetProviderSlug && (
                 <Alert>
                   <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <span>
                       {t("guildAuth.policy.selfUnsatisfied", {
-                        providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                        providerName: selectedProvider?.display_name ?? unmetProviderSlug,
                       })}
                     </span>
                     {canSignInWithRequired && (
                       <Button size="sm" onClick={signInWithRequiredProvider}>
                         {t("guildAuth.policy.signInWith", {
-                          providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                          providerName: selectedProvider?.display_name ?? unmetProviderSlug,
                         })}
                       </Button>
                     )}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {unmetFactor && (
+                <Alert>
+                  <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span>{t(FACTOR_COPY[unmetFactor].line)}</span>
+                    <Button size="sm" onClick={() => presentFactor(unmetFactor)}>
+                      {t(FACTOR_COPY[unmetFactor].button)}
+                    </Button>
                   </AlertDescription>
                 </Alert>
               )}

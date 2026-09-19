@@ -1,9 +1,11 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AxiosError, AxiosHeaders } from "axios";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
 
 // What the server says about this community and this member. Flipped per test.
 let guildRole = "superadmin";
@@ -367,6 +369,106 @@ describe("SettingsGuildSecurityPage", () => {
 
       expect(await screen.findByLabelText(/second factor/i)).toBeChecked();
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+    });
+  });
+
+  describe("when the admin's own session does not meet the rule", () => {
+    /** The save's refusal, as the server names what is missing. */
+    const refuse = (unmet?: string, detail = "GUILD_AUTH_POLICY_SELF_UNSATISFIED") => {
+      // Lower-cased, as axios hands a response's headers back.
+      const headers = new AxiosHeaders(unmet ? { "x-auth-policy-unmet": unmet } : {});
+      const error = new AxiosError("refused", "ERR_BAD_REQUEST");
+      error.response = {
+        status: 400,
+        statusText: "",
+        data: { detail },
+        headers,
+        config: { headers: new AxiosHeaders() },
+      };
+      const sent = savePolicy.mock.calls[0][1] as { onError: (err: unknown) => void };
+      act(() => sent.onError(error));
+    };
+
+    /** What the page asked the global dialog for, if it asked. */
+    let asked: FactorChallengeDetail[] = [];
+    const record = (event: Event) => {
+      asked.push((event as CustomEvent<FactorChallengeDetail>).detail);
+    };
+    beforeEach(() => {
+      asked = [];
+      window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, record);
+    });
+    afterEach(() => {
+      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, record);
+    });
+
+    it("offers the named provider's sign-in", async () => {
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await chooseOption(user, "Contractors");
+      await user.click(screen.getByRole("button", { name: /save/i }));
+      refuse("provider");
+
+      expect(screen.getByText(/hasn't signed in with Contractors/i)).toBeInTheDocument();
+      // The choice is still there to save again once the session carries it.
+      expect(screen.getByRole("combobox")).toHaveTextContent("Contractors");
+      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    });
+
+    it("asks for a code where the rule wants one", async () => {
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await chooseOption(user, "Contractors");
+      await user.click(screen.getByLabelText(/second factor/i));
+      await user.click(screen.getByRole("button", { name: /save/i }));
+      refuse("totp");
+
+      expect(
+        screen.getByText(/enter a code from your authenticator app first/i)
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /^enter a code$/i }));
+
+      expect(asked).toEqual([{ guildId: 4, kind: "totp" }]);
+      expect(screen.getByLabelText(/second factor/i)).toBeChecked();
+      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    });
+
+    it("asks for the passkey where the rule wants one", async () => {
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await user.click(screen.getByLabelText(/require a passkey/i));
+      await user.click(screen.getByRole("button", { name: /save/i }));
+      refuse("passkey");
+
+      expect(screen.getByText(/present your passkey first/i)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /^present passkey$/i }));
+
+      expect(asked).toEqual([{ guildId: 4, kind: "passkey" }]);
+      expect(screen.getByLabelText(/require a passkey/i)).toBeChecked();
+      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    });
+
+    it("still says something when the server names nothing", async () => {
+      // An older server answers the same refusal with no header on it.
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await user.click(screen.getByLabelText(/require a passkey/i));
+      await user.click(screen.getByRole("button", { name: /save/i }));
+      refuse();
+
+      expect(
+        screen.getByText(/sign in with that provider yourself before requiring it/i)
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/require a passkey/i)).toBeChecked();
+      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
     });
   });
 
