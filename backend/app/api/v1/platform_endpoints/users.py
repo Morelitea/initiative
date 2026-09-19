@@ -183,6 +183,7 @@ async def read_users_me(
     payload.has_federated_identity = await has_federated_identity(
         session, user_id=current_user.id
     )
+    payload.has_password = has_usable_password(current_user.hashed_password)
     # The standing age gate. Costs a query only for an account that has not
     # confirmed on a deployment that asks — it short-circuits on the column
     # for everyone else, and stops for good once they answer.
@@ -979,6 +980,7 @@ async def update_users_me(
     if not update_data:
         payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
+        payload.has_password = has_usable_password(current_user.hashed_password)
         return payload
 
     new_full_name = update_data.get("full_name")
@@ -1198,6 +1200,7 @@ async def update_users_me(
     # linked-identity signal /users/me serves.
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
+    payload.has_password = has_usable_password(current_user.hashed_password)
     return payload
 
 

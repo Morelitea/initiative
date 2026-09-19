@@ -1565,3 +1565,64 @@ async def test_a_withdrawn_method_stops_a_step_up(
     )
     assert finished.status_code == 403
     assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+
+
+# ---------------------------------------------------------------------------
+# The last way in
+# ---------------------------------------------------------------------------
+
+
+async def _passwordless(session: AsyncSession, email: str) -> User:
+    return await create_user(
+        session,
+        email=email,
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+
+
+async def test_the_last_credential_of_a_passwordless_account_stays(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing else opens a session for this account, so the credential is not
+    somebody's to remove."""
+    user = await _passwordless(session, "pk-last@example.com")
+    row = await _credential_for(session, user, credential_id="last-one")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove",
+        json={},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
+
+
+async def test_a_password_beside_it_lets_the_credential_go(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "pk-last-password@example.com")
+    row = await _credential_for(session, user, credential_id="last-with-password")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove",
+        json={"current_password": PASSWORD},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 204, response.text
+
+
+async def test_a_second_credential_lets_the_first_go(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _passwordless(session, "pk-two-keys@example.com")
+    first = await _credential_for(session, user, credential_id="one-of-two")
+    await _credential_for(session, user, credential_id="two-of-two")
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{first.id}/remove",
+        json={},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 204, response.text

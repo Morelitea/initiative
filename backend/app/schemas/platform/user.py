@@ -546,6 +546,11 @@ class UserRead(UserBase):
     # accounts have no usable password to type in. Populated by the self
     # endpoints (/users/me and PATCH /users/me); defaults False elsewhere.
     has_federated_identity: bool = False
+    # True when the account holds a password it can be asked for. Read from
+    # the stored hash rather than from the identity link above: an account can
+    # hold both, and one that gave its password up holds neither. Populated by
+    # the self endpoints; defaults False elsewhere.
+    has_password: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]

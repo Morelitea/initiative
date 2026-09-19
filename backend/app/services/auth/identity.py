@@ -30,15 +30,16 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import false, or_
+from sqlalchemy import or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import encrypt_token
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import DEFAULT_LOGIN_METHODS, LoginMethod
 from app.services.auth import addresses
-from app.core.security import USABLE_HASH_PREFIXES
+from app.core.security import USABLE_HASH_PREFIXES, has_usable_password
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
@@ -47,6 +48,7 @@ from app.models.platform.user_passkey import UserPasskey
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 
 logger = logging.getLogger(__name__)
 
@@ -360,6 +362,81 @@ async def stranded_between(
             )
         )
     ).one()
+
+
+async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:
+    """Which ways in this deployment permits.
+
+    Read from the settings row here rather than through ``auth_posture``, which
+    is the module that answers this everywhere else and reads this one. The
+    same resolution: a row holding nothing this version recognises falls back
+    to the default set.
+    """
+    row = (
+        await session.exec(
+            select(AppSetting.login_methods).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).first()
+    resolved = set()
+    for value in row or ():
+        try:
+            resolved.add(LoginMethod(value))
+        except ValueError:
+            continue
+    return frozenset(resolved) or frozenset(DEFAULT_LOGIN_METHODS)
+
+
+async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMethod]:
+    """Which methods could start a session for this account today.
+
+    Three questions asked together, because the answer to each depends on both
+    halves — what the account holds, and what the deployment permits. A
+    credential the deployment no longer accepts is not a way in, and a method
+    the deployment offers is not a way in for an account that holds nothing to
+    present.
+
+    ``totp`` is never a member: it accompanies a sign-in rather than beginning
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
+    keys, which are derived from a sign-in that already happened.
+
+    The settings row is read once, so a caller weighing a change reads one
+    consistent posture rather than three.
+    """
+    permitted = await _permitted_methods(session)
+    found: set[LoginMethod] = set()
+
+    if LoginMethod.password in permitted:
+        hashed = (
+            await session.exec(select(User.hashed_password).where(User.id == user_id))
+        ).first()
+        if has_usable_password(hashed):
+            found.add(LoginMethod.password)
+
+    if LoginMethod.sso in permitted:
+        identity = (
+            await session.exec(
+                select(FederatedIdentity.id)
+                .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+                .where(
+                    FederatedIdentity.user_id == user_id,
+                    can_serve_login_clause(),
+                )
+                .limit(1)
+            )
+        ).first()
+        if identity is not None:
+            found.add(LoginMethod.sso)
+
+    if LoginMethod.passkey in permitted:
+        passkey = (
+            await session.exec(
+                select(UserPasskey.id).where(UserPasskey.user_id == user_id).limit(1)
+            )
+        ).first()
+        if passkey is not None:
+            found.add(LoginMethod.passkey)
+
+    return frozenset(found)
 
 
 async def password_only_user_count(

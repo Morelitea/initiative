@@ -71,17 +71,33 @@ async def read_second_factor(
     offered = await auth_posture.login_method_allowed(admin_session, LoginMethod.totp)
     password_required = has_usable_password(current_user.hashed_password)
     factor = await totp_service.get_factor(admin_session, user_id=current_user.id)
+    enrolled = factor is not None and factor.confirmed_at is not None
+    # An account that signs in without a password keeps a recovery set whether
+    # or not it is enrolled: the codes answer for the account there rather than
+    # for a factor, and setting a password again is what they are for.
+    passwordless = not password_required
+    remaining = (
+        await totp_service.remaining_recovery_codes(
+            admin_session, user_id=current_user.id
+        )
+        if enrolled or passwordless
+        else 0
+    )
     if factor is None or factor.confirmed_at is None:
-        return SecondFactorStatus(password_required=password_required, offered=offered)
+        return SecondFactorStatus(
+            password_required=password_required,
+            offered=offered,
+            passwordless=passwordless,
+            recovery_codes_remaining=remaining,
+        )
     return SecondFactorStatus(
         enrolled=True,
         password_required=password_required,
         offered=offered,
+        passwordless=passwordless,
         confirmed_at=_iso(factor.confirmed_at),
         last_used_at=_iso(factor.last_used_at),
-        recovery_codes_remaining=await totp_service.remaining_recovery_codes(
-            admin_session, user_id=current_user.id
-        ),
+        recovery_codes_remaining=remaining,
     )
 
 
@@ -314,8 +330,16 @@ async def regenerate_recovery_codes(
     payload: RecoveryCodesRegenerate,
     _first_party: str = FirstPartyOnly,
 ) -> RecoveryCodes:
-    """Retire the account's codes and hand over a fresh set, once."""
-    if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
+    """Retire the account's codes and hand over a fresh set, once.
+
+    For an account that is enrolled, and for one that signs in without a
+    password — there the codes answer for the account itself, and are how it
+    sets a password again.
+    """
+    passwordless = not has_usable_password(current_user.hashed_password)
+    if not passwordless and not await totp_service.is_enrolled(
+        admin_session, user_id=current_user.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,

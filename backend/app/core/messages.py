@@ -83,6 +83,12 @@ class AuthMessages:
     PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
     #: The deployment does not offer passkeys.
     PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
+    #: The password is the account's only way to start a session, so it stays.
+    PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
+    #: The passkey is the account's only way to start a session, so it stays.
+    PASSKEY_IS_LAST_METHOD = "PASSKEY_IS_LAST_METHOD"
+    #: Removing a password from an account that holds none.
+    PASSWORD_NOT_HELD = "PASSWORD_NOT_HELD"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"

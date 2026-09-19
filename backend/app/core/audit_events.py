@@ -46,6 +46,10 @@ class AuditEventType(str, Enum):
     AUTH_SIGN_IN_FAILED = "auth.sign_in_failed"
     AUTH_SIGNED_OUT = "auth.signed_out"
     AUTH_PASSWORD_CHANGED = "auth.password_changed"
+    #: The account gave its password up and signs in by another way from
+    #: now on. Recorded apart from a change, because what the account holds
+    #: is different afterwards rather than merely different in value.
+    AUTH_PASSWORD_REMOVED = "auth.password_removed"
     AUTH_IDENTITY_LINKED = "auth.identity_linked"
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
     #: The account's own second factor. ``failed`` is a refused code against a
@@ -144,6 +148,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_PASSWORD_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_PASSWORD_REMOVED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_IDENTITY_LINKED: AuditEventMeta(

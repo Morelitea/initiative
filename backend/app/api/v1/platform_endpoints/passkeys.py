@@ -64,6 +64,7 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
+from app.services.auth import identity as identity_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth.assurance import passkey_amr
 from app.services.platform import auth_posture
@@ -355,6 +356,19 @@ async def remove_passkey(
     """Forget the credential. The password is asked for again, as it is for a
     password change, because a way in is being taken away."""
     require_password(current_user, payload.current_password)
+
+    # A credential is allowed to go while something else still opens a session
+    # — another passkey, a password, a provider the deployment answers for.
+    # Where it is the whole of that, it stays.
+    ways = await identity_service.ways_in(admin_session, user_id=current_user.id)
+    if ways == frozenset({LoginMethod.passkey}) and (
+        await passkey_service.count_for_user(admin_session, user_id=current_user.id)
+        == 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AuthMessages.PASSKEY_IS_LAST_METHOD,
+        )
 
     # Read the name while the row is still there, so the letter can say which
     # credential went.

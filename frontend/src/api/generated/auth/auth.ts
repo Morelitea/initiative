@@ -42,6 +42,8 @@ import type {
   PasskeySignInResult,
   PasskeySignInStart,
   PasskeyStepUpFinish,
+  PasswordRecover,
+  PasswordRemove,
   PasswordResetRequest,
   PasswordResetSubmit,
   ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
@@ -2923,6 +2925,10 @@ export const useStepUpWithFactorApiV1AuthStepUpTotpPost = <
 };
 /**
  * Retire the account's codes and hand over a fresh set, once.
+ *
+ * For an account that is enrolled, and for one that signs in without a
+ * password — there the codes answer for the account itself, and are how it
+ * sets a password again.
  * @summary Regenerate Recovery Codes
  */
 export const regenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost = (
@@ -3889,6 +3895,199 @@ export const useFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost = <
 > => {
   return useMutation(
     getFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Give up the password, keeping the passkey or the sign-in provider that
+ * will open sessions from now on.
+ *
+ * Hands back a recovery set when the account holds none yet — the one time
+ * those exist in the clear — and an empty list when it already does.
+ * @summary Remove Password
+ */
+export const removePasswordApiV1AuthPasswordRemovePost = (
+  passwordRemove: BodyType<PasswordRemove>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecoveryCodes>(
+    {
+      url: `/api/v1/auth/password/remove`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passwordRemove,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRemovePasswordApiV1AuthPasswordRemovePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>,
+    TError,
+    { data: BodyType<PasswordRemove> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>,
+  TError,
+  { data: BodyType<PasswordRemove> },
+  TContext
+> => {
+  const mutationKey = ["removePasswordApiV1AuthPasswordRemovePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>,
+    { data: BodyType<PasswordRemove> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return removePasswordApiV1AuthPasswordRemovePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemovePasswordApiV1AuthPasswordRemovePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>
+>;
+export type RemovePasswordApiV1AuthPasswordRemovePostMutationBody = BodyType<PasswordRemove>;
+export type RemovePasswordApiV1AuthPasswordRemovePostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Password
+ */
+export const useRemovePasswordApiV1AuthPasswordRemovePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>,
+      TError,
+      { data: BodyType<PasswordRemove> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removePasswordApiV1AuthPasswordRemovePost>>,
+  TError,
+  { data: BodyType<PasswordRemove> },
+  TContext
+> => {
+  return useMutation(
+    getRemovePasswordApiV1AuthPasswordRemovePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set a password with a recovery code, for an account that holds none.
+ *
+ * The way back in when the passkey is gone and no mail can be sent. An
+ * account that holds a password recovers it through the mailed reset instead.
+ *
+ * No session is opened here. The password is what the account signs in with
+ * afterwards, and the authenticator is still asked for where one is enrolled.
+ * @summary Recover With Code
+ */
+export const recoverWithCodeApiV1AuthPasswordRecoverPost = (
+  passwordRecover: BodyType<PasswordRecover>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    {
+      url: `/api/v1/auth/password/recover`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passwordRecover,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRecoverWithCodeApiV1AuthPasswordRecoverPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>,
+    TError,
+    { data: BodyType<PasswordRecover> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>,
+  TError,
+  { data: BodyType<PasswordRecover> },
+  TContext
+> => {
+  const mutationKey = ["recoverWithCodeApiV1AuthPasswordRecoverPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>,
+    { data: BodyType<PasswordRecover> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return recoverWithCodeApiV1AuthPasswordRecoverPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecoverWithCodeApiV1AuthPasswordRecoverPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>
+>;
+export type RecoverWithCodeApiV1AuthPasswordRecoverPostMutationBody = BodyType<PasswordRecover>;
+export type RecoverWithCodeApiV1AuthPasswordRecoverPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Recover With Code
+ */
+export const useRecoverWithCodeApiV1AuthPasswordRecoverPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>,
+      TError,
+      { data: BodyType<PasswordRecover> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recoverWithCodeApiV1AuthPasswordRecoverPost>>,
+  TError,
+  { data: BodyType<PasswordRecover> },
+  TContext
+> => {
+  return useMutation(
+    getRecoverWithCodeApiV1AuthPasswordRecoverPostMutationOptions(options),
     queryClient
   );
 };
