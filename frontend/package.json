@@ -120,7 +120,7 @@
     "lexical": "^0.50.0",
     "lucide-react": "^1.41.0",
     "papaparse": "^5.5.4",
-    "pdfjs-dist": "5.4.296",
+    "pdfjs-dist": "6.3.289",
     "qrcode.react": "^4.2.0",
     "quickjs-emscripten-core": "^0.32.0",
     "react": "^19.3.0",
