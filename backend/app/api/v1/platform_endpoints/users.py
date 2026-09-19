@@ -102,6 +102,7 @@ from app.core.messages import (
     AddressMessages,
     AuthMessages,
     GuildMessages,
+    LegalMessages,
     UserMessages,
 )
 from app.services.auth import addresses
@@ -116,6 +117,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
+from app.services.platform import legal as legal_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
@@ -187,6 +189,11 @@ async def read_users_me(
     # for everyone else, and stops for good once they answer.
     payload.age_confirmation_required = (
         await guilds_service.age_confirmation_outstanding(session, user=current_user)
+    )
+    # The hosted deployment's terms. Short-circuits on the deployment switch
+    # for every self-hoster, and costs one indexed count everywhere else.
+    payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
+        session, user=current_user
     )
     return payload
 
@@ -833,6 +840,38 @@ async def confirm_my_age(
         await session.refresh(current_user)
 
     return await users_service.to_self_read(current_user)
+
+
+@router.post("/me/legal-acceptance", response_model=UserRead)
+async def accept_legal_documents(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserRead:
+    """Agree to this deployment's terms and privacy policy.
+
+    For an account that never met the signup form — one an identity provider
+    provisioned on first sign-in. The form's own notice is the agreement for
+    everybody else, recorded as the account is created.
+
+    Saying it again appends: the table records acceptances, not a state, and
+    agreeing to a newer revision is a real event rather than a correction to
+    an old one. The screen only appears while something is outstanding, so in
+    practice this is written once.
+
+    A deployment with no terms of its own has nothing to accept, so this
+    answers 404 rather than writing an empty record.
+    """
+    if not legal_service.legal_documents_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=LegalMessages.NOT_CONFIGURED,
+        )
+    if await legal_service.acceptance_outstanding(session, user=current_user):
+        await legal_service.record_acceptance(session, user_id=current_user.id)
+        await session.commit()
+    payload = await users_service.to_self_read(current_user)
+    payload.legal_acceptance_required = False
+    return payload
 
 
 def _address_read(row) -> UserEmailRead:

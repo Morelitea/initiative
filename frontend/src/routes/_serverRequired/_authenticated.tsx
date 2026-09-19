@@ -11,6 +11,7 @@ import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { AcceptTerms } from "@/components/AcceptTerms";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AnnouncementCenter } from "@/components/announcements/AnnouncementCenter";
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
@@ -142,6 +143,14 @@ function AppLayout() {
   // when their guild listed itself.
   if (!loading && user && user.age_confirmation_required) {
     return <ConfirmAge />;
+  }
+
+  // Never agreed to this deployment's terms, on a deployment that has some.
+  // Signing up through the form is the agreement and is recorded there, so
+  // this is the way in that had no form: an account an identity provider
+  // provisioned on first sign-in.
+  if (!loading && user && user.legal_acceptance_required) {
+    return <AcceptTerms />;
   }
 
   // Now we can have conditional returns

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { LegalNotice } from "@/components/auth/LegalNotice";
 import { LogoIcon } from "@/components/LogoIcon";
 import { UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
@@ -349,6 +350,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
               {captchaRequired && captcha ? (
                 <CaptchaWidget key={captchaResetKey} config={captcha} onToken={setCaptchaToken} />
               ) : null}
+              {/* Immediately above the button, because pressing the button is
+                  the agreement. Renders nothing where the deployment has no
+                  terms of its own. */}
+              <LegalNotice />
               <Button
                 className="w-full"
                 type="submit"

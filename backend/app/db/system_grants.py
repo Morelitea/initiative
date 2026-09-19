@@ -132,6 +132,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # to clear an anonymized account off other people's lists too — the row
     # survives the husk, so the FK cascade never fires for it.
     "profile_favorites": frozenset({"SELECT", "DELETE"}),
+    # Consent to the deployment's terms. Registration runs on the system
+    # engine, so the acceptance it records is written here; SELECT is for the
+    # same path asking whether an account already has one. Nothing updates a
+    # consent record, and the FK cascade off ``users`` is what removes it, so
+    # neither UPDATE nor DELETE is granted.
+    "legal_acceptances": frozenset({"SELECT", "INSERT"}),
     # An account is created on the system engine (registration, invite
     # redemption, provisioning from an identity provider), and its policy row is
     # seeded there from the operator default — hence INSERT. The other three are
@@ -307,6 +313,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # A contacts list belongs to a signed-in account, and the bare pre-routing
     # login role serves nobody in particular.
     "profile_favorites": None,
+    # Read and written by an account about itself, after its session is
+    # routed. Nobody asks what somebody agreed to before then.
+    "legal_acceptances": None,
     # Read and written on the authenticated platform-tier path, never before a
     # session is routed.
     "user_dm_settings": None,

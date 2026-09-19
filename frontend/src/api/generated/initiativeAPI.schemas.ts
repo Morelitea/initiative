@@ -472,6 +472,7 @@ export interface AdminUserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   age_confirmation_required: boolean;
+  legal_acceptance_required: boolean;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;
@@ -4891,6 +4892,22 @@ export interface LeaveGuildEligibilityResponse {
 }
 
 /**
+ * One document in the index — everything but the text.
+ */
+export interface LegalDocumentRead {
+  slug: string;
+  title: string;
+  version?: string | null;
+  effective_date?: string | null;
+  sha256?: string | null;
+}
+
+export interface LegalIndexRead {
+  documents: LegalDocumentRead[];
+  required: string[];
+}
+
+/**
  * What a marketplace listing installs as.
  */
 export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
@@ -7868,6 +7885,7 @@ export interface UserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   age_confirmation_required: boolean;
+  legal_acceptance_required: boolean;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;

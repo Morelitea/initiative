@@ -713,5 +713,8 @@
   "PLATFORM_AUTH_FACTOR_REQUIRED": "Ce serveur exige un second facteur. Configurez-en un, ou saisissez un code, pour continuer.",
   "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Autorisez d'abord l'application d'authentification ou les clés d'accès : il n'y a rien à exiger.",
   "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Configurez votre propre second facteur avant d'en exiger un.",
-  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Ce serveur exige encore un second facteur. Levez d'abord cette exigence."
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Ce serveur exige encore un second facteur. Levez d'abord cette exigence.",
+  "LEGAL_NOT_CONFIGURED": "Cette installation n'a pas de conditions propres.",
+  "LEGAL_PORTAL_UNAVAILABLE": "Les conditions d'utilisation et la politique de confidentialité sont injoignables pour le moment. Réessayez dans un instant.",
+  "LEGAL_DOCUMENT_NOT_FOUND": "Ce document n'existe pas."
 }

@@ -82,6 +82,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # and one-directional: the list is the holder's, and it may name
         # people they share no guild with.
         "profile_favorites",
+        # What an account agreed to when it was created. A deployment's terms
+        # are the platform's, not any one community's, so the record of
+        # accepting them belongs beside the account rather than in a schema.
+        "legal_acceptances",
         # Who may ask to message an account, who it has agreed something with,
         # and who it has chosen not to hear from. All three are per-account and
         # cross-guild, like the starred list above, and none of them is any

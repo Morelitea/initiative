@@ -713,5 +713,8 @@
   "PLATFORM_AUTH_FACTOR_REQUIRED": "Dieser Server verlangt einen zweiten Faktor. Richte einen ein oder gib einen Code ein, um fortzufahren.",
   "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Erlaube zuerst die Authenticator-App oder Passkeys — sonst gibt es nichts zu verlangen.",
   "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Richte selbst einen zweiten Faktor ein, bevor du ihn verlangst.",
-  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Dieser Server verlangt weiterhin einen zweiten Faktor. Hebe diese Anforderung zuerst auf."
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Dieser Server verlangt weiterhin einen zweiten Faktor. Hebe diese Anforderung zuerst auf.",
+  "LEGAL_NOT_CONFIGURED": "Diese Installation hat keine eigenen Nutzungsbedingungen.",
+  "LEGAL_PORTAL_UNAVAILABLE": "Nutzungsbedingungen und Datenschutzerklärung sind gerade nicht erreichbar. Bitte versuche es gleich noch einmal.",
+  "LEGAL_DOCUMENT_NOT_FOUND": "Dieses Dokument gibt es nicht."
 }

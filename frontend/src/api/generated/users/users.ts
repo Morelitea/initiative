@@ -1321,6 +1321,101 @@ export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
   );
 };
 /**
+ * Agree to this deployment's terms and privacy policy.
+ *
+ * For an account that never met the signup form — one an identity provider
+ * provisioned on first sign-in. The form's own notice is the agreement for
+ * everybody else, recorded as the account is created.
+ *
+ * Saying it again appends: the table records acceptances, not a state, and
+ * agreeing to a newer revision is a real event rather than a correction to
+ * an old one. The screen only appears while something is outstanding, so in
+ * practice this is written once.
+ *
+ * A deployment with no terms of its own has nothing to accept, so this
+ * answers 404 rather than writing an empty record.
+ * @summary Accept Legal Documents
+ */
+export const acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    { url: `/api/v1/users/me/legal-acceptance`, method: "POST", signal },
+    options
+  );
+};
+
+export const getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+    void
+  > = () => {
+    return acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>
+>;
+
+export type AcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Accept Legal Documents
+ */
+export const useAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof acceptLegalDocumentsApiV1UsersMeLegalAcceptancePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getAcceptLegalDocumentsApiV1UsersMeLegalAcceptancePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Every address this account holds.
  *
  * On the system engine: ``user_emails`` carries no request-path grants,

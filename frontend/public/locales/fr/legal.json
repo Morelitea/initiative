@@ -1,0 +1,17 @@
+{
+  "signupNotice": "En créant un compte, vous acceptez les <termsLink>{{terms}}</termsLink> et la <privacyLink>{{privacy}}</privacyLink> de {{appName}}.",
+  "termsTitle": "Conditions d'utilisation",
+  "privacyTitle": "Politique de confidentialité",
+  "documentFallbackTitle": "Document juridique",
+  "effective": "En vigueur depuis le {{date}}",
+  "version": "Version {{version}}",
+  "unavailable": "Ce document ne peut pas être affiché pour le moment. Réessayez dans un instant.",
+  "backToSignIn": "Retour à la connexion",
+  "acceptError": "Nous n'avons pas pu enregistrer votre accord. Réessayez.",
+  "accept": {
+    "title": "Une dernière chose",
+    "subtitle": "Votre compte a été créé via votre fournisseur d'identité : vous n'avez donc pas encore vu ces documents. Lisez-les, puis acceptez pour continuer.",
+    "submit": "J'accepte",
+    "signOut": "Se déconnecter"
+  }
+}
