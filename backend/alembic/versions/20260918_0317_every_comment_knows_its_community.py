@@ -19,8 +19,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260918_0314"
-down_revision = "20260918_0313"
+revision = "20260918_0317"
+down_revision = "20260918_0316"
 branch_labels = None
 depends_on = None
 

@@ -5,7 +5,7 @@ service, and the guild-wide surfaces (the recent-activity feed) filter on it.
 So a parent the trigger has no arm for does not fail loudly — the thread still
 reads back, and the comment is simply missing from the feed for ever.
 
-That is what went wrong between 0192 and 0314: three tools arrived and none of
+That is what went wrong between 0192 and 0317: three tools arrived and none of
 them extended the function. These hold the live definitions to the parent
 registry so the next one cannot.
 """
