@@ -15,7 +15,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
-from app.db.frozen import FROZEN_SQLSTATE
+from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
 from app.db.session import set_rls_context
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
@@ -28,6 +28,7 @@ from app.testing import (
     create_initiative,
     create_project,
     create_task,
+    create_task_status,
     create_user,
 )
 
@@ -517,6 +518,36 @@ class TestRowFreeze:
     async def test_an_archived_task_is_read_only(self, session, routed, workspace):
         _u, _g, _i, _p, task = workspace
         await _archive(session, task)
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text("UPDATE tasks SET title = 'edited' WHERE id = :id").bindparams(
+                    id=task.id
+                )
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
+    async def test_a_board_restructure_moves_an_archived_task_with_its_column(
+        self, session, routed, workspace
+    ):
+        """The column is what changes; the task keeps its stamp and follows."""
+        _u, _g, _i, project, task = workspace
+        other = await create_task_status(session, project, name="Elsewhere")
+        await _archive(session, task)
+        await mark_restructuring(routed)
+        await routed.exec(
+            text("UPDATE tasks SET task_status_id = :status WHERE id = :id").bindparams(
+                status=other.id, id=task.id
+            )
+        )
+        await routed.commit()
+
+    async def test_a_board_restructure_ends_with_its_transaction(
+        self, session, routed, workspace
+    ):
+        _u, _g, _i, _p, task = workspace
+        await _archive(session, task)
+        await mark_restructuring(routed)
+        await routed.commit()
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
                 text("UPDATE tasks SET title = 'edited' WHERE id = :id").bindparams(

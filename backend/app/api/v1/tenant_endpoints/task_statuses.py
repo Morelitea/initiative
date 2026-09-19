@@ -31,6 +31,7 @@ from app.schemas.tenant.task_status import (
     TaskStatusUpdate,
 )
 from app.core.messages import InitiativeMessages, TaskStatusMessages
+from app.db.frozen import mark_restructuring
 from app.services import rls as rls_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import task_statuses as task_statuses_service
@@ -222,7 +223,9 @@ async def update_task_status(
         target.category = new_category
         # Recategorising a column moves every task in it across the done
         # boundary without any task row being written, so realign their
-        # completion timestamps here.
+        # completion timestamps here. The archived and trashed tasks in the
+        # column cross with it: the column is what changed, not them.
+        await mark_restructuring(session)
         await task_completion.resync_status_tasks(
             session,
             status_id=target.id,
@@ -319,7 +322,14 @@ async def delete_task_status(
     target = await _load_status_or_404(session, project_id, status_id)
     await _ensure_not_only_status(session, project_id=project_id)
 
-    stmt = select(func.count(Task.id)).where(Task.task_status_id == target.id)
+    # Every task in the column has to land somewhere, including the ones in
+    # the trash: the active-row filter would hide those from this count, and
+    # the foreign key would then refuse the delete on their behalf.
+    stmt = (
+        select(func.count(Task.id))
+        .where(Task.task_status_id == target.id)
+        .execution_options(include_deleted=True)
+    )
     result = await session.exec(stmt)
     task_count = result.one() or 0
 
@@ -364,6 +374,9 @@ async def delete_task_status(
             _ensure_default(replacement_statuses)
             await session.flush()
 
+        # Archived and trashed tasks move with the live ones — the column is
+        # going away, not them, and they keep their stamps — but a finished
+        # recurring task is not started over on the way past Done.
         recurring_tasks: list[Task] = []
         if (
             target.category != TaskStatusCategory.done
@@ -376,6 +389,8 @@ async def delete_task_status(
                         Task.task_status_id == target.id,
                         Task.recurrence.is_not(None),
                         Task.due_date.is_not(None),
+                        Task.archived_at.is_(None),
+                        Task.deleted_at.is_(None),
                     )
                     .options(
                         selectinload(Task.assignees),
@@ -383,6 +398,7 @@ async def delete_task_status(
                     )
                 )
             )
+        await mark_restructuring(session)
         await session.exec(
             update(Task)
             .where(Task.task_status_id == target.id)

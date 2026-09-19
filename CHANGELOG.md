@@ -34,6 +34,10 @@ below them are held here until the grant is offered, rather than announced in
 
 - **The operator's Audit page is gone** — the record lives in your log platform now, where it can be kept for as long as you need it, searched, and alerted on. The page only ever showed a slice of it.
 
+### Fixed
+
+- **A status can be deleted while archived or trashed tasks sit in it** — deleting a column holding an archived task was refused with a message saying the *status* was archived, a column whose only tasks were in the trash failed outright, and changing a column's category tripped over the same thing. The archived and trashed tasks now move with the live ones, and keep their archived or trashed state where they land.
+
 ## [0.70.1] - 2026-09-19
 
 ### Fixed
