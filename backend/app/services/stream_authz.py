@@ -34,6 +34,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError, establish_guild_access
+from app.core import auth_context
 from app.db.session import (
     CONNECTION_RESET_SQL,
     RLS_CONTEXT_MAX_AGE_SECONDS,
@@ -81,6 +82,13 @@ class _StreamMember:
     # added mid-connection disconnects sockets whose session doesn't satisfy
     # it — same continuous-authorization rule as every other gate.
     satisfied_providers: frozenset[int] = frozenset()
+    # The rest of that session's standing: whether it carries the account's
+    # second factor and whether it carries a passkey. Captured at join for the
+    # same reason and presented the same way — a re-check runs in another
+    # task's context, so it reads these off the member rather than off
+    # whatever request happens to be in flight.
+    session_mfa: bool = False
+    session_passkey: bool = False
     # Per-connection state the channel owns and the spine only carries:
     # collaboration keeps the display name and write level it computed at
     # join here. It lives on the member so a channel never needs a second
@@ -136,6 +144,8 @@ class StreamAuthority:
         the adapter load + DAC) at connect; the socket is governed from here on.
         ``satisfied_providers`` is the joining session's satisfied set — the
         re-checks replay it against the guild's (possibly changed) auth policy.
+        The two factor flags beside it are read from the joining request's own
+        auth context, where the credential validator recorded them.
         """
         room: RoomKey = (guild_id, resource_type, resource_id)
         async with self._lock:
@@ -147,6 +157,8 @@ class StreamAuthority:
                 room=room,
                 authorize=authorize,
                 satisfied_providers=satisfied_providers,
+                session_mfa=auth_context.session_mfa(),
+                session_passkey=auth_context.session_passkey(),
                 meta=dict(meta) if meta else {},
             )
             self._rooms.setdefault(room, set()).add(websocket)
@@ -268,6 +280,14 @@ class StreamAuthority:
         Fail closed: any error (including a since-dropped guild schema) drops the
         socket rather than leaving a potentially-unauthorized stream open.
         """
+        # The gate below reads the two factor flags from the auth context, and
+        # this runs in whoever asked for the re-check — a request with a
+        # session of its own, or the bounded loop. What is there is held and
+        # put back on the way out.
+        held_mfa, held_passkey = (
+            auth_context.session_mfa(),
+            auth_context.session_passkey(),
+        )
         try:
             async with AsyncSessionLocal() as session:
                 # AsyncSessionLocal skips get_session's per-request reset; clear
@@ -280,6 +300,12 @@ class StreamAuthority:
                 current = await session.get(User, member.user.id)
                 if current is None or current.status != UserStatus.active:
                     return False
+                # The rest of the joining session's standing, presented the
+                # way ``satisfied_providers`` is: the socket's own values, so
+                # a community's rule about how its people sign in is answered
+                # against the session that opened it.
+                auth_context.set_session_mfa(member.session_mfa)
+                auth_context.set_session_passkey(member.session_passkey)
                 try:
                     await establish_guild_access(
                         session,
@@ -296,6 +322,9 @@ class StreamAuthority:
                 "stream re-auth check failed; disconnecting to fail closed"
             )
             return False
+        finally:
+            auth_context.set_session_mfa(held_mfa)
+            auth_context.set_session_passkey(held_passkey)
 
     async def _disconnect(self, member: _StreamMember) -> None:
         await self.leave(member.websocket)

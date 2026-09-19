@@ -147,9 +147,9 @@ $function$
 
 def upgrade() -> None:
     # The module sets this before applying these functions and says why: the
-    # bodies name things that are not resolvable at creation time. The enum
-    # label this one compares against is added by 0314, and validating the body
-    # here would evaluate it against the type as this transaction first saw it.
+    # bodies name guild-local tables that are not on the ``search_path`` when
+    # the function is created. Names are resolved per call, against the
+    # caller's route.
     op.execute("SET LOCAL check_function_bodies = false")
     op.execute(GUILD_AUTH_SATISFIED_AT_0316)
 

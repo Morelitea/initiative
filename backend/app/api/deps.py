@@ -1363,6 +1363,8 @@ async def get_upload_user(
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
+    set_session_mfa(False)
+    set_session_passkey(False)
     set_device_token_id(None)
     set_api_key_credential(False)
 
@@ -1458,6 +1460,11 @@ async def get_upload_user(
         )
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_satisfied_claims(claims_from_provider_auth(token_data.satd))
+    # What the session proved about the person, read from its own ``amr`` as
+    # ``get_current_user`` reads it — a community asking for either answers a
+    # picture and a download the same way it answers a page.
+    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+    set_session_passkey(carries_passkey(token_data.amr or ()))
     return user
 
 

@@ -665,6 +665,37 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession):
     assert ctx.guild_id == guild_id
 
 
+async def test_ws_token_carries_the_passkey_to_the_gate(session: AsyncSession):
+    """The same join path against a community that asks for a passkey:
+    ``authenticate_ws_token`` records what the session's ``amr`` proved, and
+    the ``establish_guild_access`` that follows reads it — so a socket is
+    admitted on the terms a page is."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id, policy="required", require_methods=["passkey"]
+        )
+    )
+    await session.commit()
+    guild_id = guild.id
+
+    with_a_password = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd"]), session
+    )
+    assert with_a_password is not None
+    with pytest.raises(GuildAccessError):
+        await establish_guild_access(session, with_a_password, guild_id)
+
+    with_a_key = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
+    )
+    assert with_a_key is not None
+    ctx = await establish_guild_access(session, with_a_key, guild_id)
+    assert ctx.guild_id == guild_id
+
+
 async def test_system_sentinel_passes_policy_gate(session: AsyncSession):
     """User-attributed system work (export/import workers) passes the gate via
     the explicit sentinel — its enqueueing request already satisfied it."""
@@ -1033,6 +1064,43 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
                 f"rule {rule_name!r} against a session showing {standing!r}: "
                 f"the gate says {in_app}, the database says {in_db}"
             )
+
+    # The matrix says the two layers agree; it does not say what they agree
+    # on. Name one answer outright: a community asking for a passkey takes the
+    # key and takes nothing else for it.
+    await session.exec(
+        text("DELETE FROM guild_auth_policies WHERE guild_id = :g"),
+        params={"g": guild_id},
+    )
+    await session.commit()
+    asking_for_a_key = GuildAuthPolicy(
+        guild_id=guild_id, policy="required", require_methods=["passkey"]
+    )
+    session.add(asking_for_a_key)
+    await session.commit()
+    await session.refresh(asking_for_a_key)
+    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, False, True)
+    assert await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=False,
+        session_passkey=True,
+    )
+    assert not await _app_admits(
+        session, asking_for_a_key, guild_id, [], None, True, False
+    )
+    assert not await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=True,
+        session_passkey=False,
+    )
 
     # The matrix would pass if both layers refused everything, so pin the two
     # ends of it: an open community admits a bare session, and a rule refuses one.

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import jwt as pyjwt
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.auth_context import session_mfa, session_passkey
 from app.core.config import settings
 from app.core.security import JWT_ALGORITHM
 from app.models.platform.user import UserStatus
@@ -153,3 +154,46 @@ async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
     )
 
     assert await authenticate_ws_token(subless_token, session) is None
+
+
+async def test_a_socket_records_what_the_session_proved(session: AsyncSession):
+    """The guild gate the socket goes through next reads the account's second
+    factor and its passkey off the auth context, as the HTTP path does — so a
+    community that asks for either answers a socket the way it answers a page.
+    """
+    user = await create_user(session)
+
+    with_a_key = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
+    )
+    assert with_a_key is not None
+    assert session_mfa() is True
+    assert session_passkey() is True
+
+    with_a_password = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd"]), session
+    )
+    assert with_a_password is not None
+    assert session_mfa() is False
+    assert session_passkey() is False
+
+
+async def test_a_device_token_records_neither(session: AsyncSession):
+    """A device token says nothing about how its owner signed in, which is the
+    answer a community asking for a factor or a key reads."""
+    user = await create_user(session)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="pytest-device"
+    )
+
+    # The passkey session first, so the values a device token leaves are the
+    # ones this helper put there rather than the ones it found.
+    assert (
+        await authenticate_ws_token(
+            get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
+        )
+        is not None
+    )
+    assert await authenticate_ws_token(device_token, session) is not None
+    assert session_mfa() is False
+    assert session_passkey() is False

@@ -398,7 +398,7 @@ async def begin_passkey_sign_in(
     comes back says which credential answered."""
     await require_login_method(session, LoginMethod.passkey)
 
-    ceremony = await passkey_service.begin_authentication(admin_session)
+    ceremony = passkey_service.begin_authentication()
     # No account on the row, because none is known: the challenge stands for
     # the ceremony rather than for a person, and the assertion that answers it
     # is what names one. Stored as the browser will write it back — the same
@@ -560,8 +560,12 @@ async def begin_passkey_step_up(
     session already open — the allow-list names the account's own."""
     # Unlike a sign-in, which names nobody, there is already an account here:
     # the browser is asked for one of its credentials rather than for whatever
-    # the authenticator holds for this domain.
-    if not await passkey_service.list_for_user(admin_session, user_id=current_user.id):
+    # the authenticator holds for this domain. Read once and handed on, so the
+    # allow-list and the answer below come from the same read.
+    credentials = await passkey_service.list_for_user(
+        admin_session, user_id=current_user.id
+    )
+    if not credentials:
         # Nothing to present. The dialog sends the person to the security page
         # to add one rather than opening a prompt that can only fail.
         raise HTTPException(
@@ -569,9 +573,7 @@ async def begin_passkey_step_up(
             detail=AuthMessages.PASSKEY_NOT_FOUND,
         )
 
-    ceremony = await passkey_service.begin_authentication(
-        admin_session, user_id=current_user.id
-    )
+    ceremony = passkey_service.begin_authentication(credentials=credentials)
     # Bound to the account, the way a registration's challenge is: this
     # ceremony is about a session that already names somebody. Stored as the
     # browser will write it back, so the finish route can look the row up by
@@ -615,24 +617,32 @@ async def finish_passkey_step_up(
         await admin_session.commit()
         raise _sign_in_invalid()
 
-    assertion = await passkey_service.finish_authentication(
+    outcome = await passkey_service.finish_authentication(
         admin_session,
         credential=payload.credential,
         expected_challenge=webauthn.base64url_to_bytes(value),
     )
-    if assertion is None or assertion.passkey.user_id != current_user.id:
+    if isinstance(outcome, passkey_service.AssertionRefusal):
+        refused = outcome.reason
+    elif outcome.passkey.user_id != current_user.id:
+        # A credential that verified, belonging to somebody else. The session
+        # stays as it is: what is being added to it is this account's key.
+        refused = "other_account"
+    else:
+        refused = None
+    if refused is not None:
         await audit_service.record(
             admin_session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=current_user.id,
-            detail={"method": "passkey", "during": "step_up"},
+            detail={"method": "passkey", "during": "step_up", "reason": refused},
         )
         await admin_session.commit()
         raise _sign_in_invalid()
 
     # Read off the credential while the row is attached: the upgrade below may
     # roll the transaction back, which expires its attributes.
-    backed_up = assertion.passkey.backed_up
+    backed_up = outcome.passkey.backed_up
 
     if not await challenge_service.consume(admin_session, challenge):
         # Spent between the claim and here, so the upgrade it bought is not

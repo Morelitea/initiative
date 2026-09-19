@@ -232,7 +232,7 @@ async def test_signing_in_may_start_without_naming_an_account(session, monkeypat
 
     monkeypatch.setattr(settings, "APP_URL", "https://anon.example.org")
 
-    ceremony = await passkeys.begin_authentication(session)
+    ceremony = passkeys.begin_authentication()
     assert not ceremony.options.get("allowCredentials")
 
 
@@ -244,7 +244,9 @@ async def test_answering_for_one_account_offers_only_its_own(session, monkeypatc
     user = await create_user(session, email="pk-named@example.com")
     await passkeys.store(session, user_id=user.id, registered=_registered(), name="Key")
 
-    ceremony = await passkeys.begin_authentication(session, user_id=user.id)
+    ceremony = passkeys.begin_authentication(
+        credentials=await passkeys.list_for_user(session, user_id=user.id)
+    )
     assert len(ceremony.options["allowCredentials"]) == 1
 
 
@@ -440,7 +442,7 @@ async def test_both_ceremonies_ask_for_the_person(session, monkeypatch):
         registration.options["authenticatorSelection"]["userVerification"] == "required"
     )
 
-    authentication = await passkeys.begin_authentication(session)
+    authentication = passkeys.begin_authentication()
     assert authentication.options["userVerification"] == "required"
 
 

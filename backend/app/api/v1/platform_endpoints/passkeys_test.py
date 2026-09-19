@@ -1413,7 +1413,48 @@ async def test_another_accounts_credential_does_not_step_up_this_session(
         )
     ).all()
     assert len(events) == 1
-    assert events[0].envelope["detail"] == {"method": "passkey", "during": "step_up"}
+    assert events[0].envelope["detail"] == {
+        "method": "passkey",
+        "during": "step_up",
+        "reason": "other_account",
+    }
+
+
+async def test_a_step_up_records_which_refusal_it_was(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    """A credential this deployment holds no row for proves nothing, and the
+    record says which of the refusals it was — the same account the sign-in
+    route writes down."""
+    user = await _account(session, "pk-stepup-unknown@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+
+    challenge = await _begin_step_up(client, headers)
+    response = await client.post(
+        STEP_UP_FINISH,
+        json={"credential": _assertion(challenge, credential_id="credential-nobody")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+    session.expire_all()
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.actor_user_id == user_id,
+                AuditEvent.event_type == AuditEventType.AUTH_SECOND_FACTOR_FAILED.value,
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].envelope["detail"] == {
+        "method": "passkey",
+        "during": "step_up",
+        "reason": "unknown",
+    }
 
 
 async def test_a_sign_in_challenge_cannot_step_up_a_session(
