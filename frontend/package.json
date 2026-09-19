@@ -93,6 +93,7 @@
     "@radix-ui/react-tooltip": "^1.2.16",
     "@react-sigma/core": "^5.0.6",
     "@sigma/node-image": "^3.0.0",
+    "@simplewebauthn/browser": "^14.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-query-persist-client": "^5.102.8",

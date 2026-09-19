@@ -3,6 +3,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata, DeviceTokenInfo } from "@/api/generated/initiativeAPI.schemas";
+import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
 import {
@@ -158,6 +159,12 @@ export const UserSettingsSecurityPage = () => {
           account is signed into, rather than what a credential may reach. */}
       <SettingsSection title={t("twoFactor.title")} description={t("twoFactor.description")}>
         <TwoFactorSection />
+      </SettingsSection>
+
+      {/* Beside it, for the same reason: the other way this account is signed
+          into, rather than what a credential may reach. */}
+      <SettingsSection title={t("passkeys.title")} description={t("passkeys.description")}>
+        <PasskeysSection />
       </SettingsSection>
 
       <SettingsSection
