@@ -256,6 +256,48 @@ class TestDelivery:
         # through a push service, which is the one thing this is built not to do.
         assert conversation_id not in repr(send.await_args)
 
+    async def test_every_message_pushes(self, client, session, acting_user):
+        """A reply is the thing somebody is waiting for.
+
+        The bell line rolls up and the email fires once, but the push is the
+        channel a conversation actually happens on, and a phone that is told
+        about the first message and then goes quiet is not usable.
+        """
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, device_id, _, _ = await _channel(client, session, a, b)
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            for _ in range(4):
+                await _send(client, a, conversation_id, device_id)
+
+        assert send.await_count == 4
+
+    async def test_a_message_after_a_read_still_pushes(
+        self, client, session, acting_user
+    ):
+        """Reading closes the line; it does not quieten the next message."""
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, device_id, _, _ = await _channel(client, session, a, b)
+        await _send(client, a, conversation_id, device_id)
+        await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/read", headers=b.headers
+        )
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            await _send(client, a, conversation_id, device_id)
+
+        assert send.await_count == 1
+
     async def test_an_installation_with_no_key_store_is_not_woken(
         self, client, session, acting_user
     ):
@@ -476,3 +518,71 @@ class TestWakingOwnDevices:
             )
 
         assert send.await_count == 0
+
+
+class TestAGroupPush:
+    """Which conversation first, then who spoke -- the way a lock screen reads."""
+
+    async def _group(self, client, session, members):
+        from datetime import datetime, timezone
+
+        from app.models.platform.dm_conversation import (
+            DmConversation,
+            DmConversationKind,
+            DmConversationMember,
+            roster_key,
+        )
+
+        for actor in members:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(members):
+            for second in members[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+        devices = {}
+        for i, actor in enumerate(members):
+            device_id, _headers = await _install(
+                client, session, actor, seed=1 + 40 * i
+            )
+            devices[actor.user.id] = device_id
+        now = datetime.now(timezone.utc)
+        conversation = DmConversation(
+            kind=DmConversationKind.group,
+            roster_key=roster_key(actor.user.id for actor in members),
+        )
+        session.add(conversation)
+        await session.flush()
+        for actor in members:
+            session.add(
+                DmConversationMember(
+                    conversation_id=conversation.id,
+                    user_id=actor.user.id,
+                    accepted_at=now,
+                )
+            )
+        await session.commit()
+        return str(conversation.id), devices
+
+    async def test_the_title_is_the_thread_and_the_body_is_the_sender(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+
+        with patch(
+            "app.services.platform.push_notifications.send_push_notification",
+            new_callable=AsyncMock,
+            return_value=(True, False),
+        ) as send:
+            await _send(client, a, conversation_id, devices[b.user.id])
+
+        assert send.await_count == 1
+        kwargs = send.await_args.kwargs
+        # The title names the other people on it, so the reader knows which
+        # thread before they know who spoke.
+        assert "," in kwargs["title"]
+        assert kwargs["body"]
+        # Still nothing about which conversation, and nothing of what was said.
+        assert conversation_id not in repr(send.await_args)
+        assert kwargs["data"]["target_path"] == "/messages"

@@ -53,7 +53,7 @@ from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
+from app.core.encryption import hash_email  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.services.auth import addresses  # noqa: E402
@@ -129,6 +129,13 @@ from app.models.tenant.post_poll import (  # noqa: E402
     PostPollVote,
 )
 from app.models.tenant.post_read import PostRead  # noqa: E402
+from app.services.tenant.wikis import slugify_page_title  # noqa: E402
+from app.models.tenant.wiki import (  # noqa: E402
+    Wiki,
+    WikiPage,
+    WikiPageOrder,
+    WikiReadingWidth,
+)
 from app.models.tenant.gallery import (  # noqa: E402
     Gallery,
     GalleryImage,
@@ -144,6 +151,7 @@ from app.core.relationships import (  # noqa: E402
     node_id,
 )
 from app.core.search import SearchEntityType  # noqa: E402
+from app.core.tools import TOGGLEABLE_TOOLS  # noqa: E402
 from app.models.tenant.relationship import EntityRelationship  # noqa: E402
 from app.services.tenant import relationships as relationships_service  # noqa: E402
 from app.models.tenant.tag import Tag  # noqa: E402
@@ -165,7 +173,7 @@ from app.services.platform import guilds as guilds_service  # noqa: E402
 from app.models.platform.guild_image import GuildImageVariant  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
-    ensure_default_initiative,
+    creator_role,
 )
 from app.services.tenant.filter_presets import (  # noqa: E402
     ensure_default_presets,
@@ -173,6 +181,69 @@ from app.services.tenant.filter_presets import (  # noqa: E402
 from app.models.tenant._mixins import ArchiveMixin, archive_models  # noqa: E402
 from app.services.tenant.archive import archive_entity  # noqa: E402
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
+
+
+#: What the seeder calls the initiative it hangs each demo community's content
+#: off. Nothing in the app knows this name — it is the seeder's own.
+SEED_INITIATIVE_NAME = "Default Initiative"
+SEED_INITIATIVE_COLOR = "#2563eb"
+
+
+async def seed_initiative(
+    session: AsyncSession,
+    creator: User,
+    *,
+    guild_id: int,
+    name: str = SEED_INITIATIVE_NAME,
+) -> Initiative:
+    """An initiative for a demo community, provisioned the way the app does it.
+
+    The same sequence as ``POST /initiatives``: the row, its built-in roles,
+    then the creator joined on whichever built-in role ``creator_role`` gives
+    them. A guild admin lands on moderator, which is what these seeded
+    communities want.
+
+    Looked up by name first so the seeder can be re-run against a community it
+    already populated — including the case where a startup back-fill created
+    ``guild_<id>``'s empty tables and left no initiative in them.
+    """
+    existing = (
+        await session.exec(
+            select(Initiative).where(
+                Initiative.guild_id == guild_id,
+                Initiative.name == name,
+            )
+        )
+    ).one_or_none()
+    if existing is not None:
+        await session.refresh(existing, attribute_names=["memberships"])
+        return existing
+
+    initiative = Initiative(
+        name=name,
+        description="Seeded by scripts/seed_dev_data.py",
+        guild_id=guild_id,
+        color=SEED_INITIATIVE_COLOR,
+    )
+    session.add(initiative)
+    await session.flush()
+
+    roles = await create_builtin_roles(session, initiative_id=initiative.id)
+    role = await creator_role(
+        session, guild_id=guild_id, user_id=creator.id, roles=roles
+    )
+    session.add(
+        InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=creator.id,
+            role_id=role.id,
+            guild_id=guild_id,
+        )
+    )
+    await session.flush()
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return initiative
+
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
 
@@ -246,17 +317,24 @@ def _round(days: int) -> datetime:
 # ---------------------------------------------------------------------------
 
 
+def _para(text: str) -> dict:
+    """One paragraph, as the editor serializes one."""
+    return {"children": [{"text": text, "type": "text"}], "type": "paragraph"}
+
+
+def _heading(text: str, level: int = 2) -> dict:
+    """One heading. The contents list in the sidebar is built from these, so a
+    page written without any has nothing to navigate."""
+    return {
+        "children": [{"text": text, "type": "text"}],
+        "type": "heading",
+        "tag": f"h{level}",
+    }
+
+
 def _doc(paragraphs: list[str]) -> dict:
     """Build a minimal Lexical editor JSON structure from plain text paragraphs."""
-    children = []
-    for text in paragraphs:
-        children.append(
-            {
-                "children": [{"text": text, "type": "text"}],
-                "type": "paragraph",
-            }
-        )
-    return {"root": {"children": children, "type": "root"}}
+    return {"root": {"children": [_para(t) for t in paragraphs], "type": "root"}}
 
 
 # --- spreadsheets -----------------------------------------------------------
@@ -635,16 +713,31 @@ def _load_state() -> dict | None:
     return json.loads(STATE_FILE.read_text())
 
 
+async def _state_outlived_its_database(state: dict) -> bool:
+    """Whether the recorded ids belong to a database that is no longer there.
+
+    The state file lives in the checkout and the rows it names live in a Docker
+    volume, so recreating the volume leaves the file describing nothing. Asking
+    the database rather than the filesystem is what tells the two apart: not one
+    of the accounts it recorded still exists.
+    """
+    recorded = state.get("users") or []
+    if not recorded:
+        return False
+    async with AdminSessionLocal() as session:
+        survivor = (
+            await session.exec(select(User.id).where(User.id.in_(recorded)))
+        ).first()
+    return survivor is None
+
+
 async def _find_superuser(session: AsyncSession) -> User:
     """Find the superuser created by init_db."""
     email = settings.FIRST_OWNER_EMAIL
     if not email:
         print("ERROR: FIRST_OWNER_EMAIL is not set in .env or environment.")
         sys.exit(1)
-    result = await session.exec(
-        select(User).where(User.email_hash == hash_email(email))
-    )
-    user = result.one_or_none()
+    user = await addresses.account_holding(session, email)
     if user is None:
         print(f"ERROR: Superuser {email} not found.")
         print("  Make sure init_db has run (dev:migrate task).")
@@ -717,6 +810,10 @@ class IDTracker:
             "gallery_images": [],
             "gallery_image_tags": [],
             "gallery_image_versions": [],
+            "wikis": [],
+            "wiki_tags": [],
+            "wiki_pages": [],
+            "wiki_page_tags": [],
         }
 
     def add(self, key: str, value) -> None:
@@ -744,11 +841,7 @@ async def _create_users(
         # A prior interrupted seed run may have committed this user (users
         # commit before the later steps): reuse the existing row so a re-run
         # resumes instead of violating the unique email constraint.
-        existing = (
-            await session.exec(
-                select(User).where(User.email_hash == hash_email(ud["email"]))
-            )
-        ).one_or_none()
+        existing = await addresses.account_holding(session, ud["email"])
         if existing is not None:
             # A row seeded before handles existed was given one by the
             # backfill, which marks it unchosen — so signing in would land on
@@ -771,8 +864,6 @@ async def _create_users(
             session, seed=ud.get("username") or ud["full_name"]
         )
         user = User(
-            email_hash=hash_email(ud["email"]),
-            email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
             username=handle,
             discriminator=discriminator,
             # Seeded accounts are set up ready to use, so they never meet the
@@ -812,9 +903,9 @@ async def _ensure_seeded_account_rows(
     its address keeps it, and seeding the direct-message policy twice is a
     no-op.
     """
-    # Asked of ``user_emails`` alone. ``holds_address`` resolves through the
-    # sign-in lookup, which falls back to the ``users`` column — so it answers
-    # yes for exactly the accounts this is here to give a row to.
+    # Asked of ``user_emails`` alone, and of every row in it rather than the
+    # proven ones ``holds_address`` reads: a claim already recorded is one this
+    # should leave alone, not record a second time.
     digest = hash_email(addresses.normalize(email))
     if digest not in await addresses.held_hashes(session, user_id=user.id):
         addresses.record_address(
@@ -917,35 +1008,36 @@ async def _create_initiative(
     color: str,
     pm_user: User,
     member_users: list[User] | None = None,
-    queues_enabled: bool = False,
-    counter_groups_enabled: bool = False,
-    calendars_enabled: bool = False,
-    dashboards_enabled: bool = False,
-    posts_enabled: bool = False,
-    galleries_enabled: bool = False,
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private,
     auto_join: bool = False,
+    **tools_enabled: bool,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members.
+
+    Which tools the initiative starts with is given as ``<plural>_enabled=True``
+    keywords. They are checked against the Tool enum rather than a list kept
+    here, so a tool added to the enum is seedable the same day and a misspelled
+    switch is a ``TypeError`` instead of one that quietly stays off. Anything
+    not named takes the model's own default.
 
     ``join_policy`` decides how a community member without a membership row
     gets one: ``private`` is invite-only, ``request`` puts them in the manager's
     queue, ``open`` is one click. ``auto_join`` enrols every new arrival to the
     community and the check constraint only allows it on an ``open`` one.
     """
+    unknown = sorted(set(tools_enabled) - {t.view_permission for t in TOGGLEABLE_TOOLS})
+    if unknown:
+        raise TypeError(
+            f"_create_initiative() got unexpected keyword argument(s): {', '.join(unknown)}"
+        )
     initiative = Initiative(
         guild_id=guild.id,
         name=name,
         description=description,
         color=color,
-        queues_enabled=queues_enabled,
-        counter_groups_enabled=counter_groups_enabled,
-        calendars_enabled=calendars_enabled,
-        dashboards_enabled=dashboards_enabled,
-        posts_enabled=posts_enabled,
-        galleries_enabled=galleries_enabled,
         join_policy=join_policy.value,
         auto_join=auto_join,
+        **tools_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -1400,13 +1492,57 @@ async def _apply_pending_archives(session: AsyncSession) -> None:
         if stamped == archived_at:
             continue
         for model in archive_models():
-            await session.execute(
+            await session.exec(
                 update(model)
                 .where(model.archived_at == stamped)
                 .values(archived_at=archived_at)
                 .execution_options(synchronize_session=False)
             )
     await session.flush()
+
+
+# A task def names the stage it wants, not a column, and a project need not
+# have a column in that stage: a project seeded today has no backlog one, so
+# every def asking for backlog has to land somewhere. Each stage lists where to
+# look next, nearest first, so the seed follows the board it was actually given
+# instead of failing the next time the defaults move.
+_CATEGORY_FALLBACKS: dict[TaskStatusCategory, tuple[TaskStatusCategory, ...]] = {
+    TaskStatusCategory.backlog: (
+        TaskStatusCategory.todo,
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.todo: (
+        TaskStatusCategory.backlog,
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.in_progress: (
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+        TaskStatusCategory.done,
+    ),
+    TaskStatusCategory.done: (
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+    ),
+}
+
+
+def resolve_status(
+    status_map: dict[TaskStatusCategory, TaskStatus],
+    category: TaskStatusCategory,
+) -> TaskStatus:
+    """The column a task def's stage lands in on this particular board."""
+    status = status_map.get(category)
+    if status is not None:
+        return status
+    for fallback in _CATEGORY_FALLBACKS[category]:
+        status = status_map.get(fallback)
+        if status is not None:
+            return status
+    raise RuntimeError(f"project has no task status to put a {category} task in")
 
 
 async def _create_tasks(
@@ -1421,7 +1557,7 @@ async def _create_tasks(
     """Create tasks, their checklists, and assignees from definitions."""
     created: dict[str, Task] = {}
     for i, td in enumerate(task_defs):
-        status = status_map[td["category"]]
+        status = resolve_status(status_map, td["category"])
         due = td.get("due_days")
         start = td.get("start_days")
         task = Task(
@@ -2650,6 +2786,216 @@ async def _create_posts(
     return posts
 
 
+def _wiki_body(page_def: dict, chips: list[dict] | None = None) -> dict:
+    """A wiki page body: an opening, then sections under their own headings.
+
+    ``paragraphs`` is what comes before the first heading; ``sections`` is a
+    list of ``(heading, [paragraph, ...])`` pairs, with an optional third
+    element naming the level. Headings are the whole point of a page long
+    enough to be worth a wiki — they are what the contents list in the sidebar
+    is built from.
+
+    ``chips`` close the page as a "See also", which is how a wiki page points
+    onward and where its ``references`` edges come from.
+    """
+    children: list[dict] = [_para(text) for text in page_def.get("paragraphs", [])]
+    for section in page_def.get("sections", []):
+        heading, paragraphs = section[0], section[1]
+        children.append(_heading(heading, section[2] if len(section) > 2 else 2))
+        children.extend(_para(text) for text in paragraphs)
+    if chips:
+        children.append(_heading("See also"))
+        parts: list[dict] = []
+        for chip in chips:
+            if parts:
+                parts.append({"text": " \u00b7 ", "type": "text"})
+            parts.append(chip)
+        children.append({"children": parts, "type": "paragraph"})
+    return {"root": {"children": children, "type": "root"}}
+
+
+def _resolve_wiki_link(
+    target,
+    wiki_name: str,
+    pages: dict[tuple[str, str], WikiPage],
+    entities: dict[str, dict],
+) -> tuple[str, int, str] | None:
+    """A link target, as ``(kind, id, label)`` — or ``None`` if it names nothing.
+
+    ``"Vallaki"`` is a page of the same wiki, ``"Other wiki::Vallaki"`` a page
+    of another, and ``("task", "Escort Ireena to Vallaki")`` anything else the
+    seed has already built. That last shape is the one a wiki is really for: a
+    page about a place, pointing at the work the table is doing there.
+    """
+    if isinstance(target, tuple):
+        kind, name = target
+        entity = entities.get(kind, {}).get(name)
+        return (kind, entity.id, name) if entity is not None else None
+    wiki, _, title = target.rpartition("::")
+    page = pages.get((wiki or wiki_name, title))
+    return (SearchEntityType.wiki_page.value, page.id, title) if page else None
+
+
+async def _create_wikis(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    tags: dict[str, Tag],
+    wiki_defs: list[dict],
+    entities: dict[str, dict] | None = None,
+) -> dict[str, Wiki]:
+    """Create wikis and the pages inside them.
+
+    Each ``wiki_def`` has:
+        initiative_id, name, description, created_by (user name),
+        general_access (default read; ``None`` shares with named people only),
+        tags: list of tag names,
+        page_order / reading_width / contents_depth / show_page_counts /
+        show_connections / accent_color (each optional — the defaults are what
+        a wiki arrives with),
+        home: title of the page it opens on,
+        template: title of the page new ones are copied from,
+        pages: list of page defs.
+
+    Each page def has:
+        title, created_by, tags, is_draft, paragraphs (the opening), sections
+        (``(heading, [paragraph, ...])`` pairs) and links (see
+        :func:`_resolve_wiki_link`).
+
+    Pages are a flat list in the order they are written here — what sits under
+    a page in the navigation is that page's own headings. Links are resolved in
+    a second pass over every wiki, once all of them exist, so one wiki may
+    point into another.
+
+    ``entities`` is what a page may link to besides another page, keyed by kind
+    then by name — ``{"task": {...}, "document": {...}}``.
+    """
+    entities = entities or {}
+    wikis: dict[str, Wiki] = {}
+    pages: dict[tuple[str, str], WikiPage] = {}
+    for wd in wiki_defs:
+        creator = all_users[wd["created_by"]]
+        wiki = Wiki(
+            guild_id=guild.id,
+            initiative_id=wd["initiative_id"],
+            name=wd["name"],
+            description=wd.get("description"),
+            created_by=creator.id,
+            page_order=wd.get("page_order", WikiPageOrder.manual),
+            reading_width=wd.get("reading_width", WikiReadingWidth.wide),
+            contents_depth=wd.get("contents_depth", 3),
+            show_connections=wd.get("show_connections", True),
+            accent_color=wd.get("accent_color"),
+        )
+        session.add(wiki)
+        await session.flush()
+        ids.add("wikis", wiki.id)
+        wikis[wd["name"]] = wiki
+
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                user_id=creator.id,
+                guild_id=guild.id,
+                initiative_id=wiki.initiative_id,
+                level=ResourceAccessLevel.owner,
+            )
+        )
+        general = wd.get("general_access", ResourceAccessLevel.read)
+        if general is not None:
+            session.add(
+                ResourceGrant(
+                    resource_type="wiki",
+                    resource_id=wiki.id,
+                    guild_id=guild.id,
+                    initiative_id=wiki.initiative_id,
+                    level=general,
+                    all_initiative_members=True,
+                )
+            )
+        for tag_name in wd.get("tags", []):
+            tag = tags.get(tag_name)
+            if tag is not None:
+                session.add(_tag_edge("wiki", wiki.id, tag))
+                ids.add("wiki_tags", (wiki.id, tag.id))
+
+        by_title: dict[str, WikiPage] = {}
+        for position, pd in enumerate(wd.get("pages", [])):
+            author = all_users[pd.get("created_by", wd["created_by"])]
+            title = pd["title"]
+            page = WikiPage(
+                guild_id=guild.id,
+                wiki_id=wiki.id,
+                position=position,
+                is_draft=pd.get("is_draft", False),
+                title=title,
+                slug=slugify_page_title(title, fallback=f"page-{position}"),
+                content=_wiki_body(pd),
+                created_by=author.id,
+            )
+            session.add(page)
+            await session.flush()
+            ids.add("wiki_pages", page.id)
+            by_title[title] = page
+            pages[(wd["name"], title)] = page
+
+            for tag_name in pd.get("tags", []):
+                tag = tags.get(tag_name)
+                if tag is not None:
+                    session.add(_tag_edge("wiki_page", page.id, tag))
+                    ids.add("wiki_page_tags", (page.id, tag.id))
+
+        home = by_title.get(wd.get("home", ""))
+        if home is not None:
+            wiki.home_page_id = home.id
+        template = by_title.get(wd.get("template", ""))
+        if template is not None:
+            wiki.template_page_id = template.id
+        if home is not None or template is not None:
+            session.add(wiki)
+        await session.flush()
+
+    # Second pass: what each page points at. Every wiki exists by now, so a
+    # page may name one in another wiki, and the chip in the body and the
+    # ``references`` edge are written together — the same pair the save path
+    # produces when somebody types "[[".
+    for wd in wiki_defs:
+        for pd in wd.get("pages", []):
+            targets = pd.get("links", [])
+            if not targets:
+                continue
+            page = pages[(wd["name"], pd["title"])]
+            chips: list[dict] = []
+            for target in targets:
+                resolved = _resolve_wiki_link(target, wd["name"], pages, entities)
+                if resolved is None:
+                    continue
+                kind, entity_id, label = resolved
+                if kind == SearchEntityType.wiki_page.value and entity_id == page.id:
+                    continue
+                chips.append(_chip(kind, entity_id, label))
+                await relationships_service.create(
+                    session,
+                    source=relationships_service.Endpoint(
+                        SearchEntityType.wiki_page, page.id
+                    ),
+                    relationship_type=RelationshipType.references,
+                    target=relationships_service.Endpoint(
+                        SearchEntityType(kind), entity_id
+                    ),
+                    provenance=Provenance.content,
+                )
+            if not chips:
+                continue
+            page.content = _wiki_body(pd, chips)
+            session.add(page)
+    await session.flush()
+
+    return wikis
+
+
 async def _create_galleries(
     session: AsyncSession,
     ids: IDTracker,
@@ -2991,6 +3337,10 @@ async def _create_access_grants(
 
 async def seed() -> None:
     state = _load_state()
+    if state is not None and await _state_outlived_its_database(state):
+        print("The recorded seed data is gone (the database was recreated).")
+        print("  Seeding again from scratch.")
+        state = None
     if state is not None:
         if state.get("seed_incomplete"):
             print("A previous seed was interrupted and left partial data.")
@@ -3230,9 +3580,7 @@ async def seed() -> None:
         # rows. The result: guild_1.initiatives exists with zero rows, and
         # the previous code here (a SELECT followed by .one()) crashed with
         # NoResultFound.
-        g1_default_init = await ensure_default_initiative(
-            session, admin_user, guild_id=g1_id
-        )
+        g1_default_init = await seed_initiative(session, admin_user, guild_id=g1_id)
         # guild_1.guild_settings has the same gap: normally one row is
         # inserted when a community is created, but a startup back-fill leaves
         # the table empty — create the row if it isn't there.
@@ -3279,6 +3627,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
             galleries_enabled=True,
@@ -3298,6 +3647,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             posts_enabled=True,
             galleries_enabled=True,
@@ -5599,6 +5949,846 @@ async def seed() -> None:
             ],
         )
 
+        await _enable_role_feature(
+            session, [g1_strahd_mem, g1_lmop_mem], "wikis_enabled"
+        )
+
+        # -- Wikis --
+        # Four shapes on purpose: a setting bible nobody could hand-order, a
+        # rules page read front to back, a table handbook, and a second
+        # gazetteer for the other campaign. They differ mostly in their
+        # settings, which is the thing the tool is for.
+        print("  Creating Community 1 wikis...")
+        await _create_wikis(
+            session,
+            ids,
+            g1,
+            all_users,
+            g1_tags,
+            [
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Barovia gazetteer",
+                    "description": "Every place, person and faction the table has met.",
+                    "created_by": "Dungeon Master",
+                    "tags": ["lore"],
+                    # A setting bible: alphabetical, because nobody arranges
+                    # eighty entries by hand, and every entry the same shape.
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "accent_color": "#8b5cf6",
+                    "home": "Barovia",
+                    "template": "Entry template",
+                    "pages": [
+                        {
+                            "title": "Barovia",
+                            "created_by": "Dungeon Master",
+                            "tags": ["lore"],
+                            "paragraphs": [
+                                "A valley under permanent cloud, walled in by mist that turns "
+                                "travellers back the way they came.",
+                            ],
+                            "sections": [
+                                (
+                                    "Where to start",
+                                    [
+                                        "Start with Vallaki if the party has just arrived. "
+                                        "Start with Castle Ravenloft if they have done "
+                                        "something unwise.",
+                                        "Everything below is somewhere in this valley. "
+                                        "Nothing leaves it.",
+                                    ],
+                                ),
+                                (
+                                    "The weather",
+                                    [
+                                        "Overcast, always. Rain most evenings. The sun is a "
+                                        "rumour the older villagers repeat without conviction.",
+                                    ],
+                                ),
+                                (
+                                    "Getting out",
+                                    [
+                                        "You do not. The mists return you to the road you "
+                                        "came in on, a day older and no further along.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Vallaki",
+                                "Castle Ravenloft",
+                                ("document", "Campaign Setting: The Land of Barovia"),
+                            ],
+                        },
+                        {
+                            "title": "Entry template",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Copy this for a new place, person or faction. Delete what "
+                                "does not apply; do not delete the headings.",
+                            ],
+                            "sections": [
+                                ("What it is", ["One sentence. No more."]),
+                                (
+                                    "What the party knows",
+                                    ["Only what happened at the table."],
+                                ),
+                                (
+                                    "What they do not",
+                                    [
+                                        "And what it would cost to find out. This is the part "
+                                        "worth writing down.",
+                                    ],
+                                ),
+                                ("Who to ask", ["Names, and where they usually are."]),
+                            ],
+                        },
+                        {
+                            "title": "Vallaki",
+                            "created_by": "Dungeon Master",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "A walled town that insists everything is fine. Festivals "
+                                "weekly, by order of the Baron.",
+                            ],
+                            "sections": [
+                                (
+                                    "The wall",
+                                    [
+                                        "Closed at dusk and opened at dawn, and the guards "
+                                        "mean it. Arriving late means a night outside, which "
+                                        "is how most parties meet their first wolf.",
+                                    ],
+                                ),
+                                (
+                                    "Who runs it",
+                                    [
+                                        "Baron Vargas Vallakovich, officially. The Church of "
+                                        "St. Andral, in practice, for anybody who needs "
+                                        "something done.",
+                                    ],
+                                ),
+                                (
+                                    "Where to sleep",
+                                    [
+                                        "The Blue Water Inn, and nowhere else. The other two "
+                                        "beds in town are in the gaol.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "The Blue Water Inn",
+                                "St. Andral's Church",
+                                ("task", "Escort Ireena to Vallaki"),
+                            ],
+                        },
+                        {
+                            "title": "The Blue Water Inn",
+                            "created_by": "Elara Moonwhisper",
+                            "paragraphs": [
+                                "Run by the Martikovs, who are not what they appear and "
+                                "would rather that stayed the case.",
+                            ],
+                            "sections": [
+                                (
+                                    "The family",
+                                    [
+                                        "Urwin and Danika run the room. Their sons are "
+                                        "missing, which nobody will say out loud until you "
+                                        "have been drinking there a while.",
+                                    ],
+                                ),
+                                (
+                                    "What you can learn here",
+                                    [
+                                        "More than anywhere else in Vallaki. Buy a round and "
+                                        "let Rictavio talk.",
+                                    ],
+                                ),
+                            ],
+                            "links": ["Vallaki"],
+                        },
+                        {
+                            "title": "St. Andral's Church",
+                            "created_by": "Seraphina Dawnlight",
+                            "tags": ["quest"],
+                            "paragraphs": [
+                                "The only consecrated ground for a day's ride, and it is "
+                                "consecrated because of what is under the floor.",
+                            ],
+                            "sections": [
+                                (
+                                    "Father Lucian",
+                                    [
+                                        "Knows what the bones do. Has told nobody, on the "
+                                        "grounds that the town would empty by morning.",
+                                    ],
+                                ),
+                                (
+                                    "The bones",
+                                    [
+                                        "Gone, as of session three. The wards hold for now "
+                                        "and everyone is pretending not to count the days.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Vallaki",
+                                (
+                                    "document",
+                                    "Session 3 Recap: Festival of the Blazing Sun",
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Castle Ravenloft",
+                            "created_by": "Dungeon Master",
+                            "tags": ["lore"],
+                            "paragraphs": [
+                                "Strahd's seat, and the last place anybody should go first.",
+                            ],
+                            "sections": [
+                                (
+                                    "Ways in",
+                                    [
+                                        "The ground floor alone has four, three of which are "
+                                        "a mistake. The front door is the one he expects and "
+                                        "therefore the safest.",
+                                    ],
+                                ),
+                                (
+                                    "What is actually here",
+                                    [
+                                        "The Heart of Sorrow, the crypts, and every treasure "
+                                        "the Tarokka reading might have pointed at. Read the "
+                                        "cards before you plan the raid.",
+                                    ],
+                                ),
+                                (
+                                    "The welcome",
+                                    [
+                                        "Dinner. He will insist. Declining is a choice with "
+                                        "consequences and so is accepting.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "The dining hall",
+                                ("task", "Map Castle Ravenloft's layout"),
+                                ("task", "Find the Heart of Sorrow"),
+                                ("document", "Tarokka Card Reading Results"),
+                            ],
+                        },
+                        {
+                            "title": "The dining hall",
+                            "created_by": "Dungeon Master",
+                            "tags": ["roleplay"],
+                            "paragraphs": [
+                                "Set for however many of you there are. It was set before "
+                                "you decided to come.",
+                            ],
+                            "sections": [
+                                (
+                                    "The conversation",
+                                    [
+                                        "He is a gracious host and a patient one. Nothing "
+                                        "said at this table is idle.",
+                                    ],
+                                ),
+                                (
+                                    "Leaving",
+                                    [
+                                        "Permitted. That is the unsettling part.",
+                                    ],
+                                ),
+                            ],
+                            "links": ["Castle Ravenloft"],
+                        },
+                        {
+                            "title": "The Village of Barovia",
+                            "created_by": "Thorn Ironforge",
+                            "paragraphs": [
+                                "Not the valley. The village, which shares its name and "
+                                "roughly none of its energy.",
+                            ],
+                            "sections": [
+                                (
+                                    "The mood",
+                                    [
+                                        "Nobody has swept anything in a year. The doors are "
+                                        "shut in the afternoon.",
+                                    ],
+                                ),
+                                (
+                                    "The Burgomaster's house",
+                                    [
+                                        "Where Ireena was, and where the party's involvement "
+                                        "in all of this starts.",
+                                    ],
+                                ),
+                            ],
+                            "links": ["Bildrath's Mercantile", "Barovia"],
+                        },
+                        {
+                            "title": "Bildrath's Mercantile",
+                            "created_by": "Vex Shadowstep",
+                            "tags": ["items/loot"],
+                            "paragraphs": [
+                                "The only shop, at ten times the price, because where else "
+                                "are you going to go.",
+                            ],
+                            "sections": [
+                                (
+                                    "Prices",
+                                    [
+                                        "Ten times. He will not haggle and he is not bluffing "
+                                        "about that.",
+                                    ],
+                                ),
+                                (
+                                    "What is worth it anyway",
+                                    ["Rope. Oil. Anything silver, if he has it."],
+                                ),
+                            ],
+                            "links": [("document", "Party Provisioning Ledger")],
+                        },
+                        {
+                            "title": "Krezk",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "A walled village that does not want visitors and says so at "
+                                "the gate.",
+                            ],
+                            "sections": [
+                                (
+                                    "Getting in",
+                                    [
+                                        "Bring wine, or bring the Abbot's name, or turn "
+                                        "around.",
+                                    ],
+                                ),
+                                (
+                                    "The Abbey",
+                                    [
+                                        "Above the village. The Abbot is helpful, courteous, "
+                                        "and the single most alarming person in the valley.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "The Amber Temple",
+                            "is_draft": True,
+                            "created_by": "Dungeon Master",
+                            "tags": ["lore", "items/loot"],
+                            "paragraphs": [
+                                "High in the mountains, cold, and full of things offering "
+                                "help.",
+                            ],
+                            "sections": [
+                                (
+                                    "The vestiges",
+                                    [
+                                        "Each one is a bargain. Each bargain is worse than it "
+                                        "sounds and better than it looks.",
+                                    ],
+                                ),
+                                (
+                                    "Why anybody comes here",
+                                    [
+                                        "The Sunsword, usually, if the cards sent them. "
+                                        "Otherwise: ambition.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Find the Sunsword in the Amber Temple")
+                            ],
+                        },
+                        {
+                            "title": "Tser Pool",
+                            "created_by": "Elara Moonwhisper",
+                            "tags": ["NPC", "roleplay"],
+                            "paragraphs": [
+                                "A Vistani camp by the water, and the one place in Barovia "
+                                "where somebody is having a nice evening.",
+                            ],
+                            "sections": [
+                                (
+                                    "Madam Eva",
+                                    [
+                                        "Reads the cards once. Do not ask for a second "
+                                        "reading; she has already told you what she is going "
+                                        "to tell you.",
+                                    ],
+                                ),
+                                (
+                                    "The camp",
+                                    [
+                                        "Hospitable, watchful, and not on anybody's side but "
+                                        "its own.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Negotiate with the Vistani caravan"),
+                                ("document", "Tarokka Card Reading Results"),
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Rules we actually use",
+                    "description": "House rules, in the order they come up at the table.",
+                    "created_by": "Dungeon Master",
+                    # Hand-ordered and narrow: this is read front to back once,
+                    # then looked up in a hurry mid-session.
+                    "page_order": WikiPageOrder.manual,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "accent_color": "#ef4444",
+                    "home": "The short version",
+                    "pages": [
+                        {
+                            "title": "The short version",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Six rules. If you remember none of them the game still "
+                                "works, because the DM remembers them.",
+                            ],
+                            "sections": [
+                                (
+                                    "The six",
+                                    [
+                                        "Inspiration is handed out, not requested. Death "
+                                        "saves are rolled in the open. Flanking gives "
+                                        "advantage. A natural 1 is a miss and nothing else. "
+                                        "Potions are a bonus action to drink and an action "
+                                        "to give. You may retrain one thing per level.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Rolling in the open",
+                                ("document", "House Rules v2"),
+                            ],
+                        },
+                        {
+                            "title": "Rolling in the open",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Every roll that could kill somebody happens where everyone "
+                                "can see it.",
+                            ],
+                            "sections": [
+                                (
+                                    "Why",
+                                    [
+                                        "Because a death nobody watched land feels arbitrary, "
+                                        "and a death everybody watched land is a story.",
+                                    ],
+                                ),
+                                (
+                                    "The exception",
+                                    [
+                                        "Perception against something hidden. Telling you the "
+                                        "number tells you the answer.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Inspiration",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Given for playing your character in a way that cost you "
+                                "something.",
+                            ],
+                            "sections": [
+                                (
+                                    "How to get it",
+                                    [
+                                        "You do not ask. Ask and the answer is no, warmly.",
+                                    ],
+                                ),
+                                (
+                                    "How to spend it",
+                                    [
+                                        "Before the roll. You hold one at a time and it does "
+                                        "not carry between sessions.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Resting",
+                            "created_by": "Thorn Ironforge",
+                            "paragraphs": [
+                                "Barovia does not let you rest the way the book assumes, so "
+                                "this page exists.",
+                            ],
+                            "sections": [
+                                (
+                                    "Short rests",
+                                    ["An hour, and something usually interrupts it."],
+                                ),
+                                (
+                                    "Long rests",
+                                    [
+                                        "Somewhere safe, which in this valley means "
+                                        "consecrated, walled, or watched by somebody the "
+                                        "party trusts.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Barovia gazetteer::St. Andral's Church",
+                                "The short version",
+                            ],
+                        },
+                        {
+                            "title": "Death and what happens after",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Read this before it matters, so nobody is reading it while "
+                                "upset.",
+                            ],
+                            "sections": [
+                                (
+                                    "At zero",
+                                    [
+                                        "Three saves, rolled in the open. Healing brings you "
+                                        "back at one hit point and clears the failures.",
+                                    ],
+                                ),
+                                (
+                                    "If it goes the other way",
+                                    [
+                                        "A new character arrives the same session, at the "
+                                        "party's level, with a reason to be in Barovia that "
+                                        "you and the DM agree on beforehand.",
+                                    ],
+                                ),
+                                (
+                                    "Raising the dead",
+                                    [
+                                        "Possible. Expensive. And the valley takes an "
+                                        "interest, which is the actual cost.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Table etiquette",
+                            "created_by": "Seraphina Dawnlight",
+                            "paragraphs": [
+                                "The rules that are not about dice.",
+                            ],
+                            "sections": [
+                                (
+                                    "Lines and veils",
+                                    [
+                                        "Agreed in session zero and revisited whenever "
+                                        "somebody asks. Anybody may call one mid-scene, with "
+                                        "no explanation owed.",
+                                    ],
+                                ),
+                                (
+                                    "Phones",
+                                    [
+                                        "Fine for the character sheet, fine for a photo of "
+                                        "the map, not fine for the twenty minutes somebody "
+                                        "else has the spotlight.",
+                                    ],
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "How this table runs",
+                    "description": "Session zero, in writing, so nobody has to remember it.",
+                    "created_by": "Dungeon Master",
+                    # A handbook: read front to back, so the order is the one
+                    # somebody chose, and the measure is a reading one.
+                    "page_order": WikiPageOrder.manual,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "show_connections": False,
+                    "accent_color": "#0ea5e9",
+                    "home": "Start here",
+                    "pages": [
+                        {
+                            "title": "Start here",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Four pages. Read them once and you will not need them "
+                                "again.",
+                            ],
+                            "sections": [
+                                (
+                                    "What this is",
+                                    [
+                                        "Everything the group agreed at session zero, written "
+                                        "down so it survives somebody missing a week.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "When we play",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Thursdays, 7pm, four hours.",
+                            ],
+                            "sections": [
+                                (
+                                    "Starting and stopping",
+                                    [
+                                        "We start on time and finish on time; nobody has to "
+                                        "apologise for either.",
+                                    ],
+                                ),
+                                (
+                                    "Missing one",
+                                    [
+                                        "Say so in the channel by Wednesday. Your character "
+                                        "is played by nobody and quietly survives.",
+                                    ],
+                                ),
+                                (
+                                    "Cancelling",
+                                    [
+                                        "Three players is a session. Two is a board game "
+                                        "night, which is also fine.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "What we expect of each other",
+                            "created_by": "Elara Moonwhisper",
+                            "paragraphs": [
+                                "Short, and none of it is a surprise.",
+                            ],
+                            "sections": [
+                                (
+                                    "At the table",
+                                    [
+                                        "Everybody gets a scene. If you have had three and "
+                                        "somebody has had none, hand them the next one.",
+                                    ],
+                                ),
+                                (
+                                    "Between sessions",
+                                    [
+                                        "Level up before Thursday. Post your recap if you "
+                                        "said you would.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Snacks",
+                            "created_by": "Thorn Ironforge",
+                            "paragraphs": [
+                                "A rota, because otherwise it is always the same person and "
+                                "that person is Thorn.",
+                            ],
+                            "sections": [
+                                (
+                                    "The rota",
+                                    [
+                                        "Whoever hosted least recently brings something. "
+                                        "There is no enforcement mechanism and there has "
+                                        "never needed to be one.",
+                                    ],
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "The Phandalin files",
+                    "description": "The Sword Coast, as far as this party has seen it.",
+                    "created_by": "Admin User",
+                    "tags": ["lore"],
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.wide,
+                    "accent_color": "#10b981",
+                    "home": "Phandalin",
+                    "pages": [
+                        {
+                            "title": "Phandalin",
+                            "created_by": "Admin User",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "A frontier town rebuilding on top of an older one, which is "
+                                "the whole plot if you squint.",
+                            ],
+                            "sections": [
+                                (
+                                    "Who is in charge",
+                                    [
+                                        "Townmaster Harbin Wester, who would rather not be, "
+                                        "and the Redbrands, who very much are.",
+                                    ],
+                                ),
+                                (
+                                    "Where to go first",
+                                    [
+                                        "Stonehill Inn for rumours, Barthen's for supplies, "
+                                        "Tresendar Manor when the party is ready for a "
+                                        "fight.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Tresendar Manor",
+                                ("task", "Clear the Redbrand Hideout"),
+                                ("document", "NPC Compendium: Phandelver"),
+                            ],
+                        },
+                        {
+                            "title": "Tresendar Manor",
+                            "created_by": "Dungeon Master",
+                            "tags": ["combat"],
+                            "paragraphs": [
+                                "A burnt-out house with a working cellar, which is the part "
+                                "that matters.",
+                            ],
+                            "sections": [
+                                (
+                                    "The hideout",
+                                    [
+                                        "Two ways in. The crevice is quieter; the front is "
+                                        "faster and louder.",
+                                    ],
+                                ),
+                                (
+                                    "Glasstaff",
+                                    [
+                                        "Will talk his way out if given the chance, and is "
+                                        "worth more talking than fighting.",
+                                    ],
+                                ),
+                            ],
+                            "links": ["Phandalin"],
+                        },
+                        {
+                            "title": "Cragmaw Hideout",
+                            "created_by": "Dungeon Master",
+                            "tags": ["combat", "quest"],
+                            "paragraphs": [
+                                "A cave the goblins took, upstream of the road ambush.",
+                            ],
+                            "sections": [
+                                (
+                                    "The approach",
+                                    [
+                                        "Watched. There is a lookout and there is always a "
+                                        "lookout.",
+                                    ],
+                                ),
+                                (
+                                    "Why it matters",
+                                    [
+                                        "Sildar is in it, and Sildar is how the party learns "
+                                        "what happened to Gundren.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("task", "Rescue Gundren Rockseeker")],
+                        },
+                        {
+                            "title": "Wave Echo Cave",
+                            "created_by": "Admin User",
+                            "tags": ["quest", "boss fight"],
+                            "paragraphs": [
+                                "The lost mine. The reason all of this started and the place "
+                                "it ends.",
+                            ],
+                            "sections": [
+                                (
+                                    "The Forge of Spells",
+                                    [
+                                        "Still working, after everything. That is the "
+                                        "surprise the last session is built on.",
+                                    ],
+                                ),
+                                (
+                                    "The Black Spider",
+                                    [
+                                        "Here, and expecting them. He has been ahead of the "
+                                        "party since session one.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Defeat the Black Spider in Wave Echo Cave"),
+                                ("task", "Activate the Forge of Spells"),
+                            ],
+                        },
+                        {
+                            "title": "Neverwinter Wood",
+                            "created_by": "Elara Moonwhisper",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "Everything between the towns, and nothing in it is on the "
+                                "road.",
+                            ],
+                            "sections": [
+                                (
+                                    "Travel",
+                                    [
+                                        "Two days to anywhere. One if the party knows "
+                                        "somebody who knows the paths.",
+                                    ],
+                                ),
+                                (
+                                    "Who lives here",
+                                    [
+                                        "Reidoth, when he wants to be found, which is rarely "
+                                        "and never conveniently.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Thundertree",
+                            "created_by": "Vex Shadowstep",
+                            "tags": ["exploration", "side quest"],
+                            "paragraphs": [
+                                "A ruined village with ash on everything and a dragon in the "
+                                "tower.",
+                            ],
+                            "sections": [
+                                (
+                                    "The dragon",
+                                    [
+                                        "Young, vain, and entirely willing to be flattered "
+                                        "into a conversation.",
+                                    ],
+                                ),
+                                (
+                                    "The cultists",
+                                    [
+                                        "In the old druid's house. They are not subtle and "
+                                        "they are not expecting company.",
+                                    ],
+                                ),
+                            ],
+                            "links": ["Neverwinter Wood"],
+                        },
+                    ],
+                },
+            ],
+            entities={"task": g1_tasks, "document": g1_docs},
+        )
+
         await _apply_pending_archives(session)
 
         # ==============================================================
@@ -5648,10 +6838,8 @@ async def seed() -> None:
         )
 
         # Default initiative for g2
-        g2_default_init = await ensure_default_initiative(
-            session, admin_user, guild_id=g2_id
-        )
-        # Track the roles and members that ensure_default_initiative created
+        g2_default_init = await seed_initiative(session, admin_user, guild_id=g2_id)
+        # Track the roles and members that seed_initiative created
         result = await session.exec(
             select(InitiativeRoleModel).where(
                 InitiativeRoleModel.initiative_id == g2_default_init.id,
@@ -5713,6 +6901,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             galleries_enabled=True,
         )
@@ -5730,6 +6919,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
         )
 
         # Projects
@@ -7067,6 +8257,542 @@ async def seed() -> None:
             ],
         )
 
+        await _enable_role_feature(session, [g2_main_mem, g2_side_mem], "wikis_enabled")
+
+        # -- Wikis --
+        # The fleet codex is the big one: a reference nobody reads front to
+        # back, ordered alphabetically and counted. The briefings beside it are
+        # the opposite — short, hand-ordered, and thrown away after the job.
+        print("  Creating Community 2 wikis...")
+        await _create_wikis(
+            session,
+            ids,
+            g2,
+            all_users,
+            g2_tags,
+            [
+                {
+                    "initiative_id": g2_main.id,
+                    "name": "Fleet codex",
+                    "description": "Ships, decks, factions and everything bolted to them.",
+                    "created_by": "Overseer Nova",
+                    "tags": ["main quest"],
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.wide,
+                    "contents_depth": 3,
+                    "accent_color": "#0ea5e9",
+                    "home": "The Exodus Fleet",
+                    "template": "Ship entry",
+                    "pages": [
+                        {
+                            "title": "The Exodus Fleet",
+                            "created_by": "Overseer Nova",
+                            "tags": ["main quest"],
+                            "paragraphs": [
+                                "Eleven ships left. Nine are still under power. This is what "
+                                "is left of everybody.",
+                            ],
+                            "sections": [
+                                (
+                                    "How the fleet is organised",
+                                    [
+                                        "One flagship, three escorts, five haulers. The "
+                                        "haulers carry the people; everything else exists to "
+                                        "keep the haulers moving.",
+                                    ],
+                                ),
+                                (
+                                    "Who decides",
+                                    [
+                                        "Fleet Command in theory. In practice, whoever is "
+                                        "awake on the bridge when the alarm goes.",
+                                    ],
+                                ),
+                                (
+                                    "The standing order",
+                                    [
+                                        "Find a world. Everything else is a means to that "
+                                        "and is negotiable.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Ark Perseverance",
+                                "Krellix Dominion",
+                                ("document", "Setting Bible: The Exodus Protocol"),
+                            ],
+                        },
+                        {
+                            "title": "Ship entry",
+                            "created_by": "Overseer Nova",
+                            "paragraphs": [
+                                "Copy this for a new hull. Every ship in the codex has these "
+                                "four headings and nothing else.",
+                            ],
+                            "sections": [
+                                ("Class and role", ["What it is and what it is for."]),
+                                ("Crew", ["Complement, and who is in command."]),
+                                ("Condition", ["What is broken. Date it."]),
+                                ("Notes", ["Anything the next watch needs."]),
+                            ],
+                        },
+                        {
+                            "title": "Ark Perseverance",
+                            "created_by": "Overseer Nova",
+                            "tags": ["engineering"],
+                            "paragraphs": [
+                                "The flagship, and the only hull with a working FTL core. "
+                                "Working is doing some lifting in that sentence.",
+                            ],
+                            "sections": [
+                                (
+                                    "Class and role",
+                                    [
+                                        "Colony ark, refitted. Command, medical, and eleven "
+                                        "thousand people in cold storage.",
+                                    ],
+                                ),
+                                (
+                                    "Condition",
+                                    [
+                                        "The drive core is the open problem and has been "
+                                        "since the Sol transit. Everything else on this hull "
+                                        "is downstream of it.",
+                                    ],
+                                ),
+                                (
+                                    "Notes",
+                                    [
+                                        "Deck 7 is a separate conversation and has its own "
+                                        "page.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Deck 7",
+                                ("task", "Repair the FTL drive core"),
+                                ("task", "Upgrade shield generators to Mark IV"),
+                            ],
+                        },
+                        {
+                            "title": "Deck 7",
+                            "created_by": "Kael Windrunner",
+                            "tags": ["NPC"],
+                            "paragraphs": [
+                                "Hydroponics, berthing, and the part of the ship that stopped "
+                                "taking orders in week nine.",
+                            ],
+                            "sections": [
+                                (
+                                    "What happened",
+                                    [
+                                        "Rationing, then a rota nobody agreed to, then a "
+                                        "sealed bulkhead. In that order, over four days.",
+                                    ],
+                                ),
+                                (
+                                    "Where it stands",
+                                    [
+                                        "Talking. Not resolved. Anybody going down there "
+                                        "goes unarmed or does not go.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Ark Perseverance",
+                                ("task", "Quell the mutiny on Deck 7"),
+                                ("task", "Set up the hydroponics bay"),
+                            ],
+                        },
+                        {
+                            "title": "Krellix Dominion",
+                            "created_by": "Aurelia Brightshield",
+                            "tags": ["diplomacy", "NPC"],
+                            "paragraphs": [
+                                "They hold the only corridor that goes anywhere, and they "
+                                "know exactly what that is worth.",
+                            ],
+                            "sections": [
+                                (
+                                    "What they want",
+                                    [
+                                        "Tariff, deference, and a say in where the fleet "
+                                        "settles. The third one is the problem.",
+                                    ],
+                                ),
+                                (
+                                    "How they negotiate",
+                                    [
+                                        "Slowly, formally, and with every word recorded. "
+                                        "Nothing said to a Krellix envoy is off the record.",
+                                    ],
+                                ),
+                                (
+                                    "Where we stand",
+                                    [
+                                        "Passage granted for one transit. It was not granted "
+                                        "cheaply and it was not granted twice.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Negotiate passage through Krellix space"),
+                                ("document", "Faction Guide: Krellix Dominion"),
+                            ],
+                        },
+                        {
+                            "title": "Kepler-442b",
+                            "created_by": "Admin User",
+                            "tags": ["exploration", "survival"],
+                            "paragraphs": [
+                                "The candidate. Breathable, cold, and eleven light years "
+                                "past the last place anybody wanted to stop.",
+                            ],
+                            "sections": [
+                                (
+                                    "The survey",
+                                    [
+                                        "Three landing sites scouted, one viable. The viable "
+                                        "one is in the southern highlands and nobody likes "
+                                        "the weather data.",
+                                    ],
+                                ),
+                                (
+                                    "What is unresolved",
+                                    [
+                                        "Whether anything already lives there. The survey "
+                                        "team has an opinion and no evidence.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Survey landing sites on Kepler-442b"),
+                                ("task", "Establish a perimeter defense grid"),
+                            ],
+                        },
+                        {
+                            "title": "Station Omega",
+                            "created_by": "Vex Shadowstep",
+                            "tags": ["stealth"],
+                            "paragraphs": [
+                                "A relay nobody admits to owning, on the edge of Krellix "
+                                "space.",
+                            ],
+                            "sections": [
+                                (
+                                    "Getting aboard",
+                                    [
+                                        "Cargo manifest, forged, and a window of nineteen "
+                                        "minutes on the docking rotation.",
+                                    ],
+                                ),
+                                (
+                                    "The vault",
+                                    [
+                                        "Whatever is in it is worth more than the station. "
+                                        "That is the entire intelligence picture.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Infiltrate Station Omega"),
+                                ("task", "Crack the vault encryption"),
+                            ],
+                        },
+                        {
+                            "title": "Sector 7G",
+                            "is_draft": True,
+                            "created_by": "Elara Moonwhisper",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "Empty on every chart the fleet carries, and something in it "
+                                "is transmitting.",
+                            ],
+                            "sections": [
+                                (
+                                    "The signal",
+                                    [
+                                        "Repeating, forty-one second cycle, and in a "
+                                        "protocol that predates the Exodus.",
+                                    ],
+                                ),
+                                (
+                                    "What we have not done",
+                                    ["Answered it."],
+                                ),
+                            ],
+                            "links": [
+                                (
+                                    "task",
+                                    "Investigate the distress signal from Sector 7G",
+                                )
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g2_main.id,
+                    "name": "Standing orders",
+                    "description": "How the fleet runs when nobody is available to ask.",
+                    "created_by": "Overseer Nova",
+                    "page_order": WikiPageOrder.manual,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "show_connections": False,
+                    "accent_color": "#64748b",
+                    "home": "Read this first",
+                    "pages": [
+                        {
+                            "title": "Read this first",
+                            "created_by": "Overseer Nova",
+                            "paragraphs": [
+                                "Five pages, in the order you will need them.",
+                            ],
+                            "sections": [
+                                (
+                                    "Who this is for",
+                                    [
+                                        "Anybody standing a watch. That is eventually "
+                                        "everybody.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Rationing",
+                            "created_by": "Overseer Nova",
+                            "paragraphs": [
+                                "Set by Fleet Command, reviewed weekly, and not adjustable "
+                                "by any individual ship.",
+                            ],
+                            "sections": [
+                                (
+                                    "The current tier",
+                                    [
+                                        "Tier two. Full water, eighty percent calories, no "
+                                        "discretionary power after 2200.",
+                                    ],
+                                ),
+                                (
+                                    "Appeals",
+                                    [
+                                        "Medical only, through your ship's surgeon, and they "
+                                        "are granted more often than people expect.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Contact protocol",
+                            "created_by": "Aurelia Brightshield",
+                            "tags": ["diplomacy"],
+                            "paragraphs": [
+                                "What to do when something answers.",
+                            ],
+                            "sections": [
+                                (
+                                    "First contact",
+                                    [
+                                        "Do not transmit. Log, hold position, and wake "
+                                        "somebody senior. Nothing about this is a judgement "
+                                        "call.",
+                                    ],
+                                ),
+                                (
+                                    "Known parties",
+                                    [
+                                        "Krellix traffic is routine and has its own "
+                                        "handshake. Anything else is first contact.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Salvage",
+                            "created_by": "Finley Goldtongue",
+                            "tags": ["loot"],
+                            "paragraphs": [
+                                "Who gets what, decided before anybody is holding it.",
+                            ],
+                            "sections": [
+                                (
+                                    "The split",
+                                    [
+                                        "Fleet takes anything structural or medical. The crew "
+                                        "that pulled it keeps the rest.",
+                                    ],
+                                ),
+                                (
+                                    "Disputes",
+                                    [
+                                        "Go to the Overseer, who has never once ruled in "
+                                        "favour of whoever shouted first.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "If the drive fails again",
+                            "created_by": "Kael Windrunner",
+                            "tags": ["engineering"],
+                            "paragraphs": [
+                                "The checklist, in the order it is run, because the last "
+                                "time nobody could find it.",
+                            ],
+                            "sections": [
+                                (
+                                    "Immediate",
+                                    [
+                                        "Cut the jump sequence, vent the coolant loop, get "
+                                        "engineering on the deck. Ninety seconds, all three.",
+                                    ],
+                                ),
+                                (
+                                    "Then",
+                                    [
+                                        "Fleet-wide hold. Nobody jumps on a core the "
+                                        "flagship cannot vouch for.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("task", "Repair the FTL drive core")],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g2_side.id,
+                    "name": "Fringe space briefings",
+                    "description": "One job per page. Closed pages stay for the next crew.",
+                    "created_by": "Finley Goldtongue",
+                    "tags": ["side quest"],
+                    "page_order": WikiPageOrder.recently_updated,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "accent_color": "#f59e0b",
+                    "home": "How a briefing works",
+                    "template": "Briefing template",
+                    "pages": [
+                        {
+                            "title": "How a briefing works",
+                            "created_by": "Finley Goldtongue",
+                            "paragraphs": [
+                                "Newest at the top, because the one you need is almost always "
+                                "the one somebody just edited.",
+                            ],
+                            "sections": [
+                                (
+                                    "Before the job",
+                                    [
+                                        "Copy the template, fill in the four headings, and "
+                                        "put the payout in writing where the crew can see "
+                                        "it.",
+                                    ],
+                                ),
+                                (
+                                    "After the job",
+                                    [
+                                        "Do not delete it. A closed briefing is the only "
+                                        "record of what the sector was like last time.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Briefing template",
+                            "created_by": "Finley Goldtongue",
+                            "paragraphs": [
+                                "Four headings. Fill them in before you leave."
+                            ],
+                            "sections": [
+                                ("The job", ["One sentence."]),
+                                ("Who is paying", ["And whether they have before."]),
+                                (
+                                    "What could go wrong",
+                                    ["Be specific. Be pessimistic."],
+                                ),
+                                (
+                                    "Payout",
+                                    ["Agreed in advance, in credits, in writing."],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Smuggler's Run",
+                            "created_by": "Vex Shadowstep",
+                            "tags": ["stealth", "side quest"],
+                            "paragraphs": [
+                                "Cargo out to the belt, no questions, nineteen hours.",
+                            ],
+                            "sections": [
+                                (
+                                    "The job",
+                                    ["Move four crates. Do not open the crates."],
+                                ),
+                                (
+                                    "What could go wrong",
+                                    [
+                                        "Somebody opens the crates. It is always somebody on "
+                                        "our side.",
+                                    ],
+                                ),
+                                ("Payout", ["Forty thousand, half up front."]),
+                            ],
+                            "links": [
+                                ("document", "One-Shot: Smuggler's Run Briefing")
+                            ],
+                        },
+                        {
+                            "title": "The Coriolis wreck",
+                            "created_by": "Aurelia Brightshield",
+                            "tags": ["exploration", "loot"],
+                            "paragraphs": [
+                                "A hauler that went quiet six years ago and is still in a "
+                                "stable orbit.",
+                            ],
+                            "sections": [
+                                (
+                                    "The job",
+                                    ["Board, survey, bring back the flight recorder."],
+                                ),
+                                (
+                                    "What could go wrong",
+                                    [
+                                        "Six years is long enough for something else to have "
+                                        "found it first.",
+                                    ],
+                                ),
+                                ("Payout", ["Salvage rights, under the fleet split."]),
+                            ],
+                        },
+                        {
+                            "title": "Escort: the Tanaka convoy",
+                            "created_by": "Finley Goldtongue",
+                            "tags": ["combat", "side quest"],
+                            "paragraphs": [
+                                "Three haulers through a corridor that has been quiet for "
+                                "two months, which is the part that worries people.",
+                            ],
+                            "sections": [
+                                ("The job", ["Get all three through. All three."]),
+                                (
+                                    "What could go wrong",
+                                    [
+                                        "Quiet corridors are quiet because somebody is "
+                                        "waiting to be paid for them.",
+                                    ],
+                                ),
+                                (
+                                    "Payout",
+                                    ["Fuel, which is better than credits right now."],
+                                ),
+                            ],
+                        },
+                    ],
+                },
+            ],
+            entities={"task": g2_tasks, "document": g2_docs},
+        )
+
         await _apply_pending_archives(session)
 
         # ==============================================================
@@ -7125,9 +8851,7 @@ async def seed() -> None:
         )
 
         # Default initiative (admin3, the community creator, becomes its PM)
-        g3_default_init = await ensure_default_initiative(
-            session, admin3, guild_id=g3_id
-        )
+        g3_default_init = await seed_initiative(session, admin3, guild_id=g3_id)
         result = await session.exec(
             select(InitiativeRoleModel).where(
                 InitiativeRoleModel.initiative_id == g3_default_init.id,
@@ -7192,6 +8916,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
             dashboards_enabled=True,
             galleries_enabled=True,
         )
@@ -7209,6 +8934,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            wikis_enabled=True,
         )
 
         # Projects
@@ -8665,6 +10391,606 @@ async def seed() -> None:
             [
                 ("task", t_evade_id, (NOW + timedelta(days=4)).date()),
             ],
+        )
+
+        await _enable_role_feature(session, [g3_main_mem, g3_navy_mem], "wikis_enabled")
+
+        # -- Wikis --
+        # The gazetteer and the ship's articles sit in the same initiative on
+        # purpose: one is looked up, one is read once and argued about, and
+        # they are configured nothing like each other.
+        print("  Creating Community 3 wikis...")
+        await _create_wikis(
+            session,
+            ids,
+            g3,
+            all_users,
+            g3_tags,
+            [
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "The Shattered Seas",
+                    "description": "Every port, reef and rumour the crew has charted.",
+                    "created_by": "Archivist Okoro",
+                    "tags": ["exploration"],
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 3,
+                    "accent_color": "#0ea5e9",
+                    "home": "The Shattered Seas",
+                    "template": "Port entry",
+                    "pages": [
+                        {
+                            "title": "The Shattered Seas",
+                            "created_by": "Archivist Okoro",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "Four hundred islands, nine of them worth landing on, and "
+                                "one current that decides which.",
+                            ],
+                            "sections": [
+                                (
+                                    "How to read this",
+                                    [
+                                        "Ports first, then waters, then the things in the "
+                                        "waters. Every entry says what the crew saw, not what "
+                                        "the charts claim.",
+                                    ],
+                                ),
+                                (
+                                    "The Tide",
+                                    [
+                                        "Runs anticlockwise and reverses twice a year. Half "
+                                        "the navigation in this campaign is remembering which "
+                                        "half of the year it is.",
+                                    ],
+                                ),
+                                (
+                                    "Who claims what",
+                                    [
+                                        "The Empire claims all of it. The Empire patrols "
+                                        "about a fifth of it.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Port Vermillion",
+                                "Skull Cove",
+                                ("document", "The Shattered Seas: World Guide"),
+                            ],
+                        },
+                        {
+                            "title": "Port entry",
+                            "created_by": "Archivist Okoro",
+                            "paragraphs": [
+                                "Copy this for anywhere the ship can tie up. Four headings, "
+                                "no exceptions.",
+                            ],
+                            "sections": [
+                                (
+                                    "Approach",
+                                    ["Depth, hazards, and who watches the harbour."],
+                                ),
+                                ("Who runs it", ["And who actually runs it."]),
+                                (
+                                    "What you can get here",
+                                    ["Repairs, crew, cargo, trouble."],
+                                ),
+                                (
+                                    "Standing with us",
+                                    ["Welcome, tolerated, or shot at."],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Port Vermillion",
+                            "created_by": "Harbormaster Marisol",
+                            "tags": ["NPC", "diplomacy"],
+                            "paragraphs": [
+                                "A free port that stays free by being useful to everybody "
+                                "and loyal to nobody.",
+                            ],
+                            "sections": [
+                                (
+                                    "Approach",
+                                    [
+                                        "Deep water to the quay. Come in under half sail; the "
+                                        "harbour watch reads anything faster as an opinion.",
+                                    ],
+                                ),
+                                (
+                                    "Who runs it",
+                                    [
+                                        "The Harbour Council, which is four merchants and "
+                                        "whoever is currently owed the most money.",
+                                    ],
+                                ),
+                                (
+                                    "What you can get here",
+                                    [
+                                        "Anything, at a price that reflects how badly you "
+                                        "need it and how obviously you need it.",
+                                    ],
+                                ),
+                                (
+                                    "Standing with us",
+                                    [
+                                        "Welcome, as of the Ironclad business. That is worth "
+                                        "more than it sounds and it will not last.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "The Crimson Maiden",
+                                ("task", "Recruit a new helmsman"),
+                            ],
+                        },
+                        {
+                            "title": "The Crimson Maiden",
+                            "created_by": "Finley Goldtongue",
+                            "tags": ["ship upgrades"],
+                            "paragraphs": [
+                                "Ours. A brigantine that was a revenue cutter before it was "
+                                "anything else, which is why she runs so fast and carries so "
+                                "little.",
+                            ],
+                            "sections": [
+                                (
+                                    "Condition",
+                                    [
+                                        "Hull repaired after the kraken. The repair is "
+                                        "sound and it is not pretty.",
+                                    ],
+                                ),
+                                (
+                                    "What is fitted",
+                                    [
+                                        "Dragon-fire shot, which nobody is insured for, and "
+                                        "an enchanted compass that points at what you want "
+                                        "rather than north.",
+                                    ],
+                                ),
+                                (
+                                    "Crew",
+                                    [
+                                        "Thirty-one aboard, two berths open, and the "
+                                        "helmsman's post vacant since Coral Keep.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Repair the hull after the kraken attack"),
+                                ("task", "Upgrade cannons to dragon-fire shot"),
+                                ("task", "Install the enchanted compass"),
+                                ("document", "Crew Manifest: The Crimson Maiden"),
+                            ],
+                        },
+                        {
+                            "title": "Skull Cove",
+                            "created_by": "Thorn Ironforge",
+                            "tags": ["exploration", "loot"],
+                            "paragraphs": [
+                                "A drowned caldera with one entrance, and the entrance is "
+                                "only an entrance at low tide.",
+                            ],
+                            "sections": [
+                                (
+                                    "Approach",
+                                    [
+                                        "Three hours either side of low water. Outside that "
+                                        "window there is no cove, only rock.",
+                                    ],
+                                ),
+                                (
+                                    "What is in there",
+                                    [
+                                        "Four wrecks the charts do not list and one that "
+                                        "three separate maps agree on.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("task", "Explore Skull Cove")],
+                        },
+                        {
+                            "title": "The Whispering Jungle",
+                            "created_by": "Aurelia Brightshield",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "Inland, on the big southern island, and nobody who maps it "
+                                "agrees with anybody else who has mapped it.",
+                            ],
+                            "sections": [
+                                (
+                                    "Why the maps disagree",
+                                    [
+                                        "That is the open question and it is not a joke about "
+                                        "cartography.",
+                                    ],
+                                ),
+                                (
+                                    "The Coral Elves",
+                                    [
+                                        "Live at the treeline, know exactly where everything "
+                                        "is, and will tell you for a price that is never "
+                                        "money.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Map the Whispering Jungle"),
+                                ("task", "Negotiate with the Coral Elves"),
+                            ],
+                        },
+                        {
+                            "title": "The Leviathan's Heart",
+                            "created_by": "Dungeon Master",
+                            "tags": ["main quest", "boss fight"],
+                            "paragraphs": [
+                                "The thing all of this is about, and the only entry in the "
+                                "gazetteer nobody has seen.",
+                            ],
+                            "sections": [
+                                (
+                                    "What is known",
+                                    [
+                                        "Three Tidestones open the way. Two are aboard. The "
+                                        "third is a rumour with a location attached.",
+                                    ],
+                                ),
+                                (
+                                    "What is guessed",
+                                    [
+                                        "That something is still guarding it, and that it has "
+                                        "been guarding it a very long time.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Decipher the Leviathan Map"),
+                                ("task", "Collect the three Tidestones"),
+                                ("task", "Defeat the Leviathan guardian"),
+                            ],
+                        },
+                        {
+                            "title": "Ghost ship sightings",
+                            "is_draft": True,
+                            "created_by": "Seraphina Dawnlight",
+                            "tags": ["side quest"],
+                            "paragraphs": [
+                                "Nine reports in four months, from crews with no reason to "
+                                "agree with each other.",
+                            ],
+                            "sections": [
+                                (
+                                    "The pattern",
+                                    [
+                                        "All nine within a day's sail of the Tide's reversal "
+                                        "line. Somebody noticed that before we did.",
+                                    ],
+                                ),
+                                (
+                                    "What we have done about it",
+                                    ["Written it down. That is all, so far."],
+                                ),
+                            ],
+                            "links": [("task", "Investigate the ghost ship sightings")],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "Articles of the Crimson Maiden",
+                    "description": "Signed by everybody aboard. Amended twice.",
+                    "created_by": "Finley Goldtongue",
+                    "page_order": WikiPageOrder.manual,
+                    "reading_width": WikiReadingWidth.comfortable,
+                    "contents_depth": 2,
+                    "show_connections": False,
+                    "accent_color": "#dc2626",
+                    "home": "The Articles",
+                    "pages": [
+                        {
+                            "title": "The Articles",
+                            "created_by": "Finley Goldtongue",
+                            "paragraphs": [
+                                "Every hand aboard signed these. Nobody gets to be surprised "
+                                "by them later.",
+                            ],
+                            "sections": [
+                                (
+                                    "Amendments",
+                                    [
+                                        "Two so far, both after arguments that would have "
+                                        "been shorter if the articles had said this already.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Shares",
+                            "created_by": "Finley Goldtongue",
+                            "tags": ["loot"],
+                            "paragraphs": [
+                                "How a haul is divided, decided before anybody has seen it.",
+                            ],
+                            "sections": [
+                                (
+                                    "The split",
+                                    [
+                                        "Captain two shares, officers one and a half, hands "
+                                        "one. The ship takes two off the top for repairs "
+                                        "before any of that.",
+                                    ],
+                                ),
+                                (
+                                    "The ship's two",
+                                    [
+                                        "Spent on the ship. Audited by anybody who asks, and "
+                                        "people do ask.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("document", "Crimson Maiden Cargo Manifest")],
+                        },
+                        {
+                            "title": "Who gives orders",
+                            "created_by": "Thorn Ironforge",
+                            "paragraphs": [
+                                "In a chase and in a fight, one person. The rest of the time, "
+                                "rather fewer people than you would think.",
+                            ],
+                            "sections": [
+                                (
+                                    "Under way",
+                                    [
+                                        "The captain, and through the captain the helm. "
+                                        "Nobody else, for any reason.",
+                                    ],
+                                ),
+                                (
+                                    "At anchor",
+                                    [
+                                        "Whoever has the watch. Everything else is a "
+                                        "conversation.",
+                                    ],
+                                ),
+                                (
+                                    "Disagreeing",
+                                    [
+                                        "At anchor, loudly, and it is welcome. Under way, "
+                                        "afterwards.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Quarter and prisoners",
+                            "created_by": "Seraphina Dawnlight",
+                            "tags": ["diplomacy"],
+                            "paragraphs": [
+                                "The rule the crew argued about longest and now nobody "
+                                "questions.",
+                            ],
+                            "sections": [
+                                (
+                                    "Quarter is given",
+                                    [
+                                        "Every time it is asked for. There is no version of "
+                                        "this we are willing to be known for.",
+                                    ],
+                                ),
+                                (
+                                    "Prisoners",
+                                    [
+                                        "Put ashore at the next port with water and a coat. "
+                                        "Not sold, not kept.",
+                                    ],
+                                ),
+                            ],
+                        },
+                        {
+                            "title": "Letters of marque",
+                            "created_by": "Harbormaster Marisol",
+                            "tags": ["stealth", "diplomacy"],
+                            "paragraphs": [
+                                "Whether we carry them, and what happens when somebody checks "
+                                "them.",
+                            ],
+                            "sections": [
+                                (
+                                    "What we carry",
+                                    [
+                                        "Two sets, from two flags that dislike each other. "
+                                        "Producing the wrong one is the whole risk.",
+                                    ],
+                                ),
+                                (
+                                    "If they are examined",
+                                    [
+                                        "They are good enough for a harbourmaster and not "
+                                        "good enough for an admiralty court.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("task", "Forge letters of marque")],
+                        },
+                    ],
+                },
+                {
+                    "initiative_id": g3_navy.id,
+                    "name": "Imperial Navy dossiers",
+                    "description": "Ships, captains, and what each of them does when pressed.",
+                    "created_by": "Dungeon Master",
+                    "tags": ["naval combat"],
+                    "page_order": WikiPageOrder.title,
+                    "reading_width": WikiReadingWidth.wide,
+                    "contents_depth": 2,
+                    "accent_color": "#1e40af",
+                    "home": "The Imperial Navy",
+                    "template": "Dossier template",
+                    "pages": [
+                        {
+                            "title": "The Imperial Navy",
+                            "created_by": "Dungeon Master",
+                            "tags": ["naval combat"],
+                            "paragraphs": [
+                                "Forty hulls in these waters, nine of which the crew has "
+                                "actually met.",
+                            ],
+                            "sections": [
+                                (
+                                    "How they fight",
+                                    [
+                                        "In line, patiently, and they do not chase. They "
+                                        "arrange to be where you are going.",
+                                    ],
+                                ),
+                                (
+                                    "Who commands",
+                                    [
+                                        "Blackwood, out of Coral Keep, and every captain "
+                                        "below her is somebody she chose.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                "Admiral Blackwood",
+                                "HMS Vengeance",
+                                ("document", "Intelligence Report: Admiral Blackwood"),
+                            ],
+                        },
+                        {
+                            "title": "Dossier template",
+                            "created_by": "Dungeon Master",
+                            "paragraphs": [
+                                "Three headings. Anything else is speculation."
+                            ],
+                            "sections": [
+                                (
+                                    "Hull and guns",
+                                    ["Class, rate, and what she carries."],
+                                ),
+                                ("Who commands", ["And how long they have had her."]),
+                                ("How she behaves", ["Observed. Not assumed."]),
+                            ],
+                        },
+                        {
+                            "title": "Admiral Blackwood",
+                            "created_by": "Kael Windrunner",
+                            "tags": ["NPC", "boss fight"],
+                            "paragraphs": [
+                                "Commands the squadron and has never personally boarded "
+                                "anything, which people mistake for caution.",
+                            ],
+                            "sections": [
+                                (
+                                    "How she behaves",
+                                    [
+                                        "Sends two ships where one would do, and the second "
+                                        "one arrives late on purpose.",
+                                    ],
+                                ),
+                                (
+                                    "What she wants",
+                                    [
+                                        "The Maiden, intact, with her crew alive to be tried. "
+                                        "That preference is the only reason anybody is still "
+                                        "alive.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("document", "Intelligence Report: Admiral Blackwood")
+                            ],
+                        },
+                        {
+                            "title": "HMS Vengeance",
+                            "created_by": "Thorn Ironforge",
+                            "tags": ["naval combat"],
+                            "paragraphs": [
+                                "Flagship. Faster than a ship that size has any business "
+                                "being.",
+                            ],
+                            "sections": [
+                                (
+                                    "Hull and guns",
+                                    [
+                                        "Ship of the line, sixty-four guns, copper-bottomed "
+                                        "within the year.",
+                                    ],
+                                ),
+                                (
+                                    "How she behaves",
+                                    [
+                                        "Cuts corners the charts say she cannot. Somebody "
+                                        "aboard knows these waters better than we do.",
+                                    ],
+                                ),
+                            ],
+                            "links": [("task", "Evade the HMS Vengeance")],
+                        },
+                        {
+                            "title": "HMS Ironclad",
+                            "created_by": "Finley Goldtongue",
+                            "tags": ["naval combat", "boss fight"],
+                            "paragraphs": [
+                                "Sunk off Coral Keep. This page is kept because the squadron "
+                                "still sails as if she were in it.",
+                            ],
+                            "sections": [
+                                (
+                                    "How she behaved",
+                                    [
+                                        "Closed to pistol range every time. That is what "
+                                        "finished her and it nearly finished us.",
+                                    ],
+                                ),
+                                (
+                                    "What it cost",
+                                    [
+                                        "The foremast, the helmsman, and whatever goodwill "
+                                        "Port Vermillion had left for us.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Sink the HMS Ironclad"),
+                                ("document", "Session 4 Recap: The Ironclad Falls"),
+                            ],
+                        },
+                        {
+                            "title": "Coral Keep",
+                            "created_by": "Kael Windrunner",
+                            "tags": ["exploration"],
+                            "paragraphs": [
+                                "The squadron's base, and the only deep-water yard in the "
+                                "Shattered Seas.",
+                            ],
+                            "sections": [
+                                (
+                                    "The yard",
+                                    [
+                                        "Two dry docks. A ship in either is out of the war "
+                                        "for six weeks, which is worth knowing before "
+                                        "picking a fight.",
+                                    ],
+                                ),
+                                (
+                                    "The convoys",
+                                    [
+                                        "Weekly, predictable, and escorted exactly as heavily "
+                                        "as the cargo deserves.",
+                                    ],
+                                ),
+                            ],
+                            "links": [
+                                ("task", "Raid the supply convoy near Coral Keep")
+                            ],
+                        },
+                    ],
+                },
+            ],
+            entities={"task": g3_tasks, "document": g3_docs},
         )
 
         await _apply_pending_archives(session)

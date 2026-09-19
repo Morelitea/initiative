@@ -5,20 +5,9 @@ import {
   $isRangeSelection,
   type BaseSelection,
   type ElementFormatType,
-  FORMAT_ELEMENT_COMMAND,
-  INDENT_CONTENT_COMMAND,
-  OUTDENT_CONTENT_COMMAND,
 } from "lexical";
-import {
-  AlignCenterIcon,
-  AlignJustifyIcon,
-  AlignLeftIcon,
-  AlignRightIcon,
-  ChevronDownIcon,
-  IndentDecreaseIcon,
-  IndentIncreaseIcon,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -29,105 +18,82 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { useUpdateToolbarHandler } from "@/components/ui/editor/editor-hooks/use-update-toolbar";
+import {
+  type AlignmentType,
+  useAlignmentActions,
+  useIndentActions,
+} from "@/components/ui/editor/plugins/toolbar/toolbar-actions";
 import { getSelectedNode } from "@/components/ui/editor/utils/get-selected-node";
 
-type AlignmentType = "left" | "center" | "right" | "justify";
-
-export function ElementFormatToolbarPlugin() {
-  const { activeEditor } = useToolbarContext();
-  const { t } = useTranslation("documents");
-
-  const ELEMENT_FORMAT_OPTIONS = useMemo(
-    () => ({
-      left: {
-        icon: <AlignLeftIcon className="size-4" />,
-        name: t("editor.alignLeft"),
-      },
-      center: {
-        icon: <AlignCenterIcon className="size-4" />,
-        name: t("editor.alignCenter"),
-      },
-      right: {
-        icon: <AlignRightIcon className="size-4" />,
-        name: t("editor.alignRight"),
-      },
-      justify: {
-        icon: <AlignJustifyIcon className="size-4" />,
-        name: t("editor.alignJustify"),
-      },
-    }),
-    [t]
-  );
+/** Which alignment the caret's block carries, defaulting to the left. */
+export function useCurrentAlignment(): AlignmentType {
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
 
   const $updateToolbar = (selection: BaseSelection) => {
-    if ($isRangeSelection(selection)) {
-      const node = getSelectedNode(selection);
-      const parent = node.getParent();
+    if (!$isRangeSelection(selection)) return;
 
-      let matchingParent: any;
-      if ($isLinkNode(parent)) {
-        // If node is a link, we need to fetch the parent paragraph node to set format
-        matchingParent = $findMatchingParent(
-          node,
-          (parentNode) => $isElementNode(parentNode) && !parentNode.isInline()
-        );
-      }
-      setElementFormat(
-        $isElementNode(matchingParent)
-          ? matchingParent.getFormatType()
-          : $isElementNode(node)
-            ? node.getFormatType()
-            : parent?.getFormatType() || "left"
-      );
-    }
+    const node = getSelectedNode(selection);
+    const parent = node.getParent();
+
+    // A link carries no alignment of its own; the paragraph around it does.
+    const matchingParent = $isLinkNode(parent)
+      ? $findMatchingParent(node, (candidate) => $isElementNode(candidate) && !candidate.isInline())
+      : null;
+
+    setElementFormat(
+      $isElementNode(matchingParent)
+        ? matchingParent.getFormatType()
+        : $isElementNode(node)
+          ? node.getFormatType()
+          : parent?.getFormatType() || "left"
+    );
   };
 
   useUpdateToolbarHandler($updateToolbar);
 
-  const handleAlignmentChange = (value: AlignmentType) => {
-    setElementFormat(value);
-    activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, value);
-  };
+  return (["left", "center", "right", "justify"] as const).includes(elementFormat as AlignmentType)
+    ? (elementFormat as AlignmentType)
+    : "left";
+}
 
-  // Get current alignment, defaulting to "left" if not a standard alignment
-  const currentAlignment: AlignmentType =
-    elementFormat in ELEMENT_FORMAT_OPTIONS ? (elementFormat as AlignmentType) : "left";
+export function ElementFormatToolbarPlugin() {
+  const { t } = useTranslation("documents");
+  const current = useCurrentAlignment();
+  const alignments = useAlignmentActions(current);
+  const indents = useIndentActions();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1 px-2">
-          {ELEMENT_FORMAT_OPTIONS[currentAlignment].icon}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1 px-2"
+          aria-label={t("editor.align")}
+        >
+          {alignments.find((action) => action.active)?.icon}
           <ChevronDownIcon className="size-3" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {Object.entries(ELEMENT_FORMAT_OPTIONS).map(([value, option]) => (
+        {alignments.map((action) => (
           <DropdownMenuItem
-            key={value}
-            onClick={() => handleAlignmentChange(value as AlignmentType)}
-            className={currentAlignment === value ? "bg-accent" : ""}
+            key={action.id}
+            onClick={action.run}
+            className={action.active ? "bg-accent" : ""}
           >
-            {option.icon}
-            <span className="ml-2">{option.name}</span>
+            {action.icon}
+            <span className="ml-2">{action.label}</span>
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => activeEditor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)}
-        >
-          <IndentIncreaseIcon className="size-4" />
-          <span className="ml-2">{t("editor.indent")}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => activeEditor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)}
-        >
-          <IndentDecreaseIcon className="size-4" />
-          <span className="ml-2">{t("editor.outdent")}</span>
-        </DropdownMenuItem>
+        {indents.map((action) => (
+          <DropdownMenuItem key={action.id} onClick={action.run}>
+            {action.icon}
+            <span className="ml-2">{action.label}</span>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

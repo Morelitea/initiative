@@ -95,9 +95,11 @@ describe("CommunitiesPage", () => {
     // narrow screen opens the banner up rather than running past its edge.
     const ground = banner?.parentElement as HTMLElement | null;
     expect(ground?.style.gridRow).toBe("1");
-    expect(
-      (screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement).style.gridRow
-    ).toBe("1");
+    // The copy sits in a column with the badge corner, and that column is what
+    // shares the cell with the ground.
+    const copyColumn = screen.getByRole("heading", { level: 1 }).parentElement
+      ?.parentElement as HTMLElement;
+    expect(copyColumn.style.gridRow).toBe("1");
     // The picture covers whatever that comes to, rather than setting the
     // height itself and leaving a strip too short to read a heading on.
     expect(banner).toHaveClass("absolute", "inset-0", "object-cover");

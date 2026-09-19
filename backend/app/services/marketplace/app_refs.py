@@ -197,9 +197,7 @@ async def guild_for_app_ref(*, ref: str, public_id: str) -> int | None:
         try:
             # The install lives in the guild's own schema, so the read is
             # routed there.
-            await db_session.set_rls_context(
-                session, guild_id=guild_id, guild_role="admin"
-            )
+            await db_session.set_rls_context(session, guild_id=guild_id)
             found = (
                 await session.exec(
                     select(GuildApp.id).where(

@@ -36,7 +36,7 @@
     "title": "{{name}} verlassen?",
     "description": "Du verlierst den Zugriff auf alle Initiativen und Projekte in <bold>{{name}}</bold>. Diese Aktion kann nicht rückgängig gemacht werden.",
     "cannotLeaveTitle": "Community kann nicht verlassen werden",
-    "lastAdminWarning": "Du bist der letzte Projekt Manager dieser Community. Befördere zuerst ein anderes Mitglied zum Projekt Manager.",
+    "lastSuperadminWarning": "Du bist der einzige Superadmin dieser Community. Mache zuerst ein anderes Mitglied zum Superadmin.",
     "leaving": "Wird verlassen...",
     "leaveButton": "Community verlassen",
     "leftGuild": "{{name}} verlassen",
@@ -163,7 +163,13 @@
     "adminRequired": "Du benötigst Administrator-Berechtigungen, um diese Seite anzuzeigen.",
     "guildRole": {
       "admin": "Administrator",
-      "member": "Mitglied"
+      "member": "Mitglied",
+      "superadmin": "Superadmin"
+    },
+    "guildRoleHelp": {
+      "member": "Nimmt an dem teil, wozu die Person hinzugefügt wurde.",
+      "admin": "Führt die Community — Mitglieder, Einladungen, Initiativen, Einstellungen.",
+      "superadmin": "All das, plus wie Leute hereinkommen: Anmeldung, KI und Apps. Nur ein Superadmin kann einen weiteren ernennen."
     },
     "loadingSettings": "Einstellungen werden geladen…",
     "unableToLoadSettings": "Einstellungen konnten nicht geladen werden.",
@@ -252,6 +258,8 @@
     "commentReaction": "{{reactorName}} hat mit {{emoji}} auf deinen Kommentar zu {{contextTitle}} reagiert.",
     "directMessage": "{{senderName}} hat dir eine Nachricht gesendet.",
     "directMessageMany": "{{senderName}} hat dir {{count}} Nachrichten gesendet.",
+    "directMessageGroup": "{{senderName}} hat eine Nachricht an {{groupName}} geschickt.",
+    "directMessageGroupMany": "{{senderName}} und andere haben {{count}} Nachrichten an {{groupName}} geschickt.",
     "someone": "Jemand",
     "connectionRequested": "{{actorName}} möchte sich mit dir verbinden.",
     "connectionAccepted": "{{actorName}} hat deine Kontaktanfrage angenommen.",
@@ -463,6 +471,7 @@
     "person": "Mitglied",
     "name": "Name",
     "admin": "Admin",
+    "superadmin": "Superadmin",
     "alsoIn": "Auch in",
     "actions": "Aktionen",
     "failed": "Die Mitglieder dieser Community konnten nicht geladen werden.",

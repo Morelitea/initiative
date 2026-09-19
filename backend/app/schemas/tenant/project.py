@@ -22,11 +22,15 @@ from app.schemas.tenant.comment import CommentAuthor
 # guild schema.
 ProjectViewMode = Literal["table", "kanban", "calendar"]
 
+# Matches ``Project.icon``'s column width.
+PROJECT_ICON_MAX_LENGTH = 8
+
 
 class ProjectBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
-    icon: Optional[str] = None
+    # The emoji shown beside the project's name, bounded to match the column.
+    icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     # Optional whole-day schedule; either end may be set on its own.
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -50,7 +54,7 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
-    icon: Optional[str] = None
+    icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
     # Which task view the project opens on. Send ``null`` to clear it and fall

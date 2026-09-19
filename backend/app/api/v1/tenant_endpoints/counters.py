@@ -189,7 +189,7 @@ async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
     if not group:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=CounterMessages.GROUP_NOT_FOUND,
+            detail=Tool.counter_group.not_found_code,
         )
     return group
 
@@ -376,7 +376,7 @@ async def create_counter_group(
     if not initiative.counter_groups_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.FEATURE_DISABLED,
+            detail=Tool.counter_group.feature_disabled_code,
         )
     await resource_access.require_create(
         session, Tool.counter_group, initiative, current_user, guild_context

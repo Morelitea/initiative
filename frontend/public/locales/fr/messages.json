@@ -40,7 +40,15 @@
     "noCommunities": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
     "unreachable": "Injoignable",
     "showMore": "Afficher plus",
-    "favorites": "Favoris"
+    "favorites": "Favoris",
+    "addToGroup": "Ajouter {{name}} à un groupe",
+    "removeFromGroup": "Retirer {{name}}",
+    "groupHint": "Tout le monde ici sera invité avant de rejoindre.",
+    "startGroup": "Créer un groupe avec {{count}} personnes",
+    "cannotReachEachOther": "{{first}} et {{second}} ne peuvent pas encore s’écrire. Dans un groupe, tout le monde doit le pouvoir.",
+    "tooManyPeople": "Un groupe contient au maximum {{count}} personnes.",
+    "checkingRoster": "Vérification que tout le monde peut s’écrire…",
+    "checkUnavailable": "Cette vérification n’a pas pu être faite. Réessaie dans un instant."
   },
   "receipt": {
     "sent": "Envoyé",
@@ -54,6 +62,7 @@
   "send": "Envoyer",
   "sendFailed": "Ce message n'a pas pu être envoyé.",
   "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
+  "recipientDevicesUnverified": "{{name}} utilise un appareil que vous n'avez pas encore vérifié, donc le message n'a pas été envoyé. Comparez les images ci-dessus ensemble, puis choisissez « J'ai vérifié ».",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
   "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application.",
@@ -103,6 +112,11 @@
     "body": "Cet appareil a demandé à tes autres appareils les messages que tu avais déjà. Ouvre l'un d'eux et approuve-le là-bas — voici les images qu'il t'affichera.",
     "dismiss": "Masquer",
     "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même si tu approuves sur ton autre appareil."
+  },
+  "peerKeyChange": {
+    "title": "La clé d'un appareil a changé dans cette conversation",
+    "body": "{{name}} utilise désormais une clé différente sur un appareil auquel vous aviez déjà écrit. Le plus souvent, cela signifie que cette personne a remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a enregistré un appareil en son nom. Vérifiez ces images avec elle par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
+    "acknowledge": "J'ai vérifié"
   },
   "safetyEmoji": {
     "dog": "Chien",
@@ -169,5 +183,17 @@
     "headphones": "Casque",
     "folder": "Dossier",
     "pin": "Punaise"
-  }
+  },
+  "groupThreads": {
+    "heading": "Conversations de groupe",
+    "invited": "Invitation"
+  },
+  "invitation": {
+    "heading": "On te propose de rejoindre un groupe",
+    "who": "Les personnes présentes :",
+    "join": "Rejoindre",
+    "decline": "Non merci"
+  },
+  "platformDisabled": "Les messages privés sont désactivés ici",
+  "platformDisabledBody": "Cette installation ne propose pas de messages privés. Rien n'a été supprimé : s'ils sont réactivés, vos conversations seront là où vous les avez laissées."
 }

@@ -24,23 +24,22 @@
     "restricted": {
       "read_only": {
         "label": "Read-only",
-        "message": "This community is read-only. Contact your platform administrator to restore full access."
+        "message": "This community is read-only. Contact whoever runs this server to restore full access."
       },
       "suspended": {
         "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact your platform administrator."
+        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
       "guild": "Community",
-      "ai": "AI",
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
       "data": "Data",
       "dangerZone": "Danger zone",
-      "auth": "Authentication",
-      "apps": "Apps"
+      "security": "Security",
+      "integrations": "Integrations"
     }
   },
   "profile": {
@@ -421,7 +420,7 @@
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
     "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
-    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. A platform admin can reactivate your account on request. Your name, email, and content remain intact.",
+    "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
@@ -452,7 +451,7 @@
     "deleteSuccess": "Account deleted permanently"
   },
   "branding": {
-    "adminOnly": "Only platform admins can manage branding settings.",
+    "adminOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -522,7 +521,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only platform admins can manage email settings.",
+    "adminOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -553,41 +552,15 @@
     "saveError": "Unable to save email settings"
   },
   "auth": {
-    "adminOnly": "Only platform admins can manage authentication settings.",
-    "title": "OIDC authentication",
-    "description": "Configure single sign-on for your workspace.",
+    "adminOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
-    "enabledLabel": "Enabled",
-    "enabledHelp": "Allow users to authenticate via your OIDC provider.",
-    "issuerLabel": "Issuer",
-    "issuerPlaceholder": "https://accounts.example.com",
-    "clientIdLabel": "Client ID",
-    "clientSecretLabel": "Client secret",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Leave blank to keep the existing secret.",
-    "providerNameLabel": "Provider name",
-    "providerNamePlaceholder": "Single Sign-On",
-    "scopesLabel": "Scopes",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Save auth settings",
-    "saving": "Saving…",
-    "callbackUrl": "Authorization callback:",
     "postLoginRedirect": "Post-login redirect:",
     "mobileCallback": "Mobile app callback:",
     "mappingsTitle": "OIDC Claim Mappings",
     "mappingsDescription": "Map claim values from your identity provider to community and initiative memberships.",
-    "claimPathCardTitle": "OIDC claim path",
-    "claimPathCardDescription": "Dot-notation path to the claim array in the OIDC token. Common paths:",
-    "claimPathLabel": "Claim path",
-    "claimPathPlaceholder": "e.g. roles or realm_access.roles",
-    "claimPathHelp": "The dot-separated path to the claim in the ID token. Leave blank if not needed.",
-    "claimPathSave": "Save",
-    "claimPathSaving": "Saving…",
     "updateClaimPath": "Update",
     "updatingClaimPath": "Updating…",
-    "claimPathSuccess": "Claim path updated",
-    "claimPathError": "Unable to update claim path",
     "rulesTitle": "Mapping rules",
     "rulesDescription": "Map OIDC claim values to community and initiative memberships.",
     "addRule": "Add rule",
@@ -640,9 +613,49 @@
     "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
-    "scope": {
-      "platformLabel": "Platform-wide sign-in",
-      "guildLabel": "Per-community sign-in"
+    "deploymentTitle": "This deployment",
+    "mappingProvider": "Provider",
+    "mappingProviderPlaceholder": "Which provider asserts this claim",
+    "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did.",
+    "methods": {
+      "title": "Ways in",
+      "description": "How people may sign in to this deployment. At least one way of starting a session stays on.",
+      "password": {
+        "label": "Password",
+        "help": "An email address and a password held here."
+      },
+      "sso": {
+        "label": "Single sign-on",
+        "help": "Any identity provider configured below."
+      },
+      "lastRemaining": "The last way in cannot be withdrawn.",
+      "wouldStrand_one": "{{count}} account signs in only this way.",
+      "wouldStrand_other": "{{count}} accounts sign in only this way.",
+      "confirmTitle": "Withdraw this way in?",
+      "confirmBody_one": "{{count}} account signs in only this way and will not be able to sign in until it has another. Nobody is signed out.",
+      "confirmBody_other": "{{count}} accounts sign in only this way and will not be able to sign in until they have another. Nobody is signed out.",
+      "confirmAction": "Withdraw",
+      "saved": "Ways in updated.",
+      "saveError": "Could not change the ways in.",
+      "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
+      "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
+      "totp": {
+        "label": "Authenticator app",
+        "help": "A code from an app, asked for after a password. People turn it on for themselves."
+      },
+      "passkey": {
+        "label": "Passkey",
+        "help": "A key held by a device or a password manager, answering a prompt instead of a password. People add them for themselves."
+      }
+    },
+    "sessionLifetime": {
+      "title": "How long people stay signed in",
+      "description": "The longest anybody may go before signing in again, however much they use the app. Separate from being signed out for not using it.",
+      "label": "Hours",
+      "placeholder": "No limit",
+      "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
+      "saved": "Session limit saved.",
+      "error": "We couldn't save the session limit."
     }
   },
   "platformUsers": {
@@ -653,21 +666,13 @@
     "filterPlaceholder": "Filter by handle…",
     "columnId": "User ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "Email",
-    "columnRole": "Role",
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
-    "inactive": "Inactive",
     "deactivated": "Deactivated",
     "anonymized": "Anonymized",
-    "admin": "Admin",
-    "user": "User",
-    "promoteToAdmin": "Promote to admin",
-    "promoteDescription": "This will give {{email}} platform admin permissions, allowing them to manage platform settings, users, and configurations.",
-    "demoteToUser": "Demote to user",
-    "demoteDescription": "This will remove platform admin permissions from {{email}}. They will no longer be able to access platform settings.",
+    "suspended": "Suspended",
     "resetPassword": "Reset password",
     "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
@@ -675,15 +680,11 @@
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
-    "promoteSuccess": "User promoted to admin",
-    "demoteSuccess": "User demoted to member",
     "roleChangeError": "Unable to change user role",
     "resetSuccess": "Password reset email sent to {{email}}",
     "resetError": "Unable to send password reset",
     "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
-    "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
-    "cannotChangeOwnRole": "Cannot change your own role",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
       "member": "Member",
@@ -702,18 +703,34 @@
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
     "roleChangeSuccess": "Platform role changed to {{role}}",
-    "changeUsername": "Change username",
     "usernameChanged": "Username changed.",
-    "changeUsernameTitle": "Change {{handle}}'s username",
-    "changeUsernameBody": "They will be told, and they cannot change it back themselves. The number stays as it is.",
     "suspend": "Suspend",
-    "unsuspend": "Lift suspension",
     "suspendTitle": "Suspend {{handle}}?",
     "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
     "suspendReasonLabel": "Reason (shown to them)",
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
-    "ageBlockCleared": "They can answer the age question again."
+    "ageBlockCleared": "They can answer the age question again.",
+    "sheet": {
+      "open": "Manage",
+      "openLabel": "Manage account {{handle}}",
+      "description": "What an operator keeps for this account. Each change saves on its own.",
+      "identity": "Identity",
+      "usernameLabel": "Username",
+      "usernameHelp": "The handle they are addressed by. The number after it stays as it is.",
+      "avatarLabel": "Profile picture",
+      "avatarHelp": "Take the picture down. It cannot be replaced from here.",
+      "avatarRemove": "Remove",
+      "avatarRemoved": "Profile picture removed.",
+      "avatarConfirmTitle": "Remove this profile picture?",
+      "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
+      "access": "Access",
+      "suspendLabel": "Suspended",
+      "suspendHelp": "A suspended account can still sign in and read why, but reaches none of its communities.",
+      "role": "Platform role",
+      "roleLabel": "Role",
+      "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
+    }
   },
   "adminDeleteUser": {
     "title": "Delete User",
@@ -788,15 +805,27 @@
       "reasonPlaceholder": "Why you need emergency access (e.g. incident #123)",
       "submit": "Break glass",
       "activated": "Break-glass access activated",
-      "error": "Unable to break glass"
+      "error": "Unable to break glass",
+      "codeLabel": "Your authenticator code",
+      "codePlaceholder": "123456, or a recovery code",
+      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks for a code. A recovery code works too.",
+      "codeNotEnrolled": "This account has no authenticator set up. Set one up under Security, then break glass."
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
     "guildIdLabel": "Community ID",
     "guildIdPlaceholder": "e.g. 42",
     "levelLabel": "Access level",
+    "levelNone": "None",
+    "nothingAsked": "Choose content access, settings access, or both.",
     "levelRead": "Read-only",
     "levelReadWrite": "Read & write",
+    "purposeContent": "Content access",
+    "purposeSettings": "Settings access",
+    "purposeContentHelp": "Read, or edit, what is inside the community.",
+    "purposeSettingsHelp": "Its configuration only — billing, sign-in, moderation.",
+    "levelAdmin": "Admin",
+    "levelSuperadmin": "Superadmin",
     "durationLabel": "Duration",
     "durationHours_one": "{{count}} hour",
     "durationHours_other": "{{count}} hours",
@@ -832,15 +861,16 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Configure authentication, branding, email, the community directory, AI, community storage, and app services for the entire platform.",
+    "subtitle": "Sign-in, security, branding, email, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
       "community": "Community",
-      "ai": "AI",
       "storage": "Storage",
-      "appServices": "App services"
+      "intake": "Intake",
+      "security": "Security",
+      "integrations": "Integrations"
     }
   },
   "appServices": {
@@ -947,8 +977,6 @@
     "filterByName": "Filter communities by name",
     "unlimitedPlaceholder": "Unlimited",
     "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
-    "limitInputLabel": "Storage limit for {{name}} in GB",
-    "userLimitInputLabel": "User limit for {{name}}",
     "overLimitHint": "{{name}} has more members than its current limit allows.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
@@ -957,9 +985,6 @@
     "statusInputLabel": "Status for {{name}}",
     "statusSaved": "Updated status for {{name}}.",
     "statusSaveError": "Could not update the community status. Please try again.",
-    "guildAuthInputLabel": "Per-community sign-in for {{name}}",
-    "guildAuthOn": "Enabled per-community sign-in for {{name}}.",
-    "guildAuthOff": "Disabled per-community sign-in for {{name}}. Existing members keep signing in; no new accounts onboard.",
     "status": {
       "active": "Active",
       "read_only": "Read-only",
@@ -976,7 +1001,6 @@
       "members": "Members",
       "users": "Users",
       "storageLimit": "Storage limit",
-      "guildAuth": "Per-community sign-in",
       "status": "Status",
       "billing": "Billing"
     },
@@ -984,10 +1008,37 @@
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal."
-    }
+    },
+    "sheet": {
+      "open": "Manage",
+      "openLabel": "Manage settings for {{name}}",
+      "description": "Settings only you can change. This community's own admins see them and cannot edit them.",
+      "limits": "Limits",
+      "features": "Features",
+      "usersHelp": "How many people may belong. Leave blank for no limit.",
+      "storageHelp": "How much they may store, in gigabytes. Leave blank for no limit.",
+      "bannerLabel": "Banner artwork",
+      "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
+      "supportLabel": "Help requests",
+      "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
+      "authOption": {
+        "restrictions": {
+          "label": "Its own security standard",
+          "help": "Its admins can refuse personal API keys and hold members to a twelve-hour session. For communities answering to an auditor; most never need it."
+        },
+        "providers": {
+          "label": "Its own sign-in",
+          "help": "Its admins say which of this deployment's sign-in providers count as theirs, where the people arriving on them land — including as an admin of their community — and whether members must arrive that way."
+        }
+      },
+      "usersLabel": "Members",
+      "storageLabel": "Storage limit",
+      "decidesForItself": "What it decides for itself"
+    },
+    "unlimited": "No limit"
   },
-  "adminDashboard": {
-    "title": "Admin dashboard",
+  "operatorDashboard": {
+    "title": "Operator dashboard",
     "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",
@@ -1049,11 +1100,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identity providers",
-      "description": "The single sign-on providers this community's members sign in with. Configured by this community's admins and applying only here.",
-      "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
-    },
     "shareUrl": {
       "title": "Member sign-in link",
       "description": "Share this link with members — it offers this community's sign-in providers and brings them straight into the community.",
@@ -1068,34 +1114,157 @@
       "requiredLabel": "Require single sign-on",
       "requiredHelp": "Members can only access this community after signing in with the selected provider.",
       "providerPlaceholder": "Choose a provider…",
-      "noProviders": "No providers are configured yet. Add one under Identity providers below, then require it here.",
+      "noProviders": "Connect a provider under Who gets in first.",
       "saved": "Sign-in requirement saved",
       "error": "Could not save the sign-in requirement",
       "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
-      "signInWith": "Sign in with {{providerName}}"
+      "signInWith": "Sign in with {{providerName}}",
+      "unmetFactor": "Enter a code from your authenticator app first, then save.",
+      "presentFactor": "Enter a code",
+      "unmetPasskey": "Present your passkey first, then save.",
+      "presentPasskey": "Present passkey",
+      "anyProvider": "Any of our sign-in providers",
+      "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count.",
+      "requireFactor": "Also require a second factor",
+      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
+      "requirePasskey": "Also require a passkey",
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
+    },
+    "apiAccess": {
+      "title": "API access",
+      "description": "Whether a personal API key may be used against this community.",
+      "allowLabel": "Allow personal API keys",
+      "allowHelp": "Members can create a key and use it here — for scripts, integrations and MCP clients.",
+      "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
+      "saved": "API access saved",
+      "error": "Could not save API access"
+    },
+    "sessionLimit": {
+      "title": "Session length",
+      "allowLabel": "Sign in again every twelve hours",
+      "saved": "Session limit saved",
+      "error": "Could not save the session limit",
+      "help": "For communities that have been asked to cap how long people stay signed in. It applies to your members everywhere, not only here."
+    },
+    "connections": {
+      "title": "Which sign-ins are yours",
+      "description": "People sign in to this deployment. Say which of its sign-in providers count as your community's, and who on them counts as yours.",
+      "connect": "Connect a provider",
+      "connected": "Provider connected",
+      "connectError": "Could not change that connection",
+      "disconnect": "Disconnect",
+      "disconnected": "Provider disconnected",
+      "disconnectTitle": "Disconnect {{name}}?",
+      "disconnectDescription": "It stops counting as yours: the button comes off your sign-in page and nobody new arrives through it. Nobody is signed out and no account changes. If you require a sign-in through it, lift that first.",
+      "empty": "No providers connected yet — your members sign in the usual way.",
+      "noneOffered": "Whoever runs this deployment has not offered any providers to connect to yet.",
+      "notReady": "Unavailable",
+      "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+      "anyoneItVouchesFor": "Anyone this provider vouches for",
+      "dialogTitle": "Connect a sign-in provider",
+      "dialogDescription": "Pick the provider your members use, then say which accounts on it are yours.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "claimLabel": "Whose accounts count as yours",
+      "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
+      "claimPlaceholder": "Leave blank for anyone it vouches for",
+      "claimValuesLabel": "Values that count",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Join them to this community",
+      "autoJoinHelp": "Anyone who counts as yours becomes a member the first time they sign in. Leave it off to invite people yourself.",
+      "joinsOnArrival": "New arrivals join automatically",
+      "claimOptions": {
+        "hd": "Google Workspace domain",
+        "tid": "Microsoft Entra tenant",
+        "groups": "Group membership",
+        "domain": "Domain"
+      },
+      "inherited": "From the deployment",
+      "makeItOurs": "Make it ours"
+    },
+    "rules": {
+      "title": "Where your people land",
+      "description": "Your provider reports which groups somebody is in. Say what those groups mean here — who joins as a member, who joins as an admin, and which initiative they start in.",
+      "add": "Add a rule",
+      "added": "Rule added",
+      "addError": "Could not add that rule",
+      "empty": "No rules yet — people arriving through your providers join with nothing in particular.",
+      "connectFirst": "Connect a provider first, then say what its groups mean.",
+      "noGroupsBadge": "No groups reported",
+      "noGroupsHint": "Whoever runs this deployment has not told this provider where its groups live, so this rule will not match anybody until they do.",
+      "landsInCommunity": "Arriving through {{provider}} — joins as {{role}}",
+      "landsInInitiative": "Arriving through {{provider}} — joins as {{role}}, and {{initiative}} as {{initiativeRole}}",
+      "dialogDescription": "Name a group your provider reports, and say where the people in it belong.",
+      "providerLabel": "Provider",
+      "providerPlaceholder": "Choose one",
+      "groupLabel": "Group",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Exactly as your provider spells it.",
+      "standingLabel": "They join as",
+      "role": {
+        "member": "a member",
+        "admin": "an admin"
+      },
+      "initiativeLabel": "And start in",
+      "communityOnly": "The community only",
+      "initiativeRoleLabel": "In that initiative, as",
+      "initiativeRolePlaceholder": "Choose a role",
+      "remove": "Remove",
+      "removed": "Rule removed",
+      "removeError": "Could not remove that rule",
+      "removeTitle": "Remove this rule?",
+      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
+    },
+    "sections": {
+      "whoGetsIn": "Who gets in",
+      "onWhatTerms": "On what terms"
+    },
+    "emptyState": {
+      "title": "Nothing connected yet",
+      "body": "Say which of this deployment's sign-in providers count as yours, and where the people arriving on them land.",
+      "button": "Set up sign-in"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Which way in",
+          "prompt": "Pick the provider your members already sign in with."
+        },
+        "narrowing": {
+          "title": "Whose people",
+          "prompt": "Say which accounts on it count as yours, or skip this where it already holds only your people."
+        },
+        "landing": {
+          "title": "Where they land",
+          "prompt": "What happens when one of them arrives."
+        },
+        "insist": {
+          "title": "Do we insist",
+          "prompt": "Whether this becomes the only way in."
+        }
+      },
+      "skip": "Skip this",
+      "ruleTitle": "A first group",
+      "ruleHelp": "Optional. Name a group your provider reports and where its people land. You can add more later.",
+      "requireLabel": "Require members to arrive through this provider",
+      "requireHelp": "Members sign in through it and nothing else. You can change this later."
     }
   },
   "authProviders": {
-    "title": "Additional sign-in providers",
-    "description": "Offer more ways to sign in alongside the platform single sign-on above. Each provider gets its own button on the sign-in page.",
+    "title": "Identity providers",
+    "description": "The single sign-on providers people sign in with. Each one gets its own button on the sign-in page.",
     "addProvider": "Add provider",
     "loading": "Loading providers…",
-    "empty": "No additional providers configured.",
-    "reservedBadge": "Platform SSO",
-    "reservedHelp": "Managed in the single sign-on settings above",
+    "empty": "No providers configured yet.",
     "disabledBadge": "Disabled",
-    "createTitle": "Add sign-in provider",
     "editTitle": "Edit sign-in provider",
     "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/{slug}/callback on this server.",
-    "presetLabel": "Preset",
-    "presetCustom": "Custom (any OIDC provider)",
     "slugLabel": "Slug",
     "slugHelp": "Lowercase letters, numbers, and dashes. Fixed after creation — it forms the sign-in URLs.",
     "slugInvalid": "Use lowercase letters, numbers, and dashes; no leading or trailing dash.",
     "displayNameLabel": "Display name",
     "issuerLabel": "Issuer URL",
     "issuerPlaceholder": "https://idp.example.com",
-    "tenantHelp": "Replace {tenant} with your Entra tenant ID.",
     "clientIdLabel": "Client ID",
     "clientSecretLabel": "Client secret",
     "secretPlaceholder": "Leave blank for a public (PKCE-only) client",
@@ -1116,7 +1285,56 @@
     "saved": "Provider saved",
     "deleted": "Provider deleted",
     "saveError": "Could not save the provider",
-    "deleteError": "Could not delete the provider"
+    "deleteError": "Could not delete the provider",
+    "callbackLabel": "Callback URL",
+    "claimPathLabel": "Groups claim",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Rules below read it.",
+    "test": "Test",
+    "testing": "Testing…",
+    "verify": "Verify",
+    "verifying": "Checking…",
+    "verifyError": "Could not check that address",
+    "callbackCopied": "Callback URL copied",
+    "scopesFromProvider": "Filled in from what this provider says it offers.",
+    "claimPathSearch": "Search or type a claim…",
+    "claimPathEmpty": "Nothing suggested — type the claim",
+    "claimPathUseTyped": "Use “{{value}}”",
+    "probe": {
+      "reachable": "Reachable",
+      "failed": "Nothing usable at that address",
+      "authorize": "Sign-in",
+      "token": "Token",
+      "keys": "Keys",
+      "signing": "Signing"
+    },
+    "wizard": {
+      "title": "Connect a sign-in provider",
+      "choosePrompt": "Who are people signing in with?",
+      "addressPrompt": "Where does your {{name}} live?",
+      "credentialsPrompt": "Register Initiative with {{name}}, then paste what it gives you.",
+      "optionsPrompt": "How it behaves once somebody signs in.",
+      "nextCredentials": "Next: credentials",
+      "nextOptions": "Next: how it behaves",
+      "registerCallback": "Register this callback URL",
+      "callbackHelp": "Your provider will refuse the sign-in until this exact address is registered with it.",
+      "connect": "Connect provider"
+    },
+    "blanks": {
+      "tenant": "Tenant ID",
+      "oktaHost": "Okta domain",
+      "auth0Host": "Auth0 domain",
+      "host": "Address",
+      "realm": "Realm",
+      "application": "Application slug"
+    },
+    "presetHints": {
+      "keycloak": "From your realm's OpenID Connect client, with client authentication on.",
+      "authentik": "The application slug, not the provider name — the issuer follows the application.",
+      "authelia": "Paste the plaintext client secret, not the hash you put in the YAML.",
+      "pocketId": "Passkey-only, so your sign-ins inherit passkeys with nothing further to do.",
+      "custom": "Any provider that speaks OpenID Connect. Paste its issuer address — a .well-known URL works too."
+    }
   },
   "aiConnections": {
     "title": "Connections",
@@ -1148,6 +1366,10 @@
     "apiKeyHelpExisting": "Leave blank to keep the existing key.",
     "apiKeyHelpNew": "The shared key all members use for this connection.",
     "modelPlaceholder": "Select or type a model",
+    "modelSearchPlaceholder": "Search or type a model name…",
+    "modelsLoading": "Looking up models…",
+    "modelsEmpty": "No models to suggest — type the name",
+    "modelUseTyped": "Use “{{value}}”",
     "enabledLabel": "Enabled",
     "enabledDescription": "Allow members to use this connection.",
     "defaultLabel": "Default connection",
@@ -1196,7 +1418,15 @@
     "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again, including people who join a listed community later.",
     "ageGateOffConfirm": "Everyone here is 18 or older",
     "defaultDmLabel": "Direct messages for new accounts",
-    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be."
+    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be.",
+    "directMessagesLabel": "Let people message each other",
+    "directMessagesHelpText": "My Messages, and the connections and requests behind it. Messages are end-to-end encrypted, so nobody running this deployment can read them — turn this off where private messaging does not belong rather than to oversee it.",
+    "directMessagesReversibleNote": "Turning this off hides My Messages and refuses new ones; it deletes nothing. Conversations, connections and settings are all still there if you turn it back on.",
+    "directMessagesOffTitle": "Turn off direct messages?",
+    "directMessagesOffBody": "My Messages will disappear for everyone here, and messages already on their way will not be delivered. Nothing is deleted, so turning it back on restores the conversations and connections people already had.",
+    "directMessagesOffConfirm": "Turn off direct messages",
+    "directMessagesEnabledToast": "Direct messages are on.",
+    "directMessagesDisabledToast": "Direct messages are off."
   },
   "audit": {
     "title": "Audit",
@@ -1215,6 +1445,8 @@
       "auth.sign_in_failed": "Sign-in refused",
       "auth.signed_out": "Signed out",
       "auth.password_changed": "Password changed",
+      "auth.passkey_registered": "Passkey added",
+      "auth.passkey_removed": "Passkey removed",
       "auth.identity_linked": "Single sign-on linked",
       "auth.refresh_reuse_detected": "Reused session token rejected"
     }
@@ -1224,7 +1456,16 @@
     "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
-    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
+    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
+    "setPasswordTitle": "Set a password",
+    "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
+    "removePassword": "Remove your password",
+    "removePasswordFromBrowser": "Give your password up from a browser signed in to this site.",
+    "removePasswordTitle": "Remove your password",
+    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If you hold fewer than three codes, you'll be shown a fresh set — save them.",
+    "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again. Any codes you held before have stopped working.",
+    "passwordRemoved": "Your password has been removed.",
+    "removePasswordError": "Could not remove your password."
   },
   "privacy": {
     "title": "Privacy",
@@ -1241,7 +1482,8 @@
       "communitiesHint": "All count by default.",
       "ageLocked": "Messaging is available to people aged 13 and over. You have not told us whether you are.",
       "confirmAge": "Confirm my age",
-      "saved": "Saved."
+      "saved": "Saved.",
+      "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
     },
     "receipts": {
       "title": "Read receipts",
@@ -1280,5 +1522,112 @@
       "empty": "You are not ignoring anyone.",
       "stop": "Stop ignoring"
     }
+  },
+  "twoFactor": {
+    "title": "Two-factor authentication",
+    "description": "Ask for a code from an authenticator app on top of your password.",
+    "loading": "Checking…",
+    "on": "On",
+    "notSetUp": "Your account signs in with a password alone.",
+    "setUp": "Set up two-factor authentication",
+    "setUpTitle": "Set up two-factor authentication",
+    "passwordPrompt": "Confirm your password to begin.",
+    "passwordLabel": "Current password",
+    "continue": "Continue",
+    "scanPrompt": "Scan this with your authenticator app, then enter the code it shows.",
+    "cannotScan": "Can't scan it? Enter this key instead:",
+    "codeLabel": "Code from your app",
+    "turnOn": "Turn on",
+    "codesTitle": "Your recovery codes",
+    "codesPrompt": "Save these somewhere safe. They are how you get in if you lose your phone.",
+    "codesWarning": "Each code works once, and you won't be shown these again.",
+    "copyCodes": "Copy codes",
+    "codesCopied": "Recovery codes copied.",
+    "done": "Done",
+    "addedOn": "Turned on {{date}}",
+    "lastUsed": "Last used {{date}}",
+    "neverUsed": "Not used yet.",
+    "codesLeft_one": "{{count}} recovery code left",
+    "codesLeft_other": "{{count}} recovery codes left",
+    "regenerate": "New recovery codes",
+    "regenerateTitle": "New recovery codes",
+    "regeneratePrompt": "Confirm your password. The codes you have now will stop working.",
+    "turnOff": "Turn off",
+    "turnOffTitle": "Turn off two-factor authentication",
+    "turnOffPrompt": "Your password alone will sign you in again, and your recovery codes will be discarded. You'll be signed out on your other devices.",
+    "codeOrRecoveryLabel": "Code from your app, or a recovery code",
+    "turnedOff": "Two-factor authentication is off.",
+    "enrolError": "Could not start setting that up.",
+    "confirmError": "That code isn't right. Check your app and try again.",
+    "regenerateError": "Could not make new codes.",
+    "disableError": "Could not turn that off.",
+    "codePlaceholder": "123456",
+    "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
+    "copyUnavailable": "Couldn't copy — write the codes down instead.",
+    "notOffered": "This deployment does not offer the authenticator app.",
+    "passwordlessCodes": "Your account signs in without a password. These codes are how you set one again if you lose your passkey."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "description": "Sign in with your device's fingerprint, face or screen lock instead of your password.",
+    "loading": "Checking…",
+    "listError": "Couldn't check which passkeys this account holds. Reload the page to try again.",
+    "empty": "No passkeys yet.",
+    "emptyHint": "A passkey lives on your phone, your laptop or your password manager, and works only on this site.",
+    "add": "Add a passkey",
+    "addTitle": "Add a passkey",
+    "addPrompt": "Give it a name you'll recognise later. Your browser asks for the rest.",
+    "nameLabel": "Name",
+    "namePlaceholder": "Laptop, phone, security key",
+    "passwordLabel": "Current password",
+    "continue": "Continue",
+    "prompting": "Follow your browser's prompt to finish.",
+    "promptingHint": "Your browser or password manager is asking you to confirm. Nothing more to do here.",
+    "added": "Passkey added.",
+    "rename": "Rename",
+    "renameTitle": "Rename passkey",
+    "renamePrompt": "This name is only for you, so you can tell your passkeys apart.",
+    "save": "Save",
+    "renamed": "Passkey renamed.",
+    "remove": "Remove",
+    "removeTitle": "Remove passkey",
+    "removeConfirm": "{{name}} will stop signing you in. You can add another whenever you like.",
+    "removed": "Passkey removed.",
+    "synced": "Synced",
+    "addedOn": "Added {{date}}",
+    "lastUsed": "Last used {{date}}",
+    "neverUsed": "Not used yet.",
+    "cancelled": "You cancelled, or the prompt timed out.",
+    "alreadyRegistered": "This device or password manager already holds a passkey for this site.",
+    "siteMismatch": "A passkey can't be made at this address — it doesn't match the address this site is set up under. Whoever runs the site can put that right.",
+    "browserError": "Your browser couldn't make the passkey. Try again.",
+    "unsupported": "This browser can't make a passkey. Open this page in an up-to-date browser instead.",
+    "siteUnsupported": "Passkeys need this site to have a proper domain name and https. Whoever runs it can put that right.",
+    "limitReached": "This account holds as many passkeys as it can ({{limit}}). Remove one to add another.",
+    "addFromBrowser": "A passkey is added from a browser signed in to this site. Add opens one for you.",
+    "notOffered": "This site doesn't offer passkeys. The ones you have are kept.",
+    "error": "That didn't work. Try again."
+  },
+  "providerDefaults": {
+    "title": "What a community inherits",
+    "description": "Answer once for a provider and every community inherits that answer until it gives its own. Useful where this deployment is one organisation: one provider, one tenant, communities that are its teams.",
+    "noAnswer": "No answer — each community says for itself",
+    "noProviders": "Add a sign-in provider first, then say what communities inherit from it.",
+    "answer": "Answer for it",
+    "change": "Change",
+    "withdraw": "Withdraw",
+    "withdrawn": "Answer withdrawn",
+    "save": "Save",
+    "saved": "Answer saved",
+    "saveError": "Could not save that answer",
+    "narrowedTo": "Only accounts whose {{claim}} is {{values}}",
+    "anyoneItVouchesFor": "Anyone this provider vouches for",
+    "claimLabel": "Which claim decides",
+    "valuesLabel": "Values that count",
+    "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
+  },
+  "platformSecurity": {
+    "title": "Security",
+    "description": "How long anybody may stay signed in before signing in again."
   }
 }

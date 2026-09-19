@@ -1,0 +1,80 @@
+{
+  "ownerOnly": "Seuls les propriétaires de la plateforme peuvent configurer où arrive le travail d'exploitation.",
+  "guild": {
+    "title": "Communauté d'exploitation",
+    "description": "La communauté qui reçoit le travail de sécurité, de modération, d'assistance et de retours de cette installation.",
+    "label": "Communauté",
+    "placeholder": "Choisissez une communauté",
+    "none": "Aucune — ne rien diriger",
+    "helpText": "Une communauté ordinaire à tous égards. Le projet dans lequel chaque canal arrive se règle ci-dessous, à l'intérieur.",
+    "saveError": "Impossible d'enregistrer la communauté d'exploitation.",
+    "clearTitle": "Cesser de diriger le travail d'exploitation ?",
+    "clearBody": "Tous les canaux cessent de recevoir. Les projets et tout ce qu'ils contiennent restent tels quels, et choisir de nouveau cette communauté rétablit la configuration.",
+    "clearConfirm": "Cesser de diriger"
+  },
+  "streams": {
+    "chooseGuildFirst": "Choisissez une communauté ci-dessus, puis indiquez où arrive chaque canal.",
+    "security": {
+      "title": "Sécurité",
+      "description": "Cas ouverts par les règles qui surveillent cette installation."
+    },
+    "moderation": {
+      "title": "Modération",
+      "description": "Signalements sur le contenu et la conduite."
+    },
+    "support": {
+      "title": "Assistance",
+      "description": "Demandes d'aide des personnes qui utilisent cette installation."
+    },
+    "feedback": {
+      "title": "Retours",
+      "description": "Ce que les gens nous ont dit vouloir."
+    }
+  },
+  "stream": {
+    "notSetUp": "Non configuré",
+    "receiving": "Reçoit",
+    "paused": "En pause",
+    "setUpHelp": "En le configurant, vous obtenez un projet prêt à l'emploi avec ses propres statuts et champs, que vous pourrez réorganiser ensuite comme bon vous semble. Ou dirigez le canal vers un projet que vous avez déjà.",
+    "initiativeLabel": "Initiative",
+    "initiativePlaceholder": "Choisissez une initiative",
+    "setUpForMe": "Configurez-le pour moi",
+    "existingProjectLabel": "Ou utilisez un projet existant",
+    "existingProjectPlaceholder": "Choisissez un projet",
+    "landsInLabel": "Arrive dans",
+    "repointNote": "Diriger un canal vers un autre projet recommence à zéro là-bas. Ce qui est encore ouvert reste dans le projet où le travail se fait.",
+    "landingStatusLabel": "Les nouveaux cas démarrent dans",
+    "landingStatusDefault": "Le statut par défaut du projet",
+    "enabledLabel": "Reçoit les nouveaux cas",
+    "lastCase": "Dernier cas ouvert le {{when}}.",
+    "noCasesYet": "Aucun cas pour l'instant.",
+    "unbind": "Cesser de diriger ce canal",
+    "unbindTitle": "Cesser de diriger ce canal ?",
+    "unbindConfirm": "Cesser de diriger",
+    "unbindBody": "Le projet et tous ses cas restent. Rediriger le canal vers le même projet reprend là où il s'était arrêté.",
+    "createdToast": "{{name}} est configuré et reçoit.",
+    "unboundToast": "Ce canal n'est plus dirigé.",
+    "saveError": "Impossible d'enregistrer cette modification.",
+    "destinationArchived": "Destination archivée",
+    "archivedOption": "{{name}} (archivé)",
+    "archivedNote": "Ce projet est archivé, rien ne peut donc y arriver. Restaurez-le, ou dirigez ce canal vers un projet actif."
+  },
+  "loadFailed": {
+    "title": "Impossible de charger ces paramètres",
+    "description": "Rien n'a été modifié. Réessayez ; si l'échec persiste, le journal du serveur en donnera la raison.",
+    "retry": "Réessayer"
+  },
+  "help": {
+    "action": "Demander de l'aide",
+    "title": "Demander de l'aide",
+    "description": "Dites-nous ce qui se passe et quelqu'un s'en chargera.",
+    "subjectLabel": "De quoi s'agit-il ?",
+    "subjectPlaceholder": "Une ligne, pour pouvoir le retrouver",
+    "bodyLabel": "Que s'est-il passé ?",
+    "bodyPlaceholder": "Ce que vous faisiez, ce que vous attendiez et ce qui s'est passé à la place.",
+    "browseFaq": "Consulter la FAQ",
+    "submit": "Envoyer",
+    "thanks": "Envoyé. Quelqu'un s'en chargera.",
+    "error": "Impossible d'envoyer. Réessayez dans un instant."
+  }
+}

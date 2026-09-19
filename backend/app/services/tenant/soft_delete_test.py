@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue
 from app.models.tenant.task import Task
 from app.models.tenant.upload import Upload
 from app.services.tenant.soft_delete import (
@@ -105,6 +106,47 @@ async def test_soft_delete_project_cascades_to_tasks(session: AsyncSession):
     assert refreshed_b.deleted_at == refreshed_project.deleted_at
     assert refreshed_a.deleted_by == user.id
     assert refreshed_a.purge_at is not None
+
+
+async def test_soft_delete_wiki_page_takes_its_thread(session: AsyncSession):
+    """A page's conversation is the page's, so it goes into the bin with it —
+    and its wiki's own thread, which is a different thread, stays where it is."""
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import create_comment, create_wiki, create_wiki_page
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user)
+    on_page = await create_comment(session, user, wiki_page=page)
+    on_wiki = await create_comment(session, user, wiki=wiki)
+
+    await soft_delete_entity(
+        session, page, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    trashed_page = (
+        await session.exec(
+            select_including_deleted(WikiPage).where(WikiPage.id == page.id)
+        )
+    ).one()
+    trashed_comment = (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_page.id)
+        )
+    ).one()
+    untouched = (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_wiki.id)
+        )
+    ).one()
+
+    assert trashed_page.deleted_at is not None
+    assert trashed_comment.deleted_at == trashed_page.deleted_at
+    assert untouched.deleted_at is None
 
 
 async def test_restore_project_unstamps_only_matching_descendants(
@@ -589,3 +631,80 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
     assert wikilink_node["documentId"] is None
+
+
+# ---------------------------------------------------------------------------
+# Restoring a tree that has archived content in it
+# ---------------------------------------------------------------------------
+
+
+async def test_restore_initiative_brings_back_an_archived_queues_items(
+    session: AsyncSession,
+):
+    """A queue item carries no ``archived_at``: inside an archived queue it is
+    simply live, because that is the only state it has. Restoring the
+    initiative has to put it back in exactly that state."""
+    from app.models.tenant.queue import QueueItem
+    from app.services.tenant.archive import archive_entity
+    from app.testing.factories import create_queue, create_queue_item
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    queue = await create_queue(session, initiative, user)
+    item = await create_queue_item(session, queue)
+    await archive_entity(session, queue)
+    await session.commit()
+
+    await soft_delete_entity(
+        session, initiative, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    await restore_entity(session, initiative)
+    await session.commit()
+
+    refreshed = (
+        await session.exec(
+            select_including_deleted(QueueItem).where(QueueItem.id == item.id)
+        )
+    ).one()
+    assert refreshed.deleted_at is None
+    refreshed_queue = (
+        await session.exec(select_including_deleted(Queue).where(Queue.id == queue.id))
+    ).one()
+    assert refreshed_queue.deleted_at is None
+    assert refreshed_queue.archived_at is not None
+
+
+async def test_restore_initiative_brings_back_an_archived_documents_comments(
+    session: AsyncSession,
+):
+    """Same rule, one hop further down: archiving a document never touches the
+    comments on it, so they come back out of the trash unstamped."""
+    from app.models.tenant.comment import Comment
+    from app.services.tenant.archive import archive_entity
+    from app.testing.factories import create_comment, create_document
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    document = await create_document(session, initiative, user)
+    comment = await create_comment(session, user, document=document)
+    await archive_entity(session, document)
+    await session.commit()
+
+    await soft_delete_entity(
+        session, initiative, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    await restore_entity(session, initiative)
+    await session.commit()
+
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == comment.id)
+        )
+    ).one()
+    assert refreshed.deleted_at is None

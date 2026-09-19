@@ -3,8 +3,8 @@
 `authorize` is the single access decision (feature gate + manage block + DAC);
 `load_authorized` and `resource_dependency` add loading on top for fetch-then-act
 handlers and FastAPI-injected routes. `RESOURCE_ACCESS` is the enforcement-side
-registry; `dac_kind` keys into `permissions.DAC_RESOURCES` (`None` = no per-row
-DAC — feature gate only).
+registry: one entry per `Tool`, carrying only how a row is loaded and addressed.
+Everything it answers with is derived from the tool itself.
 """
 
 # NOT `from __future__ import annotations`: resource_dependency builds a signature
@@ -22,16 +22,6 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import (
-    CalendarMessages,
-    CounterMessages,
-    DashboardMessages,
-    DocumentMessages,
-    GalleryMessages,
-    PostMessages,
-    ProjectMessages,
-    QueueMessages,
-)
 from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
 from app.db.initiative_rls import governing_path
@@ -48,6 +38,7 @@ from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import wikis as wikis_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
@@ -58,95 +49,70 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 @dataclass(frozen=True)
 class ResourceAccessConfig:
-    # Required: a resource with nothing to say when it is missing would answer
-    # 404 with an empty body, and every entry has always set one.
-    not_found_msg: str
-    dac_kind: Optional[Tool] = None  # key into DAC_RESOURCES; None = feature gate only
-    feature_attr: Optional[str] = None  # initiative flag gating the feature
-    feature_disabled_msg: Optional[str] = None
-    grant_cannot_manage_msg: Optional[str] = None
-    create_denied_msg: Optional[str] = None  # 403 when the role may not create one
-    loader: Optional[Callable[..., Awaitable[Any]]] = (
-        None  # async (session, id) -> row|None
-    )
-    path_param: Optional[str] = None
+    """How one tool is loaded, and what it says when it refuses.
+
+    Only the two things that are genuinely per-tool are stored: the function
+    that loads a row, and the path segment it is addressed by. Every refusal is
+    derived from ``tool``, so each tool has the full set and none of them can be
+    written out by hand.
+    """
+
+    tool: Tool
+    #: async (session, id) -> row | None
+    loader: Callable[..., Awaitable[Any]]
+    path_param: str
+
+    @property
+    def dac_kind(self) -> Tool:
+        """Key into ``permissions.DAC_RESOURCES``."""
+        return self.tool
+
+    @property
+    def not_found_msg(self) -> str:
+        return self.tool.not_found_code
+
+    @property
+    def feature_attr(self) -> str:
+        """The initiative flag gating the whole tool."""
+        return self.tool.view_permission
+
+    @property
+    def feature_disabled_msg(self) -> str:
+        return self.tool.feature_disabled_code
+
+    @property
+    def grant_cannot_manage_msg(self) -> str:
+        return self.tool.grant_cannot_manage_members_code
+
+    @property
+    def create_denied_msg(self) -> str:
+        return self.tool.create_permission_code
 
 
 RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.project: ResourceAccessConfig(
-        dac_kind=Tool.project,
-        grant_cannot_manage_msg=ProjectMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=project_grants.get_project,
-        path_param="project_id",
-        not_found_msg=ProjectMessages.NOT_FOUND,
+        Tool.project, project_grants.get_project, "project_id"
     ),
     Tool.document: ResourceAccessConfig(
-        dac_kind=Tool.document,
-        grant_cannot_manage_msg=DocumentMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=documents_service.get_document_for_grants,
-        path_param="document_id",
-        not_found_msg=DocumentMessages.NOT_FOUND,
+        Tool.document, documents_service.get_document_for_grants, "document_id"
     ),
-    Tool.queue: ResourceAccessConfig(
-        dac_kind=Tool.queue,
-        create_denied_msg=QueueMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.queue.view_permission,
-        feature_disabled_msg=QueueMessages.FEATURE_DISABLED,
-        loader=queues_service.get_queue,
-        path_param="queue_id",
-        not_found_msg=QueueMessages.NOT_FOUND,
-    ),
+    Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue, "queue_id"),
     Tool.counter_group: ResourceAccessConfig(
-        dac_kind=Tool.counter_group,
-        create_denied_msg=CounterMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.counter_group.view_permission,
-        feature_disabled_msg=CounterMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=CounterMessages.GRANT_CANNOT_MANAGE,
-        loader=counters_service.get_counter_group,
-        path_param="group_id",
-        not_found_msg=CounterMessages.GROUP_NOT_FOUND,
+        Tool.counter_group, counters_service.get_counter_group, "group_id"
     ),
     Tool.calendar: ResourceAccessConfig(
-        dac_kind=Tool.calendar,
-        create_denied_msg=CalendarMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.calendar.view_permission,
-        feature_disabled_msg=CalendarMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=CalendarMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=calendars_service.get_calendar,
-        path_param="calendar_id",
-        not_found_msg=CalendarMessages.NOT_FOUND,
+        Tool.calendar, calendars_service.get_calendar, "calendar_id"
     ),
     Tool.dashboard: ResourceAccessConfig(
-        dac_kind=Tool.dashboard,
-        create_denied_msg=DashboardMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.dashboard.view_permission,
-        feature_disabled_msg=DashboardMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=DashboardMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=dashboards_service.get_dashboard,
-        path_param="dashboard_id",
-        not_found_msg=DashboardMessages.NOT_FOUND,
+        Tool.dashboard, dashboards_service.get_dashboard, "dashboard_id"
     ),
-    Tool.post: ResourceAccessConfig(
-        dac_kind=Tool.post,
-        create_denied_msg=PostMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.post.view_permission,
-        feature_disabled_msg=PostMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=PostMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=posts_service.get_post,
-        path_param="post_id",
-        not_found_msg=PostMessages.NOT_FOUND,
-    ),
+    Tool.post: ResourceAccessConfig(Tool.post, posts_service.get_post, "post_id"),
     Tool.gallery: ResourceAccessConfig(
-        dac_kind=Tool.gallery,
-        create_denied_msg=GalleryMessages.CREATE_PERMISSION_REQUIRED,
-        feature_attr=Tool.gallery.view_permission,
-        feature_disabled_msg=GalleryMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=GalleryMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=galleries_service.get_gallery,
-        path_param="gallery_id",
-        not_found_msg=GalleryMessages.NOT_FOUND,
+        Tool.gallery, galleries_service.get_gallery, "gallery_id"
     ),
+    Tool.wiki: ResourceAccessConfig(Tool.wiki, wikis_service.get_wiki, "wiki_id"),
 }
+
 
 # The tools whose sharing can be set through the unified *local* grant flow
 # (``set_resource_grants`` / the bulk endpoint) — exactly the tools registered
@@ -170,6 +136,26 @@ def governing_tool(table: str) -> Tool:
         # that no tool's sharing governs at all.
         raise RuntimeError(f"no single tool governs {table!r}")
     return path[0]
+
+
+def require_tool_enabled(kind: Tool, initiative: Any) -> None:
+    """Raise 403 unless ``initiative`` has ``kind``'s master switch on.
+
+    Gate 3's first half at the moment of creation, where there is no row yet for
+    ``require_access`` to read the switch off. The message comes from the
+    registry, so a tool is gated by registering it rather than by spelling the
+    refusal again at each create endpoint.
+
+    The database asks the same question on INSERT — the rendered policy's
+    ``{plural}_enabled`` leg. This runs first so the answer is a named 403
+    rather than a row that silently fails to appear.
+    """
+    attr = RESOURCE_ACCESS[kind].feature_attr
+    if attr is not None and not getattr(initiative, attr):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=RESOURCE_ACCESS[kind].feature_disabled_msg,
+        )
 
 
 async def require_create(
@@ -223,11 +209,7 @@ def authorize(
     ``permissions_service.require_access``."""
     cfg = RESOURCE_ACCESS[kind]
     initiative = getattr(row, "initiative", None)
-    if (
-        cfg.feature_attr
-        and initiative is not None
-        and not getattr(initiative, cfg.feature_attr)
-    ):
+    if initiative is not None and not getattr(initiative, cfg.feature_attr):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=cfg.feature_disabled_msg
         )
@@ -239,27 +221,26 @@ def authorize(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=cfg.grant_cannot_manage_msg
         )
-    if cfg.dac_kind is not None:
-        permissions_service.require_access(
-            permissions_service.DAC_RESOURCES[cfg.dac_kind],
-            row,
-            user,
-            access=access,
-            allow_frozen=allow_frozen,
-            require_owner=require_owner,
-            guild_role=guild_role,
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[cfg.dac_kind],
+        row,
+        user,
+        access=access,
+        allow_frozen=allow_frozen,
+        require_owner=require_owner,
+        guild_role=guild_role,
+    )
+    # Last, and only for somebody the sharing already admitted: a row that
+    # exists before it is anybody's to read — a post that has not gone up.
+    # Answering 404 here rather than 403 is the point; to a reader the
+    # notice does not exist yet.
+    if user is not None and permissions_service.hidden_from_reader(
+        cfg.dac_kind, row, user.id, guild_role=guild_role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=cfg.not_found_msg,
         )
-        # Last, and only for somebody the sharing already admitted: a row that
-        # exists before it is anybody's to read — a post that has not gone up.
-        # Answering 404 here rather than 403 is the point; to a reader the
-        # notice does not exist yet.
-        if user is not None and permissions_service.hidden_from_reader(
-            cfg.dac_kind, row, user.id, guild_role=guild_role
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=cfg.not_found_msg,
-            )
 
 
 async def load_authorized(
@@ -275,10 +256,6 @@ async def load_authorized(
 ) -> Any:
     """Load by id (RLS scopes to the guild) → 404 if absent, then authorize."""
     cfg = RESOURCE_ACCESS[kind]
-    if cfg.loader is None:
-        # Config bug, not a request error: this entry is feature-gate only and
-        # can't be loaded by id. Fail loudly rather than call None.
-        raise RuntimeError(f"RESOURCE_ACCESS[{kind}] has no loader")
     row = await cfg.loader(session, resource_id)
     if row is None:
         if await reachability.reader_is_in_the_initiative(

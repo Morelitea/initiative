@@ -20,7 +20,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages, ProjectMessages
+from app.core.messages import GuildMessages
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
@@ -209,7 +209,7 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
         },
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+    assert resp.json()["detail"] == Tool.project.write_required_code
 
 
 async def test_read_only_guild_admin_writes_denied_too(
@@ -236,13 +236,13 @@ async def test_read_only_guild_admin_writes_denied_too(
         },
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+    assert resp.json()["detail"] == Tool.project.write_required_code
 
     resp = await client.patch(
         a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "after"}
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+    assert resp.json()["detail"] == Tool.project.write_required_code
 
 
 async def test_read_only_establishes_content_read_only_context(
@@ -360,12 +360,15 @@ async def test_read_only_admin_settings_still_writable(
 # ---------------------------------------------------------------------------
 
 
-async def test_break_glass_full_admin_on_suspended_guild(
+async def test_break_glass_reads_a_suspended_guild(
     client: AsyncClient, session: AsyncSession
 ):
-    """A break-glass holder behaves as a full guild admin against a SUSPENDED
-    guild — reads and writes — exactly as against an active one. This is the
-    requirement that suspension can never lock operators out."""
+    """Suspension never locks an operator out of *reaching* a guild.
+
+    What they may do once there is the grant's business, and the same as
+    anybody else's: managing an initiative is not something a content grant
+    confers, on a suspended guild or an active one.
+    """
     owner = await create_user(session, role=UserRole.owner)
     guild = await create_guild(session, creator=owner)
     initiative = await create_initiative(session, guild, owner, name="Frozen Wing")
@@ -389,13 +392,13 @@ async def test_break_glass_full_admin_on_suspended_guild(
     assert resp.status_code == 200, resp.text
     assert any(i["name"] == "Frozen Wing" for i in resp.json())
 
-    # Write (full admin: edits guild content).
+    # And gets no further than any other grantee would.
     resp = await client.patch(
         f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
         headers=headers,
-        json={"description": "reviewed under break-glass"},
+        json={"description": "reviewed under a grant"},
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 async def test_scoped_read_grant_reads_suspended_guild(
@@ -633,7 +636,12 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
         ("public.guild_administration", "guild_id", "tier_name", "'Enterprise'"),
         ("public.guild_administration", "guild_id", "max_storage_bytes", "5"),
         ("public.guild_administration", "guild_id", "max_users", "1"),
-        ("public.guild_administration", "guild_id", "guild_auth_enabled", "true"),
+        (
+            "public.guild_administration",
+            "guild_id",
+            "auth_options",
+            "ARRAY['providers']::guild_auth_option[]",
+        ),
     ]:
         await set_rls_context(
             s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"

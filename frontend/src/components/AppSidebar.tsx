@@ -11,7 +11,7 @@ import {
   Tag,
   Users,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
@@ -25,6 +25,7 @@ import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarSearchButton } from "@/components/sidebar/SidebarSearchButton";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
+import { WikiSidebarContent } from "@/components/sidebar/WikiSidebarContent";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -60,8 +61,9 @@ import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
+import { useWikiCountsByInitiative } from "@/hooks/useWikis";
 import { guildPath } from "@/lib/guildUrl";
-import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -79,12 +81,12 @@ export const AppSidebar = () => {
   // Guild admin check is based on guild membership role only (independent from platform role).
   // Used for guild-settings affordances. Initiative visibility/permissions
   // (incl. PAM grants + platform data.bypass) come from useInitiativeAccess.
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const { filterVisible, permissionsFor, canManage } = useInitiativeAccess();
   // Two separate platform areas: config (Platform settings) vs operational
-  // (Admin dashboard). Each surfaced independently per capability.
+  // (Operator dashboard). Each surfaced independently per capability.
   const showPlatformSettings = canManagePlatformConfig(user);
-  const showAdminDashboard = canAccessAdminDashboard(user);
+  const showOperatorDashboard = canAccessOperatorDashboard(user);
 
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/c/");
@@ -105,6 +107,26 @@ export const AppSidebar = () => {
     const match = location.pathname.match(/^\/c\/\d+\/i\/\d+\/projects\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   }, [location.pathname]);
+
+  // The wiki the reader is inside, and the page they are on. A wiki takes the
+  // sidebar over the way My Messages does — a wiki is a list of pages and then
+  // one of them, which is two levels in a column with room for one.
+  const openWiki = useMemo(() => {
+    const match = location.pathname.match(/^\/c\/\d+\/i\/(\d+)\/wikis\/(\d+)/);
+    if (!match) return null;
+    const page = location.pathname.match(/\/wikis\/\d+\/pages\/(\d+)/);
+    return {
+      initiativeId: parseInt(match[1], 10),
+      wikiId: parseInt(match[2], 10),
+      pageId: page ? parseInt(page[1], 10) : null,
+    };
+  }, [location.pathname]);
+
+  // Climbing out is a per-visit choice, not a stored one: leaving the wiki's
+  // URL puts the ordinary navigation back on its own.
+  const [climbedOutOfWiki, setClimbedOutOfWiki] = useState(false);
+  useEffect(() => setClimbedOutOfWiki(false), [openWiki?.wikiId]);
+  const showWikiSidebar = openWiki !== null && !climbedOutOfWiki;
 
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
@@ -233,6 +255,18 @@ export const AppSidebar = () => {
     return map;
   }, [galleryCountsQuery.data]);
 
+  const wikiCountsQuery = useWikiCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
+  const wikiCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    Object.entries(wikiCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
+    });
+    return map;
+  }, [wikiCountsQuery.data]);
+
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
     [initiativesQuery.data, filterVisible]
@@ -353,6 +387,13 @@ export const AppSidebar = () => {
           <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-hidden border-r">
             {showDirectorySidebar ? (
               <CommunityDirectorySidebar />
+            ) : showWikiSidebar && openWiki ? (
+              <WikiSidebarContent
+                wikiId={openWiki.wikiId}
+                initiativeId={openWiki.initiativeId}
+                activePageId={openWiki.pageId}
+                onBack={() => setClimbedOutOfWiki(true)}
+              />
             ) : !isGuildRoute ? (
               <HomeSidebarContent />
             ) : (
@@ -533,6 +574,7 @@ export const AppSidebar = () => {
                                         [Tool.post]: postCountsByInitiative.get(initiative.id) ?? 0,
                                         [Tool.gallery]:
                                           galleryCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.wiki]: wikiCountsByInitiative.get(initiative.id) ?? 0,
                                       }}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}
@@ -657,7 +699,7 @@ export const AppSidebar = () => {
         <SidebarUserFooter
           user={user}
           canManagePlatformConfig={showPlatformSettings}
-          canAccessAdminDashboard={showAdminDashboard}
+          canAccessOperatorDashboard={showOperatorDashboard}
           currentVersion={currentVersion}
           latestVersion={latestVersion ?? null}
           hasUpdate={Boolean(hasUpdate)}

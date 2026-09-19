@@ -5,6 +5,16 @@ kept one line per (recipient, thing reacted to): a new message joins the
 existing **unread** line and moves it back to the top, and once that line is
 read the next message starts a fresh one, so "new" keeps meaning something.
 
+Reading the *thread* is what reads the line -- :func:`mark_conversation_read`,
+called by the recipient's own client once it has rendered what arrived. The
+server has no other way to know: it holds no message and cannot tell that one
+reached a screen.
+
+The rollup governs the **line**, not the interruption. A push goes out for every
+message; the email goes out when the line turns unread. The two differ because
+they are read in different places -- a lock screen is where a conversation
+happens, and a mailbox is where you find out you missed one.
+
 The line names the sender and counts the messages. It never carries one, and
 nothing here adds a way for it to: the payload it announces is opaque on this
 side.
@@ -18,19 +28,22 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
-from sqlalchemy import func
+from sqlalchemy import delete, func, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
+from app.core.user_display import handle_of
 from app.core.notification_categories import Channel
-from app.models.platform.notification import NotificationType
+from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
 from app.services.platform import (
     dm_stream,
     notification_prefs,
+    notification_stream,
     push_notifications,
     user_notifications,
 )
@@ -73,12 +86,43 @@ async def _dm_device_token_ids(session: AsyncSession, user_id: int) -> set[int]:
     return {row for row in rows if row is not None}
 
 
+async def _roster_names(
+    session: AsyncSession, *, conversation_id: uuid.UUID, recipient_id: int
+) -> list[str]:
+    """Who else is on this conversation, as the recipient would name them.
+
+    Everybody but the reader, in id order so the same thread reads the same way
+    every time. Handles rather than display names: a direct message happens
+    outside any community, so there is no community whose naming applies.
+
+    This is the roster the server had to resolve in order to route the message
+    at all — the fact of who is talking, which is not the secret. What they
+    said is, and nothing here can reach it.
+    """
+    from app.models.platform.dm_conversation import DmConversationMember
+
+    rows = (
+        await session.exec(
+            select(User)
+            .join(DmConversationMember, DmConversationMember.user_id == User.id)
+            .where(
+                DmConversationMember.conversation_id == conversation_id,
+                DmConversationMember.user_id != recipient_id,
+                DmConversationMember.accepted_at.is_not(None),
+            )
+            .order_by(User.id)
+        )
+    ).all()
+    return [handle_of(user) for user in rows]
+
+
 async def notify(
     *,
     recipient_id: int,
     sender: User,
     sender_name: str,
     conversation_id: uuid.UUID,
+    group: bool = False,
 ) -> None:
     """Roll one message into the recipient's bell line, then wake their tabs.
 
@@ -92,17 +136,86 @@ async def notify(
             recipient = await session.get(User, recipient_id)
             if recipient is None:
                 return
+            others = (
+                await _roster_names(
+                    session,
+                    conversation_id=conversation_id,
+                    recipient_id=recipient_id,
+                )
+                if group
+                else []
+            )
             await _roll_up(
                 session,
                 recipient=recipient,
                 sender=sender,
                 sender_name=sender_name,
                 conversation_id=conversation_id,
+                others=others,
             )
             await session.commit()
     except Exception:  # noqa: BLE001 - a bell line never fails a send
         logger.exception("direct-message notification failed")
     await dm_stream.signal_dm(recipient_id)
+
+
+def _line_of(conversation_id: uuid.UUID):
+    """Every rolled-up line this account holds for one conversation."""
+    return (
+        Notification.type == NotificationType.direct_message,
+        Notification.data["conversation_id"].as_string() == str(conversation_id),
+    )
+
+
+async def mark_conversation_read(
+    session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
+) -> int:
+    """Close this account's rolled-up line for one conversation.
+
+    A line collects while it is unread, and the push and the email fire on the
+    transition into unread rather than once per message. Closing the line is
+    therefore what lets the next message announce itself at all, and reading the
+    thread is what closes it -- there is nothing else that could, since the
+    server cannot see a message arrive at a screen.
+
+    Runs on the reader's own session: the line is theirs, and so is the claim
+    that they have read it.
+    """
+    result = await session.exec(
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.read_at.is_(None),
+            *_line_of(conversation_id),
+        )
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    closed = result.rowcount or 0
+    if closed:
+        # The tab that read the thread already knows; this is for the account's
+        # other tabs and devices, whose badge would keep the stale count.
+        notification_stream.queue_signal(session, user_id, "read")
+    return closed
+
+
+async def forget_conversation(
+    session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
+) -> int:
+    """Take down the lines for a conversation this account has left.
+
+    Read or unread alike: the line names a thread that is no longer in the list,
+    and tapping it would arrive at nothing.
+    """
+    result = await session.exec(
+        delete(Notification).where(
+            Notification.user_id == user_id,
+            *_line_of(conversation_id),
+        )
+    )
+    removed = result.rowcount or 0
+    if removed:
+        notification_stream.queue_signal(session, user_id, "withdrawn")
+    return removed
 
 
 async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) -> None:
@@ -170,6 +283,7 @@ async def _roll_up(
     sender: User,
     sender_name: str,
     conversation_id: uuid.UUID,
+    others: list[str],
 ) -> None:
     match = {"conversation_id": str(conversation_id)}
     await _lock_line(session, f"dm-bell:{conversation_id}:{recipient.id}")
@@ -181,12 +295,18 @@ async def _roll_up(
     )
     previous: Mapping[str, Any] = (existing.data if existing else None) or {}
     count = cast(int, previous.get("count", 0)) + 1
-    line = {
+    line: dict[str, Any] = {
         "conversation_id": str(conversation_id),
         "sender_id": sender.id,
         "sender_name": sender_name,
         "count": count,
     }
+    if others:
+        # A group thread is named by who is on it, because it has no other name
+        # and is not going to get one. Everybody but the reader: a line that
+        # listed them back to themselves would be naming the one person who
+        # already knows they are there.
+        line["member_names"] = others
     if existing is None:
         await user_notifications.create_notification(
             session,
@@ -197,12 +317,6 @@ async def _roll_up(
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
 
-    # Both channels fire on the transition into unread, not per message: a
-    # flurry is one notification rather than twenty, with nothing added to the
-    # first. Once the line is read, the next message starts a fresh one and they
-    # fire again.
-    if existing is not None:
-        return
     prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     quiet = notification_prefs.in_quiet_hours(prefs, tz_name=recipient.timezone)
 
@@ -215,9 +329,20 @@ async def _roll_up(
             channel=channel,
         )
 
+    # Push fires per message. A reply to a conversation somebody has already
+    # been told about is the thing they are waiting for, and a messenger that
+    # announces the first message and then goes quiet is not one anybody can
+    # hold a conversation on. This is what every messenger does and what people
+    # expect; the preference and quiet hours are where it is turned down.
     if _wanted(Channel.push):
-        await _push(session, recipient=recipient, sender_name=sender_name)
-    if _wanted(Channel.email):
+        await _push(
+            session, recipient=recipient, sender_name=sender_name, others=others
+        )
+
+    # Email does not. It is the channel for somebody who is not there at all,
+    # and one per message would be a mailbox nobody could use -- so it fires on
+    # the transition into unread, and again once the line has been read.
+    if existing is None and _wanted(Channel.email):
         await _email(session, recipient=recipient, sender_name=sender_name)
 
 
@@ -239,22 +364,40 @@ async def _email(session: AsyncSession, *, recipient: User, sender_name: str) ->
         return
 
 
-async def _push(session: AsyncSession, *, recipient: User, sender_name: str) -> None:
+async def _push(
+    session: AsyncSession, *, recipient: User, sender_name: str, others: list[str]
+) -> None:
     token_ids = await _dm_device_token_ids(session, recipient.id)
     if not token_ids:
         return
     locale = _locale(recipient)
-    await push_notifications.send_push_to_user(
-        session,
-        recipient.id,
-        NotificationType.direct_message,
-        translate(
+    if others:
+        # The thread goes in the title and the sender in the body, which is how
+        # a lock screen is read: which conversation first, then who spoke. The
+        # roster is not shortened -- the platform truncates a long title on its
+        # own, and picking a number of names to keep would be inventing a rule
+        # about whose name matters.
+        title = ", ".join(others)
+        body = translate(
+            "directMessageGroup.body",
+            locale,
+            namespace="notifications",
+            sender=sender_name,
+        )
+    else:
+        title = translate(
             "directMessage.title",
             locale,
             namespace="notifications",
             sender=sender_name,
-        ),
-        translate("directMessage.body", locale, namespace="notifications"),
+        )
+        body = translate("directMessage.body", locale, namespace="notifications")
+    await push_notifications.send_push_to_user(
+        session,
+        recipient.id,
+        NotificationType.direct_message,
+        title,
+        body,
         # Where tapping it goes, and nothing more. The conversation's id would
         # open the right thread, but it would also put a record of who is
         # talking to whom through a push service, which is the one thing this

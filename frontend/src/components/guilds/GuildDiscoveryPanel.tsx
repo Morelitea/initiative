@@ -58,7 +58,7 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
   }, [activeGuild]);
 
-  if (!communityDirectoryEnabled || activeGuild?.role !== "admin") {
+  if (!communityDirectoryEnabled || !activeGuild?.is_admin) {
     return null;
   }
 

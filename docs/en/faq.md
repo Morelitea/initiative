@@ -14,7 +14,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
 ??? question "There's a lot here. Where do I begin?"
-    Make a community. Open the **Default Initiative** it came with. Make one project. Put some tasks on it.
+    Make a community. Make one initiative in it, named after what you're doing. Make one project. Put some tasks on it.
 
     That's it. You now have a working setup and you are allowed to stop. Come back for the rest of this only when something actually feels missing, which for a lot of groups is never. See [Your first community](getting-started/your-first-community.md).
 
@@ -164,6 +164,9 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
 ??? question "Can a community admin read my direct messages?"
     No. Messages are end-to-end encrypted, so they're readable on the devices in the conversation and nowhere else — not by an admin, not by whoever runs the server, not by us. They're also not community content, so they're not in exports or search. See [Private messages](security/private-messages.md).
+
+??? question "Can I message more than one person at once?"
+    Yes — start a conversation and keep adding people. Everyone is asked before anything reaches them, nobody can be added to it afterwards, and it's called by who's on it rather than having a name. See [Talking to a few people at once](guides/messages.md#talking-to-a-few-people-at-once).
 
 ??? question "Why don't my messages show up on my new phone?"
     Because there's no copy on the server for it to catch up from — that's what end-to-end encryption costs. Each device keeps its own history from the moment it joined a conversation, and signing out takes that device's copy with it. See [Your messages live on your devices](guides/messages.md#your-messages-live-on-your-devices).

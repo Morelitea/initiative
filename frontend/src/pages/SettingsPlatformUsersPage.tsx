@@ -1,56 +1,28 @@
-import type { LucideIcon } from "lucide-react";
-import {
-  CalendarClock,
-  Crown,
-  Download,
-  LifeBuoy,
-  Mail,
-  PenLine,
-  Shield,
-  ShieldCheck,
-  ShieldOff,
-  Snowflake,
-  Trash2,
-  UserCheck,
-} from "lucide-react";
+import { CalendarClock, Download, Mail, Trash2, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AdminUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
+import {
+  canManageUser,
+  UserOperatorSettingsSheet,
+} from "@/components/admin/UserOperatorSettingsSheet";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useAdminClearAgeBlock,
   useAdminReactivateUser,
-  useAdminSetSuspension,
-  useAdminSetUsername,
   useAdminTriggerPasswordReset,
-  useAdminUpdatePlatformRole,
   useExportPlatformUsersCsv,
-  usePlatformAdminCount,
   usePlatformUsers,
 } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,20 +31,6 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumn, AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
-import type { TranslateFn } from "@/types/i18n";
-
-// Platform roles ordered least → most privileged. A user can only assign a
-// role at or below their own rank (mirrors the backend ``can_assign_role``
-// subset rule), so rank-by-index is a faithful client-side gate.
-const PLATFORM_ROLE_ORDER: UserRole[] = ["member", "support", "moderator", "operator", "owner"];
-
-const platformRoleRank = (role: UserRole): number => PLATFORM_ROLE_ORDER.indexOf(role);
-
-const platformRoleLabel = (role: UserRole, t: TranslateFn): string =>
-  t(`platformUsers.roles.${role}`);
-
-const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
-  t(`platformUsers.roleDescriptions.${role}`);
 
 /**
  * The header of a sortable column: the label, and the arrow that says which
@@ -104,41 +62,6 @@ const STATUS_ORDER: Record<string, number> = {
   anonymized: 3,
 };
 
-const ROLE_BADGE: Record<
-  UserRole,
-  { icon: LucideIcon | null; variant: "default" | "secondary" | "outline" }
-> = {
-  owner: { icon: Crown, variant: "default" },
-  operator: { icon: Shield, variant: "default" },
-  moderator: { icon: ShieldCheck, variant: "secondary" },
-  support: { icon: LifeBuoy, variant: "secondary" },
-  member: { icon: null, variant: "outline" },
-};
-
-// A role badge with a hover tooltip describing the role. Used wherever the
-// role isn't editable (read-only viewers, the actor's own row, higher-ranked
-// targets) so the meaning of each role is still discoverable.
-const PlatformRoleBadge = ({ role, t }: { role: UserRole; t: TranslateFn }) => {
-  const { icon: Icon, variant } = ROLE_BADGE[role];
-  return (
-    <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <span className="inline-flex cursor-help">
-            <Badge variant={variant} className="inline-flex items-center gap-1">
-              {Icon && <Icon className="h-3 w-3" />}
-              {platformRoleLabel(role, t)}
-            </Badge>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs">
-          {platformRoleDescription(role, t)}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-};
-
 export const SettingsPlatformUsersPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
@@ -147,30 +70,33 @@ export const SettingsPlatformUsersPage = () => {
     userId: number;
     email: string;
   } | null>(null);
-  const [roleChangeConfirm, setRoleChangeConfirm] = useState<{
-    userId: number;
-    email: string;
-    currentRole: UserRole;
-    newRole: UserRole;
-  } | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
+  const [managingId, setManagingId] = useState<number | null>(null);
 
-  // Viewing the roster needs ``users.read`` (support+); changing roles needs
-  // ``roles.assign`` (operator+). The actor can only assign roles at or below
-  // their own rank.
+  // Viewing the roster needs ``users.read`` (support+). Everything that writes
+  // to an account asks for its own capability, at the point it is offered.
   const canView = hasCapability(user, Capability.usersRead);
-  const canManageRoles = hasCapability(user, Capability.rolesAssign);
-  const canManageUsers = hasCapability(user, Capability.usersManage);
   const canDeleteUsers = hasCapability(user, Capability.usersDelete);
-  const canModerateContent = hasCapability(user, Capability.contentModerate);
   // The support tier holds this one and nothing else that writes to an
   // account: getting somebody back in after a typo is support work.
   const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
-  const actorRank = platformRoleRank(user?.role ?? "member");
+  const canReactivate = hasCapability(user, Capability.usersManage);
+
+  // What the sheet may offer, by capability. Each maps to the capability its
+  // endpoint actually requires: rename and picture removal are
+  // ``content.moderate``, suspension is ``users.manage``, the ladder is
+  // ``roles.assign``.
+  const abilities = {
+    canModerateContent: hasCapability(user, Capability.contentModerate),
+    canManageUsers: hasCapability(user, Capability.usersManage),
+    canManageRoles: hasCapability(user, Capability.rolesAssign),
+  };
 
   const usersQuery = usePlatformUsers({ enabled: canView });
 
-  const adminCountQuery = usePlatformAdminCount({ enabled: canView });
+  // Read the row back out of the query, so a save re-renders the sheet with
+  // what was actually persisted.
+  const managing = usersQuery.data?.find((row) => row.id === managingId) ?? null;
 
   const resetPassword = useAdminTriggerPasswordReset({
     onSuccess: (_data, userId) => {
@@ -184,30 +110,8 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const [renameTarget, setRenameTarget] = useState<AdminUserRead | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [suspendTarget, setSuspendTarget] = useState<AdminUserRead | null>(null);
-  const [suspendReason, setSuspendReason] = useState("");
-
-  const setUsername = useAdminSetUsername({
-    onSuccess: () => {
-      toast.success(t("platformUsers.usernameChanged"));
-      setRenameTarget(null);
-      setRenameValue("");
-    },
-    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
-  });
-
   const clearAgeBlock = useAdminClearAgeBlock({
     onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
-  });
-
-  const setSuspension = useAdminSetSuspension({
-    onSuccess: () => {
-      setSuspendTarget(null);
-      setSuspendReason("");
-    },
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
@@ -230,32 +134,6 @@ export const SettingsPlatformUsersPage = () => {
       setResettingUserId(resetPasswordConfirm.userId);
       resetPassword.mutate(resetPasswordConfirm.userId);
       setResetPasswordConfirm(null);
-    }
-  };
-
-  const updatePlatformRole = useAdminUpdatePlatformRole({
-    onSuccess: (_data, variables) => {
-      // Read the new role off the mutation variables, not off
-      // ``roleChangeConfirm`` — the confirm dialog may have already closed
-      // by the time this fires.
-      toast.success(
-        t("platformUsers.roleChangeSuccess", {
-          role: platformRoleLabel(variables.role, t as TranslateFn),
-        })
-      );
-      setRoleChangeConfirm(null);
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:platformUsers.roleChangeError"));
-    },
-  });
-
-  const confirmRoleChange = () => {
-    if (roleChangeConfirm) {
-      updatePlatformRole.mutate({
-        userId: roleChangeConfirm.userId,
-        role: roleChangeConfirm.newRole,
-      });
     }
   };
 
@@ -291,7 +169,7 @@ export const SettingsPlatformUsersPage = () => {
   if (usersQuery.isLoading) {
     return (
       <SkeletonRegion label={t("platformUsers.loading")}>
-        <TableSkeleton rows={8} columns={6} />
+        <TableSkeleton rows={8} columns={5} />
       </SkeletonRegion>
     );
   }
@@ -318,28 +196,12 @@ export const SettingsPlatformUsersPage = () => {
       // the filter box unable to match the thing it is labelled for.
       accessorFn: (row) => getUserHandle(row),
       header: sortableHeader(t("platformUsers.columnHandle")),
-      // The handle leads identification here the way it does on a guild
-      // roster: it is unique, it is what the person is addressed by, and it
-      // is what the filter box below matches.
+      // The handle is the whole of the identification here. An account's real
+      // name is its own to give out, and an operator does not need it to do
+      // any of this.
       cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
       enableSorting: true,
       sortFn: "alphanumeric",
-    },
-    {
-      id: "name",
-      accessorFn: (row) => row.full_name?.trim() ?? "",
-      header: sortableHeader(t("platformUsers.columnName")),
-      enableSorting: true,
-      sortFn: "alphanumeric",
-      cell: ({ row }) => {
-        const platformUser = row.original;
-        const displayName = platformUser.full_name?.trim() || "—";
-        return (
-          <div>
-            <p className="font-medium">{displayName}</p>
-          </div>
-        );
-      },
     },
     {
       accessorKey: "email",
@@ -350,79 +212,6 @@ export const SettingsPlatformUsersPage = () => {
         <p className="font-mono text-muted-foreground text-sm">{row.original.email}</p>
       ),
       enableSorting: true,
-    },
-    {
-      id: "platform_role",
-      accessorFn: (row) => row.role,
-      header: sortableHeader(t("platformUsers.columnRole")),
-      enableSorting: true,
-      // By privilege, not by name: alphabetically "owner" lands between
-      // "operator" and "support", which is the one ordering nobody wants.
-      // Ascending puts members first and owners last.
-      sortFn: (rowA, rowB) =>
-        platformRoleRank(rowA.original.role) - platformRoleRank(rowB.original.role),
-      cell: ({ row }) => {
-        const platformUser = row.original;
-        const isSelf = platformUser.id === user?.id;
-        const targetRank = platformRoleRank(platformUser.role);
-        // You can't edit your own role, a non-active account, or a user who
-        // outranks you. The backend enforces the same; this just hides
-        // controls that would 403.
-        const editable =
-          canManageRoles && platformUser.status === "active" && !isSelf && actorRank >= targetRank;
-        // Don't let the last platform owner be demoted out of ownership.
-        const isLastOwner =
-          platformUser.role === "owner" && (adminCountQuery.data?.count ?? 0) <= 1;
-
-        if (!editable) {
-          return (
-            <div className="flex">
-              <PlatformRoleBadge role={platformUser.role} t={t as TranslateFn} />
-            </div>
-          );
-        }
-
-        return (
-          <Select
-            value={platformUser.role}
-            onValueChange={(value) =>
-              setRoleChangeConfirm({
-                userId: platformUser.id,
-                email: platformUser.email,
-                currentRole: platformUser.role,
-                newRole: value as UserRole,
-              })
-            }
-            disabled={updatePlatformRole.isPending}
-          >
-            <SelectTrigger className="h-8 w-[160px]">
-              {/* Render the label directly rather than <SelectValue> so the
-                  per-item descriptions below don't leak into the trigger. */}
-              {platformRoleLabel(platformUser.role, t as TranslateFn)}
-            </SelectTrigger>
-            <SelectContent className="max-w-xs">
-              {PLATFORM_ROLE_ORDER.map((role) => {
-                // Can't assign above your own rank; the last owner can only
-                // stay an owner.
-                const disabled =
-                  platformRoleRank(role) > actorRank || (isLastOwner && role !== "owner");
-                return (
-                  <SelectItem key={role} value={role} disabled={disabled}>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">
-                        {platformRoleLabel(role, t as TranslateFn)}
-                      </span>
-                      <span className="text-muted-foreground text-xs leading-snug">
-                        {platformRoleDescription(role, t as TranslateFn)}
-                      </span>
-                    </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        );
-      },
     },
     {
       id: "status",
@@ -438,12 +227,37 @@ export const SettingsPlatformUsersPage = () => {
             ? "platformUsers.active"
             : platformUser.status === "anonymized"
               ? "platformUsers.anonymized"
-              : "platformUsers.deactivated";
+              : platformUser.status === "suspended"
+                ? "platformUsers.suspended"
+                : "platformUsers.deactivated";
         const className =
           platformUser.status === "active"
             ? "text-sm text-green-600 dark:text-green-400"
             : "text-muted-foreground text-sm";
         return <span className={className}>{t(labelKey)}</span>;
+      },
+    },
+    {
+      id: "manage",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const platformUser = row.original;
+        // Nothing to open if this viewer holds none of the capabilities the
+        // sheet's controls require against this account.
+        if (!canManageUser(abilities, platformUser, user?.id)) return null;
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManagingId(platformUser.id)}
+            aria-label={t("platformUsers.sheet.openLabel", {
+              handle: getUserHandle(platformUser),
+            })}
+          >
+            {t("platformUsers.sheet.open")}
+          </Button>
+        );
       },
     },
     {
@@ -459,25 +273,19 @@ export const SettingsPlatformUsersPage = () => {
 
         return (
           <RowActionsMenu subject={getUserHandle(platformUser)}>
-            {canManageUsers && platformUser.status === "deactivated" && (
+            {canReactivate && platformUser.status === "deactivated" && (
               <DropdownMenuItem onSelect={() => reactivateUser.mutate(platformUser.id)}>
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
               </DropdownMenuItem>
             )}
-            {canManageUsers && platformUser.status === "active" && (
+            {canReactivate && platformUser.status === "active" && (
               <DropdownMenuItem
                 onSelect={() => handleResetPassword(platformUser.id, platformUser.email)}
                 disabled={isResetting || resetPassword.isPending}
               >
                 <Mail className="h-4 w-4" />
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
-              </DropdownMenuItem>
-            )}
-            {canModerateContent && !isSelf && platformUser.status !== "anonymized" && (
-              <DropdownMenuItem onSelect={() => setRenameTarget(platformUser)}>
-                <PenLine className="h-4 w-4" />
-                {t("platformUsers.changeUsername")}
               </DropdownMenuItem>
             )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
@@ -489,30 +297,6 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.clearAgeBlock")}
               </DropdownMenuItem>
             )}
-            {canManageUsers &&
-              !isSelf &&
-              (platformUser.status === "active" || platformUser.status === "suspended") && (
-                <DropdownMenuItem
-                  onSelect={() =>
-                    platformUser.status === "suspended"
-                      ? setSuspension.mutate({ userId: platformUser.id, suspended: false })
-                      : setSuspendTarget(platformUser)
-                  }
-                  disabled={setSuspension.isPending}
-                >
-                  {platformUser.status === "suspended" ? (
-                    <>
-                      <ShieldOff className="h-4 w-4" />
-                      {t("platformUsers.unsuspend")}
-                    </>
-                  ) : (
-                    <>
-                      <Snowflake className="h-4 w-4" />
-                      {t("platformUsers.suspend")}
-                    </>
-                  )}
-                </DropdownMenuItem>
-              )}
             <DropdownMenuItem onSelect={() => exportUserCsv(platformUser)}>
               <Download className="h-4 w-4" />
               {t("platformUsers.exportUser")}
@@ -560,6 +344,7 @@ export const SettingsPlatformUsersPage = () => {
           <DataTable
             columns={userColumns}
             data={usersQuery.data}
+            getRowId={(row) => String(row.id)}
             enableFilterInput
             filterInputColumnKey="username"
             filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
@@ -567,6 +352,17 @@ export const SettingsPlatformUsersPage = () => {
             enablePagination
           />
         </CardContent>
+
+        <UserOperatorSettingsSheet
+          user={managing}
+          open={managing !== null}
+          onOpenChange={(next) => {
+            if (!next) setManagingId(null);
+          }}
+          abilities={abilities}
+          actorId={user?.id}
+          actorRole={(user?.role ?? "member") as UserRole}
+        />
       </Card>
 
       <ConfirmDialog
@@ -577,116 +373,10 @@ export const SettingsPlatformUsersPage = () => {
           email: resetPasswordConfirm?.email ?? "this user",
         })}
         confirmLabel={t("common:send")}
+        cancelLabel={t("common:cancel")}
         onConfirm={confirmResetPassword}
         isLoading={resetPassword.isPending}
       />
-
-      <ConfirmDialog
-        open={roleChangeConfirm !== null}
-        onOpenChange={(open) => !open && setRoleChangeConfirm(null)}
-        title={t("platformUsers.changeRoleTitle")}
-        description={t("platformUsers.changeRoleDescription", {
-          email: roleChangeConfirm?.email ?? "this user",
-          role: roleChangeConfirm
-            ? platformRoleLabel(roleChangeConfirm.newRole, t as TranslateFn)
-            : "",
-        })}
-        confirmLabel={t("common:confirm")}
-        onConfirm={confirmRoleChange}
-        isLoading={updatePlatformRole.isPending}
-      />
-
-      {/* A rename is typed, so it needs a field rather than a confirmation. */}
-      <Dialog
-        open={renameTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameTarget(null);
-            setRenameValue("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("platformUsers.changeUsernameTitle", {
-                handle: renameTarget ? getUserHandle(renameTarget) : "",
-              })}
-            </DialogTitle>
-            <DialogDescription>{t("platformUsers.changeUsernameBody")}</DialogDescription>
-          </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(event) => setRenameValue(event.target.value.toLowerCase())}
-            autoCapitalize="none"
-            placeholder={t("platformUsers.changeUsername")}
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              disabled={!renameValue.trim() || setUsername.isPending}
-              onClick={() =>
-                renameTarget &&
-                setUsername.mutate({
-                  userId: renameTarget.id,
-                  username: renameValue.trim().toLowerCase(),
-                })
-              }
-            >
-              {setUsername.isPending ? t("common:submitting") : t("common:save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Suspending takes nothing away, and the reason is shown to the person
-          it is about — so it is a field here, not an internal note. */}
-      <Dialog
-        open={suspendTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSuspendTarget(null);
-            setSuspendReason("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("platformUsers.suspendTitle", {
-                handle: suspendTarget ? getUserHandle(suspendTarget) : "",
-              })}
-            </DialogTitle>
-            <DialogDescription>{t("platformUsers.suspendBody")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="suspend-reason">{t("platformUsers.suspendReasonLabel")}</Label>
-            <Textarea
-              id="suspend-reason"
-              value={suspendReason}
-              onChange={(event) => setSuspendReason(event.target.value)}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={setSuspension.isPending}
-              onClick={() =>
-                suspendTarget &&
-                setSuspension.mutate({
-                  userId: suspendTarget.id,
-                  suspended: true,
-                  reason: suspendReason.trim() || undefined,
-                })
-              }
-            >
-              {setSuspension.isPending ? t("common:submitting") : t("platformUsers.suspend")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {deleteUserTarget && (
         <AdminDeleteUserDialog

@@ -12,6 +12,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.platform.user import Presence
+from app.schemas.platform.user import ProfileDecorations
+
 #: A Curve25519 or Ed25519 public key is 32 bytes, which is 44 base64
 #: characters. The bound is on the encoded form because that is what arrives.
 KEY_B64_LENGTH = 44
@@ -23,6 +26,15 @@ MAX_PAYLOAD_B64 = (MAX_PAYLOAD_BYTES + 2) // 3 * 4
 
 #: How many prekeys a device may publish. A client tops up toward this.
 MAX_ONE_TIME_KEYS = 100
+
+#: How many accounts may be on one group conversation.
+#:
+#: Fan-out means one ciphertext copy per destination device, so a message costs
+#: its sender roughly (members x devices) KiB to upload. At 40 members and three
+#: devices each that is ~119 KiB, which is about the most a line of text should
+#: cost on mobile data. The number is above ordinary use on purpose -- a group
+#: this size is already past where a direct message is the right thing.
+MAX_GROUP_MEMBERS = 40
 
 
 class DmOneTimeKeyUpload(BaseModel):
@@ -105,10 +117,85 @@ class DmConversationCreate(BaseModel):
     user_id: int = Field(ge=1)
 
 
+class DmGroupCreate(BaseModel):
+    #: Everybody else on it. The caller is on it by proposing it, and is not
+    #: named here.
+    user_ids: list[int] = Field(min_length=2, max_length=MAX_GROUP_MEMBERS)
+
+
+class DmRosterCheckRequest(BaseModel):
+    #: The roster as it stands while somebody is still choosing names. The
+    #: caller is counted but not named, the same as when it is proposed.
+    user_ids: list[int] = Field(max_length=MAX_GROUP_MEMBERS * 2)
+
+
+class DmRosterCheckResponse(BaseModel):
+    """Whether this roster could be proposed, and what is wrong if not.
+
+    Asked while the roster is being built rather than only when it is
+    submitted, so the answer arrives while somebody can still drop a name.
+    """
+
+    #: Two accounts on the roster that cannot message each other. Empty when
+    #: there is no such pair. Only the first is reported -- the fix for one is
+    #: the fix for the next, and listing every pair would name accounts the
+    #: caller would then be comparing against each other.
+    unreachable_pair: list[int] = []
+    #: How many accounts one conversation may carry, so the client can say so
+    #: rather than hard-code it.
+    max_members: int = MAX_GROUP_MEMBERS
+    #: Whether the roster as it stands is past that.
+    too_large: bool = False
+
+
+class DmRosterMember(BaseModel):
+    """One person on a conversation, as a client has to draw them.
+
+    The public projection of an account and nothing else: what it is called,
+    the picture, and what is worn around it. A real name is absent because a
+    real name is a per-community disclosure and a conversation is outside every
+    community.
+    """
+
+    user_id: int
+    username: str
+    discriminator: int
+    avatar_url: str | None = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: How they are appearing, so a roster reads like every other list of
+    #: people. Read live rather than stored.
+    presence: Presence = Presence.offline
+
+
 class DmConversationRead(BaseModel):
     id: uuid.UUID
+    #: For a pair, the other party. For a group, the lowest member id that is
+    #: not the caller — kept so a client written before groups renders something
+    #: rather than failing on a missing field. A client that knows about groups
+    #: reads ``member_ids``.
     other_user_id: int
     created_at: datetime
+    #: ``direct`` or ``group``.
+    kind: str = "direct"
+    #: Everybody on it except the caller, whether or not they have answered.
+    #: Who has and has not is deliberately absent: a roster is what somebody
+    #: agrees to, and reporting who is still deciding would put each invitee's
+    #: hesitation in front of the others.
+    member_ids: list[int] = []
+    #: The same people as profiles, in the same order, so a thread can be named
+    #: and drawn by who is on it. Keyed by ``user_id`` rather than read by
+    #: position: an account that has since gone contributes an id and no
+    #: profile, and a client that indexed into this would then draw the wrong
+    #: face against the right name. Sent rather than looked up: a roster needs no
+    #: accepted grant between every pair, so the client may know nothing about
+    #: somebody it is nonetheless in a conversation with. Nothing here is
+    #: private -- it is the public projection every signed-in account can read
+    #: of any account, and the bell line and the push already name the same
+    #: people.
+    members: list[DmRosterMember] = []
+    #: Whether the caller has answered their own invitation. False on every
+    #: conversation a pair opens, because both sides agreed before it existed.
+    pending: bool = False
 
 
 class DmConversationsResponse(BaseModel):
@@ -143,9 +230,16 @@ class DmSendRequest(BaseModel):
 
 
 class DmSendResponse(BaseModel):
-    #: How many rows were written. Deliberately not per-recipient: what reached
-    #: whom is not something the sender is told.
+    #: How many messages the server took from the sender -- which is all of
+    #: them, or the request failed. Deliberately not what was written and
+    #: deliberately not per-recipient: what reached whom is not something the
+    #: sender is told, and a count that moved would be telling them.
     accepted: int
+    #: Members whose mailbox was too full to take this. Named because a full
+    #: mailbox is a fact about capacity that the sender can act on -- send it
+    #: again later, or say something out of band. Nothing here ever reports a
+    #: copy that was dropped for any other reason.
+    queue_full_for: list[int] = []
 
 
 class DmQueueItemRead(BaseModel):

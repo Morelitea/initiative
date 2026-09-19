@@ -652,9 +652,15 @@ async def delete_guild_connection(session: AsyncSession, connection_id: int) -> 
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     await session.delete(row)
-    # Purge member keys/prefs that referenced it (same guild schema). The routed
-    # session is guild-admin, so the own-row RLS admits deleting every member's
-    # row. Leaves no orphaned member secret behind.
+    prior_role = (
+        await session.exec(
+            text("SELECT current_setting('app.current_guild_role', true)")
+        )
+    ).one()[0]
+    # Connection administration includes removing every member reference.
+    await session.exec(
+        text("SELECT set_config('app.current_guild_role', 'admin', true)")
+    )
     await session.exec(
         delete(GuildAIMemberKey).where(
             GuildAIMemberKey.connection_scope == ConnectionScope.guild.value,
@@ -666,6 +672,10 @@ async def delete_guild_connection(session: AsyncSession, connection_id: int) -> 
             GuildAIMemberPref.connection_scope == ConnectionScope.guild.value,
             GuildAIMemberPref.connection_id == connection_id,
         )
+    )
+    await session.exec(
+        text("SELECT set_config('app.current_guild_role', :role, true)"),
+        params={"role": prior_role or ""},
     )
     await session.commit()
 

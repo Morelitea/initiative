@@ -23,6 +23,7 @@ import type {
   ProjectListResponse,
   QueueListResponse,
   TagSummary,
+  WikiListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ export type ToolResponses = {
   [Tool.dashboard]: DashboardListResponse | undefined;
   [Tool.post]: PostListResponse | undefined;
   [Tool.gallery]: GalleryListResponse | undefined;
+  [Tool.wiki]: WikiListResponse | undefined;
 };
 
 const ColourDot = ({ colour }: { colour: string }) => (
@@ -220,6 +222,21 @@ export function buildToolRows(
         // of gallery this is before it is opened.
         detail: gallery.image_count,
         detailSort: gallery.image_count,
+      }));
+    case Tool.wiki:
+      return (data[Tool.wiki]?.items ?? []).map((wiki) => ({
+        id: wiki.id,
+        guildId: wiki.guild_id ?? fallbackGuildId,
+        name: wiki.name,
+        href: href(wiki.id, wiki.initiative_id),
+        glyph: null,
+        initiativeId: wiki.initiative_id,
+        tags: wiki.tags,
+        updatedAt: wiki.updated_at,
+        // How many pages it holds — the one figure that says how far along a
+        // wiki is before it is opened.
+        detail: wiki.page_count,
+        detailSort: wiki.page_count,
       }));
   }
 }

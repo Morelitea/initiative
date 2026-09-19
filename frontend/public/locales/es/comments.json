@@ -12,6 +12,8 @@
   "errorDelete": "No se pudo eliminar el comentario en este momento.",
   "errorUpdate": "No se pudo actualizar el comentario en este momento.",
   "formattingSyntax": "Formato",
+  "insertEntityMention": "Enlazar cualquier cosa de esta iniciativa",
+  "insertUserMention": "Mencionar a un miembro",
   "loadError": "No se pudieron cargar los comentarios en este momento.",
   "loading": "Cargando comentarios...",
   "markdownHint": "Se admite Markdown: **negrita**, *cursiva*, `código`, listas y enlaces.",

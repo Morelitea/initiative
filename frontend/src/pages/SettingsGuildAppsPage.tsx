@@ -47,6 +47,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { holdsGuildSeat } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export function SettingsGuildAppsPage() {
@@ -54,7 +55,10 @@ export function SettingsGuildAppsPage() {
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  // Installing an app, and the credentials that authorize the whole
+  // community, are the seat's. Connecting your own account is not, and
+  // happens from the app itself rather than here.
+  const holdsTheSeat = holdsGuildSeat(activeGuild);
 
   const apps = appsQuery.data?.items ?? [];
 
@@ -68,11 +72,11 @@ export function SettingsGuildAppsPage() {
         {appsQuery.isLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : apps.length ? (
-          apps.map((app) => <AppRow key={app.id} app={app} canManage={Boolean(isGuildAdmin)} />)
+          apps.map((app) => <AppRow key={app.id} app={app} canManage={Boolean(holdsTheSeat)} />)
         ) : (
           <div className="space-y-3 rounded-lg border border-dashed p-6 text-center">
             <p className="text-muted-foreground text-sm">{t("apps:manage.empty")}</p>
-            {isGuildAdmin && (
+            {holdsTheSeat && (
               <Button variant="outline" asChild>
                 <Link to={gp("/marketplace")} search={{ kind: ListingKind.app }}>
                   <Store className="mr-1.5 h-4 w-4" />

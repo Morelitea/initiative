@@ -6,6 +6,7 @@ Initiative; Counters are independent numeric values clamped to optional
 """
 
 from datetime import datetime, timezone
+from app.core.tools import Tool
 from decimal import Decimal
 from typing import Optional
 
@@ -113,18 +114,16 @@ async def get_counter_group_for_export(
     transport-free."""
     from fastapi import HTTPException, status as http_status
 
-    from app.core.messages import CounterMessages
-
     group = await get_counter_group(session, group_id)
     if group is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=CounterMessages.GROUP_NOT_FOUND,
+            detail=Tool.counter_group.not_found_code,
         )
     if group.initiative is not None and not group.initiative.counter_groups_enabled:
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.FEATURE_DISABLED,
+            detail=Tool.counter_group.feature_disabled_code,
         )
     require_counter_group_access(
         group,

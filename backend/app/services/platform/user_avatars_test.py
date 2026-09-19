@@ -11,7 +11,7 @@ import zlib
 import pytest
 
 from app.core.image_headers import read_image_header
-from app.core.messages import UserMessages
+from app.core.messages import GuildMessages, UserMessages
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.services.platform import user_avatars as service
 
@@ -129,7 +129,7 @@ def test_refuses_bytes_over_the_cap() -> None:
     with pytest.raises(service.AvatarRejected) as excinfo:
         service.validate_avatar(png(256, 256, pad=AVATAR_MAX_BYTES))
 
-    assert excinfo.value.code == UserMessages.AVATAR_TOO_LARGE
+    assert excinfo.value.code == GuildMessages.IMAGE_TOO_LARGE
 
 
 @pytest.mark.unit

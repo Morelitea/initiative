@@ -29,6 +29,7 @@ class Tool(str, Enum):
     dashboard = "dashboard"
     post = "post"
     gallery = "gallery"
+    wiki = "wiki"
 
     @property
     def plural(self) -> str:
@@ -61,12 +62,69 @@ class Tool(str, Enum):
         """``InitiativeMemberRead`` computed create flag for this tool."""
         return f"can_create_{self.plural}"
 
+    @property
+    def code_prefix(self) -> str:
+        """The SCREAMING_SNAKE stem every error code for this tool derives from
+        (``counter_group`` -> ``COUNTER_GROUP``)."""
+        return self.value.upper()
 
-# Core tools are always on: no ``*_enabled`` master switch on the initiative and
-# view defaults to True. Every other tool is opt-in per initiative via its
-# ``{plural}_enabled`` column.
-CORE_TOOLS = frozenset({Tool.project, Tool.document})
-TOGGLEABLE_TOOLS = tuple(t for t in Tool if t not in CORE_TOOLS)
+    @property
+    def not_found_code(self) -> str:
+        """``detail`` code for "no such <tool>"."""
+        return f"{self.code_prefix}_NOT_FOUND"
+
+    @property
+    def no_access_code(self) -> str:
+        """``detail`` code for "this <tool> is not shared with you"."""
+        return f"{self.code_prefix}_NO_ACCESS"
+
+    @property
+    def owner_required_code(self) -> str:
+        """``detail`` code for "only the <tool>'s owner may do that"."""
+        return f"{self.code_prefix}_OWNER_REQUIRED"
+
+    @property
+    def write_required_code(self) -> str:
+        """``detail`` code for "you may read this <tool> but not change it"."""
+        return f"{self.code_prefix}_WRITE_ACCESS_REQUIRED"
+
+    @property
+    def create_permission_code(self) -> str:
+        """``detail`` code for "your initiative role may not create <tool>s"."""
+        return f"{self.code_prefix}_CREATE_PERMISSION_REQUIRED"
+
+    @property
+    def role_permission_code(self) -> str:
+        """``detail`` code for "your initiative role does not permit this on
+        <tool>s" — gate 3, which is a different refusal from not having been
+        shared the row (:attr:`no_access_code`, gate 4)."""
+        return f"{self.code_prefix}_PERMISSION_REQUIRED"
+
+    @property
+    def feature_disabled_code(self) -> str:
+        """``detail`` code for "this initiative has <tool>s switched off"."""
+        return f"{self.plural.upper()}_NOT_ENABLED"
+
+    @property
+    def grant_cannot_manage_members_code(self) -> str:
+        """``detail`` code for "a PAM grant reaches this <tool>'s content, not
+        who may see it"."""
+        return f"{self.code_prefix}_GRANT_CANNOT_MANAGE_MEMBERS"
+
+
+# EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
+# the initiative. Projects and documents used to be exempt — always on, with no
+# column at all — because they were the only places content could live and the
+# other tools hung off them. Relationships ended that: anything links to
+# anything, so an initiative that is only a calendar, or only a gallery, is a
+# coherent thing to want rather than a half-built one.
+#
+# They keep the *default*, which is the part that was ever load-bearing. An
+# initiative that says nothing about its tools still arrives with projects and
+# documents on, so nothing about making one changes; the switch is simply there
+# to turn off now.
+TOGGLEABLE_TOOLS = tuple(Tool)
+DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 
 # Tools that appear in the recent-items bar — every tool has a per-entity
 # detail route to return to.
@@ -81,11 +139,6 @@ NON_EXPORTABLE_TOOLS = frozenset(
         # Export/import ships with the marketplace, which owns the definition
         # envelope format.
         Tool.dashboard,
-        # A gallery is its image files, and the export engine carries JSON
-        # envelopes; a backup that dropped the pictures and kept their captions
-        # would be worse than none. Carrying the blobs is its own piece of
-        # work, tracked separately.
-        Tool.gallery,
     }
 )
 
@@ -95,6 +148,24 @@ NON_EXPORTABLE_TOOLS = frozenset(
 # ``{tool}_ids``. The frontend mirrors this as TOOL_REGISTRY's ``bulkExport``
 # flag.
 BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
+
+
+# Comment surfaces: EVERY tool carries a thread, plus these content-level
+# extras — sub-resources with a conversation of their own. A task holds one
+# because a task is a piece of work people talk about; a wiki page holds one
+# because a page is what somebody reads, and a note about the rota belongs on
+# the rota rather than on the handbook it is filed in.
+#
+# An extra carries no ``comments_enabled`` column of its own; it is reached
+# through the tool that owns it, and that tool's switch is what answers for it
+# — a wiki's switch turns off the threads on its pages. The task is the one
+# exception, and deliberately so: its thread predates the switch and belongs
+# to the task rather than to the project's tool surface.
+#
+# Extras come first so the declaration order — and every derived column list —
+# keeps reading task-first, as it always has.
+COMMENTABLE_EXTRAS: tuple[str, ...] = ("task", "wiki_page")
+COMMENT_TARGETS: tuple[str, ...] = COMMENTABLE_EXTRAS + tuple(t.value for t in Tool)
 
 
 # Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
@@ -108,6 +179,7 @@ TAGGABLE_EXTRAS: tuple[str, ...] = (
     "queue_item",
     "calendar_event",
     "gallery_image",
+    "wiki_page",
 )
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 
@@ -126,6 +198,7 @@ TRASHABLE_EXTRAS: tuple[str, ...] = (
     "initiative",
     "tag",
     "gallery_image",
+    "wiki_page",
 )
 TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 
@@ -140,6 +213,17 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key / endpoint segment for a tool."""
     return tool.value.replace("_", "-")
+
+
+def tool_envelope_type(tool: Tool) -> str:
+    """The import/export envelope ``type`` discriminator for a tool.
+
+    One rule, spelled once: a tool's envelope is ``initiative-<kebab
+    singular>``. The importers and the export adapters each restate it as a
+    literal — a pydantic ``Literal`` cannot be computed — and
+    ``tools_test.py`` holds the importer registry to this.
+    """
+    return f"initiative-{tool_export_source(tool)}"
 
 
 def tool_for_create_permission(permission_value: str) -> Tool:

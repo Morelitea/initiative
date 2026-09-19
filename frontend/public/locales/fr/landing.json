@@ -1,83 +1,141 @@
 {
   "nav": {
     "signIn": "Se connecter",
-    "getStarted": "Commencer"
+    "getStarted": "Créer une communauté",
+    "pricing": "Tarifs",
+    "help": "Aide"
   },
   "hero": {
-    "tagline": "Fait par des joueurs, pour des joueurs",
-    "preTitle": "Êtes-vous prêt à",
-    "titleLine1": "VOUS LANCER DANS",
-    "titleLine2": "L'INITIATIVE",
-    "titleAria": "Vous lancer dans l'initiative",
-    "subtitle": "Une application de gestion de projets en communautés, conçue pour les communautés de jeu. Créez votre communauté, invitez votre communauté et conquérez des quêtes ensemble.",
-    "ctaStart": "Commencez votre aventure",
-    "ctaSignIn": "Rejoindre votre communauté",
-    "scroll": "Défiler",
-    "loading": "Chargement..."
+    "eyebrow": "Open source. La communauté d'abord.",
+    "titleLine1": "Sortez de la conversation de groupe.",
+    "titleLine2": "Tout au même endroit.",
+    "titleAria": "Sortez de la conversation de groupe. Tout au même endroit.",
+    "subtitle": "Projets, tâches, documents, calendrier — et chaque discussion à leur sujet, rattachée à la chose dont elle parle. La personne suivante la trouve sans qu'on ait à lui dire où chercher.",
+    "ctaSignIn": "Se connecter",
+    "ctaStart": "Créer une communauté",
+    "invited": "On vous a envoyé un lien d'invitation ? Ouvrez-le. Il s'occupe du reste.",
+    "scroll": "Faites un tour",
+    "loading": "Chargement…",
+    "screenshotAlt": "Les tâches d'une semaine, toutes communautés confondues"
   },
-  "heroScreenshot": {
-    "dashboard": "Tableau de bord Initiative"
+  "ribbon": {
+    "aria": "Les groupes qui tournent sur Initiative",
+    "fete": "la kermesse",
+    "rota": "le planning des permanences",
+    "pta": "l'association de parents",
+    "dnd": "le D&D du mardi soir",
+    "shop": "la boutique",
+    "band": "le groupe de musique",
+    "festival": "l'équipe du festival",
+    "committee": "le bureau des bénévoles",
+    "dayJob": "le boulot",
+    "family": "le calendrier de la famille",
+    "bookClub": "le club de lecture",
+    "fiveASide": "l'équipe de foot à cinq"
   },
-  "stats": {
-    "initiatives": "Initiatives",
-    "initiativesValue": "Illimitées",
-    "partyMembers": "Membres du groupe",
-    "partyMembersValue": "Sans limites",
-    "openSource": "Open Source",
-    "openSourceValue": "Pour toujours",
-    "selfHosted": "Auto-hébergé",
-    "selfHostedValue": "Vos données"
+  "invited": {
+    "sectionLabel": "Nouveau ici ?",
+    "title": "Quelqu'un vous a ajouté. Et maintenant ?",
+    "description": "La plupart des gens arrivent parce que leur groupe vit déjà ici et que quelqu'un leur a envoyé un lien. Il n'y a rien à configurer, et pas besoin de savoir ce qu'est un tableau Kanban. Si vous avez déjà écrit une liste de courses, vous êtes surqualifié.",
+    "step1Title": "Ouvrez le lien qu'on vous a envoyé",
+    "step1Body": "Il crée votre compte et vous dépose dans votre groupe. Vous en avez déjà un ? Il y ajoute simplement la communauté.",
+    "step2Title": "Faites un tour",
+    "step2Body": "Tout est déjà là. Cliquez sur les choses. Ouvrez les menus. Déplacez des trucs.",
+    "step3Title": "Vous ne pouvez rien casser",
+    "step3Body": "Supprimé quelque chose ? C'est dans la corbeille, en train de bouder. Déplacé une tâche n'importe où ? Remettez-la. Personne n'a rien vu.",
+    "cta": "La visite en cinq minutes"
   },
-  "features": {
-    "sectionLabel": "Arsenal",
-    "title": "Tout ce dont votre groupe a besoin",
-    "description": "Chaque communauté dispose d'un espace de travail privé avec des projets, des tâches et des documents. Que vous gériez une campagne, organisiez des soirées de raid ou administriez une communauté de jeu — gardez tout en un seul endroit.",
-    "campaignTitle": "Gestion de campagne",
-    "campaignDescription": "Organisez vos campagnes de JDR facilement. Suivez les intrigues, les PNJ et les accroches narratives sur plusieurs sessions.",
-    "partyTitle": "Coordination du groupe",
-    "partyDescription": "Gardez votre groupe de jeu synchronisé. Assignez des tâches, planifiez les sessions et assurez-vous que tout le monde connaît son rôle.",
-    "worldTitle": "Construction du monde",
-    "worldDescription": "Documentez votre lore, vos cartes et les détails de votre monde. Construisez des univers riches que vos joueurs adoreront explorer.",
-    "questTitle": "Suivi des quêtes",
-    "questDescription": "Ne perdez plus jamais de vue les quêtes secondaires. Gérez objectifs, récompenses et progression narrative en un seul endroit.",
-    "sessionTitle": "Notes de session",
-    "sessionDescription": "Documents collaboratifs pour les récapitulatifs de session, les documents remis aux joueurs et les connaissances partagées du groupe.",
-    "eventTitle": "Planification d'événements",
-    "eventDescription": "Coordonnez les soirées de jeu, les calendriers de raid et les événements de communauté. Tout le monde reste sur la même longueur d'onde."
+  "tools": {
+    "sectionLabel": "Ce qu'il y a dedans",
+    "title": "Apprenez un outil, vous connaissez les autres",
+    "description": "Tout ce qui se trouve dans une communauté est un outil. Ils se partagent de la même façon, s'étiquettent de la même façon, se commentent de la même façon — le deuxième vous est familier avant même de l'ouvrir.",
+    "projects": "Tableaux, listes et calendrier des mêmes tâches. Échéances, sous-tâches, et ces tâches qui sont en secret trois tâches sous un imperméable.",
+    "documents": "Pages, feuilles de calcul et tableaux blancs, rédigés ensemble, avec la discussion juste dessus.",
+    "queues": "À qui le tour d'écrire à la mairie ? À personne. Ce n'est jamais le tour de personne. Mettez-le dans une file.",
+    "counterGroups": "Comptez ce que vous compteriez sinon sur vos doigts. Billets vendus, gâteaux promis, chaises encore manquantes.",
+    "calendars": "Répétitions, matchs, l'assemblée générale. Avec des rappels, pour que le rappel ne soit pas vous.",
+    "dashboards": "Un écran avec les chiffres dessus, lisible depuis l'autre bout d'une salle pleine de courants d'air.",
+    "wikis": "Ce que le groupe sait, plutôt que ce qu'il fait. Ce que quelqu'un a expliqué une fois dans un message, écrit là où la personne suivante le trouvera.",
+    "posts": "Des annonces qui restent en place, au lieu de disparaître sous quarante réponses.",
+    "galleries": "Les photos de la journée, rangées avec la journée, pas dans six téléphones différents."
   },
   "gallery": {
-    "sectionLabel": "Voir en action",
-    "title": "Conçu pour votre flux de travail",
-    "projectAlt": "Vue de gestion de projet",
-    "projectCaption": "Organisez les projets avec des tableaux, des listes et des vues personnalisées",
-    "documentAlt": "Collaboration sur documents",
-    "documentCaption": "Collaborez sur des documents avec toute votre communauté"
+    "sectionLabel": "Voyez",
+    "title": "Voilà à quoi ça ressemble",
+    "tasksAlt": "Tout ce qui vous est assigné, dans toutes vos communautés",
+    "tasksCaption": "Votre semaine, dans toutes les communautés où vous êtes",
+    "projectAlt": "Un tableau de projet",
+    "projectCaption": "Les mêmes tâches en tableau, en liste ou en calendrier",
+    "documentAlt": "Un document rédigé à plusieurs",
+    "documentCaption": "Des documents avec la discussion dessus"
   },
-  "useCases": {
-    "sectionLabel": "Votre quête vous attend",
-    "title": "Votre communauté, à votre façon",
-    "description": "Créez une communauté privée pour votre communauté. Invitez des membres, organisez-les en initiatives et gérez des projets ensemble. Tout le monde reste synchronisé, et vos données restent les vôtres.",
-    "ttrpgName": "Groupes JDR",
-    "ttrpgDesc": "Gérez des campagnes, suivez des quêtes et partagez des notes de session avec votre groupe d'aventuriers.",
-    "mmoName": "Communautés MMO",
-    "mmoDesc": "Coordonnez les calendriers de raid, la distribution du butin et les événements de communauté.",
-    "esportsName": "Équipes esports",
-    "esportsDesc": "Suivez les plannings d'entraînement, la préparation aux tournois et les objectifs de l'équipe.",
-    "communityName": "Communautés gaming",
-    "communityDesc": "Organisez des événements, gérez des projets et gardez votre communauté engagée.",
-    "cta": "Créer votre communauté"
+  "pricing": {
+    "sectionLabel": "Formules",
+    "seeAll": "Voir toutes les formules et ce que chacune débloque",
+    "storage": "Stockage",
+    "automations": "Automatisations",
+    "members": "Personnes",
+    "support": "Assistance",
+    "loading": "Récupération de la grille tarifaire…",
+    "tierListAria": "Formules"
+  },
+  "download": {
+    "sectionLabel": "Emportez-le",
+    "title": "Télécharger l'application",
+    "description": "Ça tourne dans un navigateur, et s'en tenir là pour toujours est un choix parfaitement respectable. Mais ça peut aussi avoir sa propre icône, sa propre fenêtre et — sur Android — des notifications qui arrivent pendant que vous regardez ailleurs.",
+    "detected": "On dirait que vous êtes sur {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "iPhone et iPad",
+    "platformDesktop": "un ordinateur",
+    "androidTitle": "Android",
+    "androidButton": "Télécharger pour Android",
+    "androidReleases": "Voir toutes les versions",
+    "androidNote": "Ou laissez <1>Obtainium</1> la garder à jour pour vous.",
+    "iosTitle": "iPhone et iPad",
+    "iosButton": "Sur l'écran d'accueil",
+    "iosNote": "Bouton Partager, puis « Sur l'écran d'accueil ». La même application, sans boutique.",
+    "desktopTitle": "Ordinateur",
+    "desktopButton": "Installer depuis le navigateur",
+    "desktopNote": "L'icône d'installation, tout à droite de la barre d'adresse. Ou pas, et gardez l'onglet. Ça marche aussi.",
+    "guide": "Comment fonctionne l'installation"
+  },
+  "docs": {
+    "sectionLabel": "Aide",
+    "title": "Trouvez vos repères",
+    "description": "Écrit pour la personne qui s'est retrouvée à organiser quelque chose et qui craint, en silence, que ce soit compliqué. Ça ne le sera pas.",
+    "gettingStartedTitle": "Premiers pas",
+    "gettingStartedBody": "Créer un compte, trouver ses repères, rejoindre son groupe.",
+    "tourTitle": "Une visite rapide",
+    "tourBody": "Cinq minutes pour savoir où tout se trouve.",
+    "guidesTitle": "Utiliser Initiative",
+    "guidesBody": "Des guides pas à pas pour chaque outil.",
+    "faqTitle": "FAQ",
+    "faqBody": "Des réponses rapides aux questions les plus fréquentes.",
+    "adminTitle": "Pour les administrateurs",
+    "adminBody": "Installer, configurer et entretenir son propre serveur.",
+    "securityTitle": "Sécurité et confidentialité",
+    "securityBody": "Ce que « sécurisé » veut dire pour vous, et comment les affaires de votre groupe restent les vôtres."
+  },
+  "principles": {
+    "openSourceTitle": "Open source",
+    "openSourceBody": "Lisez-le, modifiez-le, faites-le tourner.",
+    "sameAppTitle": "Toutes les fonctions, dans les deux cas",
+    "sameAppBody": "Rien n'est gardé pour les clients payants.",
+    "oneLoginTitle": "Un seul identifiant",
+    "oneLoginBody": "Toutes les communautés où vous êtes, depuis le même compte.",
+    "yourDataTitle": "Vos données restent à vous",
+    "yourDataBody": "Exportez-les, supprimez-les, emportez-les ailleurs."
   },
   "cta": {
-    "title": "Prêt à <1>passer au niveau supérieur</1> ?",
-    "titleReady": "Prêt à",
-    "titleHighlight": "passer au niveau supérieur",
-    "description": "Rejoignez les groupes de jeu qui utilisent déjà Initiative pour rester organisés et s'amuser davantage ensemble.",
-    "button": "Commencer gratuitement"
+    "title": "Quand vous voulez.",
+    "description": "Connectez-vous si votre groupe est déjà ici. Créez une communauté sinon.",
+    "signIn": "Se connecter",
+    "start": "Créer une communauté"
   },
   "footer": {
-    "copyright": "© {{year}} Initiative. Visez haut, restez organisés."
-  },
-  "screenshot": {
-    "placeholder": "Capture d'écran"
+    "copyright": "© {{year}} Initiative. Open source, et ça le restera.",
+    "docs": "Centre d'aide",
+    "source": "Code source",
+    "changelog": "Nouveautés"
   }
 }

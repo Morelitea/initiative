@@ -4,13 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,8 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useImportFromTickTick, useParseTickTickCsv } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
+import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { hasWriteAccess } from "@/lib/permissions";
 import type { DialogProps } from "@/types/dialog";
@@ -81,7 +76,7 @@ const suggestStatusForColumn = (
 
 export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialogProps) => {
   const { t } = useTranslation("import");
-  const [step, setStep] = useState<Step>("upload");
+  const { step, go, commit, back, reset } = useWizard<Step>("upload");
   const [csvContent, setCsvContent] = useState("");
   const [parseResult, setParseResult] = useState<TickTickParseResult | null>(null);
   const [selectedSourceListName, setSelectedSourceListName] = useState<string | null>(null);
@@ -92,7 +87,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setStep("upload");
+      reset();
       setCsvContent("");
       setParseResult(null);
       setSelectedSourceListName(null);
@@ -100,7 +95,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
       setColumnMapping({});
       setImportResult(null);
     }
-  }, [open]);
+  }, [open, reset]);
 
   // Fetch projects for selection
   const projectsQuery = useProjects(undefined, { enabled: open });
@@ -133,7 +128,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
       if (result.lists.length === 0) {
         toast.error(t("ticktick.noListsFound"));
       } else {
-        setStep("select-list");
+        go("select-list");
       }
     },
     onError: () => {
@@ -145,7 +140,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   const importMutation = useImportFromTickTick({
     onSuccess: (data) => {
       setImportResult(data as ImportResult);
-      setStep("result");
+      commit("result");
     },
     onError: () => {
       toast.error(t("common.importFailed"));
@@ -176,9 +171,9 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
   const handleSelectSourceList = useCallback(() => {
     if (selectedSourceListName && selectedTargetProjectId) {
-      setStep("configure");
+      go("configure");
     }
-  }, [selectedSourceListName, selectedTargetProjectId]);
+  }, [selectedSourceListName, selectedTargetProjectId, go]);
 
   const handleImport = useCallback(() => {
     if (!selectedTargetProjectId || !selectedSourceListName) return;
@@ -200,241 +195,251 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
 
+  const description: Record<Step, string> = {
+    upload: t("ticktick.stepUploadDescription"),
+    "select-list": t("ticktick.stepSelectListDescription"),
+    configure: t("ticktick.stepConfigureDescription"),
+    result: t("common.resultTitle"),
+  };
+
+  // The result reports on an import that has already run, so it is not one of
+  // the steps somebody walks through.
+  const position: Record<Step, number | null> = {
+    upload: 1,
+    "select-list": 2,
+    configure: 3,
+    result: null,
+  };
+  const current = position[step];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("ticktick.title")}</DialogTitle>
-          <DialogDescription>
-            {step === "upload" && t("ticktick.stepUploadDescription")}
-            {step === "select-list" && t("ticktick.stepSelectListDescription")}
-            {step === "configure" && t("ticktick.stepConfigureDescription")}
-            {step === "result" && t("common.resultTitle")}
-          </DialogDescription>
-        </DialogHeader>
-
-        {step === "upload" && (
-          <div className="space-y-4">
-            <div>
-              <Label>{t("ticktick.uploadFileLabel")}</Label>
-              <div className="mt-2">
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
-                  <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
-                  <span className="text-muted-foreground text-sm">
-                    {t("common.uploadDragDrop")}
-                  </span>
-                  <span className="mt-1 text-muted-foreground text-xs">
-                    {t("ticktick.uploadHint")}
-                  </span>
-                  <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-                </label>
-              </div>
-            </div>
-
-            <div className="text-center text-muted-foreground text-sm">{t("common.or")}</div>
-
-            <div>
-              <Label htmlFor="csv-content">{t("ticktick.pasteLabel")}</Label>
-              <Textarea
-                id="csv-content"
-                placeholder={t("ticktick.csvPlaceholder")}
-                value={csvContent}
-                onChange={(e) => setCsvContent(e.target.value)}
-                className="mt-2 h-32 font-mono text-xs"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={handlePasteContent}
-                disabled={!csvContent.trim() || parseMutation.isPending}
-              >
-                {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
-              </Button>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                {t("common.cancel")}
-              </Button>
+    <WizardDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="sm:max-w-lg"
+      title={t("ticktick.title")}
+      description={description[step]}
+      progress={current === null ? undefined : { current, total: 3 }}
+    >
+      {step === "upload" && (
+        <div className="space-y-4">
+          <div>
+            <Label>{t("ticktick.uploadFileLabel")}</Label>
+            <div className="mt-2">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
+                <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                <span className="text-muted-foreground text-sm">{t("common.uploadDragDrop")}</span>
+                <span className="mt-1 text-muted-foreground text-xs">
+                  {t("ticktick.uploadHint")}
+                </span>
+                <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              </label>
             </div>
           </div>
-        )}
 
-        {step === "select-list" && parseResult && (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-muted p-4">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="font-medium">{t("ticktick.exportParsed")}</span>
+          <div className="text-center text-muted-foreground text-sm">{t("common.or")}</div>
+
+          <div>
+            <Label htmlFor="csv-content">{t("ticktick.pasteLabel")}</Label>
+            <Textarea
+              id="csv-content"
+              placeholder={t("ticktick.csvPlaceholder")}
+              value={csvContent}
+              onChange={(e) => setCsvContent(e.target.value)}
+              className="mt-2 h-32 font-mono text-xs"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={handlePasteContent}
+              disabled={!csvContent.trim() || parseMutation.isPending}
+            >
+              {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
+            </Button>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "select-list" && parseResult && (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted p-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="font-medium">{t("ticktick.exportParsed")}</span>
+            </div>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {t("ticktick.totalTasks", {
+                listCount: parseResult.lists.length,
+                listLabel: t("ticktick.listsDetected", { count: parseResult.lists.length })
+                  .split(" ")
+                  .slice(1)
+                  .join(" "),
+                taskCount: parseResult.total_tasks,
+              })}
+            </p>
+          </div>
+
+          <div>
+            <Label>{t("ticktick.importFromList")}</Label>
+            <Select
+              value={selectedSourceListName ?? ""}
+              onValueChange={(value) => setSelectedSourceListName(value)}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder={t("ticktick.selectListPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {parseResult.lists.map((list) => (
+                  <SelectItem key={list.name} value={list.name}>
+                    {list.name} ({t("ticktick.tasksCount", { count: list.task_count })})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>{t("common.importToInitiativeProject")}</Label>
+            <Select
+              value={selectedTargetProjectId?.toString() ?? ""}
+              onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder={t("common.selectProject")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {activeProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    {project.icon && <span className="mr-2">{project.icon}</span>}
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={back}>
+              {t("common.back")}
+            </Button>
+            <Button
+              onClick={handleSelectSourceList}
+              disabled={!selectedSourceListName || !selectedTargetProjectId}
+            >
+              {t("common.next")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "configure" && selectedSourceList && (
+        <div className="space-y-4">
+          <div>
+            <Label>{t("ticktick.mapColumnsLabel")}</Label>
+            <p className="text-muted-foreground text-sm">{t("ticktick.mapColumnsDescription")}</p>
+          </div>
+
+          <div className="space-y-3">
+            {selectedSourceList.columns.map((column) => (
+              <div key={column.name} className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{column.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("ticktick.taskCount", { count: column.task_count })}
+                  </p>
+                </div>
+                <Select
+                  value={columnMapping[column.name]?.toString() ?? ""}
+                  onValueChange={(value) =>
+                    setColumnMapping((prev) => ({
+                      ...prev,
+                      [column.name]: Number(value),
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder={t("common.selectStatus")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id.toString()}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {t("ticktick.totalTasks", {
-                  listCount: parseResult.lists.length,
-                  listLabel: t("ticktick.listsDetected", { count: parseResult.lists.length })
-                    .split(" ")
-                    .slice(1)
-                    .join(" "),
-                  taskCount: parseResult.total_tasks,
-                })}
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={back}>
+              {t("common.back")}
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={
+                importMutation.isPending ||
+                Object.keys(columnMapping).length !== selectedSourceList.columns.length
+              }
+            >
+              {importMutation.isPending ? t("common.importing") : t("common.import")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "result" && importResult && (
+        <div className="space-y-4">
+          <div
+            className={`flex items-center gap-3 rounded-lg p-4 ${
+              importResult.tasks_failed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
+            }`}
+          >
+            {importResult.tasks_failed === 0 ? (
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            ) : (
+              <AlertCircle className="h-8 w-8 text-yellow-500" />
+            )}
+            <div>
+              <p className="font-medium">
+                {importResult.tasks_failed === 0
+                  ? t("common.importSuccessful")
+                  : t("common.importWarnings")}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                {t("common.tasksCreated", { count: importResult.tasks_created })}
+                {importResult.checklist_items_created > 0 &&
+                  `, ${t("common.checklistItemsCount", { count: importResult.checklist_items_created })}`}
+                {importResult.tasks_failed > 0 &&
+                  `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
               </p>
             </div>
-
-            <div>
-              <Label>{t("ticktick.importFromList")}</Label>
-              <Select
-                value={selectedSourceListName ?? ""}
-                onValueChange={(value) => setSelectedSourceListName(value)}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder={t("ticktick.selectListPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {parseResult.lists.map((list) => (
-                    <SelectItem key={list.name} value={list.name}>
-                      {list.name} ({t("ticktick.tasksCount", { count: list.task_count })})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>{t("common.importToInitiativeProject")}</Label>
-              <Select
-                value={selectedTargetProjectId?.toString() ?? ""}
-                onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder={t("common.selectProject")} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {activeProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.icon && <span className="mr-2">{project.icon}</span>}
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setStep("upload")}>
-                {t("common.back")}
-              </Button>
-              <Button
-                onClick={handleSelectSourceList}
-                disabled={!selectedSourceListName || !selectedTargetProjectId}
-              >
-                {t("common.next")}
-              </Button>
-            </div>
           </div>
-        )}
 
-        {step === "configure" && selectedSourceList && (
-          <div className="space-y-4">
-            <div>
-              <Label>{t("ticktick.mapColumnsLabel")}</Label>
-              <p className="text-muted-foreground text-sm">{t("ticktick.mapColumnsDescription")}</p>
+          {importResult.errors.length > 0 && (
+            <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
+              <p className="mb-2 font-medium text-sm">{t("common.errors")}</p>
+              <ul className="space-y-1 text-muted-foreground text-xs">
+                {importResult.errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
             </div>
+          )}
 
-            <div className="space-y-3">
-              {selectedSourceList.columns.map((column) => (
-                <div key={column.name} className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{column.name}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {t("ticktick.taskCount", { count: column.task_count })}
-                    </p>
-                  </div>
-                  <Select
-                    value={columnMapping[column.name]?.toString() ?? ""}
-                    onValueChange={(value) =>
-                      setColumnMapping((prev) => ({
-                        ...prev,
-                        [column.name]: Number(value),
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder={t("common.selectStatus")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((status) => (
-                        <SelectItem key={status.id} value={status.id.toString()}>
-                          {status.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setStep("select-list")}>
-                {t("common.back")}
-              </Button>
-              <Button
-                onClick={handleImport}
-                disabled={
-                  importMutation.isPending ||
-                  Object.keys(columnMapping).length !== selectedSourceList.columns.length
-                }
-              >
-                {importMutation.isPending ? t("common.importing") : t("common.import")}
-              </Button>
-            </div>
+          <div className="flex justify-end">
+            <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
           </div>
-        )}
-
-        {step === "result" && importResult && (
-          <div className="space-y-4">
-            <div
-              className={`flex items-center gap-3 rounded-lg p-4 ${
-                importResult.tasks_failed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
-              }`}
-            >
-              {importResult.tasks_failed === 0 ? (
-                <CheckCircle2 className="h-8 w-8 text-green-500" />
-              ) : (
-                <AlertCircle className="h-8 w-8 text-yellow-500" />
-              )}
-              <div>
-                <p className="font-medium">
-                  {importResult.tasks_failed === 0
-                    ? t("common.importSuccessful")
-                    : t("common.importWarnings")}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  {t("common.tasksCreated", { count: importResult.tasks_created })}
-                  {importResult.checklist_items_created > 0 &&
-                    `, ${t("common.checklistItemsCount", { count: importResult.checklist_items_created })}`}
-                  {importResult.tasks_failed > 0 &&
-                    `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
-                </p>
-              </div>
-            </div>
-
-            {importResult.errors.length > 0 && (
-              <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
-                <p className="mb-2 font-medium text-sm">{t("common.errors")}</p>
-                <ul className="space-y-1 text-muted-foreground text-xs">
-                  {importResult.errors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    </WizardDialog>
   );
 };

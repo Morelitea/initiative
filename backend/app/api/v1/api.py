@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from app.api.deps import DirectMessagesEnabledDep
+
 # Endpoints are organized by the kind of data they touch (they must never mix —
 # this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
 #   platform_endpoints/  — public-schema tables (auth, users, guilds, settings,
@@ -15,6 +17,8 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    moderation,
+    support,
     archive,
     query,
     smart_chips,
@@ -56,6 +60,7 @@ from app.api.v1.tenant_endpoints import (
     tasks,
     tools,
     trash,
+    wikis,
 )
 from app.api.v1.platform_endpoints import (
     field_catalog,
@@ -72,13 +77,17 @@ from app.api.v1.platform_endpoints import (
     contacts,
     delegation_exchange,
     guild_reference,
-    guild_auth_providers,
+    guild_provider_connections,
     guilds,
     marketplace,
     native,
     notification_prefs,
     notifications,
     push,
+    intake,
+    passkeys,
+    passwordless,
+    second_factor,
     settings,
     user_view_preferences,
     users,
@@ -98,12 +107,28 @@ api_router.include_router(version.router, tags=["version"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+# Mounted on the same prefix: the factor routes are part of /auth, kept in
+# their own module rather than growing the sign-in one.
+api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
+api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
+api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
-api_router.include_router(dm.user_router, prefix="/users", tags=["direct-messages"])
+# Direct messages, both halves, gated on the platform switch in one place: a
+# deployment that does not offer messaging refuses the whole surface rather
+# than each route deciding for itself.
 api_router.include_router(
-    dm_transport.user_router, prefix="/users", tags=["direct-messages"]
+    dm.user_router,
+    prefix="/users",
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
+)
+api_router.include_router(
+    dm_transport.user_router,
+    prefix="/users",
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
 )
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
@@ -125,6 +150,7 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 # Deployment-level app service wiring (apps.manage — owner). Platform-addressed
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(
@@ -155,7 +181,9 @@ api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
 api_router.include_router(
-    guild_auth_providers.router, prefix="/guilds", tags=["guild-auth-providers"]
+    guild_provider_connections.router,
+    prefix="/guilds",
+    tags=["guild-provider-connections"],
 )
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
@@ -189,6 +217,13 @@ guild_router.include_router(task_statuses.initiative_router, tags=["task-statuse
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+# A community's own moderation: its reports, and settling them. No prefix —
+# the reports of an initiative lead with the initiative, and settling one leads
+# with the report. Who may read any of it is the tables' RLS, not a check here.
+guild_router.include_router(moderation.router, tags=["moderation"])
+# Asking whoever runs the deployment for help. Guild-scoped because whether
+# it is offered at all is the community's own setting.
+guild_router.include_router(support.router, prefix="/support", tags=["support"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -219,6 +254,7 @@ guild_router.include_router(
 )
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
+guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
@@ -288,6 +324,7 @@ api_router.include_router(guild_router)
 # ---------------------------------------------------------------------------
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
+me_router.include_router(moderation.me_router, tags=["moderation"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendars.me_router, tags=["calendars"])
@@ -302,6 +339,12 @@ me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(notification_prefs.me_router, tags=["notifications"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
-me_router.include_router(dm.me_router, tags=["direct-messages"])
-me_router.include_router(dm_transport.me_router, tags=["direct-messages"])
+me_router.include_router(
+    dm.me_router, tags=["direct-messages"], dependencies=[DirectMessagesEnabledDep]
+)
+me_router.include_router(
+    dm_transport.me_router,
+    tags=["direct-messages"],
+    dependencies=[DirectMessagesEnabledDep],
+)
 api_router.include_router(me_router)

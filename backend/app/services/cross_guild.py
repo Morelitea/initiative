@@ -16,11 +16,10 @@ from app.core import auth_context
 from app.core.role_context import (
     set_active_role,
     set_content_read_only_guild,
-    set_guild_shows_member_names,
     set_override_sharing_initiatives,
 )
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import Guild, GuildMembership, GuildStatus, content_role
 from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
@@ -52,17 +51,24 @@ async def member_guild_ids(
     A suspended *user* is excluded the same way, and for the same reason. They
     keep every membership, so the join below would otherwise walk all of them:
     the guild path answers such a caller with nothing, and being the twin of
-    that path means answering the same."""
+    that path means answering the same.
+
+    A guild that declines personal API keys is excluded when the request is
+    carrying one, which is the same twinning: ``/g/{guild_id}`` refuses that
+    caller, so an aggregate cannot be the way its content is read instead."""
     await set_rls_context(session, user_id=user_id)
+    conditions = [
+        GuildMembership.user_id == user_id,
+        Guild.status != GuildStatus.suspended.value,
+        User.status != UserStatus.suspended,
+    ]
+    if auth_context.api_key_credential():
+        conditions.append(Guild.allow_api_keys.is_(True))
     rows = await session.exec(
         select(GuildMembership.guild_id)
         .join(Guild, Guild.id == GuildMembership.guild_id)
         .join(User, User.id == GuildMembership.user_id)
-        .where(
-            GuildMembership.user_id == user_id,
-            Guild.status != GuildStatus.suspended.value,
-            User.status != UserStatus.suspended,
-        )
+        .where(*conditions)
     )
     ids = sorted(rows)
     if restrict_to is not None:
@@ -111,6 +117,9 @@ async def gather_across_guilds(
                 GuildMembership.role,
                 Guild.status,
                 Guild.show_member_names,
+                Guild.allow_api_keys,
+                # Last, so the caller's own status stays the final element the
+                # suspension check below reads off the end of each row.
                 User.status,
             )
             .join(Guild, Guild.id == GuildMembership.guild_id)
@@ -130,8 +139,8 @@ async def gather_across_guilds(
         return []
 
     roles: dict[int, tuple] = {
-        gid: (role, status, shows_names)
-        for gid, role, status, shows_names, _caller in role_rows
+        gid: (role, status, shows_names, allows_keys)
+        for gid, role, status, shows_names, allows_keys, _caller in role_rows
     }
 
     # Keyed by (user, guild) within this session, which is this request. A
@@ -147,13 +156,21 @@ async def gather_across_guilds(
             # a prior guild, or anything already on the session) would otherwise be
             # returned by the identity map instead of this guild's row.
             session.expunge_all()
-            role, guild_status, shows_names = roles.get(guild_id, (None, None, False))
+            # A guild with no row here is one this caller is not a member of,
+            # so the API-key default is the refusing one.
+            role, guild_status, shows_names, allows_keys = roles.get(
+                guild_id, (None, None, False, False)
+            )
             # Defense in depth for callers that assemble their own guild list
             # (member_guild_ids already filters): membership grants NO content
             # access to a suspended guild, admins included.
             if guild_status == GuildStatus.suspended.value:
                 continue
-            role_value = role.value if role is not None else None
+            # And the same for a guild that declines personal API keys when the
+            # request is carrying one.
+            if not allows_keys and auth_context.api_key_credential():
+                continue
+            role_value = content_role(role) if role is not None else None
             content_read_only = guild_status == GuildStatus.read_only.value
             await set_rls_context(
                 session,
@@ -169,12 +186,9 @@ async def gather_across_guilds(
                 # job's system sentinel. An unsatisfied policy-gated guild
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
-                # What this guild calls its members. Each guild answers for its
-                # own rows, so a cross-guild list names people the way each of
-                # them does — the same answer as opening that guild and
-                # looking. Carried with the routing so the projection this
-                # guild is read through agrees with the shapes built from it.
-                shows_member_names=bool(shows_names),
+                satisfied_claims=auth_context.satisfied_claims(),
+                session_mfa=auth_context.session_mfa(),
+                session_passkey=auth_context.session_passkey(),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.
@@ -209,5 +223,4 @@ async def gather_across_guilds(
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
         set_content_read_only_guild(None)
-        set_guild_shows_member_names(False)
     return results

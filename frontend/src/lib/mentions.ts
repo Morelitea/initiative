@@ -21,6 +21,18 @@ export const USER_TRIGGER = "@";
 export const ENTITY_TRIGGER = "#";
 
 /**
+ * The characters a typed name may not carry, mirroring the backend's
+ * ``RESERVED_SIGILS``. They are the two triggers above: a name is the thing a
+ * mention points AT, so it does not also get to spell one. Derived from the
+ * triggers rather than listed again, so the two sides say it once each.
+ */
+export const RESERVED_SIGILS: readonly string[] = [USER_TRIGGER, ENTITY_TRIGGER];
+
+/** Whether a typed name carries one, so a form can say so before it submits. */
+export const hasReservedSigil = (value: string): boolean =>
+  RESERVED_SIGILS.some((sigil) => value.includes(sigil));
+
+/**
  * What a `#` can reach: everything indexed except what people SAID about it.
  * A comment is not a thing you name — it is a remark on one, and the thing it
  * is on is what a reader wants.

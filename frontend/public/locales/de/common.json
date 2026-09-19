@@ -45,6 +45,8 @@
   "viewAll": "Alle anzeigen",
   "copyToClipboard": "In die Zwischenablage kopieren",
   "copied": "Kopiert!",
+  "copy": "Kopieren",
+  "copyUnavailable": "Kopieren nicht möglich — bitte manuell kopieren",
   "untitled": "Ohne Titel",
   "appName": "initiative",
   "send": "Senden",
@@ -54,6 +56,7 @@
   "previous": "Zurück",
   "rowsPerPage": "Zeilen pro Seite:",
   "pageOf": "Seite {{current}} von {{total}}",
+  "stepOf": "Schritt {{current}} von {{total}}",
   "select": "Auswählen",
   "exitSelection": "Auswahl beenden",
   "enableSelectionMode": "Auswahlmodus aktivieren",
@@ -186,5 +189,22 @@
     "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
   },
   "archiveError": "Das konnte nicht archiviert werden. Bitte versuche es erneut.",
-  "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut."
+  "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut.",
+  "markdownEditor": {
+    "toolbar": "Formatierung",
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "nothingToPreview": "Noch nichts zur Vorschau.",
+    "heading": "Überschrift",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "strikethrough": "Durchgestrichen",
+    "link": "Link",
+    "quote": "Zitat",
+    "code": "Code",
+    "bulletedList": "Aufzählung",
+    "numberedList": "Nummerierte Liste",
+    "taskList": "Aufgabenliste",
+    "more": "Weitere Formatierung"
+  }
 }

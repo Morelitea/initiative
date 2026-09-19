@@ -12,6 +12,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -19,7 +20,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_upload_user
+from app.api.deps import declines_this_credential, get_upload_user
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
@@ -38,8 +39,30 @@ from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
+from app.services.platform import security_rules
+from app.services.platform.users import SeatWouldBeEmptied
 
 logger = logging.getLogger(__name__)
+
+#: Stored types a served upload is rendered inline as. Raster pictures only:
+#: an ``<img>`` draws these and nothing about them is markup. Anything else —
+#: an SVG, a document file, a type nothing recognizes — is handed over as a
+#: download with scripts disabled.
+INLINE_UPLOAD_TYPES = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/tiff",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+    }
+)
+
+#: The same question for a row written before the type column existed: its
+#: stored name is the only thing that describes it.
+NAMED_AS_MARKUP = (".svg", ".html", ".htm")
 
 #: How long a browser may reuse a served upload before asking again.
 #:
@@ -93,6 +116,12 @@ async def lifespan(app: FastAPI):
     await reject_privileged_database_url()
     await check_pre_baseline_db()
     await run_migrations()
+    # The functions every guild policy defers to, from the module that owns
+    # them (app.db.authorization). Before the back-fill below, so a schema
+    # rendered in this same boot finds each one its policies name.
+    from app.db.authorization import ensure_authorization_functions
+
+    await ensure_authorization_functions()
     # Re-run the idempotent per-guild provisioning for every guild so any
     # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a
@@ -127,6 +156,21 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_search_operator_missing()
+    # Passkeys are bound to a named host reached over https, so a deployment
+    # addressed any other way is told once at boot rather than per refusal.
+    from app.services.auth import passkeys as passkey_service
+
+    site_refusal = passkey_service.site_refusal()
+    if site_refusal is not None:
+        logger.warning(
+            "APP_URL (%s) is %s, so passkey registration will be refused; "
+            "serve this deployment from a domain name over https to offer it.",
+            settings.APP_URL,
+            {
+                "ip_host": "an address rather than a domain name",
+                "no_host": "not a whole URL, so it names no host",
+            }.get(site_refusal, "plain http"),
+        )
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).
@@ -189,7 +233,7 @@ async def lifespan(app: FastAPI):
     try:
         await init_owner()
     except IntegrityError:
-        # Unique violation on the owner's email_hash: a concurrent replica won
+        # Unique violation on the owner's address: a concurrent replica won
         # the first-boot race and created the owner between our existence check
         # and commit.
         logger.info("first-owner bootstrap: created by a concurrent replica")
@@ -332,6 +376,10 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # First, while the engines are still up: a security rule runs after the
+        # row it reads has committed, so one cut off partway leaves a crossing
+        # recorded and no case raised.
+        await security_rules.drain()
         await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.
@@ -405,6 +453,24 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": safe_errors},
+    )
+
+
+@app.exception_handler(SeatWouldBeEmptied)
+async def seat_would_be_emptied_handler(
+    request: Request, exc: SeatWouldBeEmptied
+) -> JSONResponse:
+    """A removal that would leave a community without a superadmin.
+
+    Handled here rather than at each deletion route because the refusal is
+    raised from the membership drop, which every one of them goes through —
+    self-service deactivate and delete, and the operator's versions of both.
+    The communities are named by the eligibility call the dialog already
+    makes; this says why the action stopped.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN},
     )
 
 
@@ -585,14 +651,21 @@ async def serve_upload_file(
         )
         if grant is None:
             raise HTTPException(status_code=404)
-    else:
+
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    if membership is not None and guild.status == GuildStatus.suspended.value:
         # A suspended guild is unreadable to its members (mirrors the resolver
         # gate in deps._load_guild_context; this route resolves access inline).
         # The grant branch above deliberately skips the status — PAM overrides
         # suspension. read_only needs nothing here: serving a file is a read.
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
-        if guild.status == GuildStatus.suspended.value:
-            raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404)
+    # And the same resolver's question about the credential, which binds
+    # members and grantees alike. Asked once access is settled, so it is
+    # answered only to somebody who reaches the guild.
+    if declines_this_credential(guild):
+        raise HTTPException(
+            status_code=403, detail=GuildMessages.GUILD_API_KEYS_REFUSED
+        )
 
     # The admin login role has NO table grants on a guild schema, so SET ROLE
     # into the guild role (``set_rls_context``) before reading its ``uploads``
@@ -611,7 +684,7 @@ async def serve_upload_file(
     await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
-            text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
+            text("SELECT content_type FROM uploads WHERE filename = :fn LIMIT 1"),
             params={"fn": fname},
         )
     ).first()
@@ -634,13 +707,24 @@ async def serve_upload_file(
     # that window.
     headers: dict[str, str] = {
         "Cache-Control": f"private, max-age={UPLOAD_CACHE_SECONDS}, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
     }
-    if filename.lower().endswith((".svg", ".html", ".htm")):
+    # What the file is, as the server recorded it when it was written — so a
+    # local blob and an S3 one describe themselves the same way, rather than
+    # each backend answering from what it happens to have. A row from before
+    # the column existed carries nothing; its name is read instead, and the
+    # backend keeps naming the type as it always has.
+    stored_type = hit[0]
+    inline = (
+        stored_type in INLINE_UPLOAD_TYPES
+        if stored_type is not None
+        else not fname.lower().endswith(NAMED_AS_MARKUP)
+    )
+    if not inline:
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
-        headers["X-Content-Type-Options"] = "nosniff"
     logger.info("upload_served filename=%s user=%d", filename, current_user.id)
-    return build_upload_response(blob, headers=headers)
+    return build_upload_response(blob, media_type=stored_type, headers=headers)
 
 
 app.include_router(api_router, prefix=API_V1_STR)
@@ -762,6 +846,26 @@ def custom_openapi() -> dict:
 # registered later is ``include_in_schema=False``, so the spec is already complete here.
 app.openapi = custom_openapi  # ty: ignore[invalid-assignment]
 
+
+class McpBarePathMiddleware:
+    """Serve ``/api/v1/mcp`` as ``/api/v1/mcp/``.
+
+    A Starlette ``Mount`` matches only the trailing-slash spelling, and MCP
+    clients differ over which one they send. Rewriting the path in place serves
+    both from the one mount, with nothing for the client to follow. Plain ASGI
+    rather than ``BaseHTTPMiddleware``, so the streamed body passes through.
+    """
+
+    def __init__(self, app: ASGIApp, prefix: str) -> None:
+        self.app = app
+        self.prefix = prefix
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == self.prefix:
+            scope = {**scope, "path": f"{self.prefix}/"}
+        await self.app(scope, receive, send)
+
+
 if settings.ENABLE_MCP:
     # Build the route-backed MCP server from the fully-routed app and mount it at
     # /api/v1/mcp (before the SPA catch-all below, so it wins that path). Build
@@ -774,6 +878,7 @@ if settings.ENABLE_MCP:
 
     _mcp_app = build_mcp_server(app).http_app(path="/")
     app.mount(f"{API_V1_STR}/mcp", _mcp_app)
+    app.add_middleware(McpBarePathMiddleware, prefix=f"{API_V1_STR}/mcp")
     app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
 
 

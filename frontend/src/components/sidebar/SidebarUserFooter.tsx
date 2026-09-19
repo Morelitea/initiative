@@ -3,7 +3,6 @@ import {
   BadgeInfo,
   ChevronLeft,
   ChevronRight,
-  CircleQuestionMark,
   CircleUserRound,
   LogOut,
   Settings,
@@ -18,6 +17,7 @@ import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { ThoughtBubble } from "@/components/icons/ThoughtBubble";
 import { AppearanceMenuItems, ThemeIcon } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { AskForHelpButton } from "@/components/support/AskForHelpButton";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ export interface SidebarUserFooterProps {
   /** The signed-in account, or null while it is still being fetched. */
   user: UserRead | null;
   canManagePlatformConfig: boolean;
-  canAccessAdminDashboard: boolean;
+  canAccessOperatorDashboard: boolean;
   currentVersion: string;
   latestVersion: string | null;
   hasUpdate: boolean;
@@ -63,7 +63,7 @@ export interface SidebarUserFooterProps {
 export const SidebarUserFooter = ({
   user,
   canManagePlatformConfig,
-  canAccessAdminDashboard,
+  canAccessOperatorDashboard,
   currentVersion,
   latestVersion,
   hasUpdate,
@@ -331,13 +331,13 @@ export const SidebarUserFooter = ({
                           are somebody's other hat, not another thing about
                           their account. The rule only appears for the people
                           who have them. */}
-                      {(canAccessAdminDashboard || canManagePlatformConfig) && (
+                      {(canAccessOperatorDashboard || canManagePlatformConfig) && (
                         <>
                           <DropdownMenuSeparator />
-                          {canAccessAdminDashboard && (
+                          {canAccessOperatorDashboard && (
                             <DropdownMenuItem asChild>
-                              <Link to="/settings/admin">
-                                <ShieldCheck className="h-4 w-4" /> {t("adminDashboard")}
+                              <Link to="/settings/operator">
+                                <ShieldCheck className="h-4 w-4" /> {t("operatorDashboard")}
                               </Link>
                             </DropdownMenuItem>
                           )}
@@ -423,22 +423,11 @@ export const SidebarUserFooter = ({
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <a
-                    href="https://morelitea.github.io/initiative/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={t("viewDocumentation")}
-                  >
-                    <CircleQuestionMark className="h-4 w-4" />
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{t("viewDocumentation")}</p>
-                </TooltipContent>
-              </Tooltip>
+              {/* The question mark was the documentation link and still leaves
+                  for the docs where nobody takes help requests — it just leads
+                  with the FAQ now, and becomes the form itself in a community
+                  that has switched support on. */}
+              <AskForHelpButton />
             </div>
           </div>
         </div>

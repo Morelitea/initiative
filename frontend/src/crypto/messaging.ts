@@ -38,15 +38,21 @@ import {
   historyProgress,
   lastRead,
   messageLog,
+  type PeerKeyChange,
+  peerDeviceKeys,
+  peerKeyChanges,
   pendingHistoryRequest,
+  type ReactionSides,
   type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
+  sessionAuthor,
   sessionForDevice,
   sessionOrigin,
   sessionPickle,
   sessionsInConversation,
   deviceId as storedDeviceId,
+  threadCatchUp,
 } from "./store";
 
 /** How many prekeys a device keeps published. */
@@ -71,11 +77,29 @@ export class RecipientHasNoDeviceError extends Error {
   }
 }
 
+/**
+ * Every device the recipient has is being withheld pending a check.
+ *
+ * Separate from having no device at all, because the two need different
+ * sentences and different next actions. "They have not set up encrypted
+ * messages" is about the other person and there is nothing the reader can do;
+ * this one is about a check the reader has not finished, on the notice beside
+ * the composer, and it clears as soon as they do.
+ */
+export class RecipientDevicesUnverifiedError extends Error {
+  constructor() {
+    super("every device for that account is waiting on a safety-code check");
+    this.name = "RecipientDevicesUnverifiedError";
+  }
+}
+
 /** One destination for a message: a device, and whose it is. */
 interface Destination {
   id: string;
   identityKey: string;
   origin: SessionOrigin;
+  /** Whose device this is. Absent on this account's own. */
+  userId?: number;
 }
 
 /**
@@ -264,11 +288,17 @@ export async function unreadIn(conversationId: string): Promise<number> {
   return log.slice(read + 1).filter((message) => !message.mine).length;
 }
 
-/** This thread has been looked at, up to the last message the other side sent. */
+/**
+ * This thread has been looked at, up to the last message the other side sent.
+ *
+ * Answers how many messages this look actually read, which is zero for the
+ * common case of a thread that was already current. The caller uses it to
+ * decide whether there is anything to report.
+ */
 export async function markRead(
   conversationId: string,
-  { otherUserId, receipts = true }: { otherUserId?: number; receipts?: boolean } = {}
-): Promise<void> {
+  { memberIds, receipts = true }: { memberIds?: number[]; receipts?: boolean } = {}
+): Promise<number> {
   const [log, seen] = await Promise.all([
     messageLog.get(conversationId),
     lastRead.get(conversationId),
@@ -278,17 +308,18 @@ export async function markRead(
   // the marker is touched would say "read" again on every keystroke that
   // lengthened it, for messages answered an hour ago.
   const newly = log.slice(previous + 1).filter((message) => !message.mine);
-  if (newly.length === 0) return;
+  if (newly.length === 0) return 0;
 
   await lastRead.set(conversationId, newly[newly.length - 1].id);
-  if (receipts && otherUserId !== undefined) {
+  if (receipts && memberIds !== undefined) {
     await acknowledge(
       conversationId,
-      otherUserId,
+      memberIds,
       newly.map((message) => message.id),
       "read"
     );
   }
+  return newly.length;
 }
 
 /**
@@ -328,6 +359,10 @@ async function openOutboundSession(
   const session = await ratchet.createOutboundSession(account, destination.identityKey, oneTimeKey);
   await sessionPickle.set(session.session_id, session.session_pickle);
   await sessionOrigin.set(session.session_id, destination.origin);
+  // Whose device this session is with, for when they act on a message later.
+  if (destination.userId !== undefined) {
+    await sessionAuthor.set(session.session_id, destination.userId);
+  }
   await sessionForDevice.set(destination.id, session.session_id);
   await sessionsInConversation.add(conversationId, session.session_id);
   await allSessions.add(session.session_id);
@@ -343,19 +378,33 @@ async function openOutboundSession(
  */
 async function claimKeysFor(
   missing: Destination[],
-  otherUserId: number,
   ownDeviceId: string
 ): Promise<Map<string, string>> {
   const keys = new Map<string, string>();
   const claims = [];
-  if (missing.some((destination) => destination.origin === "other")) {
-    claims.push(claimSessionKeys(otherUserId));
+  // One claim per account that still needs a session opened with it, rather
+  // than one per device: the endpoint answers for the whole account, and asking
+  // twice would spend two of their prekeys where one covers it.
+  const accounts = new Set(
+    missing
+      .filter((destination) => destination.origin === "other")
+      .map((destination) => destination.userId)
+      .filter((userId): userId is number => userId !== undefined)
+  );
+  for (const userId of accounts) {
+    claims.push(claimSessionKeys(userId));
   }
   if (missing.some((destination) => destination.origin === "self")) {
     claims.push(claimOwnSessionKeys({ device_id: ownDeviceId }));
   }
-  for (const claim of await Promise.all(claims)) {
-    for (const device of claim.devices) {
+  // Settled rather than all: a claim can be refused after the directory was
+  // read -- somebody's permission changes in between -- and one refusal must
+  // not take the members whose keys did come back with it. A destination whose
+  // key is missing is skipped further down, which is what a member with nothing
+  // to open a session on already gets.
+  for (const settled of await Promise.allSettled(claims)) {
+    if (settled.status !== "fulfilled") continue;
+    for (const device of settled.value.devices) {
       if (device.one_time_key) keys.set(device.device_id, device.one_time_key.public_key);
     }
   }
@@ -393,7 +442,20 @@ type Envelope =
       conversationId: string;
       messages: StoredMessage[];
     }
-  | { v: 1; kind: "history-declined"; requestId: string };
+  | { v: 1; kind: "history-declined"; requestId: string }
+  // Between the people on one group, and only inside the conversation it is
+  // about. Somebody who answers an invitation an hour after it was sent has
+  // missed whatever was said while they were deciding; nothing was kept for
+  // them, so a member who was there sends it.
+  | { v: 1; kind: "thread-history-request"; requestId: string }
+  | {
+      v: 1;
+      kind: "thread-history";
+      requestId: string;
+      seq: number;
+      last: boolean;
+      messages: StoredMessage[];
+    };
 
 /** A name for one message, known to both sides and to nobody else. */
 const newMessageId = (): string =>
@@ -411,6 +473,8 @@ const KNOWN_KINDS: ReadonlySet<string> = new Set<Envelope["kind"]>([
   "history-request",
   "history",
   "history-declined",
+  "thread-history-request",
+  "thread-history",
 ]);
 
 /** One entry of a thread, with the two fields everything else is hung off. */
@@ -537,6 +601,27 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
   if (parsed.kind === "history-declined" && typeof parsed.requestId === "string") {
     return { v: 1, kind: "history-declined", requestId: parsed.requestId };
   }
+  if (parsed.kind === "thread-history-request" && typeof parsed.requestId === "string") {
+    return { v: 1, kind: "thread-history-request", requestId: parsed.requestId };
+  }
+  if (
+    parsed.kind === "thread-history" &&
+    typeof parsed.requestId === "string" &&
+    typeof parsed.seq === "number" &&
+    Array.isArray(parsed.messages)
+  ) {
+    return {
+      v: 1,
+      kind: "thread-history",
+      requestId: parsed.requestId,
+      seq: parsed.seq,
+      last: parsed.last === true,
+      // Checked entry by entry, to the same standard as every other kind: one
+      // missing the fields a thread is read by would be filed under
+      // `undefined`, where the next like it looks like the same message.
+      messages: parsed.messages.filter(isStoredMessage),
+    };
+  }
   // A kind this version does not know is from a later one, and is not for it to
   // guess at: printing the protocol into somebody's thread is the one outcome
   // worse than ignoring it. A kind it *does* know, arriving half-written, is a
@@ -549,29 +634,109 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
  * Encrypt one envelope for every device that should see it and hand the
  * ciphertext to the server.
  *
- * Returns whether it reached the other party at all -- as opposed to only this
+ * One copy per destination device, which is what carries a group: there is no
+ * group key, so a roster of four costs four times what a pair costs and every
+ * member's copy travels on the pairwise ratchet that was already there.
+ *
+ * Returns whether it reached anybody else at all -- as opposed to only this
  * account's own devices, which is what "nobody there to read it" looks like
- * from here.
+ * from here. Anybody, not everybody: one member with no devices published must
+ * not stop the rest hearing it.
  */
+/**
+ * Read the other party's devices, and notice when one's key has changed.
+ *
+ * Every path that addresses another person reads the directory, so this is
+ * where a key that differs from the one last used is noticed.
+ *
+ * A changed or newly introduced device is withheld from this send. Otherwise
+ * the warning would arrive only after private text had already been encrypted
+ * to the unverified key. Unchanged devices can still receive the message.
+ */
+async function readPeerDirectory(otherUserId: number) {
+  const theirs = await readDirectory(otherUserId);
+  const seen = await Promise.all(
+    theirs.devices.map(async (device) => ({
+      deviceId: device.device_id,
+      fingerprint: device.fingerprint_key,
+      identityKey: device.identity_key,
+      previouslyAddressed: (await sessionForDevice.get(device.device_id)) !== undefined,
+    }))
+  );
+  const changes = await peerDeviceKeys.reconcile(otherUserId, seen);
+  if (changes.length > 0) {
+    // The hold is already recorded -- `reconcile` writes it in the same
+    // transaction that records the key, so no send can see one without the
+    // other. Not repeated here: two places writing the same fact is how they
+    // come to disagree.
+    //
+    // This is the rest of it. The session in hand was negotiated with the key
+    // that has just been replaced, so the far end cannot read anything sent
+    // through it. Drop the pointer and the next send opens a fresh one against
+    // the key the directory now returns. Safe to do after the hold rather than
+    // with it: a held device is not addressable, so nothing reaches for the
+    // session in between.
+    await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
+  }
+
+  // Keep the key out of every retry, not only the send that first noticed it.
+  // Acknowledgement means the person has completed the out-of-band check and
+  // deliberately allows future messages to use that device.
+  const unverified = new Set(
+    (await peerKeyChanges.all())
+      .filter((change) => change.userId === otherUserId)
+      .map((change) => change.deviceId)
+  );
+  const addressable = theirs.devices.filter((device) => !unverified.has(device.device_id));
+  return {
+    ...theirs,
+    devices: addressable,
+    // How many were held back, so a send left with nothing to address can say
+    // which of the two reasons it was.
+    withheld: theirs.devices.length - addressable.length,
+  };
+}
+
 async function sendEnvelope(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope,
   { toSelf, silent = false }: { toSelf: boolean; silent?: boolean }
 ): Promise<boolean> {
   const { id: mine, devices: ourDevices } = await ensureDeviceContext();
 
   // The directory rather than a claim: reading it spends nothing, and most
-  // messages go to devices this one already has a session with.
-  const theirs = await readDirectory(otherUserId);
-  if (theirs.devices.length === 0) return false;
+  // messages go to devices this one already has a session with. One member
+  // being unreadable is not the others being unreadable, so each is asked for
+  // separately and a failure only removes that member.
+  const directories = await Promise.all(
+    memberIds.map(async (userId) => {
+      try {
+        const directory = await readPeerDirectory(userId);
+        return { userId, devices: directory.devices, withheld: directory.withheld };
+      } catch {
+        return { userId, devices: [], withheld: 0 };
+      }
+    })
+  );
+  if (directories.every(({ devices }) => devices.length === 0)) {
+    // Withholding is this client's own doing and is undone by acknowledging the
+    // notice, so it is not the same outcome as an account with no device.
+    if (directories.some(({ withheld }) => withheld > 0)) {
+      throw new RecipientDevicesUnverifiedError();
+    }
+    return false;
+  }
 
   const destinations: Destination[] = [
-    ...theirs.devices.map((device) => ({
-      id: device.device_id,
-      identityKey: device.identity_key,
-      origin: "other" as const,
-    })),
+    ...directories.flatMap(({ userId, devices }) =>
+      devices.map((device) => ({
+        id: device.device_id,
+        identityKey: device.identity_key,
+        origin: "other" as const,
+        userId,
+      }))
+    ),
     // A receipt is about their message and is for them, so it does not go to
     // this account's own tabs; an outgoing message does, or their copy of the
     // thread would be missing this side of it.
@@ -597,7 +762,7 @@ async function sendEnvelope(
   }
   const missing = destinations.filter((destination) => !held.get(destination.id));
   const claimed =
-    missing.length > 0 ? await claimKeysFor(missing, otherUserId, mine) : new Map<string, string>();
+    missing.length > 0 ? await claimKeysFor(missing, mine) : new Map<string, string>();
 
   const messages = [];
   let reachedThem = false;
@@ -625,9 +790,9 @@ async function sendEnvelope(
     });
   }
 
-  // Nothing goes out at all if it could not reach them: an envelope this
-  // account's own tabs hold and the other party never got would put a message
-  // in their thread that was never said to anybody.
+  // Nothing goes out at all if it reached nobody: an envelope this account's
+  // own tabs hold and nobody else ever got would put a message in their thread
+  // that was never said to anybody.
   if (!reachedThem) return false;
 
   await sendMessages(conversationId, { messages, silent });
@@ -644,7 +809,7 @@ async function sendEnvelope(
  */
 export async function sendText(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   body: string,
   { replyTo }: { replyTo?: string } = {}
 ): Promise<StoredMessage> {
@@ -659,7 +824,7 @@ export async function sendText(
   // Their devices were all there was to address and none could be opened.
   // Nothing is sent, here or later, so the thread should not show a message as
   // though something had been.
-  if (!(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true }))) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 
@@ -690,12 +855,10 @@ export async function sendText(
  */
 async function sendControl(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   envelope: Envelope
 ): Promise<void> {
-  if (
-    !(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true }))
-  ) {
+  if (!(await sendEnvelope(conversationId, memberIds, envelope, { toSelf: true, silent: true }))) {
     throw new RecipientHasNoDeviceError();
   }
 }
@@ -722,13 +885,13 @@ async function actOn(
  */
 export async function sendReaction(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   emoji: string,
   on: boolean
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: false }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "reaction", targetId, emoji, on });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "reaction", targetId, emoji, on });
   return messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
 }
 
@@ -744,7 +907,7 @@ export async function sendReaction(
  */
 export async function sendEdit(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string,
   body: string
 ): Promise<boolean> {
@@ -752,18 +915,18 @@ export async function sendEdit(
   if (!entry || entry.body === body) return false;
   const at = new Date().toISOString();
   const rev = (entry.rev ?? 0) + 1;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body, rev });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "edit", targetId, at, body, rev });
   return messageLog.applyEdit(conversationId, targetId, body, at, "mine", rev);
 }
 
 /** Take one of your own messages back. */
 export async function sendRemove(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   targetId: string
 ): Promise<boolean> {
   if (!(await actOn(conversationId, targetId, { own: true }))) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "remove", targetId });
+  await sendControl(conversationId, memberIds, { v: 1, kind: "remove", targetId });
   return messageLog.applyRemove(conversationId, targetId, "mine", new Date().toISOString());
 }
 
@@ -776,7 +939,7 @@ export async function sendRemove(
  */
 export async function acknowledge(
   conversationId: string,
-  otherUserId: number,
+  memberIds: number[],
   ids: string[],
   state: ReceiptState
 ): Promise<void> {
@@ -784,7 +947,7 @@ export async function acknowledge(
   try {
     await sendEnvelope(
       conversationId,
-      otherUserId,
+      memberIds,
       { v: 1, kind: "receipt", state, ids },
       // Nothing to announce: a receipt says a client collected or read
       // something, which is not a person saying anything to anybody.
@@ -821,13 +984,27 @@ async function identitiesForPreKeys(
   for (const conversation of conversations.conversations) {
     if (!conversationIds.has(conversation.id)) continue;
     try {
-      const theirs = await readDirectory(conversation.other_user_id);
+      const roster = conversation.member_ids?.length
+        ? conversation.member_ids
+        : [conversation.other_user_id];
+      const directories = await Promise.all(
+        roster.map(async (userId) => {
+          try {
+            return { userId, devices: (await readPeerDirectory(userId)).devices };
+          } catch {
+            return { userId, devices: [] };
+          }
+        })
+      );
       candidates.set(conversation.id, [
-        ...theirs.devices.map((device) => ({
-          id: device.device_id,
-          identityKey: device.identity_key,
-          origin: "other" as const,
-        })),
+        ...directories.flatMap(({ userId, devices }) =>
+          devices.map((device) => ({
+            id: device.device_id,
+            identityKey: device.identity_key,
+            origin: "other" as const,
+            userId,
+          }))
+        ),
         ...ours,
       ]);
     } catch {
@@ -1048,6 +1225,27 @@ export interface HistoryAskWaiting {
 }
 
 /**
+ * Device keys that changed under a conversation this browser was already in.
+ *
+ * Newest first: if several have accrued, the one that just happened is the one
+ * the person is reacting to.
+ */
+export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
+  const changes = await peerKeyChanges.all();
+  return [...changes].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/**
+ * The person has checked a changed device key and is carrying on.
+ *
+ * Until this acknowledgement, sends withhold that device. The new key remains
+ * remembered so a retry cannot disguise it as a first sighting.
+ */
+export async function acknowledgePeerKeyChange(deviceId: string): Promise<void> {
+  await peerKeyChanges.acknowledge(deviceId);
+}
+
+/**
  * This device's own code, while it is waiting to be sent its history.
  *
  * What the screen being asked about shows, so the person holding both has two
@@ -1220,6 +1418,161 @@ export async function serveHistory(): Promise<void> {
   await pendingHistoryRequest.clear();
 }
 
+/**
+ * How long an unanswered ask waits before the next member on the roster is
+ * asked instead.
+ *
+ * A member has to have a client open to answer at all, so the first one asked
+ * is quite often not the one who answers. Long enough that somebody who is
+ * there is not overtaken while their transfer is still running, short enough
+ * that a thread is not held up for the evening by the first name on a list.
+ */
+const CATCH_UP_RETRY_MS = 60 * 1000;
+
+/**
+ * Ask to be sent what was said on this conversation before now.
+ *
+ * Recorded rather than sent: the ask goes out on the next collection, which is
+ * also what retries it. Only a group ever wants this -- a pair does not exist
+ * until both sides have agreed, so there is never anything said before you
+ * were there.
+ */
+export async function wantThreadHistory(conversationId: string): Promise<void> {
+  // An empty time reads as never asked, so the next collection asks at once.
+  await threadCatchUp.set(conversationId, { requestId: newMessageId(), asked: 0, at: "" });
+}
+
+/**
+ * Send the outstanding ask for each conversation waiting to be caught up.
+ *
+ * One member per round, in the order the roster comes in. Asking everybody at
+ * once would land the whole thread on this device once per member, and the
+ * copies would be identical. A member who cannot be written to counts as
+ * asked: a client that cannot be reached is a client that cannot answer.
+ *
+ * The round ends when the roster is exhausted, so a conversation whose members
+ * are all away is given up on rather than asked forever.
+ */
+async function runThreadCatchUps(): Promise<void> {
+  const open = await threadCatchUp.all();
+  const wanted = Object.keys(open);
+  if (wanted.length === 0) return;
+  const conversations = await listConversations();
+  const now = Date.now();
+  for (const conversationId of wanted) {
+    const state = open[conversationId];
+    const asked = Date.parse(state.at);
+    if (!Number.isNaN(asked) && now - asked < CATCH_UP_RETRY_MS) continue;
+    const conversation = conversations.conversations.find((row) => row.id === conversationId);
+    const roster = conversation?.member_ids ?? [];
+    if (state.asked >= roster.length) {
+      // Everybody has been asked, or there is nobody left to ask.
+      await threadCatchUp.clear(conversationId);
+      continue;
+    }
+    try {
+      await sendEnvelope(
+        conversationId,
+        [roster[state.asked]],
+        { v: 1, kind: "thread-history-request", requestId: state.requestId },
+        // Nothing here is news, and nothing about it is theirs to be told.
+        { toSelf: false, silent: true }
+      );
+    } catch {
+      // Unreachable is an answer of sorts: the next round asks somebody else.
+    }
+    await threadCatchUp.set(conversationId, {
+      ...state,
+      asked: state.asked + 1,
+      at: new Date().toISOString(),
+    });
+  }
+}
+
+/**
+ * Reactions as the person receiving them holds them.
+ *
+ * A log records which of two sides put each emoji there, so this account's own
+ * are the other side's once they are somebody else's.
+ */
+const theirSideOf = (reactions: Record<string, ReactionSides>): Record<string, ReactionSides> =>
+  Object.fromEntries(
+    Object.entries(reactions).map(([emoji, sides]) => [
+      emoji,
+      { mine: false, theirs: sides.mine || sides.theirs },
+    ])
+  );
+
+/**
+ * One entry of this device's log, as the person being sent it will read it.
+ *
+ * A log is written from its holder's own side, so handing one over unchanged
+ * would file this account's words as the recipient's own. Its receipts go with
+ * it: they are this account's record of where its own copies got to, and mean
+ * nothing on somebody else's.
+ *
+ * This account's own messages carry no author -- a log does not name the
+ * person keeping it -- and none is added here. The far end knows who sent the
+ * transfer, which is a better answer than this device asking who it is.
+ */
+const asSeenByThem = (entry: StoredMessage): StoredMessage => {
+  const carried: StoredMessage = { ...entry };
+  if (entry.reactions) carried.reactions = theirSideOf(entry.reactions);
+  if (!entry.mine) return carried;
+  carried.receipt = undefined;
+  carried.author = undefined;
+  carried.mine = false;
+  return carried;
+};
+
+/**
+ * Send a member what was said on this conversation before they answered.
+ *
+ * Nobody approves this. The asker is on the conversation -- the server will
+ * not carry anything into it otherwise -- and a group's roster is fixed, so
+ * every message being sent was written to a roster they were already on.
+ *
+ * Newest first, so a transfer that stops leaves the oldest behind rather than
+ * a random half, and terminated by an empty chunk that says so.
+ */
+async function serveThreadHistory(
+  conversationId: string,
+  requestId: string,
+  toUserId: number
+): Promise<void> {
+  const messages = await messageLog.get(conversationId);
+  const chunks: StoredMessage[][] = [];
+  for (let index = messages.length; index > 0; index -= HISTORY_CHUNK) {
+    chunks.push(messages.slice(Math.max(0, index - HISTORY_CHUNK), index));
+  }
+  let seq = 0;
+  for (const chunk of chunks) {
+    seq += 1;
+    const sent = await sendEnvelope(
+      conversationId,
+      [toUserId],
+      {
+        v: 1,
+        kind: "thread-history",
+        requestId,
+        seq,
+        last: false,
+        messages: chunk.map(asSeenByThem),
+      },
+      { toSelf: false, silent: true }
+    );
+    // Nothing more will get through this round. What did is already waiting
+    // for them, and their next ask reaches somebody else.
+    if (!sent) return;
+  }
+  await sendEnvelope(
+    conversationId,
+    [toUserId],
+    { v: 1, kind: "thread-history", requestId, seq: seq + 1, last: true, messages: [] },
+    { toSelf: false, silent: true }
+  );
+}
+
 /** Serve an approved request, without letting a failure stop a collection. */
 async function serveApprovedHistory(): Promise<void> {
   try {
@@ -1242,6 +1595,13 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   // it has nothing.
   try {
     await requestHistory();
+  } catch {
+    // The next collection asks again.
+  }
+  // Same reason, for the other kind of history: a conversation somebody has
+  // just joined has nothing waiting for it either, and asking is how it fills.
+  try {
+    await runThreadCatchUps();
   } catch {
     // The next collection asks again.
   }
@@ -1272,11 +1632,14 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   const collected: number[] = [];
   /** Their messages that reached this device, per conversation, to report. */
   const landed = new Map<string, string[]>();
+  /** Members who have just joined a group and asked for its thread. */
+  const asking: { conversationId: string; requestId: string; userId: number }[] = [];
 
   for (const item of queue.items) {
     try {
       let plaintext: string;
       let mine: boolean;
+      let author: number | undefined;
       // Every message is offered to the sessions this device already holds
       // before any new one is opened -- pre-key messages included. A session
       // goes on marking what it sends as pre-key until it hears back on it, so
@@ -1289,6 +1652,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await sessionsInConversation.add(item.conversation_id, read.sessionId);
         plaintext = read.plaintext;
         mine = (await sessionOrigin.get(read.sessionId)) === "self";
+        author = await sessionAuthor.get(read.sessionId);
       } else if (item.message_type === 0) {
         // Nothing held can read it, so it opens a conversation rather than
         // continuing one. Opening an inbound session spends a prekey out of the
@@ -1304,7 +1668,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
               );
               return {
                 next: session.account_pickle,
-                value: { session, origin: candidate.origin, device: candidate.id },
+                value: {
+                  session,
+                  origin: candidate.origin,
+                  device: candidate.id,
+                  author: candidate.userId,
+                },
               };
             } catch {
               // Not this device. Try the next.
@@ -1317,6 +1686,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // Which end a session belongs to is knowable now and never again: an
         // ordinary message arriving on it later names no sender.
         await sessionOrigin.set(opened.session.session_id, opened.origin);
+        // And whose it is. "Their side" is one person in a pair and several in
+        // a group, so which side an envelope arrived on stops being enough to
+        // say who sent it.
+        if (opened.author !== undefined) {
+          await sessionAuthor.set(opened.session.session_id, opened.author);
+        }
         // Which device it is with, too -- and that is what the reply looks up.
         // Without it an answer opens a second session with somebody this device
         // is already talking to, spends another of their prekeys to do it, and
@@ -1329,6 +1704,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         await allSessions.add(opened.session.session_id);
         plaintext = opened.session.plaintext;
         mine = opened.origin === "self";
+        author = opened.author;
       } else {
         continue;
       }
@@ -1340,10 +1716,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
-      // Acting on a message already said rather than saying one. Which side
-      // an envelope arrived on is the whole of the authorization: one that
-      // came over this account's own session is this account acting from
-      // another tab, and one over theirs is them acting on their own message.
+      // Acting on a message already said rather than saying one. The side it
+      // arrived on says whether this is the account's own other tab or somebody
+      // else; on a roster that is not enough on its own, because an edit or a
+      // removal is a claim about a message's author and "somebody else" is
+      // several people. So the session's account goes with it, and the log
+      // refuses one that does not match the author it is acting on.
       if (envelope.kind === "reaction" || envelope.kind === "edit" || envelope.kind === "remove") {
         const from = mine ? "mine" : "theirs";
         const moved =
@@ -1362,13 +1740,15 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
                   envelope.body,
                   envelope.at || item.created_at,
                   from,
-                  envelope.rev
+                  envelope.rev,
+                  author
                 )
               : await messageLog.applyRemove(
                   item.conversation_id,
                   envelope.targetId,
                   from,
-                  item.created_at
+                  item.created_at,
+                  author
                 );
         if (moved) touched.add(item.conversation_id);
         collected.push(item.id);
@@ -1404,6 +1784,49 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
+      // Between the people on one group, inside the conversation it is about:
+      // somebody who has just answered asking for what was said before they
+      // did, and the answer. Never on this account's own sessions -- a device
+      // of its own has its own kind of transfer, which is the one above.
+      if (envelope.kind === "thread-history-request" || envelope.kind === "thread-history") {
+        if (!mine) {
+          if (envelope.kind === "thread-history-request") {
+            // Served after the queue is drained rather than in the middle of
+            // it, so a transfer does not hold up the rest of the collection.
+            // Without a session author there is nobody to answer: the ask
+            // arrived on a session opened before this device recorded who is
+            // behind one.
+            if (author !== undefined) {
+              asking.push({
+                conversationId: item.conversation_id,
+                requestId: envelope.requestId,
+                userId: author,
+              });
+            }
+          } else {
+            const wanted = await threadCatchUp.get(item.conversation_id);
+            // Matched to the ask this device made, so what arrives is what it
+            // went looking for.
+            if (wanted?.requestId === envelope.requestId) {
+              // An entry with no author is one the sender wrote: a log does not
+              // name the person keeping it. The session says which account
+              // that is, which is who the thread draws those messages against.
+              const said = envelope.messages.map((message) =>
+                message.author === undefined && author !== undefined
+                  ? { ...message, author }
+                  : message
+              );
+              if ((await messageLog.merge(item.conversation_id, said)) > 0) {
+                touched.add(item.conversation_id);
+              }
+              if (envelope.last) await threadCatchUp.clear(item.conversation_id);
+            }
+          }
+        }
+        collected.push(item.id);
+        continue;
+      }
+
       if (envelope.kind === "receipt") {
         // Not a message: news about ones already sent. Their own tab reporting
         // is the sender's business, not this thread's, so a receipt that moved
@@ -1425,6 +1848,9 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         // A message that arrived on one of this account's own sessions is the
         // sender's own outbox catching up, and belongs on the sender's side.
         mine,
+        // Who said it, so an edit or a removal can be held to the person whose
+        // message it is rather than to the side it came from.
+        ...(author !== undefined ? { author } : {}),
       });
       // Only theirs is worth reporting: this account already knows when it sent
       // its own, and a receipt addressed at yourself tells nobody anything.
@@ -1449,6 +1875,19 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   // served in it rather than a collection later.
   await serveApprovedHistory();
 
+  // The same, for a member who has just joined a group. One transfer each, so
+  // a second ask from the same person in the same batch is one answer.
+  const answered = new Set<string>();
+  for (const ask of asking) {
+    if (answered.has(ask.requestId)) continue;
+    answered.add(ask.requestId);
+    try {
+      await serveThreadHistory(ask.conversationId, ask.requestId, ask.userId);
+    } catch {
+      // Their next ask reaches somebody else.
+    }
+  }
+
   // After the acknowledgement, and never in its way: a receipt is a courtesy
   // and the queue row it is about is already safely on this device.
   if (receipts && landed.size > 0) {
@@ -1456,7 +1895,10 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
     for (const conversation of conversations.conversations) {
       const ids = landed.get(conversation.id);
       if (ids) {
-        await acknowledge(conversation.id, conversation.other_user_id, ids, "delivered");
+        const roster = conversation.member_ids?.length
+          ? conversation.member_ids
+          : [conversation.other_user_id];
+        await acknowledge(conversation.id, roster, ids, "delivered");
       }
     }
   }

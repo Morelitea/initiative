@@ -4,104 +4,161 @@ icon: lucide/key-square
 
 # Single sign-on (OIDC)
 
-Single sign-on (SSO) lets people sign in to Initiative with an account they already have — from a provider like Microsoft Entra ID, Google, Okta, Keycloak, or Authentik. Initiative supports the **OpenID Connect (OIDC)** standard. You configure it from **Settings → Platform → Auth** as the [owner](platform-roles.md).
+Single sign-on lets people into Initiative with an account they already have — the work one, a Google one, the passkey thing you run on a box under the stairs. Initiative speaks **OpenID Connect**, which nearly everything speaks, and you set it up in **Settings → Platform → Authentication** as the [owner](platform-roles.md).
 
-## Why use it
+You can add as many providers as you want. Each becomes a button on the sign-in page, and whichever button somebody uses, they land in the same one account.
 
-- People don't manage a separate Initiative password.
-- Your existing password policy, multi-factor authentication, and account de-provisioning apply automatically.
-- You can **map groups from your provider** to Initiative communities and roles, so the right people land in the right place on first sign-in.
+!!! info "Set APP_URL before you start"
+    Signing in works by sending the browser away and catching it on the way back, so Initiative has to know its own public address. Set **`APP_URL`** (see [Configuration](configuration.md)) first, or the callback URLs you copy out of here will point at somewhere that isn't you.
 
-!!! info "Make sure APP_URL is set and reachable"
-    OIDC relies on redirecting back to Initiative at known URLs. Set **`APP_URL`** to your real public address (see [Configuration](configuration.md)) before configuring SSO, or the callback URLs will be wrong.
+## Adding a provider
 
-## Setting it up
+**Add provider** walks you through it, because this is a conversation between two screens: a couple of values come from your provider, and one has to go back the other way.
 
-In **Settings → Platform → Auth**, you'll provide:
+**1. Which one.** Pick it from the grid. Ten of them are here by name; **OpenID Connect** at the end is for anything else that speaks it.
+
+**2. Where it lives.** This is the field people get wrong, so it's the field the wizard is strictest about. Pick Keycloak and it asks for your address and your realm, separately, and builds the issuer out of them — nobody should be editing the middle of a URL to insert the word `main`. Then hit **Verify**.
+
+Verify actually goes and asks. If something answers and agrees it's the issuer you named, you get a tick and a short list of what it found. If nothing answers, or the thing that answers is for a different issuer, you find out here rather than three days later when somebody tries to sign in. You can't move on until it's happy — which is the point.
+
+**3. Credentials.** The **Callback URL** is at the top, with a copy button, because it's the one value that travels from here to there. Register it at your provider first; it will refuse the sign-in until that exact address is on its list. Then paste back the **Client ID** and **Client secret** it gives you. Leave the secret blank for a public, PKCE-only client.
+
+**4. How it behaves.**
 
 | Field | What to enter |
 |---|---|
-| **Enabled** | Turn SSO on. |
-| **Issuer** | Your provider's base URL (e.g. `https://accounts.example.com`). |
-| **Client ID** | The client/application ID from your provider. |
-| **Client secret** | The matching secret. (Leave blank when editing to keep the existing one.) |
-| **Provider name** | The label on the sign-in button (e.g. "Company Login"). |
-| **Scopes** | Usually `openid profile email offline_access`. |
+| **Slug** | Lowercase letters, numbers and dashes. It forms the sign-in URLs, so it's fixed once you save. |
+| **Display name** | What the button says. "Work account" helps more than "OIDC". |
+| **Scopes** | Filled in from what your provider said it offers. Add `offline_access` if you want group changes picked up between sign-ins. |
+| **Groups claim** | Suggested from the claims your provider listed, and you can type one it didn't. Only needed if you're sorting people into communities — see below. |
+| **Create accounts on first sign-in** | On, a stranger who signs in gets an account. Off, the button only works for people who already have one. |
+| **Enabled** | Off takes the button away without losing anything you typed. |
 
-Initiative shows you the **callback URLs** to register back in your provider:
+Two more addresses sit at the top of the page — a post-login redirect and a mobile app callback — shared by every provider. Most providers never ask for them.
 
-- **Authorization callback** — the main redirect URL.
-- **Post-login redirect** — where users land after signing in.
-- **Mobile app callback** — for sign-in from the mobile apps.
+**Afterwards.** Each row has **Test**, which re-asks the same question of a provider you've already saved — useful when somebody has been reorganising things at the other end. **Edit** is a single form rather than four steps, with the same **Verify** button and the same callback to copy. The secret is write-only: leave it blank to keep the one you have, or tick **Remove the stored secret**.
 
-Copy these into your identity provider's app/client configuration.
+Deleting is careful on your behalf. A provider that a community's sign-in requirement points at waits until you change that requirement. So does one that is somebody's only way in — those people need a password or a second provider first. Everyone else keeps their account and every other way they had of reaching it.
 
-![OIDC single sign-on settings](../images/admin/oidc-settings.png)
+!!! screenshot "Settings → Platform → Authentication"
+    Capture the page with two or three providers in the list, and the wizard's address step showing a green Verify result. Save as `docs/en/images/admin/oidc-settings.png`.
 
-## Provider-specific setup
+## Ways in
 
-Initiative works with **any** standards-compliant OIDC provider — you point it at your own identity provider, and Initiative signs people in against it. In every case the result is the same three values to paste into **Settings → Platform → Auth** — an **Issuer**, a **Client ID**, and a **Client secret** — plus registering the callback URLs Initiative shows you. Use the scopes from the table above.
+At the top of the Authentication page is the list of ways people may sign in to this server. Tick the ones you want. At least one stays on, which the page enforces by refusing to let you untick the last.
 
-Here are quickstarts for the providers self-hosters reach for most.
+| Way in | What it covers |
+|---|---|
+| **Password** | An email address and a password held here — the sign-in form, registration, and password reset, together. |
+| **Single sign-on** | Every provider on this page, and every provider a community has of its own. |
+
+Untick something people are using and Initiative tells you how many accounts sign in only that way, and asks you to confirm that number before it goes through. Nobody is signed out either way — an open session runs to its normal end, on the web and on a phone, and app credentials carry on working. This is about opening a new session, not ending existing ones.
+
+Turning off single sign-on waits if any community still requires one. Lift the requirement there first; the page names how many are in the way.
+
+## Letting a community use a provider
+
+**The providers are yours. A community connects to one.**
+
+You say this deployment can sign people in with Google. A community says *our* members come in through that — and only our Workspace. That second half is the point: Google will vouch for anybody with a Google account, so a community connecting to it names the domain that's theirs.
+
+A community never sees an issuer, a client ID or a secret, and never types an address. There's nothing left for them to get wrong on behalf of every one of their members.
+
+A community bringing its own identity provider is the same shape with you doing the registering: add their Okta on this page when you onboard them, and connect it to them.
+
+**Two switches** in **Settings → Platform → Guilds → Manage → What it decides for itself** are yours to grant, per community. Neither needs the other, and most communities get neither.
+
+| Switch | What it lets their admins do |
+|---|---|
+| **Its own sign-in** | Connect to the providers you've registered, say which accounts on one count as theirs and where those people land — as a member or an admin, and in an initiative if they like — and insist members arrive that way. Also gives them the member sign-in link that drops people straight into the community. |
+| **Its own security standard** | Refuse personal API keys, and hold members to a twelve-hour session. For a community answering to an auditor. |
+
+A community that wants single sign-on doesn't get the compliance knobs thrown in, and one that wants the knobs doesn't have to take a sign-in it never asked for.
+
+On their side it's one tab, **Settings → Security**, and with nothing connected yet it leads with **Set up sign-in** — four questions in the order they depend on each other: which way in, whose accounts count, where those people land, and only then whether to insist on it. A provider you've answered for at the deployment level shows up already answered.
+
+Withdrawing a switch closes the part of their **Security** tab it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+
+Everybody still has exactly one account however they signed in.
+
+## Provider quickstarts
+
+Any standards-compliant OIDC provider works, and the wizard already knows each of these spells its issuer differently — it asks for the parts and assembles the address. What's left is the bit you do at the other end.
 
 === "Pocket ID"
 
-    A lightweight, passkey-only provider — a popular pairing with Initiative.
+    Passkey-only and light on its feet, which makes it a common pairing.
 
-    1. In Pocket ID, go to **OIDC Clients → Add client** and name it "Initiative".
-    2. Set the **Callback URL** to the **Authorization callback** shown on Initiative's Auth page.
-    3. Save, then copy the generated **Client ID** and **Client secret**.
-    4. In Initiative, set **Issuer** to your Pocket ID address (e.g. `https://id.example.com`) and paste the Client ID and secret.
+    1. **OIDC Clients → Add client**, name it "Initiative".
+    2. Set its **Callback URL** to the one the wizard is showing you.
+    3. Copy the generated **Client ID** and **Client secret** back in.
 
-    Because Pocket ID has no passwords, everyone signs in with a passkey — your Initiative sign-ins inherit that automatically. To sort people into communities, enable groups in Pocket ID and set the **Claim path** to `groups`.
+    The wizard asks for your Pocket ID **Address**. Nobody has a password in Pocket ID, so your Initiative sign-ins inherit passkeys without you doing anything. For group sorting, turn groups on there and pick `groups` as the **Groups claim**.
 
 === "Authentik"
 
-    1. Create a **Provider → OAuth2/OpenID**; set the **Redirect URI** to Initiative's Authorization callback and note the generated **Client ID** and **Client secret**.
+    1. Create a **Provider → OAuth2/OpenID**, set its **Redirect URI** to the callback URL the wizard is showing you, and note the **Client ID** and **Client secret**.
     2. Create an **Application** and bind the provider to it.
-    3. In Initiative, set **Issuer** to `https://authentik.example.com/application/o/<application-slug>/` and paste the Client ID and secret.
-    4. For group mapping, add the `groups` scope to the provider and set Initiative's **Claim path** to `groups`.
+
+    The wizard asks for your **Address** and the **Application slug** — the application's, not the provider's, which is the one people mix up. For group sorting, add the `groups` scope there and pick `groups` as the **Groups claim**.
 
 === "Authelia"
 
-    Authelia's OIDC is configured in its YAML, not a UI.
+    Configured in YAML rather than a screen.
 
-    1. Under `identity_providers.oidc.clients`, add a client with a `client_id`, a **hashed** `client_secret`, `redirect_uris` (Initiative's Authorization callback), and `scopes: [openid, profile, email, groups]`.
-    2. Restart Authelia to apply.
-    3. In Initiative, set **Issuer** to your Authelia address (e.g. `https://auth.example.com`), and paste the Client ID and the **plaintext** secret.
+    1. Under `identity_providers.oidc.clients`, add a client with a `client_id`, a **hashed** `client_secret`, `redirect_uris` set to the callback URL the wizard is showing you, and `scopes: [openid, profile, email, groups]`.
+    2. Restart Authelia.
+
+    The wizard asks for your Authelia **Address**. The secret you paste back is the **plaintext** one, not the hash you put in the YAML.
 
 === "Keycloak"
 
-    1. In your realm, create a **Client** (OpenID Connect) with **Client authentication** on, and set a **Valid redirect URI** to Initiative's Authorization callback.
-    2. From the client's **Credentials** tab copy the **Client secret**; the **Client ID** is the client name.
-    3. In Initiative, set **Issuer** to `https://keycloak.example.com/realms/<realm>` and paste the Client ID and secret.
-    4. For roles, add a **groups** (or roles) mapper to the client and set Initiative's **Claim path** to `groups` (or `realm_access.roles`).
+    1. In your realm, create an OpenID Connect **Client** with **Client authentication** on and a **Valid redirect URI** of the callback URL the wizard is showing you.
+    2. The **Client secret** is on the client's **Credentials** tab; the **Client ID** is the client name.
 
-=== "Entra / Google / Okta"
+    The wizard asks for your **Address** and your **Realm** and builds the issuer from both. For group sorting, add a groups or roles mapper and pick `groups` or `realm_access.roles` as the **Groups claim**.
 
-    Hosted providers work the same way — register an app, add Initiative's callback URL, and copy the Issuer, Client ID, and secret.
+=== "Google, Entra, Okta, Auth0"
 
-    - **Microsoft Entra ID** issuer: `https://login.microsoftonline.com/<tenant-id>/v2.0`
-    - **Google** issuer: `https://accounts.google.com`
-    - **Okta** issuer: `https://<your-org>.okta.com`
+    Same shape: register an app, add the callback URL the wizard is showing you, copy the credentials back.
 
-## Mapping provider groups to communities and roles
+    All four are presets, so the address is one field or none:
 
-This is the powerful part. You can have Initiative read a **claim** from the sign-in token (for example, the user's groups or roles at your provider) and automatically place them into communities and initiatives.
+    - **Google** asks for nothing — its issuer never varies.
+    - **Microsoft Entra ID** asks for your **Tenant ID**.
+    - **Okta** asks for your **Okta domain**, like `dev-12345.okta.com`.
+    - **Auth0** asks for your **Auth0 domain**, like `your-tenant.eu.auth0.com`.
 
-1. Set the **Claim path** — the dot-notation location of the claim in the token (for example, `roles`, or `realm_access.roles` for Keycloak).
-2. Add **mapping rules**. Each rule matches a **claim value** and assigns:
-    - a **target type**: *Community only*, or *Community + Initiative*;
-    - the **community** (and **community role**: Member or Admin);
-    - optionally the **initiative** and **initiative role**.
+=== "Zitadel"
 
-So a rule might say: *anyone whose `roles` claim contains `theatre-leads` becomes an **Admin** of the "Riverside Players" community.* New people from your provider are sorted automatically the first time they sign in.
+    1. Create a project, then an **Application** of type **Web** using **Code** with PKCE.
+    2. Set its redirect URI to the callback URL the wizard is showing you.
+    3. Copy the **Client ID** and **Client secret** back in.
 
-??? techspec "For the technically minded — how the mapping is evaluated"
-    On each OIDC sign-in, Initiative reads the configured claim path from the ID token, then applies every matching rule to grant the corresponding community/initiative memberships and roles. PKCE is used in the authorization flow. Mappings are applied idempotently per sign-in, so they reconcile membership rather than duplicating it.
+    The wizard asks for your **Address** — your own domain, or `your-instance.zitadel.cloud`.
+
+## Sorting people into communities
+
+If your provider already knows who's in which group, Initiative can read that and put people where they belong the moment they first sign in. No invite, no waiting for somebody to notice the email.
+
+Two parts to it. On the provider, set the **Groups claim** to wherever it keeps them — `groups` for most, `realm_access.roles` for Keycloak. Then add **mapping rules** further down the page. Each rule names:
+
+- the **provider** whose claim it reads;
+- the **claim value** to match, like `theatre-leads`;
+- whether it grants a **community**, or a community **and an initiative**;
+- and the role to give in each.
+
+So one rule can say: anyone whose `groups` claim contains `theatre-leads` becomes an **Admin** of Riverside Players.
+
+A rule belongs to one provider, because two providers can both have a group called `staff` and mean entirely different people. Signing in through one neither reads the other's rules nor undoes what they did.
+
+Every sign-in re-reads the claim and reconciles against it, so somebody dropped from a group at your provider loses what that rule gave them. Memberships you granted by hand are left alone — the rules only ever take back what they handed out.
+
+??? techspec "How the mapping is evaluated"
+    On each sign-in Initiative reads the provider's claim path from the ID token, falling back to the userinfo response, and applies every rule belonging to that provider. The authorization flow uses PKCE. Reconciliation is idempotent and scoped to the signing-in provider on both halves: it grants what that provider's rules match, and releases only the memberships that same provider's earlier syncs created. Where a provider supplies a refresh token (`offline_access`), a background sweep re-reads group claims for every provider that asserts one about every quarter of an hour, so changes land without waiting for the person to sign in again.
 
 ## Related
 
-- [Configuration](configuration.md) — `APP_URL` and other foundational settings.
-- [Platform roles](platform-roles.md) — who can configure SSO.
-- [Signing in](../getting-started/signing-in.md) — the user's view of SSO.
+- [Configuration](configuration.md) — `APP_URL` and the rest.
+- [Platform roles](platform-roles.md) — who can configure this.
+- [Signing in](../getting-started/signing-in.md) — what people see.

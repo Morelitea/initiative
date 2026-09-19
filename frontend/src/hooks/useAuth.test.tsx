@@ -14,6 +14,7 @@ import { buildUser } from "@/__tests__/factories";
 
 const get = vi.fn();
 const post = vi.fn();
+const setAuthToken = vi.fn();
 
 vi.mock("@/api/client", () => ({
   apiClient: {
@@ -25,7 +26,7 @@ vi.mock("@/api/client", () => ({
   AUTH_STEP_UP_EVENT: "initiative:auth:step-up",
   setApiBaseUrl: vi.fn(),
   setHasActiveSession: vi.fn(),
-  setAuthToken: vi.fn(),
+  setAuthToken: (...args: unknown[]) => setAuthToken(...args),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
 }));
@@ -40,6 +41,13 @@ vi.mock("@/lib/storage", () => ({
 const forgetMessages = vi.fn();
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: () => forgetMessages(),
+}));
+
+// The ceremony belongs to the browser's credential API, which jsdom has none
+// of; what this file is about is what the hook does with the answer.
+const presentPasskey = vi.fn();
+vi.mock("@/lib/passkeys", () => ({
+  stepUpWithPasskey: () => presentPasskey(),
 }));
 
 import { AuthProvider, useAuth } from "./useAuth";
@@ -235,5 +243,160 @@ describe("useAuth identity ordering", () => {
     });
 
     expect(auth.user?.full_name).toBe("Fresh");
+  });
+});
+
+describe("useAuth second factor", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+  });
+
+  /** The 401 both sign-in routes answer with when a factor is outstanding. */
+  const challengeRefusal = (challenge: string) => ({
+    response: { status: 401, data: { detail: "TOTP_REQUIRED", challenge } },
+  });
+
+  it("hands the page the challenge instead of an error message", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce(challengeRefusal("challenge-value"));
+
+    await expect(auth.login({ email: "a@example.com", password: "pw" })).rejects.toMatchObject({
+      name: "SecondFactorRequiredError",
+      challenge: "challenge-value",
+    });
+  });
+
+  it("still reports an ordinary refusal as one", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce({
+      response: { status: 400, data: { detail: "INCORRECT_CREDENTIALS" } },
+    });
+
+    const failure = auth.login({ email: "a@example.com", password: "wrong" });
+    await expect(failure).rejects.toThrow();
+    await expect(failure).rejects.not.toMatchObject({
+      name: "SecondFactorRequiredError",
+    });
+  });
+
+  it("does not mistake a 401 that carries no challenge for one", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    post.mockRejectedValueOnce({
+      response: { status: 401, data: { detail: "TOTP_REQUIRED" } },
+    });
+
+    await expect(auth.login({ email: "a@example.com", password: "pw" })).rejects.not.toMatchObject({
+      name: "SecondFactorRequiredError",
+    });
+  });
+
+  it("answers the challenge with the code and signs in", async () => {
+    get.mockResolvedValue({ data: buildUser({ full_name: "Signed in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Signed in"));
+
+    post.mockResolvedValueOnce({ data: { access_token: "fresh-token" } });
+    await act(async () => {
+      await auth.completeSecondFactor({ challenge: "c", code: "123456" });
+    });
+
+    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+      challenge: "c",
+      code: "123456",
+      recovery_code: null,
+    });
+  });
+
+  it("sends a recovery code as one, not as a live code", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+
+    post.mockResolvedValueOnce({ data: { access_token: "fresh-token" } });
+    await act(async () => {
+      await auth.completeSecondFactor({ challenge: "c", recoveryCode: "abcde-fghij" });
+    });
+
+    expect(post).toHaveBeenCalledWith("/auth/token/totp", {
+      challenge: "c",
+      code: null,
+      recovery_code: "abcde-fghij",
+    });
+  });
+});
+
+describe("useAuth passkey sign-in", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+    setAuthToken.mockReset();
+  });
+
+  it("takes the session the ceremony produced and reads the account", async () => {
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Nobody yet" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Nobody yet"));
+
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    await act(async () => {
+      await auth.applyPasskeySignIn({ access_token: "fresh-token", token_type: "bearer" });
+    });
+
+    expect(setAuthToken).toHaveBeenCalledWith("fresh-token", false);
+    expect(auth.token).toBe("fresh-token");
+    expect(auth.isDeviceToken).toBe(false);
+    expect(auth.user?.full_name).toBe("Signed in");
+  });
+
+  it("refuses an answer with no session in it", async () => {
+    // The mobile shape: the ceremony was run on behalf of an app, and what
+    // comes back is a way home rather than a session for this browser.
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+
+    await expect(
+      auth.applyPasskeySignIn({ token_type: "bearer", redirect_to: "initiative://oidc/callback" })
+    ).rejects.toThrow();
+  });
+});
+
+describe("useAuth passkey step-up", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+    setAuthToken.mockReset();
+    presentPasskey.mockReset();
+  });
+
+  it("takes the session the ceremony produced, as the code step-up does", async () => {
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Half in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Half in"));
+
+    presentPasskey.mockResolvedValueOnce({ access_token: "stepped-up", token_type: "bearer" });
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "All the way in" }) });
+    await act(async () => {
+      await auth.stepUpWithPasskey();
+    });
+
+    expect(setAuthToken).toHaveBeenCalledWith("stepped-up", false);
+    expect(auth.token).toBe("stepped-up");
+    expect(auth.isDeviceToken).toBe(false);
+    expect(auth.user?.full_name).toBe("All the way in");
+  });
+
+  it("leaves the session alone when the ceremony produced nothing", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+    setAuthToken.mockClear();
+
+    presentPasskey.mockRejectedValueOnce(new Error("no credential"));
+    await expect(auth.stepUpWithPasskey()).rejects.toThrow();
+    expect(setAuthToken).not.toHaveBeenCalled();
   });
 });

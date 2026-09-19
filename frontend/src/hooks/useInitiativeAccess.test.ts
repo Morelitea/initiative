@@ -156,7 +156,7 @@ describe("useGlobalCreateAccess", () => {
 describe("useInitiativeAccess canManage", () => {
   const asMember = (user: ReturnType<typeof buildUser>) => {
     mockUseAuth.mockReturnValue({ user });
-    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "member" } });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "member", is_admin: false } });
   };
 
   /** One initiative, with this user holding the given role. */
@@ -222,7 +222,7 @@ describe("useInitiativeAccess canManage", () => {
   it("counts a guild admin everywhere", () => {
     const user = buildUser();
     mockUseAuth.mockReturnValue({ user });
-    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "admin" } });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "admin", is_admin: true } });
 
     const { result } = renderHook(() => useInitiativeAccess());
     expect(result.current.canManage(buildInitiative({ members: [] }))).toBe(true);

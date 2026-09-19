@@ -1,9 +1,9 @@
 """Unit tests for the collaboration room registry.
 
 The rooms themselves are exercised through the WebSocket endpoint; what is
-covered here is how they are *addressed*. Document ids are per-guild-schema
-sequences, so the id alone does not name a document and the registry key has to
-carry the guild with it.
+covered here is how they are *addressed*. Ids are per-guild-schema sequences,
+so the id alone does not name a body — the key has to carry the guild — and two
+kinds number independently, so it has to carry the kind too.
 """
 
 import asyncio
@@ -13,12 +13,18 @@ import pytest
 
 from app.services.stream_authz import RoomMember
 from app.services.tenant import collaboration as collaboration_module
+from app.core.search import SearchEntityType
 from app.services.tenant.collaboration import (
     CollaborationManager,
-    DocumentRoom,
+    CollaborationRoom,
     room_roster,
     user_has_connection,
 )
+
+#: The kind most of these use. Which kind a room is for does not change how it
+#: is addressed, so one stands for all of them except where two are the point.
+DOC = SearchEntityType.document.value
+PAGE = SearchEntityType.wiki_page.value
 
 
 class FakeResult:
@@ -48,9 +54,11 @@ class SlowSession:
         return FakeResult(self.document)
 
 
-def loaded_room(guild_id: int, document_id: int) -> DocumentRoom:
+def loaded_room(
+    guild_id: int, resource_id: int, resource_type: str = DOC
+) -> CollaborationRoom:
     """A room as it stands once its one read of the database is done."""
-    room = DocumentRoom(guild_id, document_id)
+    room = CollaborationRoom(guild_id, resource_type, resource_id)
     room._loaded = True
     return room
 
@@ -58,52 +66,71 @@ def loaded_room(guild_id: int, document_id: int) -> DocumentRoom:
 @pytest.mark.unit
 async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(1, 5)
-    manager._rooms[(2, 5)] = loaded_room(2, 5)
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, DOC, 5)] = loaded_room(2, 5)
 
-    first = manager.get_room(1, 5)
-    second = manager.get_room(2, 5)
+    first = manager.get_room(1, DOC, 5)
+    second = manager.get_room(2, DOC, 5)
 
     assert first is not None
     assert second is not None
     assert first is not second
-    assert manager.get_active_rooms() == {(1, 5), (2, 5)}
+    assert manager.get_active_rooms() == {(1, DOC, 5), (2, DOC, 5)}
+
+
+@pytest.mark.unit
+async def test_the_same_id_in_two_kinds_is_two_rooms() -> None:
+    """Document 5 and wiki page 5 are both real, and both exist in the same
+    guild. Keyed by the pair alone they would share one Yjs document, and each
+    would be served the other's body."""
+    manager = CollaborationManager()
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5, DOC)
+    manager._rooms[(1, PAGE, 5)] = loaded_room(1, 5, PAGE)
+
+    document_room = manager.get_room(1, DOC, 5)
+    page_room = manager.get_room(1, PAGE, 5)
+
+    assert document_room is not None
+    assert page_room is not None
+    assert document_room is not page_room
+    assert document_room.resource_type == DOC
+    assert page_room.resource_type == PAGE
 
 
 @pytest.mark.unit
 async def test_a_room_is_reached_only_from_its_own_guild() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
 
-    assert manager.get_room(1, 5) is not None
-    assert manager.get_room(2, 5) is None
-    assert manager.has_active_collaborators(2, 5) is False
+    assert manager.get_room(1, DOC, 5) is not None
+    assert manager.get_room(2, DOC, 5) is None
+    assert manager.has_active_collaborators(2, DOC, 5) is False
 
 
 @pytest.mark.unit
 async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(1, 5)
-    manager._rooms[(2, 5)] = loaded_room(2, 5)
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, DOC, 5)] = loaded_room(2, 5)
 
     # Both are empty of collaborators, so both are removable — only the one
     # named should go.
-    await manager.remove_room(1, 5)
+    await manager.remove_room(1, DOC, 5)
 
-    assert manager.get_room(1, 5) is None
-    assert manager.get_room(2, 5) is not None
+    assert manager.get_room(1, DOC, 5) is None
+    assert manager.get_room(2, DOC, 5) is not None
 
 
 @pytest.mark.unit
 async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(1, 5)
-    manager._rooms[(2, 5)] = loaded_room(2, 5)
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
+    manager._rooms[(2, DOC, 5)] = loaded_room(2, 5)
 
-    assert await manager.invalidate_room_if_empty(1, 5) is True
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is True
 
-    assert manager.get_room(1, 5) is None
-    assert manager.get_room(2, 5) is not None
+    assert manager.get_room(1, DOC, 5) is None
+    assert manager.get_room(2, DOC, 5) is not None
 
 
 @pytest.mark.unit
@@ -118,16 +145,16 @@ async def test_loading_one_room_does_not_stall_another() -> None:
     quick = SlowSession(delay=0.0)
 
     async def open_slow():
-        await manager.get_or_create_room(1, 5, slow)
+        await manager.get_or_create_room(1, DOC, 5, slow)
 
     slow_task = asyncio.create_task(open_slow())
     await asyncio.sleep(0.01)  # let it get as far as the read
 
     # While that one is still reading, another room opens and returns.
-    await asyncio.wait_for(manager.get_or_create_room(2, 9, quick), timeout=0.1)
+    await asyncio.wait_for(manager.get_or_create_room(2, DOC, 9, quick), timeout=0.1)
 
     await slow_task
-    assert manager.get_active_rooms() == {(1, 5), (2, 9)}
+    assert manager.get_active_rooms() == {(1, DOC, 5), (2, DOC, 9)}
 
 
 @pytest.mark.unit
@@ -137,14 +164,14 @@ async def test_a_room_is_read_once_however_many_arrive_together() -> None:
     session = SlowSession(delay=0.05)
 
     first, second = await asyncio.gather(
-        manager.get_or_create_room(1, 5, session),
-        manager.get_or_create_room(1, 5, session),
+        manager.get_or_create_room(1, DOC, 5, session),
+        manager.get_or_create_room(1, DOC, 5, session),
     )
 
     assert first is second
     assert session.reads == 1
     # And a later arrival does not read again.
-    await manager.get_or_create_room(1, 5, session)
+    await manager.get_or_create_room(1, DOC, 5, session)
     assert session.reads == 1
 
 
@@ -154,19 +181,19 @@ async def test_a_room_being_read_in_is_not_collected_as_idle() -> None:
     manager = CollaborationManager()
     slow = SlowSession(delay=0.2)
 
-    opening = asyncio.create_task(manager.get_or_create_room(1, 5, slow))
+    opening = asyncio.create_task(manager.get_or_create_room(1, DOC, 5, slow))
     await asyncio.sleep(0.01)
 
-    await manager.remove_room(1, 5)
-    assert await manager.invalidate_room_if_empty(1, 5) is False
-    assert manager.get_room(1, 5) is not None
+    await manager.remove_room(1, DOC, 5)
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
+    assert manager.get_room(1, DOC, 5) is not None
 
     room = await opening
-    assert room is manager.get_room(1, 5)
+    assert room is manager.get_room(1, DOC, 5)
 
     # Once it has been read in, an empty room is collectable as before.
-    assert await manager.invalidate_room_if_empty(1, 5) is True
-    assert manager.get_room(1, 5) is None
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is True
+    assert manager.get_room(1, DOC, 5) is None
 
 
 # ── the connection register is the only register ─────────────────────────────
@@ -209,7 +236,7 @@ async def test_two_tabs_of_one_account_are_one_collaborator(authority) -> None:
     authority.add(1, 5, member(7, name="Ada"))
     authority.add(1, 5, member(9, name="Grace"))
 
-    roster = room_roster(1, 5)
+    roster = room_roster(1, DOC, 5)
 
     assert sorted(entry["user_id"] for entry in roster) == [7, 9]
 
@@ -219,7 +246,7 @@ async def test_a_reader_who_opens_a_writable_tab_can_write(authority) -> None:
     authority.add(1, 5, member(7, can_write=False))
     authority.add(1, 5, member(7, can_write=True))
 
-    assert room_roster(1, 5)[0]["can_write"] is True
+    assert room_roster(1, DOC, 5)[0]["can_write"] is True
 
 
 @pytest.mark.unit
@@ -227,14 +254,14 @@ async def test_a_room_is_kept_while_any_connection_is_in_it(authority) -> None:
     """A room is retired on its connections, one per socket — so one tab
     closing leaves a room that another tab is still holding."""
     manager = CollaborationManager()
-    manager._rooms[(1, 5)] = loaded_room(1, 5)
+    manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
     authority.add(1, 5, member(7))
 
-    await manager.remove_room(1, 5)
-    assert manager.get_room(1, 5) is not None
+    await manager.remove_room(1, DOC, 5)
+    assert manager.get_room(1, DOC, 5) is not None
 
-    assert await manager.invalidate_room_if_empty(1, 5) is False
-    assert manager.get_room(1, 5) is not None
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
+    assert manager.get_room(1, DOC, 5) is not None
 
 
 @pytest.mark.unit
@@ -242,12 +269,12 @@ async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
     """Nothing is dropped while it still owes the database something."""
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.offer_content({"root": {}})
 
-    await manager.remove_room(1, 5)
+    await manager.remove_room(1, DOC, 5)
 
-    assert manager.get_room(1, 5) is room
+    assert manager.get_room(1, DOC, 5) is room
     assert room.detached is False
 
 
@@ -281,11 +308,11 @@ class RecordingSession:
 async def test_a_room_is_clean_once_its_revision_reaches_the_row() -> None:
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.apply_update(_an_update())
     assert room.is_dirty is True
 
-    await manager.persist_room(1, 5, RecordingSession())
+    await manager.persist_room(1, DOC, 5, RecordingSession())
 
     assert room.is_dirty is False
 
@@ -299,10 +326,10 @@ async def test_a_write_that_reaches_no_row_leaves_the_room_unsaved() -> None:
     """
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.apply_update(_an_update())
 
-    await manager.persist_room(1, 5, RecordingSession(rowcount=0))
+    await manager.persist_room(1, DOC, 5, RecordingSession(rowcount=0))
 
     assert room.is_dirty is True
 
@@ -326,13 +353,13 @@ async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
     clean = loaded_room(1, 5)
     dirty = loaded_room(1, 6)
     dirty.apply_update(_an_update())
-    manager._rooms[(1, 5)] = clean
-    manager._rooms[(1, 6)] = dirty
+    manager._rooms[(1, DOC, 5)] = clean
+    manager._rooms[(1, DOC, 6)] = dirty
 
     written: list[int] = []
 
     async def fake_write(room, _session):
-        written.append(room.document_id)
+        written.append(room.resource_id)
         room.mark_persisted(room._revision)
 
     monkeypatch.setattr(manager, "_write_room", fake_write)
@@ -371,8 +398,8 @@ async def test_a_person_is_still_here_while_one_of_their_tabs_remains(
 ) -> None:
     authority.add(1, 5, member(7))
 
-    assert user_has_connection(1, 5, 7) is True
-    assert user_has_connection(1, 5, 9) is False
+    assert user_has_connection(1, DOC, 5, 7) is True
+    assert user_has_connection(1, DOC, 5, 9) is False
 
 
 @pytest.mark.unit
@@ -384,16 +411,16 @@ async def test_a_room_being_joined_is_not_retired(authority) -> None:
     """
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.hold()
 
-    await manager.remove_room(1, 5)
-    assert manager.get_room(1, 5) is room
-    assert await manager.invalidate_room_if_empty(1, 5) is False
+    await manager.remove_room(1, DOC, 5)
+    assert manager.get_room(1, DOC, 5) is room
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
 
     room.release()
-    await manager.remove_room(1, 5)
-    assert manager.get_room(1, 5) is None
+    await manager.remove_room(1, DOC, 5)
+    assert manager.get_room(1, DOC, 5) is None
 
 
 @pytest.mark.unit
@@ -401,11 +428,11 @@ async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> 
     """External invalidation holds the same line as retirement."""
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.apply_update(_an_update())
 
-    assert await manager.invalidate_room_if_empty(1, 5) is False
-    assert manager.get_room(1, 5) is room
+    assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
+    assert manager.get_room(1, DOC, 5) is room
 
 
 @pytest.mark.unit
@@ -429,7 +456,7 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
     """
     manager = CollaborationManager()
     room = loaded_room(1, 5)
-    manager._rooms[(1, 5)] = room
+    manager._rooms[(1, DOC, 5)] = room
     room.apply_update(_an_update())
 
     concurrent: list[int] = []
@@ -450,8 +477,8 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
             return None
 
     await asyncio.gather(
-        manager.persist_room(1, 5, SlowWriteSession()),
-        manager.persist_room(1, 5, SlowWriteSession()),
+        manager.persist_room(1, DOC, 5, SlowWriteSession()),
+        manager.persist_room(1, DOC, 5, SlowWriteSession()),
     )
 
     assert max(concurrent) == 1
@@ -488,3 +515,23 @@ async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
 
     assert room.is_empty() is True
     assert room.snapshot()[2] == {"root": "the last thing seen"}
+
+
+@pytest.mark.unit
+def test_every_collaborative_kind_declares_where_its_body_lives() -> None:
+    """A room reads and writes a body through the registry alone, so a kind
+    that registered without one would open a socket that saves nowhere."""
+    from app.services.tenant.collaborative_resources import (
+        registered_types,
+        resource_for,
+    )
+
+    kinds = registered_types()
+    assert DOC in kinds and PAGE in kinds
+    for kind in kinds:
+        spec = resource_for(kind)
+        assert spec.resource_type == kind
+        # The column the body is in, and the Yjs columns beside it.
+        assert hasattr(spec.model, spec.content_column)
+        assert hasattr(spec.model, "yjs_state")
+        assert hasattr(spec.model, "yjs_updated_at")

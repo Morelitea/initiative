@@ -2164,7 +2164,7 @@ export const SpreadsheetDocumentEditor = ({
           its action. */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: mousedown only suppresses focus theft; every control inside keeps its own semantics */}
       <div
-        className="flex shrink-0 items-center gap-2 overflow-x-auto border-border border-b bg-muted/20 px-3 py-2"
+        className="flex min-w-0 shrink-0 items-center gap-2 overflow-hidden border-border border-b bg-muted/20 px-3 py-2"
         onMouseDown={(e) => {
           const target = e.target as HTMLElement | null;
           if (target?.closest("input,label,textarea,[contenteditable]")) return;

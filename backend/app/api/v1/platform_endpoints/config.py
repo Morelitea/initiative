@@ -16,7 +16,9 @@ from pydantic import BaseModel
 from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
+from app.core.version import get_min_native_version
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import auth_posture
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 router = APIRouter()
@@ -73,6 +75,20 @@ class AppConfig(BaseModel):
     # the directory's Join button asks first; the server refuses either way, so
     # this is which question gets asked and not whether the rule applies.
     community_age_gate_enabled: bool
+    # Whether this deployment offers direct messages at all. The SPA hides My
+    # Messages and every way into it when false -- the rail, the bottom bar, the
+    # command palette and the per-person message controls. A database setting
+    # like the two above, so it changes without a redeploy.
+    direct_messages_enabled: bool
+    # The ways in this deployment permits. The login page reads it to decide
+    # whether to render the password form at all; the server refuses either
+    # way, so this only decides what is offered. Unauthenticated by necessity —
+    # it is needed before anybody can sign in.
+    login_methods: list[str]
+    # The newest native app (APK) release this server's web bundle runs on —
+    # the release CI attached an APK to, so the landing page can offer that
+    # download by version without asking anybody's release listing.
+    min_native_version: str
 
 
 _SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
@@ -114,4 +130,9 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
+        direct_messages_enabled=app_settings.direct_messages_enabled,
+        login_methods=sorted(
+            m.value for m in auth_posture.methods_from_row(app_settings)
+        ),
+        min_native_version=get_min_native_version(),
     )

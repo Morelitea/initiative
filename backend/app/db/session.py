@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,13 +9,15 @@ from urllib.parse import urlparse
 from alembic import command
 from alembic.config import Config
 from asyncpg.exceptions import InvalidCatalogNameError
-from sqlalchemy import event, text
+from sqlalchemy import Select, Text, cast, event, func, literal_column, text
+from sqlalchemy import select as sa_select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.role_context import set_guild_shows_member_names
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
@@ -25,6 +28,7 @@ engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
 # enumerated per-table GRANTs (migration 0129). Guild schemas still
 # require SET ROLE guild_<id>, which drops the bypass.
 admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
+_SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
@@ -163,6 +167,11 @@ CONNECTION_RESET_SQL = (
     f"set_config('search_path', '{_search_path('public')}', false)"
 )
 
+#: The GUC naming the initiatives this request holds "Full access" in. Written
+#: with the rest of the context below, and on its own by
+#: :func:`apply_override_initiatives` once the routed schema can answer for it.
+OVERRIDE_INITIATIVES_GUC = "app.override_initiatives"
+
 _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
@@ -171,15 +180,26 @@ _CONTEXT_SQL = (
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
+    "set_config('app.satisfied_claims', :satc, true), "
+    "set_config('app.session_mfa', :mfa, true), "
+    "set_config('app.session_passkey', :pk, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
-    "set_config('app.override_initiatives', :ovr, true), "
+    f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
-    "set_config('app.guild_shows_member_names', :names, true), "
     "set_config('app.query', :q, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
+
+
+_OVERRIDE_SQL = f"SELECT set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true)"
+
+
+def _override_csv(initiative_ids: Optional[Sequence[int]]) -> str:
+    """The GUC form of a "Full access" set: a sorted comma list the policy
+    reads with one ``string_to_array``, empty when there are none."""
+    return ",".join(str(i) for i in sorted({int(i) for i in initiative_ids or ()}))
 
 
 def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
@@ -189,21 +209,20 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     sync after_begin replay hook — one routing decision, two executors.
     """
     user_id = params.get("user_id")
-    guild_id = params.get("guild_id")
+    guild_id = params.get("guild_id", params.get("system_guild_id"))
     guild_role = params.get("guild_role")
     pam_guild_id = params.get("pam_guild_id")
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
+    settings_guild_id = params.get("settings_guild_id")
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
     query = bool(params.get("query"))
     billing_guild_id = params.get("billing_guild_id")
-    # Initiatives where the request holds "Full access". Rendered as a comma
-    # list so the policy reads it with one string_to_array; empty when none.
-    override = params.get("override_initiatives") or ()
+    system_guild_id = params.get("system_guild_id")
     scope_initiative_id = params.get("scope_initiative_id")
     via_dashboard_id = params.get("via_dashboard_id")
-    override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
+    override_csv = _override_csv(params.get("override_initiatives"))
 
     # Billing-service path (set_billing_context): assumes the
     # initiative_billing role with only the billing GUC set — no
@@ -219,11 +238,15 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pr": "false",
             "pw": "false",
             "satp": "",
+            "satc": "",
+            # No session at all on this path, so it answers for none of the
+            # things a session records about how somebody signed in.
+            "mfa": "false",
+            "pk": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
             "vdash": "",
-            "names": "false",
             "q": "false",
             "sp": _search_path("public"),
             "role": billing_role_name(),
@@ -233,9 +256,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # guild's role. The login role has no standing access to any guild schema
     # (fail-closed) — it must SET ROLE into the per-guild role. int() makes
     # the schema/role name injection-safe. Route for a full guild context, or
-    # for an ACTIVE PAM grant (read or write); a grant with neither flag
-    # routes nowhere, so the grantee sees nothing. Lazy import avoids a
-    # circular import — schema_provisioning imports this module.
+    # for an ACTIVE PAM grant (read or write), or for a settings-only grant.
+    # Lazy import avoids a circular import — schema_provisioning imports this
+    # module.
     from app.db.schema_provisioning import (
         guild_query_role_name,
         guild_readonly_role_name,
@@ -246,10 +269,20 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     )
 
     pam_active = pam_read or pam_write
-    route_guild = (
-        guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
-    )
+    route_guild = guild_id
+    if route_guild is None and pam_active:
+        route_guild = pam_guild_id
     if route_guild is None:
+        route_guild = settings_guild_id
+    if system_guild_id is not None:
+        # Trusted system maintenance keeps the login role (app_admin, whose
+        # narrowly enumerated guild-table grants are provisioned separately)
+        # so PostgreSQL keeps its BYPASSRLS attribute. Only the schema route
+        # changes. An app_user session remains app_user and therefore has no
+        # direct privilege on these tables.
+        sp = _search_path(guild_schema_name(system_guild_id), "public")
+        role_target = "none"
+    elif route_guild is None:
         # Public/platform path: assume the caller's platform-tier role when
         # one is supplied so the request is role-scoped (fail-closed);
         # 'none' (the login role) only for unauthenticated/unrouted contexts.
@@ -265,10 +298,14 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - scoped read_write grant (no membership, pam_write): the restricted
         #   guild_<id>_support role — content DML but no writes to the structural
         #   / permission tables (the ``support`` identity).
-        # - otherwise (real membership, break-glass): the full guild_<id> role.
+        # - settings-only grant: the restricted support role, with no content
+        #   PAM flags.
+        # - otherwise (real membership): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
-        if query:
+        if settings_guild_id is not None:
+            name_fn = guild_support_role_name
+        elif query:
             # A query runs as the query role whatever else the request is:
             # a member's, a read-only member's, or a grantee's.
             name_fn = guild_query_role_name
@@ -288,17 +325,33 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     else:
         satp = ""
 
+    # What each satisfied provider asserted for the claims some community
+    # narrows it by, as the JSON object the gate reads with ``->``. Empty
+    # string when the credential records none, which the gate treats as
+    # nothing asserted.
+    claims = params.get("satisfied_claims") or {}
+    satc = json.dumps(claims, separators=(",", ":"), sort_keys=True) if claims else ""
+
+    # Whether the credential recorded the account's own second factor. A plain
+    # string, because the policy leg compares it as one.
+    mfa = "true" if params.get("session_mfa") else "false"
+    # And whether a passkey is what opened it, in the same form and read by the
+    # leg beside it.
+    pk = "true" if params.get("session_passkey") else "false"
+
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
+        "mfa": mfa,
+        "pk": pk,
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
+        "satc": satc,
         "bgid": "",
         "ovr": override_csv,
-        "names": "true" if params.get("shows_member_names") else "false",
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
@@ -356,10 +409,13 @@ async def set_rls_context(
     read_only: bool = False,
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
+    satisfied_claims: Optional[dict] = None,
+    session_mfa: bool = False,
+    session_passkey: bool = False,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
-    shows_member_names: bool = False,
+    settings_guild_id: Optional[int] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -377,9 +433,8 @@ async def set_rls_context(
     Management grant for the guild named by ``pam_guild_id``: additive RLS
     policies grant SELECT (read) / write into that one guild's rows while
     the flag is set. ``pam_guild_id`` is deliberately separate from
-    ``current_guild_id`` — the existing write policies treat a matching
-    ``current_guild_id`` as proof of membership, so a grantee must leave it
-    unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
+    ``current_guild_id``: a grant records the guild it reaches in its own
+    field, and a membership records its own. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
 
     ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``
@@ -411,13 +466,6 @@ async def set_rls_context(
     schema (the guild role governs there) — pass it anyway, so the tier is on the
     session for the trip back out.
 
-    ``shows_member_names`` says whether the guild being routed into renders its
-    members' real names. It reaches Postgres as ``app.guild_shows_member_names``,
-    which is what ``public.guild_member_profiles`` — the only projection of an
-    account a guild-routed session can read — consults for whether to hand back
-    a ``full_name`` at all. The same argument sets the request-scoped flag the
-    user schemas read, so both describe the same guild.
-
     The tier is remembered **for the request** — in the SQLAlchemy session's
     Python state, not on the connection — and reapplied to any later call that
     names a ``user_id`` without one, so re-establishing context part-way through
@@ -427,10 +475,44 @@ async def set_rls_context(
     Postgres as the same transaction-local ``set_config`` as everything else and
     is replayed per transaction. Every parameter is still written from this
     call's arguments, so nothing carries between requests on a pooled connection.
+
+    **This routes a session; it does not establish a request.** It writes GUCs
+    on the session handed to it and touches no task-scoped state, which is what
+    makes it safe to call on a *second* session while a request is being served
+    — ``published_views`` loading a row as its author, ``intake`` opening a case
+    in the operations guild. Recording the contextvars the sync DAC engine reads
+    is the establishment seam's job (``deps._apply_guild_session_context``, via
+    ``establish_guild_access``): that state belongs to the task, this call
+    belongs to one session, and the two scopes are kept apart. See
+    ``core/role_context_test.py``.
     """
-    _VALID_ROLES = {"admin", "member"}
-    if guild_role is not None and guild_role not in _VALID_ROLES:
-        raise ValueError(f"Invalid guild_role: {guild_role!r}")
+    # Which of the request shapes these arguments form — and a refusal if they
+    # form none of them. This is where the rules that used to be prose in this
+    # docstring are actually applied: a grant carrying a guild, a guild role
+    # with no guild, a stored role that never went through ``content_role``.
+    # Imported here, beside the tier list below, to keep this module's import
+    # graph as it is.
+    from app.db.request_context import classify
+
+    classify(
+        user_id=user_id,
+        guild_id=guild_id,
+        guild_role=guild_role,
+        pam_guild_id=pam_guild_id,
+        pam_read=pam_read,
+        pam_write=pam_write,
+        settings_guild_id=settings_guild_id,
+        platform_role=platform_role,
+        read_only=read_only,
+        query=query,
+        satisfied_providers=satisfied_providers,
+        satisfied_claims=satisfied_claims,
+        session_mfa=session_mfa,
+        session_passkey=session_passkey,
+        override_initiatives=override_initiatives,
+        scope_initiative_id=scope_initiative_id,
+        via_dashboard_id=via_dashboard_id,
+    )
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
     # sentinel for user-attributed system work whose enqueueing request
@@ -460,11 +542,6 @@ async def set_rls_context(
     else:
         platform_role = session.info.get(_RLS_TIER_INFO_KEY)
 
-    # One argument settles both halves of the name rule: the GUC the guild
-    # projection reads, and the request-scoped flag the schemas read. Set from
-    # the same value here rather than by two callers who could disagree.
-    set_guild_shows_member_names(shows_member_names)
-
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the
     # new params. The stamp only refreshes here — i.e. on a call that
@@ -476,14 +553,17 @@ async def set_rls_context(
         "pam_guild_id": pam_guild_id,
         "pam_read": pam_read,
         "pam_write": pam_write,
+        "settings_guild_id": settings_guild_id,
         "platform_role": platform_role,
         "read_only": read_only,
         "query": query,
         "satisfied_providers": satisfied_providers,
+        "satisfied_claims": satisfied_claims,
+        "session_mfa": session_mfa,
+        "session_passkey": session_passkey,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
-        "shows_member_names": bool(shows_member_names),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
@@ -519,13 +599,62 @@ async def set_override_initiatives(
     schema the routing selects. Stored with the other context parameters so the
     replay hook carries them onto every later transaction, rather than living
     only on the connection this call happens to be holding.
+
+    Only this one GUC is written. Every other value reached the open
+    transaction when the context was applied and has not changed since, and
+    what carries them onto the next transaction is the stored params, not the
+    connection.
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is None:
         return
     params["override_initiatives"] = tuple(initiative_ids)
     if session.in_transaction():
-        await _apply_stored_context(session)
+        await session.exec(
+            text(_OVERRIDE_SQL), params={"ovr": _override_csv(initiative_ids)}
+        )
+
+
+async def apply_override_initiatives(
+    session: AsyncSession, initiative_id_select: Select[Any]
+) -> frozenset[int]:
+    """Resolve this request's "Full access" initiatives and write their GUC in
+    one statement, returning the ids.
+
+    ``initiative_id_select`` is a one-column select of initiative ids out of
+    the guild schema the session has just been routed into — see
+    :func:`app.services.rls.override_sharing_initiatives_select`, which is
+    where the rule for which ones lives. The set is only answerable once that
+    routing is in place, so asking for it and recording it was a query followed
+    by a context write. Folding the answer straight into ``set_config`` makes
+    the pair one round trip, and ``set_config`` hands the value back, so the
+    caller still gets the ids.
+    """
+    ids = initiative_id_select.distinct().subquery()
+    initiative_id = ids.c[0]
+    csv = (
+        sa_select(
+            func.coalesce(
+                func.string_agg(
+                    cast(initiative_id, Text),
+                    aggregate_order_by(literal_column("','"), initiative_id),
+                ),
+                "",
+            )
+        )
+        .select_from(ids)
+        .scalar_subquery()
+    )
+    written = (
+        await session.exec(
+            sa_select(func.set_config(OVERRIDE_INITIATIVES_GUC, csv, True))
+        )
+    ).one()[0]
+    override_ids = frozenset(int(part) for part in written.split(",") if part)
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if params is not None:
+        params["override_initiatives"] = tuple(sorted(override_ids))
+    return override_ids
 
 
 def routed_guild_id(session: AsyncSession) -> int | None:
@@ -538,7 +667,7 @@ def routed_guild_id(session: AsyncSession) -> int | None:
     is the answer.
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
-    guild_id = params.get("guild_id")
+    guild_id = params.get("guild_id", params.get("system_guild_id"))
     return int(guild_id) if guild_id is not None else None
 
 
@@ -553,6 +682,33 @@ async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
     :func:`set_rls_context`.
     """
     session.info[_RLS_PARAMS_INFO_KEY] = {"billing_guild_id": int(guild_id)}
+    session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
+    if session.in_transaction():
+        await _apply_stored_context(session)
+
+
+async def set_system_guild_context(session: AsyncSession, *, guild_id: int) -> None:
+    """Route trusted system maintenance without dropping its login identity.
+
+    The ordinary guild route assumes ``guild_<id>`` and therefore drops
+    ``app_admin``'s BYPASSRLS attribute. A small set of lifecycle operations
+    must process every matching row regardless of tenant policy; provisioning
+    grants ``app_admin`` direct access only to the tables those operations use.
+    A request-path ``app_user`` session remains unprivileged and fails closed.
+    """
+    is_system_login = (
+        await session.exec(
+            text("SELECT session_user = :role"),
+            params={"role": _SYSTEM_LOGIN_ROLE},
+        )
+    ).one()[0]
+    if not is_system_login:
+        raise PermissionError(
+            "system guild routing requires the configured system login"
+        )
+
+    session.info.pop(_RLS_TIER_INFO_KEY, None)
+    session.info[_RLS_PARAMS_INFO_KEY] = {"system_guild_id": int(guild_id)}
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
     if session.in_transaction():
         await _apply_stored_context(session)

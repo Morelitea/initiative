@@ -11,7 +11,6 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.core.email_masking import mask_email
 from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
@@ -33,7 +32,6 @@ from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
     AdminUsernameUpdate,
     PlatformRoleUpdate,
-    PlatformAdminCountResponse,
     AdminUserDeleteRequest,
     AdminDeletionEligibilityResponse,
     AdminGuildRoleUpdate,
@@ -44,6 +42,7 @@ from app.core.messages import (
     AdminMessages,
     AuthMessages,
     GuildMessages,
+    InitiativeMessages,
     SettingsMessages,
     UserMessages,
 )
@@ -52,6 +51,9 @@ from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
+from app.services.auth import challenges as challenge_service
+from app.services.auth import sessions as session_service
+from app.services.auth import totp as totp_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
@@ -59,7 +61,6 @@ from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
-from app.services.platform.guilds import guild_renders_member_names
 from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
-) -> Sequence[User]:
+) -> List[AdminUserRead]:
     """List all users in the platform (``users.read``).
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
@@ -102,7 +103,7 @@ async def list_all_users(
     """
     stmt = select(User).order_by(User.created_at.asc())
     result = await session.exec(stmt)
-    return result.all()
+    return await users_service.to_admin_read(list(result.all()))
 
 
 #: ``email`` is masked here exactly as it is in the roster this exports, so
@@ -139,23 +140,29 @@ async def export_platform_users_csv(
 
     if user_id and not users:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
+    # Through the same shape the roster returns, so the export cannot be the one
+    # place that forgets to mask an address.
+    records = await users_service.to_admin_read(users)
+
     rows = []
-    for user in users:
+    for record in records:
         rows.append(
             [
-                user.id,
-                mask_email(user.email),
-                user.full_name or "",
-                user.role.value if hasattr(user.role, "value") else user.role,
-                user.status.value if hasattr(user.status, "value") else user.status,
-                user.email_verified,
-                user.created_at.isoformat() if user.created_at else "",
-                user.updated_at.isoformat() if user.updated_at else "",
-                user.timezone or "",
-                user.locale or "",
+                record.id,
+                record.email,
+                record.full_name or "",
+                record.role.value if hasattr(record.role, "value") else record.role,
+                record.status.value
+                if hasattr(record.status, "value")
+                else record.status,
+                record.email_verified,
+                record.created_at.isoformat() if record.created_at else "",
+                record.updated_at.isoformat() if record.updated_at else "",
+                record.timezone or "",
+                record.locale or "",
             ]
         )
 
@@ -180,6 +187,48 @@ async def export_platform_users_csv(
     )
 
 
+@router.delete("/users/{user_id}/second-factor", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_second_factor(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> None:
+    """Remove somebody's second factor for them.
+
+    The lost-phone path: the person cannot present the factor and cannot reach
+    the recovery codes either, so somebody with the run of platform accounts
+    takes it off and they enrol again.
+
+    A clear, never a read — nothing here hands back the seed or the codes, to
+    this caller or any other. Their sessions and any part-way sign-in go with
+    it, and the account is told.
+    """
+    user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if not await totp_service.is_enrolled(session, user_id=user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_NOT_ENROLLED,
+        )
+
+    await totp_service.disable(session, user_id=user_id)
+    await challenge_service.revoke_for_user(session, user_id=user_id)
+    await session_service.revoke_all_for_user(session, user_id=user_id)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_SECOND_FACTOR_RESET,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+    )
+    await session.commit()
+    await email_service.announce_second_factor_change(session, user, enabled=False)
+
+
 @router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)
 async def trigger_password_reset(
     user_id: int,
@@ -192,7 +241,7 @@ async def trigger_password_reset(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     if user.status != UserStatus.active:
@@ -226,14 +275,14 @@ async def reactivate_user(
     user_id: int,
     session: AdminSessionDep,
     _current_user: UsersManageDep,
-) -> User:
+) -> AdminUserRead:
     """Reactivate a deactivated user account (admin only)."""
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     if user.status == UserStatus.active:
@@ -245,7 +294,7 @@ async def reactivate_user(
     if user.status == UserStatus.anonymized:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_REACTIVATE_ANONYMIZED,
+            detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
         )
 
     user.status = UserStatus.active
@@ -255,7 +304,7 @@ async def reactivate_user(
     await session.refresh(user)
     # Platform user management stays platform-table-only: initiative
     # membership is guild-schema content this path cannot read.
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
@@ -403,7 +452,7 @@ async def set_user_username(
     payload: AdminUsernameUpdate,
     session: AdminSessionDep,
     current_user: ContentModerateDep,
-) -> User:
+) -> AdminUserRead:
     """Change someone's username.
 
     People occasionally pick a handle that breaches the terms of use, and it is
@@ -421,7 +470,7 @@ async def set_user_username(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     previous_handle = handle_of(user)
@@ -450,7 +499,7 @@ async def set_user_username(
     )
     await session.commit()
     await session.refresh(user)
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.post("/users/{user_id}/suspension", response_model=AdminUserRead)
@@ -459,7 +508,7 @@ async def set_user_suspension(
     payload: AdminSuspensionUpdate,
     session: AdminSessionDep,
     current_user: UsersManageDep,
-) -> User:
+) -> AdminUserRead:
     """Freeze an account, or let it go.
 
     Suspension takes nothing away: memberships, grants, assignments and
@@ -483,7 +532,7 @@ async def set_user_suspension(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # A closed or erased account is not a live one to freeze, and thawing it
@@ -496,7 +545,7 @@ async def set_user_suspension(
 
     already = user.status == UserStatus.suspended
     if already == payload.suspended:
-        return user
+        return await users_service.to_admin_read_one(user)
 
     user.status = UserStatus.suspended if payload.suspended else UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
@@ -532,17 +581,7 @@ async def set_user_suspension(
         # guild to name.
         await stream_authority.revoke_user_everywhere(user_id)
 
-    return user
-
-
-@router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
-async def get_platform_admin_count(
-    session: UserSessionDep,
-    _current_user: UsersReadDep,
-) -> PlatformAdminCountResponse:
-    """Get the count of platform admins (``users.read``, role-scoped session)."""
-    count = await users_service.count_platform_admins(session)
-    return PlatformAdminCountResponse(count=count)
+    return await users_service.to_admin_read_one(user)
 
 
 @router.delete("/users/{user_id}/age-block", response_model=AdminUserRead)
@@ -550,7 +589,7 @@ async def clear_age_block(
     user_id: int,
     session: AdminSessionDep,
     current_user: UsersAgeUnblockDep,
-) -> User:
+) -> AdminUserRead:
     """Let an account answer the age question again.
 
     An account that answered as under age keeps that answer, and the question
@@ -568,7 +607,7 @@ async def clear_age_block(
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
     if user.age_below_minimum_at is None:
         raise HTTPException(
@@ -594,7 +633,7 @@ async def clear_age_block(
     account_stream.queue_account_signal(session, user_id, "age")
     await session.commit()
     await session.refresh(user)
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.patch("/users/{user_id}/platform-role", response_model=AdminUserRead)
@@ -603,12 +642,12 @@ async def update_platform_role(
     payload: PlatformRoleUpdate,
     session: AdminSessionDep,
     current_user: RolesAssignDep,
-) -> User:
-    """Update a user's platform role (admin only).
+) -> AdminUserRead:
+    """Update a user's platform role (``roles.assign``).
 
     Restrictions:
     - Cannot change your own role
-    - Cannot demote the last platform admin
+    - Cannot demote the last owner
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -621,15 +660,14 @@ async def update_platform_role(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # Refuse role changes on non-active accounts. A deactivated row's role
     # change is meaningless until the user is reactivated, and an
     # anonymized row should never gain or lose elevated privileges (the
-    # account is permanently gone). ``count_platform_admins`` already
-    # excludes non-active users from its count, so promoting a husk to
-    # admin would also confuse the last-admin invariant.
+    # account is permanently gone). The last-owner check counts active
+    # holders only, so promoting a husk would also confuse it.
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -661,16 +699,26 @@ async def update_platform_role(
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_OWNER,
             )
 
+    previous_role = user.role
     user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_PLATFORM_ROLE_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"from": previous_role.value, "to": payload.role.value},
+    )
     # What this account may do just changed, and it was not their doing. Their
     # open tabs re-read it rather than showing a rung they no longer hold.
     account_stream.queue_account_signal(session, user_id, "role")
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only (see reactivate).
-    return user
+    return await users_service.to_admin_read_one(user)
 
 
 @router.get(
@@ -700,7 +748,7 @@ async def check_user_deletion_eligibility(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     can_delete, blockers = await users_service.check_deletion_eligibility(
@@ -764,7 +812,7 @@ async def delete_user(
 
     Restrictions:
     - Cannot delete yourself (use /users/me/delete-account)
-    - Cannot delete the last platform admin
+    - Cannot delete the last owner
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -777,7 +825,7 @@ async def delete_user(
     user = result.one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
     # Check if target is the last platform owner (last config manager)
@@ -819,7 +867,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
-            message=f"User {mask_email(user.email)} has been deactivated",
+            message=f"User {user.username} has been deactivated",
         )
 
     if payload.action == "soft_delete":
@@ -827,7 +875,7 @@ async def delete_user(
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
-            message=f"User {mask_email(user.email)} has been anonymized",
+            message=f"User {user.username} has been anonymized",
         )
 
     # hard_delete: ownership is released as the memberships go, and the
@@ -837,7 +885,7 @@ async def delete_user(
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
-        message=f"User {mask_email(user.email)} has been permanently deleted",
+        message=f"User {user.username} has been permanently deleted",
     )
 
 
@@ -863,16 +911,17 @@ async def admin_delete_guild(
     """Delete a guild that blocks a user's deletion (platform operator).
 
     Scoped to blocker resolution — NOT a general "delete any guild" tool: the
-    guild must be one ``blocked_user_id`` is the SOLE admin of (so deleting that
-    user would orphan it). Any other guild is refused; an operator reaches a live
+    guild must be one ``blocked_user_id`` holds the SOLE superadmin seat of (so
+    deleting that user would leave it with nobody who can run it). Any other guild is refused; an operator reaches a live
     guild's own deletion only by breaking glass into its danger zone. This
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
     """
-    if not await users_service.is_last_admin_of_guild(
-        session, guild_id, blocked_user_id, for_update=True
+    await guilds_service.lock_guild_seats(session, guild_id)
+    if not await guilds_service.would_strand_guild(
+        session, guild_id=guild_id, user_id=blocked_user_id
     ):
-        # Either the user isn't the guild's sole admin (not a real blocker), or
+        # Either the user isn't the guild's sole seat (not a real blocker), or
         # the guild doesn't exist / they aren't in it — all refused identically.
         # ``for_update`` narrows the race against a concurrent demotion of an
         # existing admin; it can't lock a not-yet-existing row, so a brand-new
@@ -888,7 +937,7 @@ async def admin_delete_guild(
     guild = result.one_or_none()
     if not guild:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
     # Delete the shared guild row (cascades clear the roster), then drop the
@@ -924,7 +973,7 @@ async def admin_delete_initiative(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Delete an initiative (platform admin only).
+    """Delete an initiative (``guilds.manage``).
 
     Used by the user-deletion blocker-resolution flow when a target user is
     the sole project manager of an initiative with no other members the
@@ -935,7 +984,7 @@ async def admin_delete_initiative(
 
     Default initiatives are deletable here — that restriction exists for
     guild admins (so the guild always has a default for new project
-    creation), but a platform admin cleaning up a soon-to-be-deleted
+    creation), but an operator cleaning up a soon-to-be-deleted
     user shouldn't be blocked by it.
 
     ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
@@ -950,7 +999,7 @@ async def admin_delete_initiative(
     if not initiative:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     project_result = await session.exec(
@@ -977,9 +1026,9 @@ async def admin_update_guild_member_role(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Update a guild member's role (platform admin only).
+    """Update a guild member's role (``guilds.manage``).
 
-    This allows platform admins to change guild member roles in any guild,
+    This allows operators to change guild member roles in any guild,
     even if they're not a member. Useful for resolving "last admin" blockers.
 
     Restrictions:
@@ -999,8 +1048,10 @@ async def admin_update_guild_member_role(
     guild = result.one_or_none()
     if not guild:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
+
+    await guilds_service.lock_guild_seats(session, guild_id)
 
     # Get target membership with lock
     target_membership = await guilds_service.get_membership(
@@ -1009,21 +1060,38 @@ async def admin_update_guild_member_role(
     if target_membership is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.USER_NOT_IN_GUILD,
+            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
         )
 
-    # Check if demoting the last guild admin
-    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
-        if await users_service.is_last_admin_of_guild(
-            session, guild_id, user_id, for_update=True
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
-            )
+    # The seat cannot be emptied while the guild requires a sign-in: lifting the
+    # requirement happens on the surface the seat holds.
+    if (
+        target_membership.role == GuildRole.superadmin
+        and payload.role != GuildRole.superadmin
+        and await guilds_service.must_keep_superadmin(
+            session, guild_id=guild_id, user_id=user_id
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
+        )
 
+    previous_role = target_membership.role
     target_membership.role = payload.role
     session.add(target_membership)
+    if GuildRole.superadmin in (previous_role, payload.role):
+        # An operator seats a guild's first superadmin here; the guild's own
+        # role endpoint records the same event when the seat is passed on.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
+            actor_user_id=_current_user.id,
+            target_user_id=user_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(
@@ -1043,24 +1111,21 @@ async def admin_get_initiative_members(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Sequence[User]:
-    """List members of any initiative (platform admin only).
+    """List members of any initiative (``guilds.manage``).
 
     ``guild_id`` is required: initiatives live in per-guild schemas with
     independent id sequences. We route into that guild's schema as a guild
     admin so the member list comes from the live data, not the frozen
     ``public`` backup.
     """
-    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
-    await set_rls_context(
-        session, guild_id=guild_id, guild_role="admin", shows_member_names=shows_names
-    )
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)
     if not result.one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     # Active members only — anonymized rows are husks of departed users
@@ -1094,9 +1159,9 @@ async def admin_update_initiative_member_role(
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
 ) -> Response:
-    """Update an initiative member's role (platform admin only).
+    """Update an initiative member's role (``guilds.manage``).
 
-    This allows platform admins to change initiative member roles in any initiative,
+    This allows operators to change initiative member roles in any initiative,
     even if they're not a member. Useful for resolving "sole PM" blockers.
 
     ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique
@@ -1114,7 +1179,7 @@ async def admin_update_initiative_member_role(
     if not initiative:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
 
     # Get target membership with lock
@@ -1143,7 +1208,7 @@ async def admin_update_initiative_member_role(
     if not new_role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.ROLE_NOT_FOUND,
+            detail=InitiativeMessages.ROLE_NOT_FOUND,
         )
 
     # Check if demoting the last PM

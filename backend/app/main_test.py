@@ -9,11 +9,18 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.main as main_module
 from app.core.config import API_V1_STR, Settings, settings
-from app.main import SecurityHeadersMiddleware, validation_exception_handler
+from app.main import (
+    McpBarePathMiddleware,
+    SecurityHeadersMiddleware,
+    validation_exception_handler,
+)
 from app.testing import create_app_service_registration
 
 
@@ -296,3 +303,33 @@ def test_real_app_serves_docs_only_when_enabled() -> None:
     assert main_module.app.openapi_url == "/api/v1/openapi.json"
     docs_routes = {getattr(r, "path", None) for r in main_module.app.routes}
     assert "/api/v1/docs" in docs_routes
+
+
+@pytest.mark.unit
+def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:
+    """Both spellings of the MCP URL reach the mount, and neither redirects.
+
+    ``ENABLE_MCP`` is off in the suite, so this mirrors the wiring in
+    ``app.main`` — a sub-app mounted at ``/api/v1/mcp`` whose only route is its
+    own root — and drives it over HTTP. ``root_path`` is echoed back because it
+    is what the mount resolved, so the two spellings arriving alike is the
+    assertion.
+    """
+    prefix = f"{API_V1_STR}/mcp"
+
+    class _Root:  # a bare ASGI app, as fastmcp's streamable-HTTP handler is
+        async def __call__(self, scope, receive, send) -> None:
+            await PlainTextResponse(scope["root_path"])(scope, receive, send)
+
+    mounted = FastAPI()
+    mounted.mount(prefix, Starlette(routes=[Route("/", endpoint=_Root())]))
+    mounted.add_middleware(McpBarePathMiddleware, prefix=prefix)
+
+    http = TestClient(mounted)
+    bare = http.get(prefix, follow_redirects=False)
+    slashed = http.get(f"{prefix}/", follow_redirects=False)
+    assert bare.status_code == slashed.status_code == 200
+    assert bare.text == slashed.text == prefix
+
+    # The rewrite is that one path and nothing around it.
+    assert http.get(f"{prefix}other", follow_redirects=False).status_code == 404

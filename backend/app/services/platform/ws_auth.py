@@ -24,12 +24,32 @@ import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth_context import set_satisfied_providers
+from app.core.auth_context import (
+    claims_from_provider_auth,
+    set_satisfied_claims,
+    set_satisfied_providers,
+    set_session_mfa,
+    set_session_passkey,
+)
 from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.token import TokenPayload
+from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.auth.subject import user_for_subject
 from app.services.platform import user_tokens
+
+
+def _is_a_jwt(token: str) -> bool:
+    """Whether ``token`` is a JWT, whatever it says and whoever signed it.
+
+    Asked of the library rather than of the string's shape, so this agrees
+    with what the decode above was trying to read.
+    """
+    try:
+        jwt.get_unverified_header(token)
+    except jwt.PyJWTError:
+        return False
+    return True
 
 
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
@@ -45,12 +65,17 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     (consumed / expired in the database) and are validated by
     ``user_tokens.get_device_token``.
 
-    Like the HTTP validators, this records the credential's satisfied-provider
-    set in ``app.core.auth_context`` (empty for device tokens and legacy JWTs),
-    so the ``establish_guild_access`` call that follows applies the guild
-    auth-policy gate to the socket exactly as REST would.
+    Like the HTTP validators, this records what the credential proved in
+    ``app.core.auth_context`` — the satisfied-provider set, and whether the
+    session carries the account's second factor or a passkey (all empty or
+    false for device tokens and legacy JWTs) — so the
+    ``establish_guild_access`` call that follows applies the guild auth-policy
+    gate to the socket exactly as REST would.
     """
     set_satisfied_providers(None)
+    set_satisfied_claims(None)
+    set_session_mfa(False)
+    set_session_passkey(False)
 
     # First try JWT validation.
     try:
@@ -65,15 +90,24 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
                 and token_data.ver == user.token_version
             ):
                 set_satisfied_providers(frozenset(token_data.sat or ()))
+                set_satisfied_claims(claims_from_provider_auth(token_data.satd))
+                # Read from the session's own ``amr``, as the HTTP path reads
+                # it: the marker a presented code writes, and the markers a
+                # WebAuthn assertion writes.
+                set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+                set_session_passkey(carries_passkey(token_data.amr or ()))
                 return user
-        # Any string that decodes as one of our JWTs is a session token. A
-        # revoked one (stale/absent ``ver``), an unknown/inactive user, or a
-        # payload with no ``sub`` at all must not silently fall through to the
-        # device-token path below — the bearer here is a session JWT, not a
-        # device token.
+        # A session token that resolved nobody — revoked by ``ver``, naming an
+        # unknown or inactive account — is refused here rather than offered to
+        # the device-token path below.
         return None
     except jwt.PyJWTError:
-        pass
+        # And so is one that did not decode. A device token is an opaque
+        # ``secrets.token_urlsafe`` value, so a bearer that parses as a JWT is
+        # somebody presenting a session credential whatever is wrong with it;
+        # only a string that is no JWT at all can be the other kind.
+        if _is_a_jwt(token):
+            return None
 
     # Fall back to device token validation.
     device_token = await user_tokens.get_device_token(session, token=token)

@@ -14,13 +14,28 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.core import usernames
-from app.core.role_context import guild_shows_member_names
 
 
 class Nameable(Protocol):
     username: str
     discriminator: int
     full_name: str | None
+
+
+def display_name(user: Nameable | None, fallback: str = "") -> str:
+    """What to call ``user`` here: their name if there is one, their handle
+    otherwise.
+
+    Whether there is one is the guild's answer, not this function's. A
+    guild-routed session reads people through ``guild_member_profiles``, which
+    carries ``full_name`` only where that guild renders real names — so a guild
+    that renders handles arrives here with nothing to use, and gets a handle
+    without being asked about it.
+    """
+    if user is None:
+        return fallback
+    name = (getattr(user, "full_name", None) or "").strip()
+    return name or handle_of(user)
 
 
 def handle_of(user: Nameable) -> str:
@@ -30,15 +45,3 @@ def handle_of(user: Nameable) -> str:
     text has no styling to carry that, so it joins them.
     """
     return usernames.format_handle(user.username, user.discriminator)
-
-
-def display_name(user: Nameable | None, fallback: str = "") -> str:
-    """What to call ``user`` here: their name where the guild shows names,
-    their handle otherwise."""
-    if user is None:
-        return fallback
-    if guild_shows_member_names():
-        name = (getattr(user, "full_name", None) or "").strip()
-        if name:
-            return name
-    return handle_of(user)

@@ -1,4 +1,4 @@
-"""Admin-related schemas for platform administration."""
+"""Schemas for the platform operator surfaces."""
 
 from typing import Dict, List, Literal, Optional
 
@@ -17,16 +17,8 @@ class PlatformRoleUpdate(SanitizedBaseModel):
     role: UserRole
 
 
-class PlatformAdminCountResponse(SanitizedBaseModel):
-    """Response schema for platform admin count."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    count: int
-
-
 class AdminUserDeleteRequest(SanitizedBaseModel):
-    """Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin."""
+    """Request to deactivate, anonymize (soft delete), or hard delete another account."""
 
     action: Literal["deactivate", "soft_delete", "hard_delete"]
     # Keyed by "guild_id:project_id" (NOT bare project_id) — numeric project ids

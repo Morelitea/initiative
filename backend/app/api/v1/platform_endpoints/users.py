@@ -25,19 +25,19 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.session_cookies import (
-    set_refresh_cookie,
-    set_session_cookie,
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
 )
+from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
+from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
-from app.core.rate_limit import get_inet_client_ip, limiter
+from app.core.rate_limit import limiter
 from app.core.security import (
     get_password_hash,
-    mint_access_token,
-    verify_password,
+    has_usable_password,
 )
 from app.core.user_input_validators import (
     normalize_notification_time,
@@ -47,7 +47,12 @@ from app.core.user_input_validators import (
 )
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import GuildRole, GuildMembership
+from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
+    Guild,
+    GuildMembership,
+    GuildRole,
+)
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
@@ -92,10 +97,13 @@ from app.schemas.tenant.ownership import (
 )
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.encryption import SALT_EMAIL, decrypt_field
-from app.core.messages import AddressMessages, AuthMessages, UserMessages
+from app.core.messages import (
+    AddressMessages,
+    AuthMessages,
+    GuildMessages,
+    UserMessages,
+)
 from app.services.auth import addresses
-from app.services.auth import sessions as session_service
-from app.services.auth import subject as subject_service
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_events import AuditEventType
@@ -111,7 +119,6 @@ from app.services.platform import guild_images as images_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.services.platform.guilds import guild_renders_member_names
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
@@ -166,12 +173,13 @@ async def read_users_me(
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity
     # is linked (drives the "SSO account" affordances in the profile UI).
     payload.has_federated_identity = await has_federated_identity(
         session, user_id=current_user.id
     )
+    payload.has_password = has_usable_password(current_user.hashed_password)
     # The standing age gate. Costs a query only for an account that has not
     # confirmed on a deployment that asks — it short-circuits on the column
     # for everyone else, and stops for good once they answer.
@@ -209,7 +217,7 @@ async def list_users(
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
     stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
@@ -222,16 +230,27 @@ async def list_users(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    # Build response with guild_role and oidc_managed
+    # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
+    # SSO placed somebody, not which provider did.
     response = []
-    for user, guild_role, oidc_managed in rows:
+    for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
-        member.oidc_managed = oidc_managed
+        member.is_guild_admin = guild_role in GUILD_ADMIN_ROLES
+        member.oidc_managed = oidc_provider_id is not None
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
     return response
+
+
+def _membership_standing(role: GuildRole | None) -> dict[str, object]:
+    """The two membership fields a picker row carries: the role to show, and
+    whether it administers the guild — which is the question a caller asks."""
+    return {
+        "guild_role": role.value if role is not None else None,
+        "is_guild_admin": role in GUILD_ADMIN_ROLES,
+    }
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
@@ -271,8 +290,11 @@ async def search_users(
             users_service.visible_to_other_people(),
         )
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     #: Set while searching by name, and then what the page is ordered by.
+    # Both calls take the guild's own setting: a name is searchable and
+    # sortable only where the guild shows names, and a default here would
+    # decide that for it.
+    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(term, shows_names=shows_names)
@@ -313,7 +335,7 @@ async def search_users(
     return UserSummaryListResponse(
         items=[
             UserSummary.model_validate(user).model_copy(
-                update={"guild_role": roles.get(user.id)}
+                update=_membership_standing(roles.get(user.id))
             )
             for user in users
         ],
@@ -620,7 +642,7 @@ async def export_users_csv(
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
     stmt = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
         .order_by(MemberProfile.created_at.asc())
@@ -640,14 +662,14 @@ async def export_users_csv(
 
     shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
-    for user, guild_role, oidc_managed in rows:
+    for user, guild_role, oidc_provider_id in rows:
         csv_rows.append(
             [
                 user.id,
                 handle_of(user),
                 (user.full_name or "") if shows_names else "",
                 guild_role.value,
-                oidc_managed,
+                oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,
                 user.created_at.isoformat() if user.created_at else "",
                 csv_export.format_initiative_roles(user),
@@ -708,7 +730,7 @@ async def claim_my_username(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 #: The age below which somebody may not take part in the parts of the platform
@@ -795,7 +817,7 @@ async def confirm_my_age(
         await session.commit()
         await session.refresh(current_user)
 
-    return UserRead.model_validate(current_user)
+    return await users_service.to_self_read(current_user)
 
 
 def _address_read(row) -> UserEmailRead:
@@ -952,8 +974,9 @@ async def update_users_me(
         admin_session, user_id=current_user.id
     )
     if not update_data:
-        payload = UserRead.model_validate(current_user)
+        payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
+        payload.has_password = has_usable_password(current_user.hashed_password)
         return payload
 
     new_full_name = update_data.get("full_name")
@@ -962,21 +985,18 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it.
-        # SSO-only accounts have no local password to confirm and are exempt
-        # (mirrors the delete-account flow's gate).
-        if not is_sso_account:
-            current_password = update_data.get("current_password")
-            if not current_password:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_REQUIRED,
-                )
-            if not verify_password(current_password, current_user.hashed_password):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_INCORRECT,
-                )
+        # Read before the hash below replaces it: what the account held going
+        # in is what the re-check asks about and what the replacement session
+        # may claim was proved here.
+        held_password = has_usable_password(current_user.hashed_password)
+        # Re-authenticate with the current password before changing it. An
+        # account that holds none answers with a recent sign-in instead.
+        await require_password_or_recent_proof(
+            request,
+            admin_session,
+            current_user,
+            update_data.get("current_password"),
+        )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
@@ -988,49 +1008,20 @@ async def update_users_me(
         await user_tokens_service.revoke_user_sessions(
             session, user=current_user, admin_session=admin_session, commit=False
         )
-        # ...but keep THIS device signed in: the revocation above killed the
-        # caller's own access token AND refresh chain, so open a fresh session
-        # and re-issue both cookies — every *other* session/device still dies.
-        # ``amr`` records what this request proved: the current password for
-        # local accounts; nothing for the SSO-exempt path (no factor was
-        # presented here).
-        #
-        # A session is the only credential there is, so a store that cannot be
-        # written ends the request rather than downgrading it.
-        try:
-            issued = await session_service.create_session(
-                admin_session,
-                user_id=current_user.id,
-                amr=[] if is_sso_account else ["pwd"],
-                satisfied_providers=[],
-                user_agent=request.headers.get("user-agent"),
-                ip=get_inet_client_ip(request),
-            )
-            # The name the token will carry, minted in the same transaction as
-            # the session it belongs to.
-            subject = await subject_service.subject_for_user(
-                admin_session, user_id=current_user.id
-            )
-            await admin_session.commit()
-            refreshed_token, refreshed_max_age = mint_access_token(
-                subject=subject,
-                token_version=current_user.token_version,
-                session_id=issued.session.id,
-                amr=issued.session.amr,
-                satisfied_providers=issued.session.satisfied_providers,
-            )
-            set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
-            set_refresh_cookie(response, issued.refresh_token)
-        except Exception as exc:
-            await admin_session.rollback()
-            logger.exception(
-                "Could not open a session for user %s after a password change",
-                current_user.id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-            ) from exc
+        # ...but keep THIS device signed in: the revocation above took the
+        # caller's own access token AND refresh chain, so a fresh session is
+        # opened and both cookies re-issued — every *other* session/device
+        # still dies. ``amr`` records what this request proved: the current
+        # password where the account held one; nothing where it did not, since
+        # no factor was presented here.
+        await replace_session(
+            request,
+            response,
+            admin_session,
+            user=current_user,
+            amr=["pwd"] if held_password else [],
+            satisfied_providers=[],
+        )
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1167,8 +1158,9 @@ async def update_users_me(
     # Platform path — no initiative_roles enrichment (see read_users_me).
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.
-    payload = UserRead.model_validate(current_user)
+    payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
+    payload.has_password = has_usable_password(current_user.hashed_password)
     return payload
 
 
@@ -1241,14 +1233,12 @@ async def check_deletion_eligibility(
         session, current_user.id
     )
 
-    last_admin_guilds = await users_service.is_last_guild_admin(
-        session, current_user.id
-    )
-
     return DeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        last_admin_guilds=last_admin_guilds,
+        sole_superadmin_guilds=await users_service.is_last_guild_superadmin(
+            session, current_user.id
+        ),
     )
 
 
@@ -1268,8 +1258,7 @@ async def get_my_initiative_members(
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    shows_names = await guild_renders_member_names(session, guild_id=guild_id)
-    await set_rls_context(session, guild_id=guild_id, shows_member_names=shows_names)
+    await set_rls_context(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(
@@ -1300,37 +1289,40 @@ async def get_my_initiative_members(
 
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
+    http_request: Request,
     request: AccountDeletionRequest,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent last platform admin deletion (use FOR UPDATE to prevent race condition)
-    if await users_service.is_last_platform_admin(
-        session, current_user.id, for_update=True
+    # Keep at least one owner, who is the only rung that can manage platform
+    # configuration (FOR UPDATE to prevent a race).
+    if await users_service.is_last_capability_holder(
+        session, current_user.id, Capability.CONFIG_MANAGE, for_update=True
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
+            detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
         )
 
-    # Verify password — skipped for SSO-only users, who have no password
-    # (NULL ``hashed_password``; identity provisioning flow). Without this
-    # exemption an SSO-only account would have no way to satisfy the gate
-    # and could only be removed by an admin.
-    if not await has_federated_identity(session, user_id=current_user.id):
-        if not verify_password(request.password, current_user.hashed_password):
-            # 400 (not 401): the user IS authenticated — they passed
-            # ``get_current_active_user`` to reach this endpoint. The
-            # global axios interceptor treats every 401 as a session
-            # expiry and force-logs-out the SPA, so a wrong-password
-            # response on this form would knock the user out of the
-            # session they were trying to confirm into. 400 keeps the
-            # error scoped to the form's onError handler.
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=UserMessages.INVALID_PASSWORD,
-            )
+    # Re-check the password, where the account holds one to re-check. An
+    # account that signs in another way — a passkey, an identity provider —
+    # has none to supply, and answers with a recent sign-in and the
+    # confirmation phrase.
+    #
+    # 400 (not 401): the user IS authenticated — they passed
+    # ``get_current_active_user`` to reach this endpoint. The global axios
+    # interceptor treats every 401 as a session expiry and force-logs-out the
+    # SPA, so a wrong-password response on this form would knock the user out
+    # of the session they were trying to confirm into. 400 keeps the error
+    # scoped to the form's onError handler.
+    await require_password_or_recent_proof(
+        http_request,
+        session,
+        current_user,
+        request.password,
+        detail=UserMessages.INVALID_PASSWORD,
+    )
 
     # The confirmation phrase is action-specific so the user can't accidentally
     # anonymize when they meant to deactivate, or vice versa.
@@ -1415,6 +1407,14 @@ async def create_my_api_key(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
             )
+        # And the guild has to accept the credential at all. Asked here as well
+        # as at the gate so a key that could never be used is never handed over.
+        guild = await session.get(Guild, payload.guild_id)
+        if guild is not None and not guild.allow_api_keys:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_API_KEYS_REFUSED,
+            )
     secret, api_key = await api_keys_service.create_api_key(
         session,
         user=current_user,
@@ -1466,7 +1466,7 @@ async def _require_receiving_admin(
                 MemberProfile.id == new_owner_id,
                 MemberProfile.status == UserStatus.active,
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
+                GuildMembership.role.in_(GUILD_ADMIN_ROLES),
             )
         )
     ).one_or_none()
@@ -1628,12 +1628,12 @@ async def delete_user(
     # manager — so it is asked on the system engine rather than through the
     # guild role this request has assumed. FOR UPDATE to prevent a race with a
     # concurrent platform-role change.
-    if await users_service.is_last_platform_admin(
-        admin_session, user_id, for_update=True
+    if await users_service.is_last_capability_holder(
+        admin_session, user_id, Capability.CONFIG_MANAGE, for_update=True
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN,
+            detail=UserMessages.CANNOT_REMOVE_LAST_OWNER,
         )
     if user_id == current_admin.id:
         raise HTTPException(
@@ -1650,6 +1650,27 @@ async def delete_user(
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=UserMessages.NOT_IN_GUILD
+        )
+
+    # Removing the seat-holder ends the seat exactly as demoting them does, so
+    # it answers to the same authority: only the seat passes the seat on.
+    if (
+        membership.role == GuildRole.superadmin
+        and guild_context.role != GuildRole.superadmin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+    await guilds_service.lock_guild_seats(admin_session, guild_context.guild_id)
+    # And the seat stays filled for as long as the guild requires a sign-in:
+    # the requirement is lifted from the surface the seat holds.
+    if await guilds_service.must_keep_superadmin(
+        admin_session, guild_id=guild_context.guild_id, user_id=user_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
         )
 
     await initiatives_service.remove_user_from_guild_initiatives(
@@ -1695,13 +1716,13 @@ async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Re
     if not user_avatars_service.is_valid_digest(digest):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=UserMessages.AVATAR_NOT_FOUND,
+            detail=GuildMessages.IMAGE_NOT_FOUND,
         )
     avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
     if avatar is None or avatar.sha256 != digest:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=UserMessages.AVATAR_NOT_FOUND,
+            detail=GuildMessages.IMAGE_NOT_FOUND,
         )
     return Response(
         content=avatar.data,
@@ -1718,7 +1739,7 @@ async def upload_my_avatar(
     file: Annotated[UploadFile, File()],
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> User:
+) -> UserRead:
     """Replace the caller's profile picture.
 
     Multipart rather than a base64 field on ``PATCH /users/me``: sending the
@@ -1745,7 +1766,7 @@ async def upload_my_avatar(
     )
     await session.commit()
     await session.refresh(current_user)
-    return current_user
+    return await users_service.to_self_read(current_user)
 
 
 @router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)

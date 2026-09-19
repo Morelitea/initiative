@@ -207,3 +207,76 @@ async def test_device_token_slides_after_a_day_of_no_refresh(session: AsyncSessi
     refreshed = await user_tokens.get_device_token(session, token=raw)
     assert refreshed is not None
     assert refreshed.expires_at > two_days_in + timedelta(days=1)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_changing_the_password_drops_a_part_way_sign_in(
+    session: AsyncSession,
+):
+    """A challenge rests on the password it proved, so revoking an account's
+    credentials takes it with them."""
+    from app.services.auth import challenges as challenge_service
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    mine = await challenge_service.create(
+        session,
+        user_id=user.id,
+        purpose=challenge_service.ChallengePurpose.sign_in,
+    )
+    theirs = await challenge_service.create(
+        session,
+        user_id=bystander.id,
+        purpose=challenge_service.ChallengePurpose.sign_in,
+    )
+    await session.commit()
+
+    await user_tokens.revoke_user_sessions(session, user=user, admin_session=session)
+
+    assert (
+        await challenge_service.claim_attempt(
+            session,
+            value=mine.value,
+            purposes=[challenge_service.ChallengePurpose.sign_in],
+        )
+        is None
+    )
+    assert (
+        await challenge_service.claim_attempt(
+            session,
+            value=theirs.value,
+            purposes=[challenge_service.ChallengePurpose.sign_in],
+        )
+        is not None
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_the_sweep_clears_the_part_way_sign_ins_too(session: AsyncSession):
+    """The hourly pass takes challenges as well as tokens: one whose time has
+    run out, and one already spent. A challenge still standing is left."""
+    from app.models.platform.auth_challenge import AuthChallenge
+    from app.services.auth import challenges as challenge_service
+
+    user = await create_user(session)
+    purpose = challenge_service.ChallengePurpose.sign_in
+    standing = await challenge_service.create(session, user_id=user.id, purpose=purpose)
+    stale = await challenge_service.create(session, user_id=user.id, purpose=purpose)
+    spent = await challenge_service.create(session, user_id=user.id, purpose=purpose)
+    stale.challenge.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    session.add(stale.challenge)
+    assert await challenge_service.consume(session, spent.challenge)
+    await session.commit()
+
+    standing_id = standing.challenge.id
+    stale_id = stale.challenge.id
+    spent_id = spent.challenge.id
+
+    await user_tokens.process_expired_token_purge()
+
+    remaining = {row.id for row in (await session.exec(select(AuthChallenge))).all()}
+    assert stale_id not in remaining
+    assert spent_id not in remaining
+    assert standing_id in remaining

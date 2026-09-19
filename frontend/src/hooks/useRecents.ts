@@ -36,6 +36,8 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
+import { recordWikiViewApiV1GGuildIdWikisWikiIdViewPost } from "@/api/generated/wikis/wikis";
+
 const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promise<unknown>> = {
   project: recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost,
   document: recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost,
@@ -45,6 +47,7 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
   dashboard: recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost,
   post: recordPostViewApiV1GGuildIdPostsPostIdViewPost,
   gallery: recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost,
+  wiki: recordWikiViewApiV1GGuildIdWikisWikiIdViewPost,
 };
 
 /**

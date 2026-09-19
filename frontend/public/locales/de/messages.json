@@ -40,7 +40,15 @@
     "noCommunities": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
     "unreachable": "Nicht erreichbar",
     "showMore": "Mehr anzeigen",
-    "favorites": "Favoriten"
+    "favorites": "Favoriten",
+    "addToGroup": "{{name}} zu einer Gruppe hinzufügen",
+    "removeFromGroup": "{{name}} entfernen",
+    "groupHint": "Alle hier werden gefragt, bevor sie beitreten.",
+    "startGroup": "Gruppe mit {{count}} Personen starten",
+    "cannotReachEachOther": "{{first}} und {{second}} können sich noch nicht schreiben. In einer Gruppe müssen das alle können.",
+    "tooManyPeople": "Eine Gruppe fasst höchstens {{count}} Personen.",
+    "checkingRoster": "Es wird geprüft, ob sich hier alle gegenseitig schreiben können …",
+    "checkUnavailable": "Diese Prüfung war gerade nicht möglich. Versuche es gleich noch einmal."
   },
   "receipt": {
     "sent": "Gesendet",
@@ -54,6 +62,7 @@
   "send": "Senden",
   "sendFailed": "Diese Nachricht konnte nicht gesendet werden.",
   "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
+  "recipientDevicesUnverified": "{{name}} verwendet ein Gerät, das du noch nicht geprüft hast, daher wurde die Nachricht nicht gesendet. Vergleicht die Bilder oben miteinander und wähle dann „Ich habe das geprüft“.",
   "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
   "loading": "Wird geladen …",
   "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App.",
@@ -103,6 +112,11 @@
     "body": "Dieses Gerät hat deine anderen Geräte nach den Nachrichten gefragt, die du schon hattest. Öffne eines davon und bestätige es dort – das sind die Bilder, die es dir zeigen wird.",
     "dismiss": "Ausblenden",
     "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen weiterhin an, wenn du auf deinem anderen Gerät zustimmst."
+  },
+  "peerKeyChange": {
+    "title": "In dieser Unterhaltung hat sich ein Geräteschlüssel geändert",
+    "body": "{{name}} verwendet jetzt einen anderen Schlüssel auf einem Gerät, an das du bereits geschrieben hast. Meist bedeutet das, dass die Person ein Gerät ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät registriert hat. Vergleiche diese Bilder mit ihr auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
+    "acknowledge": "Ich habe das geprüft"
   },
   "safetyEmoji": {
     "dog": "Hund",
@@ -169,5 +183,17 @@
     "headphones": "Kopfhörer",
     "folder": "Ordner",
     "pin": "Stecknadel"
-  }
+  },
+  "groupThreads": {
+    "heading": "Gruppenunterhaltungen",
+    "invited": "Eingeladen"
+  },
+  "invitation": {
+    "heading": "Du wurdest gefragt, ob du einer Gruppe beitreten möchtest",
+    "who": "Alle darin:",
+    "join": "Beitreten",
+    "decline": "Nein danke"
+  },
+  "platformDisabled": "Direktnachrichten sind hier deaktiviert",
+  "platformDisabledBody": "Diese Installation bietet keine Direktnachrichten. Es wurde nichts gelöscht – werden sie wieder aktiviert, sind Ihre Unterhaltungen dort, wo Sie sie verlassen haben."
 }

@@ -9,10 +9,12 @@ from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
+    GUILD_ADMIN_ROLES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -201,7 +203,7 @@ async def ensure_membership(
     user_id: int,
     role: GuildRole = GuildRole.member,
     force_role: bool = False,
-    oidc_managed: bool = False,
+    oidc_provider_id: int | None = None,
 ) -> GuildMembership:
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
@@ -214,8 +216,8 @@ async def ensure_membership(
         if force_role and membership.role != role:
             membership.role = role
             updated = True
-        if oidc_managed and not membership.oidc_managed:
-            membership.oidc_managed = True
+        if oidc_provider_id is not None and membership.oidc_provider_id is None:
+            membership.oidc_provider_id = oidc_provider_id
             updated = True
         if updated:
             session.add(membership)
@@ -232,7 +234,7 @@ async def ensure_membership(
         user_id=user_id,
         role=role,
         position=next_position,
-        oidc_managed=oidc_managed,
+        oidc_provider_id=oidc_provider_id,
     )
     session.add(membership)
     await session.flush()
@@ -274,7 +276,7 @@ async def enroll_new_member_in_auto_join_initiatives(
     whole excursion sits inside a savepoint: landing somewhere useful is a
     convenience, and it must never be the reason someone's guild join fails.
     """
-    if role == GuildRole.admin:
+    if role in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service
@@ -322,7 +324,7 @@ async def align_admin_initiative_roles(
     reconciling rows underneath it must never be what makes it fail. Flush-only;
     the caller owns the transaction.
     """
-    if role != GuildRole.admin:
+    if role not in GUILD_ADMIN_ROLES:
         return
     from app.db.session import guild_schema_context
     from app.services.tenant import initiatives as initiatives_service
@@ -456,7 +458,11 @@ async def get_membership(
         GuildMembership.user_id == user_id,
     )
     if for_update:
-        stmt = stmt.with_for_update()
+        # ``populate_existing`` so the lock returns what the row holds *now*:
+        # an instance already in the identity map would otherwise come back as
+        # it was first read, which is the state the lock was taken to leave
+        # behind.
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
 
@@ -516,13 +522,13 @@ async def list_memberships(
         # absent for members.
         if (
             guild.status == GuildStatus.suspended.value
-            and membership.role != GuildRole.admin
+            and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         retention: int | None = None
         administration: GuildAdministration | None = None
-        if membership.role == GuildRole.admin:
+        if membership.role in GUILD_ADMIN_ROLES:
             row = (
                 await session.exec(
                     select(GuildSetting).where(GuildSetting.guild_id == guild.id)
@@ -609,8 +615,13 @@ async def create_guild(
     caller commits this, then calls :func:`seed_guild_content`.
 
     ``creator`` is who performed the creation and is recorded as such;
-    ``owner`` is who gets the admin membership, defaulting to the creator. The
-    row therefore says both who made the guild and who it is for.
+    ``owner`` is who gets the membership, defaulting to the creator. The row
+    therefore says both who made the guild and who it is for.
+
+    That membership is ``superadmin``, the top of the guild ladder: whoever
+    starts a community holds all of it, sign-in and billing included, and has
+    somebody to pass the seat to only because they hold it first. Every guild
+    keeps at least one from here on (:func:`must_keep_superadmin`).
     """
     now = datetime.now(timezone.utc)
     guild = Guild(
@@ -623,13 +634,13 @@ async def create_guild(
         updated_at=now,
     )
     await _persist_new_guild(session, guild)
-    admin = owner or creator
-    if admin:
+    first = owner or creator
+    if first:
         await ensure_membership(
             session,
             guild_id=guild.id,
-            user_id=admin.id,
-            role=GuildRole.admin,
+            user_id=first.id,
+            role=GuildRole.superadmin,
         )
     return guild
 
@@ -641,26 +652,31 @@ async def seed_guild_content(
     owner: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
-    (settings + default initiative + the apps this deployment provides) *inside*
-    it.
+    (settings + the apps this deployment provides) *inside* it.
 
-    ``owner`` is the user the guild is **for** — its admin, and the default
-    initiative's manager. When someone creates a guild for another account,
-    that account is the owner and the creator is left holding nothing in it.
+    ``owner`` is the user the guild is **for** — its admin. When someone creates
+    a guild for another account, that account is the owner and the creator is
+    left holding nothing in it.
+
+    A new guild gets **no initiative**. An initiative names a body of work, and
+    the seeded one only ever named the fact that nobody had made one yet: it
+    arrived called "Default Initiative", was renamed or abandoned, and either way
+    the owner had to decide what their community was for before the structure
+    meant anything. Landing on the empty state — which offers "create the first
+    one" to exactly the admin who may — asks that question once, instead of
+    answering it wrongly and making them undo it.
 
     The shared guild row must already exist; this provisions the schema + role and
     seeds into it (the caller commits around the call). On failure the caller
     should ``deprovision_guild`` and remove the shared rows.
 
-    Mandatory apps (§7.7) land here, beside the default initiative, because that
-    is what "every guild has it" means. They are also the one part allowed to
-    fail quietly: the install is a local row, and an app service whose listing
-    has not arrived yet is no reason a guild cannot be created — the boot sweep
-    installs what is missing.
+    Mandatory apps (§7.7) land here because that is what "every guild has it"
+    means. They are also the one part allowed to fail quietly: the install is a
+    local row, and an app service whose listing has not arrived yet is no reason
+    a guild cannot be created — the boot sweep installs what is missing.
     """
     from app.db.schema_provisioning import provision_guild
     from app.db.session import set_rls_context
-    from app.services.tenant import initiatives as initiatives_service
     from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
@@ -671,9 +687,6 @@ async def seed_guild_content(
         guild_role=GuildRole.admin.value,
     )
     await create_guild_settings(session, guild_id)
-    await initiatives_service.ensure_default_initiative(
-        session, owner, guild_id=guild_id
-    )
     try:
         # Inside a savepoint, so a failure here rolls back the app install and
         # nothing else: the guild being created must survive whatever an app's
@@ -773,8 +786,9 @@ async def update_guild(
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
-    guild_auth_enabled: bool | None = None,
+    auth_options: list[GuildAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
+    support_enabled: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -792,7 +806,7 @@ async def update_guild(
             guild.banner = normalized_banner
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
-    # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
+    # ``auth_options`` below), so null and omitted alike are a no-op.
     if is_community is not None and guild.is_community != is_community:
         # Only the way in is gated. Un-listing is always available — a guild
         # that opted in while the directory was running must still be able to
@@ -847,8 +861,9 @@ async def update_guild(
     if (
         max_storage_bytes_provided
         or max_users_provided
-        or guild_auth_enabled is not None
+        or auth_options is not None
         or banner_image_enabled is not None
+        or support_enabled is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -861,23 +876,31 @@ async def update_guild(
         if max_users_provided and administration.max_users != max_users:
             administration.max_users = max_users
             administration_updated = True
-        # An explicit ``null`` is meaningless for a boolean entitlement (unlike
-        # the caps, where null resets to unlimited), so guard on ``is not None``
-        # and treat null/omitted alike as a no-op — mirroring how the operator
+        # An explicit ``null`` is meaningless for an entitlement (unlike the
+        # caps, where null resets to unlimited), so guard on ``is not None`` and
+        # treat null/omitted alike as a no-op — mirroring how the operator
         # endpoint guards ``status``. Pydantic keeps an explicit null in
         # ``model_fields_set``, so a plain "provided" flag would let
-        # ``{"guild_auth_enabled": null}`` silently disable the entitlement.
-        if (
-            guild_auth_enabled is not None
-            and administration.guild_auth_enabled != guild_auth_enabled
-        ):
-            administration.guild_auth_enabled = guild_auth_enabled
-            administration_updated = True
+        # ``{"auth_options": null}`` silently withdraw every option.
+        #
+        # A sent list replaces the set outright: these are grants, and the
+        # operator is stating which ones the guild holds now.
+        if auth_options is not None:
+            requested = sorted({option.value for option in auth_options})
+            if sorted(administration.auth_options or []) != requested:
+                administration.auth_options = requested
+                administration_updated = True
         if (
             banner_image_enabled is not None
             and administration.banner_image_enabled != banner_image_enabled
         ):
             administration.banner_image_enabled = banner_image_enabled
+            administration_updated = True
+        if (
+            support_enabled is not None
+            and administration.support_enabled != support_enabled
+        ):
+            administration.support_enabled = support_enabled
             administration_updated = True
         if administration_updated:
             session.add(administration)
@@ -1462,6 +1485,107 @@ async def describe_invite_code(
     return invite, guild, False, reason
 
 
+#: Namespace for the per-guild advisory lock below, so the key cannot collide
+#: with another feature's advisory lock on the same guild id.
+SEAT_LOCK_NAMESPACE = 8471
+
+
+async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
+    """Order the changes that could leave a guild's sign-in rule unliftable.
+
+    Advisory rather than row-based, for two reasons. The paths that change
+    these do not all write on the connection that asks the question — leaving
+    and being removed are decided on the system engine and written on the
+    request one — and a row lock would not span that. And the rows involved
+    differ per caller, so locking them directly has two demotions each waiting
+    on the other's row.
+
+    Every path that can empty the seat, or impose a requirement on it, takes
+    this first, so they order rather than interleave. Held to the end of the
+    transaction; the caller does not release it.
+    """
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": SEAT_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
+
+
+async def must_keep_superadmin(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether this member's seat has to stay where it is.
+
+    True when they hold ``superadmin`` and are the only one who does. Every
+    guild keeps one: the seat holds the sign-in configuration and the billing
+    portal, and only an operator can seat a guild that has emptied it — so
+    emptying it is not something a guild can be allowed to do to itself.
+
+    Narrower once: the last holder stayed only while a sign-in requirement
+    stood, which was right while the seat was about sign-in alone and rare
+    enough that most guilds never held one. It is now every guild's, and it
+    reaches further than sign-in.
+
+    Call :func:`lock_guild_seats` first — this reads two things that have to
+    agree with each other, and the lock is what makes the answer still true
+    when the caller acts on it.
+    """
+    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
+    if membership is None or membership.role != GuildRole.superadmin:
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).one()
+    return others == 0
+
+
+async def would_strand_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether this account *going* would leave the community without a seat.
+
+    :func:`must_keep_superadmin` with the exception that makes it liveable: a
+    community whose only member is the person leaving has nobody to strand, and
+    no remedy to offer either — appointing another superadmin takes somebody to
+    appoint. They go, and what is left is a community with no members.
+
+    Departure only. Demotion does not get the exception and asks
+    :func:`must_keep_superadmin` directly: somebody who demotes themselves
+    while alone is still there afterwards, in a community they can no longer
+    configure and cannot re-seat.
+
+    Call :func:`lock_guild_seats` first, as for the rule it builds on.
+    """
+    if not await must_keep_superadmin(session, guild_id=guild_id, user_id=user_id):
+        return False
+
+    others = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id != user_id,
+            )
+        )
+    ).one()
+    return others > 0
+
+
 async def remove_user_from_guild(
     session: AsyncSession,
     *,
@@ -1516,19 +1640,3 @@ async def remove_user_from_guild(
         # than run here: the sweep reads the state this delete leaves behind,
         # and this delete is not committed yet.
         contact_grants_service.queue_stale_grant_sweep(session, user_id)
-
-
-async def guild_renders_member_names(session: AsyncSession, *, guild_id: int) -> bool:
-    """Whether ``guild_id`` renders its members’ real names.
-
-    The guild path reads this with the rest of the guild context. The two
-    endpoints that route into a guild by hand — the platform and self-service
-    initiative-member pickers — have no guild context to carry it, so they ask
-    here and hand the answer to ``set_rls_context``, which is what puts it both
-    on the session and on the request. Ask before routing: this reads a
-    ``public`` table, and the answer is what the routing needs.
-    """
-    shows = (
-        await session.exec(select(Guild.show_member_names).where(Guild.id == guild_id))
-    ).one_or_none()
-    return bool(shows)

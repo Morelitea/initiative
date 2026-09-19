@@ -3,7 +3,15 @@ from enum import Enum
 import json
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import text
@@ -216,6 +224,33 @@ class Guild(SQLModel, table=True):
     has_adult_content: Optional[bool] = Field(
         default=None, sa_column=Column(Boolean, nullable=True)
     )
+    # Whether a personal API key may be used against this guild. True by
+    # default. False means the guild declines that credential: no key can be
+    # minted into it, and a request authenticated by one does not reach it —
+    # pinned to this guild or not.
+    #
+    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
+    # here: the guild-access gate already holds this row, and the answer has to
+    # survive a guild lifting its sign-in requirement (which deletes the policy
+    # row). Read by the gate, by key creation, and by the cross-guild
+    # aggregates.
+    allow_api_keys: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    # Whether this guild's members are held to the compliance session standard:
+    # they sign in again every ``COMPLIANCE_SESSION_HOURS``, whatever the
+    # deployment's own limit says. A single standard rather than a number per
+    # guild, so somebody in two of them has one answer and not a comparison.
+    #
+    # Here for the same reason as the line above: it says what is asked of a
+    # session reaching this community, and the answer has to survive the guild
+    # lifting its sign-in requirement. Set by the guild's superadmin; read when
+    # a sign-in is stamped with its deadline.
+    enforce_compliance_session: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(
@@ -253,15 +288,81 @@ class Guild(SQLModel, table=True):
 class GuildRole(str, Enum):
     admin = "admin"
     member = "member"
+    # Above ``admin``: everything an admin reaches, plus the guild's sign-in
+    # configuration — its identity providers and the requirement for entering
+    # it. Separated because running a community and holding the keys to who may
+    # enter it are different jobs, and most guilds have nobody in this seat.
+    #
+    # An operator seats the first one; from then on a superadmin may seat
+    # another. An ordinary guild admin can do neither — the hand that
+    # administers a community is not the hand that decides who may enter it.
+    superadmin = "superadmin"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
     # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
     # admin/member, and the member-role endpoints reject assigning it). Unlike
-    # ``admin``, ``support`` is bound by its grant's read/write level: it can
-    # always reach the guild settings surface, with writes allowed only under a
-    # ``read_write`` grant (enforced at the Postgres role level — a read grant
-    # assumes ``guild_<id>_ro``). Break-glass grantees are ``admin``, not this.
+    # ``admin``, ``support`` is bound by its grant's read/write level, enforced
+    # at the Postgres role level — a read grant assumes ``guild_<id>_ro``. It
+    # is the content axis only: what of the community's configuration a
+    # grantee may work is a settings grant, held at its own rung beside this.
+    # Break-glass grantees are ``admin``, not this.
     support = "support"
+
+
+#: Roles that carry a guild admin's authority. ``superadmin`` sits above
+#: ``admin``, so anything asking "is this an admin" means "admin or above".
+GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
+    {GuildRole.admin, GuildRole.superadmin}
+)
+
+#: What an ordinary guild admin may hand out. ``support`` is never persisted at
+#: all, and ``superadmin`` is passed on only by somebody already holding it.
+GUILD_ASSIGNABLE_ROLES: frozenset[GuildRole] = frozenset(
+    {GuildRole.admin, GuildRole.member}
+)
+
+
+#: Roles that exist as ``guild_memberships`` rows. ``support`` is synthesized
+#: for the length of a PAM request and never stored, so it is the one value
+#: that is not here — derived rather than listed, so a role added to the enum
+#: is a stored role unless it is deliberately excluded.
+GUILD_STORED_ROLES: frozenset[GuildRole] = frozenset(GuildRole) - {GuildRole.support}
+
+
+def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
+    """Which roles ``by`` may set on somebody else inside the guild.
+
+    A superadmin passes the seat on; an ordinary admin cannot, and cannot
+    take it away either. The *first* one in a guild is seated by an operator
+    from platform settings — that is the only part of this a guild cannot do
+    for itself.
+    """
+    if by == GuildRole.superadmin:
+        return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}
+    return GUILD_ASSIGNABLE_ROLES
+
+
+def content_role(role: GuildRole) -> str:
+    """What ``app.current_guild_role`` should carry for this membership.
+
+    The GUC answers one question — what content access does this request have —
+    and a superadmin's answer is an admin's. Keeping it to two values is why
+    adding a third stored role changes no RLS policy: every
+    ``current_guild_role = 'admin'`` leg, on ``public`` and inside each guild
+    schema, keeps meaning exactly what it meant.
+
+    What tells the two apart is the membership row, read where that distinction
+    is actually needed.
+    """
+    return GuildRole.admin.value if role in GUILD_ADMIN_ROLES else role.value
+
+
+#: Every value ``app.current_guild_role`` can carry, derived by putting each
+#: stored role through :func:`content_role`. There are two, and the context
+#: seam validates against this rather than restating the pair.
+CONTENT_ROLES: frozenset[str] = frozenset(
+    content_role(role) for role in GUILD_STORED_ROLES
+)
 
 
 class GuildMembership(SQLModel, table=True):
@@ -292,9 +393,19 @@ class GuildMembership(SQLModel, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
-    oidc_managed: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    #: The provider whose claims put this person here, and the only one whose
+    #: sign-in may take it away again. NULL is a membership nobody manages —
+    #: an invite, a join request, an admin adding somebody — which group sync
+    #: neither grants nor reclaims. ``ON DELETE SET NULL``: removing a provider
+    #: ends its claim on the row, it does not end the membership.
+    oidc_provider_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
     )
 
     guild: Optional[Guild] = Relationship(back_populates="members")

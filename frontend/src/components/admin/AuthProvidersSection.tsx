@@ -5,6 +5,8 @@ import {
   useAuthProviders,
   useCreateAuthProvider,
   useDeleteAuthProvider,
+  useDiscoverAuthProvider,
+  useTestAuthProvider,
   useUpdateAuthProvider,
 } from "@/hooks/useSettings";
 
@@ -15,6 +17,8 @@ export const AuthProvidersSection = () => {
   const createProvider = useCreateAuthProvider();
   const updateProvider = useUpdateAuthProvider();
   const deleteProvider = useDeleteAuthProvider();
+  const testProvider = useTestAuthProvider();
+  const discoverIssuer = useDiscoverAuthProvider();
 
   return (
     <ProviderRegistrySection
@@ -26,6 +30,8 @@ export const AuthProvidersSection = () => {
       createProvider={createProvider}
       updateProvider={updateProvider}
       deleteProvider={deleteProvider}
+      testProvider={testProvider}
+      discoverIssuer={discoverIssuer}
     />
   );
 };

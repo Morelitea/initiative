@@ -449,17 +449,6 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _reset_auth_scope(monkeypatch):
-    """Restore the default login posture after each test.
-
-    Posture is the deploy-time ``settings.AUTH_SCOPE`` singleton; the
-    ``set_auth_scope`` factory mutates it directly, so this records the value
-    (platform by default) and monkeypatch restores it at teardown — otherwise a
-    guild-posture test would leak into the next."""
-    monkeypatch.setattr(settings, "AUTH_SCOPE", settings.AUTH_SCOPE)
-
-
-@pytest.fixture(autouse=True)
 def _reset_app_registration_cache():
     """Start and end every test with no cached app service registrations.
 

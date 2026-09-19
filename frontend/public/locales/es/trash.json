@@ -42,6 +42,8 @@
     "dashboard": "Panel",
     "post": "Publicación",
     "gallery": "Galería",
-    "gallery_image": "Imagen"
+    "gallery_image": "Imagen",
+    "wiki": "Wiki",
+    "wiki_page": "Página"
   }
 }

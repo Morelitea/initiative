@@ -114,6 +114,16 @@ class AuthSession(SQLModel, table=True):
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
+    # The end of the whole chain, not of this row: how long somebody may stay
+    # signed in before signing in again, as opposed to how long they may leave
+    # the app alone (``expires_at``, which every rotation pushes forward).
+    #
+    # Stamped once when the sign-in happens and carried through every rotation
+    # unchanged, so renewing costs no extra read. NULL means the deployment
+    # asked for no limit.
+    chain_expires_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     revoked_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

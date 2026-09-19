@@ -24,6 +24,7 @@ import {
   useAccessGrantQueue,
   useApproveAccessGrant,
   useBreakGlass,
+  useBreakGlassRequirements,
   useCancelAccessRequest,
   useCreateAccessRequest,
   useDenyAccessGrant,
@@ -35,6 +36,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
 const STATUS_VARIANT: Record<
   AccessGrantStatus,
@@ -145,20 +147,44 @@ const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 // Self-serve emergency access for data.bypass holders (operator/owner). Unlike a
 // request, this is approved on creation — live immediately, scoped to one guild,
 // read-only by default, short-lived, and recorded as an audited grant.
+/** The server saying this request had to carry the account's second factor. */
+const isSecondFactorRefusal = (error: unknown): boolean =>
+  (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail ===
+  "ACCESS_GRANT_SECOND_FACTOR_REQUIRED";
+
+/** What a grant is for and how far it goes, in one phrase — the level alone is
+ *  ambiguous now that a settings grant carries its own vocabulary. */
+const grantScope = (grant: { purpose?: string; access_level: string }): string =>
+  grant.purpose === "settings" ? `settings · ${grant.access_level}` : grant.access_level;
+
 const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common"]);
   const { refreshGuilds } = useGuilds();
   const [guildId, setGuildId] = useState("");
-  const [level, setLevel] = useState("read");
   const [duration, setDuration] = useState("60");
   const [reason, setReason] = useState("");
+  const [code, setCode] = useState("");
+
+  // What this request will be asked for. Breaking glass carries the account's
+  // own second factor once any data.bypass holder has one, so the form asks
+  // here rather than guessing from the caller's own enrolment.
+  //
+  // The answer can change while this page is open — somebody else enrolling is
+  // all it takes — so the server stays the authority: a refusal naming the
+  // factor reveals the field and refetches, rather than the form insisting on
+  // what it last heard.
+  const requirements = useBreakGlassRequirements();
+  const [factorRefused, setFactorRefused] = useState(false);
+  const needsCode = (requirements.data?.second_factor_required ?? false) || factorRefused;
+  const knownUnenrolled = requirements.data?.enrolled === false;
 
   const breakGlass = useBreakGlass({
     onSuccess: () => {
       toast.success(t("accessGrants.breakGlass.activated"));
       setGuildId("");
       setReason("");
-      setLevel("read");
+      setCode("");
+      setFactorRefused(false);
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
       // /c/{id} route guard read from the GuildProvider's context list (not
@@ -166,18 +192,27 @@ const BreakGlassSection = () => {
       // doesn't appear until a manual reload.
       void refreshGuilds();
     },
-    onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error")),
+    onError: (err) => {
+      if (isSecondFactorRefusal(err)) {
+        setFactorRefused(true);
+        void requirements.refetch();
+      }
+      toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error"));
+    },
   });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim()) return;
+    const entered = code.trim();
+    // No level to choose: breaking glass issues write access to the content
+    // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
       guild_id: gid,
-      access_level: level as "read" | "read_write",
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
+      ...(needsCode && entered ? classifySecondFactorAnswer(entered) : {}),
     });
   };
 
@@ -199,18 +234,6 @@ const BreakGlassSection = () => {
               placeholder={t("accessGrants.guildIdPlaceholder")}
               required
             />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="bg-level">{t("accessGrants.levelLabel")}</Label>
-            <Select value={level} onValueChange={setLevel}>
-              <SelectTrigger id="bg-level">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
-                <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="bg-duration">{t("accessGrants.durationLabel")}</Label>
@@ -237,6 +260,27 @@ const BreakGlassSection = () => {
               required
             />
           </div>
+          {needsCode && (
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="bg-code">{t("accessGrants.breakGlass.codeLabel")}</Label>
+              <Input
+                id="bg-code"
+                autoComplete="one-time-code"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder={t("accessGrants.breakGlass.codePlaceholder")}
+                required
+              />
+              <p className="text-muted-foreground text-xs">
+                {knownUnenrolled
+                  ? t("accessGrants.breakGlass.codeNotEnrolled")
+                  : t("accessGrants.breakGlass.codeHelp")}
+              </p>
+            </div>
+          )}
           <div className="sm:col-span-2">
             <Button type="submit" variant="destructive" disabled={breakGlass.isPending}>
               {breakGlass.isPending ? t("common:submitting") : t("accessGrants.breakGlass.submit")}
@@ -259,7 +303,11 @@ const RequestSection = () => {
   const durationOptions = allowedDurations(user?.role);
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? 240));
   const [guildId, setGuildId] = useState("");
+  // Two axes, asked for independently. "none" is how you say you do not want
+  // one — clearing up after an incident wants both; having a look wants only
+  // the first.
   const [level, setLevel] = useState("read");
+  const [settingsLevel, setSettingsLevel] = useState("none");
   const [duration, setDuration] = useState(defaultDuration);
   const [reason, setReason] = useState("");
 
@@ -276,13 +324,19 @@ const RequestSection = () => {
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.cancelError")),
   });
 
+  // A request must name at least one authority.
+  const asksForSomething = level !== "none" || settingsLevel !== "none";
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
-    if (!gid || !reason.trim()) return;
+    if (!gid || !reason.trim() || !asksForSomething) return;
     createRequest.mutate({
       guild_id: gid,
-      access_level: level as "read" | "read_write",
+      ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
+      ...(settingsLevel === "none"
+        ? {}
+        : { settings_level: settingsLevel as "admin" | "superadmin" }),
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
     });
@@ -308,16 +362,32 @@ const RequestSection = () => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="ag-level">{t("accessGrants.levelLabel")}</Label>
+            <Label htmlFor="ag-level">{t("accessGrants.purposeContent")}</Label>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger id="ag-level">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
                 <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
                 <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeContentHelp")}</p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ag-settings-level">{t("accessGrants.purposeSettings")}</Label>
+            <Select value={settingsLevel} onValueChange={setSettingsLevel}>
+              <SelectTrigger id="ag-settings-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
+                <SelectItem value="admin">{t("accessGrants.levelAdmin")}</SelectItem>
+                <SelectItem value="superadmin">{t("accessGrants.levelSuperadmin")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">{t("accessGrants.purposeSettingsHelp")}</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="ag-duration">{t("accessGrants.durationLabel")}</Label>
@@ -345,9 +415,12 @@ const RequestSection = () => {
             />
           </div>
           <div className="sm:col-span-2">
-            <Button type="submit" disabled={createRequest.isPending}>
+            <Button type="submit" disabled={createRequest.isPending || !asksForSomething}>
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>
+            {!asksForSomething && (
+              <p className="mt-2 text-muted-foreground text-xs">{t("accessGrants.nothingAsked")}</p>
+            )}
           </div>
         </form>
 
@@ -363,7 +436,7 @@ const RequestSection = () => {
                   <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm">
-                        {guildLabel(grant)} · {grant.access_level}
+                        {guildLabel(grant)} · {grantScope(grant)}
                       </p>
                       <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
                     </div>
@@ -442,7 +515,7 @@ const ApprovalQueue = () => {
                   <div className="min-w-0">
                     <p className="truncate text-sm">
                       {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                      {grant.access_level} ·{" "}
+                      {grantScope(grant)} ·{" "}
                       {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
                     <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
@@ -490,7 +563,7 @@ const ApprovalQueue = () => {
                     <div className="min-w-0">
                       <p className="truncate text-sm">
                         {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                        {grant.access_level}
+                        {grantScope(grant)}
                       </p>
                       {left !== null && (
                         <p className="text-muted-foreground text-xs">

@@ -36,7 +36,7 @@
     "title": "¿Salir de {{name}}?",
     "description": "Perderás acceso a todas las iniciativas y proyectos en <bold>{{name}}</bold>. Esta acción no se puede deshacer.",
     "cannotLeaveTitle": "No se puede salir de la comunidad",
-    "lastAdminWarning": "Eres el último administrador de esta comunidad. Primero promueve a otro miembro a administrador.",
+    "lastSuperadminWarning": "Eres el único superadministrador de esta comunidad. Primero haz superadministrador a otro miembro.",
     "leaving": "Saliendo...",
     "leaveButton": "Salir de la comunidad",
     "leftGuild": "Saliste de {{name}}",
@@ -163,7 +163,13 @@
     "adminRequired": "Necesitas permisos de administrador para ver esta página.",
     "guildRole": {
       "admin": "Administrador",
-      "member": "Miembro"
+      "member": "Miembro",
+      "superadmin": "Superadministrador"
+    },
+    "guildRoleHelp": {
+      "member": "Participa en aquello a lo que se le añade.",
+      "admin": "Dirige la comunidad: miembros, invitaciones, iniciativas, ajustes.",
+      "superadmin": "Todo eso, y además cómo entra la gente: inicio de sesión, IA y aplicaciones. Solo un superadministrador puede nombrar a otro."
     },
     "loadingSettings": "Cargando configuración…",
     "unableToLoadSettings": "No se pudo cargar la configuración.",
@@ -252,6 +258,8 @@
     "commentReaction": "{{reactorName}} reaccionó {{emoji}} a tu comentario en {{contextTitle}}.",
     "directMessage": "{{senderName}} te envió un mensaje.",
     "directMessageMany": "{{senderName}} te envió {{count}} mensajes.",
+    "directMessageGroup": "{{senderName}} ha enviado un mensaje a {{groupName}}.",
+    "directMessageGroupMany": "{{senderName}} y otras personas han enviado {{count}} mensajes a {{groupName}}.",
     "someone": "Alguien",
     "connectionRequested": "{{actorName}} quiere conectar contigo.",
     "connectionAccepted": "{{actorName}} aceptó tu solicitud de conexión.",
@@ -463,6 +471,7 @@
     "person": "Miembro",
     "name": "Nombre",
     "admin": "Administrador",
+    "superadmin": "Superadministrador",
     "alsoIn": "También en",
     "actions": "Acciones",
     "failed": "No se pudieron cargar los miembros de esta comunidad.",

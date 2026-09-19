@@ -29,7 +29,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U initiative"
+          --health-cmd "pg_isready -U initiative -d initiative_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -60,6 +60,16 @@ jobs:
       - name: Check for backend changes
         id: changes
         run: |
+          # Integration-branch pushes are the authoritative whole-tree
+          # signal. Pull requests may use scoped feedback, but a push to main
+          # or dev must never report green after skipping the caller's tests.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "alembic_changed=true" >> $GITHUB_OUTPUT
+            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
+            echo "Integration push — running the full backend suite"
+            exit 0
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             DIFF="git diff --name-only origin/${{ github.base_ref }}...HEAD"
           else
@@ -224,6 +234,13 @@ jobs:
       - name: Check for frontend changes
         id: filter
         run: |
+          # Pushes to the integration branches are whole-tree verification;
+          # only pull requests use the changed-file shortcut.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Integration push — running the full frontend suite"
+            exit 0
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- frontend/ || true)
           else
@@ -362,3 +379,41 @@ jobs:
 
       - name: Test the git identity guard
         run: ./scripts/git-identity-guard_test.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install workflow check dependencies
+        run: pip install "pyyaml==6.0.3"
+
+      - name: Test the Android signing workflow
+        run: python3 scripts/ci/android_signing_workflow_test.py
+
+  image:
+    name: Build and scan runtime image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build runtime image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          load: true
+          tags: initiative:scan
+
+      - name: Scan runtime image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: initiative:scan
+          # This gate owns the pinned runtime base. Application dependency and
+          # secret/configuration findings remain in their existing estate-wide
+          # checks, rather than making a base refresh answer for unrelated debt.
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

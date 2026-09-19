@@ -24,23 +24,22 @@
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
-        "message": "Diese Community ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+        "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       },
       "suspended": {
         "label": "Gesperrt",
-        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an die Betreiber dieses Servers."
       }
     },
     "tabs": {
       "guild": "Community",
-      "ai": "KI",
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
       "data": "Daten",
       "dangerZone": "Gefahrenzone",
-      "auth": "Authentifizierung",
-      "apps": "Apps"
+      "security": "Sicherheit",
+      "integrations": "Integrationen"
     }
   },
   "profile": {
@@ -421,7 +420,7 @@
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
     "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
-    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
@@ -452,7 +451,7 @@
     "deleteSuccess": "Konto dauerhaft gelöscht"
   },
   "branding": {
-    "adminOnly": "Nur Plattformadministratoren können die Branding-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -522,7 +521,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur Plattformadministratoren können die E-Mail-Einstellungen verwalten.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -553,41 +552,15 @@
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
   "auth": {
-    "adminOnly": "Nur Plattformadministratoren können die Authentifizierungseinstellungen verwalten.",
-    "title": "OIDC-Authentifizierung",
-    "description": "Konfiguriere Single Sign-On für deinen Arbeitsbereich.",
+    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
-    "enabledLabel": "Aktiviert",
-    "enabledHelp": "Benutzern erlauben, sich über deinen OIDC-Anbieter zu authentifizieren.",
-    "issuerLabel": "Aussteller",
-    "issuerPlaceholder": "https://accounts.example.com",
-    "clientIdLabel": "Client-ID",
-    "clientSecretLabel": "Client-Secret",
-    "clientSecretPlaceholder": "••••••••",
-    "clientSecretHelp": "Lass das Feld leer, um das vorhandene Secret beizubehalten.",
-    "providerNameLabel": "Anbietername",
-    "providerNamePlaceholder": "Single Sign-On",
-    "scopesLabel": "Scopes",
-    "scopesPlaceholder": "openid profile email offline_access",
-    "save": "Authentifizierungseinstellungen speichern",
-    "saving": "Speichern…",
-    "callbackUrl": "Autorisierungs-Callback:",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
     "mobileCallback": "Callback der mobilen App:",
     "mappingsTitle": "OIDC-Claim-Zuordnungen",
     "mappingsDescription": "Ordne Claim-Werte von deinem Identitätsanbieter Community- und Initiativen-Mitgliedschaften zu.",
-    "claimPathCardTitle": "OIDC-Claim-Pfad",
-    "claimPathCardDescription": "Pfad in Punktnotation zum Claim-Array im OIDC-Token. Gängige Pfade:",
-    "claimPathLabel": "Claim-Pfad",
-    "claimPathPlaceholder": "z. B. roles oder realm_access.roles",
-    "claimPathHelp": "Der durch Punkte getrennte Pfad zum Claim im ID-Token. Lass das Feld leer, falls nicht benötigt.",
-    "claimPathSave": "Speichern",
-    "claimPathSaving": "Speichern…",
     "updateClaimPath": "Aktualisieren",
     "updatingClaimPath": "Wird aktualisiert…",
-    "claimPathSuccess": "Claim-Pfad aktualisiert",
-    "claimPathError": "Claim-Pfad konnte nicht aktualisiert werden",
     "rulesTitle": "Zuordnungsregeln",
     "rulesDescription": "Ordne OIDC-Claim-Werte Community- und Initiativen-Mitgliedschaften zu.",
     "addRule": "Regel hinzufügen",
@@ -640,9 +613,49 @@
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
-    "scope": {
-      "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung pro Community"
+    "deploymentTitle": "Diese Installation",
+    "mappingProvider": "Anbieter",
+    "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
+    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat.",
+    "methods": {
+      "title": "Zugangswege",
+      "description": "Wie sich Personen bei dieser Installation anmelden können. Mindestens eine Möglichkeit, eine Sitzung zu beginnen, bleibt aktiv.",
+      "password": {
+        "label": "Passwort",
+        "help": "Eine E-Mail-Adresse und ein hier hinterlegtes Passwort."
+      },
+      "sso": {
+        "label": "Single Sign-on",
+        "help": "Jeder unten konfigurierte Identitätsanbieter."
+      },
+      "lastRemaining": "Der letzte Zugangsweg kann nicht entzogen werden.",
+      "wouldStrand_one": "{{count}} Konto meldet sich ausschließlich so an.",
+      "wouldStrand_other": "{{count}} Konten melden sich ausschließlich so an.",
+      "confirmTitle": "Diesen Zugangsweg entziehen?",
+      "confirmBody_one": "{{count}} Konto meldet sich ausschließlich so an und kann sich erst wieder anmelden, wenn es einen anderen Weg hat. Niemand wird abgemeldet.",
+      "confirmBody_other": "{{count}} Konten melden sich ausschließlich so an und können sich erst wieder anmelden, wenn sie einen anderen Weg haben. Niemand wird abgemeldet.",
+      "confirmAction": "Entziehen",
+      "saved": "Zugangswege aktualisiert.",
+      "saveError": "Die Zugangswege konnten nicht geändert werden.",
+      "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
+      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
+      "totp": {
+        "label": "Authenticator-App",
+        "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
+      },
+      "passkey": {
+        "label": "Passkey",
+        "help": "Ein Schlüssel auf einem Gerät oder in einem Passwort-Manager, der eine Abfrage beantwortet statt eines Passworts. Jede Person fügt ihn selbst hinzu."
+      }
+    },
+    "sessionLifetime": {
+      "title": "Wie lange Personen angemeldet bleiben",
+      "description": "Die längste Zeit, die jemand ohne erneute Anmeldung auskommt, unabhängig von der Nutzung. Unabhängig davon, bei Nichtnutzung abgemeldet zu werden.",
+      "label": "Stunden",
+      "placeholder": "Kein Limit",
+      "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
+      "saved": "Sitzungslimit gespeichert.",
+      "error": "Das Sitzungslimit konnte nicht gespeichert werden."
     }
   },
   "platformUsers": {
@@ -653,21 +666,13 @@
     "filterPlaceholder": "Nach Handle filtern…",
     "columnId": "Benutzer-ID",
     "columnHandle": "Handle",
-    "columnName": "Name",
     "columnEmail": "E-Mail",
-    "columnRole": "Rolle",
     "columnStatus": "Status",
     "columnActions": "Aktionen",
     "active": "Aktiv",
-    "inactive": "Inaktiv",
     "deactivated": "Deaktiviert",
     "anonymized": "Anonymisiert",
-    "admin": "Administrator",
-    "user": "Benutzer",
-    "promoteToAdmin": "Zum Administrator befördern",
-    "promoteDescription": "Dadurch erhält {{email}} Plattformadministrator-Berechtigungen und kann Plattformeinstellungen, Benutzer und Konfigurationen verwalten.",
-    "demoteToUser": "Zum Benutzer herabstufen",
-    "demoteDescription": "Dadurch werden {{email}} die Plattformadministrator-Berechtigungen entzogen. Die Person kann dann nicht mehr auf die Plattformeinstellungen zugreifen.",
+    "suspended": "Gesperrt",
     "resetPassword": "Passwort zurücksetzen",
     "resetDescription": "Dadurch wird eine E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet.",
     "reactivate": "Wieder aktivieren",
@@ -675,15 +680,11 @@
     "exportAll": "Alle als CSV exportieren",
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "deleteUser": "Benutzer löschen",
-    "promoteSuccess": "Benutzer zum Administrator befördert",
-    "demoteSuccess": "Benutzer zum Mitglied herabgestuft",
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
     "resetSuccess": "E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
     "reactivateSuccess": "{{email}} wurde wieder aktiviert",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
-    "cannotDemoteLastAdmin": "Der letzte Plattformadministrator kann nicht herabgestuft werden",
-    "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
     "roles": {
       "member": "Mitglied",
@@ -702,18 +703,34 @@
     "changeRoleTitle": "Plattformrolle ändern",
     "changeRoleDescription": "Dadurch wird die Plattformrolle von {{email}} in {{role}} geändert.",
     "roleChangeSuccess": "Plattformrolle in {{role}} geändert",
-    "changeUsername": "Benutzernamen ändern",
     "usernameChanged": "Benutzername geändert.",
-    "changeUsernameTitle": "Benutzernamen von {{handle}} ändern",
-    "changeUsernameBody": "Die Person wird benachrichtigt und kann die Änderung nicht selbst rückgängig machen. Die Nummer bleibt unverändert.",
     "suspend": "Sperren",
-    "unsuspend": "Sperre aufheben",
     "suspendTitle": "{{handle}} sperren?",
     "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
-    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden."
+    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
+    "sheet": {
+      "open": "Verwalten",
+      "openLabel": "Konto {{handle}} verwalten",
+      "description": "Was ein Operator für dieses Konto pflegt. Jede Änderung wird einzeln gespeichert.",
+      "identity": "Identität",
+      "usernameLabel": "Benutzername",
+      "usernameHelp": "Das Handle, unter dem die Person angesprochen wird. Die Nummer dahinter bleibt unverändert.",
+      "avatarLabel": "Profilbild",
+      "avatarHelp": "Das Bild entfernen. Von hier aus kann es nicht ersetzt werden.",
+      "avatarRemove": "Entfernen",
+      "avatarRemoved": "Profilbild entfernt.",
+      "avatarConfirmTitle": "Dieses Profilbild entfernen?",
+      "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
+      "access": "Zugriff",
+      "suspendLabel": "Gesperrt",
+      "suspendHelp": "Ein gesperrtes Konto kann sich weiterhin anmelden und den Grund lesen, erreicht aber keine seiner Communitys.",
+      "role": "Plattformrolle",
+      "roleLabel": "Rolle",
+      "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
+    }
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",
@@ -788,15 +805,27 @@
       "reasonPlaceholder": "Warum du Notfallzugriff brauchst (z. B. Vorfall #123)",
       "submit": "Notfallzugriff",
       "activated": "Notfallzugriff aktiviert",
-      "error": "Notfallzugriff nicht möglich"
+      "error": "Notfallzugriff nicht möglich",
+      "codeLabel": "Dein Authenticator-Code",
+      "codePlaceholder": "123456 oder ein Wiederherstellungscode",
+      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher wird beim Notzugriff ein Code verlangt. Ein Wiederherstellungscode funktioniert ebenfalls.",
+      "codeNotEnrolled": "Für dieses Konto ist kein Authenticator eingerichtet. Richte unter Sicherheit einen ein und nutze dann den Notzugriff."
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
     "guildIdLabel": "Community-ID",
     "guildIdPlaceholder": "z. B. 42",
     "levelLabel": "Zugriffsebene",
+    "levelNone": "Keiner",
+    "nothingAsked": "Wähle Zugriff auf Inhalte, auf Einstellungen oder beides.",
     "levelRead": "Nur Lesen",
     "levelReadWrite": "Lesen und Schreiben",
+    "purposeContent": "Zugriff auf Inhalte",
+    "purposeSettings": "Zugriff auf Einstellungen",
+    "purposeContentHelp": "Lesen oder bearbeiten, was in der Community liegt.",
+    "purposeSettingsHelp": "Nur die Konfiguration — Abrechnung, Anmeldung, Moderation.",
+    "levelAdmin": "Admin",
+    "levelSuperadmin": "Superadmin",
     "durationLabel": "Dauer",
     "durationHours_one": "{{count}} Stunde",
     "durationHours_other": "{{count}} Stunden",
@@ -832,15 +861,16 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Community-Speicher und App-Dienste für die gesamte Plattform.",
+    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
       "community": "Community",
-      "ai": "KI",
       "storage": "Speicher",
-      "appServices": "App-Dienste"
+      "intake": "Eingang",
+      "security": "Sicherheit",
+      "integrations": "Integrationen"
     }
   },
   "appServices": {
@@ -938,8 +968,8 @@
     "manifestChangedDescription": "Das Manifest dieser App entspricht nicht mehr dem bei der Registrierung hinterlegten Stand; Funktionen, Verbindungen oder eingebettete Seiten können sich also geändert haben. Beim Annehmen wird das neue Manifest übernommen und die App als überprüft markiert. Nimm es nur an, wenn du mit dieser Änderung gerechnet hast.",
     "manifestChangedConfirm": "Neues Manifest annehmen"
   },
-  "adminDashboard": {
-    "title": "Administrator-Dashboard",
+  "operatorDashboard": {
+    "title": "Operator-Dashboard",
     "subtitle": "Verwalte Plattformbenutzer und zeitlich begrenzte Zugriffsrechte.",
     "tabs": {
       "users": "Benutzer",
@@ -958,8 +988,6 @@
     "filterByName": "Communitys nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
     "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
-    "limitInputLabel": "Speicherlimit für {{name}} in GB",
-    "userLimitInputLabel": "Benutzerlimit für {{name}}",
     "overLimitHint": "{{name}} hat mehr Mitglieder, als das aktuelle Limit erlaubt.",
     "saved": "Speicherlimit für {{name}} aktualisiert.",
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
@@ -968,9 +996,6 @@
     "statusInputLabel": "Status für {{name}}",
     "statusSaved": "Status für {{name}} aktualisiert.",
     "statusSaveError": "Der Community-Status konnte nicht aktualisiert werden. Bitte versuche es erneut.",
-    "guildAuthInputLabel": "Community-spezifische Anmeldung für {{name}}",
-    "guildAuthOn": "Community-spezifische Anmeldung für {{name}} aktiviert.",
-    "guildAuthOff": "Community-spezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
@@ -987,7 +1012,6 @@
       "members": "Mitglieder",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
-      "guildAuth": "Community-Anmeldung",
       "status": "Status",
       "billing": "Abrechnung"
     },
@@ -995,7 +1019,34 @@
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
-    }
+    },
+    "sheet": {
+      "open": "Verwalten",
+      "openLabel": "Einstellungen für {{name}} verwalten",
+      "description": "Einstellungen, die nur du ändern kannst. Die Admins dieser Community sehen sie und können sie nicht bearbeiten.",
+      "limits": "Grenzen",
+      "features": "Funktionen",
+      "usersHelp": "Wie viele Personen dazugehören dürfen. Für unbegrenzt leer lassen.",
+      "storageHelp": "Wie viel sie speichern dürfen, in Gigabyte. Für unbegrenzt leer lassen.",
+      "bannerLabel": "Bannerbild",
+      "bannerHelp": "Erlaubt das Hochladen eines Bannerbilds. Ohne das wählen sie stattdessen eine Bannerfarbe; ein bereits hochgeladenes Banner bleibt sichtbar.",
+      "supportLabel": "Hilfeanfragen",
+      "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
+      "authOption": {
+        "restrictions": {
+          "label": "Eigener Sicherheitsstandard",
+          "help": "Ihre Admins können persönliche API-Schlüssel ablehnen und Mitglieder auf eine Sitzung von zwölf Stunden begrenzen. Für Communities, die einem Prüfer Rechenschaft schulden; die meisten brauchen das nie."
+        },
+        "providers": {
+          "label": "Eigene Anmeldung",
+          "help": "Ihre Admins legen fest, welche Anmeldeanbieter dieser Installation als ihre gelten, wo die darüber ankommenden Personen landen – auch als Admin ihrer Community – und ob Mitglieder diesen Weg nehmen müssen."
+        }
+      },
+      "usersLabel": "Mitglieder",
+      "storageLabel": "Speicherlimit",
+      "decidesForItself": "Was sie selbst entscheidet"
+    },
+    "unlimited": "Unbegrenzt"
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
@@ -1049,11 +1100,6 @@
     }
   },
   "guildAuth": {
-    "registry": {
-      "title": "Identitätsanbieter",
-      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Community anmelden. Werden von den Admins dieser Community konfiguriert und gelten nur hier.",
-      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
-    },
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1068,34 +1114,157 @@
       "requiredLabel": "Single Sign-on erforderlich",
       "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Community zugreifen.",
       "providerPlaceholder": "Anbieter auswählen …",
-      "noProviders": "Es sind noch keine Anbieter konfiguriert. Füge unten unter Identitätsanbieter einen hinzu und mache ihn dann hier verpflichtend.",
+      "noProviders": "Verbindet zuerst einen Anbieter unter „Wer hereinkommt“.",
       "saved": "Anmeldeanforderung gespeichert",
       "error": "Anmeldeanforderung konnte nicht gespeichert werden",
       "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
-      "signInWith": "Mit {{providerName}} anmelden"
+      "signInWith": "Mit {{providerName}} anmelden",
+      "unmetFactor": "Gib zuerst einen Code aus deiner Authenticator-App ein und speichere dann.",
+      "presentFactor": "Code eingeben",
+      "unmetPasskey": "Lege zuerst deinen Passkey vor und speichere dann.",
+      "presentPasskey": "Passkey vorlegen",
+      "anyProvider": "Einer unserer Anmeldeanbieter",
+      "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht.",
+      "requireFactor": "Zusätzlich einen zweiten Faktor verlangen",
+      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
+      "requirePasskey": "Zusätzlich einen Passkey verlangen",
+      "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
+    },
+    "apiAccess": {
+      "title": "API-Zugriff",
+      "description": "Ob ein persönlicher API-Schlüssel für diese Community verwendet werden darf.",
+      "allowLabel": "Persönliche API-Schlüssel erlauben",
+      "allowHelp": "Mitglieder können einen Schlüssel erstellen und ihn hier verwenden — für Skripte, Integrationen und MCP-Clients.",
+      "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
+      "saved": "API-Zugriff gespeichert",
+      "error": "API-Zugriff konnte nicht gespeichert werden"
+    },
+    "sessionLimit": {
+      "title": "Sitzungsdauer",
+      "allowLabel": "Alle zwölf Stunden neu anmelden",
+      "saved": "Sitzungslimit gespeichert",
+      "error": "Sitzungslimit konnte nicht gespeichert werden",
+      "help": "Für Communities, die angehalten wurden, die Anmeldedauer zu begrenzen. Es gilt überall für eure Mitglieder, nicht nur hier."
+    },
+    "connections": {
+      "title": "Welche Anmeldungen eure sind",
+      "description": "Angemeldet wird sich bei dieser Installation. Sagt, welche ihrer Anmeldeanbieter zu eurer Community zählen und wer darauf als eure Leute gilt.",
+      "connect": "Anbieter verbinden",
+      "connected": "Anbieter verbunden",
+      "connectError": "Diese Verbindung konnte nicht geändert werden",
+      "disconnect": "Trennen",
+      "disconnected": "Anbieter getrennt",
+      "disconnectTitle": "{{name}} trennen?",
+      "disconnectDescription": "Sie zählt nicht mehr als eure: Der Button verschwindet von eurer Anmeldeseite und niemand kommt mehr neu darüber herein. Niemand wird abgemeldet, kein Konto ändert sich. Wenn ihr eine Anmeldung darüber verlangt, hebt das zuerst auf.",
+      "empty": "Noch keine Anbieter verbunden — eure Mitglieder melden sich wie gewohnt an.",
+      "noneOffered": "Wer diese Installation betreibt, hat noch keine Anbieter zum Verbinden angeboten.",
+      "notReady": "Nicht verfügbar",
+      "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+      "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+      "dialogTitle": "Anmeldeanbieter verbinden",
+      "dialogDescription": "Wähle den Anbieter, den eure Mitglieder nutzen, und sage dann, welche Konten darauf euch gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "claimLabel": "Wessen Konten als eure gelten",
+      "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
+      "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
+      "claimValuesLabel": "Gültige Werte",
+      "claimValuesPlaceholder": "example.com, example.org",
+      "autoJoinLabel": "Sie dieser Community hinzufügen",
+      "autoJoinHelp": "Wer als eure Leute zählt, wird bei der ersten Anmeldung Mitglied. Lasst es aus, wenn ihr selbst einladen wollt.",
+      "joinsOnArrival": "Neue treten automatisch bei",
+      "claimOptions": {
+        "hd": "Google-Workspace-Domain",
+        "tid": "Microsoft-Entra-Mandant",
+        "groups": "Gruppenmitgliedschaft",
+        "domain": "Domain"
+      },
+      "inherited": "Von der Installation",
+      "makeItOurs": "Zu unserer machen"
+    },
+    "rules": {
+      "title": "Wo eure Leute landen",
+      "description": "Euer Anbieter meldet, in welchen Gruppen jemand ist. Legt hier fest, was diese Gruppen bedeuten – wer als Mitglied beitritt, wer als Admin, und in welcher Initiative sie starten.",
+      "add": "Regel hinzufügen",
+      "added": "Regel hinzugefügt",
+      "addError": "Regel konnte nicht hinzugefügt werden",
+      "empty": "Noch keine Regeln – wer über eure Anbieter kommt, tritt ohne besondere Zuordnung bei.",
+      "connectFirst": "Verbindet zuerst einen Anbieter, dann legt fest, was seine Gruppen bedeuten.",
+      "noGroupsBadge": "Keine Gruppen gemeldet",
+      "noGroupsHint": "Die Betreiber dieser Installation haben diesem Anbieter nicht mitgeteilt, wo seine Gruppen stehen. Bis dahin trifft diese Regel auf niemanden zu.",
+      "landsInCommunity": "Ankunft über {{provider}} – tritt bei als {{role}}",
+      "landsInInitiative": "Ankunft über {{provider}} – tritt bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+      "dialogDescription": "Nennt eine Gruppe, die euer Anbieter meldet, und legt fest, wohin ihre Leute gehören.",
+      "providerLabel": "Anbieter",
+      "providerPlaceholder": "Einen auswählen",
+      "groupLabel": "Gruppe",
+      "groupPlaceholder": "eng-platform",
+      "groupHint": "Genau so geschrieben wie bei eurem Anbieter.",
+      "standingLabel": "Sie treten bei als",
+      "role": {
+        "member": "Mitglied",
+        "admin": "Admin"
+      },
+      "initiativeLabel": "Und starten in",
+      "communityOnly": "Nur die Community",
+      "initiativeRoleLabel": "In dieser Initiative als",
+      "initiativeRolePlaceholder": "Rolle auswählen",
+      "remove": "Entfernen",
+      "removed": "Regel entfernt",
+      "removeError": "Regel konnte nicht entfernt werden",
+      "removeTitle": "Diese Regel entfernen?",
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
+    },
+    "sections": {
+      "whoGetsIn": "Wer hereinkommt",
+      "onWhatTerms": "Zu welchen Bedingungen"
+    },
+    "emptyState": {
+      "title": "Noch nichts verbunden",
+      "body": "Legt fest, welche Anmeldeanbieter dieser Installation als eure zählen und wo die Ankommenden landen.",
+      "button": "Anmeldung einrichten"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Welcher Weg hinein",
+          "prompt": "Wählen Sie den Anbieter, mit dem sich Ihre Mitglieder bereits anmelden."
+        },
+        "narrowing": {
+          "title": "Wessen Leute",
+          "prompt": "Geben Sie an, welche Konten dort zu Ihnen gehören, oder überspringen Sie dies, wenn der Anbieter ohnehin nur Ihre Leute führt."
+        },
+        "landing": {
+          "title": "Wo sie landen",
+          "prompt": "Was geschieht, wenn jemand von ihnen ankommt."
+        },
+        "insist": {
+          "title": "Bestehen wir darauf",
+          "prompt": "Ob dies der einzige Weg herein wird."
+        }
+      },
+      "skip": "Überspringen",
+      "ruleTitle": "Eine erste Gruppe",
+      "ruleHelp": "Optional. Nennen Sie eine Gruppe, die Ihr Anbieter meldet, und wo ihre Leute landen. Weitere können Sie später hinzufügen.",
+      "requireLabel": "Mitglieder müssen über diesen Anbieter kommen",
+      "requireHelp": "Mitglieder melden sich nur darüber an. Sie können das später ändern."
     }
   },
   "authProviders": {
-    "title": "Weitere Anmeldeanbieter",
-    "description": "Bieten Sie zusätzliche Anmeldewege neben dem obigen Single Sign-On an. Jeder Anbieter erhält eine eigene Schaltfläche auf der Anmeldeseite.",
+    "title": "Identitätsanbieter",
+    "description": "Die Single-Sign-on-Anbieter, mit denen sich Personen anmelden. Jeder erhält eine eigene Schaltfläche auf der Anmeldeseite.",
     "addProvider": "Anbieter hinzufügen",
     "loading": "Anbieter werden geladen…",
-    "empty": "Keine weiteren Anbieter konfiguriert.",
-    "reservedBadge": "Plattform-SSO",
-    "reservedHelp": "Wird in den Single-Sign-On-Einstellungen oben verwaltet",
+    "empty": "Noch keine Anbieter konfiguriert.",
     "disabledBadge": "Deaktiviert",
-    "createTitle": "Anmeldeanbieter hinzufügen",
     "editTitle": "Anmeldeanbieter bearbeiten",
     "dialogDescription": "OpenID-Connect-Anbieterdetails. Die Callback-URL für Ihren IdP lautet /api/v1/auth/{slug}/callback auf diesem Server.",
-    "presetLabel": "Vorlage",
-    "presetCustom": "Benutzerdefiniert (beliebiger OIDC-Anbieter)",
     "slugLabel": "Kürzel",
     "slugHelp": "Kleinbuchstaben, Zahlen und Bindestriche. Nach dem Erstellen unveränderlich — es bildet die Anmelde-URLs.",
     "slugInvalid": "Nur Kleinbuchstaben, Zahlen und Bindestriche; kein Bindestrich am Anfang oder Ende.",
     "displayNameLabel": "Anzeigename",
     "issuerLabel": "Issuer-URL",
     "issuerPlaceholder": "https://idp.example.com",
-    "tenantHelp": "Ersetzen Sie {tenant} durch Ihre Entra-Mandanten-ID.",
     "clientIdLabel": "Client-ID",
     "clientSecretLabel": "Client-Secret",
     "secretPlaceholder": "Leer lassen für einen öffentlichen Client (nur PKCE)",
@@ -1116,7 +1285,56 @@
     "saved": "Anbieter gespeichert",
     "deleted": "Anbieter gelöscht",
     "saveError": "Anbieter konnte nicht gespeichert werden",
-    "deleteError": "Anbieter konnte nicht gelöscht werden"
+    "deleteError": "Anbieter konnte nicht gelöscht werden",
+    "callbackLabel": "Callback-URL",
+    "claimPathLabel": "Gruppen-Claim",
+    "claimPathPlaceholder": "groups",
+    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn.",
+    "test": "Testen",
+    "testing": "Test läuft…",
+    "verify": "Prüfen",
+    "verifying": "Wird geprüft…",
+    "verifyError": "Diese Adresse konnte nicht geprüft werden",
+    "callbackCopied": "Callback-URL kopiert",
+    "scopesFromProvider": "Übernommen aus den Angaben dieses Anbieters.",
+    "claimPathSearch": "Claim suchen oder eingeben…",
+    "claimPathEmpty": "Keine Vorschläge — Claim eingeben",
+    "claimPathUseTyped": "„{{value}}“ verwenden",
+    "probe": {
+      "reachable": "Erreichbar",
+      "failed": "Unter dieser Adresse ist nichts Verwendbares",
+      "authorize": "Anmeldung",
+      "token": "Token",
+      "keys": "Schlüssel",
+      "signing": "Signatur"
+    },
+    "wizard": {
+      "title": "Anmeldeanbieter verbinden",
+      "choosePrompt": "Womit melden sich die Leute an?",
+      "addressPrompt": "Wo liegt euer {{name}}?",
+      "credentialsPrompt": "Registriere Initiative bei {{name}} und füge hier ein, was du zurückbekommst.",
+      "optionsPrompt": "Wie es sich nach einer Anmeldung verhält.",
+      "nextCredentials": "Weiter: Zugangsdaten",
+      "nextOptions": "Weiter: Verhalten",
+      "registerCallback": "Diese Callback-URL registrieren",
+      "callbackHelp": "Euer Anbieter lehnt die Anmeldung ab, solange genau diese Adresse dort nicht registriert ist.",
+      "connect": "Anbieter verbinden"
+    },
+    "blanks": {
+      "tenant": "Tenant-ID",
+      "oktaHost": "Okta-Domain",
+      "auth0Host": "Auth0-Domain",
+      "host": "Adresse",
+      "realm": "Realm",
+      "application": "Application-Slug"
+    },
+    "presetHints": {
+      "keycloak": "Aus dem OpenID-Connect-Client eures Realms, mit aktivierter Client-Authentifizierung.",
+      "authentik": "Der Application-Slug, nicht der Provider-Name — der Issuer folgt der Application.",
+      "authelia": "Füge das Client-Secret im Klartext ein, nicht den Hash aus der YAML-Datei.",
+      "pocketId": "Nur Passkeys, damit eure Anmeldungen Passkeys ohne weiteres Zutun übernehmen.",
+      "custom": "Jeder Anbieter, der OpenID Connect spricht. Füge dessen Issuer-Adresse ein — eine .well-known-URL funktioniert auch."
+    }
   },
   "aiConnections": {
     "title": "Verbindungen",
@@ -1148,6 +1366,10 @@
     "apiKeyHelpExisting": "Leer lassen, um den vorhandenen Schlüssel beizubehalten.",
     "apiKeyHelpNew": "Der gemeinsame Schlüssel, den alle Mitglieder für diese Verbindung verwenden.",
     "modelPlaceholder": "Modell auswählen oder eingeben",
+    "modelSearchPlaceholder": "Modellnamen suchen oder eingeben…",
+    "modelsLoading": "Modelle werden abgefragt…",
+    "modelsEmpty": "Keine Modellvorschläge — Name eingeben",
+    "modelUseTyped": "„{{value}}“ verwenden",
     "enabledLabel": "Aktiviert",
     "enabledDescription": "Mitgliedern erlauben, diese Verbindung zu verwenden.",
     "defaultLabel": "Standardverbindung",
@@ -1196,7 +1418,15 @@
     "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
     "ageGateOffConfirm": "Hier sind alle mindestens 18",
     "defaultDmLabel": "Direktnachrichten für neue Konten",
-    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen."
+    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen.",
+    "directMessagesLabel": "Direktnachrichten zwischen Mitgliedern erlauben",
+    "directMessagesHelpText": "Meine Nachrichten sowie die dahinterliegenden Verbindungen und Anfragen. Nachrichten sind Ende-zu-Ende-verschlüsselt, niemand im Betrieb dieser Installation kann sie lesen – deaktivieren Sie dies dort, wo private Nachrichten nicht hingehören, nicht um sie zu beaufsichtigen.",
+    "directMessagesReversibleNote": "Deaktivieren blendet Meine Nachrichten aus und weist neue ab; gelöscht wird nichts. Unterhaltungen, Verbindungen und Einstellungen sind beim Wiedereinschalten unverändert vorhanden.",
+    "directMessagesOffTitle": "Direktnachrichten deaktivieren?",
+    "directMessagesOffBody": "Meine Nachrichten verschwindet für alle hier, und bereits unterwegs befindliche Nachrichten werden nicht zugestellt. Es wird nichts gelöscht – beim Wiedereinschalten sind die bisherigen Unterhaltungen und Verbindungen wieder da.",
+    "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
+    "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
+    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert."
   },
   "audit": {
     "title": "Prüfprotokoll",
@@ -1215,6 +1445,8 @@
       "auth.sign_in_failed": "Anmeldung abgelehnt",
       "auth.signed_out": "Abgemeldet",
       "auth.password_changed": "Passwort geändert",
+      "auth.passkey_registered": "Passkey hinzugefügt",
+      "auth.passkey_removed": "Passkey entfernt",
       "auth.identity_linked": "Single Sign-on verknüpft",
       "auth.refresh_reuse_detected": "Wiederverwendetes Sitzungstoken abgelehnt"
     }
@@ -1224,7 +1456,16 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
+    "setPasswordTitle": "Passwort festlegen",
+    "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
+    "removePassword": "Passwort entfernen",
+    "removePasswordFromBrowser": "Gib dein Passwort in einem Browser auf, der bei dieser Seite angemeldet ist.",
+    "removePasswordTitle": "Passwort entfernen",
+    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Wenn du weniger als drei Codes hast, bekommst du einen neuen Satz angezeigt – bewahre ihn auf.",
+    "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal. Alle Codes, die du vorher hattest, funktionieren nicht mehr.",
+    "passwordRemoved": "Dein Passwort wurde entfernt.",
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
   },
   "privacy": {
     "title": "Privatsphäre",
@@ -1241,7 +1482,8 @@
       "communitiesHint": "Standardmäßig zählen alle.",
       "ageLocked": "Nachrichten sind ab 13 Jahren verfügbar. Du hast uns noch nicht gesagt, ob du das bist.",
       "confirmAge": "Alter bestätigen",
-      "saved": "Gespeichert."
+      "saved": "Gespeichert.",
+      "platformDisabled": "Diese Installation bietet keine Direktnachrichten, daher gibt es hier nichts einzustellen. Wird die Funktion wieder aktiviert, sind die bisherige Regel und die Listen wieder da."
     },
     "receipts": {
       "title": "Lesebestätigungen",
@@ -1280,5 +1522,112 @@
       "empty": "Du ignorierst niemanden.",
       "stop": "Nicht mehr ignorieren"
     }
+  },
+  "twoFactor": {
+    "title": "Zwei-Faktor-Authentifizierung",
+    "description": "Zusätzlich zum Passwort einen Code aus einer Authenticator-App abfragen.",
+    "loading": "Wird geprüft …",
+    "on": "Aktiv",
+    "notSetUp": "Dein Konto meldet sich nur mit einem Passwort an.",
+    "setUp": "Zwei-Faktor-Authentifizierung einrichten",
+    "setUpTitle": "Zwei-Faktor-Authentifizierung einrichten",
+    "passwordPrompt": "Bestätige zum Start dein Passwort.",
+    "passwordLabel": "Aktuelles Passwort",
+    "continue": "Weiter",
+    "scanPrompt": "Scanne dies mit deiner Authenticator-App und gib dann den angezeigten Code ein.",
+    "cannotScan": "Kannst du nicht scannen? Gib stattdessen diesen Schlüssel ein:",
+    "codeLabel": "Code aus deiner App",
+    "turnOn": "Aktivieren",
+    "codesTitle": "Deine Wiederherstellungscodes",
+    "codesPrompt": "Bewahre sie sicher auf. Damit kommst du hinein, wenn du dein Telefon verlierst.",
+    "codesWarning": "Jeder Code funktioniert einmal, und du bekommst sie nicht noch einmal zu sehen.",
+    "copyCodes": "Codes kopieren",
+    "codesCopied": "Wiederherstellungscodes kopiert.",
+    "done": "Fertig",
+    "addedOn": "Aktiviert am {{date}}",
+    "lastUsed": "Zuletzt verwendet {{date}}",
+    "neverUsed": "Noch nicht verwendet.",
+    "codesLeft_one": "Noch {{count}} Wiederherstellungscode",
+    "codesLeft_other": "Noch {{count}} Wiederherstellungscodes",
+    "regenerate": "Neue Wiederherstellungscodes",
+    "regenerateTitle": "Neue Wiederherstellungscodes",
+    "regeneratePrompt": "Bestätige dein Passwort. Deine jetzigen Codes werden ungültig.",
+    "turnOff": "Deaktivieren",
+    "turnOffTitle": "Zwei-Faktor-Authentifizierung deaktivieren",
+    "turnOffPrompt": "Dein Passwort allein meldet dich dann wieder an, und deine Wiederherstellungscodes werden verworfen. Auf deinen anderen Geräten wirst du abgemeldet.",
+    "codeOrRecoveryLabel": "Code aus deiner App oder ein Wiederherstellungscode",
+    "turnedOff": "Zwei-Faktor-Authentifizierung ist deaktiviert.",
+    "enrolError": "Die Einrichtung konnte nicht gestartet werden.",
+    "confirmError": "Dieser Code stimmt nicht. Sieh in deiner App nach und versuche es erneut.",
+    "regenerateError": "Neue Codes konnten nicht erstellt werden.",
+    "disableError": "Das konnte nicht deaktiviert werden.",
+    "codePlaceholder": "123456",
+    "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
+    "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
+    "notOffered": "Diese Installation bietet die Authenticator-App nicht an.",
+    "passwordlessCodes": "Dein Konto meldet sich ohne Passwort an. Mit diesen Codes legst du wieder eines fest, falls du deinen Passkey verlierst."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "description": "Melde dich mit Fingerabdruck, Gesicht oder Bildschirmsperre deines Geräts an – statt mit deinem Passwort.",
+    "loading": "Wird geprüft …",
+    "listError": "Es ließ sich nicht prüfen, welche Passkeys dieses Konto hat. Lade die Seite neu.",
+    "empty": "Noch keine Passkeys.",
+    "emptyHint": "Ein Passkey liegt auf deinem Telefon, deinem Laptop oder in deinem Passwort-Manager und funktioniert nur auf dieser Seite.",
+    "add": "Passkey hinzufügen",
+    "addTitle": "Passkey hinzufügen",
+    "addPrompt": "Gib ihm einen Namen, den du später wiedererkennst. Um den Rest kümmert sich dein Browser.",
+    "nameLabel": "Name",
+    "namePlaceholder": "Laptop, Telefon, Sicherheitsschlüssel",
+    "passwordLabel": "Aktuelles Passwort",
+    "continue": "Weiter",
+    "prompting": "Folge der Abfrage deines Browsers, um fertig zu werden.",
+    "promptingHint": "Dein Browser oder Passwort-Manager bittet dich um Bestätigung. Hier ist nichts weiter zu tun.",
+    "added": "Passkey hinzugefügt.",
+    "rename": "Umbenennen",
+    "renameTitle": "Passkey umbenennen",
+    "renamePrompt": "Dieser Name ist nur für dich, damit du deine Passkeys auseinanderhalten kannst.",
+    "save": "Speichern",
+    "renamed": "Passkey umbenannt.",
+    "remove": "Entfernen",
+    "removeTitle": "Passkey entfernen",
+    "removeConfirm": "{{name}} meldet dich dann nicht mehr an. Du kannst jederzeit einen neuen hinzufügen.",
+    "removed": "Passkey entfernt.",
+    "synced": "Synchronisiert",
+    "addedOn": "Hinzugefügt am {{date}}",
+    "lastUsed": "Zuletzt verwendet {{date}}",
+    "neverUsed": "Noch nicht verwendet.",
+    "cancelled": "Du hast abgebrochen, oder die Abfrage ist abgelaufen.",
+    "alreadyRegistered": "Dieses Gerät oder dieser Passwort-Manager hat bereits einen Passkey für diese Seite.",
+    "siteMismatch": "An dieser Adresse lässt sich kein Passkey erstellen – sie stimmt nicht mit der Adresse überein, für die diese Seite eingerichtet ist. Wer die Seite betreibt, kann das korrigieren.",
+    "browserError": "Dein Browser konnte den Passkey nicht erstellen. Versuche es erneut.",
+    "unsupported": "Dieser Browser kann keine Passkeys erstellen. Öffne diese Seite in einem aktuellen Browser.",
+    "siteUnsupported": "Passkeys brauchen für diese Seite einen richtigen Domainnamen und https. Wer die Seite betreibt, kann das einrichten.",
+    "limitReached": "Dieses Konto hat so viele Passkeys, wie es haben kann ({{limit}}). Entferne einen, um einen neuen hinzuzufügen.",
+    "addFromBrowser": "Ein Passkey wird in einem Browser hinzugefügt, der auf dieser Seite angemeldet ist. „Passkey hinzufügen“ öffnet einen für dich.",
+    "notOffered": "Diese Seite bietet keine Passkeys an. Die vorhandenen bleiben erhalten.",
+    "error": "Das hat nicht geklappt. Versuche es erneut."
+  },
+  "providerDefaults": {
+    "title": "Was eine Community erbt",
+    "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",
+    "noAnswer": "Keine Antwort – jede Community entscheidet selbst",
+    "noProviders": "Fügt zuerst einen Anmeldeanbieter hinzu, dann legt fest, was Communities von ihm erben.",
+    "answer": "Dafür antworten",
+    "change": "Ändern",
+    "withdraw": "Zurückziehen",
+    "withdrawn": "Antwort zurückgezogen",
+    "save": "Speichern",
+    "saved": "Antwort gespeichert",
+    "saveError": "Antwort konnte nicht gespeichert werden",
+    "narrowedTo": "Nur Konten, deren {{claim}} {{values}} ist",
+    "anyoneItVouchesFor": "Alle, für die dieser Anbieter bürgt",
+    "claimLabel": "Welcher Claim entscheidet",
+    "valuesLabel": "Gültige Werte",
+    "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
+  },
+  "platformSecurity": {
+    "title": "Sicherheit",
+    "description": "Wie lange jemand angemeldet bleiben darf, bevor eine erneute Anmeldung nötig ist."
   }
 }

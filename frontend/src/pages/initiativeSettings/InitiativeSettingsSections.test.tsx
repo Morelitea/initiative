@@ -4,7 +4,7 @@
  * address without the standing the section needs.
  */
 
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -124,6 +124,106 @@ describe("initiative settings sections", () => {
     expect(screen.getAllByRole("switch").length).toBeGreaterThan(0);
   });
 
+  it("gives the project manager a card with no tool switches either", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({
+            name: "project_manager",
+            display_name: "Project Manager",
+            is_builtin: true,
+            is_manager: true,
+            position: 1,
+          }),
+        ])
+      )
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    // It holds every permission by construction, like the moderator. It used
+    // to render sixteen switches pinned on and refused — controls whose only
+    // job was to say no.
+    expect(await screen.findByText("Project Manager")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+    // Every tool permission, but not the share override — so it is a manager,
+    // and "Full access" belongs to the moderator alone.
+    expect(screen.getByText("Manager")).toBeInTheDocument();
+    expect(screen.queryByText("Full access")).not.toBeInTheDocument();
+  });
+
+  it("keeps Delete on a custom manager role", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({
+            name: "producer",
+            display_name: "Producer",
+            is_builtin: false,
+            is_manager: true,
+            member_count: 0,
+          }),
+        ])
+      )
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    // It gets the manager summary like the built-in ones, but it is still a
+    // role somebody made and can unmake — only the built-ins are permanent, so
+    // its card carries rename AND delete, not rename alone.
+    const card = (await screen.findByText("Producer")).closest("div.rounded-xl");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getAllByRole("button")).toHaveLength(2);
+  });
+
+  it("grants view along with create, and takes create away with view", async () => {
+    const patches: Record<string, unknown>[] = [];
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({
+            id: 2,
+            name: "member",
+            display_name: "Member",
+            is_builtin: true,
+            permissions: { projects_enabled: true, create_projects: false },
+          }),
+        ])
+      ),
+      guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request }) => {
+        patches.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({ id: 2 });
+      })
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    // Making something you cannot see is not a state worth being able to
+    // express, so the pair moves together — in one write, never via a moment
+    // where the role can create a project it cannot open.
+    await userEvent.click(await screen.findByRole("switch", { name: "Create Projects" }));
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toMatchObject({
+      permissions: { projects_enabled: true, create_projects: true },
+    });
+
+    await userEvent.click(screen.getByRole("switch", { name: "View Projects" }));
+    await waitFor(() => expect(patches).toHaveLength(2));
+    expect(patches[1]).toMatchObject({
+      permissions: { projects_enabled: false, create_projects: false },
+    });
+  });
+
   /**
    * A permission for a tool the initiative has switched off grants nothing —
    * the mirror of the details screen never mentioning roles. The roles screen
@@ -143,11 +243,10 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsRolesPage, "roles");
 
-    await userEvent.click(await screen.findByRole("button", { name: "Advanced Tools" }));
-
-    expect(
-      (await screen.findAllByText(/This tool is turned off for the initiative/)).length
-    ).toBeGreaterThan(0);
+    // The tools the initiative has switched off are gathered below a line,
+    // under ONE explanation — not eight copies of the same sentence.
+    expect(await screen.findByText("Turned off for this initiative")).toBeInTheDocument();
+    expect(screen.getAllByText(/grant nothing until the tool is turned back on/)).toHaveLength(1);
   });
 
   it("serves custom properties at /settings/properties", async () => {

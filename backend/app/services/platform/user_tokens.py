@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
@@ -8,6 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services.auth import session_lifetime
+from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
 
@@ -17,6 +20,8 @@ DEFAULT_TOKEN_TTL_MINUTES = 60
 # Presenting the token (see ``get_device_token``) refreshes the expiry, so an
 # actively-used device stays logged in indefinitely while an abandoned token
 # dies within the cap.
+logger = logging.getLogger(__name__)
+
 DEVICE_TOKEN_TTL_DAYS = 90
 # Refreshing expiry on every single request would write to the DB on every
 # authenticated call. The window is only re-slid once the previous slide is
@@ -130,26 +135,46 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
     await session.commit()
 
 
-# ``user_tokens`` is a shared/public table the system engine holds DELETE on
-# (see app/db/system_grants.py), so the sweep runs on AdminSessionLocal with
-# no guild routing.
+# ``user_tokens`` and ``auth_challenges`` are shared/public tables the system
+# engine holds DELETE on (see app/db/system_grants.py), so the sweep runs on
+# AdminSessionLocal with no guild routing.
 TOKEN_PURGE_POLL_SECONDS = 3600
 
 
 async def process_expired_token_purge() -> None:
-    """Hourly background sweep: delete expired ``user_tokens`` rows.
+    """Hourly background sweep: delete the rows nothing can use again.
 
-    Covers all purposes — consumed/expired password-reset and email-verify
-    tokens as well as device tokens past their sliding-window cap. Without
-    it, expired rows accumulate forever.
+    Covers all ``user_tokens`` purposes — consumed/expired password-reset and
+    email-verify tokens as well as device tokens past their sliding-window cap
+    — and the part-way sign-ins in ``auth_challenges``, which end the same way.
+    Without it, those rows accumulate forever.
     """
     from app.db.session import AdminSessionLocal
 
     async with AdminSessionLocal() as session:
         await purge_expired_tokens(session)
+        await challenge_service.purge_expired(session)
+        await session.commit()
 
 
 # Device token functions
+
+
+def _slide_to(
+    window_ends: datetime,
+    max_hours: int | None,
+    *,
+    created_at: datetime,
+) -> datetime:
+    """Where a device token's window may reach, given the absolute limit.
+
+    ``window_ends`` is where the sliding window would put it; the limit is
+    measured from when the token was created, which is when its owner last
+    actually signed in.
+    """
+    if max_hours is None:
+        return window_ends
+    return min(window_ends, created_at + timedelta(hours=max_hours))
 
 
 async def create_device_token(
@@ -157,10 +182,27 @@ async def create_device_token(
     *,
     user_id: int,
     device_name: str,
+    commit: bool = True,
 ) -> str:
-    """Create a sliding-window device token for mobile app authentication."""
+    """Create a sliding-window device token for mobile app authentication.
+
+    ``commit=False`` stages it instead, for a caller issuing something else in
+    the same transaction: a token that outlived the response it was minted for
+    would be a live credential nobody was handed, sitting in the account's
+    device list for its whole window.
+
+    The deployment's absolute session limit binds this too. A device token is
+    the one credential whose window slides without ever being renewed against
+    the account, so the limit is applied here and again wherever it slides,
+    from the date this row was created.
+    """
     token_value = secrets.token_urlsafe(48)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
+    now = datetime.now(timezone.utc)
+    expires_at = _slide_to(
+        now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
+        await session_lifetime.resolve_max_hours(session, user_id=user_id),
+        created_at=now,
+    )
     token = UserToken(
         user_id=user_id,
         token=_hash_token(token_value),
@@ -169,7 +211,10 @@ async def create_device_token(
         expires_at=expires_at,
     )
     session.add(token)
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
     # Return the raw token exactly once; only its hash is persisted.
     return token_value
 
@@ -195,11 +240,57 @@ async def get_device_token(
         return None
     now = datetime.now(timezone.utc)
     if record.expires_at - now < DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD:
-        record.expires_at = now + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
-        session.add(record)
+        # The slide is throttled to about once a day, so reading the limit here
+        # costs a query at that rate rather than one per request.
+        slid = _slide_to(
+            now + timedelta(days=DEVICE_TOKEN_TTL_DAYS),
+            await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
+            created_at=record.created_at,
+        )
+        if slid <= record.expires_at:
+            # The limit has been reached: the window stops moving and the token
+            # expires where it stands.
+            return record
+        previous = record.expires_at
+        # Conditional on the expiry just read: two requests arriving together
+        # both see the old one, and this is what settles which moved it — so
+        # the record below is one event per window, not one per request.
+        result = await session.exec(
+            sql_update(UserToken)
+            .where(UserToken.id == record.id, UserToken.expires_at == previous)
+            .values(expires_at=slid)
+        )
         await session.commit()
         await session.refresh(record)
+        if result.rowcount:
+            await _record_device_token_use(user_id=record.user_id)
     return record
+
+
+async def _record_device_token_use(*, user_id: int) -> None:
+    """Note that a device token was presented, at the throttle above.
+
+    Once per device per day rather than once per request, which is what makes
+    it readable as adoption. On its own system-engine session: the request path
+    holds nothing on ``audit_events`` in either direction.
+
+    A record that cannot be written is logged and passed over. Presenting a
+    credential that is still good is not the moment to refuse service.
+    """
+    from app.core.audit_events import AuditEventType
+    from app.db import session as db_session
+    from app.services import audit as audit_service
+
+    try:
+        async with db_session.AdminSessionLocal() as admin_session:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_DEVICE_TOKEN_USED,
+                actor_user_id=user_id,
+            )
+            await admin_session.commit()
+    except Exception:
+        logger.exception("Could not record device-token use for user %s", user_id)
 
 
 async def get_user_device_tokens(
@@ -267,6 +358,23 @@ async def revoke_active_device_tokens(
     )
 
 
+async def revoke_device_tokens_first(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> None:
+    """Revoke the account's device tokens and commit them, ahead of the rest.
+
+    They live on a table the system engine holds no UPDATE on, so the two
+    halves of a credential change cannot share a transaction. This half goes
+    first, which is the order that fails safely: everything after it is staged,
+    so a failure there leaves the account signed out on its phones with the
+    password where it was.
+    """
+    await revoke_active_device_tokens(session, user_id=user_id)
+    await session.commit()
+
+
 async def revoke_user_sessions(
     session: AsyncSession,
     *,
@@ -304,5 +412,8 @@ async def revoke_user_sessions(
     await revoke_active_device_tokens(session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
     await session_service.revoke_all_for_user(admin_session, user_id=user.id)
+    # A sign-in part-way through rests on the password it proved, so it goes
+    # with the rest rather than standing until it expires.
+    await challenge_service.revoke_for_user(admin_session, user_id=user.id)
     if commit:
         await admin_session.commit()

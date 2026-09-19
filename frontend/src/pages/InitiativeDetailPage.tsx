@@ -34,6 +34,7 @@ import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
 import { GalleriesView } from "./initiativeTools/galleries/GalleriesPage";
 import { PostsView } from "./initiativeTools/posts/PostsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
+import { WikisView } from "./initiativeTools/wikis/WikisPage";
 import { ProjectsView } from "./ProjectsPage";
 
 type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
@@ -51,6 +52,7 @@ const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
   [Tool.dashboard]: DashboardsView,
   [Tool.post]: PostsView,
   [Tool.gallery]: GalleriesView,
+  [Tool.wiki]: WikisView,
 };
 
 const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = TOOLS.map((tool) => [
@@ -91,7 +93,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const isInitiativeManager = Boolean(membership?.is_manager);
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);

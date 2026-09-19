@@ -27,13 +27,10 @@ from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
 from app.core.encryption import (
     encrypt_field,
-    hash_email,
     SALT_APP_SERVICE_SECRET,
-    SALT_EMAIL,
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
-    create_access_token,
     get_password_hash,
     mint_access_token,
 )
@@ -48,6 +45,7 @@ from app.models.platform.marketplace import (
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
@@ -56,6 +54,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -84,13 +83,16 @@ from app.models.tenant.task import (
 )
 from app.models.tenant.upload import Upload
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant.wikis import slugify_page_title
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -124,11 +126,12 @@ async def create_user(
         .lower()
         .strip()
     )
+    # Whether that address has been proved. It lives on the address row now, so
+    # it is popped rather than passed to ``User``.
+    address_confirmed = bool(overrides.pop("email_verified", True))
     # A handle is unique on (name, number). Tests that care about a specific
     # one pass it; everything else gets a distinct pair without having to.
     defaults = {
-        "email_hash": hash_email(email_raw),
-        "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),
         "username": usernames.random_name(),
         "discriminator": usernames.random_discriminator(),
         "username_chosen": True,
@@ -140,7 +143,6 @@ async def create_user(
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
         "status": UserStatus.active,
-        "email_verified": True,
         "week_starts_on": 0,
         "timezone": "UTC",
         "overdue_notification_time": "21:00",
@@ -166,12 +168,13 @@ async def create_user(
         user_id=user.id,
         email=email_raw,
         source=addresses.SOURCE_SIGNUP,
-        verified=bool(user_data.get("email_verified")),
+        verified=address_confirmed,
     )
     await dm_settings_service.seed_for_new_account(session, user_id=user.id)
     # The name this account's access tokens carry. Kept on the object because
     # ``get_auth_token`` is called from hundreds of places that have the user
     # and no session; see ``AUTH_SUBJECT_ATTR``.
+    setattr(user, SEEDED_ADDRESS_ATTR, email_raw)
     setattr(
         user,
         AUTH_SUBJECT_ATTR,
@@ -235,11 +238,12 @@ async def create_guild(
     # them are routed to that row rather than to the guild. Tests keep passing
     # them as if they were guild fields.
     administration_defaults: dict[str, Any] = {
-        # Test guilds are sign-in-enabled by default so the guild-auth surface is
-        # exercisable without extra setup; production guilds default off (the
-        # operator opts each guild in from the Guilds dashboard). Pass
-        # guild_auth_enabled=False to exercise the disabled paths.
-        "guild_auth_enabled": True,
+        # Test guilds hold every sign-in option by default so the guild-auth
+        # surface is exercisable without extra setup; production guilds hold
+        # none (the operator grants each one from the Guilds dashboard). Pass
+        # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list
+        # to exercise one option without the other.
+        "auth_options": [option.value for option in GuildAuthOption],
     }
     administration_data = {
         **administration_defaults,
@@ -249,11 +253,16 @@ async def create_guild(
                 "max_storage_bytes",
                 "max_users",
                 "tier_name",
-                "guild_auth_enabled",
+                "auth_options",
             )
             if field in overrides
         },
     }
+    # Accepts the enum or its value, like every other enum a factory takes.
+    administration_data["auth_options"] = [
+        option.value if isinstance(option, GuildAuthOption) else option
+        for option in administration_data["auth_options"]
+    ]
 
     defaults = {
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
@@ -368,6 +377,13 @@ async def create_guild_membership(
 #: the shipped token no longer uses.
 AUTH_SUBJECT_ATTR = "auth_subject"
 
+#: The address the factory gave the account, attached to the object for the
+#: same reason the subject is: a test that asserts an address does not leak
+#: into a response needs to know which address, and ``users`` no longer carries
+#: one. Deliberately not called ``email``: the model has no such field, and a
+#: name shaped like one belongs to the model rather than to the factory.
+SEEDED_ADDRESS_ATTR = "seeded_address"
+
 
 def get_auth_token(
     user: User,
@@ -375,6 +391,9 @@ def get_auth_token(
     session_id: uuid.UUID | None = None,
     amr: list[str] | None = None,
     satisfied_providers: list[int] | None = None,
+    asserted_claims: dict[int, dict[str, list[str]]] | None = None,
+    token_version: int | None = None,
+    expires_in: timedelta | None = None,
 ) -> str:
     """A session credential for ``user`` — the token the app actually issues.
 
@@ -386,9 +405,13 @@ def get_auth_token(
 
     ``sat`` defaults to empty, which is what a password sign-in carries — a
     test that needs a guild's sign-in policy satisfied passes the provider ids.
+    ``asserted_claims`` is what those providers said about the person, keyed by
+    provider id (``{7: {"hd": ["acme.com"]}}``), which is what a community
+    narrowing a connection compares against.
 
-    Use :func:`get_legacy_auth_token` where the pre-session scheme is itself
-    the thing under test.
+    ``token_version`` and ``expires_in`` are for the tests about a credential
+    that is no longer good: one minted before a version bump, and one whose
+    lifetime has run out. Both default to a token that works.
 
     Example:
         headers = {"Authorization": f"Bearer {get_auth_token(test_user)}"}
@@ -402,30 +425,22 @@ def get_auth_token(
         )
     token, _ = mint_access_token(
         subject=subject,
-        token_version=user.token_version,
+        token_version=token_version
+        if token_version is not None
+        else user.token_version,
         session_id=session_id or uuid.uuid4(),
         amr=amr if amr is not None else ["pwd"],
         satisfied_providers=satisfied_providers
         if satisfied_providers is not None
         else [],
+        provider_auth={
+            str(pid): {"claims": {k: list(v) for k, v in claims.items()}}
+            for pid, claims in (asserted_claims or {}).items()
+        }
+        or None,
+        expires_in=expires_in,
     )
     return token
-
-
-def get_legacy_auth_token(user: User) -> str:
-    """A pre-session-model token: no ``aud``/``iss``, and none of
-    ``sid``/``amr``/``sat``.
-
-    ``decode_session_token`` accepts both schemes, and this is what exercises
-    that half. For tests about the legacy scheme itself — everything else wants
-    :func:`get_auth_token`.
-    """
-    return create_access_token(subject=str(user.id), token_version=user.token_version)
-
-
-def get_legacy_auth_headers(user: User) -> dict[str, str]:
-    """:func:`get_legacy_auth_token` as an Authorization header."""
-    return {"Authorization": f"Bearer {get_legacy_auth_token(user)}"}
 
 
 def get_auth_headers(user: User) -> dict[str, str]:
@@ -1854,6 +1869,8 @@ async def create_comment(
     author: User,
     *,
     task: Task | None = None,
+    wiki_page: WikiPage | None = None,
+    wiki: Wiki | None = None,
     document: Document | None = None,
     project: Project | None = None,
     queue: Queue | None = None,
@@ -1866,19 +1883,28 @@ async def create_comment(
     commit: bool = True,
     **overrides: Any,
 ) -> Comment:
-    """Create a comment on exactly one parent — a task or any tool entity."""
-    parents = {
-        "task_id": task,
-        "document_id": document,
-        "project_id": project,
-        "queue_id": queue,
-        "counter_group_id": counter_group,
-        "calendar_id": calendar,
-        "dashboard_id": dashboard,
-        "post_id": post,
-        "gallery_id": gallery,
+    """Create a comment on exactly one parent — any tool entity, or one of the
+    content-level extras (a task, a wiki page)."""
+    named = {
+        "task": task,
+        "wiki_page": wiki_page,
+        Tool.project.value: project,
+        Tool.document.value: document,
+        Tool.queue.value: queue,
+        Tool.counter_group.value: counter_group,
+        Tool.calendar.value: calendar,
+        Tool.dashboard.value: dashboard,
+        Tool.post.value: post,
+        Tool.gallery.value: gallery,
+        Tool.wiki.value: wiki,
     }
-    provided = {column: row for column, row in parents.items() if row is not None}
+    # Keyed by the enum rather than by string literals, and checked against it:
+    # a new tool that has no keyword here fails on the first test that comments
+    # on one, naming the tool, instead of looking like a caller mistake.
+    missing = [tool.value for tool in Tool if tool.value not in named]
+    if missing:
+        raise ValueError(f"create_comment has no parent keyword for: {missing}")
+    provided = {f"{name}_id": row for name, row in named.items() if row is not None}
     if len(provided) != 1:
         raise ValueError("pass exactly one comment parent")
     column, parent = next(iter(provided.items()))
@@ -2106,22 +2132,13 @@ async def create_upload(
     return upload
 
 
-def set_auth_scope(scope: str = "guild") -> None:
-    """Set the deploy-time login posture (``settings.AUTH_SCOPE``) for the
-    current test; defaults to per-guild, the posture the guild auth surface
-    requires. The ``_reset_auth_scope`` autouse fixture (conftest) restores the
-    default after each test."""
-    from app.core.config import AuthScope, settings
-
-    settings.AUTH_SCOPE = AuthScope(scope)
-
-
 async def create_auth_provider(
     session: AsyncSession,
     commit: bool = True,
     **overrides: Any,
 ) -> AuthProvider:
-    """Create an operator-global auth provider registry row.
+    """Create an auth provider registry row. Every provider is the operator's;
+    a community reaches one through ``create_guild_provider_connection``.
 
     Defaults to a login-ready OIDC row pointing at the test IdP constants
     (``app.testing.oidc``), so a fake-IdP flow verifies against it as-is.
@@ -2133,7 +2150,6 @@ async def create_auth_provider(
         "display_name": "Corp SSO",
         "kind": AuthProviderKind.oidc.value,
         "enabled": True,
-        "guild_id": None,
         "issuer": _TEST_ISSUER,
         "client_id": _TEST_CLIENT_ID,
         "scopes": "openid email",
@@ -2147,6 +2163,81 @@ async def create_auth_provider(
         await session.refresh(provider)
 
     return provider
+
+
+async def create_guild_provider_connection(
+    session: AsyncSession,
+    *,
+    guild,
+    provider: AuthProvider,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildProviderConnection:
+    """Connect a community to one of the operator's providers.
+
+    Unnarrowed by default, which is the shape a community bringing its own
+    identity provider has: it admits whoever that provider vouched for. Pass
+    ``claim`` and ``claim_values`` for the Google-Workspace shape.
+    """
+    defaults = {
+        "guild_id": guild.id,
+        "provider_id": provider.id,
+        "claim": None,
+        "claim_values": None,
+        "enabled": True,
+    }
+    connection = GuildProviderConnection(**{**defaults, **overrides})
+    session.add(connection)
+    if commit:
+        await session.commit()
+        await session.refresh(connection)
+    return connection
+
+
+async def create_guild_auth_policy(
+    session: AsyncSession,
+    guild: "Guild",
+    provider: "AuthProvider",
+    *,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildAuthPolicy:
+    """Make ``guild`` require a sign-in through ``provider``.
+
+    Connects the community to the provider first where it is not connected
+    already: the endpoint refuses a requirement naming a provider the
+    community does not count as its own, and the gate answers the same way, so
+    a policy without a connection is a state production cannot reach.
+
+    ``provider_slug`` is denormalised onto the row in production so a step-up
+    response can name the provider without a registry read; this keeps the two
+    in step the same way.
+    """
+    connected = (
+        await session.exec(
+            select(GuildProviderConnection).where(
+                GuildProviderConnection.guild_id == guild.id,
+                GuildProviderConnection.provider_id == provider.id,
+            )
+        )
+    ).first()
+    if connected is None:
+        await create_guild_provider_connection(
+            session, guild=guild, provider=provider, commit=commit
+        )
+
+    defaults = {
+        "guild_id": guild.id,
+        "policy": "required",
+        "provider_id": provider.id,
+        "provider_slug": provider.slug,
+    }
+    policy = GuildAuthPolicy(**{**defaults, **overrides})
+    session.add(policy)
+    if commit:
+        await session.commit()
+        await session.refresh(policy)
+    return policy
 
 
 async def create_federated_identity(
@@ -2166,10 +2257,7 @@ async def create_federated_identity(
     if provider is None:
         provider = (
             await session.exec(
-                select(AuthProvider).where(
-                    AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                    AuthProvider.guild_id.is_(None),
-                )
+                select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
             )
         ).one_or_none()
         if provider is None:
@@ -2203,6 +2291,97 @@ async def create_federated_identity(
 
 # --- generic tool construction ---------------------------------------------
 #
+async def create_wiki(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Wiki:
+    """Create a test wiki with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. The initiative is expected to be
+    wikis-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by": creator.id,
+        "name": name or f"Wiki {datetime.now(timezone.utc).timestamp()}",
+    }
+    wiki = Wiki(**{**defaults, **overrides})
+    session.add(wiki)
+
+    if commit:
+        await session.commit()
+        await session.refresh(wiki)
+
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=wiki.guild_id,
+                initiative_id=wiki.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="wiki",
+                resource_id=wiki.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=wiki.guild_id,
+                initiative_id=wiki.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return wiki
+
+
+async def create_wiki_page(
+    session: AsyncSession,
+    wiki: Wiki,
+    creator: User,
+    *,
+    title: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> WikiPage:
+    """Create a page in a wiki.
+
+    Pass ``parent_page_id`` to file it under another page; without one it sits
+    at the top of the wiki. What nests inside a page — its headings — is
+    content, and lives in its body.
+    """
+    await route_session_to_guild(session, wiki.guild_id)
+
+    stamp = datetime.now(timezone.utc).timestamp()
+    page_title = title or f"Page {stamp}"
+    defaults: dict[str, Any] = {
+        "guild_id": wiki.guild_id,
+        "wiki_id": wiki.id,
+        "created_by": creator.id,
+        "title": page_title,
+        "slug": slugify_page_title(page_title, fallback=f"page-{stamp}"),
+    }
+    page = WikiPage(**{**defaults, **overrides})
+    session.add(page)
+
+    if commit:
+        await session.commit()
+        await session.refresh(page)
+
+    return page
+
+
 # One arm per Tool, so a test that needs "an instance of every tool" derives it
 # from the enum instead of restating the list. The completeness check runs at
 # import time: a new Tool member fails here once, with a message naming it,
@@ -2217,6 +2396,7 @@ TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.dashboard: create_dashboard,
     Tool.post: create_post,
     Tool.gallery: create_gallery,
+    Tool.wiki: create_wiki,
 }
 
 if set(TOOL_FACTORIES) != set(Tool):

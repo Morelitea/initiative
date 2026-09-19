@@ -35,6 +35,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db.session import SYSTEM_SATISFIED
@@ -57,7 +58,9 @@ from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
-_TOOL_ORDER = ("project", "document", "queue", "counter_group", "calendar", "post")
+# Derived from the same set the export side writes, so a tool cannot be
+# exported into an envelope this refuses to read back.
+_TOOL_ORDER = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
 # Refresh the routed session's authorization context this often (see the
 # export backup adapter's identical constant).
@@ -187,6 +190,28 @@ def plan_backup(
     )
 
 
+def _manifest_tool_flags(tools: dict[str, str] | None) -> dict[str, bool]:
+    """A manifest's per-tool states as initiative master-switch fields.
+
+    "disabled" -> off; "included"/"excluded" -> on, because the switch records
+    the source's configuration rather than what this import was asked to carry.
+
+    Spelled through the enum rather than ``tool + "s"``, which is wrong for
+    ``gallery``. A manifest also names things that are not tools — a backup
+    written by a newer version, or a sub-resource like ``calendar_event`` — and
+    those name no switch, so they are skipped rather than raising on an
+    initiative that is otherwise importable.
+    """
+    flags: dict[str, bool] = {}
+    for name, state in (tools or {}).items():
+        try:
+            tool = Tool(name)
+        except ValueError:
+            continue
+        flags[tool.view_permission] = state != "disabled"
+    return flags
+
+
 async def apply_backup(
     session: AsyncSession,
     *,
@@ -243,12 +268,7 @@ async def apply_backup(
             name=mi.name,
             description=mi.description,
             color=mi.color,
-            tool_flags={
-                # "disabled" -> off; "included"/"excluded" -> on (the switch
-                # reflects the source's configuration, not the include map).
-                f"{tool}s_enabled": state != "disabled"
-                for tool, state in (mi.tools or {}).items()
-            },
+            tool_flags=_manifest_tool_flags(mi.tools),
             manager_id=user.id,
         )
         result.initiatives.append(

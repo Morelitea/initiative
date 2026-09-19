@@ -10,6 +10,11 @@ without the session being threaded through them.
 Keyed by guild id so a context recorded for the request's active guild never
 bleeds into another guild's entities during cross-guild gathers. PAM requests
 deliberately leave this unset — grant semantics flow through ``pam_context``.
+
+These setters belong to the **establishment seam** and are not part of routing
+a session: they are scoped to the async task, so a background sweep or a
+secondary session opened mid-request must not call them. ``role_context_test``
+holds that line and lists the callers that are allowed to.
 """
 
 from __future__ import annotations
@@ -69,13 +74,15 @@ def is_request_guild_admin(
     (``data.bypass``, PAM grants), which reach across guilds through their own
     separate mechanisms — do not fold those in here.
     """
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 
     if guild_id is None:
         return False
     role = guild_role if guild_role is not None else active_guild_role(guild_id)
     role_value = role.value if isinstance(role, GuildRole) else role
-    return role_value == GuildRole.admin.value
+    # Either stored role, and the GUC's own value — a request already carries
+    # ``admin`` there for both (``content_role``).
+    return role_value in {r.value for r in GUILD_ADMIN_ROLES}
 
 
 def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -> None:
@@ -129,24 +136,3 @@ def content_read_only_active(guild_id: Optional[int]) -> bool:
     if guild_id is None:
         return False
     return _content_read_only_guild.get() == guild_id
-
-
-# Whether the guild this request is addressed to renders members' real names.
-# Guild-scoped payloads carry ``full_name`` only when it is set. Recorded here,
-# alongside the RLS context, so one model validator on the user schemas answers
-# the question for every endpoint rather than each serializer remembering to —
-# the same reason ``content_read_only`` lives here. Unset (the default) means
-# handles, which is also what a request outside any guild gets.
-_guild_shows_member_names: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "guild_shows_member_names", default=False
-)
-
-
-def set_guild_shows_member_names(shows: bool) -> None:
-    """Record whether the request's guild renders real names."""
-    _guild_shows_member_names.set(bool(shows))
-
-
-def guild_shows_member_names() -> bool:
-    """Whether the request's guild renders real names."""
-    return _guild_shows_member_names.get()

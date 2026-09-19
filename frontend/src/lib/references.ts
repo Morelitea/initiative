@@ -22,7 +22,7 @@ import { isToolEnabled, TOOLS } from "@/lib/tools";
  * holds them to it: a tool whose spellings drifted apart would still compile,
  * and would quietly stop being excluded from its own comment thread's picker.
  */
-export const referenceTypeFor = (tool: Tool | "task"): SearchEntityType =>
+export const referenceTypeFor = (tool: Tool | "task" | "wiki_page"): SearchEntityType =>
   tool as unknown as SearchEntityType;
 
 /**

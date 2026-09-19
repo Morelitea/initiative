@@ -386,5 +386,5 @@ async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int
     if exists is None:
         raise BillingGuildNotFoundError(guild_id)
 
-    await set_rls_context(admin_session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(admin_session, guild_id=guild_id)
     return await get_guild_storage_usage(admin_session)

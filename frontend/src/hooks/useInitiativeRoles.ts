@@ -23,8 +23,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
-  CORE_TOOLS,
-  TOGGLEABLE_TOOLS,
+  DEFAULT_ENABLED_TOOLS,
   TOOLS,
   toolCamelPlural,
   toolCreatePermission,
@@ -165,6 +164,75 @@ export const useGrantToolToRoles = (initiativeId: number) => {
   });
 };
 
+/**
+ * What the ordinary roles may do with a set of tools — the question a brand-new
+ * initiative has to answer and cannot answer for itself.
+ *
+ * The built-in `member` role ships view-only on projects and documents and
+ * `create_*` off everywhere (the backend's DEFAULT_PERMISSION_VALUES). So an
+ * initiative created with, say, a calendar has that calendar on for its
+ * managers and invisible to everybody else — the state `ToolAudience` warns
+ * about after the fact. The create wizard asks once, up front, and this applies
+ * the answer.
+ *
+ * "managers" writes nothing, which is that default. Manager roles are skipped
+ * because they hold every permission by construction.
+ */
+export const useGrantToolsToMembers = () => {
+  const guildId = useActiveGuildId();
+
+  return useMutation({
+    mutationFn: async ({
+      initiativeId,
+      tools,
+      audience,
+    }: {
+      /** Passed per call, not bound to the hook: the caller is the create
+       *  wizard, and the initiative does not exist at the render that set this
+       *  mutation up. Closing over an id from state would send the writes to
+       *  whatever that state held a render ago — which is nothing. */
+      initiativeId: number;
+      tools: Tool[];
+      audience: "create" | "view" | "managers";
+    }) => {
+      if (tools.length === 0) return 0;
+      // Written for every chosen tool, in all three answers. "Managers only"
+      // is a revoke, not a no-op: the built-in member role arrives holding
+      // projects and documents, so leaving it alone would answer "managers
+      // only" with members who can still see both.
+      const permissions: Record<string, boolean> = {};
+      for (const tool of tools) {
+        permissions[toolViewPermission(tool)] = audience !== "managers";
+        permissions[toolCreatePermission(tool)] = audience === "create";
+      }
+      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+        guildId,
+        initiativeId
+      );
+      const ordinary = roles.filter((role) => !role.is_manager);
+      const results = await Promise.allSettled(
+        ordinary.map((role) =>
+          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+            guildId,
+            initiativeId,
+            role.id,
+            { permissions }
+          )
+        )
+      );
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed) throw failed.reason;
+      return ordinary.length;
+    },
+    onSettled: (_data, _error, variables) => {
+      void invalidate(
+        q.initiativeRoles(variables.initiativeId),
+        q.myPermissions(variables.initiativeId)
+      );
+    },
+  });
+};
+
 export const useDeleteRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
   const guildId = useActiveGuildId();
@@ -246,14 +314,18 @@ const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
   keys: [toolViewPermission(tool), toolCreatePermission(tool)],
 });
 
-// Core (always-on) tools' permissions, always visible
+// The permissions for the tools an initiative starts with, always visible.
+// This is a question of what to put in front of someone editing a role, not of
+// what a tool is: every tool is switchable now, and these two are simply the
+// ones almost every initiative has.
 export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
-  CORE_TOOLS.has(tool)
+  DEFAULT_ENABLED_TOOLS.has(tool)
 ).map(toolPermissionGroup);
 
-// Opt-in tools' permissions, shown in an accordion.
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] =
-  TOGGLEABLE_TOOLS.map(toolPermissionGroup);
+// The rest, shown in an accordion.
+export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
+  (tool) => !DEFAULT_ENABLED_TOOLS.has(tool)
+).map(toolPermissionGroup);
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

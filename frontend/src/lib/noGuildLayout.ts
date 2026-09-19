@@ -22,7 +22,7 @@
  *                 landing page).
  *
  * The ``isPlatformAdmin`` flag matches the coarse ``canAccessPlatformAdmin``
- * predicate (can reach *either* the Admin dashboard or Platform settings).
+ * predicate (can reach *either* the Operator dashboard or Platform settings).
  * Keeping the checks aligned guarantees the no-guild shell never admits
  * anyone who couldn't already reach the page in the normal sidebar layout.
  */
@@ -43,12 +43,12 @@ const isUserSettingsPath = (path: string): boolean =>
 const isCommunityPath = (path: string): boolean =>
   path === "/communities" || path.startsWith("/communities/");
 
-// Both platform areas: the Admin dashboard (/settings/admin) and Platform
+// Both platform areas: the Operator dashboard (/settings/operator) and Platform
 // settings (/settings/platform). A guild-less platform user must still reach
 // either via the chromeless shell.
 const isAdminSettingsPath = (path: string): boolean =>
-  path === "/settings/admin" ||
-  path.startsWith("/settings/admin/") ||
+  path === "/settings/operator" ||
+  path.startsWith("/settings/operator/") ||
   path === "/settings/platform" ||
   path.startsWith("/settings/platform/");
 

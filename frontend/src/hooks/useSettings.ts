@@ -1,15 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete,
   createAuthProviderApiV1SettingsAuthProvidersPost,
   deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete,
+  discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost,
+  getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey,
   getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey,
+  getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet,
   listAuthProvidersApiV1SettingsAuthProvidersGet,
+  setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut,
+  testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost,
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderProbeResult,
   AuthProviderUpdate,
   ChangelogResponse,
   CommunitySettingsResponse,
@@ -20,16 +27,19 @@ import type {
   GetChangelogApiV1ChangelogGetParams,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
+  LoginMethodsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
-  OIDCClaimPathUpdate,
   OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
-  OIDCSettingsUpdate,
+  PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  PlatformProviderDefaultRead,
+  PlatformProviderDefaultUpdate,
+  SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
   StorageSettingsUpdate,
@@ -46,6 +56,7 @@ import {
   getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
   getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
+  getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
@@ -53,6 +64,7 @@ import {
   getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
+  getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
@@ -62,10 +74,10 @@ import {
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
+  updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
-  updateOidcSettingsApiV1SettingsAuthPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
 } from "@/api/generated/settings/settings";
@@ -176,20 +188,6 @@ export const useChangelog = (
 
 // ── Settings Mutations ──────────────────────────────────────────────────────
 
-export const useUpdateOidcSettings = (
-  options?: MutationOpts<OIDCSettingsResponse, OIDCSettingsUpdate>
-) =>
-  useApiMutation<OIDCSettingsResponse, OIDCSettingsUpdate>(
-    {
-      mutationFn: (data) =>
-        updateOidcSettingsApiV1SettingsAuthPut(
-          data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
-        ),
-      invalidate: () => invalidate(q.authSettings()),
-    },
-    options
-  );
-
 export const useCreateAuthProvider = (
   options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
 ) =>
@@ -219,6 +217,26 @@ export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) =>
       mutationFn: (providerId) =>
         deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId),
       invalidate: () => invalidate(q.authProviders()),
+    },
+    options
+  );
+
+/** Look up an address somebody is still typing. Nothing is saved, and nothing
+ *  in the cache changes, so there is nothing to invalidate. */
+export const useDiscoverAuthProvider = (
+  options?: MutationOpts<AuthProviderProbeResult, { issuer: string }>
+) =>
+  useApiMutation<AuthProviderProbeResult, { issuer: string }>(
+    { mutationFn: (data) => discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost(data) },
+    options
+  );
+
+/** Look up a saved provider, against the address on its row. */
+export const useTestAuthProvider = (options?: MutationOpts<AuthProviderProbeResult, number>) =>
+  useApiMutation<AuthProviderProbeResult, number>(
+    {
+      mutationFn: (providerId) =>
+        testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost(providerId),
     },
     options
   );
@@ -263,6 +281,58 @@ export const useUpdateCommunitySettings = (
           data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
         ),
       invalidate: () => invalidate(q.appConfig(), q.communitySettings()),
+    },
+    options
+  );
+
+/**
+ * Where sign-in is configured, which ways in are permitted, and what changing
+ * either would cost. Owner only.
+ */
+export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettingsResponse>) =>
+  useQuery<PlatformAuthSettingsResponse>({
+    queryKey: getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey(),
+    queryFn: () => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(),
+    ...options,
+  });
+
+/**
+ * Set which ways in the deployment permits.
+ *
+ * Also invalidates the boot config: the login page reads the permitted methods
+ * from there to decide whether to offer the password form.
+ */
+export const useUpdateLoginMethods = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, LoginMethodsUpdate>
+) =>
+  useApiMutation<PlatformAuthSettingsResponse, LoginMethodsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateLoginMethodsApiV1SettingsAuthMethodsPut(
+          data as Parameters<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>[0]
+        ),
+      invalidate: () => invalidate(q.platformAuthSettings(), q.authSettings(), q.appConfig()),
+    },
+    options
+  );
+
+/**
+ * Set how long somebody may stay signed in before signing in again.
+ *
+ * Separate from how long a session may be left alone. A web session already
+ * open keeps the terms it was opened under; a device token is brought under
+ * the new figure now, so shortening the limit can sign a phone out.
+ */
+export const useUpdateSessionLifetime = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, SessionLifetimeUpdate>
+) =>
+  useApiMutation<PlatformAuthSettingsResponse, SessionLifetimeUpdate>(
+    {
+      mutationFn: (data) =>
+        updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut(
+          data as Parameters<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>[0]
+        ),
+      invalidate: () => invalidate(q.platformAuthSettings()),
     },
     options
   );
@@ -350,17 +420,6 @@ export const useUpdateGuildStorage = (
 
 // ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
 
-export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPathUpdate>) =>
-  useApiMutation<void, OIDCClaimPathUpdate>(
-    {
-      mutationFn: async (data) => {
-        await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
-      },
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
-
 export const useCreateOidcMapping = (
   options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>
 ) =>
@@ -399,3 +458,48 @@ export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
     },
     options
   );
+
+/** The deployment's own answer for one provider, for communities that have
+ *  not made their own arrangement. Null where it has made none. */
+export const useProviderDefault = (
+  providerId: number | null,
+  options?: QueryOpts<PlatformProviderDefaultRead | null>
+) => {
+  return useQuery<PlatformProviderDefaultRead | null>({
+    queryKey: getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(
+      providerId as number
+    ),
+    queryFn: () =>
+      getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet(providerId as number),
+    enabled: providerId !== null,
+    ...options,
+  });
+};
+
+const useInvalidateProviderDefault = (providerId: number) => {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({
+      queryKey:
+        getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(providerId),
+    });
+  };
+};
+
+export const useSetProviderDefault = (providerId: number) => {
+  const invalidate = useInvalidateProviderDefault(providerId);
+  return useMutation({
+    mutationFn: (data: PlatformProviderDefaultUpdate) =>
+      setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut(providerId, data),
+    onSuccess: invalidate,
+  });
+};
+
+export const useClearProviderDefault = (providerId: number) => {
+  const invalidate = useInvalidateProviderDefault(providerId);
+  return useMutation({
+    mutationFn: () =>
+      clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete(providerId),
+    onSuccess: invalidate,
+  });
+};

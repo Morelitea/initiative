@@ -30,6 +30,7 @@ _TOOL_LISTS = {
     "dashboard": "dashboards",
     "post": "posts",
     "gallery": "galleries",
+    "wiki": "wikis",
 }
 
 

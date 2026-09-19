@@ -1,40 +1,86 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from app.core.email_masking import mask_email
-from app.models.platform.access_grant import AccessGrantStatus, AccessLevel
+from app.models.platform.access_grant import (
+    AccessGrantStatus,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
 
 class AccessGrantCreate(SanitizedBaseModel):
-    """A request for time-bound access to one guild."""
+    """A request for time-bound access to one guild.
+
+    Two axes, and a request may name either or both. **Content** reaches what
+    is inside the community, at ``read`` or ``read_write``. **Settings**
+    reaches its configuration and nothing inside it, at ``admin`` or
+    ``superadmin``.
+
+    Asking for both is a real errand rather than a mistake: clearing up after
+    an incident takes write access to the content *and* the settings that
+    govern it, which is the same pair breaking glass issues. Each axis becomes
+    its own grant, so what was exercised is recorded separately even when both
+    were asked for at once.
+
+    Naming neither is read-only content — what a bare request has always
+    meant.
+    """
 
     guild_id: int
-    access_level: AccessLevel = AccessLevel.read
+    #: The content rung, or ``None`` to ask for no content access.
+    access_level: Optional[AccessLevel] = None
+    #: The settings rung, or ``None`` to ask for no settings access. There is
+    #: no default: nothing sits between what an admin runs and what the seat
+    #: holds.
+    settings_level: Optional[SettingsLevel] = None
     # Omit to use the platform default; capped server-side to the configured
     # maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
 
+    @property
+    def wanted(self) -> list[tuple[str, str]]:
+        """``(purpose, level)`` for each grant this request asks for, content
+        first — the one a caller routes in under."""
+        asked: list[tuple[str, str]] = []
+        if self.access_level is not None or self.settings_level is None:
+            asked.append(("content", (self.access_level or AccessLevel.read).value))
+        if self.settings_level is not None:
+            asked.append(("settings", self.settings_level.value))
+        return asked
+
 
 class BreakGlassCreate(SanitizedBaseModel):
     """A self-approved, time-bound break-glass grant to one guild.
 
-    Issued by a ``data.bypass`` holder (admin/owner) who needs emergency
-    access without waiting for a second-person approval. Read-only by default;
-    ``read_write`` is a deliberate escalation. The window is short and capped
-    server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue to extend.
+    Issued by a ``data.bypass`` holder who needs emergency access without
+    waiting for a second-person approval. It is not a dial: breaking glass
+    issues write access to the community's content **and** a settings grant at
+    ``superadmin``, because that is what an emergency is for. Somebody who
+    wants less asks for less through the ordinary request flow. The window is
+    short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
+    to extend.
     """
 
     guild_id: int
-    access_level: AccessLevel = AccessLevel.read
     # Omit to use the break-glass default; capped server-side to the
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
+    # The account's own second factor, asked for once any ``data.bypass``
+    # holder has one. Either answer is accepted, as everywhere else.
+    code: Optional[str] = Field(default=None, max_length=64)
+    recovery_code: Optional[str] = Field(default=None, max_length=64)
 
 
 class AccessGrantApprove(SanitizedBaseModel):
@@ -58,7 +104,11 @@ class AccessGrantRead(SanitizedBaseModel):
     id: int
     user_id: int
     guild_id: int
-    access_level: AccessLevel
+    #: What this grant is for. ``purpose`` is what tells the two vocabularies
+    #: below apart: a content grant's level is ``read``/``read_write``, a
+    #: settings grant's is ``admin``/``superadmin``.
+    purpose: str = "content"
+    access_level: str
     status: AccessGrantStatus
     reason: str
     requested_duration_minutes: int
@@ -99,3 +149,14 @@ class AccessGrantRead(SanitizedBaseModel):
             and self.expires_at is not None
             and self.expires_at > datetime.now(timezone.utc)
         )
+
+
+class BreakGlassRequirements(SanitizedBaseModel):
+    """What a break-glass request will be asked for, before it is made.
+
+    The form reads this to know whether to offer a code field, and whether the
+    caller has a factor to answer with.
+    """
+
+    second_factor_required: bool
+    enrolled: bool

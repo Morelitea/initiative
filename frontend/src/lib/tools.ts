@@ -31,6 +31,7 @@
 
 import type { ParseKeys } from "i18next";
 import {
+  BookText,
   CalendarDays,
   GalleryHorizontalEnd,
   Gauge,
@@ -62,21 +63,26 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.dashboard]: LayoutDashboard,
   [Tool.post]: Megaphone,
   [Tool.gallery]: Images,
+  [Tool.wiki]: BookText,
 };
 
 /** Every tool, in canonical enum order. */
 export const TOOLS = Object.values(Tool) as Tool[];
 
 /**
- * Always on: no per-initiative master switch, visible to every member by
- * default. Mirrors backend `CORE_TOOLS`, and matches the generated
- * `InitiativeRead`, which carries a `{plural}_enabled` column for every OTHER
- * tool and none for these.
+ * On unless an initiative says otherwise. Mirrors backend
+ * `DEFAULT_ENABLED_TOOLS`.
+ *
+ * Projects and documents used to be exempt from the master switch entirely —
+ * always on, with no `{plural}_enabled` column. Relationships ended that: a
+ * tool no longer needs either of them to be linkable, so an initiative that is
+ * only a calendar is a coherent thing to want. What they keep is the default,
+ * which is the part that was ever load-bearing.
  */
-export const CORE_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
+export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
 
-/** Tools with a per-initiative master switch (everything non-core). */
-export const TOGGLEABLE_TOOLS = TOOLS.filter((t) => !CORE_TOOLS.has(t));
+/** Every tool has a per-initiative master switch. */
+export const TOGGLEABLE_TOOLS = TOOLS;
 
 /**
  * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
@@ -88,9 +94,6 @@ export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
   // Export/import ships with the marketplace, which owns the definition
   // envelope format.
   Tool.dashboard,
-  // A gallery is its image files, and the export engine carries JSON
-  // envelopes — mirrors backend `NON_EXPORTABLE_TOOLS`.
-  Tool.gallery,
 ]);
 
 /** Tools with an export-engine source (single + bulk selection export), and
@@ -126,6 +129,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
   Tool.post,
   Tool.queue,
   Tool.counter_group,
+  Tool.wiki,
   Tool.project,
 ];
 
@@ -256,10 +260,10 @@ export const toolGuildBrowseTarget = (tool: Tool): { to: string; search: { tool:
   search: { tool: toolRouteSegment(tool) },
 });
 
-// --- The three tools with a child entity -----------------------------------
+// --- The tools with a child entity -----------------------------------------
 // Stated here once rather than left to each page: a task belongs to a project,
-// an event to a calendar, a counter to its group, and each child nests under
-// its parent so the URL reads end to end.
+// an event to a calendar, a counter to its group, a page to its wiki, and each
+// child nests under its parent so the URL reads end to end.
 
 /** e.g. "/i/1/projects/2/tasks/5". */
 export const taskRoute = (initiativeId: number | null, projectId: number, taskId: number): string =>
@@ -285,6 +289,27 @@ export const counterRoute = (
   groupId: number,
   counterId: number
 ): string => `${toolDetailRoute(Tool.counter_group, initiativeId, groupId)}/counter/${counterId}`;
+
+/** e.g. "/i/1/wikis/4/pages/11". */
+export const wikiPageRoute = (
+  initiativeId: number | null,
+  wikiId: number,
+  pageId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/pages/${pageId}`;
+
+/**
+ * A document read inside the wiki it was put in, e.g.
+ * "/i/12/wikis/3/documents/8".
+ *
+ * Its own address stays what it always was — this one says "this document, as
+ * a page of that wiki", which is what keeps the wiki's navigation standing
+ * beside it.
+ */
+export const wikiDocumentRoute = (
+  initiativeId: number | null,
+  wikiId: number,
+  documentId: number
+): string => `${toolDetailRoute(Tool.wiki, initiativeId, wikiId)}/documents/${documentId}`;
 
 /**
  * Guild-relative resolver route for an entity whose initiative isn't in hand,
@@ -379,11 +404,10 @@ export interface ToolCommentEntity {
 }
 
 /**
- * The initiative master-switch field for a toggleable tool (same spelling as
- * the view permission). Core tools have no switch — callers get `true`.
+ * The initiative master-switch field for a tool (same spelling as the view
+ * permission). Every tool has one.
  */
 export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
-  CORE_TOOLS.has(tool) ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
 /** Guild-relative create target for a tool inside an initiative: the tool's

@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field, model_validator
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
-from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.schemas.platform.user import ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
@@ -214,7 +214,7 @@ class PostReadReceipt(SanitizedBaseModel):
     marked: int = 0
 
 
-class PostReader(GuildNameVisibility):
+class PostReader(SanitizedBaseModel):
     """One person on a notice's roster, named the way reactors are named — so a
     guild that renders handles rather than real names does so here too."""
 

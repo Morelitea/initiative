@@ -105,9 +105,12 @@
       "document": "Dokument",
       "queue": "Warteschlange",
       "counter-group": "Zählergruppe",
-      "calendar-event": "Kalender",
+      "calendar": "Kalender",
+      "post": "Beitrag",
+      "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Community"
+      "guild": "Community",
+      "gallery": "Galerie"
     },
     "download": "Herunterladen",
     "empty": "Noch keine Exporte.",

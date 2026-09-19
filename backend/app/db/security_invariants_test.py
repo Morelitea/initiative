@@ -64,6 +64,7 @@ _RLS_SHARED_TABLES = {
     "guild_images",
     "guild_invites",
     "guild_memberships",
+    "guild_provider_connections",
     "guilds",
     "identity_refs",
     "marketplace_listing_versions",
@@ -72,6 +73,7 @@ _RLS_SHARED_TABLES = {
     "marketplace_registry_state",
     "oidc_claim_mappings",
     "platform_ai_connections",
+    "platform_provider_defaults",
     "profile_favorites",
     "storage_backfill_state",
     "user_api_keys",
@@ -81,6 +83,16 @@ _RLS_SHARED_TABLES = {
     "user_dm_settings",
     "user_emails",
     "user_email_assertions",
+    # The account's second factor, its seed, the codes that stand in for it,
+    # and a sign-in held between its password and its code. Forced with no
+    # policies: no request-path role is granted anything on them.
+    "user_totp",
+    "user_totp_secrets",
+    "mfa_recovery_codes",
+    "auth_challenges",
+    # WebAuthn credentials, on the same terms: forced with no policies, so
+    # nothing but the system engine reads or writes one.
+    "user_passkeys",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",
@@ -278,6 +290,38 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             f"published: {sorted(readable - expected)}; missing "
             f"{sorted(expected - readable)}"
         )
+
+        # The projection reads the name rule off the guild (0280), so the
+        # reader holds one column of ``guilds`` as well. Bound it: that column
+        # and the id it looks up by, and nothing else on the table.
+        guild_readable = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT column_name, has_column_privilege("
+                        "'app_profile_reader', 'public.guilds', column_name, "
+                        "'SELECT') FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'guilds'"
+                    )
+                )
+            ).all()
+            if row[1]
+        }
+        assert guild_readable == {"id", "show_member_names"}, (
+            "app_profile_reader reads columns of public.guilds beyond the name "
+            f"rule: {sorted(guild_readable - {'id', 'show_member_names'})}"
+        )
+        for verb in ("INSERT", "UPDATE", "DELETE"):
+            can_write = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_profile_reader', "
+                        f"'public.guilds', '{verb}')"
+                    )
+                )
+            ).scalar()
+            assert not can_write, f"app_profile_reader must not hold {verb} on guilds"
 
         # It reads, and that is all it does — to the table or to the view.
         for verb in ("INSERT", "UPDATE", "DELETE"):

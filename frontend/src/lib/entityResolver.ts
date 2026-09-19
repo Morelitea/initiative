@@ -56,6 +56,10 @@ import {
   getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1GGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
+import {
+  getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey,
+  readWikiApiV1GGuildIdWikisWikiIdGet,
+} from "@/api/generated/wikis/wikis";
 import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 
 /**
@@ -72,6 +76,7 @@ export type EntityRefType =
   | "dashboard"
   | "post"
   | "gallery"
+  | "wiki"
   | "task"
   | "event";
 
@@ -84,6 +89,7 @@ const REF_TYPES = new Set<string>([
   "dashboard",
   "post",
   "gallery",
+  "wiki",
   "task",
   "event",
 ]);
@@ -98,6 +104,9 @@ export const isEntityRefType = (value: string): value is EntityRefType => REF_TY
  * so a new tool is addressable here the day it is indexed. A calendar event is
  * the one that answers to a shorter name.
  */
+export const isSearchEntityType = (value: string): value is SearchEntityType =>
+  Object.hasOwn(SearchEntityType, value);
+
 export const entityRefTypeFor = (type: SearchEntityType): EntityRefType | null => {
   if (type === SearchEntityType.calendar_event) return "event";
   const kebab = type.replaceAll("_", "-");
@@ -181,6 +190,13 @@ export async function resolveEntityPath(
           () => readGalleryApiV1GGuildIdGalleriesGalleryIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.gallery, gallery.initiative_id, entityId);
+      }
+      case "wiki": {
+        const wiki = await fetch(
+          getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey(guildId, entityId),
+          () => readWikiApiV1GGuildIdWikisWikiIdGet(guildId, entityId)
+        );
+        return toolDetailRoute(Tool.wiki, wiki.initiative_id, entityId);
       }
       case "task": {
         const task = await fetch(

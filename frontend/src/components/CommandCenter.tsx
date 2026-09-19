@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/command";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useRecents } from "@/hooks/useRecents";
@@ -39,7 +40,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useUserSearch } from "@/hooks/useUsers";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import {
@@ -239,9 +240,10 @@ export function CommandCenter() {
     scopeQuery.isSuccess &&
     !scopeQuery.isPlaceholderData;
 
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  const dmEnabled = useDirectMessagesEnabled();
   const showPlatformSettings = canManagePlatformConfig(user);
-  const showAdminDashboard = canAccessAdminDashboard(user);
+  const showOperatorDashboard = canAccessOperatorDashboard(user);
 
   // Static pages
   const pages = useMemo(() => {
@@ -249,7 +251,11 @@ export function CommandCenter() {
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myTools"), path: "/my-tools", icon: LayoutGrid },
-      { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
+      // Only where the deployment offers messaging: the palette is a way to
+      // reach a page, and this one would answer that it is not here.
+      ...(dmEnabled
+        ? [{ label: t("pages.myMessages"), path: "/messages", icon: MessageSquare }]
+        : []),
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
@@ -267,10 +273,10 @@ export function CommandCenter() {
       });
     }
 
-    if (showAdminDashboard) {
+    if (showOperatorDashboard) {
       items.push({
-        label: t("pages.adminDashboard"),
-        path: "/settings/admin",
+        label: t("pages.operatorDashboard"),
+        path: "/settings/operator",
         icon: ShieldCheck,
       });
     }
@@ -284,7 +290,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, dmEnabled, isGuildAdmin, showOperatorDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);

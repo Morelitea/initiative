@@ -36,7 +36,7 @@
     "title": "Leave {{name}}?",
     "description": "You will lose access to all initiatives and projects in <bold>{{name}}</bold>. This action cannot be undone.",
     "cannotLeaveTitle": "Cannot leave community",
-    "lastAdminWarning": "You are the last admin of this community. Promote another member to admin first.",
+    "lastSuperadminWarning": "You are this community's only superadmin. Make another member a superadmin first.",
     "leaving": "Leaving...",
     "leaveButton": "Leave Community",
     "leftGuild": "Left {{name}}",
@@ -163,7 +163,13 @@
     "adminRequired": "You need admin permissions to view this page.",
     "guildRole": {
       "admin": "Admin",
-      "member": "Member"
+      "member": "Member",
+      "superadmin": "Superadmin"
+    },
+    "guildRoleHelp": {
+      "member": "Takes part in what they're added to.",
+      "admin": "Runs the community — members, invites, initiatives, settings.",
+      "superadmin": "All that, plus how people get in: sign-in, AI and apps. Only a superadmin can appoint another."
     },
     "loadingSettings": "Loading settings…",
     "unableToLoadSettings": "Unable to load settings.",
@@ -252,6 +258,8 @@
     "commentReaction": "{{reactorName}} reacted {{emoji}} to your comment on {{contextTitle}}.",
     "directMessage": "{{senderName}} sent you a message.",
     "directMessageMany": "{{senderName}} sent you {{count}} messages.",
+    "directMessageGroup": "{{senderName}} sent a message to {{groupName}}.",
+    "directMessageGroupMany": "{{senderName}} and others sent {{count}} messages to {{groupName}}.",
     "someone": "Someone",
     "connectionRequested": "{{actorName}} wants to connect with you.",
     "connectionAccepted": "{{actorName}} accepted your connection request.",
@@ -463,6 +471,7 @@
     "person": "Member",
     "name": "Name",
     "admin": "Admin",
+    "superadmin": "Superadmin",
     "alsoIn": "Also in",
     "actions": "Actions",
     "failed": "This community's members could not be loaded.",

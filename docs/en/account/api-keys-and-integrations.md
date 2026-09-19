@@ -44,7 +44,7 @@ Worth knowing:
 
 - It's **off unless your administrator enables it** on the server.
 - Every action runs **as you**, scoped by your key. An assistant reaches only what *you* could reach.
-- The surface is **curated** — any key can read the initiatives you belong to and the tools they hold (projects and tasks, documents, queues, counters, calendars, notices and dashboards, and the comments on any of them). A full-access key can also create and edit those same things. Deleting, archiving, bulk edits, sharing and AI generation are never exposed, and a read-only key can't write at all.
+- The surface is **curated** — any key can read the initiatives you belong to and the tools they hold (projects and tasks, documents, queues, counters, calendars, notices and dashboards, the comments on any of them, and what any of them is linked to). A full-access key can also create and edit those same things, and link two of them together. Deleting (a link included), archiving, bulk edits, sharing and AI generation are never exposed, and a read-only key can't write at all.
 
 !!! tip "Read-only, single-community, for assistants"
     That's the right call for most uses. Only reach for a full-access key if you actually want the assistant making changes — and each change is confirmed in the assistant before it runs.

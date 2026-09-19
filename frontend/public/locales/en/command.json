@@ -14,7 +14,8 @@
     "dashboards": "Dashboards",
     "results": "Results",
     "posts": "Posts",
-    "galleries": "Galleries"
+    "galleries": "Galleries",
+    "wikis": "Wikis"
   },
   "actions": {
     "addTask": "Add Task",
@@ -30,7 +31,7 @@
     "guildSettings": "Community Settings",
     "allInitiatives": "All Initiatives",
     "platformSettings": "Platform Settings",
-    "adminDashboard": "Admin Dashboard"
+    "operatorDashboard": "Operator Dashboard"
   },
   "shortcutHint": "Search",
   "shortcutTooltip": "Quick search ({{shortcut}})",

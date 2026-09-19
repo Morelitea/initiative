@@ -76,12 +76,18 @@
     "finalizing": "Weiterleitung wird abgeschlossen…",
     "goHome": "Zurück zur Startseite"
   },
-  "adminDashboard": "Administrator-Dashboard",
+  "operatorDashboard": "Operator-Dashboard",
   "pastAnnouncements": "Frühere Ankündigungen",
   "requestsWaiting_one": "{{count}} ausstehend",
   "requestsWaiting_other": "{{count}} ausstehend",
   "posts": "Beiträge",
   "createPost": "Neuer Beitrag",
   "galleries": "Galerien",
-  "createGallery": "Neue Galerie"
+  "createGallery": "Neue Galerie",
+  "moderation": "Moderation",
+  "wikis": "Wikis",
+  "createWiki": "Neues Wiki",
+  "sidebar": {
+    "resize": "Ziehen, um die Seitenleiste breiter zu machen"
+  }
 }

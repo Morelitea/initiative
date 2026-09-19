@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t
 from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
+from app.models.platform.access_grant import LEVEL_LABEL_KEYS
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -335,9 +336,9 @@ async def send_verification_email(
         email_t("verification.title", locale=locale), body, accent, locale=locale
     )
     text_body = email_t("verification.textBody", locale=locale, link=link, escape=False)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("verification.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -360,6 +361,42 @@ async def _account_recipients(user: User) -> list[str]:
 
     async with AdminSessionLocal() as admin_session:
         return await addresses.proven_addresses(admin_session, user_id=user.id)
+
+
+async def _send_to_primary(
+    session: AsyncSession,
+    user: User,
+    *,
+    subject: str,
+    html_body: str,
+    text_body: str | None = None,
+    settings_obj: AppSetting | None = None,
+) -> None:
+    """Send one letter to the address this account nominated.
+
+    Everything that is not about the account itself comes through here: a
+    mention, a digest, an invitation. Account mail fans out over every proven
+    address instead (``_account_recipients``, §6.2 rule 4).
+
+    On its own system-engine session, for the reason ``_account_recipients``
+    gives. An account with no primary address is not written to.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.services.auth import addresses
+
+    async with AdminSessionLocal() as admin_session:
+        address = await addresses.primary_address(admin_session, user_id=user.id)
+    if address is None:
+        logger.warning("no primary address for account %s; not sending", user.id)
+        return
+    await send_email(
+        session,
+        recipients=[address],
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
 
 
 async def send_address_verification_email(
@@ -430,6 +467,155 @@ async def send_password_reset_email(
     )
 
 
+async def send_second_factor_changed_email(
+    session: AsyncSession, user: User, *, enabled: bool
+) -> None:
+    """Tell the account its second factor was turned on or off.
+
+    Account mail, so it reaches every address its holder has proved rather than
+    only the nominated one: a change nobody made is still seen by somebody who
+    no longer reads one of them.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    key = "secondFactor.enabled" if enabled else "secondFactor.disabled"
+    body = f"""
+    <p>{email_t("secondFactor.greeting", locale=locale, name=name)}</p>
+    <p>{email_t(f"{key}.body", locale=locale)}</p>
+    <p>{email_t("secondFactor.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t(f"{key}.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(f"{key}.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_second_factor_change(
+    session: AsyncSession, user: User, *, enabled: bool
+) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the factor has been turned on or off and committed. A
+    deployment with no mail configured still made that change, and answering the
+    request with a failure would say otherwise.
+    """
+    try:
+        await send_second_factor_changed_email(session, user, enabled=enabled)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; second-factor change for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception(
+            "could not announce second-factor change for account %s", user.id
+        )
+
+
+async def send_passkey_changed_email(
+    session: AsyncSession, user: User, *, added: bool, name: str
+) -> None:
+    """Tell the account a passkey was added or removed.
+
+    Account mail, like the second-factor letter: a way in changed, so it goes
+    to every address its holder has proved rather than only the nominated one.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    holder = _display_name(user)
+    key = "passkey.added" if added else "passkey.removed"
+    body = f"""
+    <p>{email_t("passkey.greeting", locale=locale, name=holder)}</p>
+    <p>{email_t(f"{key}.body", locale=locale, passkey=name)}</p>
+    <p>{email_t("passkey.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t(f"{key}.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(f"{key}.textBody", locale=locale, passkey=name, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_passkey_change(
+    session: AsyncSession, user: User, *, added: bool, name: str
+) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the passkey has been added or removed and committed.
+    A deployment with no mail configured still made that change, and answering
+    the request with a failure would say otherwise.
+    """
+    try:
+        await send_passkey_changed_email(session, user, added=added, name=name)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; passkey change for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce passkey change for account %s", user.id)
+
+
+async def send_password_removed_email(session: AsyncSession, user: User) -> None:
+    """Tell the account its password is gone and what signs it in now.
+
+    Account mail, like the passkey and second-factor letters: a way in changed,
+    so it goes to every address its holder has proved rather than only the
+    nominated one.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    body = f"""
+    <p>{email_t("passwordRemoved.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("passwordRemoved.body", locale=locale)}</p>
+    <p>{email_t("passwordRemoved.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("passwordRemoved.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t("passwordRemoved.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t("passwordRemoved.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_password_removed(session: AsyncSession, user: User) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the password is gone and committed. A deployment with
+    no mail configured still made that change, and answering the request with a
+    failure would say otherwise.
+    """
+    try:
+        await send_password_removed_email(session, user)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; password removal for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce password removal for account %s", user.id)
+
+
 async def send_initiative_added_email(
     session: AsyncSession, user: User, initiative_name: str
 ) -> None:
@@ -455,9 +641,9 @@ async def send_initiative_added_email(
         link=link,
         escape=False,
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             "initiativeAdded.subject",
             locale=locale,
@@ -501,9 +687,9 @@ async def send_project_added_to_initiative_email(
         link=link,
         escape=False,
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             "projectAdded.subject",
             locale=locale,
@@ -522,7 +708,7 @@ async def send_access_grant_email(
     *,
     event: str,
     guild_name: str,
-    access_level: str | None = None,
+    levels: Sequence[str] | None = None,
     requester: str | None = None,
 ) -> None:
     """Email a PAM access-grant lifecycle event.
@@ -538,14 +724,14 @@ async def send_access_grant_email(
     button = _cta_button(
         email_t("accessGrant.buttonLabel", locale=locale), link, accent
     )
-    level_label = ""
-    if access_level:
-        level_key = (
-            "accessGrant.levelReadWrite"
-            if access_level == "read_write"
-            else "accessGrant.levelRead"
-        )
-        level_label = email_t(level_key, locale=locale)
+    # Every level asked for, named — one ask can be for two things, and a
+    # message describing only the first would ask for a decision about
+    # something it had not mentioned.
+    level_label = ", ".join(
+        email_t(LEVEL_LABEL_KEYS[level], locale=locale)
+        for level in (levels or ())
+        if level in LEVEL_LABEL_KEYS
+    )
     base = f"accessGrant.{event}"
     vars_ = {
         "guildName": guild_name,
@@ -563,9 +749,9 @@ async def send_access_grant_email(
     text_body = email_t(
         f"{base}.textBody", locale=locale, link=link, escape=False, **vars_
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             f"{base}.subject", locale=locale, guildName=guild_name, escape=False
         ),
@@ -625,9 +811,9 @@ async def send_initiative_join_request_email(
         email_t(f"{base}.textBody", locale=locale, link=link, escape=False, **vars_)
         + note_text
     )
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t(
             f"{base}.subject",
             locale=locale,
@@ -714,9 +900,9 @@ async def send_task_assignment_digest_email(
         email_t("taskAssignment.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("taskAssignment.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -786,9 +972,9 @@ async def send_reaction_digest_email(
         email_t("reaction.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("reaction.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
@@ -828,9 +1014,9 @@ async def send_mention_email(
     plain = _strip_html(body_text)
     if link:
         plain += f"\n\nView: {link}"
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=subject,
         html_body=html_body,
         text_body=plain,
@@ -870,9 +1056,9 @@ async def send_direct_message_email(
         email_t("directMessage.title", locale=locale), body, accent, locale=locale
     )
     plain = _strip_html(body_text) + f"\n\nView: {link}"
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("directMessage.subject", locale=locale, sender=sender_name),
         html_body=html_body,
         text_body=plain,
@@ -947,9 +1133,9 @@ async def send_overdue_tasks_email(
         email_t("overdue.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
-    await send_email(
+    await _send_to_primary(
         session,
-        recipients=[user.email],
+        user,
         subject=email_t("overdue.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,

@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
+from app.core.guild_auth_options import GuildAuthOption
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.email_masking import mask_email
@@ -94,6 +95,11 @@ class GuildRead(GuildBase):
 
     id: int
     role: GuildRole
+    #: Whether this membership administers the guild — admin or above.
+    #: Computed where the payload is already split by it, so a surface asks
+    #: the server one question instead of each screen deciding what the
+    #: role means.
+    is_admin: bool = False
     position: int
     created_at: datetime
     updated_at: datetime
@@ -120,11 +126,18 @@ class GuildRead(GuildBase):
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
-    # ADMIN-ONLY. Whether this guild may configure its own sign-in (operator
-    # entitlement), so their settings UI can show/hide the Authentication tab;
-    # ``None`` for non-admin members (they never configure auth). Only
-    # meaningful under the per-guild AUTH_SCOPE posture.
-    guild_auth_enabled: Optional[bool] = None
+    # ADMIN-ONLY. What this guild may do about its own sign-in (operator
+    # entitlement), so their settings UI knows which surfaces to offer;
+    # ``None`` for non-admin members (they never configure auth).
+    auth_options: Optional[List[GuildAuthOption]] = None
+    # ADMIN-ONLY. Whether a personal API key may be used against this guild.
+    # ``None`` for non-admin members: it is read by the settings surface that
+    # sets it, and nothing a member does depends on the answer.
+    allow_api_keys: Optional[bool] = None
+    # ADMIN-ONLY. Whether this guild holds its members to the twelve-hour
+    # session standard. ``None`` for non-admin members, like the one above:
+    # the settings surface that sets it is what reads it.
+    enforce_compliance_session: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
@@ -263,12 +276,15 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
-    # Per-guild sign-in entitlement (operator toggle). Only meaningful under the
-    # per-guild AUTH_SCOPE posture; the dashboard hides the control otherwise.
-    guild_auth_enabled: bool = False
+    # Per-guild sign-in entitlements, set from the platform Guilds dashboard.
+    auth_options: List[GuildAuthOption] = Field(default_factory=list)
     # Whether this guild may upload banner artwork (operator toggle). On by
     # default; a guild without it picks a banner colour instead.
     banner_image_enabled: bool = True
+    # Whether this guild's members may send a help request (operator toggle).
+    # Off by default: the deployment that receives them is the one that decides
+    # it is staffing them.
+    support_enabled: bool = False
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -284,15 +300,30 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
-    # Per-guild sign-in entitlement. Omit-to-skip (a bool is never null here).
-    guild_auth_enabled: Optional[bool] = None
+    # Per-guild sign-in entitlements. Omit-to-skip; a sent list replaces the
+    # set outright, and an empty one grants nothing.
+    auth_options: Optional[List[GuildAuthOption]] = None
     # Banner-artwork entitlement. Omit-to-skip, same as the one above.
     banner_image_enabled: Optional[bool] = None
+    # Help-request entitlement. Omit-to-skip, same as the one above.
+    support_enabled: Optional[bool] = None
+
+
+#: What a community may require, beyond naming one provider. ``sso`` means its
+#: own single sign-on, whichever of its providers serves it — the deployment's
+#: providers are not its own. ``totp`` means the session carried the account's
+#: second factor; ``passkey`` that it was opened, or stepped up, with one. The
+#: platform's ``login_method`` vocabulary minus ``password``,
+#: which only the deployment decides about: the same asymmetry the database
+#: holds as a CHECK on ``require_methods``.
+GuildRequirableMethod = Literal["sso", "totp", "passkey"]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
     """The guild's sign-in requirement. ``open`` is the default (no stored
-    row); ``required`` names the provider a session must have satisfied."""
+    row). ``required`` names a provider a session must have satisfied, asks for
+    the guild's own single sign-on without naming which provider serves it, or
+    both."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -300,11 +331,58 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
     provider_id: Optional[int] = None
     provider_slug: Optional[str] = None
     provider_display_name: Optional[str] = None
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
 
 
 class GuildAuthPolicyUpdate(SanitizedBaseModel):
     policy: Literal["open", "required"]
     provider_id: Optional[int] = None
+    #: ``["sso"]`` asks for the community's own single sign-on and ``["totp"]``
+    #: for the account's second factor; both may be asked for at once.
+    #: ``password`` is absent from the type on purpose: whether passwords exist
+    #: at all is the deployment's question.
+    require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
+
+
+class GuildAuthSettingsRead(SanitizedBaseModel):
+    """The current controls on the superadmin's Authentication page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    auth_options: List[GuildAuthOption] = Field(default_factory=list)
+    allow_api_keys: bool
+    enforce_compliance_session: bool
+
+
+class GuildApiAccessRead(SanitizedBaseModel):
+    """Whether this guild accepts personal API keys."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    allow_api_keys: bool
+
+
+class GuildApiAccessUpdate(SanitizedBaseModel):
+    """Set it. ``false`` means no key can be minted into this guild and no
+    request carrying one reaches it; keys already minted stop working here."""
+
+    allow_api_keys: bool
+
+
+class GuildSessionLimitRead(SanitizedBaseModel):
+    """Whether this guild holds its members to the twelve-hour session
+    standard."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    enforce_compliance_session: bool
+
+
+class GuildSessionLimitUpdate(SanitizedBaseModel):
+    """Set it. ``true`` means this guild's members sign in again every twelve
+    hours, whatever the deployment's own limit says."""
+
+    enforce_compliance_session: bool
 
 
 class GuildDeletionRequest(SanitizedBaseModel):
@@ -316,9 +394,11 @@ class GuildDeletionRequest(SanitizedBaseModel):
 
     - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
       phrase uppercased) so the action can't be triggered by a stray click.
-    - ``password`` is the current user's password. It is ignored for
-      OIDC-only users (who have no usable password), mirroring the
-      account-deletion endpoint, which is why it defaults to empty.
+    - ``password`` is the current user's password. An account that holds
+      none — one that signs in with a passkey or through an identity
+      provider — has nothing to confirm with and answers with the phrase
+      alone, mirroring the account-deletion endpoint, which is why it
+      defaults to empty.
     """
 
     password: RawTextStr = ""
@@ -366,15 +446,19 @@ class GuildMembershipUpdate(SanitizedBaseModel):
 class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     """Response for checking if a user can leave a guild.
 
-    Being the guild's last admin is the only thing that stops them. Content they
-    own is released on the way out and left unowned for a guild admin to claim,
-    so there is nothing to hand over first.
+    Two things stop them, and the caller is told which. Being the guild's last
+    admin is one. Holding its only superadmin seat while the guild requires
+    a sign-in is the other — the requirement is lifted from the surface that
+    seat holds, so the seat stays for as long as the requirement does.
+
+    Content they own is released on the way out and left unowned for a guild
+    admin to claim, so there is nothing to hand over first.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
-    is_last_admin: bool
+    is_last_superadmin: bool = False
 
 
 class CommunityGuildRead(SanitizedBaseModel):

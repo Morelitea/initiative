@@ -5,31 +5,10 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
-import { useRouter } from "@tanstack/react-router";
-import { Bell, CheckCheck, Loader2 } from "lucide-react";
-import { useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { RelativeTime } from "@/components/ui/relative-time";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth } from "@/hooks/useAuth";
-import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
-import {
-  useMarkAllNotificationsRead,
-  useMarkNotificationRead,
-  useNotifications,
-} from "@/hooks/useNotifications";
 import { normalizeAppTarget, normalizeLegacyTarget } from "@/lib/entityResolver";
-import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
-
-// How often the bell asks on its own, which is only ever when there is no
-// channel to ask for it.
-const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -158,7 +137,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "access_grant_revoked":
       // The Access tab serves both requesters (their requests) and approvers
       // (the queue). It's a platform route, not guild-scoped.
-      return "/settings/admin/access";
+      return "/settings/operator/access";
     case "event_invitation":
     case "event_updated":
     case "event_cancelled":
@@ -327,6 +306,15 @@ export const notificationText = (
       // the server has no key to the message it is announcing.
       const count = typeof data.count === "number" ? data.count : 1;
       const senderName = data.sender_name ?? "Someone";
+      // A group thread has no name, so it is named by who is on it -- everybody
+      // but the reader. Present only on a group line.
+      const members = Array.isArray(data.member_names) ? data.member_names : null;
+      if (members?.length) {
+        const groupName = members.join(", ");
+        return count > 1
+          ? t("notifications.directMessageGroupMany", { senderName, groupName, count })
+          : t("notifications.directMessageGroup", { senderName, groupName });
+      }
       return count > 1
         ? t("notifications.directMessageMany", { senderName, count })
         : t("notifications.directMessage", { senderName });

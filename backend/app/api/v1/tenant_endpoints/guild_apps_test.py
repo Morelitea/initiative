@@ -100,7 +100,7 @@ class TestInstall:
     async def test_installing_mounts_a_guild_level_calendar(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
 
         assert app["app_kind"] == "tool_instance"
@@ -120,7 +120,7 @@ class TestInstall:
         """The sidebar draws an install from its listing's picture, so the LIST
         payload has to carry it — a field added only to the detail read would
         leave every sidebar entry blank."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         await _install(client, a)
 
         response = await client.get(a.g("/apps/"), headers=a.headers)
@@ -131,7 +131,7 @@ class TestInstall:
     async def test_the_name_can_be_chosen_at_install(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a, name="Club nights")
         assert app["name"] == "Club nights"
         calendar = await _read_calendar(session, a.guild.id, _artifact_id(app))
@@ -140,7 +140,7 @@ class TestInstall:
     async def test_only_a_guild_admin_may_install(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         response = await client.post(
             member.g("/apps/"),
@@ -158,7 +158,7 @@ class TestInstall:
         await create_marketplace_listing(
             session, uid=marketplace_uid("dashnotapp"), public_id="tests.dash"
         )
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         response = await client.post(
             a.g("/apps/"),
             headers=a.headers,
@@ -170,7 +170,7 @@ class TestInstall:
     async def test_installing_twice_is_refused(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         await _install(client, a)
         again = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": CALENDAR_APP_UID}
@@ -188,8 +188,8 @@ class TestInstall:
         calendars are legitimately id 1. What matters is that each guild has a
         calendar of its own, in its own schema.
         """
-        a = await acting_user(guild_role=GuildRole.admin)
-        b = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        b = await acting_user(guild_role=GuildRole.superadmin)
         first = await _install(client, a)
         second = await _install(client, b)
 
@@ -206,7 +206,7 @@ class TestVisibility:
         """The point of guild scope: a member who belongs to no initiative still
         reaches the guild's own calendar, because it belongs to no initiative
         either."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
@@ -221,7 +221,7 @@ class TestVisibility:
         self, client: AsyncClient, acting_user, calendar_app
     ):
         # The sidebar has to know what is installed; that is not privileged.
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         await _install(client, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
@@ -232,9 +232,9 @@ class TestVisibility:
     async def test_another_guild_sees_nothing(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         await _install(client, a)
-        stranger = await acting_user(guild_role=GuildRole.admin)
+        stranger = await acting_user(guild_role=GuildRole.superadmin)
 
         response = await client.get(stranger.g("/apps/"), headers=stranger.headers)
         assert response.json()["items"] == []
@@ -244,7 +244,7 @@ class TestManage:
     async def test_renaming_and_disabling(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
 
         response = await client.patch(
@@ -261,14 +261,14 @@ class TestManage:
     ):
         """Nobody opts in. An install takes what its publisher ships until a
         guild admin says it should not."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         assert app["auto_update"] is True
 
     async def test_an_admin_can_switch_to_manual_updates(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
 
         response = await client.patch(
@@ -284,7 +284,7 @@ class TestManage:
     async def test_the_cadence_is_a_guild_admin_s_to_set(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
@@ -300,7 +300,7 @@ class TestManage:
     ):
         """``update_version`` is what draws the Update button, so an install on
         the newest version has to come back without one."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
 
         response = await client.get(a.g(f"/apps/{app['id']}"), headers=a.headers)
@@ -310,7 +310,7 @@ class TestManage:
     async def test_disabling_leaves_the_content_alone(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         await client.patch(
             a.g(f"/apps/{app['id']}"), headers=a.headers, json={"enabled": False}
@@ -321,19 +321,22 @@ class TestManage:
         )
         assert response.status_code == 200
 
-    async def test_only_a_guild_admin_may_manage(
-        self, client: AsyncClient, acting_user, calendar_app
+    @pytest.mark.parametrize("role", [GuildRole.admin, GuildRole.member])
+    async def test_only_the_seat_may_manage(
+        self, client: AsyncClient, acting_user, calendar_app, role: GuildRole
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        """What the community hands an app is the seat's, so running the
+        community is not enough on its own."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        other = await acting_user(guild_role=role, guild=a.guild)
 
         patched = await client.patch(
-            member.g(f"/apps/{app['id']}"), headers=member.headers, json={"name": "no"}
+            other.g(f"/apps/{app['id']}"), headers=other.headers, json={"name": "no"}
         )
         assert patched.status_code == 403
         removed = await client.delete(
-            member.g(f"/apps/{app['id']}"), headers=member.headers
+            other.g(f"/apps/{app['id']}"), headers=other.headers
         )
         assert removed.status_code == 403
 
@@ -344,7 +347,7 @@ class TestUninstall:
     ):
         """Trashed, not deleted: whatever the guild put in that calendar should
         survive an admin removing the app."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         calendar_id = _artifact_id(app)
 
@@ -369,7 +372,7 @@ class TestUninstall:
         it created on the way in. Removal reads that list under the same lock a
         create takes, so a calendar added later goes to the trash with the rest
         rather than staying live with nothing that reaches it."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         mounted_id = _artifact_id(app)
 
@@ -392,7 +395,7 @@ class TestUninstall:
     async def test_the_listing_can_be_installed_again_afterwards(
         self, client: AsyncClient, acting_user, calendar_app
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(client, a)
         await client.delete(a.g(f"/apps/{app['id']}"), headers=a.headers)
         # The one-install rule is about what is currently mounted, not a
@@ -441,7 +444,7 @@ class TestKindsThisBuildCanMount:
         await create_app_service_registration(
             session, public_id="tests.service-kind", status="unverified"
         )
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
 
         response = await client.post(
             a.g("/apps/"),
@@ -467,7 +470,7 @@ class TestKindsThisBuildCanMount:
         what makes one carry the app. Until an operator has wired it up, the
         uid names nothing this deployment installs.
         """
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=GuildRole.superadmin)
 
         response = await client.post(
             a.g("/apps/"),

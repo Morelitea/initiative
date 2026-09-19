@@ -1,9 +1,14 @@
 import { Link, useSearch } from "@tanstack/react-router";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ContactGrantRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ContactGrantRead,
+  DmRosterMember,
+  Presence,
+  ProfileDecorationsOutput,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { PrivatePanel, unreachableReason } from "@/components/contacts/UnreachableEmptyState";
 import { NewConversationDialog } from "@/components/messages/NewConversationDialog";
@@ -24,11 +29,30 @@ import {
   useRemoveMessageRequest,
 } from "@/hooks/useDirectMessages";
 import { useConversations, useUnreadMessages } from "@/hooks/useMyMessages";
+import { groupName, isGroup, roster } from "@/lib/conversationName";
 import { getItem, setItem } from "@/lib/storage";
 import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 const ROW = "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-sm";
+
+/**
+ * Everything a row needs to know about somebody: what they are called, and how
+ * they look.
+ *
+ * Structural rather than one of the two shapes that satisfy it. A contact grant
+ * and a conversation's roster both carry this much, and a row does not care
+ * which of them it came from -- what it cares about is that a person on screen
+ * always has a name and a face.
+ */
+type Person = {
+  user_id: number;
+  username: string;
+  discriminator: number;
+  avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput | null;
+  presence?: Presence;
+};
 
 /**
  * The menu belongs to the row, not to the list: on a pointer it opens out of
@@ -55,10 +79,56 @@ const COLLAPSED_KEY = "messages-groups-collapsed";
 type GroupId = "unread" | "favorites" | "connections" | "messages";
 const GROUP_ORDER: GroupId[] = ["unread", "favorites", "connections", "messages"];
 
+/**
+ * How many faces the space a single avatar occupies will hold, overlapped.
+ *
+ * Above it the row draws the group symbol instead. Not a truncation: a roster
+ * is what tells one group from another, so showing some of it and not the rest
+ * is worse than showing none of it -- and the row spells out every name beside
+ * this either way.
+ */
+const FACES_THAT_FIT = 3;
+
+/** Who is on a group, drawn as their faces where they all fit. */
+const RosterFaces = ({ members }: { members: DmRosterMember[] }) =>
+  members.length === 0 || members.length > FACES_THAT_FIT ? (
+    <Users className="size-6 shrink-0 p-0.5" aria-hidden="true" />
+  ) : (
+    <span className="flex size-6 shrink-0 items-center -space-x-2" aria-hidden="true">
+      {members.map((member) => (
+        <ProfileAvatar
+          key={member.user_id}
+          user={{ ...member, id: member.user_id }}
+          decorations={member.profile_decorations}
+          hidePresence
+          className="size-4 ring-1 ring-background"
+        />
+      ))}
+    </span>
+  );
+
+/**
+ * A thread with more than two people on it.
+ *
+ * Kept apart from `Entry` rather than folded into it: every row above is a
+ * person -- it has their picture, their handle, and a menu of things to do
+ * about them -- and a group is none of those. It is a conversation, addressed
+ * by its id, named by who is on it.
+ */
+interface GroupRow {
+  conversationId: string;
+  name: string;
+  /** Who is on it, so the row shows faces rather than a symbol for "several". */
+  members: DmRosterMember[];
+  waiting: number;
+  /** Named on it, but has not answered yet. */
+  pending: boolean;
+}
+
 /** One person this list can offer, whether or not a thread is open with them. */
 interface Entry {
   userId: number;
-  person: ContactGrantRead;
+  person: Person;
   /** Absent until a conversation has actually been opened with them. */
   conversationId?: string;
   waiting: number;
@@ -118,7 +188,10 @@ const readCollapsed = (): Record<string, boolean> => {
  */
 export const ConversationList = ({ explain = false }: { explain?: boolean } = {}) => {
   const { t } = useTranslation(["messages", "contacts"]);
-  const { with: openHandle } = useSearch({ strict: false }) as { with?: string };
+  const { with: openHandle, thread: openThread } = useSearch({ strict: false }) as {
+    with?: string;
+    thread?: string;
+  };
   const [term, setTerm] = useState("");
 
   const conversations = useConversations();
@@ -127,20 +200,34 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   const settings = useDmSettings();
 
   const reachable = useMemo(() => requests.data?.accepted ?? [], [requests.data?.accepted]);
-  const personFor = useMemo(
-    () => new Map(reachable.map((grant) => [grant.user_id, grant])),
-    [reachable]
-  );
 
   const rows = useMemo(
     () => conversations.data?.conversations ?? [],
     [conversations.data?.conversations]
   );
+
+  /**
+   * Who the list can name, from both places a person is known.
+   *
+   * A conversation carries its own roster, which is the only source for
+   * somebody a group put you in touch with: agreeing to a roster is the whole
+   * of the ask, so there need be no request between the two of you to look up.
+   * An accepted request is laid over it for the people who also sent one.
+   */
+  const personFor = useMemo(() => {
+    const people = new Map<number, Person>();
+    for (const row of rows) for (const member of roster(row)) people.set(member.user_id, member);
+    for (const grant of reachable) people.set(grant.user_id, grant);
+    return people;
+  }, [rows, reachable]);
   const unread = useUnreadMessages(rows.map((row) => row.id));
 
   // Somebody you may message but have not opened a channel with yet.
   const unopened = useMemo(
-    () => reachable.filter((grant) => !rows.some((row) => row.other_user_id === grant.user_id)),
+    () =>
+      reachable.filter(
+        (grant) => !rows.some((row) => !isGroup(row) && row.other_user_id === grant.user_id)
+      ),
     [reachable, rows]
   );
 
@@ -148,8 +235,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   // hand, and the handle is all any of them carries.
   const matches = useMemo(() => {
     const needle = term.trim().toLowerCase().replace(/^@/, "");
-    return (person: ContactGrantRead) =>
-      !needle || getUserHandle(person).toLowerCase().includes(needle);
+    return (person: Person) => !needle || getUserHandle(person).toLowerCase().includes(needle);
   }, [term]);
 
   /**
@@ -211,6 +297,20 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
     [connections.data]
   );
 
+  const groupRows: GroupRow[] = useMemo(
+    () =>
+      rows
+        .filter((row) => isGroup(row))
+        .map((row) => ({
+          conversationId: row.id,
+          name: groupName(row),
+          members: roster(row),
+          waiting: unread.data?.get(row.id) ?? 0,
+          pending: Boolean(row.pending),
+        })),
+    [rows, unread.data]
+  );
+
   const entries: Entry[] = useMemo(
     () => [
       // Only conversations whose other side this reader can still see. A grant
@@ -219,10 +319,10 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
       // address, so listing it offers a person who cannot be opened. What this
       // device already collected stays on it either way.
       ...rows
-        .filter((row) => personFor.has(row.other_user_id))
+        .filter((row) => !isGroup(row) && personFor.has(row.other_user_id))
         .map((row) => ({
           userId: row.other_user_id,
-          person: personFor.get(row.other_user_id) as ContactGrantRead,
+          person: personFor.get(row.other_user_id) as Person,
           conversationId: row.id,
           waiting: unread.data?.get(row.id) ?? 0,
         })),
@@ -258,6 +358,15 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
     }
     return groups;
   }, [entries, starred, connected, matches]);
+
+  // A term narrows groups on their names, which is all a group has.
+  const shownGroups = useMemo(
+    () =>
+      term.trim()
+        ? groupRows.filter((row) => row.name.toLowerCase().includes(term.trim().toLowerCase()))
+        : groupRows,
+    [groupRows, term]
+  );
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const fold = (group: GroupId, open: boolean) => {
@@ -459,7 +568,46 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
             </section>
           ) : null}
 
-          {filled.length === 0 ? (
+          {shownGroups.length > 0 ? (
+            <section>
+              <h3 className="px-2 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                {t("groupThreads.heading")}
+              </h3>
+              <ul>
+                {shownGroups.map((row) => (
+                  <li
+                    key={row.conversationId}
+                    className={cn(
+                      "group/row flex items-center rounded-md pe-1 hover:bg-accent",
+                      row.conversationId === openThread && "bg-accent"
+                    )}
+                  >
+                    <Link
+                      to="/messages"
+                      search={{ thread: row.conversationId }}
+                      className={cn(ROW, row.pending && "text-muted-foreground")}
+                    >
+                      <RosterFaces members={row.members} />
+                      <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                      {row.waiting ? (
+                        <span className="relative ms-auto flex shrink-0 items-center">
+                          <span className="sr-only">{t("unreadHere", { count: row.waiting })}</span>
+                          <span aria-hidden="true" className="size-2 rounded-full bg-destructive" />
+                        </span>
+                      ) : null}
+                      {/* Named on it, not yet on it. The row opens the thread,
+                          which is where the answer is given. */}
+                      {row.pending ? (
+                        <span className="shrink-0 text-xs">{t("groupThreads.invited")}</span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {filled.length === 0 && shownGroups.length === 0 ? (
             searching ? (
               // Only when the term found nothing at all. A request matching it
               // is drawn above, and saying "nobody matches" over the top of

@@ -21,7 +21,9 @@ from sqlmodel import select
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.user import UserRole, UserStatus
-from app.models.tenant.initiative import InitiativeMember
+from app.models.platform.user_passkey import UserPasskey
+from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.platform.user import User
 from app.testing.factories import (
     create_federated_identity,
     guild_administration,
@@ -29,7 +31,23 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
     get_auth_headers,
+    get_auth_token,
 )
+
+
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers a confirmation with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
 
 
 @pytest.mark.integration
@@ -100,7 +118,7 @@ ADMIN_ONLY_GUILD_FIELDS = (
     "max_users",
     "tier_name",
     "status",
-    "guild_auth_enabled",
+    "auth_options",
 )
 
 
@@ -122,7 +140,8 @@ async def test_list_guilds_administration_fields_are_admin_only(
         max_storage_bytes=5_000_000,
         max_users=25,
         tier_name="Bespoke Plan",
-        guild_auth_enabled=True,
+        # Both switches, so every administration field has a value to show.
+        auth_options=["restrictions", "providers"],
     )
 
     async def entry(headers: dict[str, str]) -> dict:
@@ -147,7 +166,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
     assert admin_row["max_users"] == 25
     assert admin_row["tier_name"] == "Bespoke Plan"
     assert admin_row["retention_days"] == 90
-    assert admin_row["guild_auth_enabled"] is True
+    assert admin_row["auth_options"] == ["providers", "restrictions"]
 
 
 @pytest.mark.integration
@@ -223,7 +242,8 @@ async def test_create_guild(client: AsyncClient, session: AsyncSession):
     data = response.json()
     assert data["name"] == "New Guild"
     assert data["description"] == "A test guild"
-    assert data["role"] == "admin"
+    # Whoever makes a community holds its seat.
+    assert data["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -289,14 +309,14 @@ async def test_staff_can_create_a_guild_owned_by_someone_else(
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
 
-    # The named account is its admin...
+    # The named account holds its seat...
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.guild_id == guild_id)
         )
     ).all()
     assert [(m.user_id, m.role) for m in memberships] == [
-        (customer.id, GuildRole.admin)
+        (customer.id, GuildRole.superadmin)
     ]
     # ...and the creator holds nothing in it.
     assert staff.id not in {m.user_id for m in memberships}
@@ -327,11 +347,35 @@ async def test_creating_for_someone_else_records_both_identities(
 
 
 @pytest.mark.integration
-async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
+async def test_a_new_guild_is_created_with_no_initiatives(
+    client: AsyncClient, session: AsyncSession
+):
+    """A new guild holds no initiative at all. Naming a body of work is the
+    owner's first decision, and a seeded "Default Initiative" answered it for
+    them; the guild home offers them the empty state instead."""
+    owner = await create_user(session, email="owner@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(owner),
+        json={"name": "Acme"},
+    )
+    assert response.status_code == 201
+    guild_id = response.json()["id"]
+
+    await route_session_to_guild(session, guild_id)
+    assert (await session.exec(select(Initiative))).all() == []
+    assert (await session.exec(select(InitiativeMember))).all() == []
+
+
+@pytest.mark.integration
+async def test_a_guild_made_for_someone_else_leaves_its_creator_no_content(
     client: AsyncClient, session: AsyncSession
 ):
     """A guild made for another account must not leave its creator inside the
-    content either — the default initiative belongs to the owner."""
+    content. With nothing seeded there is no content to be inside — this holds
+    the line so a future seed cannot quietly hand the staff creator a
+    membership."""
     staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
     customer = await create_user(session, email="customer@example.com")
 
@@ -344,7 +388,7 @@ async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
 
     await route_session_to_guild(session, guild_id)
     members = (await session.exec(select(InitiativeMember))).all()
-    assert {m.user_id for m in members} == {customer.id}
+    assert {m.user_id for m in members} <= {customer.id}
 
 
 @pytest.mark.integration
@@ -384,7 +428,7 @@ async def test_naming_yourself_needs_no_capability(
     )
 
     assert response.status_code == 201, response.text
-    assert response.json()["role"] == "admin"
+    assert response.json()["role"] == "superadmin"
 
 
 @pytest.mark.integration
@@ -558,19 +602,78 @@ async def test_delete_guild_wrong_confirmation(
 async def test_delete_guild_oidc_user_skips_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """SSO-only users delete with just the phrase — no password required."""
-    user = await create_user(session, email="sso@example.com")
+    """An SSO-provisioned account holds no password, so there is none for the
+    gate to ask for — it deletes with just the phrase."""
+    user = await create_user(session, email="sso@example.com", hashed_password=None)
     await create_federated_identity(session, user, subject="sso-123")
     guild = await create_guild(session, name="To Delete")
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
-    headers = get_auth_headers(user)
+    headers = await _just_signed_in(session, user)
     body = {"confirmation_text": "DELETE GUILD TO DELETE"}
     response = await client.request(
         "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
     )
 
     assert response.status_code == 204
+
+
+@pytest.mark.integration
+async def test_delete_guild_passkey_only_admin_skips_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """An admin who signs in with a credential and holds no password at all."""
+    user = await create_user(
+        session, email="passkey-admin@example.com", hashed_password=None
+    )
+    session.add(
+        UserPasskey(
+            user_id=user.id,
+            credential_id=b"delete-guild-key",
+            public_key=b"public-key-bytes",
+            rp_id="localhost",
+            sign_count=0,
+            transports=["internal"],
+            name="Laptop",
+        )
+    )
+    await session.commit()
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=await _just_signed_in(session, user),
+        json={"confirmation_text": "DELETE GUILD TO DELETE"},
+    )
+
+    assert response.status_code == 204
+
+
+@pytest.mark.integration
+async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """An identity link is not the question: an account can hold both, and one
+    that holds a password confirms with it."""
+    user = await create_user(session, email="linked-admin@example.com")
+    await create_federated_identity(session, user, subject="linked-admin-1")
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=get_auth_headers(user),
+        json={
+            "password": "wrongpassword",
+            "confirmation_text": "DELETE GUILD TO DELETE",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
 
 
 @pytest.mark.integration
@@ -1032,7 +1135,7 @@ async def test_guild_billing_handoff_returns_404_when_billing_url_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1100,7 +1203,7 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1148,7 +1251,7 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=GuildRole.superadmin
     )
 
     response = await client.post(
@@ -1159,3 +1262,161 @@ async def test_guild_billing_handoff_503_when_signing_key_unset(
 
 
 # --- Leave guild: project-orphan protection -------------------------------
+
+
+@pytest.mark.integration
+async def test_an_ordinary_admin_leaves_freely(
+    client: AsyncClient, session: AsyncSession
+):
+    """Being a community's last *admin* stops nobody. Its superadmin is still
+    there, and can appoint another admin whenever it wants one."""
+    seat = await create_user(session)
+    leaving = await create_user(session)
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=leaving, guild=guild, role=GuildRole.admin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(leaving),
+    )
+    assert eligibility.status_code == 200, eligibility.text
+    assert eligibility.json()["can_leave"] is True
+    assert eligibility.json()["is_last_superadmin"] is False
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+    )
+    assert response.status_code == 204, response.text
+
+
+@pytest.mark.integration
+async def test_the_only_seat_cannot_leave(client: AsyncClient, session: AsyncSession):
+    """The rule a departure is counted for: a community keeps its seat."""
+    only_seat = await create_user(session)
+    guild = await create_guild(session, creator=only_seat)
+    await create_guild_membership(
+        session, user=only_seat, guild=guild, role=GuildRole.superadmin
+    )
+    # Somebody to strand. A community of one is the exception below.
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(only_seat),
+    )
+    assert eligibility.json()["can_leave"] is False
+    assert eligibility.json()["is_last_superadmin"] is True
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(only_seat)
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+
+
+@pytest.mark.integration
+async def test_a_second_seat_frees_the_first(
+    client: AsyncClient, session: AsyncSession
+):
+    """Two seats, so either may go; the one left behind then stays."""
+    first = await create_user(session)
+    second = await create_user(session)
+    guild = await create_guild(session, creator=first)
+    for user in (first, second):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
+
+    left = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(second)
+    )
+    assert left.status_code == 204, left.text
+
+    refused = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(first)
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+
+
+@pytest.mark.integration
+async def test_the_only_member_leaves_whatever_they_hold(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nobody to strand, and nobody to appoint either. What is left behind is a
+    community with no members."""
+    alone = await create_user(session)
+    guild = await create_guild(session, creator=alone)
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    eligibility = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(alone),
+    )
+    assert eligibility.json()["can_leave"] is True
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(alone)
+    )
+    assert response.status_code == 204, response.text
+
+
+@pytest.mark.integration
+async def test_leaving_takes_the_lock_before_it_counts_anyone(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A departure's guard asks how many seats a community has left, and that
+    answer has to still be true when the departure is written. So the lock
+    comes first.
+
+    Pinned as an order because that is what the invariant is: a guard that runs
+    outside the lock is a guard two concurrent departures can both pass.
+    """
+    from app.services.platform import guilds as guilds_service
+
+    order: list[str] = []
+    real_lock = guilds_service.lock_guild_seats
+    real_seat = guilds_service.must_keep_superadmin
+
+    async def record(name, fn, *args, **kwargs):
+        order.append(name)
+        return await fn(*args, **kwargs)
+
+    monkeypatch.setattr(
+        guilds_service,
+        "lock_guild_seats",
+        lambda *a, **k: record("lock", real_lock, *a, **k),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "must_keep_superadmin",
+        lambda *a, **k: record("last seat", real_seat, *a, **k),
+    )
+
+    seat = await create_user(session)
+    leaving = await create_user(session)
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=leaving, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.delete(
+        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+    )
+    assert response.status_code == 204, response.text
+    assert order == ["lock", "last seat"]

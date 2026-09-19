@@ -61,6 +61,17 @@ describe("searchHitPath", () => {
     ).toBe("/i/5/counter-groups/6/counter/9");
   });
 
+  it("keeps a wiki page's own id in its address", () => {
+    // The page is read on a page of its own inside the wiki, so both ids are
+    // in the address. Without its own entry it would fall through to the tool
+    // rule and be addressed as "/i/5/wikis/31" — the page id read as a wiki's.
+    expect(
+      searchHitPath(
+        target({ entity_type: "wiki_page", entity_id: 31, tool: Tool.wiki, tool_id: 4 })
+      )
+    ).toBe("/i/5/wikis/4/pages/31");
+  });
+
   it("sends a queue item to its queue, which is where it is read", () => {
     expect(
       searchHitPath(

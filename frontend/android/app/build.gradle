@@ -10,6 +10,32 @@ if (versionParts.size() < 3) {
 }
 def appVersionCode = versionParts[0].toInteger() * 10000 + versionParts[1].toInteger() * 100 + versionParts[2].toInteger()
 
+// Release signing values arrive as Gradle properties. Each name is a plain
+// identifier, so the same value can be supplied as an
+// ORG_GRADLE_PROJECT_<name> environment variable.
+def signingPropertyNames = [
+    storeFile    : 'initiativeSigningStoreFile',
+    storePassword: 'initiativeSigningStorePassword',
+    keyAlias     : 'initiativeSigningKeyAlias',
+    keyPassword  : 'initiativeSigningKeyPassword',
+]
+def signingValues = signingPropertyNames.collectEntries { name, property ->
+    def value = findProperty(property)?.toString()?.trim()
+    [(name): (value ? value : null)]
+}
+def missingSigningProperties = signingPropertyNames
+    .findAll { name, property -> !signingValues[name] }
+    .values()
+    .toList()
+def releaseIsSigned = missingSigningProperties.isEmpty()
+// A partial set is always a configuration mistake, so name it here rather than
+// letting the build settle on unsigned output.
+if (!releaseIsSigned && missingSigningProperties.size() < signingPropertyNames.size()) {
+    throw new GradleException(
+        "Release signing is partially configured. Missing: ${missingSigningProperties.join(', ')}"
+    )
+}
+
 android {
     namespace = "com.morelitea.initiative"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -26,10 +52,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseIsSigned) {
+            release {
+                storeFile file(signingValues.storeFile)
+                storePassword signingValues.storePassword
+                keyAlias signingValues.keyAlias
+                keyPassword signingValues.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseIsSigned) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

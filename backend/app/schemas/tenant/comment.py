@@ -3,16 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from app.core.tools import COMMENT_TARGETS
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.schemas.platform.user import ProfileDecorations
 from app.services.platform import presence
 
 
-class CommentAuthor(GuildNameVisibility):
+class CommentAuthor(SanitizedBaseModel):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names
@@ -60,24 +61,18 @@ class CommentBase(SanitizedBaseModel):
         return normalized
 
 
-# Every comment parent, in one place: the task plus one field per tool. The
-# comments table carries a matching FK per entry, and the create/list surfaces
-# take exactly one of them.
-COMMENT_TARGET_FIELDS: tuple[str, ...] = (
-    "task_id",
-    "document_id",
-    "project_id",
-    "queue_id",
-    "counter_group_id",
-    "calendar_id",
-    "dashboard_id",
-    "post_id",
-    "gallery_id",
+# Every comment parent, in one place: one field per tool plus the content-level
+# extras. The comments table carries a matching FK per entry, and the
+# create/list surfaces take exactly one of them.
+# Derived from the registry: a new parent's field joins by existing.
+COMMENT_TARGET_FIELDS: tuple[str, ...] = tuple(
+    f"{target}_id" for target in COMMENT_TARGETS
 )
 
 
 class CommentCreate(CommentBase):
     task_id: Optional[int] = Field(default=None, gt=0)
+    wiki_page_id: Optional[int] = Field(default=None, gt=0)
     document_id: Optional[int] = Field(default=None, gt=0)
     project_id: Optional[int] = Field(default=None, gt=0)
     queue_id: Optional[int] = Field(default=None, gt=0)
@@ -86,6 +81,7 @@ class CommentCreate(CommentBase):
     dashboard_id: Optional[int] = Field(default=None, gt=0)
     post_id: Optional[int] = Field(default=None, gt=0)
     gallery_id: Optional[int] = Field(default=None, gt=0)
+    wiki_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
@@ -127,6 +123,7 @@ class CommentRead(CommentBase):
     id: int
     created_by: int
     task_id: Optional[int] = None
+    wiki_page_id: Optional[int] = None
     document_id: Optional[int] = None
     queue_id: Optional[int] = None
     counter_group_id: Optional[int] = None
@@ -134,6 +131,7 @@ class CommentRead(CommentBase):
     dashboard_id: Optional[int] = None
     post_id: Optional[int] = None
     gallery_id: Optional[int] = None
+    wiki_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

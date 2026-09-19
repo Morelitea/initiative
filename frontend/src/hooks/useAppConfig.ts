@@ -63,5 +63,24 @@ export const useAppConfig = () => {
      *  true is also the default — the question is the safe thing to ask when
      *  we do not yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,
+    /** Whether this deployment offers direct messages at all. True until the
+     *  config loads, and true is also the default — messaging is what most
+     *  deployments have, and hiding My Messages for a moment on every boot
+     *  would read as it having been taken away. */
+    directMessagesEnabled: query.data?.direct_messages_enabled ?? true,
+    /** Whether this deployment permits signing in with a password. True until
+     *  the config loads: the form is the thing most deployments have, and the
+     *  server refuses either way, so showing it briefly costs nothing while
+     *  hiding it briefly would look like an outage. */
+    passwordLoginEnabled: query.data?.login_methods?.includes("password") ?? true,
+    /** Whether this deployment permits single sign-on at all. The provider
+     *  listing is already empty when it does not, so this is for copy that has
+     *  to explain the absence rather than for hiding buttons. */
+    ssoLoginEnabled: query.data?.login_methods?.includes("sso") ?? true,
+    /** Whether this deployment permits signing in with a passkey. False until
+     *  the config loads, and the other way round from the password form: a
+     *  button that turns up a moment late reads better than one that was there
+     *  and then vanished, and the browser has its own say besides. */
+    passkeyLoginEnabled: query.data?.login_methods?.includes("passkey") ?? false,
   };
 };

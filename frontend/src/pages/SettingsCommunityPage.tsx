@@ -38,14 +38,29 @@ export const SettingsCommunityPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const { communityDirectoryEnabled, communityAgeGateEnabled, isLoading } = useAppConfig();
+  const { communityDirectoryEnabled, communityAgeGateEnabled, directMessagesEnabled, isLoading } =
+    useAppConfig();
   const { data: community } = useCommunitySettings();
   // Turning the age gate off is an assertion about every account here, not a
   // preference, so it is confirmed. Turning it back on is not.
   const [confirmingAgeGateOff, setConfirmingAgeGateOff] = useState(false);
+  // And the same for messaging: off takes a feature away from everybody using
+  // it, so it is confirmed. On is just giving it back.
+  const [confirmingMessagesOff, setConfirmingMessagesOff] = useState(false);
 
   const update = useUpdateCommunitySettings({
-    onSuccess: (result) => {
+    // One endpoint, four decisions, so the write says which one it was: a
+    // reader who just switched messaging off is owed a word about messaging,
+    // not about the directory they did not touch.
+    onSuccess: (result, variables) => {
+      if (variables.direct_messages_enabled !== undefined) {
+        toast.success(
+          result.direct_messages_enabled
+            ? t("community.directMessagesEnabledToast")
+            : t("community.directMessagesDisabledToast")
+        );
+        return;
+      }
       toast.success(
         result.community_directory_enabled
           ? t("community.enabledToast")
@@ -109,6 +124,37 @@ export const SettingsCommunityPage = () => {
           <p className="text-muted-foreground text-sm">{t("community.ageGateHelpText")}</p>
         </div>
 
+        {/* The third switch, and the only one here that is not about the
+            directory: a deployment can run one without messaging, or messaging
+            without one. */}
+        <div className="space-y-4 border-t pt-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="direct-messages-enabled"
+              checked={directMessagesEnabled}
+              disabled={isLoading || update.isPending}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  update.mutate({
+                    community_directory_enabled: communityDirectoryEnabled,
+                    direct_messages_enabled: true,
+                  });
+                  return;
+                }
+                setConfirmingMessagesOff(true);
+              }}
+            />
+            <Label htmlFor="direct-messages-enabled">{t("community.directMessagesLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("community.directMessagesHelpText")}</p>
+          {/* Nothing is deleted while it is off, and an owner weighing the
+              switch is entitled to know that before they touch it rather than
+              after. */}
+          <p className="text-muted-foreground text-xs">
+            {t("community.directMessagesReversibleNote")}
+          </p>
+        </div>
+
         {/* The third decision. Not a switch and not on the boot config: it is
             read once, when an account is made, so changing it moves nobody who
             is already here. */}
@@ -135,6 +181,20 @@ export const SettingsCommunityPage = () => {
           </Select>
           <p className="text-muted-foreground text-sm">{t("community.defaultDmHelpText")}</p>
         </div>
+
+        <ConfirmDialog
+          open={confirmingMessagesOff}
+          onOpenChange={setConfirmingMessagesOff}
+          title={t("community.directMessagesOffTitle")}
+          description={t("community.directMessagesOffBody")}
+          confirmLabel={t("community.directMessagesOffConfirm")}
+          onConfirm={() =>
+            update.mutate({
+              community_directory_enabled: communityDirectoryEnabled,
+              direct_messages_enabled: false,
+            })
+          }
+        />
 
         <ConfirmDialog
           open={confirmingAgeGateOff}

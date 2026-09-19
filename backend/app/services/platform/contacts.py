@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.core import usernames
-from app.core.role_context import guild_shows_member_names
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_image import GuildImageVariant
@@ -122,8 +121,22 @@ async def guild_sections(
         session, user_id=user_id, guilds=[gid for gid, _n, _i in guilds]
     )
 
+    # `member_match` and `member_order` read and sort on the real name only
+    # where the guild shows names, so the answer is per section rather than
+    # per reader: the same person can be searchable by name in one of their
+    # communities and not in another. Asked once for all of them.
+    shows_names_by_guild = {
+        gid: bool(flag)
+        for gid, flag in (
+            await session.exec(
+                select(Guild.id, Guild.show_member_names).where(
+                    col(Guild.id).in_([gid for gid, _n, _i in guilds])
+                )
+            )
+        ).all()
+    }
+
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
-        shows_names = guild_shows_member_names()
 
         # Ids only, unpaginated — an index-only scan of the primary key, which
         # leads with guild_id.
@@ -163,7 +176,9 @@ async def guild_sections(
         )
         closest = None
         if search and (term := search.strip()):
-            matches, closest = users_service.member_match(term, shows_names=shows_names)
+            matches, closest = users_service.member_match(
+                term, shows_names=shows_names_by_guild.get(guild_id, False)
+            )
             base = base.where(matches)
 
         total = (
@@ -173,7 +188,9 @@ async def guild_sections(
         rows = (
             await guild_session.exec(
                 base.order_by(
-                    *users_service.member_order(closest, shows_names=shows_names),
+                    *users_service.member_order(
+                        closest, shows_names=shows_names_by_guild.get(guild_id, False)
+                    ),
                     col(MemberProfile.username).asc(),
                     col(MemberProfile.discriminator).asc(),
                     col(MemberProfile.id).asc(),
@@ -219,7 +236,16 @@ async def listable_by_guild(
 
     Deliberately **not** narrowed by who has ignored the reader: an ignore
     governs what arrives, not who is listed, so both rosters stay as they were.
+
+    Nobody is listed where the deployment offers no direct messages: a contact
+    is somebody you could reach out to, and there is nothing to reach them
+    with. Asked here, alongside the routes that refuse, because this is the one
+    surface built on the messaging rule that is not itself a messaging route.
     """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.direct_messages_enabled(session):
+        return {}
     # The rule reads who is asking from the request context, so this runs on
     # the caller's own session rather than being told an id.
     await set_rls_context(session, user_id=user_id)

@@ -2,9 +2,9 @@
 
 Builds the route-backed server from the real app (no DB/network needed) and
 asserts the RouteMap curation holds: tools cover initiatives and the tools they
-hold (+ the shared comment surface), and the *write* surface is exactly the
-allow-list — create and edit each of those, and nothing destructive, bulk,
-AI-generating, sharing, or property/tag.
+hold (+ the shared comment surface, + the edges between them), and the *write*
+surface is exactly the allow-list — create and edit each of those, draw one
+edge, and nothing destructive, bulk, AI-generating, sharing, or property/tag.
 """
 
 import json
@@ -30,6 +30,7 @@ _WRITE_PREFIXES = (
     "batch_",
     "generate_",
     "put_",
+    "replace_",
     "patch_",
     "post_",
     "remove_",
@@ -72,8 +73,11 @@ _SAFE_WRITES = {
     # write surface stops at the wall itself.
     "create_gallery",
     "update_gallery",
+    "create_wiki",
+    "update_wiki",
     # And what those tools hold: a project's tasks, a queue's items, a counter
-    # group's counters, a calendar's events, and the comments on any of them.
+    # group's counters, a calendar's events, a wiki's pages, and the comments on
+    # any of them.
     "create_task",
     "update_task",
     "move_task",
@@ -83,12 +87,19 @@ _SAFE_WRITES = {
     "update_counter",
     "create_calendar_event",
     "update_calendar_event",
+    # A page is authored and edited, not dragged: where it sits in the tree is
+    # `move`, which takes a parent and a position, so it sits with the reorders.
+    "create_wiki_page",
+    "update_wiki_page",
     "create_comment",
     "update_comment",
     # A counter's count, which its update schema doesn't carry.
     "set_counter_count",
     "increment_counter",
     "decrement_counter",
+    # One edge between two of them. No ``update_`` pair: an edge has no fields
+    # to edit, only ends and a type, which are what it is.
+    "create_relationship",
 }
 
 
@@ -123,6 +134,8 @@ async def test_mcp_tools_are_curated():
         "task",
         "counter",
         "backlink",
+        # The edges between them, which belong to no one tool.
+        "relationship",
         "widget",
         *(tool.value for tool in Tool),
         *(tool.plural for tool in Tool),
@@ -184,6 +197,26 @@ async def test_comment_reads_are_exposed():
     assert "read_comment" in names
     assert "recent_comments" not in names
     assert "search_mentionables" not in names
+
+
+@pytest.mark.unit
+async def test_relationship_tools_are_read_and_draw_one():
+    """List one thing's edges and draw one, and nothing that unwires them.
+
+    ``relationships`` is deliberately neither a READ_TAG nor a writable segment:
+    the router's four routes divide two and two, so each side is named by path
+    shape. Replacing a thing's links wholesale is bulk and removes what it
+    doesn't mention; deleting one is a delete. Both fall through the
+    default-deny catch-all.
+    """
+    names = {
+        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
+    }
+
+    assert "list_relationships" in names
+    assert "create_relationship" in names
+    assert "replace_relationship_slice" not in names
+    assert "remove_relationship" not in names
 
 
 @pytest.mark.unit

@@ -19,6 +19,17 @@ class OIDCClaimMapping(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    #: Whose claim this rule reads. Two providers spell their groups their own
+    #: way, so a rule is about one of them; the sign-in that evaluates rules
+    #: evaluates only the ones belonging to the provider it came through.
+    provider_id: int = Field(
+        sa_column=Column(
+            Integer,
+            sa.ForeignKey("auth_providers.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+    )
     claim_value: str = Field(
         max_length=500,
         sa_column=Column(String(500), nullable=False),

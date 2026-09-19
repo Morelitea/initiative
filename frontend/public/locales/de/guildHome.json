@@ -12,9 +12,13 @@
   },
   "emptyState": {
     "title": "Du bist noch keiner Initiative beigetreten",
+    "adminTitle": "Diese Community hat noch keine Initiativen",
     "description": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
+    "adminDescription": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Erstelle die erste, um zu sagen, wofür diese Community da ist.",
     "nothingListedTitle": "Noch nichts zum Beitreten",
-    "nothingListedDescription": "Derzeit ist keine Initiative dieser Community zum Beitreten offen. Ein Community-Admin oder Projektmanager kann dich hinzufügen."
+    "adminNothingListedTitle": "Erstelle die erste Initiative",
+    "nothingListedDescription": "Derzeit ist keine Initiative dieser Community zum Beitreten offen. Ein Community-Admin oder Projektmanager kann dich hinzufügen.",
+    "adminNothingListedDescription": "Benenne einen Arbeitsbereich — ein Team, eine Kampagne, eine Saison — und alles, was dazugehört, liegt darin."
   },
   "directory": {
     "title": "Initiativen",
@@ -55,7 +59,8 @@
       "calendars": "Beschreibung",
       "dashboards": "Herkunft",
       "posts": "Vorschau",
-      "galleries": "Bilder"
+      "galleries": "Bilder",
+      "wikis": "Seiten"
     }
   },
   "detail": {

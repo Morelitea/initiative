@@ -9,8 +9,8 @@ exactly like one that did not.
 
 These are recorded **per provider**, not per session. One session can satisfy
 several guilds' identity sources at once, and each guild's requirement is about
-its own provider's authentication event — a step-up into one guild's IdP says
-nothing about when another's last authenticated.
+its own provider's authentication event — a step-up through one provider says
+nothing about when another last authenticated.
 
 The values come from the provider, so this module fixes their shape and size
 before they reach a session row or an access token.
@@ -18,7 +18,7 @@ before they reach a session row or an access token.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,6 +28,32 @@ from typing import Any
 MAX_AMR_VALUES = 16
 MAX_AMR_VALUE_LENGTH = 64
 MAX_ACR_LENGTH = 256
+
+#: Names the provider a session came in through.
+PROVIDER_AMR_PREFIX = "oidc:"
+
+#: What a session records when the account's own second factor was presented.
+#: RFC 8176 registers it for exactly this: more than one factor was used. A
+#: TOTP code writes ``otp`` beside it; a recovery code does not, so a rule can
+#: tell a live authenticator from the set kept for losing it.
+SECOND_FACTOR_AMR = "mfa"
+
+#: What a session records for the kind of passkey that answered. RFC 8176
+#: registers both: ``hwk`` for a key held by hardware — a security key, a TPM,
+#: a Secure Enclave — and ``swk`` for one a password manager syncs between the
+#: person's devices. Which it is comes off the credential's own backed-up flag.
+PASSKEY_AMR_VALUES: tuple[str, ...] = ("hwk", "swk")
+
+#: Marks a session as having completed one community's own single sign-on.
+#: Written when the provider is that community's rather than the deployment's,
+#: so a rule reading "any of ours" can be answered from the session alone.
+GUILD_AMR_PREFIX = "guild:"
+
+#: The prefixes this application writes into a session's ``amr`` itself. They
+#: are its own account of a sign-in, so a value arriving under one of them from
+#: an identity provider is dropped rather than kept: a provider's ``amr`` is the
+#: provider's own vocabulary, and these markers are not part of it.
+RESERVED_AMR_PREFIXES = (PROVIDER_AMR_PREFIX, GUILD_AMR_PREFIX)
 
 # The far end of what could be a time: 9999-12-31T23:59:59Z in epoch seconds.
 # A value past it is not a timestamp, whatever else it is.
@@ -47,6 +73,11 @@ class ProviderAssurance:
     auth_time: int | None = None
     amr: tuple[str, ...] = ()
     acr: str | None = None
+    #: What this provider asserted for the claims some community narrows it
+    #: by — ``{"hd": ("acme.com",)}``. A fact about the authentication, kept
+    #: beside the others, so the rule about which values count can be read
+    #: fresh at the moment somebody reaches a community.
+    claims: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     def as_record(self) -> dict[str, Any]:
         """The stored form: what lands in ``auth_sessions.provider_auth`` and
@@ -59,7 +90,35 @@ class ProviderAssurance:
             record["amr"] = list(self.amr)
         if self.acr is not None:
             record["acr"] = self.acr
+        if self.claims:
+            record["claims"] = {name: list(values) for name, values in self.claims}
         return record
+
+
+#: How many values one claim contributes. A group list can be long, and this
+#: rides in the access token; a community narrows on a handful.
+MAX_CLAIM_VALUES = 24
+
+
+def read_narrowing(
+    claims: Mapping[str, Any],
+    userinfo: Mapping[str, Any] | None,
+    names: Iterable[str],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """What this provider asserted for each named claim.
+
+    ``names`` are the claims some community narrows this provider by, so a
+    provider nobody narrows records nothing. Values are read through the same
+    dot-path extractor the group rules use, so a nested path works here too.
+    """
+    from app.services.oidc_sync import extract_claim_values
+
+    found: list[tuple[str, tuple[str, ...]]] = []
+    for name in sorted({str(n) for n in names if n}):
+        values = extract_claim_values(userinfo or {}, claims, name)
+        if values:
+            found.append((name, tuple(sorted(values))[:MAX_CLAIM_VALUES]))
+    return tuple(found)
 
 
 def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
@@ -75,14 +134,36 @@ def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
     )
 
 
-def session_amr(provider_slug: str, assurance: ProviderAssurance) -> list[str]:
+def passkey_amr(*, backed_up: bool) -> list[str]:
+    """The ``amr`` a passkey sign-in contributes.
+
+    Two values. Which kind of key answered, and :data:`SECOND_FACTOR_AMR`:
+    every ceremony here requires user verification, so an assertion proves both
+    something the person has and something they are — which is what RFC 8176
+    means by a multi-factor cryptographic authenticator.
+    """
+    return ["swk" if backed_up else "hwk", SECOND_FACTOR_AMR]
+
+
+def carries_passkey(amr: Iterable[str]) -> bool:
+    """Whether this session was opened, or stepped up, with a passkey."""
+    return any(value in PASSKEY_AMR_VALUES for value in amr)
+
+
+def session_amr(
+    provider_slug: str,
+    assurance: ProviderAssurance,
+) -> list[str]:
     """The session-level ``amr`` one provider login contributes: our own marker
     naming the provider, plus the methods the IdP named.
 
-    The marker is what a guild policy keyed to *this* provider matches; the
-    IdP's own values are what an assurance-only policy reads.
+    The provider marker is what a guild policy keyed to *this* provider
+    matches; the IdP's own values are what an assurance-only policy reads. A
+    policy asking for any of a community's providers is answered from the
+    connections themselves, so no marker names a community.
     """
-    return sorted({f"oidc:{provider_slug}", *assurance.amr})
+    markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
+    return sorted({*markers, *assurance.amr})
 
 
 def record_for_provider(
@@ -155,7 +236,9 @@ def _read_auth_time(value: Any) -> int | None:
 def _read_amr(value: Any) -> tuple[str, ...]:
     # OIDC Core §2: a JSON array of case-sensitive strings. RFC 8176 registers
     # the common names, but a provider may use its own, so the values are taken
-    # as given rather than checked against a list.
+    # as given rather than checked against a list — except under the prefixes
+    # this application writes for itself, which are dropped (see
+    # RESERVED_AMR_PREFIXES).
     if not isinstance(value, list):
         return ()
     kept: list[str] = []
@@ -164,6 +247,8 @@ def _read_amr(value: Any) -> tuple[str, ...]:
             continue
         cleaned = entry.strip()
         if not cleaned or len(cleaned) > MAX_AMR_VALUE_LENGTH:
+            continue
+        if cleaned.startswith(RESERVED_AMR_PREFIXES):
             continue
         if cleaned not in kept:
             kept.append(cleaned)

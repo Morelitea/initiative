@@ -7,6 +7,7 @@ import type {
   GalleryImageVersionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { UserHandle } from "@/components/UserHandle";
@@ -125,7 +126,15 @@ export const GalleryImageSheet = ({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
         <SheetHeader className="text-left">
-          <SheetTitle className="truncate">{label || t("sheet.title")}</SheetTitle>
+          <div className="flex items-start justify-between gap-2">
+            <SheetTitle className="min-w-0 truncate">{label || t("sheet.title")}</SheetTitle>
+            <ReportButton
+              targetType="gallery_image"
+              targetId={image.id}
+              authorId={image.created_by}
+              className="shrink-0"
+            />
+          </div>
           <SheetDescription className="sr-only">{t("sheet.description")}</SheetDescription>
         </SheetHeader>
 

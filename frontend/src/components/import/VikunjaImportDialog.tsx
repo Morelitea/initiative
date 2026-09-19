@@ -4,13 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,8 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useImportFromVikunja, useParseVikunjaJson } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
+import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { hasWriteAccess } from "@/lib/permissions";
 import type { DialogProps } from "@/types/dialog";
@@ -83,7 +78,7 @@ const suggestStatusForBucket = (
 
 export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogProps) => {
   const { t } = useTranslation("import");
-  const [step, setStep] = useState<Step>("upload");
+  const { step, go, commit, back, reset } = useWizard<Step>("upload");
   const [jsonContent, setJsonContent] = useState("");
   const [parseResult, setParseResult] = useState<VikunjaParseResult | null>(null);
   const [selectedSourceProjectId, setSelectedSourceProjectId] = useState<number | null>(null);
@@ -94,7 +89,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setStep("upload");
+      reset();
       setJsonContent("");
       setParseResult(null);
       setSelectedSourceProjectId(null);
@@ -102,7 +97,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
       setBucketMapping({});
       setImportResult(null);
     }
-  }, [open]);
+  }, [open, reset]);
 
   // Fetch projects for selection
   const projectsQuery = useProjects(undefined, { enabled: open });
@@ -135,7 +130,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
       if (result.projects.length === 0) {
         toast.error(t("vikunja.noProjectsFound"));
       } else {
-        setStep("select-project");
+        go("select-project");
       }
     },
     onError: () => {
@@ -147,7 +142,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   const importMutation = useImportFromVikunja({
     onSuccess: (data) => {
       setImportResult(data as ImportResult);
-      setStep("result");
+      commit("result");
     },
     onError: () => {
       toast.error(t("common.importFailed"));
@@ -178,9 +173,9 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
 
   const handleSelectSourceProject = useCallback(() => {
     if (selectedSourceProjectId && selectedTargetProjectId) {
-      setStep("configure");
+      go("configure");
     }
-  }, [selectedSourceProjectId, selectedTargetProjectId]);
+  }, [selectedSourceProjectId, selectedTargetProjectId, go]);
 
   const handleImport = useCallback(() => {
     if (!selectedTargetProjectId || !selectedSourceProjectId) return;
@@ -208,246 +203,251 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
 
+  const description: Record<Step, string> = {
+    upload: t("vikunja.stepUploadDescription"),
+    "select-project": t("vikunja.stepSelectProjectDescription"),
+    configure: t("vikunja.stepConfigureDescription"),
+    result: t("common.resultTitle"),
+  };
+
+  // The result reports on an import that has already run, so it is not one of
+  // the steps somebody walks through.
+  const position: Record<Step, number | null> = {
+    upload: 1,
+    "select-project": 2,
+    configure: 3,
+    result: null,
+  };
+  const current = position[step];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("vikunja.title")}</DialogTitle>
-          <DialogDescription>
-            {step === "upload" && t("vikunja.stepUploadDescription")}
-            {step === "select-project" && t("vikunja.stepSelectProjectDescription")}
-            {step === "configure" && t("vikunja.stepConfigureDescription")}
-            {step === "result" && t("common.resultTitle")}
-          </DialogDescription>
-        </DialogHeader>
-
-        {step === "upload" && (
-          <div className="space-y-4">
-            <div>
-              <Label>{t("vikunja.uploadFileLabel")}</Label>
-              <div className="mt-2">
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
-                  <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
-                  <span className="text-muted-foreground text-sm">
-                    {t("common.uploadDragDrop")}
-                  </span>
-                  <span className="mt-1 text-muted-foreground text-xs">
-                    {t("vikunja.uploadHint")}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="text-center text-muted-foreground text-sm">{t("common.or")}</div>
-
-            <div>
-              <Label htmlFor="json-content">{t("vikunja.pasteLabel")}</Label>
-              <Textarea
-                id="json-content"
-                placeholder={t("vikunja.jsonPlaceholder")}
-                value={jsonContent}
-                onChange={(e) => setJsonContent(e.target.value)}
-                className="mt-2 h-32 font-mono text-xs"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={handlePasteContent}
-                disabled={!jsonContent.trim() || parseMutation.isPending}
-              >
-                {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
-              </Button>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                {t("common.cancel")}
-              </Button>
+    <WizardDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="sm:max-w-lg"
+      title={t("vikunja.title")}
+      description={description[step]}
+      progress={current === null ? undefined : { current, total: 3 }}
+    >
+      {step === "upload" && (
+        <div className="space-y-4">
+          <div>
+            <Label>{t("vikunja.uploadFileLabel")}</Label>
+            <div className="mt-2">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
+                <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                <span className="text-muted-foreground text-sm">{t("common.uploadDragDrop")}</span>
+                <span className="mt-1 text-muted-foreground text-xs">
+                  {t("vikunja.uploadHint")}
+                </span>
+                <input type="file" accept=".json" className="hidden" onChange={handleFileUpload} />
+              </label>
             </div>
           </div>
-        )}
 
-        {step === "select-project" && parseResult && (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-muted p-4">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="font-medium">{t("vikunja.exportParsed")}</span>
+          <div className="text-center text-muted-foreground text-sm">{t("common.or")}</div>
+
+          <div>
+            <Label htmlFor="json-content">{t("vikunja.pasteLabel")}</Label>
+            <Textarea
+              id="json-content"
+              placeholder={t("vikunja.jsonPlaceholder")}
+              value={jsonContent}
+              onChange={(e) => setJsonContent(e.target.value)}
+              className="mt-2 h-32 font-mono text-xs"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={handlePasteContent}
+              disabled={!jsonContent.trim() || parseMutation.isPending}
+            >
+              {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
+            </Button>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "select-project" && parseResult && (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted p-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="font-medium">{t("vikunja.exportParsed")}</span>
+            </div>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {t("vikunja.totalTasks", {
+                projectCount: parseResult.projects.length,
+                projectLabel: t("vikunja.projectsDetected", {
+                  count: parseResult.projects.length,
+                })
+                  .split(" ")
+                  .slice(1)
+                  .join(" "),
+                taskCount: parseResult.total_tasks,
+              })}
+            </p>
+          </div>
+
+          <div>
+            <Label>{t("vikunja.importFromProject")}</Label>
+            <Select
+              value={selectedSourceProjectId?.toString() ?? ""}
+              onValueChange={(value) => setSelectedSourceProjectId(Number(value))}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder={t("vikunja.selectSourceProjectPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {parseResult.projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    {project.name} ({t("vikunja.tasksCount", { count: project.task_count })})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>{t("common.importToInitiativeProject")}</Label>
+            <Select
+              value={selectedTargetProjectId?.toString() ?? ""}
+              onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder={t("common.selectProject")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {activeProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    {project.icon && <span className="mr-2">{project.icon}</span>}
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={back}>
+              {t("common.back")}
+            </Button>
+            <Button
+              onClick={handleSelectSourceProject}
+              disabled={!selectedSourceProjectId || !selectedTargetProjectId}
+            >
+              {t("common.next")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "configure" && selectedSourceProject && (
+        <div className="space-y-4">
+          <div>
+            <Label>{t("vikunja.mapBucketsLabel")}</Label>
+            <p className="text-muted-foreground text-sm">{t("vikunja.mapBucketsDescription")}</p>
+          </div>
+
+          <div className="space-y-3">
+            {selectedSourceProject.buckets.map((bucket) => (
+              <div key={bucket.id} className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{bucket.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("vikunja.taskCount", { count: bucket.task_count })}
+                  </p>
+                </div>
+                <Select
+                  value={bucketMapping[bucket.id]?.toString() ?? ""}
+                  onValueChange={(value) =>
+                    setBucketMapping((prev) => ({
+                      ...prev,
+                      [bucket.id]: Number(value),
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder={t("common.selectStatus")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id.toString()}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {t("vikunja.totalTasks", {
-                  projectCount: parseResult.projects.length,
-                  projectLabel: t("vikunja.projectsDetected", {
-                    count: parseResult.projects.length,
-                  })
-                    .split(" ")
-                    .slice(1)
-                    .join(" "),
-                  taskCount: parseResult.total_tasks,
-                })}
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={back}>
+              {t("common.back")}
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={
+                importMutation.isPending ||
+                Object.keys(bucketMapping).length !== selectedSourceProject.buckets.length
+              }
+            >
+              {importMutation.isPending ? t("common.importing") : t("common.import")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "result" && importResult && (
+        <div className="space-y-4">
+          <div
+            className={`flex items-center gap-3 rounded-lg p-4 ${
+              importResult.tasks_failed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
+            }`}
+          >
+            {importResult.tasks_failed === 0 ? (
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            ) : (
+              <AlertCircle className="h-8 w-8 text-yellow-500" />
+            )}
+            <div>
+              <p className="font-medium">
+                {importResult.tasks_failed === 0
+                  ? t("common.importSuccessful")
+                  : t("common.importWarnings")}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                {t("common.tasksCreated", { count: importResult.tasks_created })}
+                {importResult.tasks_failed > 0 &&
+                  `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
               </p>
             </div>
-
-            <div>
-              <Label>{t("vikunja.importFromProject")}</Label>
-              <Select
-                value={selectedSourceProjectId?.toString() ?? ""}
-                onValueChange={(value) => setSelectedSourceProjectId(Number(value))}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder={t("vikunja.selectSourceProjectPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {parseResult.projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.name} ({t("vikunja.tasksCount", { count: project.task_count })})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>{t("common.importToInitiativeProject")}</Label>
-              <Select
-                value={selectedTargetProjectId?.toString() ?? ""}
-                onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder={t("common.selectProject")} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {activeProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.icon && <span className="mr-2">{project.icon}</span>}
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setStep("upload")}>
-                {t("common.back")}
-              </Button>
-              <Button
-                onClick={handleSelectSourceProject}
-                disabled={!selectedSourceProjectId || !selectedTargetProjectId}
-              >
-                {t("common.next")}
-              </Button>
-            </div>
           </div>
-        )}
 
-        {step === "configure" && selectedSourceProject && (
-          <div className="space-y-4">
-            <div>
-              <Label>{t("vikunja.mapBucketsLabel")}</Label>
-              <p className="text-muted-foreground text-sm">{t("vikunja.mapBucketsDescription")}</p>
+          {importResult.errors.length > 0 && (
+            <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
+              <p className="mb-2 font-medium text-sm">{t("common.errors")}</p>
+              <ul className="space-y-1 text-muted-foreground text-xs">
+                {importResult.errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
             </div>
+          )}
 
-            <div className="space-y-3">
-              {selectedSourceProject.buckets.map((bucket) => (
-                <div key={bucket.id} className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{bucket.name}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {t("vikunja.taskCount", { count: bucket.task_count })}
-                    </p>
-                  </div>
-                  <Select
-                    value={bucketMapping[bucket.id]?.toString() ?? ""}
-                    onValueChange={(value) =>
-                      setBucketMapping((prev) => ({
-                        ...prev,
-                        [bucket.id]: Number(value),
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder={t("common.selectStatus")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((status) => (
-                        <SelectItem key={status.id} value={status.id.toString()}>
-                          {status.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setStep("select-project")}>
-                {t("common.back")}
-              </Button>
-              <Button
-                onClick={handleImport}
-                disabled={
-                  importMutation.isPending ||
-                  Object.keys(bucketMapping).length !== selectedSourceProject.buckets.length
-                }
-              >
-                {importMutation.isPending ? t("common.importing") : t("common.import")}
-              </Button>
-            </div>
+          <div className="flex justify-end">
+            <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
           </div>
-        )}
-
-        {step === "result" && importResult && (
-          <div className="space-y-4">
-            <div
-              className={`flex items-center gap-3 rounded-lg p-4 ${
-                importResult.tasks_failed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
-              }`}
-            >
-              {importResult.tasks_failed === 0 ? (
-                <CheckCircle2 className="h-8 w-8 text-green-500" />
-              ) : (
-                <AlertCircle className="h-8 w-8 text-yellow-500" />
-              )}
-              <div>
-                <p className="font-medium">
-                  {importResult.tasks_failed === 0
-                    ? t("common.importSuccessful")
-                    : t("common.importWarnings")}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  {t("common.tasksCreated", { count: importResult.tasks_created })}
-                  {importResult.tasks_failed > 0 &&
-                    `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
-                </p>
-              </div>
-            </div>
-
-            {importResult.errors.length > 0 && (
-              <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
-                <p className="mb-2 font-medium text-sm">{t("common.errors")}</p>
-                <ul className="space-y-1 text-muted-foreground text-xs">
-                  {importResult.errors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    </WizardDialog>
   );
 };

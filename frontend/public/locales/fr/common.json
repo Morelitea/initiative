@@ -44,6 +44,8 @@
   "viewAll": "Tout afficher",
   "copyToClipboard": "Copier dans le presse-papier",
   "copied": "Copié !",
+  "copy": "Copier",
+  "copyUnavailable": "Copie impossible — copiez-le à la main",
   "untitled": "Sans titre",
   "appName": "initiative",
   "send": "Envoyer",
@@ -53,6 +55,7 @@
   "previous": "Précédent",
   "rowsPerPage": "Lignes par page :",
   "pageOf": "Page {{current}} sur {{total}}",
+  "stepOf": "Étape {{current}} sur {{total}}",
   "select": "Sélectionner",
   "exitSelection": "Quitter la sélection",
   "enableSelectionMode": "Activer le mode de sélection",
@@ -186,5 +189,22 @@
     "failed": "Cette photo n'a pas pu être lue. Réessayez."
   },
   "archiveError": "Impossible d'archiver cet élément. Veuillez réessayer.",
-  "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer."
+  "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer.",
+  "markdownEditor": {
+    "toolbar": "Mise en forme",
+    "write": "Écrire",
+    "preview": "Aperçu",
+    "nothingToPreview": "Rien à prévisualiser pour l’instant.",
+    "heading": "Titre",
+    "bold": "Gras",
+    "italic": "Italique",
+    "strikethrough": "Barré",
+    "link": "Lien",
+    "quote": "Citation",
+    "code": "Code",
+    "bulletedList": "Liste à puces",
+    "numberedList": "Liste numérotée",
+    "taskList": "Liste de tâches",
+    "more": "Plus de mise en forme"
+  }
 }

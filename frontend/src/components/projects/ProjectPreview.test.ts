@@ -31,7 +31,7 @@ describe("canPinProject", () => {
     const managed = projectWithRole({ role_name: "project_manager", is_manager: true });
     const archived = { ...managed, archived_at: "2026-06-01T00:00:00.000Z" };
     expect(canPinProject(archived, USER_ID)).toBe(false);
-    expect(canPinProject(archived, USER_ID, "admin")).toBe(false);
+    expect(canPinProject(archived, USER_ID, true)).toBe(false);
   });
 
   it("counts a managing role the initiative named itself", () => {
@@ -51,13 +51,15 @@ describe("canPinProject", () => {
     expect(canPinProject(project, USER_ID)).toBe(false);
   });
 
-  it("counts a guild admin, member row or not", () => {
+  it("counts whoever administers the guild, member row or not", () => {
+    // Which roles those are is settled on the server and arrives as one flag,
+    // so admin and the seat above it reach here the same way.
     const project = buildProject({ initiative: buildInitiative({ members: [] }) });
-    expect(canPinProject(project, USER_ID, "admin")).toBe(true);
+    expect(canPinProject(project, USER_ID, true)).toBe(true);
   });
 
   it("counts nobody when signed out", () => {
     const project = projectWithRole({ is_manager: true });
-    expect(canPinProject(project, undefined, "admin")).toBe(false);
+    expect(canPinProject(project, undefined, true)).toBe(false);
   });
 });

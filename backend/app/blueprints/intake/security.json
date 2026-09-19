@@ -1,0 +1,116 @@
+{
+  "type": "initiative-project",
+  "schema_version": 1,
+  "app_version": "0",
+  "exported_at": "2026-09-15T00:00:00+00:00",
+  "exported_by_handle": null,
+  "source_instance_url": null,
+  "project": {
+    "name": "Security",
+    "icon": "🛡️",
+    "description": "Security cases raised by rules watching this deployment. Each case is one incident: assign it, investigate it, write up what you found, and close it.",
+    "is_template": false,
+    "archived_at": null,
+    "start_date": null,
+    "end_date": null
+  },
+  "tags": [],
+  "task_statuses": [
+    {
+      "name": "Triage",
+      "category": "todo",
+      "position": 0,
+      "color": "#F59E0B",
+      "icon": "inbox",
+      "is_default": true
+    },
+    {
+      "name": "Confirmed",
+      "category": "in_progress",
+      "position": 1,
+      "color": "#EF4444",
+      "icon": "shield-alert",
+      "is_default": false
+    },
+    {
+      "name": "Mitigated",
+      "category": "in_progress",
+      "position": 2,
+      "color": "#3B82F6",
+      "icon": "shield-check",
+      "is_default": false
+    },
+    {
+      "name": "Closed",
+      "category": "done",
+      "position": 3,
+      "color": "#10B981",
+      "icon": "circle-check",
+      "is_default": false
+    }
+  ],
+  "property_definitions": [
+    {
+      "name": "subject_user",
+      "type": "number",
+      "position": 0.0,
+      "color": "#3B82F6",
+      "options": null
+    },
+    {
+      "name": "subject_guild",
+      "type": "number",
+      "position": 1.0,
+      "color": "#8B5CF6",
+      "options": null
+    },
+    {
+      "name": "source_event",
+      "type": "text",
+      "position": 2.0,
+      "color": "#64748B",
+      "options": null
+    },
+    {
+      "name": "severity",
+      "type": "text",
+      "position": 3.0,
+      "color": "#EF4444",
+      "options": null
+    },
+    {
+      "name": "reported_at",
+      "type": "datetime",
+      "position": 4.0,
+      "color": "#F59E0B",
+      "options": null
+    },
+    {
+      "name": "tracker_key",
+      "type": "text",
+      "position": 5.0,
+      "color": "#10B981",
+      "options": null
+    }
+  ],
+  "tasks": [
+    {
+      "title": "How this project is fed",
+      "description": "Cases arrive here when a rule watching this deployment decides something crossed a line worth a person's attention. A case is the work item; the audit log behind it is the record of what happened.\n\nA sustained run of the same thing is **one** case with a trail of recurrences inside it, not one case per event. If the case is closed and it happens again, a new case opens.\n\n**What the fields mean.** `subject_user` and `subject_guild` are ids, not names \u2014 resolving one to a person is a platform screen, and reaching the content it points at is a break-glass grant that records why it was taken. `source_event` names the audit row this case was projected from.\n\n**Closing a case** means somebody evaluated it and decided. Close it even when the answer is 'nothing happened' \u2014 the record that a person looked is the point. Somebody other than the subject of the event closes it.\n\nIf a case turns out to need a code change, put the finding's key in `tracker_key` so the two can be read together.\n\nYou can restructure this project however you like \u2014 rename the statuses, add fields, add your own tasks. The binding only names the project.",
+      "priority": "medium",
+      "start_date": null,
+      "due_date": null,
+      "recurrence": null,
+      "recurrence_strategy": "fixed",
+      "recurrence_occurrence_count": 0,
+      "position": 1.0,
+      "archived_at": null,
+      "completed_at": null,
+      "status_name": "Triage",
+      "tags": [],
+      "assignee_handles": [],
+      "checklist": [],
+      "property_values": []
+    }
+  ]
+}

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from sqlalchemy import ColumnElement, Select
+from sqlalchemy import ColumnElement, Select, null as sa_null
 from sqlmodel import SQLModel, select
 
 from app.db import session as db_session
@@ -34,33 +34,34 @@ def _comment_initiative() -> ColumnElement[Optional[int]]:
 
     A comment hangs off exactly one of them, so the parents are tried in the
     order they are declared for the policies and the first that answers wins.
-    A comment on a task is the one whose parent is not a tool entity: a task
-    belongs to a project.
+    A parent that is not itself a tool entity takes the hop its registry entry
+    names — a task belongs to a project, a wiki page to a wiki — because the
+    initiative is the tool's.
     """
     from sqlalchemy import func as sa_func
 
-    from app.core.tools import Tool
-    from app.db.initiative_rls import COMMENT_PARENT_COLUMNS
+    from app.db.initiative_rls import COMMENT_PARENTS
     from app.models.tenant.comment import Comment
-    from app.models.tenant.project import Project
-    from app.models.tenant.task import Task
 
     lookups = []
-    for column in COMMENT_PARENT_COLUMNS:
-        if column == "task_id":
+    for column, parent in COMMENT_PARENTS.items():
+        tool = _model_for(parent.governed_by.plural)
+        if tool is None:  # pragma: no cover - a tool always has a table
+            continue
+        if parent.tool_fk is None:
             lookups.append(
-                select(Project.initiative_id)
-                .join(Task, Task.project_id == Project.id)
-                .where(Task.id == Comment.task_id)
+                select(tool.initiative_id)
+                .where(tool.id == getattr(Comment, column))
                 .scalar_subquery()
             )
             continue
-        parent = _model_for(Tool(column.removesuffix("_id")).plural)
-        if parent is None:  # pragma: no cover - a tool always has a table
+        mid = _model_for(parent.table)
+        if mid is None:  # pragma: no cover - a declared parent always has one
             continue
         lookups.append(
-            select(parent.initiative_id)
-            .where(parent.id == getattr(Comment, column))
+            select(tool.initiative_id)
+            .join(mid, getattr(mid, parent.tool_fk) == tool.id)
+            .where(mid.id == getattr(Comment, column))
             .scalar_subquery()
         )
     return sa_func.coalesce(*lookups)
@@ -73,9 +74,11 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[int, Optional[int
     belongs to no initiative (a guild calendar) answers ``None`` for the
     second column, which a single-column select could not tell from no row.
 
-    Most tables carry ``initiative_id``. A task does not — it belongs to a
-    project — and a comment names one of several parents, so each is read
-    through the same chain its own policies use.
+    Most tables carry ``initiative_id``. A row that does not — a task, a wiki
+    page — reaches one through the thing it belongs to, and which hops those
+    are is already declared for the policies (``INITIATIVE_PATHS``), so they
+    are read from there rather than a second time here. A comment names one of
+    several parents, so it is read through the same chain its own policies use.
     """
     from app.models.tenant.comment import Comment
 
@@ -87,16 +90,45 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[int, Optional[int
     elif hasattr(model, "initiative_id"):
         statement = select(model.id, model.initiative_id).where(model.id == row_id)
     else:
-        from app.models.tenant.project import Project
-
-        statement = (
-            select(model.id, Project.initiative_id)
-            .join(model, model.project_id == Project.id)
-            .where(model.id == row_id)
-        )
+        statement = _initiative_through_parents(model, row_id)
     if live is not None:
         statement = statement.where(live.is_(None))
     return statement
+
+
+def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
+    """``row_id`` and the initiative of whatever it belongs to.
+
+    The hops come from the row's own initiative path — the same declaration the
+    RLS policies are rendered from — so a child table added later is reached
+    here without an edit.
+    """
+    from app.db.initiative_rls import INITIATIVE_PATHS
+
+    table = getattr(model, "__tablename__", None)
+    path = INITIATIVE_PATHS.get(table) if table else None
+    hops = getattr(getattr(path, "dac", None), "via", ()) or ()
+
+    joins: list[tuple[Any, Any]] = []
+    current: Any = model
+    for fk, parent_table in hops:
+        parent = _model_for(parent_table)
+        if parent is None:  # pragma: no cover - a declared hop has a table
+            break
+        joins.append((parent, getattr(current, fk) == parent.id))
+        current = parent
+    if not joins or not hasattr(current, "initiative_id"):
+        # Nothing declares how this row reaches an initiative. Answering "no
+        # initiative" is the fail-closed reading: it makes the status 404
+        # rather than claiming the reader is inside something.
+        return select(model.id, sa_null()).where(model.id == row_id)
+
+    # Both columns from the start: a select built with one and widened after
+    # still reads back as a scalar.
+    statement = select(model.id, current.initiative_id)
+    for parent, condition in joins:
+        statement = statement.join(parent, condition)
+    return statement.where(model.id == row_id)
 
 
 async def missing_or_denied(

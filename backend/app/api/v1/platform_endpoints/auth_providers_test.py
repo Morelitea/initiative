@@ -45,7 +45,8 @@ async def test_owner_creates_provider_secret_write_only(
     body = response.json()
     assert body["slug"] == "corp"
     assert body["secret_set"] is True
-    assert body["reserved"] is False
+    # What the operator registers with their IdP, following the slug.
+    assert body["callback_url"].endswith("/api/v1/auth/corp/callback")
     assert "client_secret" not in body
     assert "s3cret-value" not in response.text
 
@@ -81,30 +82,50 @@ async def test_non_owner_tiers_are_refused(
     ).status_code == 403
 
 
-async def test_reserved_slug_is_refused_everywhere(
+async def test_the_platform_slug_is_an_ordinary_slug(
     client: AsyncClient, session: AsyncSession
 ):
-    """The platform provider is configured via the SSO settings form — this
-    CRUD refuses to create, edit, or delete it."""
+    """``oidc`` is the slug the pre-generalization callback URL resolves to,
+    and that is all it is: it creates, edits and deletes like any other."""
     headers = await _owner_headers(session)
     platform_row = await create_auth_provider(session, slug="oidc")
-
-    create = await client.post(
-        BASE, headers=headers, json={**_VALID_CREATE, "slug": "oidc"}
-    )
-    assert create.status_code == 400
-    assert create.json()["detail"] == "AUTH_PROVIDER_SLUG_RESERVED"
 
     update = await client.patch(
         f"{BASE}{platform_row.id}", headers=headers, json={"display_name": "X"}
     )
-    assert update.status_code == 400
-    delete = await client.delete(f"{BASE}{platform_row.id}", headers=headers)
-    assert delete.status_code == 400
+    assert update.status_code == 200, update.text
+    assert update.json()["display_name"] == "X"
 
     listing = await client.get(BASE, headers=headers)
     entries = {e["slug"]: e for e in listing.json()}
-    assert entries["oidc"]["reserved"] is True
+    # The address an install has already registered with its IdP.
+    assert entries["oidc"]["callback_url"].endswith("/api/v1/auth/oidc/callback")
+
+    assert (
+        await client.delete(f"{BASE}{platform_row.id}", headers=headers)
+    ).status_code == 204
+
+
+async def test_a_providers_address_is_fixed_for_its_lifetime(
+    client: AsyncClient, session: AsyncSession
+):
+    """The callback URL follows the slug and a slug never changes, so the
+    address an operator registers with their IdP is good for as long as the
+    provider is — which is what makes showing it worth doing."""
+    headers = await _owner_headers(session)
+    row = await create_auth_provider(session, slug="corp")
+
+    before = (await client.get(BASE, headers=headers)).json()[0]["callback_url"]
+    await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"display_name": "Renamed", "slug": "acme"},
+    )
+    after = (await client.get(BASE, headers=headers)).json()[0]
+
+    assert after["display_name"] == "Renamed"
+    assert after["slug"] == "corp"
+    assert after["callback_url"] == before
 
 
 async def test_duplicate_slug_conflicts(client: AsyncClient, session: AsyncSession):

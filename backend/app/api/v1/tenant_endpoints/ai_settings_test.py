@@ -163,7 +163,7 @@ async def test_guild_admin_cannot_save_private_base_url(client, acting_user):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
 
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
 
     # A public custom endpoint is fine.
     r = await client.post(
@@ -330,7 +330,7 @@ async def test_deleting_guild_connection_purges_member_keys(
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     r = await client.post(
         admin.g("/settings/ai/connections"),
         headers=admin.headers,
@@ -366,3 +366,33 @@ async def test_disabled_mode_hides_ai(client, acting_user):
     r = await client.get(member.g("/settings/ai/resolved"), headers=member.headers)
     assert r.status_code == 200
     assert r.json()["enabled"] is False
+
+
+async def test_connecting_a_provider_is_the_seat_s(client, acting_user):
+    """Which provider a community's work is sent to says what leaves it, so it
+    answers to the seat rather than to running the community."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "guild")
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    listed = await client.get(
+        admin.g("/settings/ai/connections"), headers=admin.headers
+    )
+    assert listed.status_code == 403, listed.text
+
+    created = await client.post(
+        admin.g("/settings/ai/connections"),
+        headers=admin.headers,
+        json={"label": "no", "provider": "openai", "model": "gpt-4o", "api_key": "k"},
+    )
+    assert created.status_code == 403, created.text
+
+
+async def test_an_ordinary_admin_keeps_their_own_ai(client, acting_user):
+    """The member surface is untouched: their own key, their own choice."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "guild")
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    mine = await client.get(admin.g("/settings/ai/me"), headers=admin.headers)
+    assert mine.status_code == 200, mine.text

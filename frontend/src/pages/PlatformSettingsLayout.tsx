@@ -7,16 +7,17 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
-  canAccessAdminDashboard,
+  canAccessOperatorDashboard,
   canManagePlatformConfig,
   hasCapability,
 } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 /**
- * App-wide *configuration* area: authentication, branding, email, AI, storage,
- * and app service registrations. Owner-only (`config.manage` / `apps.manage`).
- * Operational tools (users, access) live in the separate Admin dashboard.
+ * App-wide *configuration* area: authentication, security, branding, email,
+ * integrations (AI and app service registrations), and storage. Owner-only
+ * (`config.manage` / `apps.manage`).
+ * Operational tools (users, access) live in the separate Operator dashboard.
  */
 export const PlatformSettingsLayout = () => {
   const { t } = useTranslation("settings");
@@ -27,44 +28,72 @@ export const PlatformSettingsLayout = () => {
   const tabs = useMemo(() => {
     // Two capabilities reach this area: `config.manage` owns app-wide
     // configuration, `apps.manage` owns app service registrations. A holder of
-    // one shouldn't be shown the other's tabs.
-    const configTabs = [
-      { value: "auth", label: t("platformLayout.tabs.auth"), path: "/settings/platform/auth" },
+    // one shouldn't be shown the other's tabs — and Integrations, which holds
+    // both the AI settings and the app service registrations, is shown to
+    // either.
+    const canManageConfig = hasCapability(user, Capability.configManage);
+    const canManageApps = hasCapability(user, Capability.appsManage);
+    return [
+      {
+        value: "auth",
+        label: t("platformLayout.tabs.auth"),
+        path: "/settings/platform/auth",
+        visible: canManageConfig,
+      },
+      {
+        value: "security",
+        label: t("platformLayout.tabs.security"),
+        path: "/settings/platform/security",
+        visible: canManageConfig,
+      },
       {
         value: "branding",
         label: t("platformLayout.tabs.branding"),
         path: "/settings/platform/branding",
+        visible: canManageConfig,
       },
-      { value: "email", label: t("platformLayout.tabs.email"), path: "/settings/platform/email" },
+      {
+        value: "email",
+        label: t("platformLayout.tabs.email"),
+        path: "/settings/platform/email",
+        visible: canManageConfig,
+      },
       {
         value: "community",
         label: t("platformLayout.tabs.community"),
         path: "/settings/platform/community",
+        visible: canManageConfig,
       },
-      { value: "ai", label: t("platformLayout.tabs.ai"), path: "/settings/platform/ai" },
+      {
+        value: "integrations",
+        label: t("platformLayout.tabs.integrations"),
+        path: "/settings/platform/integrations",
+        visible: canManageConfig || canManageApps,
+      },
       {
         value: "storage",
         label: t("platformLayout.tabs.storage"),
         path: "/settings/platform/storage",
+        visible: canManageConfig,
       },
-    ];
-    const appTabs = [
       {
-        value: "app-services",
-        label: t("platformLayout.tabs.appServices"),
-        path: "/settings/platform/app-services",
+        value: "intake",
+        label: t("platformLayout.tabs.intake"),
+        path: "/settings/platform/intake",
+        visible: canManageConfig,
       },
-    ];
-    return [
-      ...(hasCapability(user, Capability.configManage) ? configTabs : []),
-      ...(hasCapability(user, Capability.appsManage) ? appTabs : []),
-    ];
+    ]
+      .filter((tab) => tab.visible)
+      .map(({ visible: _visible, ...tab }) => tab);
   }, [t, user]);
 
   if (!canManagePlatformConfig(user)) {
     // Send operational staff to their dashboard; everyone else to guild settings.
     return (
-      <Navigate to={canAccessAdminDashboard(user) ? "/settings/admin" : "/settings"} replace />
+      <Navigate
+        to={canAccessOperatorDashboard(user) ? "/settings/operator" : "/settings"}
+        replace
+      />
     );
   }
 

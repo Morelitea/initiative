@@ -40,7 +40,6 @@ from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
-    PermissionKey,
 )
 from app.core import usernames
 from app.models.platform.user import User, UserStatus
@@ -51,20 +50,20 @@ from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
+from app.services.platform import users as users_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import search as search_service
-from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
-from app.core.messages import ProjectMessages
+from app.core.messages import InitiativeMessages, ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
@@ -87,7 +86,7 @@ from app.schemas.tenant.project import (
     ProjectActivityResponse,
 )
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserPublic, UserSummary, UserSummaryListResponse
+from app.schemas.platform.user import UserPublic, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
     InitiativeGroupedCountsResponse,
@@ -224,11 +223,11 @@ async def _get_project_or_404(
                 project_id,
                 user_id,
                 guild_id,
-                not_found=ProjectMessages.NOT_FOUND,
-                denied=ProjectMessages.NO_ACCESS,
+                not_found=Tool.project.not_found_code,
+                denied=Tool.project.no_access_code,
             )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.project.not_found_code
         )
     return project
 
@@ -252,7 +251,7 @@ async def _get_initiative_or_404(
     if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ProjectMessages.INITIATIVE_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
 
@@ -501,6 +500,12 @@ def _visible_project_conditions(
     """
     conditions = [
         Initiative.guild_id == guild_id,
+        # An initiative that has switched projects off has none to list, for
+        # anybody. The RLS leg lets a guild admin and a PAM reader through so a
+        # maintenance sweep can still see the rows, so the list says so here
+        # rather than leaving those two readers the only ones who find content
+        # the detail route would refuse them.
+        Initiative.projects_enabled.is_(True),
         permissions_service.listing_scope_clause(
             Tool.project,
             Project.id,
@@ -1110,6 +1115,7 @@ async def get_project_counts_by_initiative(
     """
     conditions = [
         Initiative.guild_id == guild_context.guild_id,
+        Initiative.projects_enabled.is_(True),
         Project.archived_at.is_(None),
         Project.is_template.is_(False),
         permissions_service.granted_scope_clause(
@@ -1222,19 +1228,13 @@ async def create_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.INITIATIVE_REQUIRED,
         )
-    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
-    if not rls_service.is_guild_admin(guild_context.role):
-        has_perm = await rls_service.check_initiative_permission(
-            session,
-            initiative_id=initiative_id,
-            user=current_user,
-            permission_key=PermissionKey.create_projects,
-        )
-        if not has_perm:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
-            )
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    resource_access.require_tool_enabled(Tool.project, initiative)
+    await resource_access.require_create(
+        session, Tool.project, initiative, current_user, guild_context
+    )
     await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
         name=project_in.name,
@@ -1813,7 +1813,9 @@ async def search_project_members(
     page_items = paginate_sequence(assignable, actual_page, page_size)
 
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in page_items],
+        items=await users_service.summaries_with_guild_role(
+            session, guild_context.guild_id, page_items
+        ),
         total_count=total_count,
         page=actual_page,
         page_size=page_size,

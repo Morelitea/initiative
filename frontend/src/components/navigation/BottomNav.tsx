@@ -17,6 +17,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -46,6 +47,9 @@ export function BottomNav() {
   // The same count the sidebar item and the logo carry: a message nobody has
   // read, or somebody asking to send one.
   const messagesWaiting = useMessagesWaiting();
+  // Both message buttons below are the same affordance at two sizes, so the
+  // deployment's switch is read once for the pair.
+  const dmEnabled = useDirectMessagesEnabled();
   // The count belongs in the name rather than beside it: a label wins over
   // what is inside the button, so a badge nobody can read is a number only
   // some people get. Both buttons below say it the same way.
@@ -98,16 +102,18 @@ export function BottomNav() {
             >
               <Home className="h-5 w-5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-11 w-11 rounded-full"
-              onClick={() => void navigate({ to: "/messages" })}
-              aria-label={messagesLabel}
-            >
-              <MessageSquare className="h-5 w-5" />
-              {waitingBadge}
-            </Button>
+            {dmEnabled && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-11 w-11 rounded-full"
+                onClick={() => void navigate({ to: "/messages" })}
+                aria-label={messagesLabel}
+              >
+                <MessageSquare className="h-5 w-5" />
+                {waitingBadge}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -125,7 +131,7 @@ export function BottomNav() {
             anywhere are starting something and seeing who has written. The
             quieter of the two is on the left, so the primary action stays where
             it has always been. */}
-        {!isMobile && (
+        {!isMobile && dmEnabled && (
           <Button
             variant="secondary"
             size="icon"

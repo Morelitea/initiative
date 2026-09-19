@@ -4,8 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AnnouncementDialog } from "@/components/announcements/AnnouncementDialog";
 import { Button } from "@/components/ui/button";
 import { useChangelog } from "@/hooks/useSettings";
-
-const CHANGELOG_URL = "https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md";
+import { CHANGELOG_URL } from "@/lib/links";
 
 interface UpdateAnnouncementDialogProps {
   open: boolean;

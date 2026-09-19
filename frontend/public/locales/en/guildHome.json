@@ -12,9 +12,13 @@
   },
   "emptyState": {
     "title": "You haven’t joined any initiatives yet",
+    "adminTitle": "This community has no initiatives yet",
     "description": "Initiatives hold everything in a community — projects, documents, and the rest. Join one to see its work.",
+    "adminDescription": "Initiatives hold everything in a community — projects, documents, and the rest. Create the first one to say what this community is for.",
     "nothingListedTitle": "Nothing to join yet",
-    "nothingListedDescription": "No initiative in this community is open to join right now. A community admin or project manager can add you to one."
+    "adminNothingListedTitle": "Start the first initiative",
+    "nothingListedDescription": "No initiative in this community is open to join right now. A community admin or project manager can add you to one.",
+    "adminNothingListedDescription": "Name a body of work — a team, a campaign, a season — and everything that belongs to it lives inside."
   },
   "directory": {
     "title": "Initiatives",
@@ -55,7 +59,8 @@
       "calendars": "Description",
       "dashboards": "Source",
       "posts": "Preview",
-      "galleries": "Pictures"
+      "galleries": "Pictures",
+      "wikis": "Pages"
     }
   },
   "detail": {

@@ -65,6 +65,42 @@ async function write(key: string, value: unknown): Promise<void> {
  * connection to the database, so this holds between tabs. A JavaScript lock
  * cannot: it lives in one tab's module scope, and the second tab never sees it.
  */
+/**
+ * Read-modify-write two keys inside ONE transaction.
+ *
+ * Two `update` calls are two transactions, and anything awaiting between them
+ * observes the first without the second. Where those two writes are halves of
+ * one fact -- this key changed, and it is held pending a check -- a reader that
+ * sees only the first half draws the wrong conclusion from it.
+ */
+async function updatePair<A, B>(
+  keyA: string,
+  keyB: string,
+  change: (a: A | undefined, b: B | undefined) => { a?: A; b?: B }
+): Promise<void> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    const requestA = store.get(keyA);
+    const requestB = store.get(keyB);
+    let pending = 2;
+    const both = () => {
+      if (--pending > 0) return;
+      const next = change(requestA.result as A | undefined, requestB.result as B | undefined);
+      if (next.a !== undefined) store.put(next.a, keyA);
+      if (next.b !== undefined) store.put(next.b, keyB);
+    };
+    requestA.onsuccess = both;
+    requestB.onsuccess = both;
+    requestA.onerror = () => reject(requestA.error);
+    requestB.onerror = () => reject(requestB.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 async function update<T>(
   key: string,
   change: (current: T | undefined) => T | undefined
@@ -335,6 +371,11 @@ export interface StoredMessage {
   body: string;
   at: string;
   mine: boolean;
+  /**
+   * Which account said it. Absent on this account's own, and on anything
+   * stored before a thread could hold more than two people.
+   */
+  author?: number;
   receipt?: ReceiptState;
   /** The message this one answers, by the name both sides know it under. */
   replyTo?: string;
@@ -371,6 +412,23 @@ export interface StoredMessage {
 export type Side = "mine" | "theirs";
 
 const LOG_PREFIX = "log:";
+
+/**
+ * Whether an envelope from ``author`` may act on ``entry``.
+ *
+ * The side it arrived on, and then who sent it. The side alone was the whole of
+ * it while "theirs" meant one person; on a roster it means several, and an edit
+ * or a removal is a claim about a message's author rather than about its side.
+ *
+ * Authors are compared only where both are known. A thread whose messages
+ * predate this, or a session opened before it, has no author to compare — and
+ * every one of those is a pair, where the side already answers the question.
+ */
+const mayActOn = (entry: StoredMessage, from: Side, author?: number): boolean => {
+  if (entry.mine !== (from === "mine")) return false;
+  if (entry.author === undefined || author === undefined) return true;
+  return entry.author === author;
+};
 
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
@@ -526,13 +584,14 @@ export const messageLog = {
     body: string,
     at: string,
     from: Side,
-    rev: number
+    rev: number,
+    author?: number
   ): Promise<boolean> => {
     let changed = false;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
       const next = current.map((entry) => {
-        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.id !== targetId || !mayActOn(entry, from, author)) return entry;
         if (entry.removedAt || entry.body === body) return entry;
         const held = entry.rev ?? 0;
         // An edit that arrives after a later one is an old edit, whichever
@@ -565,13 +624,14 @@ export const messageLog = {
     conversationId: string,
     targetId: string,
     from: Side,
-    at: string
+    at: string,
+    author?: number
   ): Promise<boolean> => {
     let changed = false;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
       const next = current.map((entry) => {
-        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.id !== targetId || !mayActOn(entry, from, author)) return entry;
         if (entry.removedAt) return entry;
         changed = true;
         // Rebuilt rather than spread: the body, the reactions and the receipt
@@ -581,6 +641,7 @@ export const messageLog = {
           id: entry.id,
           at: entry.at,
           mine: entry.mine,
+          author: entry.author,
           replyTo: entry.replyTo,
           body: "",
           removedAt: at,
@@ -611,6 +672,138 @@ export const approvedDevices = {
       ...(existing ?? {}),
       [deviceId]: fingerprint,
     }));
+  },
+};
+
+/**
+ * The device keys this browser has seen for each conversation partner.
+ *
+ * The directory is served by the platform, so a key it returns is remembered
+ * here rather than trusted afresh on every read.
+ *
+ * The first directory read says nothing: that is trust-on-first-use, and a
+ * warning there would fire on every new conversation. Once this browser has a
+ * baseline for the partner, both a replaced key and a newly introduced device
+ * are changes worth interrupting for. Registering a replacement receives a new
+ * server UUID, so matching on device id alone would treat either as a first
+ * sighting.
+ *
+ * Per partner, keyed by their device id.
+ */
+export interface PeerKeyChange {
+  userId: number;
+  deviceId: string;
+  /** What the directory returned now. */
+  now: string;
+  at: string;
+}
+
+const PEER_KEYS_PREFIX = "peer-keys:";
+const PEER_CHANGES = "peer-key-changes";
+
+interface RememberedPeerKey {
+  fingerprint: string;
+  /** Absent only for records written before identities were bound here. */
+  identityKey?: string;
+}
+
+type StoredPeerKey = string | RememberedPeerKey;
+
+const rememberedPeerKey = (stored: StoredPeerKey): RememberedPeerKey =>
+  typeof stored === "string" ? { fingerprint: stored } : stored;
+
+export const peerDeviceKeys = {
+  all: async (userId: number): Promise<Record<string, StoredPeerKey>> =>
+    (await read<Record<string, StoredPeerKey>>(PEER_KEYS_PREFIX + userId)) ?? {},
+  /**
+   * Record what the directory returned, report the keys that changed, and hold
+   * them pending a check -- all in one transaction.
+   *
+   * Remembering, comparing and holding are one step on purpose. Any split lets
+   * them interleave, and both splits are reachable through an ordinary `await`
+   * with two sends in flight:
+   *
+   * - remember and compare apart: the first send writes the new key before the
+   *   second compares, and the second sees no change;
+   * - compare and hold apart: the first send has written the new key but not
+   *   yet the hold, and the second finds nothing changed AND nothing held, so
+   *   the device reads as addressable and the message goes to a key nobody has
+   *   checked.
+   *
+   * The second is the one that matters, because the whole point of the hold is
+   * that a send finds it.
+   */
+  reconcile: async (
+    userId: number,
+    seen: {
+      deviceId: string;
+      fingerprint: string;
+      identityKey?: string;
+      previouslyAddressed?: boolean;
+    }[]
+  ): Promise<PeerKeyChange[]> => {
+    const changes: PeerKeyChange[] = [];
+    const at = new Date().toISOString();
+    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
+      PEER_KEYS_PREFIX + userId,
+      PEER_CHANGES,
+      (existing, heldNow) => {
+        const known = existing ?? {};
+        const hasBaseline = Object.keys(known).length > 0;
+        const next = { ...known };
+        for (const { deviceId, fingerprint, identityKey, previouslyAddressed } of seen) {
+          const stored = known[deviceId];
+          const knownKey = stored === undefined ? undefined : rememberedPeerKey(stored);
+          const keyChanged =
+            knownKey !== undefined &&
+            (knownKey.fingerprint !== fingerprint || knownKey.identityKey !== identityKey);
+          if (keyChanged || (stored === undefined && (hasBaseline || previouslyAddressed))) {
+            changes.push({ userId, deviceId, now: fingerprint, at });
+          }
+          next[deviceId] = { fingerprint, ...(identityKey ? { identityKey } : {}) };
+        }
+        // Devices that stopped being listed are left in place, so a device that
+        // disappears and comes back with a different key is still a change
+        // rather than a first sighting.
+        if (changes.length === 0) return { a: next };
+        // One entry per device, the same rule `peerKeyChanges.add` applies.
+        const byDevice = new Map((heldNow ?? []).map((change) => [change.deviceId, change]));
+        for (const change of changes) byDevice.set(change.deviceId, change);
+        return { a: next, b: [...byDevice.values()] };
+      }
+    );
+    return changes;
+  },
+  forget: async (userId: number): Promise<void> => {
+    await write(PEER_KEYS_PREFIX + userId, undefined);
+  },
+};
+
+/**
+ * Changes waiting to be shown to the person using this browser.
+ *
+ * Held rather than raised inline: the send path cannot put something on
+ * screen, and a change found while sending has to survive until it has been.
+ */
+export const peerKeyChanges = {
+  all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
+  add: async (changes: PeerKeyChange[]): Promise<void> => {
+    if (changes.length === 0) return;
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => {
+      const held = existing ?? [];
+      // One entry per device. A directory answering differently on every read
+      // would otherwise fill this with the same finding repeatedly, and a list
+      // nobody can get to the bottom of is a list nobody reads.
+      const byDevice = new Map(held.map((change) => [change.deviceId, change]));
+      for (const change of changes) byDevice.set(change.deviceId, change);
+      return [...byDevice.values()];
+    });
+  },
+  /** The person has seen it. The key is already remembered; this clears the notice. */
+  acknowledge: async (deviceId: string): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) =>
+      (existing ?? []).filter((change) => change.deviceId !== deviceId)
+    );
   },
 };
 
@@ -704,10 +897,70 @@ export const historyAsk = {
   },
 };
 
+/**
+ * A conversation this device has just joined and has yet to be caught up on.
+ *
+ * Only a group ever has one. A pair does not exist until both sides have
+ * agreed, so there is never anything said before you were there.
+ */
+export interface ThreadCatchUp {
+  /** What an arriving transfer is matched against. */
+  requestId: string;
+  /** How many members have been asked, which is also the next one to ask. */
+  asked: number;
+  /** When the outstanding ask went out, so a silent one can be moved on from. */
+  at: string;
+}
+
+/**
+ * The conversations waiting to be caught up on, all in one record.
+ *
+ * One key rather than one per conversation: every collection reads the whole
+ * set to decide whether anything is outstanding, and a key scan to answer
+ * "anything?" is a scan of every thread this device holds.
+ */
+export const threadCatchUp = {
+  all: async (): Promise<Record<string, ThreadCatchUp>> =>
+    (await read<Record<string, ThreadCatchUp>>("thread-catch-ups")) ?? {},
+  get: async (conversationId: string): Promise<ThreadCatchUp | undefined> =>
+    (await threadCatchUp.all())[conversationId],
+  /**
+   * Read-modify-write, like every other record two tabs can reach: a
+   * collection in one tab and an answer in another both land here.
+   */
+  set: async (conversationId: string, state: ThreadCatchUp): Promise<void> => {
+    await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => ({
+      ...(current ?? {}),
+      [conversationId]: state,
+    }));
+  },
+  clear: async (conversationId: string): Promise<void> => {
+    await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => {
+      if (!current || !(conversationId in current)) return undefined;
+      const { [conversationId]: _gone, ...rest } = current;
+      return rest;
+    });
+  },
+};
+
 /** Which device of theirs we already hold a session with, per session id. */
 export const sessionForDevice = {
   get: (deviceId: string) => read<string>("device-session:" + deviceId),
   set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+  /**
+   * Stop using the session filed against a device.
+   *
+   * Sessions are filed by device id, and a device id outlives the key it was
+   * opened against. When the directory returns a different key for a device
+   * this browser has already spoken to, the session in hand was negotiated
+   * with the previous one and the far end can no longer read anything sent
+   * through it — so the next send has to start a new one.
+   *
+   * The pickle itself is left where it is. Other conversations file the same
+   * session id, and deleting it out from under them is a wider change than
+   * this needs; dropping the pointer is enough to stop it being chosen.
+   */
+  forget: (deviceId: string) => write("device-session:" + deviceId, undefined),
 };
 
 /**
@@ -744,6 +997,22 @@ export type SessionOrigin = "self" | "other";
 export const sessionOrigin = {
   get: (id: string) => read<SessionOrigin>("session-origin:" + id),
   set: (id: string, origin: SessionOrigin) => write("session-origin:" + id, origin),
+};
+
+/**
+ * Which account a session belongs to, recorded when it is established.
+ *
+ * "Their side" is one person in a pair and several in a group, so the side an
+ * envelope arrived on stops being enough to say who sent it. A session is with
+ * exactly one device, which belongs to exactly one account, and that is settled
+ * the moment the session is opened -- an ordinary message arriving on it later
+ * names no sender.
+ *
+ * Absent on sessions opened before this was recorded, which are all pairwise.
+ */
+export const sessionAuthor = {
+  get: (id: string) => read<number>("session-author:" + id),
+  set: (id: string, userId: number) => write("session-author:" + id, userId),
 };
 
 /**

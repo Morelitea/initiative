@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.core.version import get_min_native_version
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 
@@ -23,6 +24,16 @@ async def test_config_exposes_upload_cap(client: AsyncClient):
 
     assert response.status_code == 200
     assert response.json()["max_upload_bytes"] == MAX_DOCUMENT_FILE_SIZE
+
+
+@pytest.mark.integration
+async def test_config_exposes_native_version_floor(client: AsyncClient):
+    """The landing page builds its Android download link from the release the
+    APK was last rebuilt for, which is the floor this server already ships."""
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["min_native_version"] == get_min_native_version()
 
 
 @pytest.mark.integration
