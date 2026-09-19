@@ -445,7 +445,8 @@ async def _duplicate_template_tasks(
         )
         session.add(new_task)
         await session.flush()
-        task_mapping[template_task.id] = new_task.id
+        if template_task.id is not None and new_task.id is not None:
+            task_mapping[template_task.id] = new_task.id
         if template_task.assignees:
             session.add_all(
                 [
