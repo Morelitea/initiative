@@ -113,6 +113,19 @@ async def test_missing_optional_algs_is_none():
     assert meta.id_token_signing_alg_values_supported is None
 
 
+async def test_metadata_issuer_preserves_provider_trailing_slash():
+    """``metadata.issuer`` must be the provider's literal string, trailing
+    slash and all — it's compared exact-match against id_token `iss` later,
+    and providers that issue a trailing-slash issuer (e.g. Authentik) put that
+    same string in the token. Configuring our side without the slash used to
+    strip it here too, so verification rejected every login."""
+    endpoint = _Endpoint(_json(_doc(issuer=f"{ISSUER}/")))
+    discovery = OidcDiscovery(client_factory=endpoint.factory())
+
+    meta = await discovery.fetch(ISSUER)
+    assert meta.issuer == f"{ISSUER}/"
+
+
 # --- issuer-match + validation ---------------------------------------------
 
 

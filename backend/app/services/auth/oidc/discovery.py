@@ -10,6 +10,13 @@ Turns a configured ``issuer`` into the endpoints the relying-party flow needs
 * ``authorization_endpoint`` / ``token_endpoint`` / ``jwks_uri`` must be present
   and https.
 
+The match above is trailing-slash-insensitive (some deployments configure the
+issuer with one, some without, and both are legitimate), but the resulting
+``OidcMetadata.issuer`` keeps the provider's literal string. id_token
+verification treats it as the exact expected ``iss``, and the token carries
+whatever the provider actually put there — normalizing it away here would
+make that comparison fail.
+
 Cached per issuer (metadata changes rarely); any failure raises
 :class:`DiscoveryError` (fail-closed).
 """
@@ -171,7 +178,14 @@ def _parse_metadata(document: Any, *, expected_issuer: str) -> OidcMetadata:
         userinfo_endpoint = userinfo
 
     return OidcMetadata(
-        issuer=expected_issuer,
+        # The provider's literal issuer string, not `expected_issuer` — that
+        # one has had a trailing slash stripped for the comparison above, but
+        # `metadata.issuer` goes on to be the exact value id_token verification
+        # checks the token's `iss` claim against. Providers commonly issue
+        # tokens with a trailing-slash issuer (Authentik among them), so
+        # stripping it here made every login from such a provider fail with
+        # "Invalid issuer".
+        issuer=doc_issuer,
         authorization_endpoint=endpoints["authorization_endpoint"],
         token_endpoint=endpoints["token_endpoint"],
         jwks_uri=endpoints["jwks_uri"],
