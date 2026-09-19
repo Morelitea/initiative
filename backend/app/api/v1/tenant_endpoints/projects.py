@@ -8,7 +8,14 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.relationships import Related, RelationshipType
+from app.core.relationships import (
+    DERIVED_TYPES,
+    Provenance,
+    Related,
+    RelationshipType,
+    node_id,
+)
+from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
 from app.services.tenant import relationships
 from app.api.deps import (
@@ -428,6 +435,7 @@ async def _duplicate_template_tasks(
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, new_project.id)
     date_shift = _template_task_date_shift(template, new_project, list(template_tasks))
+    task_mapping: dict[int, int] = {}
     for template_task in template_tasks:
         template_status_id = getattr(template_task, "task_status_id", None)
         mapped_status_id = None
@@ -464,6 +472,7 @@ async def _duplicate_template_tasks(
         )
         session.add(new_task)
         await session.flush()
+        task_mapping[template_task.id] = new_task.id
         if template_task.assignees:
             session.add_all(
                 [
@@ -476,6 +485,64 @@ async def _duplicate_template_tasks(
             tags_service.TAG_LINKS["task"],
             source_id=template_task.id,
             target_id=new_task.id,
+        )
+    await _copy_task_relationships(session, task_mapping)
+
+
+#: Edge types a task copy does not carry. Tags travel through
+#: ``copy_entity_tags``, and a derived edge is read out of a body on save
+#: rather than asserted, so neither is copied here.
+_UNCOPIED_RELATIONSHIP_TYPES = frozenset({RelationshipType.tagged_with}) | DERIVED_TYPES
+
+
+async def _copy_task_relationships(
+    session: SessionDep, task_mapping: dict[int, int]
+) -> None:
+    """Carry the source tasks' relations onto their copies.
+
+    Every live edge touching a source task is re-created on the copy. An end
+    that is itself a source task is remapped to its copy, so a dependency
+    between two template tasks becomes a dependency between the two new tasks;
+    any other end (a document, a task outside the template) is kept as-is.
+    """
+    if not task_mapping:
+        return
+    source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
+    live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
+    outbound = await session.exec(
+        select(EntityRelationship).where(
+            EntityRelationship.source_node.in_(source_nodes),  # type: ignore[union-attr]
+            live,
+        )
+    )
+    inbound = await session.exec(
+        select(EntityRelationship).where(
+            EntityRelationship.target_node.in_(source_nodes),  # type: ignore[union-attr]
+            live,
+        )
+    )
+    edges: dict[int, EntityRelationship] = {}
+    for row in [*outbound.all(), *inbound.all()]:
+        if row.id is not None:
+            edges[row.id] = row
+
+    def remapped(kind: str, entity_id: int) -> relationships.Endpoint:
+        entity_kind = SearchEntityType(kind)
+        if entity_kind is SearchEntityType.task:
+            entity_id = task_mapping.get(entity_id, entity_id)
+        return relationships.Endpoint(entity_kind, entity_id)
+
+    for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0)):
+        relationship_type = RelationshipType(row.relationship_type)
+        if relationship_type in _UNCOPIED_RELATIONSHIP_TYPES:
+            continue
+        await relationships.create(
+            session,
+            source=remapped(row.source_type, row.source_id),
+            relationship_type=relationship_type,
+            target=remapped(row.target_type, row.target_id),
+            provenance=Provenance(row.provenance),
+            confidence=row.confidence,
         )
 
 
