@@ -27,7 +27,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session, SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.audit_events import SCHEMA_VERSION, AuditEventType, meta_for
+from app.core.audit_events import SCHEMA_VERSION, SERVICE, AuditEventType, meta_for
 
 audit_logger = logging.getLogger("audit")
 
@@ -111,6 +111,8 @@ async def record(
         # The key a collector routes on: this line is the audit stream, and
         # the application's own logs are not.
         "stream": "audit",
+        # And which service's: billing and auto write the same shape.
+        "service": SERVICE,
         "schema_version": SCHEMA_VERSION,
         "event_uuid": str(uuid4()),
         "event_type": event_type.value,

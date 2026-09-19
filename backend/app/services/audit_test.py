@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from app.core.audit_events import SCHEMA_VERSION, AuditCategory, AuditEventType
+from app.core.audit_events import SCHEMA_VERSION, SERVICE, AuditCategory, AuditEventType
 from app.core.logging_config import configure_logging
 from app.services import audit as audit_service
 from app.testing import create_user
@@ -50,6 +50,7 @@ async def test_the_envelope_carries_ids_and_no_identity(session, capfd):
     serialized = json.dumps(line)
     assert "Ada Admin" not in serialized and "Sam Subject" not in serialized
     assert line["schema_version"] == SCHEMA_VERSION
+    assert line["service"] == SERVICE
     assert line["event_type"] == "user.avatar_removed"
     assert line["actor_user_id"] == actor_id
     assert line["target_user_id"] == subject_id

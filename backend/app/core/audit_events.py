@@ -517,3 +517,8 @@ def meta_for(event_type: AuditEventType) -> AuditEventMeta:
 #: The envelope's shape version. Downstream contracts against it; bump only on
 #: a breaking change.
 SCHEMA_VERSION = 1
+
+#: The line names the service it came from. Billing and auto emit streams of
+#: the same shape about the same communities, so a reader filtering on a
+#: community sees all three, and this is what tells them apart.
+SERVICE = "initiative"
