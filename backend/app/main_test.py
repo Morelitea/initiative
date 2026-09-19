@@ -287,6 +287,89 @@ def test_docs_routes_return_404_when_disabled() -> None:
 
 
 @pytest.mark.unit
+def test_mcp_mount_serves_bare_and_trailing_slash_identically() -> None:
+    """The MCP mount must answer ``/api/v1/mcp`` and ``/api/v1/mcp/`` the same
+    way, in one round trip — no redirect. A prior version used ``Mount``,
+    which only has a route at its own root ("/"): the bare path reached it
+    with an empty remaining path and 404d, and a since-reverted fix that
+    redirected there instead broke browser-based MCP clients that don't
+    reliably replay a streamed POST/SSE request across a 307.
+
+    ``ENABLE_MCP`` defaults off and the real app is built once at import time
+    (see ``test_docs_routes_return_404_when_disabled``), so this mirrors
+    ``app.main``'s exact registration — two ``Route``s forwarding to the same
+    sub-app via a plain-callable class — against a standalone app.
+    """
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+
+    mcp_path = f"{API_V1_STR}/mcp"
+    app = FastAPI()
+
+    class _Endpoint:
+        async def __call__(self, scope, receive, send) -> None:
+            scope = {**scope, "path": "/", "raw_path": b"/"}
+            resp = PlainTextResponse("mcp-root")
+            await resp(scope, receive, send)
+
+    endpoint = _Endpoint()
+    app.router.routes.append(Route(mcp_path, endpoint=endpoint, methods=None))
+    app.router.routes.append(Route(f"{mcp_path}/", endpoint=endpoint, methods=None))
+
+    http = TestClient(app)
+
+    for path in (mcp_path, f"{mcp_path}/"):
+        response = http.get(path, follow_redirects=False)
+        assert response.status_code == 200, (path, response.status_code)
+        assert response.text == "mcp-root"
+
+
+@pytest.mark.unit
+def test_mcp_endpoint_exempt_from_rate_limiting_without_crashing() -> None:
+    """SlowAPIMiddleware resolves the matched route's ``.endpoint`` and reads
+    ``__module__``/``__name__`` off it to decide rate-limit exemption. A
+    ``Mount`` has no ``.endpoint`` at all, so the MCP transport was always
+    exempt by accident of that omission; a ``Route`` does have one, so the
+    endpoint needs those attributes set and registered as exempt — otherwise
+    the middleware raises ``AttributeError`` on every single MCP request, and
+    without the exemption the session manager (which multiplexes many logical
+    MCP calls per connection) would be throttled by a client's ordinary HTTP
+    rate limit.
+    """
+    from slowapi import Limiter
+    from slowapi.middleware import SlowAPIMiddleware
+    from slowapi.util import get_remote_address
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+
+    mcp_path = f"{API_V1_STR}/mcp"
+    app = FastAPI()
+    test_limiter = Limiter(key_func=get_remote_address, default_limits=["1/hour"])
+    app.state.limiter = test_limiter
+    app.add_middleware(SlowAPIMiddleware)
+
+    class _Endpoint:
+        async def __call__(self, scope, receive, send) -> None:
+            scope = {**scope, "path": "/", "raw_path": b"/"}
+            resp = PlainTextResponse("mcp-root")
+            await resp(scope, receive, send)
+
+    endpoint = _Endpoint()
+    endpoint.__module__ = __name__
+    endpoint.__name__ = "mcp_endpoint"
+    test_limiter._exempt_routes.add(f"{endpoint.__module__}.{endpoint.__name__}")
+    app.router.routes.append(Route(mcp_path, endpoint=endpoint, methods=None))
+
+    http = TestClient(app)
+
+    # Far more than the 1/hour default — every one must succeed with no crash
+    # and no 429, proving the exemption (not just the absence of a crash).
+    for _ in range(5):
+        response = http.get(mcp_path)
+        assert response.status_code == 200, response.status_code
+
+
+@pytest.mark.unit
 def test_real_app_serves_docs_only_when_enabled() -> None:
     # The deployed app object reflects the (default-on) setting — guards
     # against the wiring in app.main drifting from ENABLE_API_DOCS. docs_url is
