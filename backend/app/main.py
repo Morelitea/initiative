@@ -769,11 +769,57 @@ if settings.ENABLE_MCP:
     # RouteMap can see them. ``combine_lifespans`` runs the MCP session-manager
     # lifespan alongside the app's own startup/shutdown (see ``lifespan``).
     from fastmcp.utilities.lifespan import combine_lifespans
+    from starlette.routing import Route
 
     from app.mcp_server import build_mcp_server
 
+    _mcp_path = f"{API_V1_STR}/mcp"
     _mcp_app = build_mcp_server(app).http_app(path="/")
-    app.mount(f"{API_V1_STR}/mcp", _mcp_app)
+
+    # Mount requires an exact trailing-slash match on its own prefix: a
+    # request for the bare path (no trailing slash) 404s instead of reaching
+    # the sub-app, which only has a route at its own root ("/"). Several MCP
+    # clients — including claude.ai's browser-based connectors — construct or
+    # save the connector URL without the trailing slash, so this is the
+    # request they actually send. A redirect was tried first, but browser
+    # clients don't reliably replay a streamed request (SSE, chunked POST)
+    # across an HTTP redirect; some just keep re-requesting the original URL.
+    #
+    # FastMCP's own maintainers hit this same problem mounting *their* session
+    # handler and fixed it the same way: swap Mount for Route, since Route
+    # matches one exact path with no prefix/trailing-slash logic at all
+    # (github.com/PrefectHQ/fastmcp#1364, fixed by PR #1387). Wrapping the
+    # forwarder in a plain callable *class* rather than a function matters —
+    # Starlette's Route treats a function endpoint as `(request) -> Response`
+    # and wraps it accordingly, but leaves a non-function/method callable
+    # alone as raw ASGI passthrough (streaming included). Two Routes, one per
+    # spelling, both forwarding to the same sub-app: no redirect needed, no
+    # cooperation required from the client either way.
+    class _McpEndpoint:
+        async def __call__(self, scope, receive, send) -> None:
+            scope = {**scope, "path": "/", "raw_path": b"/"}
+            await _mcp_app(scope, receive, send)
+
+    _mcp_endpoint = _McpEndpoint()
+    # SlowAPIMiddleware resolves the matched route's `.endpoint` and reads
+    # `__module__`/`__name__` off it to decide rate-limit exemption
+    # (slowapi/middleware.py: `_find_route_handler` + `_get_route_name`) — a
+    # `Mount` has no `.endpoint` at all, so the MCP transport was always
+    # exempt from rate limiting by accident of that omission; a `Route` does
+    # have one, so without these attributes the middleware raises
+    # ``AttributeError`` on every request. Set them and register the exact
+    # exemption `limiter.exempt` would, to keep the transport's prior
+    # unlimited behavior — the session manager multiplexes many logical MCP
+    # calls per connection, so counting it against a client's default HTTP
+    # rate limit would throttle unrelated tool calls.
+    _mcp_endpoint.__module__ = __name__
+    _mcp_endpoint.__name__ = "mcp_endpoint"
+    limiter._exempt_routes.add(f"{_mcp_endpoint.__module__}.{_mcp_endpoint.__name__}")
+
+    app.router.routes.append(Route(_mcp_path, endpoint=_mcp_endpoint, methods=None))
+    app.router.routes.append(
+        Route(f"{_mcp_path}/", endpoint=_mcp_endpoint, methods=None)
+    )
     app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
 
 
