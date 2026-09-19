@@ -47,7 +47,7 @@ from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
 from app.core.tools import Tool
 from app.db.initiative_rls import (
-    COMMENT_PARENT_COLUMNS,
+    COMMENT_PARENTS,
     INITIATIVE_PATHS,
     governing_path,
 )
@@ -635,24 +635,17 @@ $resource_frozen$;
 """
 
 
-def _comment_parent_table(column: str) -> str:
-    """The table a comment's parent column points at.
-
-    ``task_id`` is the one that is not a tool's own column; every other parent
-    is the tool named by the column stem, which is how ``_comments_dac`` reads
-    the same list.
-    """
-    if column == "task_id":
-        return "tasks"
-    return Tool(column.removesuffix("_id")).plural
-
-
 def _comments_leg(alias: str, trashed_ok: str) -> str:
-    """A comment freezes with the one thing it hangs off."""
+    """A comment freezes with the one thing it hangs off.
+
+    Which table that is comes from the parent registry the policies are
+    rendered from, so a comment cannot freeze with one parent and be gated
+    through another.
+    """
     legs = [
         f"({alias}.{column} IS NOT NULL AND public.resource_frozen("
-        f"'{_comment_parent_table(column)}', {alias}.{column}, {trashed_ok}))"
-        for column in COMMENT_PARENT_COLUMNS
+        f"'{parent.table}', {alias}.{column}, {trashed_ok}))"
+        for column, parent in COMMENT_PARENTS.items()
     ]
     return "(" + " OR ".join(legs) + ")"
 

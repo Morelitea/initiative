@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from app.core.tools import Tool
+from app.core.tools import COMMENT_TARGETS
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
@@ -61,18 +61,18 @@ class CommentBase(SanitizedBaseModel):
         return normalized
 
 
-# Every comment parent, in one place: the task plus one field per tool. The
-# comments table carries a matching FK per entry, and the create/list surfaces
-# take exactly one of them.
-# Derived from the enum: a new tool's field joins by existing.
-COMMENT_TARGET_FIELDS: tuple[str, ...] = (
-    "task_id",
-    *(f"{tool.value}_id" for tool in Tool),
+# Every comment parent, in one place: one field per tool plus the content-level
+# extras. The comments table carries a matching FK per entry, and the
+# create/list surfaces take exactly one of them.
+# Derived from the registry: a new parent's field joins by existing.
+COMMENT_TARGET_FIELDS: tuple[str, ...] = tuple(
+    f"{target}_id" for target in COMMENT_TARGETS
 )
 
 
 class CommentCreate(CommentBase):
     task_id: Optional[int] = Field(default=None, gt=0)
+    wiki_page_id: Optional[int] = Field(default=None, gt=0)
     document_id: Optional[int] = Field(default=None, gt=0)
     project_id: Optional[int] = Field(default=None, gt=0)
     queue_id: Optional[int] = Field(default=None, gt=0)
@@ -123,6 +123,7 @@ class CommentRead(CommentBase):
     id: int
     created_by: int
     task_id: Optional[int] = None
+    wiki_page_id: Optional[int] = None
     document_id: Optional[int] = None
     queue_id: Optional[int] = None
     counter_group_id: Optional[int] = None

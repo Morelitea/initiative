@@ -58,6 +58,10 @@ export const ToolSettingsDetailsPage = () => {
   // Only a post takes reactions of its own; everywhere else they hang off a
   // comment, and the thread's own switch above already answers for them.
   const showsReactionSwitch = tool === Tool.post;
+  // A wiki's switch governs the threads on its PAGES, which is not what a
+  // card labelled with the wiki's name reads as. Held back until it is
+  // offered where the pages are.
+  const showsCommentSwitch = tool !== Tool.wiki;
 
   const handleDetailsSave = () => {
     // What is being sent, so anything typed while this is in flight is not
@@ -146,31 +150,33 @@ export const ToolSettingsDetailsPage = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle>{t("toolSettings.comments")}</CardTitle>
-            <CardDescription>{t("toolSettings.commentsDescription")}</CardDescription>
-          </div>
-          <Switch
-            id="tool-settings-comments-enabled"
-            checked={commentsEnabled}
-            onCheckedChange={(value) => {
-              // Saved on flip rather than behind the Save button above, like
-              // the tag picker: the switch shows the new state immediately and
-              // puts the old one back if the write fails.
-              const previous = commentsEnabled;
-              setCommentsEnabled(value);
-              setToolComments.mutate(
-                { id: entity.id, enabled: value },
-                { onError: () => setCommentsEnabled(previous) }
-              );
-            }}
-            disabled={!canManage || setToolComments.isPending}
-            aria-label={t("toolSettings.commentsToggle")}
-          />
-        </CardHeader>
-      </Card>
+      {showsCommentSwitch && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle>{t("toolSettings.comments")}</CardTitle>
+              <CardDescription>{t("toolSettings.commentsDescription")}</CardDescription>
+            </div>
+            <Switch
+              id="tool-settings-comments-enabled"
+              checked={commentsEnabled}
+              onCheckedChange={(value) => {
+                // Saved on flip rather than behind the Save button above, like
+                // the tag picker: the switch shows the new state immediately and
+                // puts the old one back if the write fails.
+                const previous = commentsEnabled;
+                setCommentsEnabled(value);
+                setToolComments.mutate(
+                  { id: entity.id, enabled: value },
+                  { onError: () => setCommentsEnabled(previous) }
+                );
+              }}
+              disabled={!canManage || setToolComments.isPending}
+              aria-label={t("toolSettings.commentsToggle")}
+            />
+          </CardHeader>
+        </Card>
+      )}
 
       {showsReactionSwitch && (
         <Card>

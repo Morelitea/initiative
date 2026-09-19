@@ -1951,6 +1951,7 @@ export interface CommentAuthor {
 export interface CommentCreate {
   content: string;
   task_id?: number | null;
+  wiki_page_id?: number | null;
   document_id?: number | null;
   project_id?: number | null;
   queue_id?: number | null;
@@ -1989,6 +1990,7 @@ export interface CommentRead {
   id: number;
   created_by: number;
   task_id: number | null;
+  wiki_page_id: number | null;
   document_id: number | null;
   queue_id: number | null;
   counter_group_id: number | null;
@@ -8769,6 +8771,7 @@ export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   post_id?: number | null;
   gallery_id?: number | null;
   wiki_id?: number | null;
+  wiki_page_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
@@ -9440,6 +9443,10 @@ export type ListWikisApiV1GGuildIdWikisGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * Only wikis carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */

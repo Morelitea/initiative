@@ -150,6 +150,24 @@ NON_EXPORTABLE_TOOLS = frozenset(
 BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 
 
+# Comment surfaces: EVERY tool carries a thread, plus these content-level
+# extras — sub-resources with a conversation of their own. A task holds one
+# because a task is a piece of work people talk about; a wiki page holds one
+# because a page is what somebody reads, and a note about the rota belongs on
+# the rota rather than on the handbook it is filed in.
+#
+# An extra carries no ``comments_enabled`` column of its own; it is reached
+# through the tool that owns it, and that tool's switch is what answers for it
+# — a wiki's switch turns off the threads on its pages. The task is the one
+# exception, and deliberately so: its thread predates the switch and belongs
+# to the task rather than to the project's tool surface.
+#
+# Extras come first so the declaration order — and every derived column list —
+# keeps reading task-first, as it always has.
+COMMENTABLE_EXTRAS: tuple[str, ...] = ("task", "wiki_page")
+COMMENT_TARGETS: tuple[str, ...] = COMMENTABLE_EXTRAS + tuple(t.value for t in Tool)
+
+
 # Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
 # extras — sub-resources of a tool (tasks, queue items) rather than tools
 # themselves. The assignment registry (app.services.tenant.tags.TAG_LINKS) and

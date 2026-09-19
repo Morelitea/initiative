@@ -1,22 +1,34 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, FilePlus, Search, Settings } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  FilePlus,
+  Search,
+  Settings,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool, WikiPageKind, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { AddWikiDocumentDialog } from "@/components/initiativeTools/wikis/AddWikiDocumentDialog";
 import { WikiPageActions } from "@/components/initiativeTools/wikis/WikiPageActions";
-import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
+import {
+  useWikiTreeExpansion,
+  WikiPageTree,
+} from "@/components/initiativeTools/wikis/WikiPageTree";
 import { Button } from "@/components/ui/button";
 import {
   SidebarContent,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCreateWikiPage,
   useMoveWikiDocument,
@@ -74,6 +86,10 @@ export const WikiSidebarContent = ({
   const moveDocument = useMoveWikiDocument(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
+
+  // Which rows are open. Held here rather than inside the tree because the
+  // button over it acts on the same set the rows do.
+  const expansion = useWikiTreeExpansion(pages);
 
   // Searching a wiki is finding a page in it, so this filters the tree rather
   // than opening the palette: the answer is a list of pages, and the list is
@@ -184,6 +200,36 @@ export const WikiSidebarContent = ({
             )
           ) : (
             <>
+              {/* The tree's own heading, and the control that opens or closes
+                  all of it — the same pairing the app's sidebar uses over its
+                  initiatives and its tags. */}
+              <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                <span className="flex-1">{t("pages.groupLabel")}</span>
+                {!expansion.isEmpty && (
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={expansion.toggleAll}
+                        aria-label={
+                          expansion.allOpen ? t("pages.collapseAll") : t("pages.expandAll")
+                        }
+                      >
+                        {expansion.allOpen ? (
+                          <ChevronsDownUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronsUpDown className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>{expansion.allOpen ? t("pages.collapseAll") : t("pages.expandAll")}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </SidebarGroupLabel>
               <WikiPageTree
                 pages={pages}
                 activePageId={activePageId}
@@ -195,6 +241,7 @@ export const WikiSidebarContent = ({
                       : wikiPageRoute(initiativeId, wikiId, page.id)
                   )
                 }
+                expansion={expansion}
                 onMove={canWrite ? movePageTo : undefined}
                 renderRowMenu={
                   canWrite && wikiQuery.data

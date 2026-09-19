@@ -53,7 +53,10 @@
     "draft": "Brouillon",
     "previous": "Précédent",
     "next": "Suivant",
-    "nav": "Les pages de part et d’autre de celle-ci"
+    "nav": "Les pages de part et d’autre de celle-ci",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "groupLabel": "Pages"
   },
   "links": {
     "title": "Connexions",
@@ -72,7 +75,9 @@
     "heading": "Filtres",
     "searchLabel": "Nom ou description",
     "searchWikis": "Rechercher des wikis...",
-    "noMatchingWikis": "Aucun wiki ne correspond à vos filtres."
+    "noMatchingWikis": "Aucun wiki ne correspond à vos filtres.",
+    "tags": "Étiquettes",
+    "anyTag": "N'importe quelle étiquette"
   },
   "settings": {
     "title": "Paramètres du wiki",
@@ -103,8 +108,8 @@
     "templateDescription": "Copie le contenu d’une page dans chaque nouvelle page. Pratique pour garder des entrées de même forme.",
     "templateNone": "Une page vide",
     "saved": "Paramètres enregistrés",
-    "tabSite": "Site",
-    "reading": "Lecture",
+    "tabReading": "Lecture",
+    "reading": "Mise en page",
     "readingDescription": "La largeur d'une page, et ce qui l'accompagne.",
     "appearance": "Apparence",
     "appearanceDescription": "La couleur à laquelle on reconnaît ce wiki.",

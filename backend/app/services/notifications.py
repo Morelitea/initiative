@@ -1258,16 +1258,21 @@ async def notify_comment_on_resource(
     guild_id: int,
     initiative_id: int | None = None,
     tool: str | None = None,
+    target: tuple[str, int] | None = None,
 ) -> None:
     """Notify a tool entity's creator that someone commented on it.
 
     One notification for every tool parent — project, document, queue,
     counter group, calendar, dashboard. ``entity_type`` is the Tool value.
+
+    ``target`` says where the notice should OPEN where that is not the thing it
+    is about: a wiki page has no address taking only its own id, so a notice
+    about one opens its wiki. It defaults to the entity itself.
     """
     if owner.id == commenter.id:
         return
 
-    target_path = _tool_target_path(entity_type, entity_id)
+    target_path = _tool_target_path(*(target or (entity_type, entity_id)))
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = handle_of(commenter)
     locale = _recipient_locale(owner)

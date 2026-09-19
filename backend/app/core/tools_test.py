@@ -150,28 +150,46 @@ def test_every_tool_is_taggable():
 
 
 def test_every_tool_is_commentable():
-    # Comments span EVERY tool plus the task: the service registry, the
-    # comments table's parent FKs, the RLS parent declaration, and the create
-    # schema's target fields all agree. A new tool that forgets its
-    # CommentTarget fails here.
+    # Comments span EVERY tool plus the content-level extras: the service
+    # registry, the comments table's parent FKs, the RLS parent declaration,
+    # and the create schema's target fields all agree. A new tool that forgets
+    # its CommentTarget — or an extra that forgets its column — fails here.
     from sqlalchemy import inspect as sa_inspect
 
+    from app.core.tools import COMMENTABLE_EXTRAS, COMMENT_TARGETS
     from app.db.initiative_rls import _COMMENT_PARENTS
     from app.models.tenant.comment import Comment
     from app.schemas.tenant.comment import COMMENT_TARGET_FIELDS
     from app.services.tenant.comments import (
         COMMENT_PARENT_COLUMNS,
+        EXTRA_COMMENT_TARGETS,
         TOOL_COMMENT_TARGETS,
     )
 
     assert set(TOOL_COMMENT_TARGETS) == set(Tool)
-    assert set(COMMENT_PARENT_COLUMNS) == {"task_id"} | {f"{t.value}_id" for t in Tool}
+    # The extras are the ones that are NOT tools, and nothing is both.
+    assert set(COMMENT_TARGETS) == set(COMMENTABLE_EXTRAS) | {t.value for t in Tool}
+    assert not set(COMMENTABLE_EXTRAS) & {t.value for t in Tool}
+    assert set(COMMENT_PARENT_COLUMNS) == {f"{target}_id" for target in COMMENT_TARGETS}
+    assert set(EXTRA_COMMENT_TARGETS) == {f"{extra}_id" for extra in COMMENTABLE_EXTRAS}
 
     model_columns = {c.name for c in sa_inspect(Comment).persist_selectable.columns}
     assert set(COMMENT_PARENT_COLUMNS) <= model_columns
 
     assert {p.column for p in _COMMENT_PARENTS} == set(COMMENT_PARENT_COLUMNS)
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
+
+    # Every extra names a tool to answer for it, and a real column to reach it
+    # by — that is what makes a thread on something that is not a tool gated
+    # like one.
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        parent = next(p for p in _COMMENT_PARENTS if p.column == column)
+        assert parent.tool_fk is not None, column
+        extra_columns = {
+            c.name for c in sa_inspect(extra.model).persist_selectable.columns
+        }
+        assert parent.tool_fk in extra_columns, column
+        assert extra.title_field in extra_columns, column
 
 
 def test_every_tool_has_its_sharing_refusal_in_every_locale():

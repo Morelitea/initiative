@@ -108,6 +108,47 @@ async def test_soft_delete_project_cascades_to_tasks(session: AsyncSession):
     assert refreshed_a.purge_at is not None
 
 
+async def test_soft_delete_wiki_page_takes_its_thread(session: AsyncSession):
+    """A page's conversation is the page's, so it goes into the bin with it —
+    and its wiki's own thread, which is a different thread, stays where it is."""
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import create_comment, create_wiki, create_wiki_page
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user)
+    on_page = await create_comment(session, user, wiki_page=page)
+    on_wiki = await create_comment(session, user, wiki=wiki)
+
+    await soft_delete_entity(
+        session, page, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    trashed_page = (
+        await session.exec(
+            select_including_deleted(WikiPage).where(WikiPage.id == page.id)
+        )
+    ).one()
+    trashed_comment = (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_page.id)
+        )
+    ).one()
+    untouched = (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_wiki.id)
+        )
+    ).one()
+
+    assert trashed_page.deleted_at is not None
+    assert trashed_comment.deleted_at == trashed_page.deleted_at
+    assert untouched.deleted_at is None
+
+
 async def test_restore_project_unstamps_only_matching_descendants(
     session: AsyncSession,
 ):

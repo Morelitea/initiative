@@ -173,10 +173,11 @@ async def _wiki_scope(
     *,
     initiative_id: Optional[int],
     search: Optional[str] = None,
+    tag_ids: Optional[List[int]] = None,
 ) -> list | None:
     """Which wikis this reader may see — the guild, the feature switch,
-    sharing, and the search box. ``None`` means the initiative exists but has
-    the tool turned off."""
+    sharing, the search box, and the tag filter. ``None`` means the initiative
+    exists but has the tool turned off."""
     conditions = [Wiki.guild_id == guild_context.guild_id]
 
     if initiative_id is not None:
@@ -205,6 +206,18 @@ async def _wiki_scope(
     if name_match is not None:
         conditions.append(name_match)
 
+    # ANY-of, like every other tag filter: asking for two tags is asking for
+    # either, because a shelf is narrowed by what a reader remembers about a
+    # wiki rather than by everything that is true of it.
+    if tag_ids:
+        conditions.append(
+            Wiki.id.in_(
+                tags_service.tagged_entity_ids(
+                    tags_service.TAG_LINKS[Tool.wiki.value], tuple(tag_ids)
+                )
+            )
+        )
+
     return conditions
 
 
@@ -231,6 +244,10 @@ async def list_wikis(
         description="Order by one of: name, initiative, updated_at. Omit for newest first.",
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    tag_ids: Optional[List[int]] = Query(
+        default=None,
+        description="Only wikis carrying any of these tags.",
+    ),
     archived: Optional[bool] = Query(
         default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
     ),
@@ -239,7 +256,12 @@ async def list_wikis(
 ) -> WikiListResponse:
     """List wikis visible to the current user (guild admins see all)."""
     scope = await _wiki_scope(
-        session, current_user, guild_context, initiative_id=initiative_id, search=search
+        session,
+        current_user,
+        guild_context,
+        initiative_id=initiative_id,
+        search=search,
+        tag_ids=tag_ids,
     )
     if scope is None:
         return WikiListResponse(

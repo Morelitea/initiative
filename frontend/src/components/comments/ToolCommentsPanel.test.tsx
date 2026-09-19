@@ -51,6 +51,37 @@ describe("ToolCommentsPanel", () => {
     expect(requests[0].get("dashboard_id")).toBe("12");
   });
 
+  it("asks for the target's thread, not the tool's, when one is given", async () => {
+    const requests = captureList();
+
+    renderWithProviders(
+      <ToolCommentsPanel
+        tool={Tool.wiki}
+        entity={{ id: 7, initiative_id: 4, comments_enabled: true }}
+        target={{ type: "wiki_page", id: 42 }}
+      />
+    );
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].get("wiki_page_id")).toBe("42");
+    expect(requests[0].get("wiki_id")).toBeNull();
+  });
+
+  it("still lets the tool answer for whether a target's thread exists", async () => {
+    const requests = captureList();
+
+    const { container } = renderWithProviders(
+      <ToolCommentsPanel
+        tool={Tool.wiki}
+        entity={{ id: 7, initiative_id: 4, comments_enabled: false }}
+        target={{ type: "wiki_page", id: 42 }}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(requests).toHaveLength(0);
+  });
+
   it("renders nothing and asks for nothing when the entity has comments off", async () => {
     const requests = captureList();
 

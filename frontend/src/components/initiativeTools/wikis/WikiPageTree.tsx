@@ -355,6 +355,11 @@ interface WikiPageTreeProps {
    * write, which is also what makes rows undraggable.
    */
   onMove?: (page: WikiPageSummary, parentPageId: number | null, position: number) => void;
+  /**
+   * Which rows are open, where the caller is also drawing a control over them
+   * — the open/close-all button. Omitted, the tree keeps its own.
+   */
+  expansion?: WikiTreeExpansion;
   className?: string;
 }
 
@@ -375,6 +380,47 @@ interface WikiPageTreeProps {
  * you drag: the sensors want six pixels of travel first, so a click only ever
  * follows the link.
  */
+/**
+ * Which rows are open.
+ *
+ * Held in a hook of its own so a control BESIDE the tree — the open/close-all
+ * button over the sidebar — can act on the same set the rows toggle. A tree
+ * given none keeps its own, which is what every other caller wants.
+ *
+ * `openable` is every row that has something inside it: pages filed under it,
+ * or headings written on it. Both are what a disclosure opens, so both count
+ * towards "everything is open".
+ */
+export const useWikiTreeExpansion = (pages: readonly WikiPageSummary[]) => {
+  // Closed is the default: this column is a list of pages, and a page's
+  // headings are what you ask for once you are interested in that page. So
+  // this records the pages somebody has deliberately opened.
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
+
+  const openable = useMemo(() => {
+    const parents = new Set(
+      pages.map((page) => page.parent_page_id).filter((id): id is number => id != null)
+    );
+    return pages
+      .filter((page) => parents.has(page.id) || page.headings.length > 0)
+      .map((page) => page.id);
+  }, [pages]);
+
+  const allOpen = openable.length > 0 && openable.every((id) => expanded.has(id));
+
+  return {
+    expanded,
+    setExpanded,
+    /** Whether the button should offer to close rather than open. */
+    allOpen,
+    /** Nothing to open or close — the button has no work, so it is not shown. */
+    isEmpty: openable.length === 0,
+    toggleAll: () => setExpanded(allOpen ? new Set<number>() : new Set(openable)),
+  };
+};
+
+export type WikiTreeExpansion = ReturnType<typeof useWikiTreeExpansion>;
+
 export const WikiPageTree = ({
   pages,
   activePageId,
@@ -383,14 +429,15 @@ export const WikiPageTree = ({
   hrefOf,
   renderRowMenu,
   onMove,
+  expansion,
   className,
 }: WikiPageTreeProps) => {
   const { t } = useTranslation("wikis");
 
-  // Closed is the default: this column is a list of pages, and a page's
-  // headings are what you ask for once you are interested in that page. So
-  // this records the pages somebody has deliberately opened.
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
+  // A tree nobody is driving from outside keeps its own set. The hook runs
+  // either way — it has to, being a hook — and the caller's wins.
+  const own = useWikiTreeExpansion(pages);
+  const { expanded, setExpanded } = expansion ?? own;
   const toggle = (id: number) =>
     setExpanded((previous) => {
       const next = new Set(previous);
@@ -420,7 +467,9 @@ export const WikiPageTree = ({
     }
     if (ancestors.length === 0) return;
     setExpanded((previous) => new Set([...previous, ...ancestors]));
-  }, [activePageId, pages]);
+    // `setExpanded` is a `useState` setter either way — its own or the
+    // caller's — so naming it here costs nothing and keeps the rule honest.
+  }, [activePageId, pages, setExpanded]);
 
   // The same activation distances the guild rail uses, so a drag started
   // anywhere in the sidebar feels the same.

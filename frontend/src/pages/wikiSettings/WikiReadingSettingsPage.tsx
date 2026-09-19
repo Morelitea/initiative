@@ -1,5 +1,5 @@
 /**
- * `/settings/site` — what this wiki is, as a place.
+ * `/settings/reading` — how this wiki reads.
  *
  * A handbook is read front to back and ordered by hand; a world bible has two
  * hundred entries nobody orders by hand; a runbook is full of screenshots and
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { useUpdateWiki, useWiki, useWikiPages } from "@/hooks/useWikis";
+import { useUpdateWiki, useWiki } from "@/hooks/useWikis";
 import { cn } from "@/lib/utils";
 
 /** What the picker opens on when the wiki has no accent of its own. */
@@ -60,18 +60,16 @@ const Setting = ({
   </div>
 );
 
-export const WikiSiteSettingsPage = () => {
+export const WikiReadingSettingsPage = () => {
   const { t } = useTranslation("wikis");
   const { wikiId } = useParams({ strict: false }) as { wikiId?: string };
   const parsedId = wikiId ? Number(wikiId) : Number.NaN;
   const isValidId = Number.isFinite(parsedId);
 
   const wikiQuery = useWiki(isValidId ? parsedId : null);
-  const pagesQuery = useWikiPages(isValidId ? parsedId : null);
   const update = useUpdateWiki(parsedId);
 
   const wiki = wikiQuery.data;
-  const pages = pagesQuery.data?.items ?? [];
 
   if (!wiki) {
     return <p className="text-muted-foreground text-sm">{t("loading")}</p>;
@@ -240,11 +238,16 @@ export const WikiSiteSettingsPage = () => {
             className="items-center"
             control={
               <div className="flex items-center gap-2">
+                {/* The picker's trigger is `w-full` by default, sized for a
+                    form column; here it sits in a row that hugs its content,
+                    so it is given a width of its own and the button beside it
+                    stays on the card. */}
                 <ColorPickerPopover
                   value={wiki.accent_color ?? DEFAULT_ACCENT}
                   onChangeComplete={(colour) => save({ accent_color: colour })}
                   disabled={!canWrite}
                   triggerLabel={t("settings.accent")}
+                  className="w-40"
                 />
                 {wiki.accent_color ? (
                   <Button
@@ -258,68 +261,6 @@ export const WikiSiteSettingsPage = () => {
                   </Button>
                 ) : null}
               </div>
-            }
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.pages")}</CardTitle>
-          <CardDescription>{t("settings.pagesDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Setting
-            label={t("settings.home")}
-            hint={t("settings.homeDescription")}
-            control={
-              <Select
-                value={wiki.home_page_id ? String(wiki.home_page_id) : "none"}
-                onValueChange={(value) =>
-                  save({ home_page_id: value === "none" ? null : Number(value) })
-                }
-                disabled={!canWrite}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("settings.homeNone")}</SelectItem>
-                  {pages.map((page) => (
-                    <SelectItem key={page.id} value={String(page.id)}>
-                      {page.title || t("pages.untitled")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-          />
-
-          <Separator />
-
-          <Setting
-            label={t("settings.template")}
-            hint={t("settings.templateDescription")}
-            control={
-              <Select
-                value={wiki.template_page_id ? String(wiki.template_page_id) : "none"}
-                onValueChange={(value) =>
-                  save({ template_page_id: value === "none" ? null : Number(value) })
-                }
-                disabled={!canWrite}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("settings.templateNone")}</SelectItem>
-                  {pages.map((page) => (
-                    <SelectItem key={page.id} value={String(page.id)}>
-                      {page.title || t("pages.untitled")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             }
           />
         </CardContent>

@@ -11,10 +11,10 @@ import { describe, expect, it } from "vitest";
 
 import { buildWikiPage } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import { WikiPageKind } from "@/api/generated/initiativeAPI.schemas";
+import { WikiPageKind, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-import { dropIntents, WikiPageTree } from "./WikiPageTree";
+import { dropIntents, useWikiTreeExpansion, WikiPageTree } from "./WikiPageTree";
 
 const page = buildWikiPage({
   id: 11,
@@ -77,6 +77,59 @@ describe("pages filed under pages", () => {
     // What is ON the page, and then what is filed UNDER it.
     expect(await screen.findByText("What to bring")).toBeInTheDocument();
     expect(screen.getByText("What it costs")).toBeInTheDocument();
+  });
+});
+
+describe("opening and closing the whole tree at once", () => {
+  /** A tree driven by the caller's expansion, the way the sidebar drives it. */
+  const Driven = ({ pages }: { pages: WikiPageSummary[] }) => {
+    const expansion = useWikiTreeExpansion(pages);
+    return (
+      <SidebarProvider>
+        <button type="button" onClick={expansion.toggleAll}>
+          {expansion.allOpen ? "close all" : "open all"}
+        </button>
+        <WikiPageTree
+          pages={pages}
+          activePageId={null}
+          homePageId={null}
+          hrefOf={() => "/page"}
+          expansion={expansion}
+        />
+      </SidebarProvider>
+    );
+  };
+
+  it("opens every row that has something inside it, and closes them again", async () => {
+    const user = userEvent.setup();
+    renderPage(() => <Driven pages={[page, child]} />, { initialRoute: "/wiki" });
+
+    await screen.findByText("Step 1");
+    expect(screen.queryByText("What it costs")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "open all" }));
+    // Both of what a disclosure opens: the headings on the page, and what is
+    // filed under it.
+    expect(await screen.findByText("What to bring")).toBeInTheDocument();
+    expect(screen.getByText("What it costs")).toBeInTheDocument();
+
+    // Now everything is open, so the control offers the other direction.
+    await user.click(screen.getByRole("button", { name: "close all" }));
+    expect(screen.queryByText("What it costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("What to bring")).not.toBeInTheDocument();
+  });
+
+  it("reports nothing to act on when no page holds anything", async () => {
+    // What the sidebar reads to leave the control out rather than offering a
+    // button that would do nothing.
+    const flat = buildWikiPage({ id: 20, wiki_id: 3, title: "Just this", headings: [] });
+    const Probe = () => {
+      const expansion = useWikiTreeExpansion([flat]);
+      return <p>{expansion.isEmpty ? "nothing to open" : "something to open"}</p>;
+    };
+    renderPage(() => <Probe />, { initialRoute: "/wiki" });
+
+    expect(await screen.findByText("nothing to open")).toBeInTheDocument();
   });
 });
 

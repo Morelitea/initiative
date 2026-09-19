@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   archivedParam,
@@ -15,6 +16,7 @@ import { CreateWikiDialog } from "@/components/initiativeTools/wikis/CreateWikiD
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +48,7 @@ export const WikisView = ({ fixedInitiativeId, canCreate }: WikisViewProps) => {
   const gp = useGuildPath();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useDebouncedValue(searchQuery, 300);
 
@@ -57,6 +60,7 @@ export const WikisView = ({ fixedInitiativeId, canCreate }: WikisViewProps) => {
     initiative_id: fixedInitiativeId,
     archived: archivedParam(archiveState),
     ...(search.trim() ? { search: search.trim() } : {}),
+    ...(tagFilters.length > 0 ? { tag_ids: tagFilters.map((tag) => tag.id) } : {}),
   });
 
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.wiki, {
@@ -75,8 +79,11 @@ export const WikisView = ({ fixedInitiativeId, canCreate }: WikisViewProps) => {
   );
 
   const wikis = useMemo(() => wikisQuery.data?.items ?? [], [wikisQuery.data]);
-  const activeFilterCount = search.trim() ? 1 : 0;
-  const clearFilters = useCallback(() => setSearchQuery(""), []);
+  const activeFilterCount = (search.trim() ? 1 : 0) + (tagFilters.length > 0 ? 1 : 0);
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setTagFilters([]);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -111,16 +118,33 @@ export const WikisView = ({ fixedInitiativeId, canCreate }: WikisViewProps) => {
         onClear={clearFilters}
         activeCount={activeFilterCount}
       >
-        <div className="w-full space-y-2 lg:max-w-md">
-          <Label htmlFor="wiki-search" className="block font-medium text-muted-foreground text-xs">
-            {t("filters.searchLabel")}
-          </Label>
-          <Input
-            id="wiki-search"
-            placeholder={t("filters.searchWikis")}
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-full space-y-2 lg:max-w-md lg:flex-1">
+            <Label
+              htmlFor="wiki-search"
+              className="block font-medium text-muted-foreground text-xs"
+            >
+              {t("filters.searchLabel")}
+            </Label>
+            <Input
+              id="wiki-search"
+              placeholder={t("filters.searchWikis")}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </div>
+          <div className="w-full space-y-2 sm:w-64">
+            <Label htmlFor="wiki-tags" className="block font-medium text-muted-foreground text-xs">
+              {t("filters.tags")}
+            </Label>
+            <TagPicker
+              id="wiki-tags"
+              variant="filter"
+              selectedTags={tagFilters}
+              onChange={setTagFilters}
+              placeholder={t("filters.anyTag")}
+            />
+          </div>
         </div>
       </ToolFilterPanel>
 
