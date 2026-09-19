@@ -5465,6 +5465,75 @@ export interface OwnershipTransferResponse {
   total: number;
 }
 
+/**
+ * One credential, as its holder sees it.
+ */
+export interface PasskeyRead {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at?: string | null;
+  backed_up: boolean;
+  user_verified: boolean;
+  transports?: string[];
+  aaguid?: string | null;
+}
+
+/**
+ * What the account holds, for the settings surface.
+ */
+export interface PasskeyList {
+  passkeys?: PasskeyRead[];
+  password_required?: boolean;
+  limit: number;
+}
+
+export type PasskeyRegisterFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer, and the name the person gives the credential.
+ */
+export interface PasskeyRegisterFinish {
+  credential: PasskeyRegisterFinishCredential;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+}
+
+/**
+ * Beginning a registration. The password is re-checked here, as it is for a
+ * password change; an account with no usable password sends nothing.
+ */
+export interface PasskeyRegisterStart {
+  current_password?: string | null;
+}
+
+export type PasskeyRegistrationOptionsOptions = { [key: string]: unknown };
+
+/**
+ * What the browser's credential API is handed, as the library renders it.
+ */
+export interface PasskeyRegistrationOptions {
+  options: PasskeyRegistrationOptionsOptions;
+}
+
+/**
+ * Removing a way in asks for the password, where there is one.
+ */
+export interface PasskeyRemove {
+  current_password?: string | null;
+}
+
+export interface PasskeyRename {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+}
+
 export interface PasswordResetRequest {
   email: string;
 }

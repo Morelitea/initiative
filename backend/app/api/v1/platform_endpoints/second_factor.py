@@ -18,14 +18,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app.api.deps import get_current_active_user, require_first_party_session
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
-from app.core.messages import AuthMessages, UserMessages
+from app.core.messages import AuthMessages
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     has_usable_password,
     mint_access_token,
-    verify_password,
 )
+from app.api.v1.platform_endpoints.password_recheck import require_password
 from app.api.v1.platform_endpoints.session_cookies import (
     set_refresh_cookie,
     set_session_cookie,
@@ -69,30 +69,6 @@ FirstPartyOnly = Depends(require_first_party_session)
 
 def _iso(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat() if value is not None else None
-
-
-def _require_password(user: User, supplied: Optional[str]) -> None:
-    """Re-check the password, as a password change does.
-
-    The exemption is for an account that holds no password to re-check — one
-    provisioned through an identity provider. Holding a federated identity is
-    not the same question: an account can have both, and one that has a
-    password is asked for it. Nor is "the column is NULL": a hash no scheme
-    verifies is not a password either, and asking for one nobody can supply
-    would shut the account out of its own settings.
-    """
-    if not has_usable_password(user.hashed_password):
-        return
-    if not supplied:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CURRENT_PASSWORD_REQUIRED,
-        )
-    if not verify_password(supplied, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.CURRENT_PASSWORD_INCORRECT,
-        )
 
 
 @router.get("/totp", response_model=SecondFactorStatus)
@@ -143,7 +119,7 @@ async def begin_second_factor(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.TOTP_ALREADY_ENROLLED,
         )
-    _require_password(current_user, payload.current_password)
+    require_password(current_user, payload.current_password)
 
     # What the authenticator app shows under the issuer. The address the
     # person signs in with where there is one, so an account with two entries
@@ -237,7 +213,7 @@ async def disable_second_factor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    _require_password(current_user, payload.current_password)
+    require_password(current_user, payload.current_password)
 
     if payload.recovery_code:
         proved = await totp_service.consume_recovery_code(
@@ -418,7 +394,7 @@ async def regenerate_recovery_codes(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    _require_password(current_user, payload.current_password)
+    require_password(current_user, payload.current_password)
 
     codes = await totp_service.issue_recovery_codes(
         admin_session, user_id=current_user.id

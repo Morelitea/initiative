@@ -57,6 +57,11 @@ class AuditEventType(str, Enum):
     AUTH_SECOND_FACTOR_RESET = "auth.second_factor_reset"
     AUTH_RECOVERY_CODE_USED = "auth.recovery_code_used"
     AUTH_RECOVERY_CODES_ISSUED = "auth.recovery_codes_issued"
+    #: A WebAuthn credential joined or left the account. The row carries the
+    #: passkey's id and what the ceremony reported about it, never the
+    #: credential id and never any key material.
+    AUTH_PASSKEY_REGISTERED = "auth.passkey_registered"
+    AUTH_PASSKEY_REMOVED = "auth.passkey_removed"
     # The native credential, recorded so its use can be observed rather than
     # guessed at. ``used`` rides the sliding window's own throttle, so it is
     # about one event per device per day, not one per request.
@@ -164,6 +169,12 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_RECOVERY_CODES_ISSUED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_PASSKEY_REGISTERED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_PASSKEY_REMOVED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(

@@ -250,5 +250,21 @@
       "body": "Dein Konto fragt bei der Anmeldung keinen Code mehr ab, und deine bisherigen Wiederherstellungscodes wurden verworfen. Du wurdest überall sonst abgemeldet.",
       "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto deaktiviert, und deine Wiederherstellungscodes wurden verworfen."
     }
+  },
+  "passkey": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",
+    "added": {
+      "subject": "Deinem Konto wurde ein Passkey hinzugefügt",
+      "title": "Deinem Konto wurde ein Passkey hinzugefügt",
+      "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich ab jetzt bei deinem Konto anmelden. Passkeys liegen auf dem Gerät oder im Passwortmanager, wo sie erstellt wurden – halte das Gerät also griffbereit.",
+      "textBody": "Deinem Konto wurde der Passkey {{passkey}} hinzugefügt. Du kannst dich damit ab jetzt anmelden."
+    },
+    "removed": {
+      "subject": "Von deinem Konto wurde ein Passkey entfernt",
+      "title": "Von deinem Konto wurde ein Passkey entfernt",
+      "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst.",
+      "textBody": "Der Passkey {{passkey}} wurde von deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
+    }
   }
 }

@@ -85,6 +85,7 @@ from app.api.v1.platform_endpoints import (
     notifications,
     push,
     intake,
+    passkeys,
     second_factor,
     settings,
     user_view_preferences,
@@ -108,6 +109,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # Mounted on the same prefix: the factor routes are part of /auth, kept in
 # their own module rather than growing the sign-in one.
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
+api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

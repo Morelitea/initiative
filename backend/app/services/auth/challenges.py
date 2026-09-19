@@ -54,6 +54,9 @@ class ChallengePurpose(str, Enum):
     #: different things: a browser reads its refresh token from a cookie, and
     #: the app is given it to keep.
     sign_in_native = "sign_in_native"
+    #: A passkey registration is under way. The value is the WebAuthn challenge
+    #: itself, so the finish route reads it back out of the signed client data.
+    passkey_register = "passkey_register"
 
 
 @dataclass(frozen=True)
@@ -77,10 +80,20 @@ def _hash(value: str) -> bytes:
 
 
 async def create(
-    session: AsyncSession, *, user_id: int, purpose: ChallengePurpose
+    session: AsyncSession,
+    *,
+    user_id: int,
+    purpose: ChallengePurpose,
+    value: str | None = None,
 ) -> IssuedChallenge:
-    """Open a challenge for one account. The caller commits."""
-    value = secrets.token_urlsafe(_CHALLENGE_BYTES)
+    """Open a challenge for one account. The caller commits.
+
+    ``value`` lets a caller that already holds the value name it — a WebAuthn
+    ceremony mints its own challenge and the browser signs it, so the row
+    stands for that value rather than for a second one. Without it the value is
+    minted here. Either way only the digest is kept.
+    """
+    value = value or secrets.token_urlsafe(_CHALLENGE_BYTES)
     challenge = AuthChallenge(
         challenge_hash=_hash(value),
         user_id=user_id,

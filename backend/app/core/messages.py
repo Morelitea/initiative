@@ -67,6 +67,14 @@ class AuthMessages:
     TOTP_NOT_ENROLLED = "TOTP_NOT_ENROLLED"
     #: The recovery code did not match an unused one.
     RECOVERY_CODE_INVALID = "RECOVERY_CODE_INVALID"
+    #: The account already holds as many passkeys as one may.
+    PASSKEY_LIMIT_REACHED = "PASSKEY_LIMIT_REACHED"
+    #: The registration ceremony did not verify, or its challenge is not
+    #: standing: never issued, spent, expired, or out of attempts. One code for
+    #: all of those, so the client learns only that it has to begin again.
+    PASSKEY_REGISTRATION_INVALID = "PASSKEY_REGISTRATION_INVALID"
+    #: No passkey by that id on this account.
+    PASSKEY_NOT_FOUND = "PASSKEY_NOT_FOUND"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"
