@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.1] - 2026-09-19
+
 ### Added
 
 - **A community can configure its own sign-in** — **Settings → Community → Security** lets a community say which of the deployment's providers count as its own and which accounts on them are theirs, without ever seeing an address, client or secret. A setup flow asks the four questions in the order they depend on each other: which way in, whose people count, where they land, and whether to insist on it.
