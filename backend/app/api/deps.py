@@ -24,7 +24,10 @@ from app.core.auth_context import (
 )
 from app.services.auth import guild_provider_connections as guild_connections
 from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
+from app.core.login_methods import SecondFactorRequirement
+from app.models.platform.app_setting import AppSetting
 from app.services.platform import auth_posture
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -469,7 +472,12 @@ async def _account_holds_factor(user: User) -> bool:
         return await auth_posture.holds_second_factor(admin_session, user_id=user.id)
 
 
-async def platform_factor_unmet(session: AsyncSession, user: User) -> bool:
+async def platform_factor_unmet(
+    session: AsyncSession,
+    user: User,
+    *,
+    level: SecondFactorRequirement | None = None,
+) -> bool:
     """Whether the deployment asks this account for a second factor it lacks.
 
     Also records what this request answers with, which is what the database
@@ -481,11 +489,17 @@ async def platform_factor_unmet(session: AsyncSession, user: User) -> bool:
     nothing — which is every request on a deployment that asks nobody, so the
     credential stores are never read there at all. Only what is left reads
     them.
+
+    ``level`` is what the deployment asks, where the caller already knows —
+    the guild gate reads the settings row beside the membership it is checking,
+    so the question costs that path no round trip of its own. Left out, it is
+    read here.
     """
     if auth_context.session_mfa():
         auth_context.set_platform_factor(True)
         return False
-    level = await auth_posture.second_factor_requirement(session)
+    if level is None:
+        level = await auth_posture.second_factor_requirement(session)
     if not auth_posture.rule_covers(level, user.role):
         auth_context.set_platform_factor(True)
         return False
@@ -781,26 +795,47 @@ def _enforce_guild_api_access(guild: Guild) -> None:
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 
+def _asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequirement:
+    """What the deployment asks, from the row the gate read.
+
+    A database with no singleton yet asks nothing — the same conclusion
+    ``public.platform_factor_satisfied()`` reaches from the same absence, so
+    the two layers agree on a deployment that has not finished starting.
+    """
+    if settings_row is None:
+        return SecondFactorRequirement.nobody
+    return auth_posture.requirement_from_row(settings_row)
+
+
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
-) -> tuple[GuildMembership, Guild, GuildAuthPolicy | None] | None:
-    """The three rows the gate needs about a member, in one query.
+) -> (
+    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement]
+    | None
+):
+    """The four rows the gate needs about a member, in one query.
 
     ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
     ``public`` and are all keyed on the guild this request addresses, so asking
-    for them separately was three trips for one answer. Each row still comes
-    back under its own policies — an outer join to a row the session may not
-    read yields NULL, exactly as its own SELECT would have. ``None`` means no
-    membership the session can see, which is the grant branch's cue.
+    for them separately was three trips for one answer. The settings singleton
+    rides along for the same reason — what the deployment asks of an account is
+    decided in the same breath as what the community asks of the session, and a
+    read of its own would be a round trip on every guild request there is.
+
+    Each row still comes back under its own policies — an outer join to a row
+    the session may not read yields NULL, exactly as its own SELECT would have.
+    ``None`` means no membership the session can see, which is the grant
+    branch's cue.
     """
     row = (
         await session.exec(
-            select(GuildMembership, Guild, GuildAuthPolicy)
+            select(GuildMembership, Guild, GuildAuthPolicy, AppSetting)
             .select_from(GuildMembership)
             .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
             .outerjoin(
                 GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
             )
+            .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id == user_id,
@@ -809,29 +844,30 @@ async def _read_membership_gate(
     ).one_or_none()
     if row is None:
         return None
-    membership, guild, policy = row
+    membership, guild, policy, settings_row = row
     if guild is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return membership, guild, policy
+    return membership, guild, policy, _asked_of_an_account(settings_row)
 
 
 async def _read_grant_gate(
     session: AsyncSession, guild_id: int
-) -> tuple[Guild, GuildAuthPolicy | None]:
-    """The same two public rows for a grantee, whose PAM context has just been
+) -> tuple[Guild, GuildAuthPolicy | None, SecondFactorRequirement]:
+    """The same public rows for a grantee, whose PAM context has just been
     applied — a grant reaches the guild row through its own policy leg, so this
     read cannot be folded into the membership one above."""
     row = (
         await session.exec(
-            select(Guild, GuildAuthPolicy)
+            select(Guild, GuildAuthPolicy, AppSetting)
             .select_from(Guild)
             .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
+            .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return row[0], row[1]
+    return row[0], row[1], _asked_of_an_account(row[2])
 
 
 async def _load_guild_context(
@@ -861,13 +897,6 @@ async def _load_guild_context(
     # still theirs when the suspension lifts.
     if current_user.status == UserStatus.suspended:
         raise GuildAccessError()
-
-    # What the deployment asks of the account, before what this community asks
-    # of the session. Here as well as in the dependency above because the
-    # sockets, the keepalive and the stream re-check resolve their guild
-    # through this function and never run that one.
-    if await platform_factor_unmet(session, current_user):
-        raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
 
     # Establish the caller context before loading their membership.
     await set_rls_context(
@@ -900,8 +929,15 @@ async def _load_guild_context(
             pam_read=True,
             pam_write=is_read_write,
         )
-        guild, policy = await _read_grant_gate(session, guild_id)
+        guild, policy, asked = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
+        # What the deployment asks of the account, before what this community
+        # asks of the session. Asked here as well as in the dependency above
+        # because the sockets, the keepalive and the stream re-check resolve
+        # their guild through this function and never run that one — off the
+        # row the read above already carried.
+        if await platform_factor_unmet(session, current_user, level=asked):
+            raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
         await _enforce_guild_auth_policy(
@@ -933,11 +969,14 @@ async def _load_guild_context(
                 SettingsLevel(settings_grant.access_level) if settings_grant else None
             ),
         )
-    membership, guild, policy = gate
+    membership, guild, policy, asked = gate
     # Membership access respects the guild's lifecycle status.
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
+    # And the deployment's own question, off the row the gate read carried.
+    if await platform_factor_unmet(session, current_user, level=asked):
+        raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
     await _enforce_guild_auth_policy(
         session,
         policy,

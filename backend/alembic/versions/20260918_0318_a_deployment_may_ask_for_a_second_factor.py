@@ -66,24 +66,36 @@ AS $function$
                   )::int
               AND p.policy <> 'open'
               AND (
+                  -- The provider this guild names, if it names one: the
+                  -- session came through it, and this community counts the
+                  -- arrival as one of its own.
                   (
                       p.provider_id IS NOT NULL
                       AND NOT public.guild_connection_satisfied(
                             p.guild_id, p.provider_id
                           )
                   )
+                  -- Or the account's own second factor, where the community
+                  -- asks for one. The session records it when a code is
+                  -- presented and the request carries that here.
                   OR (
                       'totp' = ANY(p.require_methods)
                       AND COALESCE(
                             current_setting('app.session_mfa', true), 'false'
                           ) <> 'true'
                   )
+                  -- Or a passkey, where the community asks for one. Its own
+                  -- leg rather than the factor's: an assertion records the
+                  -- second factor too, so the two are asked for separately.
                   OR (
                       'passkey' = ANY(p.require_methods)
                       AND COALESCE(
                             current_setting('app.session_passkey', true), 'false'
                           ) <> 'true'
                   )
+                  -- Or any of its own, whichever provider served it. Named
+                  -- rather than counted, so a list holding some other method
+                  -- is not read as this one.
                   OR (
                       'sso' = ANY(p.require_methods)
                       AND NOT public.guild_connection_satisfied(p.guild_id)
@@ -141,24 +153,36 @@ AS $function$
                   )::int
               AND p.policy <> 'open'
               AND (
+                  -- The provider this guild names, if it names one: the
+                  -- session came through it, and this community counts the
+                  -- arrival as one of its own.
                   (
                       p.provider_id IS NOT NULL
                       AND NOT public.guild_connection_satisfied(
                             p.guild_id, p.provider_id
                           )
                   )
+                  -- Or the account's own second factor, where the community
+                  -- asks for one. The session records it when a code is
+                  -- presented and the request carries that here.
                   OR (
                       'totp' = ANY(p.require_methods)
                       AND COALESCE(
                             current_setting('app.session_mfa', true), 'false'
                           ) <> 'true'
                   )
+                  -- Or a passkey, where the community asks for one. Its own
+                  -- leg rather than the factor's: an assertion records the
+                  -- second factor too, so the two are asked for separately.
                   OR (
                       'passkey' = ANY(p.require_methods)
                       AND COALESCE(
                             current_setting('app.session_passkey', true), 'false'
                           ) <> 'true'
                   )
+                  -- Or any of its own, whichever provider served it. Named
+                  -- rather than counted, so a list holding some other method
+                  -- is not read as this one.
                   OR (
                       'sso' = ANY(p.require_methods)
                       AND NOT public.guild_connection_satisfied(p.guild_id)
