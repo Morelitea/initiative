@@ -2,13 +2,13 @@
  * Platform → Security.
  *
  * What the deployment asks of everybody's sign-in, rather than how anybody
- * signs in — that is Authentication, next door. Today that is the one question
- * of how long a session may last; this is the tab further answers of the same
- * kind belong on.
+ * signs in — that is Authentication, next door. Two questions so far: how long
+ * a session may last, and who has to hold a second factor.
  */
 
 import { useTranslation } from "react-i18next";
 
+import { SecondFactorRequirementSection } from "@/components/admin/SecondFactorRequirementSection";
 import { SessionLifetimeSection } from "@/components/admin/SessionLifetimeSection";
 import { useAuth } from "@/hooks/useAuth";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -28,6 +28,7 @@ export const SettingsPlatformSecurityPage = () => {
         <p className="text-muted-foreground text-sm">{t("platformSecurity.description")}</p>
       </div>
       <SessionLifetimeSection />
+      <SecondFactorRequirementSection />
     </div>
   );
 };

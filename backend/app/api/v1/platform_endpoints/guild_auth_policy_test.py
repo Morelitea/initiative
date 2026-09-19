@@ -83,6 +83,9 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
         "provider_slug": "corp",
         "provider_display_name": "Corp SSO",
         "require_methods": [],
+        # The deployment asks nothing of its own, so the community's box for a
+        # second factor is still the community's to tick.
+        "factor_required_by_platform": False,
     }
 
     got = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
@@ -1441,3 +1444,43 @@ async def test_a_community_cannot_ask_for_a_passkey_the_deployment_withholds(
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
     assert refused.headers["X-Auth-Policy-Unmet"] == "passkey"
+
+
+async def test_a_community_is_told_when_the_deployment_asks_everybody(
+    client: AsyncClient, session: AsyncSession
+):
+    """Its own box for a second factor has nothing left to add, so the page
+    reads this and stops offering one. Asking only the platform rungs leaves a
+    community's members untouched, so that box stays."""
+    from app.core.login_methods import SecondFactorRequirement
+    from app.services.platform import app_settings as app_settings_service
+
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.superadmin
+    )
+    # Under ``everyone`` this admin is asked for a factor like anybody else,
+    # so they hold one — which is the state the page is read in.
+    from datetime import datetime, timezone
+
+    from app.models.platform.user_totp import UserTotp
+
+    session.add(UserTotp(user_id=admin.id, confirmed_at=datetime.now(timezone.utc)))
+    await session.commit()
+    headers = {"Authorization": f"Bearer {get_auth_token(admin)}"}
+    url = f"/api/v1/guilds/{guild.id}/auth-policy"
+
+    row = await app_settings_service.get_app_settings(session)
+    for level, told in (
+        (SecondFactorRequirement.platform_roles, False),
+        (SecondFactorRequirement.everyone, True),
+    ):
+        row.second_factor_requirement = level
+        session.add(row)
+        await session.commit()
+
+        read = await client.get(url, headers=headers)
+
+        assert read.status_code == 200, read.text
+        assert read.json()["factor_required_by_platform"] is told

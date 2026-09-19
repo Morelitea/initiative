@@ -90,6 +90,10 @@ class AuditEventType(str, Enum):
     #: Which ways in the deployment permits changed. Carries the count of
     #: accounts an operator acknowledged stranding, where they did.
     PLATFORM_LOGIN_METHODS_CHANGED = "platform.login_methods_changed"
+    #: Who the deployment asks to hold a second factor changed.
+    PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED = (
+        "platform.second_factor_requirement_changed"
+    )
 
 
 class AuditCategory(str, Enum):
@@ -185,6 +189,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_DEVICE_TOKEN_ISSUED: AuditEventMeta(

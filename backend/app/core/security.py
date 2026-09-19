@@ -219,6 +219,12 @@ AUTH_TOKEN_ISSUER = "initiative"
 #: with the columns that hold one (phases E and C2b).
 STEP_UP_CHALLENGE = 'Bearer error="insufficient_user_authentication"'
 
+#: Which part of a sign-in rule a refused write did not itself meet, so the
+#: page that wrote it can offer the one thing that would: a provider to sign
+#: in with, or a factor to present. Named here because two surfaces answer
+#: with it — a community's requirement and the deployment's own.
+AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
+
 
 def mint_access_token(
     *,

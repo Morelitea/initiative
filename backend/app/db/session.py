@@ -183,6 +183,8 @@ _CONTEXT_SQL = (
     "set_config('app.satisfied_claims', :satc, true), "
     "set_config('app.session_mfa', :mfa, true), "
     "set_config('app.session_passkey', :pk, true), "
+    "set_config('app.platform_role', :prole, true), "
+    "set_config('app.platform_factor', :pfac, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
@@ -243,6 +245,10 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             # things a session records about how somebody signed in.
             "mfa": "false",
             "pk": "false",
+            # No account either, so no rung and no standing under the
+            # deployment's own rule.
+            "prole": "",
+            "pfac": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
@@ -338,6 +344,10 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # And whether a passkey is what opened it, in the same form and read by the
     # leg beside it.
     pk = "true" if params.get("session_passkey") else "false"
+    # And whether the account answers the deployment's own second-factor rule:
+    # a factor it holds, or one this session presented. Read beside the rung
+    # the rule is scoped by, which every routed request already carries.
+    pfac = "true" if params.get("platform_factor") else "false"
 
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
@@ -346,6 +356,8 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "mfa": mfa,
         "pk": pk,
+        "prole": platform_role or "",
+        "pfac": pfac,
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
@@ -412,6 +424,7 @@ async def set_rls_context(
     satisfied_claims: Optional[dict] = None,
     session_mfa: bool = False,
     session_passkey: bool = False,
+    platform_factor: Optional[bool] = None,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
@@ -457,6 +470,13 @@ async def set_rls_context(
     anyway yields nothing — and it is what lets an initiative-scoped surface
     ask a guild-scoped question and get its own initiative's answer. Unset
     means no narrowing, which is every ordinary request.
+
+    ``platform_factor`` says whether the account answers the deployment's own
+    second-factor rule — a factor it holds, or one this session presented. It
+    rides beside the tier because the rule is scoped by rung, and both are read
+    by ``public.platform_factor_satisfied()``, which decides the rule itself
+    from the settings row. ``None`` (the default) reads what this request's
+    gate resolved; pass a value only where there is no such gate.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -513,6 +533,16 @@ async def set_rls_context(
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
     )
+    # Whether the account answers the deployment's own second-factor rule.
+    # Ambient by default, from the context the request's gate resolved once —
+    # the same shape ``establish_guild_access`` reads its satisfied set with,
+    # and what lets a service re-route a request's session without carrying
+    # the fact through every signature between here and the gate.
+    if platform_factor is None:
+        from app.core import auth_context
+
+        platform_factor = auth_context.platform_factor()
+
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
     # sentinel for user-attributed system work whose enqueueing request
@@ -561,6 +591,7 @@ async def set_rls_context(
         "satisfied_claims": satisfied_claims,
         "session_mfa": session_mfa,
         "session_passkey": session_passkey,
+        "platform_factor": platform_factor,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,

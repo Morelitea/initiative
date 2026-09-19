@@ -39,6 +39,7 @@ import type {
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
+  SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
@@ -77,6 +78,7 @@ import {
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
@@ -331,6 +333,28 @@ export const useUpdateSessionLifetime = (
       mutationFn: (data) =>
         updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut(
           data as Parameters<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>[0]
+        ),
+      invalidate: () => invalidate(q.platformAuthSettings()),
+    },
+    options
+  );
+
+/**
+ * Set who this deployment asks to hold a second factor.
+ *
+ * Nobody is signed out by the change. An account the level covers is asked at
+ * its next request and answers it where it stands.
+ */
+export const useUpdateSecondFactorRequirement = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>
+) =>
+  useApiMutation<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>(
+    {
+      mutationFn: (data) =>
+        updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut(
+          data as Parameters<
+            typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut
+          >[0]
         ),
       invalidate: () => invalidate(q.platformAuthSettings()),
     },

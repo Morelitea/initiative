@@ -656,6 +656,31 @@
       "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
       "saved": "Sitzungslimit gespeichert.",
       "error": "Das Sitzungslimit konnte nicht gespeichert werden."
+    },
+    "secondFactorRequirement": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Ob Personen hier zusätzlich zur Anmeldung einen zweiten Faktor besitzen müssen — eine Authenticator-App oder einen Passkey.",
+      "levels": {
+        "nobody": {
+          "label": "Niemand muss",
+          "help": "Alle können einen einrichten, niemand wird dazu aufgefordert. Communities können trotzdem selbst einen verlangen."
+        },
+        "platform_roles": {
+          "label": "Personen mit einer Plattformrolle",
+          "help": "Support, Moderation, Betrieb und Eigentümer — alle, deren Reichweite der ganze Server ist und nicht nur ihre Communities."
+        },
+        "everyone": {
+          "label": "Alle",
+          "help": "Jedes Konto auf diesem Server. Communities wird die Frage nicht mehr gestellt, weil sie für ihre Mitglieder bereits beantwortet ist."
+        }
+      },
+      "wouldAsk_one": "{{count}} Person hat noch keinen. Sie wird beim nächsten Öffnen der App gebeten, einen einzurichten.",
+      "wouldAsk_other": "{{count}} Personen haben noch keinen. Sie werden beim nächsten Öffnen der App gebeten, einen einzurichten.",
+      "derivedCredentials": "Persönliche API-Schlüssel und die App auf dem Handy können keinen Code vorlegen. Für alle Betroffenen funktionieren sie deshalb erst wieder, sobald diese Person einen Faktor eingerichtet hat.",
+      "unmet": "Richte zuerst selbst einen zweiten Faktor ein, dann speichern.",
+      "present": "Code eingeben",
+      "saved": "Gespeichert. Betroffene werden bei ihrer nächsten Anfrage gefragt.",
+      "error": "Das konnte nicht gespeichert werden."
     }
   },
   "platformUsers": {
@@ -1128,7 +1153,8 @@
       "requireFactor": "Zusätzlich einen zweiten Faktor verlangen",
       "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
       "requirePasskey": "Zusätzlich einen Passkey verlangen",
-      "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
+      "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
+      "factorRequiredByPlatform": "Dein Server verlangt bereits von allen einen zweiten Faktor — hier gibt es nichts hinzuzufügen."
     },
     "apiAccess": {
       "title": "API-Zugriff",

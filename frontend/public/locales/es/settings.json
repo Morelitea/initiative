@@ -656,6 +656,31 @@
       "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones web ya abiertas mantienen sus condiciones originales; los teléfonos pasan a un límite más corto de inmediato.",
       "saved": "Límite de sesión guardado.",
       "error": "No hemos podido guardar el límite de sesión."
+    },
+    "secondFactorRequirement": {
+      "title": "Autenticación en dos pasos",
+      "description": "Si quienes están aquí deben tener un segundo factor — una aplicación de autenticación o una clave de acceso — además de una forma de iniciar sesión.",
+      "levels": {
+        "nobody": {
+          "label": "Nadie está obligado",
+          "help": "Cualquiera puede configurarlo y a nadie se le pide. Las comunidades pueden seguir exigiéndolo por su cuenta."
+        },
+        "platform_roles": {
+          "label": "Quienes tienen un rol de plataforma",
+          "help": "Soporte, moderación, operadores y propietarios: todos aquellos cuyo alcance es el servidor entero y no solo sus comunidades."
+        },
+        "everyone": {
+          "label": "Todo el mundo",
+          "help": "Todas las cuentas de este servidor. A las comunidades deja de ofrecérseles la pregunta, porque ya está respondida para sus miembros."
+        }
+      },
+      "wouldAsk_one": "{{count}} persona todavía no tiene uno. Se le pedirá que lo configure la próxima vez que abra la aplicación.",
+      "wouldAsk_other": "{{count}} personas todavía no tienen uno. Se les pedirá que lo configuren la próxima vez que abran la aplicación.",
+      "derivedCredentials": "Las claves de API personales y la aplicación del móvil no pueden presentar un código, así que dejan de funcionar para quien esté afectado hasta que esa persona configure un factor, y vuelven a funcionar en cuanto lo haga.",
+      "unmet": "Configura antes tu propio segundo factor y luego guarda.",
+      "present": "Introducir un código",
+      "saved": "Guardado. A quien le afecte se le pedirá en su siguiente petición.",
+      "error": "No hemos podido guardarlo."
     }
   },
   "platformUsers": {
@@ -1128,7 +1153,8 @@
       "requireFactor": "Exigir también un segundo factor",
       "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión.",
       "requirePasskey": "Exigir también una clave de acceso",
-      "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión."
+      "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión.",
+      "factorRequiredByPlatform": "Tu servidor ya pide un segundo factor a todo el mundo, así que aquí no hay nada que añadir."
     },
     "apiAccess": {
       "title": "Acceso por API",

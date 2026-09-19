@@ -453,3 +453,167 @@ async def test_withdrawing_two_ways_in_at_once_counts_them_together(
     )
     assert accepted.status_code == 200, accepted.text
     assert {m["method"] for m in accepted.json()["methods"] if m["enabled"]} == {"sso"}
+
+
+# ── What the deployment asks of an account ─────────────────────────────────
+
+REQUIREMENT_URL = "/api/v1/settings/auth/second-factor-requirement"
+
+
+async def _enrol(session: AsyncSession, user) -> None:
+    """Give the account an authenticator it has proved."""
+    from datetime import datetime, timezone
+
+    from app.models.platform.user_totp import UserTotp
+
+    session.add(UserTotp(user_id=user.id, confirmed_at=datetime.now(timezone.utc)))
+    await session.commit()
+
+
+async def test_the_read_says_who_is_asked_and_what_it_would_cost(
+    client: AsyncClient, session: AsyncSession
+):
+    """Both figures on every read, so the page states the consequence before
+    the write rather than after it binds anybody."""
+    owner, headers = await _owner(session)
+    await create_user(session)
+
+    answered = await client.get(READ_URL, headers=headers)
+
+    assert answered.status_code == 200, answered.text
+    body = answered.json()
+    assert body["second_factor_requirement"] == "nobody"
+    # The owner holds nothing yet, and neither does the account beside them.
+    assert body["accounts_without_factor"]["platform_roles"] >= 1
+    assert (
+        body["accounts_without_factor"]["everyone"]
+        > body["accounts_without_factor"]["platform_roles"]
+    )
+
+
+async def test_an_owner_who_holds_a_factor_may_ask_for_one(
+    client: AsyncClient, session: AsyncSession
+):
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+
+    written = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
+    )
+
+    assert written.status_code == 200, written.text
+    assert written.json()["second_factor_requirement"] == "everyone"
+
+
+async def test_a_requirement_is_written_by_somebody_it_already_applies_to(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule a community's requirement makes: prove it before it binds
+    anybody."""
+    owner, headers = await _owner(session)
+
+    refused = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "platform_roles"}
+    )
+
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
+
+
+async def test_asking_needs_something_that_can_answer(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment permitting neither the authenticator nor passkeys has
+    nothing to ask for."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    withdrawn = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+
+    refused = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
+
+
+async def test_the_last_way_to_answer_is_not_withdrawn_from_under_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Lower the rule first, then withdraw the method — the order a
+    community's requirement asks for too."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+
+    lowered = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
+    )
+    assert lowered.status_code == 200, lowered.text
+    withdrawn = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+
+
+async def test_lowering_it_asks_nothing_of_anybody(
+    client: AsyncClient, session: AsyncSession
+):
+    """Coming down only ever admits more, so it carries none of the conditions
+    going up does — including holding a factor yourself."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    lowered = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
+    )
+
+    assert lowered.status_code == 200, lowered.text
+    assert lowered.json()["second_factor_requirement"] == "nobody"
+
+
+async def test_the_change_is_recorded(client: AsyncClient, session: AsyncSession):
+    from sqlmodel import select
+
+    from app.models.platform.audit_event import AuditEvent
+
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    rows = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "platform.second_factor_requirement_changed"
+            )
+        )
+    ).all()
+
+    assert len(rows) == 1
+    assert rows[0].envelope["detail"] == {"from": "nobody", "to": "everyone"}
+
+
+async def test_the_requirement_needs_the_config_capability(
+    client: AsyncClient, session: AsyncSession
+):
+    operator = await create_user(session, role=UserRole.operator)
+
+    refused = await client.put(
+        REQUIREMENT_URL,
+        headers=get_auth_headers(operator),
+        json={"level": "everyone"},
+    )
+
+    assert refused.status_code == 403, refused.text

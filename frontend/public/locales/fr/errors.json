@@ -709,5 +709,9 @@
   "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là",
   "PASSWORD_IS_LAST_METHOD": "Votre mot de passe est le seul accès à ce compte. Ajoutez d'abord une clé d'accès.",
   "PASSKEY_IS_LAST_METHOD": "Cette clé d'accès est le seul accès à ce compte. Définissez d'abord un mot de passe ou ajoutez une autre clé d'accès.",
-  "PASSWORD_NOT_HELD": "Ce compte n'a pas de mot de passe."
+  "PASSWORD_NOT_HELD": "Ce compte n'a pas de mot de passe.",
+  "PLATFORM_AUTH_FACTOR_REQUIRED": "Ce serveur exige un second facteur. Configurez-en un, ou saisissez un code, pour continuer.",
+  "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Autorisez d'abord l'application d'authentification ou les clés d'accès : il n'y a rien à exiger.",
+  "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Configurez votre propre second facteur avant d'en exiger un.",
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Ce serveur exige encore un second facteur. Levez d'abord cette exigence."
 }

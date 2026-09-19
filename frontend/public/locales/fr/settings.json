@@ -656,6 +656,31 @@
       "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions web déjà ouvertes conservent leurs conditions d'origine ; les téléphones passent immédiatement sous une limite raccourcie.",
       "saved": "Limite de session enregistrée.",
       "error": "Nous n'avons pas pu enregistrer la limite de session."
+    },
+    "secondFactorRequirement": {
+      "title": "Authentification à deux facteurs",
+      "description": "Si les personnes ici doivent posséder un second facteur — une application d'authentification ou une clé d'accès — en plus d'un moyen de se connecter.",
+      "levels": {
+        "nobody": {
+          "label": "Personne n'y est tenu",
+          "help": "Chacun peut en configurer un, personne n'y est invité. Les communautés peuvent toujours en exiger un de leur côté."
+        },
+        "platform_roles": {
+          "label": "Les personnes ayant un rôle de plateforme",
+          "help": "Support, modération, exploitants et propriétaires — tous ceux dont la portée est le serveur entier et non les communautés auxquelles ils appartiennent."
+        },
+        "everyone": {
+          "label": "Tout le monde",
+          "help": "Chaque compte de ce serveur. La question n'est plus proposée aux communautés, puisqu'elle est déjà tranchée pour leurs membres."
+        }
+      },
+      "wouldAsk_one": "{{count}} personne n'en a pas encore. Il lui sera demandé d'en configurer un à sa prochaine ouverture de l'application.",
+      "wouldAsk_other": "{{count}} personnes n'en ont pas encore. Il leur sera demandé d'en configurer un à leur prochaine ouverture de l'application.",
+      "derivedCredentials": "Les clés d'API personnelles et l'application sur téléphone ne peuvent présenter aucun code : elles cessent donc de fonctionner pour les personnes concernées jusqu'à ce qu'elles configurent un facteur, et refonctionnent dès qu'elles l'ont fait.",
+      "unmet": "Configurez d'abord votre propre second facteur, puis enregistrez.",
+      "present": "Saisir un code",
+      "saved": "Enregistré. Les personnes concernées seront sollicitées à leur prochaine requête.",
+      "error": "Nous n'avons pas pu enregistrer cela."
     }
   },
   "platformUsers": {
@@ -1128,7 +1153,8 @@
       "requireFactor": "Exiger aussi un second facteur",
       "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
       "requirePasskey": "Exiger aussi une clé d'accès",
-      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter."
+      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
+      "factorRequiredByPlatform": "Votre serveur demande déjà un second facteur à tout le monde : il n'y a rien à ajouter ici."
     },
     "apiAccess": {
       "title": "Accès par API",

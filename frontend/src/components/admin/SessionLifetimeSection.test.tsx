@@ -22,6 +22,8 @@ const base: PlatformAuthSettingsResponse = {
   ],
   guilds_requiring_sign_in: 0,
   session_max_hours: null,
+  second_factor_requirement: "nobody",
+  accounts_without_factor: { platform_roles: 0, everyone: 0 },
 };
 
 describe("SessionLifetimeSection", () => {

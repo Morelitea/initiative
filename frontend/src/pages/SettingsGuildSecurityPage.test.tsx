@@ -40,12 +40,14 @@ let policy: {
   provider_slug: string | null;
   provider_display_name: string | null;
   require_methods: string[];
+  factor_required_by_platform: boolean;
 } = {
   policy: "open",
   provider_id: null,
   provider_slug: null,
   provider_display_name: null,
   require_methods: [],
+  factor_required_by_platform: false,
 };
 
 const savePolicy = vi.fn();
@@ -137,6 +139,7 @@ describe("SettingsGuildSecurityPage", () => {
       provider_slug: null,
       provider_display_name: null,
       require_methods: [],
+      factor_required_by_platform: false,
     };
   });
 
@@ -320,6 +323,21 @@ describe("SettingsGuildSecurityPage", () => {
         provider_id: 12,
         require_methods: ["totp"],
       });
+    });
+
+    it("is not offered where the deployment already asks everybody", async () => {
+      // Its own box has nothing to add, so the page says so instead of
+      // offering a tick that would change nothing.
+      policy = { ...policy, factor_required_by_platform: true };
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+
+      expect(screen.queryByLabelText(/second factor/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/already asks everybody/i)).toBeInTheDocument();
+      // A passkey is a different question, and still the community's.
+      expect(screen.getByLabelText(/require a passkey/i)).toBeInTheDocument();
     });
 
     it("asks for a passkey alongside the code", async () => {

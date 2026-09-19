@@ -140,6 +140,29 @@ def session_passkey() -> bool:
     return _session_passkey.get()
 
 
+#: Whether the account this request is made by answers the deployment's own
+#: second-factor rule: a second factor it holds, or one this session
+#: presented. Its own reading rather than :func:`session_mfa`'s, because the
+#: two questions are different — a community asks what *this session* proved,
+#: and the deployment asks what the *account* has — and because a credential
+#: that cannot present one (the app's device token, a personal API key) still
+#: answers the deployment by the account holding a factor.
+#:
+#: Resolved once per request by the gate in ``app.api.deps`` and handed to the
+#: database, which decides the rule itself from the settings row.
+_platform_factor: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_platform_factor", default=False
+)
+
+
+def set_platform_factor(value: bool) -> None:
+    _platform_factor.set(bool(value))
+
+
+def platform_factor() -> bool:
+    return _platform_factor.get()
+
+
 #: Whether a personal API key is what authenticated this request. Recorded by
 #: the two validators that accept one, and read where a community's refusal of
 #: them is applied: the guild-access gate and the cross-guild aggregates.
