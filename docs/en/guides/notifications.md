@@ -114,11 +114,13 @@ Switch it off in the same place if you'd rather always be told.
 
 ## Pausing
 
-Going away? **Pause notifications** stands email and mobile down until a date you pick. An hour, the rest of today, until Monday, or a date of your choosing.
+Going away? **Pause notifications** stands email and mobile down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
 
 While it's on, nothing reaches you — not a mention, not a direct message, not somebody typing your name in capitals. That's the point. A pause you have to keep checking isn't one.
 
 The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile gets a count.
+
+A digest that would have landed in the middle of a booked pause waits for the end of it too, so the days you marked off stay marked off.
 
 !!! note "Password resets still arrive"
     Pausing covers notifications. It doesn't cover the email that turns up because you just clicked "forgot password" — that isn't a notification, it's an answer.

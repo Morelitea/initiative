@@ -71,6 +71,7 @@ def _retimes(payload: NotificationPreferencesUpdate) -> bool:
         (
             payload.email is not None,
             payload.pause_until is not None,
+            payload.pause_from is not None,
             payload.clear_pause,
             payload.quiet_hours is not None,
             payload.clear_quiet_hours,
@@ -126,7 +127,6 @@ async def read_my_notification_preferences(
     ]
     window = prefs_service.quiet_hours(doc)
     schedule = prefs_service.email_schedule(doc)
-    until = prefs_service.pause_until(doc)
     return NotificationPreferencesRead(
         categories=_registry(),
         settings=_section(doc, "categories"),
@@ -146,9 +146,13 @@ async def read_my_notification_preferences(
         # A lapsed pause reads as no pause. The sweep that summarises a lift
         # clears the key, but a deployment with nothing to summarise should not
         # show somebody a stand-down that ended last week either.
+        # A stand-down that has not started yet is still one to show: it is
+        # what somebody booked, and the page says so rather than looking as
+        # though the booking did not take.
         pause=(
-            PauseRead(since=prefs_service.pause_since(doc) or until, until=until)
-            if until is not None and until > datetime.now(timezone.utc)
+            PauseRead(since=paused[0], until=paused[1])
+            if (paused := prefs_service.pause_window(doc)) is not None
+            and paused[1] > datetime.now(timezone.utc)
             else None
         ),
         respect_presence=prefs_service.respects_presence(doc),
@@ -218,7 +222,7 @@ async def update_my_notification_preferences(
         doc.pop("pause", None)
     elif payload.pause_until is not None:
         doc["pause"] = {
-            "since": datetime.now(timezone.utc).isoformat(),
+            "since": (payload.pause_from or datetime.now(timezone.utc)).isoformat(),
             "until": payload.pause_until.isoformat(),
         }
 

@@ -373,19 +373,18 @@
       "respectPresenceHelp": "If you're already here, the bell has told you. Email waits a few minutes and mobile stays quiet.",
       "pause": {
         "title": "Pause notifications",
-        "description": "Email and mobile stand down until a date you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
+        "description": "Email and mobile stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
         "active": "Paused until {{until}}",
+        "scheduled": "Pausing {{from}} to {{until}}",
         "resume": "Resume",
+        "cancel": "Cancel",
         "resumed": "Notifications resumed",
-        "for": "Pause for",
-        "options": {
-          "hour": "1 hour",
-          "today": "The rest of today",
-          "tomorrow": "Until tomorrow morning",
-          "week": "Until next Monday",
-          "custom": "Pick a date"
-        },
+        "from": "From",
+        "until": "Until",
+        "fromPlaceholder": "Today",
+        "untilPlaceholder": "Pick a day",
         "confirm": "Pause",
+        "help": "Leave the start empty to begin now. Both days are included.",
         "note": "Password resets and sign-in emails still arrive. Those aren't notifications."
       },
       "saved": "Saved",

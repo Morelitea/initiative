@@ -5355,6 +5355,7 @@ export interface NotificationPreferencesUpdate {
   quiet_hours?: QuietHours | null;
   clear_quiet_hours?: boolean;
   email?: EmailScheduleInput | null;
+  pause_from?: string | null;
   pause_until?: string | null;
   clear_pause?: boolean;
   respect_presence?: boolean | null;

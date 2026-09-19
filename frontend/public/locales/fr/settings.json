@@ -373,19 +373,18 @@
       "respectPresenceHelp": "Si vous êtes déjà là, la cloche vous l'a dit. L'e-mail attend quelques minutes et le mobile reste silencieux.",
       "pause": {
         "title": "Mettre les notifications en pause",
-        "description": "L'e-mail et le mobile s'arrêtent jusqu'à la date de votre choix. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
+        "description": "L'e-mail et le mobile s'arrêtent les jours que vous choisissez. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
         "active": "En pause jusqu'au {{until}}",
+        "scheduled": "Pause du {{from}} au {{until}}",
         "resume": "Reprendre",
+        "cancel": "Annuler",
         "resumed": "Notifications réactivées",
-        "for": "Mettre en pause pendant",
-        "options": {
-          "hour": "1 heure",
-          "today": "Le reste de la journée",
-          "tomorrow": "Jusqu'à demain matin",
-          "week": "Jusqu'à lundi prochain",
-          "custom": "Choisir une date"
-        },
+        "from": "Du",
+        "until": "Au",
+        "fromPlaceholder": "Aujourd'hui",
+        "untilPlaceholder": "Choisir un jour",
         "confirm": "Mettre en pause",
+        "help": "Laissez le début vide pour commencer maintenant. Les deux jours sont compris.",
         "note": "Les réinitialisations de mot de passe et les e-mails de connexion arrivent toujours. Ce ne sont pas des notifications."
       },
       "saved": "Enregistré",

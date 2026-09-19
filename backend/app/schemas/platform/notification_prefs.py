@@ -8,7 +8,7 @@ is then one entry in ``app.core.notification_categories`` and four locale files.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.notification_categories import (
     CategoryGroup,
@@ -153,24 +153,37 @@ class NotificationPreferencesUpdate(SanitizedBaseModel):
     #: "not mentioned" in a partial write.
     clear_quiet_hours: bool = False
     email: Optional[EmailSchedule] = None
-    #: When a stand-down should end. Every pause has one: permanent silence is
-    #: what the category grid and the community dial are for, and both are
-    #: visible on the page that owns them.
+    #: When a stand-down begins. Omitted means now, which is the ordinary case;
+    #: a date is how somebody books next week's holiday before they go.
+    pause_from: Optional[datetime] = None
+    #: When it ends. Every pause has one: permanent silence is what the
+    #: category grid and the community dial are for, and both are visible on
+    #: the page that owns them.
     pause_until: Optional[datetime] = None
     #: Explicit, for the same reason ``clear_quiet_hours`` is. This is what
     #: "Resume" sends, and it releases everything the pause was holding.
     clear_pause: bool = False
     respect_presence: Optional[bool] = None
 
-    @field_validator("pause_until")
+    @field_validator("pause_from", "pause_until")
     @classmethod
-    def _bounded(cls, value: Optional[datetime]) -> Optional[datetime]:
+    def _aware(cls, value: Optional[datetime]) -> Optional[datetime]:
         if value is None:
             return None
-        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    @model_validator(mode="after")
+    def _a_real_window(self) -> "NotificationPreferencesUpdate":
+        if self.pause_until is None:
+            if self.pause_from is not None:
+                raise ValueError("a pause needs an end date")
+            return self
         now = datetime.now(timezone.utc)
-        if moment <= now:
-            raise ValueError("pause must end in the future")
-        if moment - now > timedelta(days=MAX_PAUSE_DAYS):
-            raise ValueError(f"pause may not run beyond {MAX_PAUSE_DAYS} days")
-        return moment
+        start = self.pause_from or now
+        if self.pause_until <= start:
+            raise ValueError("a pause must end after it begins")
+        if self.pause_until <= now:
+            raise ValueError("a pause must end in the future")
+        if self.pause_until - now > timedelta(days=MAX_PAUSE_DAYS):
+            raise ValueError(f"a pause may not run beyond {MAX_PAUSE_DAYS} days")
+        return self

@@ -373,19 +373,18 @@
       "respectPresenceHelp": "Si ya estás aquí, la campana te lo ha dicho. El correo espera unos minutos y el móvil se queda callado.",
       "pause": {
         "title": "Pausar notificaciones",
-        "description": "El correo y el móvil se detienen hasta la fecha que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
+        "description": "El correo y el móvil se detienen los días que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
         "active": "En pausa hasta el {{until}}",
+        "scheduled": "Pausa del {{from}} al {{until}}",
         "resume": "Reanudar",
+        "cancel": "Cancelar",
         "resumed": "Notificaciones reanudadas",
-        "for": "Pausar durante",
-        "options": {
-          "hour": "1 hora",
-          "today": "El resto del día",
-          "tomorrow": "Hasta mañana por la mañana",
-          "week": "Hasta el lunes que viene",
-          "custom": "Elegir una fecha"
-        },
+        "from": "Desde",
+        "until": "Hasta",
+        "fromPlaceholder": "Hoy",
+        "untilPlaceholder": "Elige un día",
         "confirm": "Pausar",
+        "help": "Deja el inicio vacío para empezar ahora. Ambos días se incluyen.",
         "note": "Los restablecimientos de contraseña y los correos de inicio de sesión siguen llegando. Esos no son notificaciones."
       },
       "saved": "Guardado",

@@ -27,10 +27,16 @@ def _at(hour: int, day: int = 9) -> datetime:
     return datetime(2026, 9, day, hour, 0, tzinfo=timezone.utc)
 
 
+#: Well before any moment these tests call "now", so the pause this builds is
+#: one that is already running. A pause booked for later is written out in
+#: full, because when it starts is the point of those.
+_LONG_AGO = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+
 def _paused_until(moment: datetime, *, since: datetime | None = None) -> dict:
     return {
         "pause": {
-            "since": (since or (moment - timedelta(days=3))).isoformat(),
+            "since": (since or _LONG_AGO).isoformat(),
             "until": moment.isoformat(),
         }
     }
@@ -56,6 +62,91 @@ def test_a_running_pause_holds_until_its_end():
 def test_a_lapsed_pause_holds_nothing():
     prefs = _paused_until(_at(9, day=8))
     assert notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12)) == []
+
+
+@pytest.mark.unit
+def test_a_pause_booked_for_next_week_holds_nothing_yet():
+    """Booking a holiday is not the same as being on it."""
+    prefs = {
+        "pause": {
+            "since": _at(9, day=25).isoformat(),
+            "until": _at(9, day=30).isoformat(),
+        }
+    }
+    assert notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12)) == []
+    assert notification_prefs.reachable(
+        prefs,
+        notification_type=MENTION,
+        channel=Channel.push,
+        tz_name="UTC",
+        now=_at(12),
+    )
+
+
+@pytest.mark.unit
+def test_a_pause_booked_for_next_week_holds_once_it_starts():
+    prefs = {
+        "pause": {
+            "since": _at(9, day=25).isoformat(),
+            "until": _at(9, day=30).isoformat(),
+        }
+    }
+    holds = notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12, day=26))
+    assert [hold.kind for hold in holds] == [HoldKind.pause]
+    assert holds[0].lifts_at == _at(9, day=30)
+
+
+@pytest.mark.unit
+def test_mail_timed_to_land_inside_a_booked_pause_waits_for_the_end():
+    """The hold is not in force when the message is written, so nothing above
+    catches it — but arriving in the middle of somebody's holiday is exactly
+    what booking one is meant to prevent."""
+    prefs = {
+        "email": {"cadence": "daily", "at": "08:00"},
+        "pause": {
+            "since": _at(0, day=20).isoformat(),
+            "until": _at(9, day=30).isoformat(),
+        },
+    }
+    due = notification_prefs.email_due_at(
+        prefs,
+        notification_type=NotificationType.comment_on_task,
+        tz_name="UTC",
+        now=_at(12, day=19),
+    )
+    assert due == _at(9, day=30)
+
+
+@pytest.mark.unit
+def test_mail_due_before_a_booked_pause_still_goes():
+    prefs = {
+        "pause": {
+            "since": _at(0, day=25).isoformat(),
+            "until": _at(9, day=30).isoformat(),
+        }
+    }
+    now = _at(12)
+    assert (
+        notification_prefs.email_due_at(
+            prefs, notification_type=MENTION, tz_name="UTC", now=now
+        )
+        == now
+    )
+
+
+@pytest.mark.unit
+def test_a_window_closing_before_a_booked_pause_starts_is_still_reported():
+    """A pause suppresses the nightly summary only while it is actually on."""
+    prefs = {
+        **NIGHT,
+        "pause": {
+            "since": _at(0, day=25).isoformat(),
+            "until": _at(9, day=30).isoformat(),
+        },
+    }
+    lift = notification_prefs.last_lift(prefs, tz_name="UTC", now=_at(8))
+    assert lift is not None
+    assert lift.kind is HoldKind.quiet_hours
 
 
 @pytest.mark.unit

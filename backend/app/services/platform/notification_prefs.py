@@ -294,13 +294,41 @@ def pause_until(prefs: Mapping[str, Any] | None) -> Optional[datetime]:
 
 
 def pause_since(prefs: Mapping[str, Any] | None) -> Optional[datetime]:
-    """When it began — what the summary at the other end reports on."""
+    """When it begins — which is not always now.
+
+    A stand-down can be booked ahead for a holiday somebody already knows
+    about, so this is a real start rather than a record of when the switch was
+    flipped. It is also the instant the summary at the other end reports from.
+    """
     return _parse_instant(_section(prefs or EMPTY, "pause").get("since"))
 
 
-def is_paused(prefs: Mapping[str, Any] | None, *, now: datetime | None = None) -> bool:
+def pause_window(
+    prefs: Mapping[str, Any] | None,
+) -> Optional[tuple[datetime, datetime]]:
+    """The stand-down this account has booked, whenever it runs.
+
+    A window rather than an end date, because a pause set for next week is not
+    holding anything yet but still has to stop mail that would otherwise land
+    in the middle of it.
+    """
     until = pause_until(prefs)
-    return until is not None and until > (now or datetime.now(timezone.utc))
+    if until is None:
+        return None
+    since = pause_since(prefs)
+    # An older row, or one written without a start, ran from the moment it was
+    # set — and a start after its own end describes nothing.
+    if since is None or since >= until:
+        since = datetime.min.replace(tzinfo=timezone.utc)
+    return since, until
+
+
+def is_paused(prefs: Mapping[str, Any] | None, *, now: datetime | None = None) -> bool:
+    window = pause_window(prefs)
+    if window is None:
+        return False
+    since, until = window
+    return since <= (now or datetime.now(timezone.utc)) < until
 
 
 def respects_presence(prefs: Mapping[str, Any] | None) -> bool:
@@ -353,9 +381,9 @@ def holds_in_force(
     now = now or datetime.now(timezone.utc)
     found: list[Hold] = []
 
-    until = pause_until(prefs)
-    if until is not None and until > now:
-        found.append(Hold(HoldKind.pause, until))
+    window = pause_window(prefs)
+    if window is not None and window[0] <= now < window[1]:
+        found.append(Hold(HoldKind.pause, window[1]))
 
     close = quiet_hours_close(prefs, tz_name=tz_name, now=now)
     if close is not None:
@@ -421,12 +449,13 @@ def last_lift(
     is not reported: the pause will report the whole stretch when it ends.
     """
     now = now or datetime.now(timezone.utc)
-    until = pause_until(prefs)
-    if until is not None:
-        if until > now:
+    window = pause_window(prefs)
+    if window is not None:
+        since, until = window
+        if since <= now < until:
             return None  # still paused — nothing has lifted
-        if now - until <= HOLD_SUMMARY_GRACE:
-            return Lift(HoldKind.pause, pause_since(prefs) or until, until)
+        if until <= now and now - until <= HOLD_SUMMARY_GRACE:
+            return Lift(HoldKind.pause, since, until)
     window = last_window_close(prefs, tz_name=tz_name, now=now)
     if window is None:
         return None
@@ -549,6 +578,13 @@ def email_due_at(
         prefs, tz_name=tz_name, last_active_at=last_active_at, now=now
     ):
         due = max(due, hold.lifts_at)
+
+    # A stand-down booked for next week holds nothing today, so it is not among
+    # the holds above — but a message already timed to land inside it would
+    # arrive in the middle of somebody's holiday. It waits for the end instead.
+    window = pause_window(prefs)
+    if window is not None and window[0] <= due < window[1]:
+        due = window[1]
     return due
 
 

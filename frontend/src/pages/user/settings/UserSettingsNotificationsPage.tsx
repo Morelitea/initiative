@@ -11,6 +11,7 @@ import type {
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
@@ -52,32 +53,26 @@ const CADENCES: EmailCadence[] = ["instant", "hourly", "daily", "weekly"];
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
-// What a pause can be set to without opening a date picker. Every one of them
-// ends: permanent silence is the category grid and the community dial, both of
-// which say so on the page that owns them.
-const PAUSE_PRESETS = ["hour", "today", "tomorrow", "week"] as const;
-type PausePreset = (typeof PAUSE_PRESETS)[number];
-
-const pauseEnd = (preset: PausePreset): Date => {
-  const end = new Date();
-  switch (preset) {
-    case "hour":
-      end.setHours(end.getHours() + 1);
-      return end;
-    case "today":
-      end.setHours(23, 59, 0, 0);
-      return end;
-    case "tomorrow":
-      end.setDate(end.getDate() + 1);
-      end.setHours(8, 0, 0, 0);
-      return end;
-    case "week":
-      // The next Monday morning, however far away that is.
-      end.setDate(end.getDate() + ((8 - end.getDay()) % 7 || 7));
-      end.setHours(8, 0, 0, 0);
-      return end;
-  }
+// A pause is booked the way time off is: two days, both of them included. The
+// picker hands back a plain "yyyy-MM-dd", which is a day in the reader's own
+// clock rather than an instant — so the ends are resolved here, where that
+// clock is.
+const dayStart = (day: string): string => {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(year, month - 1, date, 0, 0, 0, 0).toISOString();
 };
+
+const dayEnd = (day: string): string => {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(year, month - 1, date, 23, 59, 59, 0).toISOString();
+};
+
+const asDay = (value: string): string =>
+  new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 interface UserSettingsNotificationsPageProps {
   user: UserRead;
@@ -101,6 +96,8 @@ export const UserSettingsNotificationsPage = ({
   const [reminderMinutes, setReminderMinutes] = useState<number>(
     user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES
   );
+  const [pauseFromDay, setPauseFromDay] = useState("");
+  const [pauseUntilDay, setPauseUntilDay] = useState("");
   const [quietStart, setQuietStart] = useState("22:00");
   const [quietEnd, setQuietEnd] = useState("07:00");
 
@@ -123,7 +120,10 @@ export const UserSettingsNotificationsPage = ({
   // document back, so a local copy would only be a second answer to the same
   // question.
   const schedule = preferences?.email;
-  const pausedUntil = preferences?.pause?.until;
+  const booked = preferences?.pause;
+  // A pause booked for next week is shown as booked rather than as running,
+  // because those read differently and only one of them is happening.
+  const running = booked ? new Date(booked.since) <= new Date() : false;
 
   const writeTiming = (payload: Parameters<typeof writePreferences.mutate>[0]) =>
     writePreferences.mutate(payload, {
@@ -170,11 +170,22 @@ export const UserSettingsNotificationsPage = ({
       },
     });
 
-  const pauseFor = (preset: PausePreset) =>
+  const pause = () => {
+    if (!pauseUntilDay) return;
     writePreferences.mutate(
-      { pause_until: pauseEnd(preset).toISOString() },
-      { onError: () => toast.error(t("notifications.timing.saveError")) }
+      {
+        pause_from: pauseFromDay ? dayStart(pauseFromDay) : null,
+        pause_until: dayEnd(pauseUntilDay),
+      },
+      {
+        onSuccess: () => {
+          setPauseFromDay("");
+          setPauseUntilDay("");
+        },
+        onError: () => toast.error(t("notifications.timing.saveError")),
+      }
     );
+  };
 
   const resume = () =>
     writePreferences.mutate(
@@ -397,41 +408,69 @@ export const UserSettingsNotificationsPage = ({
         description={t("notifications.timing.description")}
       >
         <div className="space-y-6">
-          {pausedUntil ? (
+          {booked ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded border bg-muted p-3">
               <div>
                 <p className="font-medium">
-                  {t("notifications.timing.pause.active", {
-                    until: new Date(pausedUntil).toLocaleString(),
-                  })}
+                  {running
+                    ? t("notifications.timing.pause.active", {
+                        until: asDay(booked.until),
+                      })
+                    : t("notifications.timing.pause.scheduled", {
+                        from: asDay(booked.since),
+                        until: asDay(booked.until),
+                      })}
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {t("notifications.timing.pause.note")}
                 </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={resume}>
-                {t("notifications.timing.pause.resume")}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={writePreferences.isPending}
+                onClick={resume}
+              >
+                {running
+                  ? t("notifications.timing.pause.resume")
+                  : t("notifications.timing.pause.cancel")}
               </Button>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>{t("notifications.timing.pause.for")}</Label>
-              <div className="flex flex-wrap gap-2">
-                {PAUSE_PRESETS.map((preset) => (
-                  <Button
-                    key={preset}
-                    type="button"
-                    variant="outline"
-                    size="sm"
+              <p className="font-medium">{t("notifications.timing.pause.title")}</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="pause-from">{t("notifications.timing.pause.from")}</Label>
+                  <DateTimePicker
+                    id="pause-from"
+                    value={pauseFromDay}
+                    onChange={setPauseFromDay}
                     disabled={writePreferences.isPending}
-                    onClick={() => pauseFor(preset)}
-                  >
-                    {t(`notifications.timing.pause.options.${preset}`)}
-                  </Button>
-                ))}
+                    placeholder={t("notifications.timing.pause.fromPlaceholder")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="pause-until">{t("notifications.timing.pause.until")}</Label>
+                  <DateTimePicker
+                    id="pause-until"
+                    value={pauseUntilDay}
+                    onChange={setPauseUntilDay}
+                    disabled={writePreferences.isPending}
+                    placeholder={t("notifications.timing.pause.untilPlaceholder")}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  disabled={!pauseUntilDay || writePreferences.isPending}
+                  onClick={pause}
+                >
+                  {t("notifications.timing.pause.confirm")}
+                </Button>
               </div>
               <p className="text-muted-foreground text-xs">
-                {t("notifications.timing.pause.description")}
+                {t("notifications.timing.pause.description")} {t("notifications.timing.pause.help")}
               </p>
             </div>
           )}

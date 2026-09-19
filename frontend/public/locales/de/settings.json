@@ -373,19 +373,18 @@
       "respectPresenceHelp": "Wenn du schon hier bist, hat die Glocke es dir gesagt. E-Mail wartet ein paar Minuten, Mobil bleibt still.",
       "pause": {
         "title": "Benachrichtigungen pausieren",
-        "description": "E-Mail und Mobil pausieren bis zu einem Datum deiner Wahl. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
+        "description": "E-Mail und Mobil pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
         "active": "Pausiert bis {{until}}",
+        "scheduled": "Pause von {{from}} bis {{until}}",
         "resume": "Fortsetzen",
+        "cancel": "Abbrechen",
         "resumed": "Benachrichtigungen fortgesetzt",
-        "for": "Pausieren für",
-        "options": {
-          "hour": "1 Stunde",
-          "today": "Den Rest des Tages",
-          "tomorrow": "Bis morgen früh",
-          "week": "Bis nächsten Montag",
-          "custom": "Datum wählen"
-        },
+        "from": "Von",
+        "until": "Bis",
+        "fromPlaceholder": "Heute",
+        "untilPlaceholder": "Tag wählen",
         "confirm": "Pausieren",
+        "help": "Lass den Beginn leer, um sofort zu starten. Beide Tage zählen dazu.",
         "note": "Passwort-Zurücksetzungen und Anmelde-E-Mails kommen weiterhin an. Das sind keine Benachrichtigungen."
       },
       "saved": "Gespeichert",
