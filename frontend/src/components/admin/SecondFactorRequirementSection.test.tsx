@@ -1,0 +1,117 @@
+import { act, fireEvent, screen } from "@testing-library/react";
+import { AxiosError, AxiosHeaders } from "axios";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders } from "@/__tests__/helpers/render";
+import type {
+  PlatformAuthSettingsResponse,
+  SecondFactorRequirementUpdate,
+} from "@/api/generated/initiativeAPI.schemas";
+
+const requirementMutate = vi.fn();
+
+/** The section's own error handler, as the hook received it. */
+let onRequirementError:
+  | ((error: unknown, variables: SecondFactorRequirementUpdate) => void)
+  | undefined;
+
+let settings: PlatformAuthSettingsResponse;
+
+vi.mock("@/hooks/useSettings", () => ({
+  usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
+  useUpdateSecondFactorRequirement: (options?: {
+    onError?: (error: unknown, variables: SecondFactorRequirementUpdate) => void;
+  }) => {
+    onRequirementError = options?.onError;
+    return { mutate: requirementMutate, isPending: false };
+  },
+}));
+
+import { SecondFactorRequirementSection } from "./SecondFactorRequirementSection";
+
+const base: PlatformAuthSettingsResponse = {
+  methods: [
+    { method: "password", enabled: true, would_strand: 0 },
+    { method: "totp", enabled: true, would_strand: 0 },
+  ],
+  guilds_requiring_sign_in: 0,
+  session_max_hours: null,
+  second_factor_requirement: "nobody",
+  accounts_without_factor: { platform_roles: 2, everyone: 9 },
+};
+
+/** The server refusing because this account does not meet the rule itself. */
+const selfUnsatisfied = (): AxiosError => {
+  const error = new AxiosError("refused");
+  error.response = {
+    status: 400,
+    statusText: "Bad Request",
+    data: { detail: "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED" },
+    headers: new AxiosHeaders(),
+    config: { headers: new AxiosHeaders() },
+  };
+  return error;
+};
+
+describe("SecondFactorRequirementSection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    settings = structuredClone(base);
+  });
+
+  it("starts on the stored answer", () => {
+    settings = { ...base, second_factor_requirement: "platform_roles" };
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    expect(screen.getByRole("radio", { name: /platform role/i })).toBeChecked();
+  });
+
+  it("will not save the answer that is already stored", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
+  it("saves the answer that was chosen", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /everybody/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(requirementMutate).toHaveBeenCalledWith({ level: "everyone" });
+  });
+
+  it("says how many people the chosen answer would ask", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /platform role/i }));
+    expect(screen.getByText(/2 people don't have one yet/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: /everybody/i }));
+    expect(screen.getByText(/9 people don't have one yet/i)).toBeInTheDocument();
+  });
+
+  it("says nothing about a cost while nobody is asked", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    expect(screen.queryByText(/don't have one yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/personal API keys/i)).not.toBeInTheDocument();
+  });
+
+  it("warns about the credentials that cannot present a code", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /everybody/i }));
+
+    expect(screen.getByText(/personal API keys/i)).toBeInTheDocument();
+  });
+
+  it("offers to present a factor when the server says this account has none", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    act(() => onRequirementError?.(selfUnsatisfied(), { level: "everyone" }));
+
+    expect(screen.getByText(/set up a second factor of your own/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /enter a code/i })).toBeInTheDocument();
+  });
+});

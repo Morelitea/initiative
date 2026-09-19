@@ -70,6 +70,26 @@ Web sessions already open keep the terms they were opened under and pick up the 
 
 **A community can hold itself to a stricter one.** Where you've [let a community configure its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), the switch is theirs rather than yours: under that community's own **Settings → Security**, and it's twelve hours — the figure HIPAA and NIST both land on. Its members then sign in again on that schedule whatever your own number says, and being in two such communities is still twelve hours, not six.
 
+### Requiring two-factor authentication
+
+By default nobody has to have [two-factor authentication](../account/two-factor-authentication.md) — anybody can set it up, and nobody is nagged. **Settings → Platform → Security** lets you change that, in two sizes:
+
+| Who you ask | What it means |
+|---|---|
+| **People with a platform role** | Support, moderators, operators and owners. The people who can see across the whole server rather than just their own communities. |
+| **Everybody** | Every account here. Communities stop being offered the question, because it's already answered for their members. |
+
+Either one counts an authenticator app **or** a passkey — whichever somebody has, they're covered. So is somebody whose single sign-on did the second factor on the way in, even if they have nothing set up here.
+
+Nobody is signed out. The next time somebody this covers opens the app they're asked to set one up, where they stand, and carry on once they have.
+
+!!! warning "Personal API keys and the app on a phone stop first"
+    Neither can type in a code, so for anybody this covers they stop working until that person sets a factor up — and start working again the moment they do. If you turn this on for everybody, expect a scripted integration or two to go quiet for as long as it takes its owner to spend a minute on their Security page.
+
+    The page tells you how many people don't have a factor yet before you save, which is a reasonable proxy for how much of that you're about to cause.
+
+Two things the page will stop you doing, both for the same reason: you can't require a factor while you haven't got one yourself, and you can't withdraw the authenticator app and passkeys from the [ways in](single-sign-on.md) while a requirement is standing. Lower the requirement first, then withdraw.
+
 ## Running behind a reverse proxy
 
 For any real deployment you'll put Initiative behind a reverse proxy that handles HTTPS.

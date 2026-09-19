@@ -656,6 +656,31 @@
       "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
       "saved": "Session limit saved.",
       "error": "We couldn't save the session limit."
+    },
+    "secondFactorRequirement": {
+      "title": "Two-factor authentication",
+      "description": "Whether people here have to hold a second factor — an authenticator app or a passkey — as well as a way to sign in.",
+      "levels": {
+        "nobody": {
+          "label": "Nobody has to",
+          "help": "Anybody can set one up, and nobody is asked to. Where this is what you want, communities can still ask for one of their own."
+        },
+        "platform_roles": {
+          "label": "People with a platform role",
+          "help": "Support, moderators, operators and owners — everybody whose reach is the whole server rather than the communities they belong to."
+        },
+        "everyone": {
+          "label": "Everybody",
+          "help": "Every account on this server. Communities stop being offered the question, because it is already answered for their members."
+        }
+      },
+      "wouldAsk_one": "{{count}} person doesn't have one yet. They'll be asked to set one up the next time they open the app.",
+      "wouldAsk_other": "{{count}} people don't have one yet. They'll be asked to set one up the next time they open the app.",
+      "derivedCredentials": "Personal API keys and the app on a phone can't present a code, so they stop working for anybody this covers until that person sets a factor up — and work again as soon as they do.",
+      "unmet": "Set up a second factor of your own first, then save.",
+      "present": "Enter a code",
+      "saved": "Saved. People this covers are asked at their next request.",
+      "error": "We couldn't save that."
     }
   },
   "platformUsers": {
@@ -1127,7 +1152,8 @@
       "requireFactor": "Also require a second factor",
       "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
       "requirePasskey": "Also require a passkey",
-      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out.",
+      "factorRequiredByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add."
     },
     "apiAccess": {
       "title": "API access",

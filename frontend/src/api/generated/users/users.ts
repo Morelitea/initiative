@@ -77,6 +77,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
+ * Who you are. Reachable while the deployment's second-factor rule is
+ * unmet, because every screen that could answer it is drawn from this.
  * @summary Read Users Me
  */
 export const readUsersMeApiV1UsersMeGet = (

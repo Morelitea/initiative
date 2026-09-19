@@ -46,9 +46,20 @@ Ask whoever runs your Initiative. They can clear the second factor from your acc
 
 They can only *remove* it. Nobody, at any level, can see your key or your recovery codes — there's nothing to look up.
 
+## If your server asks for it
+
+Whoever runs your Initiative can decide that everybody here needs a second factor — or just the people with server-wide roles. If that's you, you'll be asked for one the next time you open the app, with a link straight to the setup above. It takes a minute and then you're back where you were.
+
+A passkey counts too, so if you've already got one of those you're done.
+
+!!! info "Two things that stop working until you've set one up"
+    Anything you'd made that can't type in a code: a personal API key, and the app on your phone if you're signed in there. Set up a factor and both come back on their own.
+
 ## Turning it off
 
 **User settings → Security → Turn off**. You'll need your password and one more code — either from your app or a recovery code.
+
+If your server asks everybody for a second factor, turning yours off means being asked for one again on your very next click. Which is either a useful thing to know or a slightly annoying way to find out.
 
 Turning it off discards your recovery codes and signs you out everywhere else, which is deliberate: if you're turning this off because something went wrong, every other session going with it is the useful part.
 

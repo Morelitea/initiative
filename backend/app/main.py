@@ -12,6 +12,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -845,6 +846,26 @@ def custom_openapi() -> dict:
 # registered later is ``include_in_schema=False``, so the spec is already complete here.
 app.openapi = custom_openapi  # ty: ignore[invalid-assignment]
 
+
+class McpBarePathMiddleware:
+    """Serve ``/api/v1/mcp`` as ``/api/v1/mcp/``.
+
+    A Starlette ``Mount`` matches only the trailing-slash spelling, and MCP
+    clients differ over which one they send. Rewriting the path in place serves
+    both from the one mount, with nothing for the client to follow. Plain ASGI
+    rather than ``BaseHTTPMiddleware``, so the streamed body passes through.
+    """
+
+    def __init__(self, app: ASGIApp, prefix: str) -> None:
+        self.app = app
+        self.prefix = prefix
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == self.prefix:
+            scope = {**scope, "path": f"{self.prefix}/"}
+        await self.app(scope, receive, send)
+
+
 if settings.ENABLE_MCP:
     # Build the route-backed MCP server from the fully-routed app and mount it at
     # /api/v1/mcp (before the SPA catch-all below, so it wins that path). Build
@@ -857,6 +878,7 @@ if settings.ENABLE_MCP:
 
     _mcp_app = build_mcp_server(app).http_app(path="/")
     app.mount(f"{API_V1_STR}/mcp", _mcp_app)
+    app.add_middleware(McpBarePathMiddleware, prefix=f"{API_V1_STR}/mcp")
     app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
 
 

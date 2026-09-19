@@ -29,10 +29,11 @@ from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.messages import BillingMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
+    AUTH_POLICY_UNMET_HEADER,
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
 )
@@ -1094,13 +1095,6 @@ async def _require_guild_auth_option(
         )
 
 
-#: Which part of the requirement the writer's own session came up short on.
-#: One refusal code covers four separate asks, so this is what tells the
-#: settings page which line of the form to point at. One of ``provider``,
-#: ``sso``, ``totp``, ``passkey``.
-AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
-
-
 def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
     """A refused requirement, naming the part of it that was refused."""
     return HTTPException(
@@ -1111,17 +1105,33 @@ def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
 
 
 def _auth_policy_read(
-    policy_row, provider_display_name: str | None = None
+    policy_row,
+    provider_display_name: str | None = None,
+    *,
+    factor_required_by_platform: bool = False,
 ) -> GuildAuthPolicyRead:
     if policy_row is None or policy_row.policy == "open":
-        return GuildAuthPolicyRead(policy="open")
+        return GuildAuthPolicyRead(
+            policy="open", factor_required_by_platform=factor_required_by_platform
+        )
     return GuildAuthPolicyRead(
         policy="required",
         provider_id=policy_row.provider_id,
         provider_slug=policy_row.provider_slug,
         provider_display_name=provider_display_name,
         require_methods=list(policy_row.require_methods or ()),
+        factor_required_by_platform=factor_required_by_platform,
     )
+
+
+async def _platform_asks_everyone(session) -> bool:
+    """Whether the deployment already asks every account for a second factor.
+
+    The one level that makes a community's own box redundant: asking the
+    platform rungs leaves a community's members untouched, so that box stays.
+    """
+    level = await auth_posture.second_factor_requirement(session)
+    return level is SecondFactorRequirement.everyone
 
 
 @router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
@@ -1171,7 +1181,11 @@ async def get_guild_auth_policy(
     if policy_row is not None and policy_row.provider_id is not None:
         provider = await admin_session.get(AuthProvider, policy_row.provider_id)
         display_name = provider.display_name if provider else None
-    return _auth_policy_read(policy_row, display_name)
+    return _auth_policy_read(
+        policy_row,
+        display_name,
+        factor_required_by_platform=await _platform_asks_everyone(admin_session),
+    )
 
 
 @router.put("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
@@ -1220,7 +1234,10 @@ async def set_guild_auth_policy(
             )
             await session.delete(policy_row)
             await session.commit()
-        return GuildAuthPolicyRead(policy="open")
+        return GuildAuthPolicyRead(
+            policy="open",
+            factor_required_by_platform=await _platform_asks_everyone(admin_session),
+        )
 
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     # Hold the settings row for the rest of this transaction. An operator
@@ -1350,7 +1367,11 @@ async def set_guild_auth_policy(
             },
         )
     await session.commit()
-    return _auth_policy_read(policy_row, provider.display_name if provider else None)
+    return _auth_policy_read(
+        policy_row,
+        provider.display_name if provider else None,
+        factor_required_by_platform=await _platform_asks_everyone(admin_session),
+    )
 
 
 @router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)

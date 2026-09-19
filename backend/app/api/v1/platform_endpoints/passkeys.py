@@ -27,7 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn.helpers import bytes_to_base64url
 from webauthn.helpers.exceptions import WebAuthnException
 
-from app.api.deps import get_current_active_user, require_first_party_session
+from app.api.deps import (
+    FactorExemptUser,
+    get_current_active_user,
+    require_first_party_session,
+)
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
@@ -168,7 +172,7 @@ def _challenge_from_client_data(
 
 @router.get("/passkeys", response_model=PasskeyList)
 async def list_passkeys(
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> PasskeyList:
@@ -187,7 +191,7 @@ async def list_passkeys(
 @limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def begin_passkey_registration(
     request: Request,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     session: SessionDep,
     admin_session: AdminSessionDep,
     payload: PasskeyRegisterStart,
@@ -249,7 +253,7 @@ async def begin_passkey_registration(
 @limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def finish_passkey_registration(
     request: Request,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     session: SessionDep,
     admin_session: AdminSessionDep,
     payload: PasskeyRegisterFinish,
@@ -576,7 +580,7 @@ async def finish_passkey_sign_in(
 async def begin_passkey_step_up(
     request: Request,
     session: SessionDep,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyAuthenticationOptions:
@@ -624,7 +628,7 @@ async def finish_passkey_step_up(
     request: Request,
     response: Response,
     session: SessionDep,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
     payload: PasskeyStepUpFinish,
     _first_party: str = FirstPartyOnly,

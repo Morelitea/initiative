@@ -14,7 +14,11 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from app.api.deps import get_current_active_user, require_first_party_session
+from app.api.deps import (
+    FactorExemptUser,
+    get_current_active_user,
+    require_first_party_session,
+)
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
@@ -54,6 +58,9 @@ router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+#: Setting a factor up and presenting one have to answer while the
+#: deployment's own rule is unmet — they are how an account meets it. Removing
+#: one, and replacing the recovery set, are ordinary and take ``CurrentUser``.
 #: Enrolling and removing a factor change how the account is signed into, so
 #: they are done by the person in a session of their own rather than through a
 #: standing credential.
@@ -66,7 +73,7 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
 
 @router.get("/totp", response_model=SecondFactorStatus)
 async def read_second_factor(
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
 ) -> SecondFactorStatus:
     """What the account holds. A started-but-unproved enrolment reads as not
@@ -108,7 +115,7 @@ async def read_second_factor(
 @limiter.limit("10/hour")
 async def begin_second_factor(
     request: Request,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
     payload: SecondFactorEnrolStart,
     _first_party: str = FirstPartyOnly,
@@ -151,7 +158,7 @@ async def begin_second_factor(
 @limiter.limit("10/15minutes")
 async def confirm_second_factor(
     request: Request,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
     payload: SecondFactorConfirm,
     _first_party: str = FirstPartyOnly,
@@ -270,7 +277,7 @@ async def disable_second_factor(
 async def step_up_with_factor(
     request: Request,
     response: Response,
-    current_user: CurrentUser,
+    current_user: FactorExemptUser,
     admin_session: AdminSessionDep,
     payload: SecondFactorStepUpAnswer,
     _first_party: str = FirstPartyOnly,

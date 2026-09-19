@@ -10,7 +10,8 @@ Two rules keep it from creeping back:
 
 - ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
   ``public`` and are all keyed on the guild the request addresses, so the gate
-  reads them together.
+  reads them together — and the settings singleton rides with them, because
+  what the deployment asks of an account is decided in the same breath.
 - The routing is written once. The "Full access" initiative set is the one
   value that is only knowable after the routing lands, so the statement that
   resolves it writes its own GUC and leaves the other twelve alone.
@@ -60,9 +61,13 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
         )
 
     assert len(sent) == 6, "preamble round trips:\n" + "\n".join(sent)
-    # The three public rows the gate needs come back together...
-    assert sum("guild_memberships" in stmt for stmt in sent) == 1
-    assert sum("guild_auth_policies" in stmt for stmt in sent) == 1
+    # The public rows the gate needs come back together — the deployment's own
+    # second-factor answer among them, rather than as a read of its own on
+    # every guild request there is.
+    (gate_read,) = [stmt for stmt in sent if "guild_memberships" in stmt]
+    assert "guild_auth_policies" in gate_read
+    assert "app_settings" in gate_read
+    assert sum("app_settings" in stmt for stmt in sent) == 1
     # ...and the "Full access" set is resolved and recorded in one statement,
     # rather than read and then written back through the whole context, which
     # is why the full context is written once and not twice.

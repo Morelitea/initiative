@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.models.platform.user_dm_settings import DmPolicy
 
 # Platform OIDC config lives on the provider registry row (``auth_providers``
@@ -68,6 +68,30 @@ class AppSetting(SQLModel, table=True):
             nullable=False,
             # Matches what migration 0315 sets on the column.
             server_default="{password,sso,totp,passkey}",
+        ),
+    )
+
+    # Who this deployment asks to hold a second factor. A Postgres enum for
+    # the same reason ``login_methods`` is one: the database validates the
+    # value, and a rung added later is a value on the type rather than a
+    # column here. ``nobody`` on every fresh and upgraded install, so an
+    # upgrade asks nothing of anybody it was not already asking.
+    #
+    # What answers it is the account holding one — a confirmed authenticator
+    # or a registered passkey — or a session that presented one, which is what
+    # an identity provider's own second factor looks like from here. The
+    # per-session reading is a community's question (``require_methods``);
+    # this one is about the account.
+    second_factor_requirement: SecondFactorRequirement = Field(
+        default=SecondFactorRequirement.nobody,
+        sa_column=Column(
+            PGEnum(
+                SecondFactorRequirement,
+                name="second_factor_requirement",
+                create_type=False,
+            ),
+            nullable=False,
+            server_default=SecondFactorRequirement.nobody.value,
         ),
     )
 

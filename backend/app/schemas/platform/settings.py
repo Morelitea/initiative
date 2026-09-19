@@ -2,7 +2,7 @@ from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.user_input_validators import validate_provider_slug
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -353,6 +353,22 @@ class LoginMethodStatus(SanitizedBaseModel):
     would_strand: int
 
 
+class AccountsWithoutFactor(SanitizedBaseModel):
+    """How many accounts each level would ask to set a second factor up.
+
+    Both figures on every read, so the page states the consequence of a choice
+    before it is made rather than after it binds anybody.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Accounts above ``member`` on the platform ladder holding neither an
+    #: authenticator nor a passkey.
+    platform_roles: int
+    #: Every live account holding neither.
+    everyone: int
+
+
 class PlatformAuthSettingsResponse(SanitizedBaseModel):
     """The ways in this deployment permits, with the facts a change would turn
     on."""
@@ -368,6 +384,10 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: ``None`` asks for no limit, which is the default. A community held to
     #: the compliance standard overrides it downwards for its own members.
     session_max_hours: Optional[int] = None
+    #: Who this deployment asks to hold a second factor.
+    second_factor_requirement: SecondFactorRequirement = SecondFactorRequirement.nobody
+    #: What each level would ask for, as things stand.
+    accounts_without_factor: AccountsWithoutFactor
 
 
 class SessionLifetimeUpdate(SanitizedBaseModel):
@@ -380,6 +400,18 @@ class SessionLifetimeUpdate(SanitizedBaseModel):
     """
 
     session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
+
+
+class SecondFactorRequirementUpdate(SanitizedBaseModel):
+    """Who to ask for a second factor from now on.
+
+    Nobody is signed out by the change. An account the level covers is asked
+    at its next request and answers it where it stands; one that cannot
+    present a factor — the app on a phone, a personal API key — works again
+    once its owner holds one.
+    """
+
+    level: SecondFactorRequirement
 
 
 class LoginMethodsUpdate(SanitizedBaseModel):

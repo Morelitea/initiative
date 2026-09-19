@@ -6,8 +6,8 @@ retained by whatever ships the deployment's logs. The application holds no
 copy: the ``audit_events`` table (migration 0204) and the board that read it
 are removed.
 
-Revision ID: 20260918_0318
-Revises: 20260918_0317
+Revision ID: 20260918_0319
+Revises: 20260918_0318
 Create Date: 2026-09-19
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.config import settings
 
-revision = "20260918_0318"
-down_revision = "20260918_0317"
+revision = "20260918_0319"
+down_revision = "20260918_0318"
 branch_labels = None
 depends_on = None
 

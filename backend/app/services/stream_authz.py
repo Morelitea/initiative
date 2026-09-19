@@ -284,9 +284,10 @@ class StreamAuthority:
         # this runs in whoever asked for the re-check — a request with a
         # session of its own, or the bounded loop. What is there is held and
         # put back on the way out.
-        held_mfa, held_passkey = (
+        held_mfa, held_passkey, held_factor = (
             auth_context.session_mfa(),
             auth_context.session_passkey(),
+            auth_context.platform_factor(),
         )
         try:
             async with AsyncSessionLocal() as session:
@@ -325,6 +326,9 @@ class StreamAuthority:
         finally:
             auth_context.set_session_mfa(held_mfa)
             auth_context.set_session_passkey(held_passkey)
+            # The gate inside the access check resolves this for the account
+            # being re-checked; put back whoever's it was.
+            auth_context.set_platform_factor(held_factor)
 
     async def _disconnect(self, member: _StreamMember) -> None:
         await self.leave(member.websocket)
