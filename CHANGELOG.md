@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.70.1] - 2026-09-19
-
 ### Added
 
 - **A community can configure its own sign-in** — **Settings → Community → Security** lets a community say which of the deployment's providers count as its own and which accounts on them are theirs, without ever seeing an address, client or secret. A setup flow asks the four questions in the order they depend on each other: which way in, whose people count, where they land, and whether to insist on it.
@@ -20,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **What a community may decide for itself is two switches** — **Its own sign-in** (connect providers, place people, require arrival through one) and **Its own security standard** (refuse API keys, shorten sessions), in the community's **Manage** panel. Neither needs the other, replacing a ladder of three nested ticks where the master quietly bundled the compliance settings.
 - **A community's Authentication tab is now Security** — in two sections, *Who gets in* and *On what terms*, each appearing only where the operator granted it. AI and Apps become one **Integrations** tab.
+
+## [0.70.1] - 2026-09-19
 
 ### Fixed
 
