@@ -66,12 +66,16 @@ _PROVISIONER = ("DATABASE_URL", "app_provisioner")
 _APP_USER = ("DATABASE_URL_APP", "app_user")
 _SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 
-#: Roles the provisioner administers but does not create: the shared floors and
-#: the platform ladder come from the baseline migration, and per-guild roles
-#: from guild provisioning. Granting them ``WITH ADMIN OPTION`` where they
-#: already exist is what lets the provisioner maintain them afterwards.
-_ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'platform_base', "
+#: Roles the provisioner administers but does not create: the shared floors,
+#: the platform ladder and the two reader roles come from migrations, and
+#: per-guild roles from guild provisioning. Granting them ``WITH ADMIN OPTION``
+#: where they already exist is what lets the provisioner maintain them
+#: afterwards — a cluster-global role is created once, by whichever login got
+#: there first, and a ``CREATEROLE`` login holds ADMIN only on the roles it
+#: created itself.
+ADMINISTERED_ROLE_PATTERN = (
+    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'app_profile_reader', "
+    "'app_dm_reader', 'platform_base', "
     "'platform_member', 'platform_support', 'platform_moderator', "
     "'platform_operator', 'platform_owner') "
     "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q)?$'"
@@ -239,13 +243,13 @@ END $$;
 
 # Roles the provisioner creates from now on carry implicit ADMIN (PG16+
 # CREATEROLE); ones that already exist are granted here.
-_ADMINISTER_EXISTING_ROLES = f"""
+ADMINISTER_EXISTING_ROLES = f"""
 DO $$
 DECLARE
     provisioner text := current_setting('app._bootstrap_role');
     r record;
 BEGIN
-    FOR r IN SELECT rolname FROM pg_roles WHERE {_ADMINISTERED_ROLE_PATTERN}
+    FOR r IN SELECT rolname FROM pg_roles WHERE {ADMINISTERED_ROLE_PATTERN}
     LOOP
         EXECUTE format('GRANT %I TO %I WITH ADMIN OPTION', r.rolname, provisioner);
     END LOOP;
@@ -535,7 +539,7 @@ async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
         await _set_local(conn, "app._bootstrap_grantee", role.name)
         await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
         await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
-    await conn.execute(text(_ADMINISTER_EXISTING_ROLES))
+    await conn.execute(text(ADMINISTER_EXISTING_ROLES))
     await _transfer_ownership(conn)
     await conn.execute(text(_DEFAULT_PRIVILEGES))
 
@@ -657,7 +661,7 @@ def bootstrap_sql() -> str:
             _REVOKE_LOGIN_DEFAULT_PRIVILEGES.strip(),
         ]
     out += [
-        _ADMINISTER_EXISTING_ROLES.strip(),
+        ADMINISTER_EXISTING_ROLES.strip(),
         "-- Ownership handover, for a database already running under another",
         "-- login. Each statement is rendered by the query below; run what it",
         "-- returns. Nothing to do on a fresh install.",

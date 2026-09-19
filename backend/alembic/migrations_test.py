@@ -172,6 +172,7 @@ async def _run_alembic_async(action: str, revision: str) -> None:
     lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await _administer_shared_roles()
         saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
         settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
         settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
@@ -200,6 +201,7 @@ async def _run_upgrade_chain_locked_async(revisions: list[str]) -> None:
     lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await _administer_shared_roles()
         saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
         settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
         settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
@@ -243,6 +245,37 @@ def _parse_admin_url() -> dict:
         "host": parsed.hostname,
         "port": parsed.port or 5432,
     }
+
+
+async def _administer_shared_roles() -> None:
+    """Let the provisioning role hand out the cluster-global roles it shares.
+
+    The suite migrates two sets of databases with two different logins: the
+    main suite's ``conftest`` runs as the test-infra superuser, this file as
+    ``app_provisioner``. A prefixed role belongs to whichever of them made it,
+    but the handful of unprefixed ones is created once for the whole cluster,
+    by whichever got there first, and a ``CREATEROLE`` login holds ADMIN only
+    on the roles it created itself.
+
+    A deployment settles that in ``app.db.bootstrap``, which grants the
+    provisioner ADMIN OPTION over those roles on every start; the suite is that
+    infrastructure for its own databases, so it runs the same statement over
+    the same role set — no second list — on the superuser connection. Called
+    while holding the migration lock, which is also what every other worker
+    creates roles under.
+    """
+    from app.db.bootstrap import ADMINISTER_EXISTING_ROLES
+
+    conn = await connect_su_postgres()
+    try:
+        async with conn.transaction():
+            await conn.execute(
+                "SELECT set_config('app._bootstrap_role', $1, true)",
+                _parse_admin_url()["user"],
+            )
+            await conn.execute(ADMINISTER_EXISTING_ROLES)
+    finally:
+        await conn.close()
 
 
 async def _drop_prefixed_roles(conn: asyncpg.Connection) -> None:
