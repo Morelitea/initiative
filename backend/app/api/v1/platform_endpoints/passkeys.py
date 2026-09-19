@@ -380,7 +380,9 @@ async def remove_passkey(
 @router.post(
     "/passkeys/authenticate/begin", response_model=PasskeyAuthenticationOptions
 )
-@limiter.limit("30/15minutes")
+# Every load of a sign-in page on a browser that offers a passkey in its
+# autofill spends one of these, so the ceiling is well above the button's.
+@limiter.limit("60/15minutes")
 async def begin_passkey_sign_in(
     request: Request,
     session: SessionDep,
@@ -452,8 +454,25 @@ async def finish_passkey_sign_in(
             if outcome.passkey is not None
             else None
         )
+        if outcome.reason == "wrong_rp" and outcome.passkey is not None:
+            # Said in the log because it is an operator's answer, not the
+            # account's: the deployment moved domain and the credentials made
+            # under the old one cannot answer here.
+            logger.warning(
+                "passkey refused: the credential belongs to %s, "
+                "this deployment answers to %s",
+                outcome.passkey.rp_id,
+                passkey_service.relying_party_id(),
+            )
+        # A credential this deployment holds no row for, and one made under
+        # another domain, say nothing about the account the record names, so
+        # neither counts toward the repeated-refusal rule.
         await record_sign_in_failure(
-            admin_session, refused_for, method="passkey", reason=outcome.reason
+            admin_session,
+            refused_for,
+            method="passkey",
+            reason=outcome.reason,
+            watch=outcome.reason not in ("unknown", "wrong_rp"),
         )
         raise _sign_in_invalid()
 
@@ -467,7 +486,9 @@ async def finish_passkey_sign_in(
     if user is None or user.status != UserStatus.active:
         # No session to open, so the counter the assertion moved goes back with
         # the transaction and the refusal is recorded on its own. The account
-        # is read again because the rollback expired the row.
+        # is read again because the rollback expired the row. The attempt
+        # ``claim_attempt`` counted goes back with it, and the route's own rate
+        # limit is what bounds this path.
         await admin_session.rollback()
         await record_sign_in_failure(
             admin_session,

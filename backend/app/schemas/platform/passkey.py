@@ -88,11 +88,6 @@ class PasskeySignInStart(SanitizedBaseModel):
     """Beginning a sign-in. No account is named: the authenticator offers what
     it holds for this domain, and the assertion names the credential."""
 
-    #: Set by the relay page a phone opens in its system browser. The finish
-    #: then hands the app a device token to return with, rather than opening a
-    #: session in that browser.
-    mobile: bool = False
-
 
 class PasskeyAuthenticationOptions(SanitizedBaseModel):
     """What the browser's credential API is handed, as the library renders it."""

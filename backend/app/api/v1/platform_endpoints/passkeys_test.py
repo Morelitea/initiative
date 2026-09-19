@@ -31,6 +31,7 @@ from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
 from app.services.auth import passkeys as passkey_service
+from app.services.platform import security_rules
 from app.testing import create_user, get_auth_headers
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -976,6 +977,86 @@ async def test_a_credential_that_does_not_verify_names_its_account(
     assert events[0].envelope["detail"]["reason"] == "invalid"
 
 
+@pytest.fixture
+def rule_calls(monkeypatch):
+    """The accounts the repeated-refusal rule was asked about.
+
+    It runs detached from the request that triggered it, so a test that reads
+    this list drains the rules first.
+    """
+    asked: list[int] = []
+
+    async def note(user_id: int, **kwargs) -> None:
+        asked.append(user_id)
+        return None
+
+    monkeypatch.setattr(security_rules, "note_failed_sign_in", note)
+    return asked
+
+
+async def test_a_credential_from_another_domain_is_recorded_and_left_there(
+    client: AsyncClient, session: AsyncSession, assertion, rule_calls
+):
+    """A deployment that has moved domain refuses every credential made under
+    the old one. The refusal is written down against the account the credential
+    belongs to, and the repeated-refusal rule is not asked about it: what the
+    record says is about the move, not about the account."""
+    user = await _account(session, "pk-moved-domain@example.com")
+    user_id = user.id
+    row = await _credential_for(session, user)
+    row.rp_id = "before.example.org"
+    session.add(row)
+    await session.commit()
+
+    challenge = await _begin_sign_in(client)
+    response = await client.post(
+        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+    await security_rules.drain()
+    assert rule_calls == []
+
+    session.expire_all()
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].target_user_id == user_id
+    assert events[0].envelope["detail"]["reason"] == "wrong_rp"
+
+
+async def test_an_assertion_that_does_not_verify_reaches_the_rule(
+    client: AsyncClient, session: AsyncSession, monkeypatch, rule_calls
+):
+    """The other half of the pair above: a signature that did not check out is
+    about this account's credential, so the rule reads the window it falls in."""
+    user = await _account(session, "pk-watched@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+
+    def refuse(**kwargs):
+        raise ValueError("signature")
+
+    monkeypatch.setattr(
+        passkey_service.webauthn, "verify_authentication_response", refuse
+    )
+
+    challenge = await _begin_sign_in(client)
+    response = await client.post(
+        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+    )
+    assert response.status_code == 400
+
+    await security_rules.drain()
+    assert rule_calls == [user_id]
+
+
 async def test_an_inactive_account_is_refused(
     client: AsyncClient, session: AsyncSession, assertion
 ):
@@ -1068,7 +1149,7 @@ async def test_a_phone_is_handed_a_device_token(
     user_id = user.id
     await _credential_for(session, user)
 
-    challenge = await _begin_sign_in(client, mobile=True)
+    challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
         json={
@@ -1121,7 +1202,7 @@ async def test_a_phone_that_sent_no_name_still_appears_in_the_list(
     user = await _account(session, "pk-unnamed@example.com")
     await _credential_for(session, user)
 
-    challenge = await _begin_sign_in(client, mobile=True)
+    challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
         json={"credential": _assertion(challenge), "mobile": True, "device_name": "  "},

@@ -5578,7 +5578,7 @@ export interface PasskeySignInResult {
  * it holds for this domain, and the assertion names the credential.
  */
 export interface PasskeySignInStart {
-  mobile?: boolean;
+  [key: string]: unknown;
 }
 
 export interface PasswordResetRequest {

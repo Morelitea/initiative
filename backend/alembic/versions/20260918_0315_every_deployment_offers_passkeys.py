@@ -22,8 +22,8 @@ issued.
 The backfill writes to a table that already carries ``FORCE ROW LEVEL
 SECURITY``, so it lifts and restores it around the write (CLAUDE.md's rule for
 an existing table, and what 0292 does). The rows waiting for the value are
-counted first and the update is asserted to have matched exactly that many, so
-a write that reaches none of them fails here rather than reporting success.
+counted first and the update has to match exactly that many, so a write that
+reaches none of them fails here rather than reporting success.
 
 Revision ID: 20260918_0315
 Revises: 20260918_0314
@@ -64,12 +64,14 @@ def upgrade() -> None:
                 "WHERE NOT ('passkey' = ANY(login_methods))"
             )
         )
-        assert result.rowcount == waiting, (
-            f"{waiting} app_settings row(s) were to gain the value; "
-            f"{result.rowcount} matched"
-        )
+        matched = result.rowcount
     finally:
         op.execute("ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY")
+
+    if matched != waiting:
+        raise RuntimeError(
+            f"{waiting} app_settings row(s) were to gain the value; {matched} matched"
+        )
 
     op.execute(
         "ALTER TABLE public.app_settings ALTER COLUMN login_methods "
@@ -117,16 +119,18 @@ def downgrade() -> None:
         "ck_app_settings_login_methods_has_primary", "app_settings", type_="check"
     )
     # The label survives (an enum cannot drop one), so every row that holds it
-    # gives it up here instead. A deployment permitting passkeys alone has
-    # nothing left after the removal, and lands on the set the downgraded
-    # version defaults to.
+    # gives it up here instead. What is left has to satisfy the narrower CHECK,
+    # which asks for a password or an sso: a deployment permitting passkeys
+    # alone, or passkeys with the second factor, has none left after the
+    # removal and lands on the set the downgraded version defaults to.
     op.execute("ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY")
     try:
         conn.execute(
             sa.text(
                 "UPDATE public.app_settings SET login_methods = CASE "
-                "WHEN array_remove(login_methods, 'passkey'::login_method) = "
-                "'{}'::login_method[] THEN '{password,sso,totp}'::login_method[] "
+                "WHEN NOT (array_remove(login_methods, 'passkey'::login_method) "
+                "&& '{password,sso}'::login_method[]) "
+                "THEN '{password,sso,totp}'::login_method[] "
                 "ELSE array_remove(login_methods, 'passkey'::login_method) END "
                 "WHERE 'passkey' = ANY(login_methods)"
             )

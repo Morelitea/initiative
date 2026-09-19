@@ -326,9 +326,10 @@ async def test_the_counter_row_stays_locked_until_the_update_commits(
     credential = {"rawId": "Y3JlZGVudGlhbC1vbmU"}
 
     async with maker() as first, maker() as second:
-        assert await passkeys.finish_authentication(
+        answered = await passkeys.finish_authentication(
             first, credential=credential, expected_challenge=b"challenge"
         )
+        assert isinstance(answered, passkeys.Assertion)
         waiting = asyncio.create_task(
             passkeys.finish_authentication(
                 second, credential=credential, expected_challenge=b"challenge"
@@ -338,7 +339,8 @@ async def test_the_counter_row_stays_locked_until_the_update_commits(
         assert not waiting.done()
 
         await first.commit()
-        assert await asyncio.wait_for(waiting, timeout=1)
+        answered_again = await asyncio.wait_for(waiting, timeout=1)
+        assert isinstance(answered_again, passkeys.Assertion)
         await second.commit()
 
     assert seen_counts == [10, 11]
@@ -485,9 +487,10 @@ async def test_the_assertion_check_insists_on_it(session, monkeypatch):
         )
 
     monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", verify)
-    assert await passkeys.finish_authentication(
+    result = await passkeys.finish_authentication(
         session,
         credential={"rawId": "Y3JlZGVudGlhbC1vbmU"},
         expected_challenge=b"challenge",
     )
+    assert isinstance(result, passkeys.Assertion)
     assert seen["require_user_verification"] is True
