@@ -247,6 +247,17 @@ export interface AccountDeletionResponse {
   message: string;
 }
 
+/**
+ * How many accounts each level would ask to set a second factor up.
+ *
+ * Both figures on every read, so the page states the consequence of a choice
+ * before it is made rather than after it binds anybody.
+ */
+export interface AccountsWithoutFactor {
+  platform_roles: number;
+  everyone: number;
+}
+
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
 
 export const UserStatus = {
@@ -4004,6 +4015,7 @@ export interface GuildAuthPolicyRead {
   provider_slug: string | null;
   provider_display_name: string | null;
   require_methods: GuildAuthPolicyReadRequireMethodsItem[];
+  factor_required_by_platform: boolean;
 }
 
 export type GuildAuthPolicyUpdatePolicy =
@@ -5646,6 +5658,23 @@ export interface PlatformAIModeUpdate {
 }
 
 /**
+ * Who this deployment asks to hold a second factor.
+ *
+ * Its own vocabulary rather than a value on :class:`LoginMethod`: that enum
+ * says which ways in *exist*, and this says what is *asked* of an account
+ * once it has one. A deployment permits passkeys and the authenticator app
+ * whether or not it requires either.
+ */
+export type SecondFactorRequirement =
+  (typeof SecondFactorRequirement)[keyof typeof SecondFactorRequirement];
+
+export const SecondFactorRequirement = {
+  nobody: "nobody",
+  platform_roles: "platform_roles",
+  everyone: "everyone",
+} as const;
+
+/**
  * The ways in this deployment permits, with the facts a change would turn
  * on.
  */
@@ -5653,6 +5682,8 @@ export interface PlatformAuthSettingsResponse {
   methods: LoginMethodStatus[];
   guilds_requiring_sign_in: number;
   session_max_hours: number | null;
+  second_factor_requirement: SecondFactorRequirement;
+  accounts_without_factor: AccountsWithoutFactor;
 }
 
 /**
@@ -6950,6 +6981,18 @@ export interface SecondFactorEnrolStart {
 export interface SecondFactorEnrolment {
   secret: string;
   otpauth_uri: string;
+}
+
+/**
+ * Who to ask for a second factor from now on.
+ *
+ * Nobody is signed out by the change. An account the level covers is asked
+ * at its next request and answers it where it stands; one that cannot
+ * present a factor — the app on a phone, a personal API key — works again
+ * once its owner holds one.
+ */
+export interface SecondFactorRequirementUpdate {
+  level: SecondFactorRequirement;
 }
 
 /**

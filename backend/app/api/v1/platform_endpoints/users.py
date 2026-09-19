@@ -17,6 +17,8 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    FactorExemptSessionDep,
+    FactorExemptUser,
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
@@ -166,9 +168,11 @@ GuildAdminContext = Annotated[
 
 @router.get("/me", response_model=UserRead)
 async def read_users_me(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: FactorExemptSessionDep,
+    current_user: FactorExemptUser,
 ) -> UserRead:
+    """Who you are. Reachable while the deployment's second-factor rule is
+    unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients

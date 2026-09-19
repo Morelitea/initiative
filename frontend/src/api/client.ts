@@ -79,6 +79,10 @@ export type GuildFactorKind = "totp" | "passkey";
 
 export interface FactorChallengeDetail {
   guildId: number | null;
+  /** True when the deployment itself is asking, rather than a community. The
+   *  dialog says so, and offers to sign out rather than to carry on: a
+   *  platform refusal is every request, not one page's. */
+  platform?: boolean;
   /** Which answer the dialog asks for: a code from the authenticator app, a
    *  passkey, or — for a change to the account's own sign-in — a session
    *  opened a moment ago. Only a community's own two carry a guild. */
@@ -356,7 +360,15 @@ const FACTOR_CHALLENGE_KINDS: Record<string, FactorChallengeDetail["kind"]> = {
   GUILD_AUTH_FACTOR_REQUIRED: "totp",
   GUILD_AUTH_PASSKEY_REQUIRED: "passkey",
   RECENT_PROOF_REQUIRED: "proof",
+  // And the deployment's own, answered by the same dialog: a factor of the
+  // account's, presented against the session already open.
+  PLATFORM_AUTH_FACTOR_REQUIRED: "totp",
 };
+
+/** Whether the refusal came from the deployment rather than a community. */
+const isPlatformFactorChallenge = (error: {
+  response?: { data?: { detail?: unknown } };
+}): boolean => error.response?.data?.detail === "PLATFORM_AUTH_FACTOR_REQUIRED";
 
 const factorChallengeKind = (error: {
   response?: { data?: { detail?: unknown } };
@@ -373,15 +385,20 @@ apiClient.interceptors.response.use(undefined, async (error) => {
   const factorKind = factorChallengeKind(error);
   if (factorKind) {
     if (typeof window !== "undefined") {
-      // A proof challenge is the account's own business, so it names no
-      // community whichever route raised it.
+      // A proof challenge is the account's own business, and so is the
+      // deployment's own rule, so neither names a community.
+      const platform = isPlatformFactorChallenge(error);
       const rawGuildId =
-        factorKind === "proof" ? null : error.response?.headers?.["x-auth-step-up-guild"];
+        factorKind === "proof" || platform
+          ? null
+          : error.response?.headers?.["x-auth-step-up-guild"];
       const guildId =
         typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
       window.dispatchEvent(
         new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
-          detail: { guildId, kind: factorKind },
+          // Carried only when it is true: a community's ask is the ordinary
+          // one, and says nothing about the deployment.
+          detail: { guildId, kind: factorKind, ...(platform ? { platform: true } : {}) },
         })
       );
     }

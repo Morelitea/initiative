@@ -438,6 +438,43 @@ describe("silent session renewal", () => {
     }
   });
 
+  it("announces the deployment's own ask, which names no community", async () => {
+    let refreshCalls = 0;
+    server.use(
+      http.get("/api/v1/guilds/", () =>
+        HttpResponse.json({ detail: "PLATFORM_AUTH_FACTOR_REQUIRED" }, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    const onFactor = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+
+    try {
+      await expect(apiClient.get("/guilds/")).rejects.toMatchObject({
+        response: { status: 401 },
+      });
+      // The session is fine; what is missing is a factor. So nothing renews
+      // and nothing reads as signed out.
+      expect(refreshCalls).toBe(0);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect((onFactor.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        guildId: null,
+        kind: "totp",
+        platform: true,
+      });
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+      setHasActiveSession(false);
+    }
+  });
+
   it("announces a change that wants a session opened a moment ago", async () => {
     let refreshCalls = 0;
     server.use(

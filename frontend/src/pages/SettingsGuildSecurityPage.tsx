@@ -246,6 +246,11 @@ export const SettingsGuildSecurityPage = () => {
     policyQuery.data != null &&
     policyQuery.data.provider_id == null &&
     (policyQuery.data.require_methods ?? []).includes("sso");
+  // Where the deployment already asks everybody for a second factor, this
+  // community's own box has nothing to add, so it is not offered. A rule
+  // already written stays on the row and comes back into force if the
+  // deployment lowers its answer.
+  const factorAskedByPlatform = policyQuery.data?.factor_required_by_platform === true;
   const savedRequireFactor =
     policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("totp");
   const savedRequirePasskey =
@@ -510,7 +515,13 @@ export const SettingsGuildSecurityPage = () => {
                 </div>
               </RadioGroup>
 
-              {policy === "required" && (
+              {policy === "required" && factorAskedByPlatform && (
+                <p className="border-t pt-4 text-muted-foreground text-sm">
+                  {t("guildAuth.policy.factorRequiredByPlatform")}
+                </p>
+              )}
+
+              {policy === "required" && !factorAskedByPlatform && (
                 <div className="flex items-start gap-3 border-t pt-4">
                   <Checkbox
                     id="require-second-factor"

@@ -332,6 +332,11 @@ class GuildAuthPolicyRead(SanitizedBaseModel):
     provider_slug: Optional[str] = None
     provider_display_name: Optional[str] = None
     require_methods: list[GuildRequirableMethod] = Field(default_factory=list)
+    #: Whether the deployment already asks every account for a second factor.
+    #: The community's own box for it is not offered while this is true —
+    #: there is nothing left for it to add — and a rule already written stays
+    #: on the row, in force again if the deployment lowers its answer.
+    factor_required_by_platform: bool = False
 
 
 class GuildAuthPolicyUpdate(SanitizedBaseModel):

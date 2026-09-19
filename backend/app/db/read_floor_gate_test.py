@@ -94,3 +94,40 @@ async def test_the_read_floor_reads_a_deployment_wide_answer(session, engine):
 
     # The inherited narrowing counts this arrival, so the requirement is met.
     assert answered is True
+
+
+async def test_the_read_floor_reads_what_the_deployment_asks(session, engine):
+    """The gate now asks the deployment's own question first, and that one
+    reads ``app_settings`` — so the floor has to reach that too."""
+    from app.core.login_methods import SecondFactorRequirement
+    from app.services.platform import app_settings as app_settings_service
+
+    guild = await create_guild(session)
+    guild_id = guild.id
+    row = await app_settings_service.get_app_settings(session)
+    row.second_factor_requirement = SecondFactorRequirement.everyone
+    session.add(row)
+    await session.commit()
+
+    async with engine.connect() as conn:
+        await conn.execute(text(f'SET ROLE "{guild_readonly_role_name(guild_id)}"'))
+        for key, value in (
+            ("app.current_user_id", "1"),
+            ("app.current_guild_id", str(guild_id)),
+            ("app.current_guild_role", "member"),
+            ("app.satisfied_providers", ""),
+            ("app.satisfied_claims", ""),
+            ("app.platform_role", "member"),
+            ("app.platform_factor", "false"),
+        ):
+            await conn.execute(
+                text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value}
+            )
+        without = await conn.scalar(text("SELECT public.guild_auth_satisfied()"))
+        await conn.execute(
+            text("SELECT set_config('app.platform_factor', 'true', true)")
+        )
+        holding = await conn.scalar(text("SELECT public.guild_auth_satisfied()"))
+
+    assert without is False
+    assert holding is True

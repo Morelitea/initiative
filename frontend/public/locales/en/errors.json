@@ -709,5 +709,9 @@
   "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there",
   "PASSWORD_IS_LAST_METHOD": "Your password is the only way into this account. Add a passkey first.",
   "PASSKEY_IS_LAST_METHOD": "This passkey is the only way into this account. Set a password or add another passkey first.",
-  "PASSWORD_NOT_HELD": "This account doesn't have a password."
+  "PASSWORD_NOT_HELD": "This account doesn't have a password.",
+  "PLATFORM_AUTH_FACTOR_REQUIRED": "This server requires a second factor. Set one up, or enter a code, to carry on.",
+  "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Permit the authenticator app or passkeys first — there's nothing to ask people for.",
+  "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Set up a second factor of your own before requiring one.",
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "This server still requires a second factor. Lift that requirement first."
 }

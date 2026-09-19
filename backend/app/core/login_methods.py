@@ -78,3 +78,34 @@ def methods_from_values(values: Iterable[str] | None) -> frozenset[LoginMethod]:
         except ValueError:
             continue
     return frozenset(resolved) or frozenset(DEFAULT_LOGIN_METHODS)
+
+
+class SecondFactorRequirement(str, Enum):
+    """Who this deployment asks to hold a second factor.
+
+    Its own vocabulary rather than a value on :class:`LoginMethod`: that enum
+    says which ways in *exist*, and this says what is *asked* of an account
+    once it has one. A deployment permits passkeys and the authenticator app
+    whether or not it requires either.
+    """
+
+    #: Nobody. What every deployment starts on, and what an upgrade finds.
+    nobody = "nobody"
+    #: Everybody holding a platform role above ``member`` — the support,
+    #: moderator, operator and owner rungs, whose reach is the whole
+    #: deployment rather than the communities they belong to.
+    platform_roles = "platform_roles"
+    #: Everybody with an account here.
+    everyone = "everyone"
+
+
+#: Mirrors the Postgres enum type created in migration 0318. A value added to
+#: one has to be added to the other.
+SECOND_FACTOR_REQUIREMENT_VALUES: tuple[str, ...] = tuple(
+    r.value for r in SecondFactorRequirement
+)
+
+#: The methods that can answer the requirement. A community asks for one of
+#: these by name; the deployment asks only that the account holds one, so
+#: either satisfies it.
+FACTOR_METHODS: tuple[LoginMethod, ...] = (LoginMethod.totp, LoginMethod.passkey)

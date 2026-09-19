@@ -122,6 +122,10 @@ class GuildMessages:
     #: The community asks that the session was opened, or stepped up, with a
     #: passkey, and this one was not.
     GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
+    #: The deployment asks this account for a second factor and it holds none.
+    #: Kept beside the two above because one dialog answers all three, and the
+    #: client tells them apart by the code alone.
+    PLATFORM_AUTH_FACTOR_REQUIRED = "PLATFORM_AUTH_FACTOR_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
     #: The community declines personal API keys. Raised both when one is being
     #: minted into the guild and when a request carrying one addresses it, so
@@ -522,6 +526,14 @@ class SettingsMessages:
     LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"
     #: The method used to reach this endpoint is not one the platform permits.
     LOGIN_METHOD_NOT_PERMITTED = "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+    #: Withdrawing the last method that could answer the deployment's own
+    #: second-factor requirement, while that requirement stands.
+    LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+    # What the deployment asks of an account.
+    #: Asking for a second factor while permitting nothing that presents one.
+    FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
+    #: The account writing the requirement does not meet it yet.
+    FACTOR_REQUIREMENT_SELF_UNSATISFIED = "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
 
     # Object storage
     STORAGE_S3_INCOMPLETE = "SETTINGS_STORAGE_S3_INCOMPLETE"

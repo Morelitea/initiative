@@ -42,6 +42,7 @@ import type {
   PlatformAuthSettingsResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
@@ -454,6 +455,128 @@ export const useUpdateLoginMethodsApiV1SettingsAuthMethodsPut = <
 > => {
   return useMutation(
     getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set who this deployment asks to hold a second factor.
+ *
+ * Two refusals on the way up, and none coming down. Asking for one while the
+ * deployment permits nothing that presents one is refused (409); so is
+ * asking while the account writing it does not meet the rule itself (400,
+ * naming the unmet method), which is the same "prove it before it binds
+ * anybody" a community's requirement makes.
+ *
+ * Nobody is signed out. An account the rule covers is asked at its next
+ * request and can answer it where it stands; a credential that cannot
+ * present one — the app on a phone, a personal API key — works again once
+ * its owner holds a factor.
+ * @summary Update Second Factor Requirement
+ */
+export const updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut = (
+  secondFactorRequirementUpdate: BodyType<SecondFactorRequirementUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformAuthSettingsResponse>(
+    {
+      url: `/api/v1/settings/auth/second-factor-requirement`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: secondFactorRequirementUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+      >,
+      TError,
+      { data: BodyType<SecondFactorRequirementUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+    >,
+    TError,
+    { data: BodyType<SecondFactorRequirementUpdate> },
+    TContext
+  > => {
+    const mutationKey = [
+      "updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+      >,
+      { data: BodyType<SecondFactorRequirementUpdate> }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut(
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+    >
+  >;
+export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationBody =
+  BodyType<SecondFactorRequirementUpdate>;
+export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Second Factor Requirement
+ */
+export const useUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+      >,
+      TError,
+      { data: BodyType<SecondFactorRequirementUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
+  >,
+  TError,
+  { data: BodyType<SecondFactorRequirementUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationOptions(
+      options
+    ),
     queryClient
   );
 };

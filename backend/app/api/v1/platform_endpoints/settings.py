@@ -43,7 +43,9 @@ from app.schemas.platform.settings import (
     InterfaceSettingsResponse,
     InterfaceSettingsUpdate,
     LoginMethodStatus,
+    AccountsWithoutFactor,
     LoginMethodsUpdate,
+    SecondFactorRequirementUpdate,
     SessionLifetimeUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
@@ -80,7 +82,7 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
@@ -181,6 +183,15 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
         session_max_hours=row.session_max_hours,
+        second_factor_requirement=auth_posture.requirement_from_row(row),
+        accounts_without_factor=AccountsWithoutFactor(
+            platform_roles=await auth_posture.accounts_without_factor(
+                session, level=SecondFactorRequirement.platform_roles
+            ),
+            everyone=await auth_posture.accounts_without_factor(
+                session, level=SecondFactorRequirement.everyone
+            ),
+        ),
     )
 
 
@@ -212,6 +223,33 @@ async def update_login_methods(
         methods=payload.methods,
         acknowledge_stranded=payload.acknowledge_stranded,
         actor_user_id=admin.id,
+    )
+    return await _platform_auth_payload(session)
+
+
+@router.put(
+    "/auth/second-factor-requirement", response_model=PlatformAuthSettingsResponse
+)
+async def update_second_factor_requirement(
+    payload: SecondFactorRequirementUpdate,
+    session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set who this deployment asks to hold a second factor.
+
+    Two refusals on the way up, and none coming down. Asking for one while the
+    deployment permits nothing that presents one is refused (409); so is
+    asking while the account writing it does not meet the rule itself (400,
+    naming the unmet method), which is the same "prove it before it binds
+    anybody" a community's requirement makes.
+
+    Nobody is signed out. An account the rule covers is asked at its next
+    request and can answer it where it stands; a credential that cannot
+    present one — the app on a phone, a personal API key — works again once
+    its owner holds a factor.
+    """
+    await auth_posture.set_second_factor_requirement(
+        session, level=payload.level, actor=admin
     )
     return await _platform_auth_payload(session)
 
