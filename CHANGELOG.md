@@ -26,7 +26,7 @@ than announced in 0.70.0 where nobody could act on them.
 - **What a community may decide for itself is two switches** — **Its own sign-in** (connect providers, place people, require arrival through one) and **Its own security standard** (refuse API keys, shorten sessions), in the community's **Manage** panel. Neither needs the other, replacing a ladder of three nested ticks where the master quietly bundled the compliance settings.
 - **A community's Authentication tab is now Security** — in two sections, *Who gets in* and *On what terms*, each appearing only where the operator granted it. AI and Apps become one **Integrations** tab.
 
-## [0.70.0] - 2026-09-18
+## [0.70.0] - 2026-09-19
 
 ### Added
 
