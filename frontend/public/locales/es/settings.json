@@ -642,6 +642,10 @@
       "totp": {
         "label": "Aplicación de autenticación",
         "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
+      },
+      "passkey": {
+        "label": "Clave de acceso",
+        "help": "Una clave guardada en un dispositivo o en un gestor de contraseñas, que responde a una solicitud en lugar de a una contraseña. Cada persona las añade por su cuenta."
       }
     },
     "sessionLifetime": {
@@ -1585,6 +1589,7 @@
     "siteUnsupported": "Las claves de acceso necesitan que este sitio tenga un nombre de dominio propio y https. Quien gestiona el sitio puede solucionarlo.",
     "limitReached": "Esta cuenta tiene todas las claves de acceso que puede tener ({{limit}}). Quita una para añadir otra.",
     "addFromBrowser": "Las claves de acceso se añaden desde un navegador con la sesión iniciada en este sitio. «Añadir una clave de acceso» abre uno.",
+    "notOffered": "Este sitio no ofrece claves de acceso. Las que ya tienes se conservan.",
     "error": "No ha funcionado. Inténtalo de nuevo."
   },
   "providerDefaults": {

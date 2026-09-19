@@ -127,6 +127,12 @@ export const PasskeysSection = () => {
   // goes for what this browser can do, below.
   const siteUnsupported =
     list.data?.site_supported === false || (!isNativePlatform && !window.isSecureContext);
+  // The deployment can stop offering passkeys. What an account already holds
+  // stays where it is — it can still be renamed, and removed — but there is
+  // nothing to add.
+  const offered = list.data?.offered ?? true;
+  // On a phone the ceremony happens in the system browser, so what this webview
+  // can do says nothing about whether a passkey can be added.
   const unsupported = !isNativePlatform && !browserSupportsWebAuthn();
 
   const closeAdd = () => {
@@ -247,15 +253,17 @@ export const PasskeysSection = () => {
   // sending somebody to a browser to be told there is no room would be rude.
   // Then what the deployment itself can carry, which no browser can put right,
   // and only after that what this particular browser can do.
-  const addNote = atLimit
-    ? t("passkeys.limitReached", { limit })
-    : siteUnsupported
-      ? t("passkeys.siteUnsupported")
-      : unsupported
-        ? t("passkeys.unsupported")
-        : isNativePlatform
-          ? t("passkeys.addFromBrowser")
-          : null;
+  const addNote = !offered
+    ? t("passkeys.notOffered")
+    : atLimit
+      ? t("passkeys.limitReached", { limit })
+      : siteUnsupported
+        ? t("passkeys.siteUnsupported")
+        : unsupported
+          ? t("passkeys.unsupported")
+          : isNativePlatform
+            ? t("passkeys.addFromBrowser")
+            : null;
 
   return (
     <div className="space-y-4">
@@ -331,13 +339,15 @@ export const PasskeysSection = () => {
 
           {addNote ? <p className="text-muted-foreground text-sm">{addNote}</p> : null}
 
-          <Button
-            type="button"
-            onClick={openAdd}
-            disabled={atLimit || siteUnsupported || unsupported}
-          >
-            {t("passkeys.add")}
-          </Button>
+          {offered ? (
+            <Button
+              type="button"
+              onClick={openAdd}
+              disabled={atLimit || siteUnsupported || unsupported}
+            >
+              {t("passkeys.add")}
+            </Button>
+          ) : null}
         </div>
       )}
 

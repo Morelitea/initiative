@@ -642,6 +642,10 @@
       "totp": {
         "label": "Authenticator app",
         "help": "A code from an app, asked for after a password. People turn it on for themselves."
+      },
+      "passkey": {
+        "label": "Passkey",
+        "help": "A key held by a device or a password manager, answering a prompt instead of a password. People add them for themselves."
       }
     },
     "sessionLifetime": {
@@ -1585,6 +1589,7 @@
     "siteUnsupported": "Passkeys need this site to have a proper domain name and https. Whoever runs it can put that right.",
     "limitReached": "This account holds as many passkeys as it can ({{limit}}). Remove one to add another.",
     "addFromBrowser": "A passkey is added from a browser signed in to this site. Add opens one for you.",
+    "notOffered": "This site doesn't offer passkeys. The ones you have are kept.",
     "error": "That didn't work. Try again."
   },
   "providerDefaults": {

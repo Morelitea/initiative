@@ -91,7 +91,14 @@ const passkey = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const held = (passkeys: ReturnType<typeof passkey>[], rest: Record<string, unknown> = {}) => ({
-  data: { passkeys, password_required: true, limit: 10, site_supported: true, ...rest },
+  data: {
+    passkeys,
+    password_required: true,
+    limit: 10,
+    site_supported: true,
+    offered: true,
+    ...rest,
+  },
   isLoading: false,
   isError: false,
 });
@@ -284,6 +291,18 @@ describe("PasskeysSection", () => {
     expect(await screen.findByText(/contain # or @/i)).toBeInTheDocument();
     expect(mocks.begin).not.toHaveBeenCalled();
     expect(mocks.startRegistration).not.toHaveBeenCalled();
+  });
+
+  it("stops offering to add one where the deployment has withdrawn them", () => {
+    // Withdrawn, not gone: what the account holds is still listed, and still
+    // has its rename and remove buttons.
+    mocks.list.mockReturnValue(held([passkey()], { offered: false }));
+    renderWithProviders(<PasskeysSection />);
+
+    expect(screen.queryByRole("button", { name: /add a passkey/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/doesn't offer passkeys/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rename/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /remove/i })).toBeInTheDocument();
   });
 
   it("sends a phone to the system browser instead of running the ceremony", async () => {
