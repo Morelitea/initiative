@@ -30,14 +30,16 @@ below them are held here until the grant is offered, rather than announced in
 - **What a community may decide for itself is two switches** — **Its own sign-in** (connect providers, place people, require arrival through one) and **Its own security standard** (refuse API keys, shorten sessions), in the community's **Manage** panel. Neither needs the other, replacing a ladder of three nested ticks where the master quietly bundled the compliance settings.
 - **A community's Authentication tab is now Security** — in two sections, *Who gets in* and *On what terms*, each appearing only where the operator granted it. AI and Apps become one **Integrations** tab.
 
+### Removed
+
+- **The operator's Audit page is gone** — the record lives in your log platform now, where it can be kept for as long as you need it, searched, and alerted on. The page only ever showed a slice of it.
+
+## [0.70.1] - 2026-09-19
+
 ### Fixed
 
 - **Upgrading from 0.69 with OIDC claim rules no longer fails at startup** — the 0.70.0 migration that gives every claim rule and synced membership its provider read those tables in a mode that showed it nothing, so on any deployment that had a rule it skipped the backfill and then stopped on the empty column, restarting until rolled back. The database was left untouched at the previous step, and the same migration now carries every rule and membership over. A deployment stuck on 0.70.0 upgrades cleanly to this release.
 - **Relations between tasks now survive a template** — a task marked as blocked by, part of, or related to another task in a project template carries that relation into the project made from it, pointing at the new project's own tasks. Duplicating a project keeps its task relations the same way.
-
-### Removed
-
-- **The operator's Audit page is gone** — the record lives in your log platform now, where it can be kept for as long as you need it, searched, and alerted on. The page only ever showed a slice of it.
 
 ## [0.70.0] - 2026-09-19
 
