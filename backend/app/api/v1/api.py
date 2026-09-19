@@ -79,6 +79,7 @@ from app.api.v1.platform_endpoints import (
     guild_reference,
     guild_provider_connections,
     guilds,
+    health,
     marketplace,
     native,
     notification_prefs,
@@ -104,6 +105,7 @@ api_router = APIRouter()
 # ---------------------------------------------------------------------------
 api_router.include_router(field_catalog.router, tags=["fields"])
 api_router.include_router(version.router, tags=["version"])
+api_router.include_router(health.router, tags=["health"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])

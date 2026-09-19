@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -645,3 +646,20 @@ def purge_guild_blobs(guild_id: int) -> int:
     and needs no per-file bookkeeping. Returns the number of objects removed.
     """
     return get_guild_storage(guild_id).delete_prefix()
+
+
+def probe() -> None:
+    """Reach the configured store once, raising if it cannot be reached.
+
+    Synchronous (boto3 is), so callers on the event loop run it in a worker
+    thread. ``head_bucket`` is the cheapest round trip that proves both the
+    credential and the bucket; the local backend is proved by its directory
+    existing and accepting a write.
+    """
+    cfg = current_storage_config()
+    if cfg.backend == "s3":
+        _get_s3_client().head_bucket(Bucket=_require_bucket())
+        return
+    directory = _local()._dir()
+    if not os.access(directory, os.W_OK):
+        raise OSError(f"{directory} is not writable")

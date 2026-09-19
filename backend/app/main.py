@@ -25,6 +25,7 @@ from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
+from app.api.v1.platform_endpoints import health
 from app.core.messages import CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
@@ -433,7 +434,28 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # decorator (SEC-14). Without this the global default was inert. The middleware
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
-app.add_middleware(SlowAPIMiddleware)
+
+#: The liveness and readiness probes, which a cluster calls on a fixed
+#: interval and must never be answered with a 429.
+_UNLIMITED_PATHS = frozenset(f"{API_V1_STR}{path}" for path in health.PROBE_PATHS)
+
+
+class _DefaultRateLimit(SlowAPIMiddleware):
+    """The global default, minus the probe endpoints.
+
+    Matched by path rather than by ``@limiter.exempt``: the middleware finds a
+    request's handler by keeping the LAST route that matches, which in this app
+    is always the SPA catch-all, so a marker on the handler itself is never the
+    one it reads.
+    """
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        if request.url.path in _UNLIMITED_PATHS:
+            return await call_next(request)
+        return await super().dispatch(request, call_next)
+
+
+app.add_middleware(_DefaultRateLimit)
 
 
 @app.exception_handler(RequestValidationError)
