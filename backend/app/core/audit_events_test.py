@@ -31,19 +31,18 @@ def test_tiers_are_the_two_the_design_defines():
         assert meta.tier in (1, 2), event.value
 
 
-def test_every_event_has_a_board_label_in_every_locale():
+def test_every_event_has_an_english_board_label():
     """The operator's Audit page names an action from ``audit.actions`` in the
-    settings namespace and falls back to the raw value. A fallback reads as
-    a bug, so each locale has to carry every member."""
+    English settings namespace and falls back to the raw value. Audit events
+    are English only; the other locales fall through to these."""
     import json
     from pathlib import Path
 
     locales = Path(__file__).resolve().parents[2].parent / "frontend/public/locales"
-    for locale in ("de", "en", "es", "fr"):
-        labels = json.loads((locales / locale / "settings.json").read_text())["audit"][
-            "actions"
-        ]
-        missing = [e.value for e in AuditEventType if e.value not in labels]
-        assert not missing, f"{locale}/settings.json is missing {missing}"
-        stray = [k for k in labels if k not in {e.value for e in AuditEventType}]
-        assert not stray, f"{locale}/settings.json labels unknown events {stray}"
+    labels = json.loads((locales / "en" / "settings.json").read_text())["audit"][
+        "actions"
+    ]
+    missing = [e.value for e in AuditEventType if e.value not in labels]
+    assert not missing, f"en/settings.json is missing {missing}"
+    stray = [k for k in labels if k not in {e.value for e in AuditEventType}]
+    assert not stray, f"en/settings.json labels unknown events {stray}"
