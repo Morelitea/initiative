@@ -390,6 +390,7 @@ async def create_wiki(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=wiki_in.grants,
+        actor_user_id=current_user.id,
     )
     if wiki_in.tag_ids:
         await tags_service.set_entity_tags(

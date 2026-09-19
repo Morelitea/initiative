@@ -38,12 +38,15 @@ export const SettingsPlatformAuditPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const [page, setPage] = useState(1);
   const [targetFilter, setTargetFilter] = useState("");
+  const [guildFilter, setGuildFilter] = useState("");
 
   const targetUserId = Number.parseInt(targetFilter, 10);
+  const guildId = Number.parseInt(guildFilter, 10);
   const params = {
     page,
     page_size: PAGE_SIZE,
     ...(Number.isFinite(targetUserId) ? { target_user_id: targetUserId } : {}),
+    ...(Number.isFinite(guildId) ? { guild_id: guildId } : {}),
   };
 
   const { data, isLoading } = usePlatformAuditEvents(params);
@@ -79,6 +82,16 @@ export const SettingsPlatformAuditPage = () => {
       header: t("audit.subjectColumn"),
       cell: ({ row }) => <Party party={row.original.target_user} />,
     },
+    {
+      accessorKey: "guild_id",
+      header: t("audit.guildColumn"),
+      cell: ({ row }) =>
+        row.original.guild_id == null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span className="text-muted-foreground text-sm">#{row.original.guild_id}</span>
+        ),
+    },
   ];
 
   const items = data?.items ?? [];
@@ -90,16 +103,28 @@ export const SettingsPlatformAuditPage = () => {
         <CardDescription>{t("audit.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Input
-          value={targetFilter}
-          onChange={(event) => {
-            setTargetFilter(event.target.value.replace(/[^0-9]/g, ""));
-            setPage(1);
-          }}
-          placeholder={t("audit.subjectFilterPlaceholder")}
-          className="max-w-xs"
-          inputMode="numeric"
-        />
+        <div className="flex flex-wrap gap-2">
+          <Input
+            value={targetFilter}
+            onChange={(event) => {
+              setTargetFilter(event.target.value.replace(/[^0-9]/g, ""));
+              setPage(1);
+            }}
+            placeholder={t("audit.subjectFilterPlaceholder")}
+            className="max-w-xs"
+            inputMode="numeric"
+          />
+          <Input
+            value={guildFilter}
+            onChange={(event) => {
+              setGuildFilter(event.target.value.replace(/[^0-9]/g, ""));
+              setPage(1);
+            }}
+            placeholder={t("audit.guildFilterPlaceholder")}
+            className="max-w-xs"
+            inputMode="numeric"
+          />
+        </div>
 
         <DataTable columns={columns} data={items} />
 

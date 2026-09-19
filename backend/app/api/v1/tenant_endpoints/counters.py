@@ -413,6 +413,7 @@ async def create_counter_group(
         initiative_id=group.initiative_id,
         owner_id=current_user.id,
         grants=group_in.grants,
+        actor_user_id=current_user.id,
     )
 
     await session.commit()

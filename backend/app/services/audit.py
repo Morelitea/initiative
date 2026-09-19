@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,16 +34,24 @@ from app.models.platform.audit_event import AuditEvent
 
 audit_logger = logging.getLogger("audit")
 
-#: Envelopes staged in a session, waiting on its commit. Kept on
-#: ``Session.info`` rather than in a module global so concurrent requests never
-#: share a queue.
+#: Rows staged in a session with their envelopes, waiting on its commit. Kept
+#: on ``Session.info`` rather than in a module global so concurrent requests
+#: never share a queue.
 _PENDING = "audit_pending_envelopes"
 
 
 @event.listens_for(Session, "after_commit")
 def _emit_committed_envelopes(session: Session) -> None:
-    """Ship the lines for work that actually landed."""
-    for envelope in session.info.pop(_PENDING, []):
+    """Ship the lines for work that actually landed.
+
+    Each entry is checked against its own row. A record staged inside a
+    savepoint that was rolled back loses its identity with it, while one the
+    session merely let go of after flushing keeps it; the line is judged by
+    that, not by the transaction as a whole.
+    """
+    for row, envelope in session.info.pop(_PENDING, []):
+        if inspect(row).key is None:
+            continue
         # Best-effort: a logging handler that throws must not take down a
         # transaction that has already committed.
         try:
@@ -50,9 +60,15 @@ def _emit_committed_envelopes(session: Session) -> None:
             logging.getLogger(__name__).exception("audit log line could not be emitted")
 
 
-@event.listens_for(Session, "after_rollback")
-def _discard_uncommitted_envelopes(session: Session) -> None:
-    """Drop the lines for work that did not land."""
+@event.listens_for(Session, "after_soft_rollback")
+def _discard_uncommitted_envelopes(session: Session, previous_transaction) -> None:
+    """Drop the lines for work that did not land.
+
+    A savepoint's rollback keeps the queue: what it undid is expunged with it
+    and judged row by row when the transaction commits.
+    """
+    if previous_transaction.nested:
+        return
     session.info.pop(_PENDING, None)
 
 
@@ -105,10 +121,67 @@ async def record(
         "detail": detail or {},
     }
     session.add(event)
+    # Flushed now, so the row belongs to whatever transaction or savepoint is
+    # open at this point and a refused insert surfaces here, at the call.
+    await session.flush()
 
     # Queued, not emitted. The line goes out when the transaction commits, so
     # the two sinks cannot disagree: an action that rolls back leaves no row
     # and tells nobody it happened.
-    session.info.setdefault(_PENDING, []).append(event.envelope)
+    session.info.setdefault(_PENDING, []).append((event, event.envelope))
 
     return event
+
+
+_OMITTED = object()
+
+
+def _recordable(value: Any) -> Any:
+    """``value`` as it may appear in a record, or ``_OMITTED``.
+
+    Booleans, numbers, ``None`` and enumeration members are copied. A string
+    is not: a string field can hold a secret, an address, a name, a URL, and
+    the record names the field instead. A list or set is copied only when
+    every element is.
+    """
+    if isinstance(value, Enum):
+        return value.value
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, (list, tuple, set, frozenset)):
+        items = [_recordable(item) for item in value]
+        if any(item is _OMITTED for item in items):
+            return _OMITTED
+        return sorted(items, key=repr) if isinstance(value, (set, frozenset)) else items
+    return _OMITTED
+
+
+def changed_fields(
+    before: Mapping[str, Any], after: Mapping[str, Any]
+) -> dict[str, Any]:
+    """What a write changed, in the form a configuration record carries.
+
+    ``{"changed": [field, ...], "values": {field: {"from": .., "to": ..}}}``.
+    Every field whose value differs is named; a before/after pair is copied
+    in only where both sides are recordable (see ``_recordable``), so a
+    rotated secret or a retyped address is recorded as the fact that the
+    field moved and nothing more. Fields present on one side only count as
+    changed from or to ``None``.
+    """
+    names = sorted(set(before) | set(after))
+    changed: list[str] = []
+    values: dict[str, dict[str, Any]] = {}
+    for name in names:
+        old, new = before.get(name), after.get(name)
+        if old == new:
+            continue
+        changed.append(name)
+        old_r, new_r = _recordable(old), _recordable(new)
+        if old_r is not _OMITTED and new_r is not _OMITTED:
+            values[name] = {"from": old_r, "to": new_r}
+    return {"changed": changed, "values": values}
+
+
+def snapshot(obj: Any, names: Iterable[str]) -> dict[str, Any]:
+    """The named attributes of ``obj``, for a before/after ``changed_fields``."""
+    return {name: getattr(obj, name) for name in names}

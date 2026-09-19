@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
 from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages
 from app.db.session import get_admin_session
@@ -39,6 +40,7 @@ from app.schemas.platform.marketplace_registry import (
     RegistrySkippedListing,
     RegistryStatusRead,
 )
+from app.services import audit as audit_service
 from app.services.marketplace import registry as registry_service
 from app.services.marketplace import operator_catalog as operator_catalog_service
 
@@ -54,7 +56,7 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 @router.post("/operator-catalog/rescan", response_model=OperatorCatalogScanResult)
 async def rescan_operator_catalog(
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> OperatorCatalogScanResult:
     """Re-read the deployment's own catalog directory (``config.manage``).
 
@@ -80,6 +82,17 @@ async def rescan_operator_catalog(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=MarketplaceMessages.OPERATOR_CATALOG_DIR_MISSING,
         )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.MARKETPLACE_CATALOG_REFRESHED,
+        actor_user_id=admin.id,
+        detail={
+            "source": "operator_catalog",
+            "published": scan.published,
+            "withdrawn": scan.withdrawn,
+            "skipped": scan.skipped,
+        },
+    )
     await session.commit()
     return OperatorCatalogScanResult(
         published=scan.published,
@@ -201,4 +214,18 @@ async def refresh_registry_now(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.code)
     if result.code is not None:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.code)
+    # The refresh owns its own transaction, so the record follows it on this
+    # session rather than riding the write it describes.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.MARKETPLACE_CATALOG_REFRESHED,
+        actor_user_id=current_user.id,
+        detail={
+            "source": "registry",
+            "published": result.upserted,
+            "withdrawn": result.withdrawn,
+            "skipped": len(result.skipped),
+        },
+    )
+    await session.commit()
     return _refresh_read(result)

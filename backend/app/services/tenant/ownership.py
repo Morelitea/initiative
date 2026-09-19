@@ -34,6 +34,7 @@ from sqlalchemy import select as sa_select
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
@@ -47,6 +48,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.services import audit as audit_service
 
 
 @dataclass(frozen=True)
@@ -336,11 +338,49 @@ async def restore_ownership_to_author(
     return True
 
 
+async def _record_ownership_move(
+    session: AsyncSession,
+    *,
+    actor_user_id: Optional[int],
+    from_user_id: Optional[int],
+    to_user_id: int,
+    guild_id: Optional[int],
+    counts: dict[Tool, int],
+) -> None:
+    """One record for one move, with what it moved counted by tool.
+
+    A move that found nothing to move is left unrecorded, and a caller that
+    names no actor is too — ``set_resource_owner`` is reached by the restore
+    and release paths as well, which are their own events.
+    """
+    if actor_user_id is None or not counts:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CONTENT_OWNERSHIP_TRANSFERRED,
+        actor_user_id=actor_user_id,
+        target_user_id=from_user_id,
+        guild_id=guild_id,
+        detail={
+            "from_user_id": from_user_id,
+            "to_user_id": to_user_id,
+            "counts": {tool.value: count for tool, count in counts.items()},
+        },
+    )
+
+
 async def transfer_content_ownership(
-    session: AsyncSession, *, from_user_id: int, to_user_id: int
+    session: AsyncSession,
+    *,
+    from_user_id: int,
+    to_user_id: int,
+    guild_id: Optional[int] = None,
+    actor_user_id: Optional[int] = None,
 ) -> dict[Tool, int]:
     """Move everything ``from_user_id`` owns in the routed guild to
-    ``to_user_id``. Returns a per-tool count of what moved. Caller commits."""
+    ``to_user_id``. Returns a per-tool count of what moved. Caller commits.
+
+    ``actor_user_id`` is who did it; without one the move is unrecorded."""
     moved: dict[Tool, int] = {}
     for tool in OWNABLE:
         rows = await _owned_rows(session, tool, from_user_id)
@@ -350,14 +390,28 @@ async def transfer_content_ownership(
             )
         if rows:
             moved[tool] = len(rows)
+    await _record_ownership_move(
+        session,
+        actor_user_id=actor_user_id,
+        from_user_id=from_user_id,
+        to_user_id=to_user_id,
+        guild_id=guild_id,
+        counts=moved,
+    )
     return moved
 
 
 async def claim_unowned_content(
-    session: AsyncSession, *, guild_id: int, to_user_id: int
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    to_user_id: int,
+    actor_user_id: Optional[int] = None,
 ) -> dict[Tool, int]:
     """Give every resource no current member owns to ``to_user_id``.
-    Returns a per-tool count. Caller commits."""
+    Returns a per-tool count. Caller commits.
+
+    ``actor_user_id`` is who did it; without one the claim is unrecorded."""
     claimed: dict[Tool, int] = {}
     for tool in OWNABLE:
         rows = await _unowned_rows(session, tool, guild_id=guild_id)
@@ -367,6 +421,15 @@ async def claim_unowned_content(
             )
         if rows:
             claimed[tool] = len(rows)
+    await _record_ownership_move(
+        session,
+        actor_user_id=actor_user_id,
+        # Nobody held it, so there is no previous owner to name.
+        from_user_id=None,
+        to_user_id=to_user_id,
+        guild_id=guild_id,
+        counts=claimed,
+    )
     return claimed
 
 

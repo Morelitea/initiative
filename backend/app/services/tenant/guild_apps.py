@@ -46,9 +46,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.services import audit as audit_service
 from app.services.tenant.soft_delete import soft_delete_entity
 
 __all__ = [
@@ -338,6 +340,8 @@ async def install_app(
     guild_id: int,
     created_by: int,
     name: str,
+    actor_user_id: Optional[int] = None,
+    via: str = "install",
 ) -> GuildApp:
     """Create the install row, and whatever the app mounts alongside it.
 
@@ -346,6 +350,10 @@ async def install_app(
     every guild (§7.7). The row is flushed rather than committed — the caller
     owns the transaction, since a guild creation commits the install together
     with the rest of the guild's seed.
+
+    ``actor_user_id`` is the account the caller's session runs as — an admin
+    choosing the app, or ``None`` for a sweep running as nobody. ``via`` says
+    which of the two routes this install came down, and rides the record.
     """
     artifacts = await create_app_artifacts(
         session,
@@ -368,6 +376,21 @@ async def install_app(
     )
     session.add(app)
     await session.flush()
+    # Staged in the caller's transaction, after the flush that gives the install
+    # its id, so the record and the install land together or not at all.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_INSTALLED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="app",
+        target_id=app.id,
+        detail={
+            "listing_uid": listing_uid,
+            "version": listing_version,
+            "via": via,
+        },
+    )
     return app
 
 

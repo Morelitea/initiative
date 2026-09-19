@@ -357,6 +357,7 @@ async def create_calendar(
         initiative_id=initiative_id,
         owner_id=current_user.id,
         grants=calendar_in.grants,
+        actor_user_id=current_user.id,
     )
 
     # The app is the container, so it is answerable for this too: uninstalling

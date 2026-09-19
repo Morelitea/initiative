@@ -72,7 +72,12 @@ Together, the **export** tools above and these **removal** tools cover the two r
 
 ### Accountability
 
-Sensitive cross-group access is **recorded**. When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, that event is logged with who, which community, and why — so privileged access is auditable rather than invisible.
+Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. The deployment's operator reads it in the app, and every entry is also written out as one line for their log platform. Entries name accounts by id, never by name or address, never contain a secret, and are kept after the accounts and communities they name are gone. What is recorded:
+
+- **Privileged access.** When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why.
+- **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.
+- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, app services and installed apps.
+- **Accounts and data.** Accounts created, deactivated, anonymized or deleted; communities created, deleted or exported; member lists exported; permanent deletion from the trash; API keys and webhooks; and each time content is sent to an AI provider.
 
 ### Age, and what we ask for
 

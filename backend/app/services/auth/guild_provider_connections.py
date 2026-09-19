@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
 
+from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthProviderMessages
 from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
@@ -39,8 +40,18 @@ from app.schemas.platform.settings import (
     GuildProviderConnectionRead,
     GuildProviderConnectionUpdate,
 )
+from app.services import audit as audit_service
 
 logger = logging.getLogger(__name__)
+
+#: What a community's connection to a provider consists of, for the record.
+AUDITED_FIELDS: tuple[str, ...] = (
+    "provider_id",
+    "claim",
+    "claim_values",
+    "enabled",
+    "auto_join",
+)
 
 
 def connection_read(
@@ -265,6 +276,7 @@ async def create_connection(
     payload: GuildProviderConnectionCreate,
     *,
     guild_id: int,
+    actor_user_id: int | None = None,
 ) -> GuildProviderConnectionRead:
     provider = await _connectable_provider(
         session, payload.provider_id, guild_id=guild_id
@@ -280,6 +292,23 @@ async def create_connection(
     )
     session.add(row)
     try:
+        # Flushed here so the record can name the row it describes; the unique
+        # constraint still answers with the promised 409 below.
+        await session.flush()
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_PROVIDER_CONNECTED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_provider_connection",
+            target_id=row.id,
+            detail={
+                "provider_id": provider.id,
+                **audit_service.changed_fields(
+                    {}, audit_service.snapshot(row, AUDITED_FIELDS)
+                ),
+            },
+        )
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
@@ -307,8 +336,10 @@ async def update_connection(
     payload: GuildProviderConnectionUpdate,
     *,
     guild_id: int,
+    actor_user_id: int | None = None,
 ) -> GuildProviderConnectionRead:
     row = await editable_connection(session, connection_id, guild_id=guild_id)
+    before = audit_service.snapshot(row, AUDITED_FIELDS)
     data = payload.model_dump(exclude_unset=True)
     # The provider a connection is to is what it is; pointing an existing one
     # somewhere else would silently change who gets in. Disconnect and connect.
@@ -323,6 +354,19 @@ async def update_connection(
     if "auto_join" in data and data["auto_join"] is not None:
         row.auto_join = data["auto_join"]
     session.add(row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_provider_connection",
+            target_id=row.id,
+            detail={"provider_id": row.provider_id, **changed},
+        )
     await session.commit()
     await session.refresh(row)
     provider = await session.get(AuthProvider, row.provider_id)
@@ -330,13 +374,27 @@ async def update_connection(
 
 
 async def delete_connection(
-    session: AsyncSession, connection_id: int, *, guild_id: int
+    session: AsyncSession,
+    connection_id: int,
+    *,
+    guild_id: int,
+    actor_user_id: int | None = None,
 ) -> None:
     """Disconnect. Nobody is signed out and no account changes — what goes is
     the button, and the community's claim on who arrives through it."""
     row = await editable_connection(session, connection_id, guild_id=guild_id)
     await _ensure_not_required(session, row, guild_id=guild_id)
+    provider_id = row.provider_id
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_PROVIDER_DISCONNECTED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild_provider_connection",
+        target_id=connection_id,
+        detail={"provider_id": provider_id},
+    )
     await session.commit()
     logger.info("guild %s disconnected connection %s", guild_id, connection_id)
 
@@ -506,7 +564,11 @@ async def join_on_arrival(
         try:
             async with session.begin_nested():
                 await guilds_service.ensure_membership(
-                    session, guild_id=guild_id, user_id=user_id
+                    session,
+                    guild_id=guild_id,
+                    user_id=user_id,
+                    actor_user_id=user_id,
+                    via="sso",
                 )
         except guilds_service.GuildCapacityError:
             logger.info(

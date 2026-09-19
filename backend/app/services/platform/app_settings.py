@@ -5,6 +5,10 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from typing import Any
+
+from app.core.audit_events import AuditEventType
+from app.services import audit as audit_service
 from app.core.config import settings as app_config
 from app.core.encryption import (
     encrypt_field,
@@ -173,16 +177,87 @@ async def get_app_settings(
     return await _ensure_app_settings(session)
 
 
+# Which columns of the settings singleton each area of the owner's settings
+# page can move. A record names the ones that actually moved; a value rides
+# along only where its type rules out a secret.
+INTERFACE_FIELDS: tuple[str, ...] = ("light_accent_color", "dark_accent_color")
+COMMUNITY_FIELDS: tuple[str, ...] = (
+    "community_directory_enabled",
+    "community_age_gate_enabled",
+    "default_dm_policy",
+    "direct_messages_enabled",
+)
+EMAIL_FIELDS: tuple[str, ...] = (
+    "smtp_host",
+    "smtp_port",
+    "smtp_secure",
+    "smtp_reject_unauthorized",
+    "smtp_username",
+    "smtp_password_encrypted",
+    "smtp_from_address",
+    "smtp_test_recipient",
+)
+STORAGE_FIELDS: tuple[str, ...] = (
+    "storage_backend",
+    "s3_bucket",
+    "s3_region",
+    "s3_endpoint_url",
+    "s3_access_key_id",
+    "s3_secret_access_key_encrypted",
+    "s3_use_path_style",
+    "s3_kms_key_id",
+    "s3_local_fallback",
+)
+
+
+async def _record_settings_area(
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None,
+    area: str,
+    before: dict[str, Any],
+    row: AppSetting,
+    fields: tuple[str, ...],
+    extras: dict[str, Any] | None = None,
+) -> None:
+    """Stage the record for one area of the settings row, if it moved.
+
+    Staged in the same transaction as the write, so the two land together.
+    A caller that names no actor — boot-time seeding — records nothing.
+    """
+    if actor_user_id is None:
+        return
+    changed = audit_service.changed_fields(before, audit_service.snapshot(row, fields))
+    if not changed["changed"] and not any((extras or {}).values()):
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        detail={"area": area, **changed, **(extras or {})},
+    )
+
+
 async def update_interface_colors(
     session: AsyncSession,
     *,
     light_accent_color: str,
     dark_accent_color: str,
+    actor_user_id: int | None = None,
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
+    before = audit_service.snapshot(settings_row, INTERFACE_FIELDS)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
     session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="interface",
+        before=before,
+        row=settings_row,
+        fields=INTERFACE_FIELDS,
+    )
     await session.commit()
     await session.refresh(settings_row)
     return settings_row
@@ -229,6 +304,7 @@ async def update_community_settings(
     community_age_gate_enabled: bool | None = None,
     default_dm_policy: "DmPolicy | None" = None,
     direct_messages_enabled: bool | None = None,
+    actor_user_id: int | None = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
 
@@ -252,6 +328,7 @@ async def update_community_settings(
     message as it is, so switching it back on restores them.
     """
     settings_row = await _ensure_app_settings(session)
+    before = audit_service.snapshot(settings_row, COMMUNITY_FIELDS)
     settings_row.community_directory_enabled = bool(community_directory_enabled)
     if community_age_gate_enabled is not None:
         settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
@@ -260,6 +337,14 @@ async def update_community_settings(
     if direct_messages_enabled is not None:
         settings_row.direct_messages_enabled = bool(direct_messages_enabled)
     session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="community",
+        before=before,
+        row=settings_row,
+        fields=COMMUNITY_FIELDS,
+    )
     await session.commit()
     await session.refresh(settings_row)
     return settings_row
@@ -277,8 +362,10 @@ async def update_email_settings(
     password_provided: bool,
     from_address: str | None,
     test_recipient: str | None,
+    actor_user_id: int | None = None,
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
+    before = audit_service.snapshot(settings_row, EMAIL_FIELDS)
     settings_row.smtp_host = _normalize_optional_string(host)
     settings_row.smtp_port = port if port else None
     settings_row.smtp_secure = bool(secure)
@@ -292,6 +379,18 @@ async def update_email_settings(
     settings_row.smtp_from_address = _normalize_optional_string(from_address)
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="email",
+        before=before,
+        row=settings_row,
+        fields=EMAIL_FIELDS,
+        extras={
+            "password_changed": before["smtp_password_encrypted"]
+            != settings_row.smtp_password_encrypted
+        },
+    )
     await session.commit()
     await session.refresh(settings_row)
     return settings_row
@@ -310,8 +409,10 @@ async def update_storage_settings(
     s3_use_path_style: bool,
     s3_kms_key_id: str | None,
     s3_local_fallback: bool,
+    actor_user_id: int | None = None,
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
+    before = audit_service.snapshot(settings_row, STORAGE_FIELDS)
     settings_row.storage_backend = (backend or "local").lower()
     settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
     settings_row.s3_region = (s3_region or "us-east-1").strip() or "us-east-1"
@@ -326,6 +427,18 @@ async def update_storage_settings(
     settings_row.s3_kms_key_id = _normalize_optional_string(s3_kms_key_id)
     settings_row.s3_local_fallback = bool(s3_local_fallback)
     session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="storage",
+        before=before,
+        row=settings_row,
+        fields=STORAGE_FIELDS,
+        extras={
+            "secret_changed": before["s3_secret_access_key_encrypted"]
+            != settings_row.s3_secret_access_key_encrypted
+        },
+    )
     await session.commit()
     await session.refresh(settings_row)
     # Refresh the process-wide resolved storage config so the live request path

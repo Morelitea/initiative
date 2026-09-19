@@ -416,3 +416,18 @@ def test_enable_api_docs_defaults_true():
 
 def test_enable_api_docs_can_be_disabled():
     assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False
+
+
+def test_log_level_defaults_to_info():
+    assert _settings().LOG_LEVEL == "INFO"
+
+
+@pytest.mark.parametrize("given", ["debug", " Warning ", "ERROR"])
+def test_log_level_is_read_as_a_standard_level_name(given):
+    assert _settings(LOG_LEVEL=given).LOG_LEVEL == given.strip().upper()
+
+
+@pytest.mark.parametrize("bad", ["verbose", "NOTSET", "", "20"])
+def test_log_level_refuses_anything_else(bad):
+    with pytest.raises(ValidationError, match="LOG_LEVEL"):
+        _settings(LOG_LEVEL=bad)

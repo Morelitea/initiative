@@ -38,6 +38,12 @@ class AuditEvent(SQLModel, table=True):
         Index("ix_audit_events_occurred_at", "occurred_at"),
         Index("ix_audit_events_actor", "actor_user_id", "occurred_at"),
         Index("ix_audit_events_target_user", "target_user_id", "occurred_at"),
+        # A community's own record: everything that happened in or to it.
+        Index("ix_audit_events_guild", "guild_id", "occurred_at"),
+        # The request-path roles hold INSERT on this table and nothing else,
+        # and a RETURNING clause reads the row back. The id is drawn from the
+        # sequence ahead of the insert instead.
+        {"implicit_returning": False},
     )
 
     id: Optional[int] = Field(

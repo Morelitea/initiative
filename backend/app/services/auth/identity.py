@@ -36,6 +36,7 @@ from sqlalchemy import false, or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.encryption import encrypt_token
 from app.core.login_methods import LoginMethod, methods_from_values
@@ -47,6 +48,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
+from app.services import audit as audit_service
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
@@ -611,6 +613,13 @@ async def _provision(
         # of the block above and never reaches this, so there is no row for an
         # account that was discarded.
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_CREATED,
+            actor_user_id=user.id,
+            target_user_id=user.id,
+            detail={"via": "sso", "provider_id": provider.id},
+        )
         await session.commit()
         await session.refresh(user)
         await session.refresh(identity)

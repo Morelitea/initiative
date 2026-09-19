@@ -31,6 +31,7 @@ from app.core.security import (
     billing_support_handoff_enabled,
 )
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
+from app.core.logging_config import configure_logging
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
@@ -40,6 +41,10 @@ from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
 from app.services.platform import security_rules
 from app.services.platform.users import SeatWouldBeEmptied
+
+# Before anything in this process logs: the served wiring for the application
+# stream and the audit stream (see app.core.logging_config).
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

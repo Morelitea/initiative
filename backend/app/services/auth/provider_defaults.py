@@ -21,6 +21,7 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.messages import AuthProviderMessages
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.platform_provider_default import PlatformProviderDefault
@@ -28,9 +29,13 @@ from app.schemas.platform.settings import (
     PlatformProviderDefaultRead,
     PlatformProviderDefaultUpdate,
 )
+from app.services import audit as audit_service
 from app.services.auth.guild_provider_connections import clean_claim
 
 logger = logging.getLogger(__name__)
+
+#: What the deployment's answer for a provider consists of, for the record.
+AUDITED_FIELDS: tuple[str, ...] = ("claim", "claim_values", "enabled")
 
 
 def default_read(row: PlatformProviderDefault) -> PlatformProviderDefaultRead:
@@ -72,7 +77,11 @@ async def get_default(
 
 
 async def set_default(
-    session: AsyncSession, provider_id: int, payload: PlatformProviderDefaultUpdate
+    session: AsyncSession,
+    provider_id: int,
+    payload: PlatformProviderDefaultUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> PlatformProviderDefaultRead:
     """Answer for this provider, or change the answer.
 
@@ -85,21 +94,37 @@ async def set_default(
     claim, claim_values = clean_claim(payload.claim, payload.claim_values)
 
     row = await session.get(PlatformProviderDefault, provider_id)
+    created = row is None
     if row is None:
         # In force from the moment it is written, unless the same request says
         # otherwise — an operator answering is answering, not drafting.
         row = PlatformProviderDefault(provider_id=provider_id, enabled=True)
+    before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
     row.claim = claim
     row.claim_values = claim_values
     if payload.enabled is not None:
         row.enabled = payload.enabled
     session.add(row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if created or changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_PROVIDER_DEFAULT_SET,
+            actor_user_id=actor_user_id,
+            target_type="auth_provider",
+            target_id=provider_id,
+            detail=changed,
+        )
     await session.commit()
     await session.refresh(row)
     return default_read(row)
 
 
-async def clear_default(session: AsyncSession, provider_id: int) -> None:
+async def clear_default(
+    session: AsyncSession, provider_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Withdraw the answer. Communities that wrote their own keep them; the
     rest stop counting this provider as theirs."""
     await _require_provider(session, provider_id)
@@ -107,4 +132,12 @@ async def clear_default(session: AsyncSession, provider_id: int) -> None:
     if row is None:
         return
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_PROVIDER_DEFAULT_CLEARED,
+        actor_user_id=actor_user_id,
+        target_type="auth_provider",
+        target_id=provider_id,
+        detail={},
+    )
     await session.commit()

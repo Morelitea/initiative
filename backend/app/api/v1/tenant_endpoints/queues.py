@@ -533,6 +533,7 @@ async def create_queue(
         initiative_id=queue.initiative_id,
         owner_id=current_user.id,
         grants=queue_in.grants,
+        actor_user_id=current_user.id,
     )
 
     await session.commit()

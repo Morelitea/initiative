@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import asyncpg
 from sqlalchemy import delete as sql_delete
 
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.schema_provisioning import (
@@ -18,6 +19,7 @@ from app.db.schema_provisioning import (
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
+from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import dm_settings as dm_settings_service
@@ -60,6 +62,14 @@ async def init_owner() -> None:
             verified=True,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        # Nobody signed in made this account, so it carries no actor.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_CREATED,
+            actor_user_id=None,
+            target_user_id=user.id,
+            detail={"via": "bootstrap"},
+        )
         await session.commit()
 
         # ...and their guild the same way the API does: create the shared rows,

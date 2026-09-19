@@ -202,6 +202,7 @@ async def update_subscription(
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
             payload=payload,
+            actor_user_id=current_user.id,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
@@ -233,6 +234,7 @@ async def delete_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
+            actor_user_id=current_user.id,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(

@@ -104,6 +104,12 @@ async def install_mandatory_apps(
     a registration that never verified, a listing this deployment does not hold,
     a version needing a newer build — is logged and skipped, because none of
     those is a reason to fail whatever the caller was doing.
+
+    ``created_by`` is also the account the caller's session runs as, and is what
+    the audit record names: a guild creation routes as its new owner and passes
+    them here, and the boot sweep routes as nobody and passes nothing. The row
+    an install is *recorded against* can differ — that is ``installer_id``,
+    which falls back to the guild's longest-standing admin.
     """
     registrations = await registration_lookup.mandatory_registrations()
     if not registrations:
@@ -167,6 +173,8 @@ async def install_mandatory_apps(
             guild_id=guild_id,
             created_by=installer_id,
             name=(definition.get("default_name") or listing.name).strip(),
+            actor_user_id=created_by,
+            via="mandatory",
         )
         installed.append(listing.uid)
 

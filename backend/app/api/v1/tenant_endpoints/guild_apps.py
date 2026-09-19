@@ -48,6 +48,7 @@ from app.api.deps import (
     holds_guild_role,
     require_first_party_session,
 )
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import (
     GuildAppMessages,
@@ -79,6 +80,7 @@ from app.schemas.tenant.guild_app import (
     serialize_member_connection,
     serialize_member_delegation,
 )
+from app.services import audit as audit_service
 from app.services import rls as rls_service
 from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
@@ -118,10 +120,28 @@ initiative_router = APIRouter()
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
+#: What an admin sets on an install itself, as opposed to its configuration or
+#: its version. A record of one of these says which of them moved.
+_APP_SETTINGS_FIELDS = ("name", "enabled", "auto_update", "placement")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _config_fields(config: dict, secrets: dict) -> dict[str, Any]:
+    """Every stored configuration field, keyed ``connection.field``.
+
+    The shape a before/after comparison reads: the keys are what a record
+    carries, and the values are only ever compared with one another.
+    """
+    fields: dict[str, Any] = {}
+    for store in (config, secrets):
+        for connection_id, values in (store or {}).items():
+            for field, value in (values or {}).items():
+                fields[f"{connection_id}.{field}"] = value
+    return fields
 
 
 def _require_guild_seat(guild_context: GuildContext) -> None:
@@ -410,6 +430,7 @@ async def install_guild_app(
             guild_id=guild_context.guild_id,
             created_by=current_user.id,
             name=name,
+            actor_user_id=current_user.id,
         )
         await session.commit()
     except IntegrityError as exc:
@@ -475,12 +496,26 @@ async def upgrade_guild_app(
     definition = dict(version.definition)
     _require_installable_kind(definition)
 
+    previous_version = app.listing_version
     await app_updates_service.apply_version(
         session,
         app,
         app_updates_service.PendingUpdate(
             version=version.version, definition=definition
         ),
+    )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_UPDATED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="app",
+        target_id=app.id,
+        detail={
+            "area": "version",
+            "from": previous_version,
+            "to": version.version,
+        },
     )
     await session.commit()
     await _flush_revocations(session)
@@ -523,6 +558,7 @@ async def update_guild_app(
     _require_guild_seat(guild_context)
     app = await _load(session, app_id)
 
+    before = audit_service.snapshot(app, _APP_SETTINGS_FIELDS)
     data = payload.model_dump(exclude_unset=True)
     if data.get("name"):
         app.name = data["name"].strip()
@@ -536,6 +572,19 @@ async def update_guild_app(
         app.placement = await _normalized_placement(session, data["placement"])
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(app, _APP_SETTINGS_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={"area": "settings", **changed},
+        )
     await session.commit()
     await session.refresh(app)
     return serialize_guild_app(
@@ -574,8 +623,10 @@ async def uninstall_guild_app(
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
-    await connections_service.delete_app_connections(session, app=app)
-    await delegations_service.delete_app_delegations(session, app_id=app.id)
+    connections = await connections_service.delete_app_connections(session, app=app)
+    delegations = await delegations_service.delete_app_delegations(
+        session, app_id=app.id
+    )
     # An install is what makes an app present in a guild, so removing it ends
     # what that app is sent. Switched off rather than deleted: the row records
     # what was going where, and a reinstall registers afresh.
@@ -601,7 +652,23 @@ async def uninstall_guild_app(
     )
     install_id = app.id
     guild_id = app.guild_id
+    listing_uid = app.listing_uid
     await session.delete(app)
+    # Staged before the commit that removes the row, and reading the counts the
+    # steps above returned rather than asking again.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_UNINSTALLED,
+        actor_user_id=current_user.id,
+        guild_id=guild_id,
+        target_type="app",
+        target_id=install_id,
+        detail={
+            "listing_uid": listing_uid,
+            "connections": connections,
+            "delegations": delegations,
+        },
+    )
     await session.commit()
     await _flush_revocations(session)
     # What this install called each member. Removed explicitly, because the
@@ -651,6 +718,7 @@ async def update_guild_app_config(
 
     config = dict(app.config or {})
     secrets = dict(app.config_secrets or {})
+    before = _config_fields(config, secrets)
 
     for connection_id, submitted in payload.values.items():
         connection = app_config_service.connection_by_id(app.definition, connection_id)
@@ -693,6 +761,25 @@ async def update_guild_app_config(
     app.config_state_detail = None
     guild_apps_service.touch(app)
     session.add(app)
+    # Which fields hold something different now, by name. A configuration value
+    # is the app's credential to the vendor, so none of it reaches the record.
+    moved = audit_service.changed_fields(before, _config_fields(config, secrets))[
+        "changed"
+    ]
+    if moved:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={
+                "area": "config",
+                "changed": moved,
+                "connection_ids": sorted(payload.values),
+            },
+        )
     await session.commit()
     await session.refresh(app)
     return serialize_guild_app_detail(
@@ -1224,6 +1311,8 @@ async def grant_my_delegation(
         user_id=current_user.id,
         can_write=payload.can_write,
         confirmed_factor=credential,
+        actor_user_id=current_user.id,
+        via="self",
     )
     await session.commit()
     await session.refresh(row)
@@ -1245,7 +1334,12 @@ async def revoke_my_delegation(
     """
     app = await _load(session, app_id)
     await delegations_service.revoke(
-        session, app_id=app.id, user_id=current_user.id, revoked_by_id=current_user.id
+        session,
+        app_id=app.id,
+        user_id=current_user.id,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
+        via="self",
     )
     await session.commit()
 
@@ -1414,7 +1508,12 @@ async def revoke_member_delegation(
     app = await _load(session, app_id)
 
     await delegations_service.revoke(
-        session, app_id=app.id, user_id=user_id, revoked_by_id=current_user.id
+        session,
+        app_id=app.id,
+        user_id=user_id,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
+        via="admin",
     )
     await session.commit()
 
@@ -1436,7 +1535,11 @@ async def revoke_all_member_delegations(
     app = await _load(session, app_id)
 
     await delegations_service.revoke_all(
-        session, app_id=app.id, revoked_by_id=current_user.id
+        session,
+        app_id=app.id,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
+        via="admin",
     )
     await session.commit()
 

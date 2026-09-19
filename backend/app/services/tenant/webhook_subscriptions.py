@@ -4,18 +4,34 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
+from app.core.audit_events import AuditEventType
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionUpdate,
 )
+from app.services import audit as audit_service
+
+#: The fields a rewrite reports as moved. ``fields`` is a list of names, so
+#: it is reported as having moved and never copied.
+_AUDITED_FIELDS = ("active", "event_types", "fields")
+
+
+def _target_host(url: str | None) -> str | None:
+    """The host a subscription points at, which is what a record carries.
+
+    The host alone: the rest of the URL is the receiver's, and naming where
+    deliveries go is what a reviewer is reading for.
+    """
+    return urlsplit(url).hostname if url else None
 
 
 class WebhookSubscriptionVocabularyError(Exception):
@@ -127,6 +143,9 @@ async def create_subscription(
     decides how a delivery names the guild and the actor: an app already holds
     references for both at its install, and an envelope should arrive under
     those (``webhook_refs``).
+
+    ``created_by`` is the account this runs as — an app registering one acts as
+    the member who authorized it — so it is also who the audit record names.
     """
     assert_vocabulary(list(payload.event_types), payload.fields)
 
@@ -147,6 +166,22 @@ async def create_subscription(
         updated_at=now,
     )
     session.add(subscription)
+    # Flushed for its id, recorded, then committed together — this function owns
+    # the transaction, so the record has to be staged before it closes.
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.WEBHOOK_CREATED,
+        actor_user_id=created_by,
+        guild_id=guild_id,
+        target_type="webhook_subscription",
+        target_id=subscription.id,
+        detail={
+            "target_host": _target_host(subscription.target_url),
+            "event_types": list(subscription.event_types),
+            "app_install_id": app_install_id,
+        },
+    )
     await session.commit()
     await session.refresh(subscription)
     return subscription, secret
@@ -158,6 +193,7 @@ async def update_subscription(
     subscription_id: int,
     guild_id: int,
     payload: WebhookSubscriptionUpdate,
+    actor_user_id: int | None = None,
 ) -> WebhookSubscription:
     """Apply a partial update to an existing subscription.
 
@@ -172,6 +208,9 @@ async def update_subscription(
     one widening the fields — each pass against state the other is about to
     replace, and commit a pair that matches nothing. Locking makes the second
     re-read what the first wrote.
+
+    ``actor_user_id`` is the account the caller's session runs as; ``None``
+    writes no audit record, and a patch that moved nothing writes none either.
     """
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id, for_update=True
@@ -187,11 +226,29 @@ async def update_subscription(
     if "target_url" in data and data["target_url"] is not None:
         data["target_url"] = str(data["target_url"])
 
+    before = audit_service.snapshot(subscription, _AUDITED_FIELDS)
+    host_before = _target_host(subscription.target_url)
+
     for field, value in data.items():
         setattr(subscription, field, value)
     subscription.updated_at = datetime.now(timezone.utc)
 
     session.add(subscription)
+    if actor_user_id is not None:
+        changed = audit_service.changed_fields(
+            before, audit_service.snapshot(subscription, _AUDITED_FIELDS)
+        )
+        host_changed = _target_host(subscription.target_url) != host_before
+        if changed["changed"] or host_changed:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.WEBHOOK_UPDATED,
+                actor_user_id=actor_user_id,
+                guild_id=guild_id,
+                target_type="webhook_subscription",
+                target_id=subscription.id,
+                detail={**changed, "target_host_changed": host_changed},
+            )
     await session.commit()
     await session.refresh(subscription)
     return subscription
@@ -256,12 +313,33 @@ async def delete_subscription(
     *,
     subscription_id: int,
     guild_id: int,
+    actor_user_id: int | None = None,
 ) -> None:
     """Hard-delete a subscription. Cross-guild lookups raise; non-owner
     who may delete one is the DELETE policy — the same gates that govern the
-    content it watches."""
+    content it watches.
+
+    ``actor_user_id`` is the account the caller's session runs as; ``None``
+    writes no audit record."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
     )
+    app_install_id = subscription.app_install_id
+    target_host = _target_host(subscription.target_url)
     await session.delete(subscription)
+    # Read off the row while it is still here, and staged before the commit that
+    # takes it away, so the two land together.
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.WEBHOOK_DELETED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="webhook_subscription",
+            target_id=subscription_id,
+            detail={
+                "target_host": target_host,
+                "app_install_id": app_install_id,
+            },
+        )
     await session.commit()

@@ -55,9 +55,11 @@ async def list_auth_providers(
 async def create_auth_provider(
     provider_in: AuthProviderCreate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> AuthProviderAdminRead:
-    return await provider_registry.create_provider(session, provider_in)
+    return await provider_registry.create_provider(
+        session, provider_in, actor_user_id=admin.id
+    )
 
 
 @router.patch("/{provider_id}", response_model=AuthProviderAdminRead)
@@ -65,22 +67,26 @@ async def update_auth_provider(
     provider_id: int,
     provider_in: AuthProviderUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> AuthProviderAdminRead:
-    return await provider_registry.update_provider(session, provider_id, provider_in)
+    return await provider_registry.update_provider(
+        session, provider_id, provider_in, actor_user_id=admin.id
+    )
 
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_auth_provider(
     provider_id: int,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> None:
     """Delete a provider. Its linked identities (and their stored refresh
     tokens) go with it via cascade — users who signed in through it keep their
     accounts and any other sign-in methods. A provider some guild's auth
     policy requires is refused (409): drop or repoint the policy first."""
-    await provider_registry.delete_provider(session, provider_id)
+    await provider_registry.delete_provider(
+        session, provider_id, actor_user_id=admin.id
+    )
 
 
 @router.post("/discover", response_model=AuthProviderProbeResult)
@@ -131,7 +137,7 @@ async def set_provider_default(
     provider_id: int,
     payload: PlatformProviderDefaultUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> PlatformProviderDefaultRead:
     """Answer once for the communities that have not.
 
@@ -139,15 +145,17 @@ async def set_provider_default(
     overriding this outright. Nobody is signed out: the gate reads the
     arrangement in force when it is asked, so this reaches the next request.
     """
-    return await provider_defaults.set_default(session, provider_id, payload)
+    return await provider_defaults.set_default(
+        session, provider_id, payload, actor_user_id=admin.id
+    )
 
 
 @router.delete("/{provider_id}/default", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_provider_default(
     provider_id: int,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> None:
     """Withdraw the answer. Communities that wrote their own keep them; the
     rest stop counting this provider as theirs."""
-    await provider_defaults.clear_default(session, provider_id)
+    await provider_defaults.clear_default(session, provider_id, actor_user_id=admin.id)

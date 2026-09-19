@@ -621,6 +621,7 @@ async def create_post(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=post_in.grants,
+        actor_user_id=current_user.id,
     )
 
     # What the new body points at becomes `references` edges.

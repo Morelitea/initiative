@@ -583,6 +583,7 @@ async def create_gallery(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=gallery_in.grants,
+        actor_user_id=current_user.id,
     )
     if gallery_in.tag_ids:
         await tags_service.set_entity_tags(

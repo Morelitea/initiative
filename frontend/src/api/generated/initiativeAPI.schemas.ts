@@ -8537,6 +8537,7 @@ export type ListAuditEventsApiV1AdminAuditEventsGetParams = {
   event_type?: string[] | null;
   actor_user_id?: number | null;
   target_user_id?: number | null;
+  guild_id?: number | null;
   occurred_after?: string | null;
   occurred_before?: string | null;
   /**

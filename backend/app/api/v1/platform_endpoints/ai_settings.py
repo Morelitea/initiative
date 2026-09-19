@@ -39,10 +39,12 @@ async def get_platform_ai_mode(
 async def update_platform_ai_mode(
     payload: PlatformAIModeUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> PlatformAIModeResponse:
     """Set the global AI config mode (``config.manage`` — owner only)."""
-    return await ai_settings_service.update_platform_ai_mode(session, payload)
+    return await ai_settings_service.update_platform_ai_mode(
+        session, payload, actor_user_id=admin.id
+    )
 
 
 # --- Operator connections (platform mode) ------------------------------------
@@ -60,9 +62,11 @@ async def list_platform_connections(
 async def create_platform_connection(
     payload: AIConnectionCreate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> AIConnectionResponse:
-    return await ai_settings_service.create_platform_connection(session, payload)
+    return await ai_settings_service.create_platform_connection(
+        session, payload, actor_user_id=admin.id
+    )
 
 
 @platform_router.put(
@@ -72,10 +76,10 @@ async def update_platform_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_platform_connection(
-        session, connection_id, payload
+        session, connection_id, payload, actor_user_id=admin.id
     )
 
 
@@ -86,9 +90,11 @@ async def update_platform_connection(
 async def delete_platform_connection(
     connection_id: int,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> None:
-    await ai_settings_service.delete_platform_connection(session, connection_id)
+    await ai_settings_service.delete_platform_connection(
+        session, connection_id, actor_user_id=admin.id
+    )
 
 
 @platform_router.post(

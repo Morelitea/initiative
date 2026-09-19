@@ -678,6 +678,19 @@ async def export_users_csv(
 
     csv_bytes = csv_export.build_csv(_GUILD_CSV_HEADERS, csv_rows)
 
+    # Nothing changed, so the endpoint has no commit of its own to ride: the
+    # record is the whole write.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBERS_EXPORTED,
+        actor_user_id=guild_context.membership.user_id,
+        guild_id=guild_context.guild_id,
+        target_type="guild",
+        target_id=guild_context.guild_id,
+        detail={"count": len(rows)},
+    )
+    await session.commit()
+
     if len(rows) == 1 and user_id:
         single_user = rows[0][0]
         filename = (
@@ -1351,7 +1364,9 @@ async def delete_own_account(
         )
 
     if request.action == "deactivate":
-        await users_service.deactivate_user(session, current_user.id)
+        await users_service.deactivate_user(
+            session, current_user.id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
@@ -1359,7 +1374,9 @@ async def delete_own_account(
         )
 
     # action == "soft_delete"
-    await users_service.soft_delete_user(session, current_user.id)
+    await users_service.soft_delete_user(
+        session, current_user.id, actor_user_id=current_user.id
+    )
     return AccountDeletionResponse(
         success=True,
         action="soft_delete",
@@ -1538,7 +1555,10 @@ async def claim_unowned_content(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
     counts = await ownership_service.claim_unowned_content(
-        session, guild_id=guild_context.guild_id, to_user_id=payload.new_owner_id
+        session,
+        guild_id=guild_context.guild_id,
+        to_user_id=payload.new_owner_id,
+        actor_user_id=current_admin.id,
     )
     await session.commit()
     return _transfer_payload(counts)
@@ -1596,7 +1616,11 @@ async def transfer_ownership(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
     counts = await ownership_service.transfer_content_ownership(
-        session, from_user_id=user_id, to_user_id=payload.new_owner_id
+        session,
+        from_user_id=user_id,
+        to_user_id=payload.new_owner_id,
+        guild_id=guild_context.guild_id,
+        actor_user_id=current_admin.id,
     )
     await session.commit()
     return _transfer_payload(counts)
@@ -1686,7 +1710,18 @@ async def delete_user(
     # And what they let this guild's apps do as them, for the same reason.
     await app_delegations_service.delete_member_delegations(session, user_id=user_id)
 
+    removed_role = membership.role
     await session.delete(membership)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+        actor_user_id=current_admin.id,
+        target_user_id=user_id,
+        guild_id=guild_context.guild_id,
+        target_type="guild",
+        target_id=guild_context.guild_id,
+        detail={"role": removed_role.value, "via": "admin"},
+    )
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.

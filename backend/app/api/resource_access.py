@@ -369,6 +369,7 @@ async def set_resource_grants(
         initiative_id=row.initiative_id,
         owner_id=ownership_service.owner_id_of(row),
         grants=grants,
+        actor_user_id=user.id,
     )
     await session.commit()
 

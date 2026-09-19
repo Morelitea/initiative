@@ -126,7 +126,7 @@ _PLATFORM_CSV_HEADERS = [
 @router.get("/users/export.csv")
 async def export_platform_users_csv(
     session: UserSessionDep,
-    _current_user: UsersReadDep,
+    current_user: UsersReadDep,
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
@@ -179,6 +179,16 @@ async def export_platform_users_csv(
     else:
         datestamp = datetime.now(timezone.utc).date().isoformat()
         filename = f"platform-users-{datestamp}.csv"
+
+    # Nothing changed, so the endpoint has no commit of its own to ride: the
+    # record is the whole write.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_USERS_EXPORTED,
+        actor_user_id=current_user.id,
+        detail={"count": len(users), "subset": bool(user_id)},
+    )
+    await session.commit()
 
     return Response(
         content=csv_bytes,
@@ -370,6 +380,7 @@ async def list_audit_events(
     event_type: Annotated[list[str] | None, Query()] = None,
     actor_user_id: Optional[int] = Query(default=None),
     target_user_id: Optional[int] = Query(default=None),
+    guild_id: Optional[int] = Query(default=None),
     occurred_after: Optional[datetime] = Query(default=None),
     occurred_before: Optional[datetime] = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -388,6 +399,8 @@ async def list_audit_events(
         base = base.where(AuditEvent.actor_user_id == actor_user_id)
     if target_user_id is not None:
         base = base.where(AuditEvent.target_user_id == target_user_id)
+    if guild_id is not None:
+        base = base.where(AuditEvent.guild_id == guild_id)
     if occurred_after is not None:
         base = base.where(AuditEvent.occurred_at >= occurred_after)
     if occurred_before is not None:
@@ -863,7 +876,9 @@ async def delete_user(
         )
 
     if payload.action == "deactivate":
-        await users_service.deactivate_user(session, user_id)
+        await users_service.deactivate_user(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
@@ -871,7 +886,9 @@ async def delete_user(
         )
 
     if payload.action == "soft_delete":
-        await users_service.soft_delete_user(session, user_id)
+        await users_service.soft_delete_user(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
@@ -881,7 +898,9 @@ async def delete_user(
     # hard_delete: ownership is released as the memberships go, and the
     # authorship columns are re-pointed at the system user because the row they
     # named is about to stop existing.
-    await users_service.hard_delete_user(session, user_id)
+    await users_service.hard_delete_user(
+        session, user_id, actor_user_id=current_user.id
+    )
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
@@ -946,7 +965,13 @@ async def admin_delete_guild(
     # the schema is orphaned: every initiative/project/document/task for the
     # guild stays on disk, reachable by id if the schema name is ever reused.
     # Mirrors the member-facing DELETE /guilds/{id} endpoint.
-    await guilds_service.delete_guild(session, guild)
+    await guilds_service.delete_guild(
+        session,
+        guild,
+        actor_user_id=_current_user.id,
+        via="operator",
+        target_user_id=blocked_user_id,
+    )
     await session.commit()
     # See delete_guild: these live on another connection, so they go after the
     # commit that made the deletion real.
@@ -1088,10 +1113,25 @@ async def admin_update_guild_member_role(
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=_current_user.id,
             target_user_id=user_id,
+            guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
+    elif previous_role != payload.role:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
+            actor_user_id=_current_user.id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
+    # Written out here, where this request's own context still applies: the
+    # reconciliation below borrows the session for the guild's schema.
+    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

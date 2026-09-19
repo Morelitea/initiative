@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
 from app.db.user_columns import (
@@ -659,6 +660,128 @@ async def test_access_grants_are_writable_only_by_the_system_engine(engine):
             )
         ).scalar()
         assert admin_writes, "app_admin must retain write on access_grants"
+
+
+async def test_audit_events_request_path_holds_insert_pinned_to_the_actor(engine):
+    """A routed role appends to the log and does nothing else to it: INSERT
+    through the base roles — the read-only guild floor included, since a read
+    is recorded too — under a policy that pins ``actor_user_id`` to the
+    session's own ``app.current_user_id`` (migration 0318). The board reads on
+    the system engine, which keeps SELECT and INSERT and, like everyone, no
+    UPDATE or DELETE."""
+    request_roles = [
+        "app_guild_base",
+        "app_guild_base_ro",
+        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+    ]
+    async with engine.connect() as conn:
+        for role in request_roles:
+            select_, insert_, update_, delete_ = (
+                await conn.execute(
+                    text(
+                        "SELECT "
+                        "has_table_privilege(:r, 'public.audit_events', 'SELECT'), "
+                        "has_table_privilege(:r, 'public.audit_events', 'INSERT'), "
+                        "has_table_privilege(:r, 'public.audit_events', 'UPDATE'), "
+                        "has_table_privilege(:r, 'public.audit_events', 'DELETE')"
+                    ),
+                    {"r": role},
+                )
+            ).one()
+            assert insert_, f"{role} must be able to append to audit_events"
+            assert not (select_ or update_ or delete_), (
+                f"{role} holds more than INSERT on audit_events "
+                f"(SELECT={select_} UPDATE={update_} DELETE={delete_})"
+            )
+        for role in ("app_admin", *request_roles):
+            update_, delete_ = (
+                await conn.execute(
+                    text(
+                        "SELECT "
+                        "has_table_privilege(:r, 'public.audit_events', 'UPDATE'), "
+                        "has_table_privilege(:r, 'public.audit_events', 'DELETE')"
+                    ),
+                    {"r": role},
+                )
+            ).one()
+            assert not (update_ or delete_), f"{role} must not rewrite audit_events"
+
+        policy = (
+            await conn.execute(
+                text(
+                    "SELECT permissive, cmd, with_check FROM pg_policies "
+                    "WHERE schemaname = 'public' AND tablename = 'audit_events' "
+                    "AND policyname = 'audit_events_request_insert'"
+                )
+            )
+        ).one_or_none()
+        assert policy is not None, "audit_events_request_insert policy is missing"
+        permissive, cmd, with_check = policy
+        assert permissive == "PERMISSIVE" and cmd == "INSERT"
+        assert "current_user_id" in (with_check or ""), (
+            f"insert policy must pin the actor to the session: {with_check!r}"
+        )
+
+        # The policy in action: as a routed role, a row naming the session's
+        # own account lands and a row naming another does not. The catalog
+        # reads above autobegan a transaction; end it so each check below
+        # runs in one of its own and is rolled back.
+        await conn.rollback()
+        for role in request_roles:
+            txn = await conn.begin()
+            try:
+                await conn.execute(text(f'SET LOCAL ROLE "{role}"'))
+                await conn.execute(
+                    text("SELECT set_config('app.current_user_id', '42', true)")
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO public.audit_events "
+                        "(event_uuid, event_type, occurred_at, actor_user_id, "
+                        "tier, envelope) VALUES (gen_random_uuid(), 'x.y', now(), "
+                        "42, 2, '{}'::jsonb)"
+                    )
+                )
+                with pytest.raises(DBAPIError) as refused:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO public.audit_events "
+                            "(event_uuid, event_type, occurred_at, actor_user_id, "
+                            "tier, envelope) VALUES (gen_random_uuid(), 'x.y', "
+                            "now(), 43, 2, '{}'::jsonb)"
+                        )
+                    )
+                assert "row-level security" in str(refused.value)
+            finally:
+                await txn.rollback()
+        # A session with no account behind it — a sweep routed into a
+        # community — records an action with no actor, and may not name one.
+        for role in request_roles:
+            txn = await conn.begin()
+            try:
+                await conn.execute(text(f'SET LOCAL ROLE "{role}"'))
+                await conn.execute(
+                    text("SELECT set_config('app.current_user_id', '', true)")
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO public.audit_events "
+                        "(event_uuid, event_type, occurred_at, actor_user_id, "
+                        "tier, envelope) VALUES (gen_random_uuid(), 'x.y', now(), "
+                        "NULL, 2, '{}'::jsonb)"
+                    )
+                )
+                with pytest.raises(DBAPIError):
+                    await conn.execute(
+                        text(
+                            "INSERT INTO public.audit_events "
+                            "(event_uuid, event_type, occurred_at, actor_user_id, "
+                            "tier, envelope) VALUES (gen_random_uuid(), 'x.y', "
+                            "now(), 42, 2, '{}'::jsonb)"
+                        )
+                    )
+            finally:
+                await txn.rollback()
 
 
 async def test_rls_shared_tables_are_forced(engine):
