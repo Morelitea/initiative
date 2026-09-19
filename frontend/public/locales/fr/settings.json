@@ -1435,6 +1435,8 @@
       "auth.sign_in_failed": "Connexion refusée",
       "auth.signed_out": "Déconnexion",
       "auth.password_changed": "Mot de passe modifié",
+      "auth.passkey_registered": "Clé d'accès ajoutée",
+      "auth.passkey_removed": "Clé d'accès supprimée",
       "auth.identity_linked": "Authentification unique liée",
       "auth.refresh_reuse_detected": "Jeton de session réutilisé rejeté"
     }
@@ -1577,6 +1579,7 @@
     "neverUsed": "Pas encore utilisée.",
     "cancelled": "Vous avez annulé, ou l'invite a expiré.",
     "alreadyRegistered": "Cet appareil ou ce gestionnaire de mots de passe possède déjà une clé d'accès pour ce site.",
+    "siteMismatch": "Impossible de créer une clé d'accès à cette adresse : elle ne correspond pas à l'adresse pour laquelle ce site est configuré. La personne qui gère le site peut corriger cela.",
     "browserError": "Votre navigateur n'a pas pu créer la clé d'accès. Réessayez.",
     "unsupported": "Ce navigateur ne peut pas créer de clé d'accès. Ouvrez cette page dans un navigateur à jour.",
     "limitReached": "Ce compte a autant de clés d'accès qu'il peut en avoir ({{limit}}). Supprimez-en une pour en ajouter une autre.",

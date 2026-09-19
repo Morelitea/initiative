@@ -673,6 +673,7 @@
   "PASSKEY_LIMIT_REACHED": "Dieses Konto hat so viele Passkeys, wie es haben kann. Entferne einen, um einen neuen hinzuzufügen.",
   "PASSKEY_REGISTRATION_INVALID": "Dieser Passkey konnte nicht registriert werden. Beginne noch einmal über „Passkey hinzufügen“.",
   "PASSKEY_NOT_FOUND": "Dieser Passkey gehört nicht zu diesem Konto.",
+  "PASSKEY_SITE_UNSUPPORTED": "Passkeys brauchen für diese Seite einen richtigen Domainnamen und https. Beides fehlt noch, deshalb lassen sich hier keine anlegen.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Diese Community verlangt einen Code aus deiner Authenticator-App. Gib einen ein, um fortzufahren.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Gib deinen Authenticator-Code ein, um den Notzugriff zu nutzen.",

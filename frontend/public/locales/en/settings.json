@@ -1435,6 +1435,8 @@
       "auth.sign_in_failed": "Sign-in refused",
       "auth.signed_out": "Signed out",
       "auth.password_changed": "Password changed",
+      "auth.passkey_registered": "Passkey added",
+      "auth.passkey_removed": "Passkey removed",
       "auth.identity_linked": "Single sign-on linked",
       "auth.refresh_reuse_detected": "Reused session token rejected"
     }
@@ -1577,6 +1579,7 @@
     "neverUsed": "Not used yet.",
     "cancelled": "You cancelled, or the prompt timed out.",
     "alreadyRegistered": "This device or password manager already holds a passkey for this site.",
+    "siteMismatch": "A passkey can't be made at this address — it doesn't match the address this site is set up under. Whoever runs the site can put that right.",
     "browserError": "Your browser couldn't make the passkey. Try again.",
     "unsupported": "This browser can't make a passkey. Open this page in an up-to-date browser instead.",
     "limitReached": "This account holds as many passkeys as it can ({{limit}}). Remove one to add another.",

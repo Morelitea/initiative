@@ -1435,6 +1435,8 @@
       "auth.sign_in_failed": "Inicio de sesión rechazado",
       "auth.signed_out": "Sesión cerrada",
       "auth.password_changed": "Contraseña cambiada",
+      "auth.passkey_registered": "Clave de acceso añadida",
+      "auth.passkey_removed": "Clave de acceso eliminada",
       "auth.identity_linked": "Inicio de sesión único vinculado",
       "auth.refresh_reuse_detected": "Token de sesión reutilizado rechazado"
     }
@@ -1577,6 +1579,7 @@
     "neverUsed": "Aún sin usar.",
     "cancelled": "Has cancelado, o la solicitud ha caducado.",
     "alreadyRegistered": "Este dispositivo o gestor de contraseñas ya tiene una clave de acceso para este sitio.",
+    "siteMismatch": "No se puede crear una clave de acceso en esta dirección: no coincide con la dirección para la que está configurado este sitio. Quien gestiona el sitio puede corregirlo.",
     "browserError": "Tu navegador no ha podido crear la clave de acceso. Inténtalo de nuevo.",
     "unsupported": "Este navegador no puede crear claves de acceso. Abre esta página en un navegador actualizado.",
     "limitReached": "Esta cuenta tiene todas las claves de acceso que puede tener ({{limit}}). Quita una para añadir otra.",

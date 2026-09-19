@@ -31,7 +31,7 @@ import { RegisterPage } from "./RegisterPage";
 export const LoginPage = () => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const router = useRouter();
-  const searchParams = useSearch({ strict: false }) as { invite_code?: string };
+  const searchParams = useSearch({ strict: false }) as { invite_code?: string; next?: string };
   const { login, completeSecondFactor } = useAuth();
   const {
     isNativePlatform,
@@ -108,6 +108,10 @@ export const LoginPage = () => {
   }, [isServerConfigured]);
 
   const goWhereTheySignedInFor = () => {
+    // The page they were headed for before they were asked to sign in, if it
+    // is a path in this app. An invite still wins: it is why they are here.
+    const next = searchParams.next;
+    const returnTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
     if (inviteCodeParam) {
       router.navigate({
         to: "/invite/$code",
@@ -115,7 +119,7 @@ export const LoginPage = () => {
         replace: true,
       });
     } else {
-      router.navigate({ to: "/", replace: true });
+      router.navigate({ to: returnTo, replace: true });
     }
   };
 

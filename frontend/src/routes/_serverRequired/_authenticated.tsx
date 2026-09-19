@@ -70,7 +70,7 @@ const FullScreenLoader = () => (
 );
 
 export const Route = createFileRoute("/_serverRequired/_authenticated")({
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, location }) => {
     const { auth, server } = context;
 
     // If auth state is already determined and user is not authenticated,
@@ -80,7 +80,14 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
     // so a signed-out session always redirects.
     if (!isJustSignedIn() && !auth?.loading && !auth?.user) {
       const redirectTo = server?.isNativePlatform ? "/login" : "/welcome";
-      throw redirect({ to: redirectTo });
+      // Carry where they were headed, so signing in finishes the trip they
+      // started rather than landing them at the front page: the app sends a
+      // phone to a browser for a passkey, and that browser signs in first.
+      // Somewhere in this app only — a path, never another site.
+      const next = location.href;
+      const carry =
+        next !== "/" && next.startsWith("/") && !next.startsWith("//") ? { next } : undefined;
+      throw redirect({ to: redirectTo, search: carry });
     }
   },
   component: AppLayout,

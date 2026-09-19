@@ -1435,6 +1435,8 @@
       "auth.sign_in_failed": "Anmeldung abgelehnt",
       "auth.signed_out": "Abgemeldet",
       "auth.password_changed": "Passwort geändert",
+      "auth.passkey_registered": "Passkey hinzugefügt",
+      "auth.passkey_removed": "Passkey entfernt",
       "auth.identity_linked": "Single Sign-on verknüpft",
       "auth.refresh_reuse_detected": "Wiederverwendetes Sitzungstoken abgelehnt"
     }
@@ -1577,6 +1579,7 @@
     "neverUsed": "Noch nicht verwendet.",
     "cancelled": "Du hast abgebrochen, oder die Abfrage ist abgelaufen.",
     "alreadyRegistered": "Dieses Gerät oder dieser Passwort-Manager hat bereits einen Passkey für diese Seite.",
+    "siteMismatch": "An dieser Adresse lässt sich kein Passkey erstellen – sie stimmt nicht mit der Adresse überein, für die diese Seite eingerichtet ist. Wer die Seite betreibt, kann das korrigieren.",
     "browserError": "Dein Browser konnte den Passkey nicht erstellen. Versuche es erneut.",
     "unsupported": "Dieser Browser kann keine Passkeys erstellen. Öffne diese Seite in einem aktuellen Browser.",
     "limitReached": "Dieses Konto hat so viele Passkeys, wie es haben kann ({{limit}}). Entferne einen, um einen neuen hinzuzufügen.",

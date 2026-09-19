@@ -50,11 +50,15 @@ type AddStep = "details" | "prompting";
 type PromptMessageKey =
   | "passkeys.cancelled"
   | "passkeys.alreadyRegistered"
+  | "passkeys.siteMismatch"
   | "passkeys.browserError";
 
 const PROMPT_MESSAGE_KEYS: Record<string, PromptMessageKey> = {
   NotAllowedError: "passkeys.cancelled",
   InvalidStateError: "passkeys.alreadyRegistered",
+  // The browser will only make a passkey for the address the deployment is
+  // configured under, so this one is for whoever runs the site to sort out.
+  SecurityError: "passkeys.siteMismatch",
 };
 
 /**
@@ -86,7 +90,7 @@ const promptMessageKey = (error: unknown): PromptMessageKey => {
  */
 export const PasskeysSection = () => {
   const { t } = useTranslation(["settings", "errors", "common"]);
-  const { isNativePlatform, serverUrl, getServerOrigin } = useServer();
+  const { isNativePlatform, getServerOrigin } = useServer();
 
   const list = useListPasskeysApiV1AuthPasskeysGet();
   const refresh = () =>
@@ -189,7 +193,7 @@ export const PasskeysSection = () => {
 
   const openAdd = () => {
     if (isNativePlatform) {
-      const origin = getServerOrigin() ?? serverUrl;
+      const origin = getServerOrigin();
       if (origin) void Browser.open({ url: `${origin}${SECURITY_PAGE_PATH}` });
       return;
     }

@@ -179,6 +179,21 @@ describe("PasskeysSection", () => {
     expect(await screen.findByText(/already holds a passkey/i)).toBeInTheDocument();
   });
 
+  it("says so when the address is not the one the site is set up under", async () => {
+    const user = userEvent.setup();
+    const mismatch = new Error("The relying party ID is not a registrable domain suffix.");
+    mismatch.name = "SecurityError";
+    mocks.startRegistration.mockRejectedValue(mismatch);
+    renderWithProviders(<PasskeysSection />);
+
+    await user.click(screen.getByRole("button", { name: /add a passkey/i }));
+    await user.type(await screen.findByLabelText(/^name$/i), "Phone");
+    await user.type(screen.getByLabelText(/current password/i), "a-password");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByText(/doesn't match the address/i)).toBeInTheDocument();
+  });
+
   it("asks for the password before taking a way in away", async () => {
     const user = userEvent.setup();
     renderWithProviders(<PasskeysSection />);

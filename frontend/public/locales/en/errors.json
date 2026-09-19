@@ -673,6 +673,7 @@
   "PASSKEY_LIMIT_REACHED": "This account holds as many passkeys as it can. Remove one to add another.",
   "PASSKEY_REGISTRATION_INVALID": "That passkey couldn't be registered. Start again from the Add button.",
   "PASSKEY_NOT_FOUND": "That passkey isn't one of this account's.",
+  "PASSKEY_SITE_UNSUPPORTED": "Passkeys need this site to have a proper domain name and https. It doesn't yet, so they can't be added here.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — an authenticator code goes alongside a password or single sign-on, not instead of one.",
   "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Enter your authenticator code to break glass.",

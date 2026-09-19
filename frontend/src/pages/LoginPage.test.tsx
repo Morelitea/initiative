@@ -56,7 +56,8 @@ const signIn = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: /sign in/i }));
 };
 
-const renderLogin = () => renderPage(LoginPage, { initialRoute: "/login" });
+const renderLogin = (search?: Record<string, string>) =>
+  renderPage(LoginPage, { initialRoute: "/login", routerSearch: search });
 
 describe("LoginPage second factor", () => {
   beforeEach(() => {
@@ -145,5 +146,39 @@ describe("LoginPage second factor", () => {
 
     await waitFor(() => expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument());
     expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Where signing in leaves you.
+ *
+ * Somebody who asked for a page and was sent here to sign in should land on
+ * the page they asked for — the app sends a phone to a browser for a passkey
+ * and that is the whole point of the trip. Only somewhere in this app,
+ * though: anything else is dropped for the front page.
+ */
+describe("LoginPage return path", () => {
+  beforeEach(() => {
+    mocks.login.mockReset().mockResolvedValue(undefined);
+    mocks.completeSecondFactor.mockReset();
+    mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+  });
+
+  it("finishes the trip they were on", async () => {
+    const user = userEvent.setup();
+    const { router } = renderLogin({ next: "/profile/security" });
+
+    await signIn(user);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/profile/security"));
+  });
+
+  it("keeps a destination outside this app out of it", async () => {
+    const user = userEvent.setup();
+    const { router } = renderLogin({ next: "//evil.test/take-me" });
+
+    await signIn(user);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });
 });
