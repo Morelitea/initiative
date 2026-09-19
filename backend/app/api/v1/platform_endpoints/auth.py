@@ -33,7 +33,6 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import (
     AuthMessages,
     OidcMessages,
-    SettingsMessages,
 )
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
@@ -57,6 +56,12 @@ from app.api.v1.platform_endpoints.session_cookies import (
     clear_refresh_cookie,
     set_refresh_cookie,
     set_session_cookie,
+)
+from app.api.v1.platform_endpoints.session_opening import (
+    MOBILE_CALLBACK_URI,
+    open_session,
+    record_sign_in_failure,
+    require_login_method,
 )
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
@@ -83,7 +88,6 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
-from app.services.platform import security_rules
 from app.services.auth import addresses
 from app.services.auth import (
     guild_provider_connections as guild_connections,
@@ -198,7 +202,7 @@ async def register_user(
     # Registering here mints a password account, so it is the password method's
     # own door. A deployment that does not permit passwords onboards through an
     # identity provider instead, which provisions on first sign-in.
-    await _require_login_method(session, LoginMethod.password)
+    await require_login_method(session, LoginMethod.password)
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -432,113 +436,6 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     }
 
 
-async def _record_sign_in_failure(
-    admin_session: AsyncSession, user: User | None, *, reason: str
-) -> None:
-    """Write down a refused sign-in and commit it.
-
-    The account is the **target**, when one resolved, and there is no actor: the
-    request that made the attempt is unauthenticated. An unknown address still
-    records the refusal but retains no submitted identity.
-
-    Its own commit because the request is about to raise, and ``audit_events``
-    is reached on the system engine — the request-path role holds nothing on
-    that table.
-    """
-    target_user_id = user.id if user is not None else None
-    event = await audit_service.record(
-        admin_session,
-        event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
-        actor_user_id=None,
-        target_user_id=target_user_id,
-        target_type="user" if target_user_id is not None else None,
-        target_id=target_user_id,
-        detail={"method": "password", "reason": reason},
-    )
-    await admin_session.commit()
-
-    # The refusal is recorded; a rule now reads the window it belongs to. Only
-    # where an account resolved, because a rule names the account and an
-    # address nobody holds names nothing. Detached from this request, which is
-    # about to refuse regardless.
-    if target_user_id is not None:
-        security_rules.watch(
-            security_rules.note_failed_sign_in(
-                target_user_id, event_uuid=str(event.event_uuid)
-            )
-        )
-
-
-async def _open_password_session(
-    request: Request,
-    response: Response,
-    admin_session: AsyncSession,
-    *,
-    user_id: int,
-    token_version: int,
-    amr: list[str],
-    audit_detail: dict[str, Any],
-    return_refresh_token: bool = False,
-) -> Token:
-    """Open the session a password sign-in earned, and hand back its token.
-
-    The login model end-to-end (history/auth-detailed-design.md §3): the
-    server-side session is load-bearing — the access token carries sid/amr/sat
-    and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
-    session (the SPA renews silently). Session writes run on the system engine
-    (auth_sessions is app_admin-only).
-
-    A sign-in *is* the session. If it cannot be written the request says so
-    rather than handing back a lesser credential — ``auth_sessions`` shares a
-    database with everything the next request would need anyway.
-
-    ``amr`` is what this sign-in proved, which is where a second factor shows
-    up: a password alone records ``pwd``, and a password plus a factor records
-    what the factor was.
-    """
-    try:
-        issued = await session_service.create_session(
-            admin_session,
-            user_id=user_id,
-            amr=amr,
-            satisfied_providers=[],
-            user_agent=request.headers.get("user-agent"),
-            ip=get_inet_client_ip(request),
-        )
-        await audit_service.record(
-            admin_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail=audit_detail,
-        )
-        # The name the token will carry, minted in the same transaction as the
-        # session it belongs to.
-        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
-        await admin_session.commit()
-    except Exception as exc:
-        await admin_session.rollback()
-        logger.exception("Could not open a session for user %s", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
-
-    access_token, access_max_age = mint_access_token(
-        subject=subject,
-        token_version=token_version,
-        session_id=issued.session.id,
-        amr=issued.session.amr,
-        satisfied_providers=issued.session.satisfied_providers,
-        provider_auth=issued.session.provider_auth,
-    )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(
-        access_token=access_token,
-        refresh_token=issued.refresh_token if return_refresh_token else None,
-    )
-
-
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -548,7 +445,7 @@ async def login_access_token(
     admin_session: AdminSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token | JSONResponse:
-    await _require_login_method(session, LoginMethod.password)
+    await require_login_method(session, LoginMethod.password)
     normalized_email = form_data.username.lower().strip()
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
@@ -571,7 +468,9 @@ async def login_access_token(
         # against addresses nobody holds is the shape worth seeing, and the
         # record keeps no identity when there was none to keep. The volume is
         # bounded by the rate limit above.
-        await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="bad_password"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -579,12 +478,16 @@ async def login_access_token(
 
     # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
-        await _record_sign_in_failure(admin_session, user, reason="inactive")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="inactive"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     if unconfirmed is not None:
-        await _record_sign_in_failure(admin_session, user, reason="email_unverified")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="email_unverified"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -623,7 +526,7 @@ async def login_access_token(
             },
         )
 
-    return await _open_password_session(
+    return await open_session(
         request,
         response,
         admin_session,
@@ -722,7 +625,7 @@ async def answer_second_factor(
             },
         )
 
-    return await _open_password_session(
+    return await open_session(
         request,
         response,
         admin_session,
@@ -973,7 +876,9 @@ async def create_device_token(
     )
     if not user or not password_matches:
         # Recorded either way, like the token route.
-        await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="bad_password"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -1210,20 +1115,6 @@ def _frontend_redirect_uri() -> str:
 # routes and short-lived — it only needs to survive one IdP round trip.
 OIDC_NEXT_COOKIE = "oidc_next"
 OIDC_NEXT_COOKIE_MAX_AGE = 600
-
-
-async def _require_login_method(session, method: LoginMethod) -> None:
-    """Refuse a sign-in by a route this deployment does not permit.
-
-    Server-side, so withdrawing a method closes the route rather than only
-    hiding its form. Existing sessions are untouched — this gates opening a new
-    one, not holding one already open.
-    """
-    if not await auth_posture.login_method_allowed(session, method):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=SettingsMessages.LOGIN_METHOD_NOT_PERMITTED,
-        )
 
 
 async def _active_platform_provider(
@@ -1471,15 +1362,11 @@ async def provider_login(
     )
 
 
-def _mobile_redirect_uri() -> str:
-    return "initiative://oidc/callback"
-
-
 def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     """Redirect to app/frontend with error instead of returning JSON."""
     params = {"error": error}
     if is_mobile:
-        url = f"{_mobile_redirect_uri()}?{urlencode(params)}"
+        url = f"{MOBILE_CALLBACK_URI}?{urlencode(params)}"
     else:
         url = f"{_frontend_redirect_uri()}?{urlencode(params)}"
     return RedirectResponse(url)
@@ -1726,7 +1613,7 @@ async def _complete_provider_login(
             await admin_session.rollback()
             logger.exception("Could not record device-token issue for user %s", user.id)
         redirect_params = {"token": device_token, "token_type": "device_token"}
-        redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
+        redirect_url = f"{MOBILE_CALLBACK_URI}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
     # The new login model, mirroring the password path (§3): the session is
     # load-bearing — the access token carries sid/amr/sat (the inputs the
@@ -1962,7 +1849,7 @@ async def request_password_reset(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
-    await _require_login_method(session, LoginMethod.password)
+    await require_login_method(session, LoginMethod.password)
     normalized_email = payload.email.lower().strip()
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
@@ -1997,7 +1884,7 @@ async def reset_password(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
-    await _require_login_method(session, LoginMethod.password)
+    await require_login_method(session, LoginMethod.password)
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
     await enforce_password_policy(payload.password)

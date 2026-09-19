@@ -39,6 +39,7 @@ async def test_read_reports_every_method_and_its_cost(
         "password",
         "sso",
         "totp",
+        "passkey",
     }
     assert all(m["enabled"] for m in got.json()["methods"])
     assert got.json()["guilds_requiring_sign_in"] == 0
@@ -339,3 +340,73 @@ async def test_withdrawing_the_authenticator_strands_nobody(
         "password",
         "sso",
     }
+
+
+async def test_withdrawing_passkeys_reports_who_it_strands(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account holding a credential and nothing else is one the method is
+    holding up, so it is reported with the count like the others."""
+    from app.services.auth import passkeys as passkey_service
+
+    _, headers = await _owner(session)
+    holder = await create_user(session, hashed_password=None)
+    await passkey_service.store(
+        session,
+        user_id=holder.id,
+        registered=passkey_service.RegisteredCredential(
+            credential_id=b"stranded-credential",
+            public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid=None,
+            user_verified=True,
+            backed_up=False,
+            transports=["internal"],
+        ),
+        name="Only key",
+    )
+    await session.commit()
+
+    keep_the_rest = {"methods": ["password", "sso", "totp"]}
+    refused = await client.put(METHODS_URL, headers=headers, json=keep_the_rest)
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    assert refused.headers["X-Affected-Count"] == "1"
+
+    accepted = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={**keep_the_rest, "acknowledge_stranded": 1},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert {m["method"] for m in accepted.json()["methods"] if m["enabled"]} == {
+        "password",
+        "sso",
+        "totp",
+    }
+
+
+async def test_passkeys_alone_can_begin_a_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment may offer them and nothing else: a passkey opens a session
+    by itself, which is what the rule asks for."""
+    _, headers = await _owner(session)
+
+    # The owner holds a password, so the withdrawal is acknowledged first.
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["passkey"]}
+    )
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={
+            "methods": ["passkey"],
+            "acknowledge_stranded": int(refused.headers["X-Affected-Count"]),
+        },
+    )
+    assert put.status_code == 200, put.text
+    assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"passkey"}

@@ -105,9 +105,11 @@ async def stranded_by_withdrawing(session: AsyncSession, method: LoginMethod) ->
         return await identity_service.password_only_user_count(session)
     if method is LoginMethod.sso:
         return await identity_service.federated_only_user_count(session)
-    # A second factor is nobody's only way in — it cannot open a session by
-    # itself, so withdrawing it leaves every account able to sign in exactly as
-    # it did. What it does do is stop the factor being asked for, which the
+    if method is LoginMethod.passkey:
+        return await identity_service.passkey_only_user_count(session)
+    # ``totp`` is nobody's only way in — a second factor cannot open a session
+    # by itself, so withdrawing it leaves every account able to sign in exactly
+    # as it did. What it does do is stop the factor being asked for, which the
     # surface says plainly rather than counting here.
     return 0
 

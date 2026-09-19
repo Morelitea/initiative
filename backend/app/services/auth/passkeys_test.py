@@ -385,3 +385,79 @@ async def test_a_passkey_belongs_to_one_account(session, monkeypatch):
 
     kept = await session.get(UserPasskey, row.id)
     assert kept is not None and kept.name == "Renamed"
+
+
+# ---------------------------------------------------------------------------
+# User verification
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_both_ceremonies_ask_for_the_person(session, monkeypatch):
+    """A PIN, a fingerprint or a face, not merely the device — at registration
+    and at every sign-in, so an assertion stands for both."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv.example.org")
+    user = await create_user(session, email="pk-uv-options@example.com")
+
+    registration = await passkeys.begin_registration(
+        session, user_id=user.id, account_name="a@example.com", display_name="A"
+    )
+    assert (
+        registration.options["authenticatorSelection"]["userVerification"] == "required"
+    )
+
+    authentication = await passkeys.begin_authentication(session)
+    assert authentication.options["userVerification"] == "required"
+
+
+def test_the_registration_check_insists_on_it(monkeypatch):
+    """Asking is one half; the finished ceremony is checked against what was
+    asked for."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv-reg.example.org")
+    seen: dict = {}
+
+    def verify(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            credential_id=b"credential-one",
+            credential_public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid=None,
+            user_verified=True,
+            credential_backed_up=False,
+        )
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_registration_response", verify)
+    passkeys.finish_registration(
+        credential={"response": {"transports": []}}, expected_challenge=b"challenge"
+    )
+    assert seen["require_user_verification"] is True
+
+
+@pytest.mark.integration
+async def test_the_assertion_check_insists_on_it(session, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv-auth.example.org")
+    user = await create_user(session, email="pk-uv-assert@example.com")
+    await passkeys.store(session, user_id=user.id, registered=_registered(), name="Key")
+
+    seen: dict = {}
+
+    def verify(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            new_sign_count=1, credential_backed_up=False, user_verified=True
+        )
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", verify)
+    assert await passkeys.finish_authentication(
+        session,
+        credential={"rawId": "Y3JlZGVudGlhbC1vbmU"},
+        expected_challenge=b"challenge",
+    )
+    assert seen["require_user_verification"] is True

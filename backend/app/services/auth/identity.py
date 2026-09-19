@@ -26,6 +26,7 @@ import hashlib
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -36,15 +37,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import encrypt_token
+from app.core.login_methods import DEFAULT_LOGIN_METHODS, LoginMethod
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +237,9 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
     An alternate link only counts when its provider could actually answer a
     login — a disabled or half-configured row is not a way in, and neither is
     the platform row without its client secret.
+
+    A registered passkey is an alternate way in too, on a deployment that
+    permits them, so an account holding one is not left without a credential.
     """
     holds_this = select(FederatedIdentity.id).where(
         FederatedIdentity.user_id == User.id,
@@ -254,6 +262,7 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
                 _no_usable_password_clause(),
                 holds_this.exists(),
                 ~holds_another.exists(),
+                *await _without_a_passkey(session),
             )
         )
     ).one()
@@ -280,11 +289,52 @@ def _no_usable_password_clause():
     )
 
 
+def _holds_a_passkey_clause():
+    """Accounts holding at least one registered WebAuthn credential.
+
+    A passkey opens a session by itself, so an account holding one has a way in
+    that neither a password nor an identity provider accounts for.
+    """
+    return select(UserPasskey.id).where(UserPasskey.user_id == User.id).exists()
+
+
+async def _passkeys_are_a_way_in(session: AsyncSession) -> bool:
+    """Whether a passkey opens a session on this deployment right now.
+
+    Read from the settings row here rather than through ``auth_posture``, which
+    is the module that answers this everywhere else and reads this one. The
+    same resolution: a row holding nothing this version recognises falls back
+    to the default set.
+    """
+    row = (
+        await session.exec(
+            select(AppSetting.login_methods).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).first()
+    permitted = {value for value in (row or ())} or {
+        method.value for method in DEFAULT_LOGIN_METHODS
+    }
+    return LoginMethod.passkey.value in permitted
+
+
+async def _without_a_passkey(session: AsyncSession) -> tuple[Any, ...]:
+    """The condition "and holds no passkey", where that means anything.
+
+    A credential nobody may present is not somebody's access, so on a
+    deployment that has withdrawn the method this narrows nothing and the
+    counts read exactly as they did before passkeys existed.
+    """
+    if not await _passkeys_are_a_way_in(session):
+        return ()
+    return (~_holds_a_passkey_clause(),)
+
+
 async def password_only_user_count(session: AsyncSession) -> int:
     """How many accounts can sign in today only with a password.
 
-    What withdrawing the password method would strand: an account with a usable
-    password and no identity link any provider could answer for.
+    What withdrawing the password method would leave stranded: an account with
+    a usable password, no identity link any provider could answer for, and no
+    passkey while the deployment permits one.
     """
     holds_any_identity = (
         select(FederatedIdentity.id)
@@ -301,6 +351,7 @@ async def password_only_user_count(session: AsyncSession) -> int:
             .where(
                 ~_no_usable_password_clause(),
                 ~holds_any_identity.exists(),
+                *await _without_a_passkey(session),
             )
         )
     ).one()
@@ -309,8 +360,9 @@ async def password_only_user_count(session: AsyncSession) -> int:
 async def federated_only_user_count(session: AsyncSession) -> int:
     """How many accounts can sign in today only through an identity provider.
 
-    What withdrawing the SSO method would strand: no usable password, and a
-    login-ready identity that is currently their way in.
+    What withdrawing the SSO method would leave stranded: no usable password,
+    no passkey while the deployment permits one, and a login-ready identity
+    that is currently their way in.
 
     Every provider counts. Withdrawing the method closes all of them at once,
     so an account whose only way in is any one of them is one this has to
@@ -331,6 +383,38 @@ async def federated_only_user_count(session: AsyncSession) -> int:
             .where(
                 _no_usable_password_clause(),
                 holds_any_identity.exists(),
+                *await _without_a_passkey(session),
+            )
+        )
+    ).one()
+
+
+async def passkey_only_user_count(session: AsyncSession) -> int:
+    """How many accounts can sign in today only with a passkey.
+
+    What withdrawing the passkey method would leave stranded: a registered
+    credential, no usable password, and no identity link any provider could
+    answer for. Nobody, on a deployment that does not permit passkeys — the
+    method is not a way in there, so withdrawing it takes nothing away.
+    """
+    if not await _passkeys_are_a_way_in(session):
+        return 0
+    holds_any_identity = (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+    )
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(User)
+            .where(
+                _holds_a_passkey_clause(),
+                _no_usable_password_clause(),
+                ~holds_any_identity.exists(),
             )
         )
     ).one()

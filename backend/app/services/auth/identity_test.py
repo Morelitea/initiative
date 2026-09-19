@@ -331,3 +331,119 @@ async def test_a_pkce_provider_counts_as_a_way_in(session):
     holder = await create_user(session)
     await create_federated_identity(session, holder, provider=provider)
     assert await password_only_user_count(session) == baseline
+
+
+# ---------------------------------------------------------------------------
+# A passkey is a way in, while the deployment permits one
+# ---------------------------------------------------------------------------
+
+
+async def _store_passkey(session, user) -> None:
+    from app.services.auth import passkeys as passkey_service
+
+    await passkey_service.store(
+        session,
+        user_id=user.id,
+        registered=passkey_service.RegisteredCredential(
+            credential_id=f"count-{user.id}".encode(),
+            public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid=None,
+            user_verified=True,
+            backed_up=False,
+            transports=["internal"],
+        ),
+        name="Key",
+    )
+    await session.commit()
+
+
+async def _withdraw_passkeys(session) -> None:
+    """Leave the deployment permitting the other three."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso", "totp"]
+    session.add(row)
+    await session.commit()
+
+
+async def test_a_password_holder_with_a_passkey_is_not_password_only(session):
+    """Withdrawing the password leaves them their credential — until the
+    deployment stops permitting one, when the password is again all they have."""
+    from app.services.auth.identity import password_only_user_count
+
+    baseline = await password_only_user_count(session)
+    holder = await create_user(session)
+    assert await password_only_user_count(session) == baseline + 1
+
+    await _store_passkey(session, holder)
+    assert await password_only_user_count(session) == baseline
+
+    await _withdraw_passkeys(session)
+    assert await password_only_user_count(session) == baseline + 1
+
+
+async def test_a_passkey_keeps_a_federated_account_off_the_sso_count(session):
+    from app.services.auth.identity import federated_only_user_count
+    from app.testing.factories import create_auth_provider, create_federated_identity
+
+    provider = await create_auth_provider(session, slug="corp")
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+    assert await federated_only_user_count(session) == 1
+
+    await _store_passkey(session, member)
+    assert await federated_only_user_count(session) == 0
+
+    await _withdraw_passkeys(session)
+    assert await federated_only_user_count(session) == 1
+
+
+async def test_a_passkey_survives_the_provider_it_signed_up_through(session):
+    """Deleting a provider takes its links with it. An account holding a
+    credential of its own is not left without one."""
+    from app.services.auth.identity import sole_credential_user_count
+    from app.testing.factories import create_auth_provider, create_federated_identity
+
+    provider = await create_auth_provider(session, slug="corp")
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+    assert await sole_credential_user_count(session, provider_id=provider.id) == 1
+
+    await _store_passkey(session, member)
+    assert await sole_credential_user_count(session, provider_id=provider.id) == 0
+
+    await _withdraw_passkeys(session)
+    assert await sole_credential_user_count(session, provider_id=provider.id) == 1
+
+
+async def test_an_account_whose_only_way_in_is_a_passkey_is_counted(session):
+    """What withdrawing the method would leave stranded."""
+    from app.services.auth.identity import passkey_only_user_count
+
+    assert await passkey_only_user_count(session) == 0
+
+    holder = await create_user(session, hashed_password=None)
+    await _store_passkey(session, holder)
+    assert await passkey_only_user_count(session) == 1
+
+    # A password beside it is another way in, so they are not.
+    beside = await create_user(session)
+    await _store_passkey(session, beside)
+    assert await passkey_only_user_count(session) == 1
+
+    await _withdraw_passkeys(session)
+    assert await passkey_only_user_count(session) == 0
+
+
+async def test_a_federated_account_with_a_passkey_is_not_passkey_only(session):
+    from app.services.auth.identity import passkey_only_user_count
+    from app.testing.factories import create_auth_provider, create_federated_identity
+
+    provider = await create_auth_provider(session, slug="corp")
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+    await _store_passkey(session, member)
+
+    assert await passkey_only_user_count(session) == 0

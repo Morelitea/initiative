@@ -4887,6 +4887,7 @@ export const LoginMethod = {
   password: "password",
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 /**
@@ -5465,6 +5466,15 @@ export interface OwnershipTransferResponse {
   total: number;
 }
 
+export type PasskeyAuthenticationOptionsOptions = { [key: string]: unknown };
+
+/**
+ * What the browser's credential API is handed, as the library renders it.
+ */
+export interface PasskeyAuthenticationOptions {
+  options: PasskeyAuthenticationOptionsOptions;
+}
+
 /**
  * One credential, as its holder sees it.
  */
@@ -5487,6 +5497,7 @@ export interface PasskeyList {
   password_required?: boolean;
   limit: number;
   site_supported?: boolean;
+  offered?: boolean;
 }
 
 export type PasskeyRegisterFinishCredential = { [key: string]: unknown };
@@ -5539,6 +5550,35 @@ export interface PasskeyRename {
    * @maxLength 64
    */
   name: string;
+}
+
+export type PasskeySignInFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer.
+ */
+export interface PasskeySignInFinish {
+  credential: PasskeySignInFinishCredential;
+  mobile?: boolean;
+  /** @maxLength 255 */
+  device_name?: string;
+}
+
+/**
+ * A session for a browser, or a way back to the app for a phone.
+ */
+export interface PasskeySignInResult {
+  access_token?: string | null;
+  token_type?: string;
+  redirect_to?: string | null;
+}
+
+/**
+ * Beginning a sign-in. No account is named: the authenticator offers what
+ * it holds for this domain, and the assertion names the credential.
+ */
+export interface PasskeySignInStart {
+  mobile?: boolean;
 }
 
 export interface PasswordResetRequest {

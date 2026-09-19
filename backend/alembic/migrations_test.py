@@ -657,8 +657,13 @@ class TestMigrationsAgainstDatabase:
 
         One boolean cannot hold two options, and the flag stands for both. A
         guild earns it by holding ``providers``.
+
+        Staged at the revision under test rather than at the head, like the
+        case above: ``require_sign_in`` is a label 0313 took back out of the
+        type, so the fixture below can only be written while the database is
+        at a revision that still has it.
         """
-        _run_alembic("upgrade", "head")
+        _run_alembic("upgrade", "20260916_0285")
 
         # Fabricating rows these tables would not otherwise take, the same
         # lift-and-restore ``_SEED_SQL`` uses. Restored before the downgrade
