@@ -2503,6 +2503,7 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         "calendar": 1,
         "post": 1,
         "wiki": 0,  # the tool is on; nobody has made one
+        "gallery": 0,  # likewise
     }
     assert not any(t["disabled"] for t in body["tools"].values())
     assert body["uploads_count"] == 1
