@@ -1122,7 +1122,9 @@
       "anyProvider": "L'un de nos fournisseurs de connexion",
       "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas.",
       "requireFactor": "Exiger aussi un second facteur",
-      "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter."
+      "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
+      "requirePasskey": "Exiger aussi une clé d'accès",
+      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter."
     },
     "apiAccess": {
       "title": "Accès par API",

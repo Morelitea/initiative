@@ -1122,7 +1122,9 @@
       "anyProvider": "Cualquiera de nuestros proveedores",
       "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta.",
       "requireFactor": "Exigir también un segundo factor",
-      "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión."
+      "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión.",
+      "requirePasskey": "Exigir también una clave de acceso",
+      "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión."
     },
     "apiAccess": {
       "title": "Acceso por API",

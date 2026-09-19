@@ -1122,7 +1122,9 @@
       "anyProvider": "Any of our sign-in providers",
       "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count.",
       "requireFactor": "Also require a second factor",
-      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out."
+      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
+      "requirePasskey": "Also require a passkey",
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
     },
     "apiAccess": {
       "title": "API access",

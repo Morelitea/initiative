@@ -320,6 +320,38 @@ describe("SettingsGuildSecurityPage", () => {
       });
     });
 
+    it("asks for a passkey alongside the code", async () => {
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await chooseOption(user, "Contractors");
+      await user.click(screen.getByLabelText(/second factor/i));
+      await user.click(screen.getByLabelText(/require a passkey/i));
+      await user.click(screen.getByRole("button", { name: /save/i }));
+
+      expect(savePolicy.mock.calls[0][0]).toEqual({
+        policy: "required",
+        provider_id: 12,
+        require_methods: ["totp", "passkey"],
+      });
+    });
+
+    it("asks for a passkey on its own", async () => {
+      const user = userEvent.setup();
+      render();
+
+      await user.click(requirementRadio());
+      await user.click(screen.getByLabelText(/require a passkey/i));
+      await user.click(screen.getByRole("button", { name: /save/i }));
+
+      expect(savePolicy.mock.calls[0][0]).toEqual({
+        policy: "required",
+        provider_id: null,
+        require_methods: ["passkey"],
+      });
+    });
+
     it("reads a factor-only rule as one, not as 'any of ours'", async () => {
       // require_methods is no longer a yes/no: a rule can name the factor and
       // no provider, which is not the same as asking for the community's own

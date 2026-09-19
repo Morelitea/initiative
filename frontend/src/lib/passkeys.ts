@@ -22,6 +22,8 @@ import type {
   PasskeyAuthenticationOptions,
   PasskeySignInFinishCredential,
   PasskeySignInResult,
+  PasskeyStepUpFinishCredential,
+  Token,
 } from "@/api/generated/initiativeAPI.schemas";
 
 /** Whether this browser can present a passkey at all. */
@@ -72,6 +74,26 @@ export const signInWithPasskey = async ({
     credential: credential as unknown as PasskeySignInFinishCredential,
     mobile,
     device_name: deviceName ?? "",
+  });
+  return finished.data;
+};
+
+/**
+ * Present a passkey against the session already open.
+ *
+ * The sign-in above names nobody, because nobody is signed in yet. This one is
+ * for a community that asks a member already here for a passkey: the account
+ * is known, so the server offers that account's own credentials and answers
+ * with a session carrying what was presented — the same answer the
+ * authenticator-code step-up gives, applied the same way.
+ */
+export const stepUpWithPasskey = async (): Promise<Token> => {
+  const begun = await apiClient.post<PasskeyAuthenticationOptions>("/auth/step-up/passkey/begin");
+  const credential = await startAuthentication({
+    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+  });
+  const finished = await apiClient.post<Token>("/auth/step-up/passkey/finish", {
+    credential: credential as unknown as PasskeyStepUpFinishCredential,
   });
   return finished.data;
 };

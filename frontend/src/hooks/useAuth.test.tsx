@@ -43,6 +43,13 @@ vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: () => forgetMessages(),
 }));
 
+// The ceremony belongs to the browser's credential API, which jsdom has none
+// of; what this file is about is what the hook does with the answer.
+const presentPasskey = vi.fn();
+vi.mock("@/lib/passkeys", () => ({
+  stepUpWithPasskey: () => presentPasskey(),
+}));
+
 import { AuthProvider, useAuth } from "./useAuth";
 
 /** Resolvable on demand, so response order can be chosen rather than hoped for. */
@@ -354,5 +361,42 @@ describe("useAuth passkey sign-in", () => {
     await expect(
       auth.applyPasskeySignIn({ token_type: "bearer", redirect_to: "initiative://oidc/callback" })
     ).rejects.toThrow();
+  });
+});
+
+describe("useAuth passkey step-up", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+    setAuthToken.mockReset();
+    presentPasskey.mockReset();
+  });
+
+  it("takes the session the ceremony produced, as the code step-up does", async () => {
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Half in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Half in"));
+
+    presentPasskey.mockResolvedValueOnce({ access_token: "stepped-up", token_type: "bearer" });
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "All the way in" }) });
+    await act(async () => {
+      await auth.stepUpWithPasskey();
+    });
+
+    expect(setAuthToken).toHaveBeenCalledWith("stepped-up", false);
+    expect(auth.token).toBe("stepped-up");
+    expect(auth.isDeviceToken).toBe(false);
+    expect(auth.user?.full_name).toBe("All the way in");
+  });
+
+  it("leaves the session alone when the ceremony produced nothing", async () => {
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+    setAuthToken.mockClear();
+
+    presentPasskey.mockRejectedValueOnce(new Error("no credential"));
+    await expect(auth.stepUpWithPasskey()).rejects.toThrow();
+    expect(setAuthToken).not.toHaveBeenCalled();
   });
 });

@@ -17,7 +17,7 @@ import {
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
-import type { PasskeySignInResult, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PasskeySignInResult, Token, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -44,6 +44,7 @@ import {
   readOfflineSession,
   saveOfflineSession,
 } from "@/lib/offlineSession";
+import { stepUpWithPasskey as presentPasskeyForStepUp } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
@@ -102,6 +103,7 @@ interface AuthContextValue {
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
   applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
+  stepUpWithPasskey: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -549,35 +551,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   /**
+   * Adopt the session a step-up produced.
+   *
+   * Both answers to a community's requirement end here. The server issues a
+   * new session carrying what was presented and retires the old one, so the
+   * credential this device holds is replaced the same way `completeSecondFactor`
+   * replaces it at the end of a sign-in — including on native, where a device
+   * token minted before the account had the factor would not carry it.
+   */
+  const adoptSteppedUpSession = async (token: Token) => {
+    removeItem(TOKEN_STORAGE_KEY);
+    removeItem(DEVICE_TOKEN_KEY);
+    if (isNative && token.refresh_token) {
+      storeRefreshToken(token.refresh_token);
+    } else if (!isNative) {
+      clearRefreshToken();
+    }
+    setAuthToken(token.access_token, false);
+    setTokenState(token.access_token);
+    setIsDeviceToken(false);
+    await refreshUser();
+  };
+
+  /**
    * Add the account's second factor to the session already signed in.
    *
    * What `completeSecondFactor` does at the end of a sign-in, this does in the
    * middle of a visit: a community asked for the factor, and the answer goes
-   * against the live session rather than a fresh one. The server issues a new
-   * session carrying the factor and retires the old one, so the credential is
-   * replaced here the same way — including on native, where a device token
-   * minted before the account had a factor would not carry it.
+   * against the live session rather than a fresh one.
    */
   const stepUpWithFactor = async ({ code, recoveryCode }: StepUpPayload) => {
-    const response = await apiClient.post<{
-      access_token: string;
-      refresh_token?: string | null;
-    }>("/auth/step-up/totp", {
+    const response = await apiClient.post<Token>("/auth/step-up/totp", {
       code: code ?? null,
       recovery_code: recoveryCode ?? null,
     });
-    const accessToken = response.data.access_token;
-    removeItem(TOKEN_STORAGE_KEY);
-    removeItem(DEVICE_TOKEN_KEY);
-    if (isNative && response.data.refresh_token) {
-      storeRefreshToken(response.data.refresh_token);
-    } else if (!isNative) {
-      clearRefreshToken();
-    }
-    setAuthToken(accessToken, false);
-    setTokenState(accessToken);
-    setIsDeviceToken(false);
-    await refreshUser();
+    await adoptSteppedUpSession(response.data);
+  };
+
+  /**
+   * The same move, answered with a passkey.
+   *
+   * The ceremony belongs to the browser, so it lives in `lib/passkeys`; what
+   * comes back is the same session the code step-up produces.
+   */
+  const stepUpWithPasskey = async () => {
+    await adoptSteppedUpSession(await presentPasskeyForStepUp());
   };
 
   const register = async ({
@@ -709,6 +727,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     completeSecondFactor,
     applyPasskeySignIn,
     stepUpWithFactor,
+    stepUpWithPasskey,
     register,
     completeOidcLogin,
     logout,

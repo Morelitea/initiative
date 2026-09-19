@@ -140,12 +140,13 @@ export const SettingsGuildSecurityPage = () => {
       // single sign-on is the "any of ours" choice below.
       anyProvider: loaded?.provider_id == null && (loaded?.require_methods ?? []).includes("sso"),
       // Orthogonal to the provider choice: a community may ask for its own
-      // sign-in, for a second factor, or for both.
+      // sign-in, for a second factor, for a passkey, or for any combination.
       requireFactor: (loaded?.require_methods ?? []).includes("totp"),
+      requirePasskey: (loaded?.require_methods ?? []).includes("passkey"),
     }),
     guildId
   );
-  const { policy, providerId, anyProvider, requireFactor } = form.values;
+  const { policy, providerId, anyProvider, requireFactor, requirePasskey } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
   const [error, setError] = useState<string | null>(null);
   const [selfUnsatisfiedSlug, setSelfUnsatisfiedSlug] = useState<string | null>(null);
@@ -214,15 +215,19 @@ export const SettingsGuildSecurityPage = () => {
     (policyQuery.data.require_methods ?? []).includes("sso");
   const savedRequireFactor =
     policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("totp");
+  const savedRequirePasskey =
+    policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("passkey");
   const isDirty =
     policyQuery.data != null &&
     (policy !== policyQuery.data.policy ||
       (policy === "required" &&
         (anyProvider !== savedAnyProvider ||
           requireFactor !== savedRequireFactor ||
+          requirePasskey !== savedRequirePasskey ||
           (!anyProvider && providerId !== (policyQuery.data.provider_id ?? null)))));
-  // A rule has to ask for something. Any one of the three will do.
-  const canSave = policy === "open" || anyProvider || requireFactor || providerId != null;
+  // A rule has to ask for something. Any one of the four will do.
+  const canSave =
+    policy === "open" || anyProvider || requireFactor || requirePasskey || providerId != null;
 
   const save = () => {
     // What is being sent, so a choice changed while this is in flight is not
@@ -237,6 +242,7 @@ export const SettingsGuildSecurityPage = () => {
             require_methods: [
               ...(anyProvider ? (["sso"] as const) : []),
               ...(requireFactor ? (["totp"] as const) : []),
+              ...(requirePasskey ? (["passkey"] as const) : []),
             ],
           },
       {
@@ -451,6 +457,24 @@ export const SettingsGuildSecurityPage = () => {
                     </Label>
                     <p className="text-muted-foreground text-sm">
                       {t("guildAuth.policy.requireFactorHelp")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {policy === "required" && (
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="require-passkey"
+                    checked={requirePasskey}
+                    onCheckedChange={(checked) => form.set({ requirePasskey: Boolean(checked) })}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="require-passkey" className="font-medium">
+                      {t("guildAuth.policy.requirePasskey")}
+                    </Label>
+                    <p className="text-muted-foreground text-sm">
+                      {t("guildAuth.policy.requirePasskeyHelp")}
                     </p>
                   </div>
                 </div>

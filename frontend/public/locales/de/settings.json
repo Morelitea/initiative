@@ -1122,7 +1122,9 @@
       "anyProvider": "Einer unserer Anmeldeanbieter",
       "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht.",
       "requireFactor": "Zusätzlich einen zweiten Faktor verlangen",
-      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
+      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
+      "requirePasskey": "Zusätzlich einen Passkey verlangen",
+      "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
     },
     "apiAccess": {
       "title": "API-Zugriff",
