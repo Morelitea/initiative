@@ -11,10 +11,15 @@
  * the deployment and the browser offer one, that a press stands down whatever
  * prompt was already waiting, and that the two ways the ceremony can end —
  * a session for this browser, a way back to an app — each go where they go.
+ * The prompt that waits in the browser's own autofill is started by the page
+ * rather than the person, so what it does when it ends empty-handed — keep to
+ * itself, and take one fresh turn when its challenge has lapsed — is pinned
+ * here too.
  */
 import { Browser } from "@capacitor/browser";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AxiosError, AxiosHeaders } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
@@ -134,6 +139,27 @@ const offering = (providers: unknown[]) => {
 };
 
 const passkeyButton = () => screen.findByRole("button", { name: /sign in with a passkey/i });
+
+/** The server's answer when the challenge a prompt was started on has since
+ *  lapsed — the browser's own prompt stands as long as the tab does. */
+const lapsedChallenge = (): AxiosError => {
+  const error = new AxiosError("request failed", "ERR_BAD_REQUEST");
+  error.response = {
+    status: 400,
+    statusText: "",
+    data: { detail: "PASSKEY_SIGN_IN_INVALID" },
+    headers: new AxiosHeaders(),
+    config: { headers: new AxiosHeaders() },
+  };
+  return error;
+};
+
+/** A prompt the person put down, or that timed out on its own. */
+const refusedPrompt = (): Error => {
+  const error = new Error("The operation either timed out or was not allowed.");
+  error.name = "NotAllowedError";
+  return error;
+};
 
 const resetLoginMocks = () => {
   mocks.login.mockReset();
@@ -302,7 +328,15 @@ describe("LoginPage return path", () => {
 });
 
 describe("LoginPage passkey", () => {
-  beforeEach(resetLoginMocks);
+  let consoleDebug: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    resetLoginMocks();
+    // The quiet prompt's refusals go here rather than to the card.
+    consoleDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
+  });
+
+  afterEach(() => consoleDebug.mockRestore());
 
   it("offers one where the deployment and the browser both do", async () => {
     renderLogin();
@@ -342,9 +376,7 @@ describe("LoginPage passkey", () => {
 
   it("says so when the prompt produces nothing", async () => {
     const user = userEvent.setup();
-    const cancelled = new Error("The operation either timed out or was not allowed.");
-    cancelled.name = "NotAllowedError";
-    mocks.signInWithPasskey.mockRejectedValue(cancelled);
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
     renderLogin();
 
     await user.click(await passkeyButton());
@@ -363,6 +395,45 @@ describe("LoginPage passkey", () => {
       expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
     );
     await waitFor(() => expect(mocks.applyPasskeySignIn).toHaveBeenCalledWith(session));
+  });
+
+  it("says nothing on the card when the quiet prompt ends without one", async () => {
+    // Nobody pressed anything to start it, so there is nothing to report.
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
+    renderLogin();
+
+    await waitFor(() =>
+      expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
+    );
+    await screen.findByLabelText(/email/i);
+    expect(screen.queryByText(/you cancelled/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/didn't work/i)).not.toBeInTheDocument();
+  });
+
+  it("waits in no autofill where there is no address field to wait in", async () => {
+    mocks.config = { passwordLoginEnabled: false, passkeyLoginEnabled: true };
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    renderLogin();
+
+    expect(await passkeyButton()).toBeEnabled();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+    expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("takes one fresh turn in autofill when the challenge it waited on has lapsed", async () => {
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(lapsedChallenge());
+    renderLogin();
+
+    await waitFor(() => expect(mocks.signInWithPasskey).toHaveBeenCalledTimes(2));
+    expect(mocks.signInWithPasskey).toHaveBeenNthCalledWith(2, { conditional: true });
+
+    // And the second refusal ends it: one fresh turn, not a page that keeps
+    // asking, and still nothing on the card.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(mocks.signInWithPasskey).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/didn't work/i)).not.toBeInTheDocument();
   });
 
   it("lets the browser offer a passkey beside the saved addresses", async () => {
@@ -441,9 +512,7 @@ describe("LoginPage passkey relay", () => {
 
   it("keeps the button when the ceremony is refused", async () => {
     const user = userEvent.setup();
-    const cancelled = new Error("The operation either timed out or was not allowed.");
-    cancelled.name = "NotAllowedError";
-    mocks.signInWithPasskey.mockRejectedValue(cancelled);
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
     renderLogin(relaySearch);
 
     await user.click(await screen.findByRole("button", { name: /continue with a passkey/i }));

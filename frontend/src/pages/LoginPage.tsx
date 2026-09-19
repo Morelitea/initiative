@@ -1,7 +1,6 @@
 import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { isAxiosError } from "axios";
 import { KeyRound } from "lucide-react";
 import {
   type FormEvent,
@@ -19,6 +18,7 @@ import type {
   LoginProviderEntry,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
+import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
@@ -35,12 +35,12 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode } from "@/lib/errorMessage";
+import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import {
   browserOffersPasskeyAutofill,
   browserOffersPasskeys,
   cancelPendingPasskeyPrompt,
-  describePasskeyPromptError,
   signInWithPasskey,
 } from "@/lib/passkeys";
 import { returnPath } from "@/lib/returnPath";
@@ -112,8 +112,6 @@ export const LoginPage = () => {
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
-  // Relay only: the ceremony is done and the app has been handed the way back.
-  const [relayDone, setRelayDone] = useState(false);
   const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
     "loading"
@@ -207,16 +205,12 @@ export const LoginPage = () => {
     }
   }, [inviteCodeParam, router, searchParams.next]);
 
-  /** What to put on the card when a passkey sign-in did not finish. Null when
-   *  there is nothing worth saying — a prompt this page stood down itself. */
+  /** What to put on the card when a passkey sign-in the person asked for did
+   *  not finish. Nothing is said for a prompt this page stood down itself. */
   const reportPasskeyFailure = useCallback(
     (err: unknown) => {
-      if (isAxiosError(err)) {
-        setError(getErrorMessage(err, "auth:login.passkeyFailed"));
-        return;
-      }
-      const key = describePasskeyPromptError(err);
-      if (key) setError(t(key));
+      const message = passkeyFailureMessage(err, t);
+      if (message) setError(message);
     },
     [t]
   );
@@ -232,28 +226,41 @@ export const LoginPage = () => {
 
   // The browser can offer a passkey inside its own autofill, beside the saved
   // passwords, so the ceremony waits there from the moment the page opens.
-  // Nothing is drawn for it: it either produces a credential or it is still
-  // waiting when the page goes.
+  // Nothing is drawn for it and nothing is reported from it: nobody pressed
+  // anything to start it, so it either produces a credential or it is quietly
+  // still waiting when the page goes. It needs the address field to surface
+  // in, so a deployment with no password form gets no quiet prompt either.
   //
   // The ref, not the dependencies, is what makes it happen once: a config
   // answer arriving late re-runs this, and a prompt that is already up must
   // not be restarted under the person.
   const autofillStartedRef = useRef(false);
+  // Set once a lapsed challenge has already bought one fresh turn.
+  const autofillRestartedRef = useRef(false);
   useEffect(() => {
     if (autofillStartedRef.current) return;
-    if (relayMode || isNativePlatform || !passkeyOffered) return;
+    if (relayMode || isNativePlatform || !passkeyOffered || !passwordLoginEnabled) return;
     autofillStartedRef.current = true;
 
-    const waitInAutofill = async () => {
+    /** One turn waiting in the autofill. The server's challenge lapses after a
+     *  few minutes while the browser's prompt stands as long as the tab does,
+     *  so a turn the server refuses for that reason takes one fresh turn —
+     *  one, and then it rests. The start ref stays set across that: this is
+     *  the same ceremony carrying on, not a second one alongside it. */
+    const waitInAutofill = async (): Promise<void> => {
       if (!(await browserOffersPasskeyAutofill())) return;
       try {
         await adoptPasskeySession(await signInWithPasskey({ conditional: true }));
       } catch (err) {
-        reportPasskeyFailure(err);
+        console.debug("Passkey autofill ceremony ended without a session", err);
+        if (autofillRestartedRef.current) return;
+        if (getErrorCode(err) !== "PASSKEY_SIGN_IN_INVALID") return;
+        autofillRestartedRef.current = true;
+        await waitInAutofill();
       }
     };
     void waitInAutofill();
-  }, [relayMode, isNativePlatform, passkeyOffered, adoptPasskeySession, reportPasskeyFailure]);
+  }, [relayMode, isNativePlatform, passkeyOffered, passwordLoginEnabled, adoptPasskeySession]);
 
   // Whatever is still waiting goes with the page.
   useEffect(() => () => cancelPendingPasskeyPrompt(), []);
@@ -281,27 +288,6 @@ export const LoginPage = () => {
       // aside for the one the person just asked for.
       cancelPendingPasskeyPrompt();
       await adoptPasskeySession(await signInWithPasskey({ conditional: false }));
-    } catch (err) {
-      reportPasskeyFailure(err);
-    } finally {
-      setPasskeyBusy(false);
-    }
-  };
-
-  const handleRelaySignIn = async () => {
-    setPasskeyBusy(true);
-    setError(null);
-    try {
-      const result = await signInWithPasskey({
-        mobile: true,
-        deviceName: relayDeviceName || FALLBACK_DEVICE_NAME,
-      });
-      if (!result.redirect_to) {
-        setError(t("login.passkeyFailed"));
-        return;
-      }
-      setRelayDone(true);
-      window.location.assign(result.redirect_to);
     } catch (err) {
       reportPasskeyFailure(err);
     } finally {
@@ -368,31 +354,10 @@ export const LoginPage = () => {
 
   // The relay browser was opened for one thing, so it is asked for one thing —
   // before the first-run and provider questions, which are not its business.
-  // Nothing starts on its own here: a prompt wants a press behind it.
   if (relayMode) {
     return (
       <SignInFrame>
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader>
-            <CardTitle>{t("login.passkeyRelayTitle")}</CardTitle>
-            <CardDescription>{t("login.passkeyRelaySubtitle")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button
-              className="w-full"
-              type="button"
-              disabled={passkeyBusy}
-              onClick={() => void handleRelaySignIn()}
-            >
-              <KeyRound className="h-4 w-4" />
-              {passkeyBusy ? t("login.passkeyWorking") : t("login.passkeyContinue")}
-            </Button>
-            {relayDone ? (
-              <p className="text-muted-foreground text-sm">{t("login.passkeyReturnToApp")}</p>
-            ) : null}
-            {error ? <p className="text-destructive text-sm">{error}</p> : null}
-          </CardContent>
-        </Card>
+        <PasskeyRelayCard deviceName={relayDeviceName || FALLBACK_DEVICE_NAME} />
       </SignInFrame>
     );
   }

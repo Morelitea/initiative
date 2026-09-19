@@ -23,7 +23,7 @@ Where the key ends up is your browser's decision, not ours. Signed in to a passw
 
 On the sign-in screen, press **Sign in with a passkey**, or just click into the email box — most browsers offer your passkeys right there, above the addresses they've remembered. Prove it's you, and you're in.
 
-On the phone app, the button opens your browser for a moment, because that's where your passkeys live, and hands you straight back once you've unlocked one.
+On the phone app, the button opens your browser for a moment, because that's where your passkeys live, and hands you straight back once you've unlocked one. The app's own session doesn't carry that unlock with it, so a community that asks for a code from your authenticator app will still ask the app for one.
 
 ## When a device goes
 
