@@ -96,6 +96,19 @@ def get_inet_client_ip(request: Request) -> str | None:
     return str(parsed)
 
 
+def get_user_or_ip_key(request: Request) -> str:
+    """The counter key for a route only a signed-in account reaches.
+
+    The account when the request carries one, so everybody behind a shared
+    address gets their own allowance; the client address otherwise, which is
+    what the rest of the limits use.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if user_id is not None:
+        return f"user:{user_id}"
+    return get_real_client_ip(request)
+
+
 def _default_limits() -> list[str]:
     """Build the global default-limit list from settings.
 

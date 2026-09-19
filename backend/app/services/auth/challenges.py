@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -177,8 +177,18 @@ async def revoke_for_user(session: AsyncSession, *, user_id: int) -> int:
 
 
 async def purge_expired(session: AsyncSession) -> int:
-    """Clear out challenges nothing can use again. The caller commits."""
+    """Clear out challenges nothing can use again. The caller commits.
+
+    Two kinds qualify: one whose time has run out, and one already spent. A
+    challenge answers once, so a spent row has nothing left to say and is not
+    kept until it also expires.
+    """
     result = await session.exec(
-        delete(AuthChallenge).where(AuthChallenge.expires_at <= _now())
+        delete(AuthChallenge).where(
+            or_(
+                AuthChallenge.expires_at <= _now(),
+                AuthChallenge.consumed_at.is_not(None),
+            )
+        )
     )
     return int(result.rowcount or 0)

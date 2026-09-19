@@ -155,6 +155,22 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_search_operator_missing()
+    # Passkeys are bound to a named host reached over https, so a deployment
+    # addressed any other way is told once at boot rather than per refusal.
+    from app.services.auth import passkeys as passkey_service
+
+    site_refusal = passkey_service.site_refusal()
+    if site_refusal is not None:
+        logger.warning(
+            "APP_URL (%s) is %s, so passkey registration will be refused; "
+            "serve this deployment from a domain name over https to offer it.",
+            settings.APP_URL,
+            (
+                "an address rather than a domain name"
+                if site_refusal == "ip_host"
+                else "plain http"
+            ),
+        )
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).

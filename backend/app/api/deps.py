@@ -448,6 +448,7 @@ async def get_current_user_optional(
 
 
 async def get_current_active_user(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """The caller, if their account may hold a session at all.
@@ -461,6 +462,10 @@ async def get_current_active_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
+    # Whose request this is, for the few things that run before the endpoint
+    # does and have only the request to read — see
+    # ``app.core.rate_limit.get_user_or_ip_key``.
+    request.state.user_id = current_user.id
     return current_user
 
 

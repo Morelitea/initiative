@@ -41,6 +41,8 @@ def _verifier(**kwargs):
     the request carried so two registrations are two credentials.
     """
     credential = kwargs["credential"]
+    assert kwargs["expected_rp_id"] == passkey_service.relying_party_id()
+    assert kwargs["expected_origin"] == passkey_service.expected_origin()
     raw_id = credential.get("rawId") or credential.get("id") or ""
     return SimpleNamespace(
         credential_id=webauthn.base64url_to_bytes(raw_id),
@@ -225,6 +227,24 @@ async def test_the_options_name_this_deployment(
     assert options["challenge"]
 
 
+async def test_a_deployment_on_plain_http_cannot_begin_one(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A credential is bound to a named host reached over https, so a
+    deployment addressed otherwise says so instead of sending options the
+    browser will not answer."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "http://intranet.local")
+    user = await _account(session, "pk-http@example.com")
+
+    response = await client.post(
+        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
+
+
 async def test_an_account_at_the_limit_cannot_begin_another(
     client: AsyncClient, session: AsyncSession
 ):
@@ -275,6 +295,25 @@ async def test_finishing_keeps_the_credential(
     assert len(rows) == 1
     assert rows[0].rp_id == passkey_service.relying_party_id()
     assert rows[0].name == "Work laptop"
+
+
+async def test_only_the_transports_webauthn_names_are_kept(
+    client: AsyncClient, session: AsyncSession, ceremony
+):
+    """The list arrives from the client and is handed back to a browser later,
+    so what is kept is what the specification names."""
+    user = await _account(session, "pk-transports@example.com")
+    challenge = await _begin(client, user)
+    credential = _credential(challenge)
+    credential["response"]["transports"] = ["usb", "nonsense", 123, "<b>x</b>"]
+
+    response = await client.post(
+        FINISH,
+        json={"credential": credential, "name": "Key"},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["transports"] == ["usb"]
 
 
 async def test_registering_is_recorded(
@@ -411,6 +450,27 @@ async def test_another_accounts_passkey_cannot_be_renamed(
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "PASSKEY_NOT_FOUND"
+
+
+async def test_a_standing_credential_cannot_rename_one(
+    client: AsyncClient, session: AsyncSession, ceremony
+):
+    from app.services.platform import api_keys as api_keys_service
+
+    user = await _account(session, "pk-renamekey@example.com")
+    body = await _register(client, user, name="Laptop")
+    secret, _row = await api_keys_service.create_api_key(
+        session, user=user, name="script"
+    )
+    await session.commit()
+
+    response = await client.patch(
+        f"/api/v1/auth/passkeys/{body['id']}",
+        json={"name": "Renamed"},
+        headers={"Authorization": f"Bearer {secret}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
 
 
 async def test_removing_asks_for_the_password(

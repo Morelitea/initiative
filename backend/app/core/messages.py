@@ -71,10 +71,13 @@ class AuthMessages:
     PASSKEY_LIMIT_REACHED = "PASSKEY_LIMIT_REACHED"
     #: The registration ceremony did not verify, or its challenge is not
     #: standing: never issued, spent, expired, or out of attempts. One code for
-    #: all of those, so the client learns only that it has to begin again.
+    #: all of those.
     PASSKEY_REGISTRATION_INVALID = "PASSKEY_REGISTRATION_INVALID"
     #: No passkey by that id on this account.
     PASSKEY_NOT_FOUND = "PASSKEY_NOT_FOUND"
+    #: Passkeys need a named host and https; this deployment's address has
+    #: neither.
+    PASSKEY_SITE_UNSUPPORTED = "PASSKEY_SITE_UNSUPPORTED"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -14,6 +14,8 @@ NAME_MAX_LENGTH = 64
 
 class PasskeyRead(SanitizedBaseModel):
     """One credential, as its holder sees it."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str

@@ -68,6 +68,25 @@ def test_the_origin_keeps_ipv6_brackets(monkeypatch):
     assert passkeys.expected_origin() == "https://[2001:db8::1]:8443"
 
 
+@pytest.mark.parametrize(
+    ("app_url", "refusal"),
+    [
+        ("https://initiative.example.org", None),
+        ("https://192.168.1.10", "ip_host"),
+        ("http://intranet.local", "insecure_origin"),
+        ("http://localhost:5173", None),
+    ],
+)
+def test_which_addresses_can_carry_a_credential(monkeypatch, app_url, refusal):
+    """A passkey is bound to a named host reached over https. The deployment's
+    own address decides whether there is one to bind to, and development on the
+    machine itself is the exception the browser already makes."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", app_url)
+    assert passkeys.site_refusal() == refusal
+
+
 def test_an_app_url_naming_no_host_is_refused(monkeypatch):
     from app.core.config import settings
 
@@ -353,15 +372,13 @@ async def test_a_passkey_belongs_to_one_account(session, monkeypatch):
         await passkeys.rename(
             session, user_id=other.id, passkey_id=row.id, name="Yours"
         )
-        is False
+        is None
     )
     assert await passkeys.remove(session, user_id=other.id, passkey_id=row.id) is False
-    assert (
-        await passkeys.rename(
-            session, user_id=owner.id, passkey_id=row.id, name="Renamed"
-        )
-        is True
+    renamed = await passkeys.rename(
+        session, user_id=owner.id, passkey_id=row.id, name="Renamed"
     )
+    assert renamed is not None and renamed.name == "Renamed"
 
     kept = await session.get(UserPasskey, row.id)
     assert kept is not None and kept.name == "Renamed"

@@ -10,6 +10,7 @@ scope a policy to.
 """
 
 import json
+import logging
 import uuid
 from typing import Annotated, Any
 
@@ -17,12 +18,13 @@ import webauthn
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn.helpers import bytes_to_base64url
+from webauthn.helpers.exceptions import WebAuthnException
 
 from app.api.deps import get_current_active_user, require_first_party_session
 from app.api.v1.platform_endpoints.password_recheck import require_password
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthMessages
-from app.core.rate_limit import limiter
+from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.db.session import get_admin_session
 from app.models.platform.user import User
@@ -42,6 +44,8 @@ from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -55,22 +59,20 @@ _REGISTER_PURPOSES = (challenge_service.ChallengePurpose.passkey_register,)
 
 
 def _read(row: UserPasskey) -> PasskeyRead:
-    return PasskeyRead(
-        id=row.id,
-        name=row.name,
-        created_at=row.created_at,
-        last_used_at=row.last_used_at,
-        backed_up=row.backed_up,
-        user_verified=row.user_verified,
-        transports=list(row.transports or []),
-        aaguid=row.aaguid,
-    )
+    return PasskeyRead.model_validate(row, from_attributes=True)
 
 
 def _registration_invalid() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
+    )
+
+
+def _site_unsupported() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
     )
 
 
@@ -118,7 +120,7 @@ async def list_passkeys(
 
 
 @router.post("/passkeys/register/begin", response_model=PasskeyRegistrationOptions)
-@limiter.limit("10/15minutes")
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def begin_passkey_registration(
     request: Request,
     current_user: CurrentUser,
@@ -131,6 +133,8 @@ async def begin_passkey_registration(
     The challenge inside them stands for a few minutes and is spent when the
     credential comes back. Beginning again issues another.
     """
+    if passkey_service.site_refusal() is not None:
+        raise _site_unsupported()
     require_password(current_user, payload.current_password)
 
     # What the credential manager lists the account under. The address the
@@ -170,7 +174,7 @@ async def begin_passkey_registration(
     response_model=PasskeyRead,
     status_code=status.HTTP_201_CREATED,
 )
-@limiter.limit("10/15minutes")
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def finish_passkey_registration(
     request: Request,
     current_user: CurrentUser,
@@ -195,7 +199,13 @@ async def finish_passkey_registration(
             credential=payload.credential,
             expected_challenge=webauthn.base64url_to_bytes(value),
         )
-    except Exception as exc:
+    except (WebAuthnException, ValueError) as exc:
+        logger.warning(
+            "passkey registration did not verify for user %s: %s: %s",
+            current_user.id,
+            type(exc).__name__,
+            exc,
+        )
         await admin_session.commit()
         raise _registration_invalid() from exc
 
@@ -235,26 +245,22 @@ async def finish_passkey_registration(
 
 
 @router.patch("/passkeys/{passkey_id}", response_model=PasskeyRead)
-@limiter.limit("30/15minutes")
+@limiter.limit("30/15minutes", key_func=get_user_or_ip_key)
 async def rename_passkey(
     request: Request,
     passkey_id: uuid.UUID,
     current_user: CurrentUser,
     admin_session: AdminSessionDep,
     payload: PasskeyRename,
+    _first_party: str = FirstPartyOnly,
 ) -> PasskeyRead:
     """Give the credential another name. Nothing about signing in changes."""
-    if not await passkey_service.rename(
+    row = await passkey_service.rename(
         admin_session,
         user_id=current_user.id,
         passkey_id=passkey_id,
         name=payload.name,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=AuthMessages.PASSKEY_NOT_FOUND,
-        )
-    row = await admin_session.get(UserPasskey, passkey_id)
+    )
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -266,7 +272,7 @@ async def rename_passkey(
 
 
 @router.post("/passkeys/{passkey_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes")
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def remove_passkey(
     request: Request,
     passkey_id: uuid.UUID,
