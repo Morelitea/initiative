@@ -17,7 +17,12 @@ Shape::
       "quiet_hours": {"start": "22:00", "end": "07:00"},
       "guilds": {
         "7": {"level": "personal", "categories": {"reactions": {"push": false}}}
-      }
+      },
+      "email": {"cadence": "daily", "at": "08:00", "weekday": 1,
+                "personal_instant": true},
+      "pause": {"since": "2026-09-19T17:00:00+00:00",
+                "until": "2026-10-03T07:00:00+00:00"},
+      "away": {"respect": true}
     }
 
 A document rather than a row per setting: fifteen categories times three
@@ -53,6 +58,32 @@ class NotificationLevel(str, Enum):
     #: Nothing at all, including a direct mention. Silence means silence; the
     #: control says so where it is chosen.
     nothing = "nothing"
+
+
+class EmailCadence(str, Enum):
+    """How often email is allowed to arrive.
+
+    One value for the whole account rather than one per category: the category
+    grid says *whether* something is worth an email and the community dial says
+    how much a community may say, so a third per-category axis would be a
+    fifteen-row schedule nobody would fill in. This says when the account reads
+    its mail, which is one fact about a person.
+
+    There is deliberately no ``never``. Two controls already switch email off,
+    and standing down for a while is a pause, which has an end date.
+    """
+
+    #: As it happens. The default, and what every account had before this
+    #: existed.
+    instant = "instant"
+    #: At most one message an hour, on the hour. Fixed boundaries rather than a
+    #: rolling window, so the next one is knowable without reading when the
+    #: last went.
+    hourly = "hourly"
+    #: One message a day, at a chosen time in the account's own timezone.
+    daily = "daily"
+    #: One message a week, on a chosen day and time.
+    weekly = "weekly"
 
 
 class UserNotificationPrefs(SQLModel, table=True):

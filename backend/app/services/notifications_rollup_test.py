@@ -71,7 +71,7 @@ async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
     ]
 
     with patch(
-        "app.services.email.send_mention_email", new_callable=AsyncMock
+        "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
     ) as email:
         for index, talker in enumerate(talkers):
             await notifications_service.notify_comment_on_task(
@@ -100,7 +100,7 @@ async def test_a_different_task_gets_its_own_line(session: AsyncSession):
     guild = await create_guild(session, creator=owner)
     talker = await create_user(session, email="rollup-two-talker@example.com")
 
-    with patch("app.services.email.send_mention_email", new_callable=AsyncMock):
+    with patch("app.services.platform.email_outbox.enqueue", new_callable=AsyncMock):
         for task_id in (1, 2):
             await notifications_service.notify_comment_on_task(
                 session,
@@ -138,7 +138,7 @@ async def test_reading_the_line_starts_a_fresh_one(session: AsyncSession):
         )
 
     with patch(
-        "app.services.email.send_mention_email", new_callable=AsyncMock
+        "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
     ) as email:
         await _comment(1)
         await session.commit()

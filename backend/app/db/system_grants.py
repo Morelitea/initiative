@@ -141,6 +141,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # Seeded when an account is created, read on every fan-out to decide who
     # wants what, and updated by the settings endpoint.
     "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Notification email waiting to go out. The worker owns this table: it
+    # reads what is due, claims it, settles it and sweeps it, and the settings
+    # endpoint rewrites the due times when somebody changes when they read.
+    # The request path only ever appends (see SHARED_TABLE_APP_USER_GRANTS and
+    # the base-role REVOKE in the migration).
+    "email_outbox": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_dm_guild_optouts": frozenset({"SELECT", "DELETE"}),
     "contact_grants": frozenset({"SELECT", "DELETE"}),
     # SELECT also carries the notification fan-out: who, of a set of
@@ -306,6 +312,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "user_dm_settings": None,
     # Read under the account's own role after routing, never before it.
     "user_notification_prefs": None,
+    # Written by a routed request for its recipient, never before routing and
+    # never read back on the request path at all.
+    "email_outbox": None,
     "user_dm_guild_optouts": None,
     "contact_grants": None,
     "user_ignores": None,

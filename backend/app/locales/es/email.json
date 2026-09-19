@@ -274,5 +274,55 @@
       "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba.",
       "textBody": "La clave de acceso {{passkey}} se ha eliminado de tu cuenta y ya no sirve para iniciar sesión."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "La última hora en Initiative",
+      "subject_one": "{{count}} cosa de la última hora",
+      "subject_other": "{{count}} cosas de la última hora"
+    },
+    "daily": {
+      "title": "Tu día en Initiative",
+      "subject_one": "{{count}} cosa de ayer",
+      "subject_other": "{{count}} cosas de ayer"
+    },
+    "weekly": {
+      "title": "Tu semana en Initiative",
+      "subject_one": "{{count}} cosa de la semana pasada",
+      "subject_other": "{{count}} cosas de la semana pasada"
+    },
+    "away": {
+      "title": "Mientras no estabas",
+      "subject_one": "{{count}} cosa ocurrió mientras no estabas",
+      "subject_other": "{{count}} cosas ocurrieron mientras no estabas"
+    },
+    "recent": {
+      "title": "Lo que acaba de pasar",
+      "subject_one": "{{count}} novedad en Initiative",
+      "subject_other": "{{count}} novedades en Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Mensajes directos",
+      "connections": "Contactos",
+      "account": "Tu cuenta",
+      "other": "De tus comunidades"
+    },
+    "category": {
+      "mentions": "Menciones",
+      "replies": "Respuestas",
+      "comments": "Comentarios sobre tu trabajo",
+      "reactions": "Reacciones",
+      "assignments": "Tareas asignadas",
+      "due_dates": "Tareas vencidas",
+      "membership": "Nuevas incorporaciones",
+      "approvals": "Esperan tu decisión",
+      "posts": "Publicaciones",
+      "events": "Eventos",
+      "event_reminders": "Recordatorios de eventos",
+      "direct_messages": "Mensajes directos",
+      "connections": "Contactos",
+      "jobs": "Exportaciones e importaciones",
+      "account": "Tu cuenta"
+    }
   }
 }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   Channel,
+  EmailCadence,
   NotificationCategoryRead,
   NotificationLevel,
   UserRead,
@@ -46,6 +47,38 @@ const CHANNELS: Channel[] = ["in_app", "email", "push"];
 
 const LEVELS: NotificationLevel[] = ["everything", "personal", "nothing"];
 
+// How often email may arrive, in the order the control offers them.
+const CADENCES: EmailCadence[] = ["instant", "hourly", "daily", "weekly"];
+
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+
+// What a pause can be set to without opening a date picker. Every one of them
+// ends: permanent silence is the category grid and the community dial, both of
+// which say so on the page that owns them.
+const PAUSE_PRESETS = ["hour", "today", "tomorrow", "week"] as const;
+type PausePreset = (typeof PAUSE_PRESETS)[number];
+
+const pauseEnd = (preset: PausePreset): Date => {
+  const end = new Date();
+  switch (preset) {
+    case "hour":
+      end.setHours(end.getHours() + 1);
+      return end;
+    case "today":
+      end.setHours(23, 59, 0, 0);
+      return end;
+    case "tomorrow":
+      end.setDate(end.getDate() + 1);
+      end.setHours(8, 0, 0, 0);
+      return end;
+    case "week":
+      // The next Monday morning, however far away that is.
+      end.setDate(end.getDate() + ((8 - end.getDay()) % 7 || 7));
+      end.setHours(8, 0, 0, 0);
+      return end;
+  }
+};
+
 interface UserSettingsNotificationsPageProps {
   user: UserRead;
   refreshUser: () => Promise<void>;
@@ -65,9 +98,6 @@ export const UserSettingsNotificationsPage = ({
   const writePreferences = useWritePreferences();
 
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
-  const [notificationTime, setNotificationTime] = useState(
-    user.overdue_notification_time ?? "21:00"
-  );
   const [reminderMinutes, setReminderMinutes] = useState<number>(
     user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES
   );
@@ -76,7 +106,6 @@ export const UserSettingsNotificationsPage = ({
 
   useEffect(() => {
     setTimezone(user.timezone ?? "UTC");
-    setNotificationTime(user.overdue_notification_time ?? "21:00");
     setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
   }, [user]);
 
@@ -88,6 +117,73 @@ export const UserSettingsNotificationsPage = ({
   }, [preferences?.quiet_hours]);
 
   const updateSchedule = useUpdateNotificationPreferences();
+
+  // The schedule the server settled on. Read straight off the response rather
+  // than mirrored into state: every control here writes and takes the whole
+  // document back, so a local copy would only be a second answer to the same
+  // question.
+  const schedule = preferences?.email;
+  const pausedUntil = preferences?.pause?.until;
+
+  const writeTiming = (payload: Parameters<typeof writePreferences.mutate>[0]) =>
+    writePreferences.mutate(payload, {
+      onError: () => toast.error(t("notifications.timing.saveError")),
+    });
+
+  const setCadence = (cadence: EmailCadence) =>
+    writeTiming({
+      email: {
+        cadence,
+        at: schedule?.at ?? "21:00",
+        weekday: schedule?.weekday ?? 1,
+        personal_instant: schedule?.personal_instant ?? true,
+      },
+    });
+
+  const setClock = (at: string) =>
+    writeTiming({
+      email: {
+        cadence: schedule?.cadence ?? "instant",
+        at,
+        weekday: schedule?.weekday ?? 1,
+        personal_instant: schedule?.personal_instant ?? true,
+      },
+    });
+
+  const setWeekday = (weekday: number) =>
+    writeTiming({
+      email: {
+        cadence: schedule?.cadence ?? "instant",
+        at: schedule?.at ?? "21:00",
+        weekday,
+        personal_instant: schedule?.personal_instant ?? true,
+      },
+    });
+
+  const setLane = (personal_instant: boolean) =>
+    writeTiming({
+      email: {
+        cadence: schedule?.cadence ?? "instant",
+        at: schedule?.at ?? "21:00",
+        weekday: schedule?.weekday ?? 1,
+        personal_instant,
+      },
+    });
+
+  const pauseFor = (preset: PausePreset) =>
+    writePreferences.mutate(
+      { pause_until: pauseEnd(preset).toISOString() },
+      { onError: () => toast.error(t("notifications.timing.saveError")) }
+    );
+
+  const resume = () =>
+    writePreferences.mutate(
+      { clear_pause: true },
+      {
+        onSuccess: () => toast.success(t("notifications.timing.pause.resumed")),
+        onError: () => toast.error(t("notifications.timing.saveError")),
+      }
+    );
 
   // The registry decides which rows exist and which switches move; this file
   // only decides what order the sections come in.
@@ -163,18 +259,18 @@ export const UserSettingsNotificationsPage = ({
     );
   };
 
-  const handleScheduleSave = () => {
+  const handleTimezoneSave = (next: string) => {
+    setTimezone(next);
     updateSchedule.mutate(
-      { timezone, overdue_notification_time: notificationTime },
+      { timezone: next },
       {
         onSuccess: async () => {
           await refreshUser();
-          toast.success(t("notifications.scheduleSuccess"));
+          toast.success(t("notifications.timing.saved"));
         },
         onError: () => {
-          toast.error(t("notifications.scheduleError"));
+          toast.error(t("notifications.timing.saveError"));
           setTimezone(user.timezone ?? "UTC");
-          setNotificationTime(user.overdue_notification_time ?? "21:00");
         },
       }
     );
@@ -297,36 +393,145 @@ export const UserSettingsNotificationsPage = ({
       )}
 
       <SettingsSection
-        title={t("notifications.scheduleTitle")}
-        description={t("notifications.scheduleDescription")}
-        footer={
-          <Button type="button" onClick={handleScheduleSave} disabled={updateSchedule.isPending}>
-            {updateSchedule.isPending
-              ? t("notifications.savingSchedule")
-              : t("notifications.saveSchedule")}
-          </Button>
-        }
+        title={t("notifications.timing.title")}
+        description={t("notifications.timing.description")}
       >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>{t("notifications.timezone")}</Label>
-            <SearchableCombobox
-              items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-              value={timezone}
-              onValueChange={(value) => setTimezone(value)}
-              placeholder={t("notifications.timezonePlaceholder")}
-              emptyMessage={t("notifications.timezoneEmpty")}
-            />
+        <div className="space-y-6">
+          {pausedUntil ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded border bg-muted p-3">
+              <div>
+                <p className="font-medium">
+                  {t("notifications.timing.pause.active", {
+                    until: new Date(pausedUntil).toLocaleString(),
+                  })}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  {t("notifications.timing.pause.note")}
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={resume}>
+                {t("notifications.timing.pause.resume")}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>{t("notifications.timing.pause.for")}</Label>
+              <div className="flex flex-wrap gap-2">
+                {PAUSE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={writePreferences.isPending}
+                    onClick={() => pauseFor(preset)}
+                  >
+                    {t(`notifications.timing.pause.options.${preset}`)}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {t("notifications.timing.pause.description")}
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t("notifications.timezone")}</Label>
+              <SearchableCombobox
+                items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+                value={timezone}
+                onValueChange={handleTimezoneSave}
+                placeholder={t("notifications.timezonePlaceholder")}
+                emptyMessage={t("notifications.timezoneEmpty")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
+              <Select
+                value={schedule?.cadence ?? "instant"}
+                onValueChange={(value) => setCadence(value as EmailCadence)}
+              >
+                <SelectTrigger id="email-cadence">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CADENCES.map((cadence) => (
+                    <SelectItem key={cadence} value={cadence}>
+                      {t(`notifications.timing.cadence.${cadence}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {t("notifications.timing.cadence.help")}
+              </p>
+            </div>
+            {schedule?.cadence === "weekly" && (
+              <div className="space-y-2">
+                <Label htmlFor="email-weekday">{t("notifications.timing.day")}</Label>
+                <Select
+                  value={String(schedule?.weekday ?? 1)}
+                  onValueChange={(value) => setWeekday(Number(value))}
+                >
+                  <SelectTrigger id="email-weekday">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAYS.map((day) => (
+                      <SelectItem key={day} value={String(day)}>
+                        {t(`notifications.weekdays.${day}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email-time">{t("notifications.timing.time")}</Label>
+              <Input
+                id="email-time"
+                type="time"
+                defaultValue={schedule?.at ?? "21:00"}
+                onBlur={(event) => {
+                  if (event.target.value && event.target.value !== schedule?.at) {
+                    setClock(event.target.value);
+                  }
+                }}
+              />
+              <p className="text-muted-foreground text-xs">{t("notifications.timing.timeHelp")}</p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="overdue-time">{t("notifications.overdueTime")}</Label>
-            <Input
-              id="overdue-time"
-              type="time"
-              value={notificationTime}
-              onChange={(event) => setNotificationTime(event.target.value)}
+
+          {schedule && schedule.cadence !== "instant" && (
+            <div className="flex items-start justify-between gap-4 border-t pt-4">
+              <div>
+                <p className="font-medium">{t("notifications.timing.personalInstant")}</p>
+                <p className="text-muted-foreground text-sm">
+                  {t("notifications.timing.personalInstantHelp")}
+                </p>
+              </div>
+              <Switch
+                checked={schedule.personal_instant}
+                aria-label={t("notifications.timing.personalInstant")}
+                onCheckedChange={setLane}
+              />
+            </div>
+          )}
+
+          <div className="flex items-start justify-between gap-4 border-t pt-4">
+            <div>
+              <p className="font-medium">{t("notifications.timing.respectPresence")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("notifications.timing.respectPresenceHelp")}
+              </p>
+            </div>
+            <Switch
+              checked={preferences?.respect_presence ?? true}
+              aria-label={t("notifications.timing.respectPresence")}
+              onCheckedChange={(checked) => writeTiming({ respect_presence: checked })}
             />
-            <p className="text-muted-foreground text-xs">{t("notifications.overdueTimeHelp")}</p>
           </div>
         </div>
       </SettingsSection>

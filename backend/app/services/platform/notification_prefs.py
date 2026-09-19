@@ -7,7 +7,9 @@ touching a key.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
+from enum import Enum
 from typing import Any, Mapping, Optional
 from zoneinfo import ZoneInfo
 
@@ -22,9 +24,11 @@ from app.core.notification_categories import (
 )
 from app.models.platform.notification import NotificationType
 from app.models.platform.user_notification_prefs import (
+    EmailCadence,
     NotificationLevel,
     UserNotificationPrefs,
 )
+from app.services.platform.presence import IDLE_AFTER_SECONDS
 
 #: An account with no row and no keys — every default, nothing overridden.
 EMPTY: dict[str, Any] = {}
@@ -164,14 +168,15 @@ def in_quiet_hours(
     return current >= start or current < end
 
 
-#: The channels quiet hours holds back. The bell is not one of them: it
-#: interrupts nobody, and it is what the account wakes up to.
-QUIET_CHANNELS: frozenset[Channel] = frozenset({Channel.email, Channel.push})
+#: The channels a hold can hold. The bell is not one of them: it interrupts
+#: nobody, it is the record, and it is what makes holding the other two safe —
+#: nothing is lost, it is simply waiting where it was always going to be.
+HELD_CHANNELS: frozenset[Channel] = frozenset({Channel.email, Channel.push})
 
-#: How long after a window closes its summary is still worth sending. Past
-#: this the news has kept until whenever the account next looks, and a
-#: "while you were asleep" about the night before last is noise.
-QUIET_SUMMARY_GRACE = timedelta(hours=6)
+#: How long after a hold lifts its summary is still worth sending. Past this
+#: the news has kept until whenever the account next looks, and a "while you
+#: were away" about the week before last is noise.
+HOLD_SUMMARY_GRACE = timedelta(hours=6)
 
 
 def last_window_close(
@@ -184,7 +189,7 @@ def last_window_close(
 
     Both are absolute instants, so the summary can ask for exactly what was
     held back. Returns None when there is no window, when the window has not
-    closed within :data:`QUIET_SUMMARY_GRACE`, or when ``now`` is still inside
+    closed within :data:`HOLD_SUMMARY_GRACE`, or when ``now`` is still inside
     it — a window that has not finished has nothing to summarise yet.
     """
     window = quiet_hours(prefs)
@@ -204,9 +209,347 @@ def last_window_close(
         # An overnight window opened the day before it closed.
         opened -= timedelta(days=1)
 
-    if moment - closed > QUIET_SUMMARY_GRACE:
+    if moment - closed > HOLD_SUMMARY_GRACE:
         return None
     return opened.astimezone(timezone.utc), closed.astimezone(timezone.utc)
+
+
+# --- Holds -------------------------------------------------------------------
+#
+# Three things can stand delivery down: a pause the account set, the nightly
+# quiet-hours window, and the account demonstrably being at the keyboard right
+# now. They are one idea with three sources, and writing them as one idea is
+# what keeps a third copy of the rule from appearing the next time one is
+# added.
+#
+# A hold names the moment it lifts. That one property answers both channels:
+# email defers to the latest lift, push refuses while any hold is in force.
+# The bell is never held.
+
+
+class HoldKind(str, Enum):
+    """Why delivery is standing down."""
+
+    #: The account said "not until <date>".
+    pause = "pause"
+    #: Inside the nightly window.
+    quiet_hours = "quiet_hours"
+    #: They are looking at Initiative right now, so the bell has already told
+    #: them. The only hold with no summary when it lifts, for that reason.
+    present = "present"
+
+
+@dataclass(frozen=True)
+class Hold:
+    kind: HoldKind
+    lifts_at: datetime
+
+
+@dataclass(frozen=True)
+class Lift:
+    """A hold that has ended, and the stretch it covered."""
+
+    kind: HoldKind
+    opened: datetime
+    closed: datetime
+
+
+#: How recently somebody must have done something to count as here. The same
+#: constant that decides whether to draw them as idle: "are they at the
+#: keyboard" is one question, whether it is asked to render a dot or to decide
+#: whether to interrupt them. If the two ever need to differ, that is the
+#: moment to split it.
+PRESENT_WITHIN = timedelta(seconds=IDLE_AFTER_SECONDS)
+
+#: The longest a pause may run. Permanent silence is what the category grid and
+#: the community dial are for, and both are visible on the page that owns them;
+#: an open-ended hold is one you forget you set and then experience as the app
+#: having stopped working.
+MAX_PAUSE_DAYS = 90
+
+#: The clock a scheduled email goes out at, absent a choice. Carried over from
+#: the overdue reminder this replaced, so nobody's daily mail moved.
+DEFAULT_DIGEST_CLOCK = "21:00"
+
+#: ISO weekday for a weekly digest, absent a choice.
+DEFAULT_DIGEST_WEEKDAY = 1
+
+
+def _parse_instant(raw: Any) -> Optional[datetime]:
+    if not isinstance(raw, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    # A value written without an offset is read as UTC rather than rejected:
+    # every writer here stamps one, and treating a stray naive value as local
+    # would make the answer depend on the server's clock.
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def pause_until(prefs: Mapping[str, Any] | None) -> Optional[datetime]:
+    """When the account's pause ends, whether or not it is still running."""
+    return _parse_instant(_section(prefs or EMPTY, "pause").get("until"))
+
+
+def pause_since(prefs: Mapping[str, Any] | None) -> Optional[datetime]:
+    """When it began — what the summary at the other end reports on."""
+    return _parse_instant(_section(prefs or EMPTY, "pause").get("since"))
+
+
+def is_paused(prefs: Mapping[str, Any] | None, *, now: datetime | None = None) -> bool:
+    until = pause_until(prefs)
+    return until is not None and until > (now or datetime.now(timezone.utc))
+
+
+def respects_presence(prefs: Mapping[str, Any] | None) -> bool:
+    """Whether to hold off while the account is plainly already looking.
+
+    On unless the account has said otherwise — every comparable app ships the
+    behaviour, and the switch exists because a change to when a push arrives
+    should not be invisible.
+    """
+    value = _section(prefs or EMPTY, "away").get("respect")
+    return value if isinstance(value, bool) else True
+
+
+def quiet_hours_close(
+    prefs: Mapping[str, Any] | None,
+    *,
+    tz_name: str | None,
+    now: datetime | None = None,
+) -> Optional[datetime]:
+    """When the window the account is currently inside ends, or None if it is
+    not inside one."""
+    window = quiet_hours(prefs)
+    if window is None:
+        return None
+    _start, end = window
+    tz = _resolve_timezone(tz_name)
+    moment = (now or datetime.now(timezone.utc)).astimezone(tz)
+    if not in_quiet_hours(prefs, tz_name=tz_name, now=moment):
+        return None
+    close = moment.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
+    if close <= moment:
+        # An overnight window closes on the following day.
+        close += timedelta(days=1)
+    return close.astimezone(timezone.utc)
+
+
+def holds_in_force(
+    prefs: Mapping[str, Any] | None,
+    *,
+    tz_name: str | None = None,
+    last_active_at: datetime | None = None,
+    now: datetime | None = None,
+) -> list[Hold]:
+    """Every hold standing between this account and a message right now.
+
+    Empty means nothing is holding. Order is outermost first, which is the
+    order a reader would want them named; nothing depends on it.
+    """
+    prefs = prefs or EMPTY
+    now = now or datetime.now(timezone.utc)
+    found: list[Hold] = []
+
+    until = pause_until(prefs)
+    if until is not None and until > now:
+        found.append(Hold(HoldKind.pause, until))
+
+    close = quiet_hours_close(prefs, tz_name=tz_name, now=now)
+    if close is not None:
+        found.append(Hold(HoldKind.quiet_hours, close))
+
+    if last_active_at is not None and respects_presence(prefs):
+        seen = last_active_at
+        if seen.tzinfo is None:
+            seen = seen.replace(tzinfo=timezone.utc)
+        # A stamp from the future is a clock disagreeing with itself; treat it
+        # as now so it holds for the ordinary window rather than forever.
+        seen = min(seen, now)
+        if now - seen < PRESENT_WITHIN:
+            found.append(Hold(HoldKind.present, seen + PRESENT_WITHIN))
+
+    return found
+
+
+def reachable(
+    prefs: Mapping[str, Any] | None,
+    *,
+    notification_type: NotificationType,
+    channel: Channel,
+    guild_id: int | None = None,
+    tz_name: str | None = None,
+    last_active_at: datetime | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Whether this notification may take this channel *at this moment*.
+
+    :func:`wants` answers whether the account wants it at all; this adds
+    whatever is holding delivery. One function, so the three places that fan
+    out — notifications, direct messages, contacts — cannot drift apart on it.
+
+    Email rarely asks this: an email is deferred rather than refused, which is
+    :func:`email_due_at`'s job. Push does, because a push that arrives after
+    the moment it was about is worse than none.
+    """
+    if not wants(
+        prefs,
+        notification_type=notification_type,
+        channel=channel,
+        guild_id=guild_id,
+    ):
+        return False
+    if channel not in HELD_CHANNELS:
+        return True
+    return not holds_in_force(
+        prefs, tz_name=tz_name, last_active_at=last_active_at, now=now
+    )
+
+
+def last_lift(
+    prefs: Mapping[str, Any] | None,
+    *,
+    tz_name: str | None,
+    now: datetime | None = None,
+) -> Optional[Lift]:
+    """The hold that most recently ended, if one did and it is still worth
+    reporting.
+
+    A pause is the outer hold, so a quiet-hours window that closed during one
+    is not reported: the pause will report the whole stretch when it ends.
+    """
+    now = now or datetime.now(timezone.utc)
+    until = pause_until(prefs)
+    if until is not None:
+        if until > now:
+            return None  # still paused — nothing has lifted
+        if now - until <= HOLD_SUMMARY_GRACE:
+            return Lift(HoldKind.pause, pause_since(prefs) or until, until)
+    window = last_window_close(prefs, tz_name=tz_name, now=now)
+    if window is None:
+        return None
+    return Lift(HoldKind.quiet_hours, window[0], window[1])
+
+
+# --- Email cadence -----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EmailSchedule:
+    """When this account reads its mail."""
+
+    cadence: EmailCadence
+    #: HH:MM in the account's own timezone, for the daily and weekly slots —
+    #: and, whatever the cadence, the clock the overdue reminder goes out on.
+    at: str
+    #: ISO weekday, 1–7, for the weekly slot.
+    weekday: int
+    #: Whether things another person addressed to this account skip the queue.
+    personal_instant: bool
+
+
+def email_schedule(prefs: Mapping[str, Any] | None) -> EmailSchedule:
+    section = _section(prefs or EMPTY, "email")
+    raw = section.get("cadence")
+    try:
+        cadence = EmailCadence(raw)
+    except ValueError:
+        cadence = EmailCadence.instant
+    at = _parse_clock(section.get("at"))
+    weekday = section.get("weekday")
+    if not isinstance(weekday, int) or not 1 <= weekday <= 7:
+        weekday = DEFAULT_DIGEST_WEEKDAY
+    lane = section.get("personal_instant")
+    return EmailSchedule(
+        cadence=cadence,
+        at=(at.strftime("%H:%M") if at else DEFAULT_DIGEST_CLOCK),
+        weekday=weekday,
+        personal_instant=lane if isinstance(lane, bool) else True,
+    )
+
+
+def _next_slot(
+    schedule: EmailSchedule, *, tz_name: str | None, now: datetime
+) -> datetime:
+    """The next time this cadence opens, strictly after ``now``."""
+    if schedule.cadence is EmailCadence.hourly:
+        # Fixed boundaries rather than a rolling hour: the next one is knowable
+        # without reading when the last went out.
+        return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+
+    tz = _resolve_timezone(tz_name)
+    local = now.astimezone(tz)
+    clock = _parse_clock(schedule.at) or time(hour=21)
+    slot = local.replace(hour=clock.hour, minute=clock.minute, second=0, microsecond=0)
+    if schedule.cadence is EmailCadence.weekly:
+        slot += timedelta(days=(schedule.weekday - slot.isoweekday()) % 7)
+        if slot <= local:
+            slot += timedelta(days=7)
+    elif slot <= local:
+        slot += timedelta(days=1)
+    return slot.astimezone(timezone.utc)
+
+
+def next_scheduled_send(
+    prefs: Mapping[str, Any] | None,
+    *,
+    tz_name: str | None,
+    now: datetime | None = None,
+) -> datetime:
+    """When this account's next scheduled mail goes out.
+
+    Read by the overdue reminder, which rides the same slot so somebody who
+    chose a weekly summary is not nudged daily about the same tasks. Under an
+    instant or hourly cadence there is no scheduled mail, so the clock stands
+    on its own and this is the next time it comes round.
+    """
+    schedule = email_schedule(prefs)
+    now = now or datetime.now(timezone.utc)
+    if schedule.cadence in (EmailCadence.instant, EmailCadence.hourly):
+        schedule = EmailSchedule(
+            cadence=EmailCadence.daily,
+            at=schedule.at,
+            weekday=schedule.weekday,
+            personal_instant=schedule.personal_instant,
+        )
+    return _next_slot(schedule, tz_name=tz_name, now=now)
+
+
+def email_due_at(
+    prefs: Mapping[str, Any] | None,
+    *,
+    notification_type: NotificationType,
+    tz_name: str | None = None,
+    last_active_at: datetime | None = None,
+    now: datetime | None = None,
+) -> datetime:
+    """The earliest this email may go out.
+
+    Computed once, when the email is written down. Two things decide it: the
+    cadence the account picked, and whatever is holding them.
+
+    The holds are applied as a floor over the cadence's own answer, so a hold
+    can only ever push a message later. That also means the present-hold needs
+    no special case for a scheduled cadence: it lifts within minutes, and a
+    slot hours away is already past it.
+    """
+    prefs = prefs or EMPTY
+    now = now or datetime.now(timezone.utc)
+    schedule = email_schedule(prefs)
+    spec = CATEGORY_SPECS[category_of(notification_type)]
+
+    immediate = schedule.cadence is EmailCadence.instant or (
+        schedule.personal_instant and spec.personal
+    )
+    due = now if immediate else _next_slot(schedule, tz_name=tz_name, now=now)
+
+    for hold in holds_in_force(
+        prefs, tz_name=tz_name, last_active_at=last_active_at, now=now
+    ):
+        due = max(due, hold.lifts_at)
+    return due
 
 
 # --- Loading -----------------------------------------------------------------

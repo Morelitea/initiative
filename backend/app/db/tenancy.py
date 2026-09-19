@@ -67,6 +67,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # What one account wants to be told about. Off ``users`` on purpose:
         # that table is read whole by the platform tiers.
         "user_notification_prefs",
+        # Notification email waiting to go out. Per-account and cross-guild
+        # like the settings above: one message can gather rows from every
+        # community somebody is in, so it belongs to none of them.
+        "email_outbox",
         # The picture on a user's profile. Public-plane identity like the row
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.

@@ -146,16 +146,16 @@ class TestChannels:
         conversation_id, b_device = await _channel(client, session, a, b)
 
         with patch(
-            "app.services.email.send_direct_message_email", new_callable=AsyncMock
+            "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
         ) as send:
             await _send(client, a, conversation_id, b_device, b"a secret")
 
         assert send.await_count == 1
-        kwargs = send.await_args.kwargs
-        assert kwargs["sender_name"]
-        assert kwargs["link"].endswith("/messages")
-        # The whole call: a name and a link. Nothing that could carry a message.
-        assert set(kwargs) == {"sender_name", "link"}
+        pieces = send.await_args.kwargs["pieces"]
+        assert b.user.username in pieces.body or a.user.username in pieces.body
+        assert pieces.link.endswith("/messages")
+        # A name and a link. Nothing in the call could carry a message: what
+        # this announces is encrypted, and the server holds no key to it.
         assert b"a secret" not in repr(send.await_args).encode()
 
     async def test_a_flurry_is_one_email(self, client, session, acting_user):
@@ -164,7 +164,7 @@ class TestChannels:
         conversation_id, b_device = await _channel(client, session, a, b)
 
         with patch(
-            "app.services.email.send_direct_message_email", new_callable=AsyncMock
+            "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
         ) as send:
             for _ in range(4):
                 await _send(client, a, conversation_id, b_device)
@@ -184,7 +184,7 @@ class TestChannels:
         )
 
         with patch(
-            "app.services.email.send_direct_message_email", new_callable=AsyncMock
+            "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
         ) as send:
             await _send(client, a, conversation_id, b_device)
 
@@ -272,7 +272,7 @@ class TestReadingTheThread:
         conversation_id, b_device = await _channel(client, session, a, b)
 
         with patch(
-            "app.services.email.send_direct_message_email", new_callable=AsyncMock
+            "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
         ) as send:
             await _send(client, a, conversation_id, b_device)
             await _send(client, a, conversation_id, b_device)

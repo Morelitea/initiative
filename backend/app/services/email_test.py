@@ -36,16 +36,23 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
     body_text = email_t(
         "mention.document.body", "en", actor=EVIL_NAME, document="Plans"
     )
-    await email_service.send_mention_email(
-        session,
-        user,
-        subject=email_t(
-            "mention.document.subject", "en", document="Plans", escape=False
+    html_body, text_body = email_service.render_single(
+        email_service.EmailPieces(
+            subject=email_t(
+                "mention.document.subject", "en", document="Plans", escape=False
+            ),
+            headline=email_t("mention.document.title", "en"),
+            body=body_text,
+            link="https://app.example/documents/1",
         ),
-        headline=email_t("mention.document.title", "en"),
-        body_text=body_text,
-        link="https://app.example/documents/1",
+        user=user,
+        accent="#000000",
+        locale="en",
     )
+    captured["subject"] = email_t(
+        "mention.document.subject", "en", document="Plans", escape=False
+    )
+    captured["html_body"], captured["text_body"] = html_body, text_body
 
     # HTML part: markup neutralized to literal text; template <strong> intact.
     assert EVIL_NAME not in captured["html_body"]
@@ -93,8 +100,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    await email_service.send_initiative_join_request_email(
-        session,
+    pieces = email_service.initiative_join_request_pieces(
         manager,
         event="requested",
         initiative_name="Parser Guild",
@@ -102,11 +108,22 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
         requester="Ada Lovelace",
         message=EVIL_NAME,
     )
+    html_body, text_body = email_service.render_single(
+        pieces, user=manager, accent="#000000", locale="en"
+    )
+    await email_service.deliver(
+        session,
+        manager,
+        subject=pieces.subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+    captured["html_body"], captured["text_body"] = html_body, text_body
 
     assert captured["recipients"] == [
         await addresses.primary_address(session, user_id=manager.id)
     ]
-    assert captured["subject"] == "Request to join Parser Guild"
+    assert pieces.subject == "Request to join Parser Guild"
     # Templates resolved rather than falling through as their keys.
     assert "initiativeJoinRequest." not in captured["html_body"]
     assert "Ada Lovelace" in captured["html_body"]
@@ -141,13 +158,16 @@ async def test_join_request_outcome_emails_render(
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    await email_service.send_initiative_join_request_email(
-        session,
+    pieces = email_service.initiative_join_request_pieces(
         requester,
         event=event,
         initiative_name="Parser Guild",
         link="https://app.example/navigate?guild_id=1&target=%2Fi",
     )
+    html_body, text_body = email_service.render_single(
+        pieces, user=requester, accent="#000000", locale="en"
+    )
+    captured.update(subject=pieces.subject, html_body=html_body, text_body=text_body)
 
     assert captured["subject"] == subject
     assert "initiativeJoinRequest." not in captured["html_body"]

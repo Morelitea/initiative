@@ -56,6 +56,11 @@ class OnlineRoll:
         # half is what settles a disagreement between the two things that say
         # so — see ``_learned``.
         #
+        # Accounts seen since the last flush, waiting to be written down.
+        # Separate from ``_last_active`` because that is cleared when the last
+        # socket goes, and somebody who looked in and left is exactly whose
+        # visit still has to be recorded.
+        self._pending: Set[int] = set()
         # Kept past the last socket, deliberately: a choice made with nothing
         # open is exactly the one a connect already in flight must not undo.
         # It is one small entry per account this process has seen.
@@ -95,6 +100,7 @@ class OnlineRoll:
         self._learned(user_id, chosen, monotonic() if known_at is None else known_at)
         # Opening a tab is somebody doing something.
         self._last_active[user_id] = monotonic()
+        self._pending.add(user_id)
 
     def left(self, user_id: int) -> None:
         remaining = self._sockets.get(user_id, 0) - 1
@@ -122,6 +128,17 @@ class OnlineRoll:
         """
         if user_id in self._sockets:
             self._last_active[user_id] = monotonic()
+            self._pending.add(user_id)
+
+    def drain_pending(self) -> Set[int]:
+        """Take the accounts seen since the last call, and start again.
+
+        This roll is already the buffer the durable stamp needs: it is told
+        every time somebody does something, and it is per-process, so draining
+        it once a minute is one statement instead of one per sign of life.
+        """
+        pending, self._pending = self._pending, set()
+        return pending
 
     def presence_of(self, user_id: int) -> Presence:
         """How this account appears to anyone reading it right now."""
@@ -148,3 +165,45 @@ class OnlineRoll:
 
 #: The one roll every channel feeds and every reader asks.
 online = OnlineRoll()
+
+
+#: How often what this roll has seen is written down. Well inside
+#: :data:`IDLE_AFTER_SECONDS`, so a continuously busy account's stamp is never
+#: stale enough to read as away.
+ACTIVITY_FLUSH_SECONDS = 60
+
+#: How long a stamp stands before it is worth rewriting. Delivery only ever
+#: asks whether somebody was here within the idle window, so a finer record
+#: would cost writes to answer a question nobody asks.
+ACTIVITY_STAMP_MIN_GAP_SECONDS = 300
+
+
+async def process_activity_flush() -> None:
+    """Write down who has been at their keyboard.
+
+    The roll above is one process's own memory, and delivery routinely decides
+    in another — a background worker, a second API process. This is the part
+    that crosses that gap: a single statement, throttled in its own WHERE so a
+    busy client cannot turn one person into a stream of writes.
+
+    Best effort throughout. A flush that fails costs at most one window of
+    knowing somebody was here, and the rule that reads it treats not knowing as
+    them being away, which is the direction that delivers rather than holds.
+    """
+    from sqlalchemy import text
+
+    from app.db.session import AdminSessionLocal, set_rls_context
+
+    user_ids = sorted(online.drain_pending())
+    if not user_ids:
+        return
+    async with AdminSessionLocal() as session:
+        await set_rls_context(session)
+        await session.exec(
+            text(
+                "UPDATE users SET last_active_at = now() "
+                "WHERE id = ANY(:ids) AND (last_active_at IS NULL "
+                "  OR last_active_at < now() - make_interval(secs => :gap))"
+            ).bindparams(ids=user_ids, gap=ACTIVITY_STAMP_MIN_GAP_SECONDS)
+        )
+        await session.commit()

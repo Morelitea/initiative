@@ -276,12 +276,6 @@
     "timezone": "Timezone",
     "timezonePlaceholder": "Select timezone",
     "timezoneEmpty": "No timezone found.",
-    "overdueTime": "Overdue reminder time",
-    "overdueTimeHelp": "Daily reminder time (uses the timezone above).",
-    "saveSchedule": "Save schedule",
-    "savingSchedule": "Saving…",
-    "scheduleSuccess": "Notification schedule updated",
-    "scheduleError": "Unable to update notification schedule",
     "toggleError": "Unable to update notification settings",
     "categoryHeader": "Category",
     "categories": {
@@ -311,8 +305,6 @@
       "day_one": "{{count}} day before",
       "day_other": "{{count}} days before"
     },
-    "scheduleTitle": "Daily reminder",
-    "scheduleDescription": "When the overdue reminder goes out, and the clock it goes by.",
     "channelsTitle": "What you hear about",
     "channelsDescription": "One row per kind of update, one switch per channel. Nothing is on that you have not left on.",
     "switchLabel": "{{category}} on {{channel}}",
@@ -360,6 +352,53 @@
         "personal": "Only what names me",
         "nothing": "Nothing"
       }
+    },
+    "timing": {
+      "title": "When you hear about it",
+      "description": "Email can arrive as it happens or gathered up. Nothing is held back that you have not asked us to hold.",
+      "cadence": {
+        "label": "Email arrives",
+        "instant": "Right away",
+        "hourly": "Once an hour",
+        "daily": "Once a day",
+        "weekly": "Once a week",
+        "help": "Anything held is gathered into one message."
+      },
+      "day": "On",
+      "time": "At",
+      "timeHelp": "Your scheduled email, and the overdue reminder, go out at this time.",
+      "personalInstant": "Send things addressed to me right away",
+      "personalInstantHelp": "Mentions, replies, tasks assigned to you, invitations and direct messages skip the queue.",
+      "respectPresence": "Don't interrupt me while I'm using Initiative",
+      "respectPresenceHelp": "If you're already here, the bell has told you. Email waits a few minutes and mobile stays quiet.",
+      "pause": {
+        "title": "Pause notifications",
+        "description": "Email and mobile stand down until a date you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
+        "active": "Paused until {{until}}",
+        "resume": "Resume",
+        "resumed": "Notifications resumed",
+        "for": "Pause for",
+        "options": {
+          "hour": "1 hour",
+          "today": "The rest of today",
+          "tomorrow": "Until tomorrow morning",
+          "week": "Until next Monday",
+          "custom": "Pick a date"
+        },
+        "confirm": "Pause",
+        "note": "Password resets and sign-in emails still arrive. Those aren't notifications."
+      },
+      "saved": "Saved",
+      "saveError": "Unable to update when you hear about things"
+    },
+    "weekdays": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+      "7": "Sunday"
     }
   },
   "dangerZone": {

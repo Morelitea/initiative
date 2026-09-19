@@ -207,16 +207,21 @@ async def _push_and_email(
     except Exception as exc:  # best effort
         logger.error("PAM push notification failed: %s", exc, exc_info=True)
     try:
-        await email_service.send_access_grant_email(
+        from app.core.notification_categories import category_of
+        from app.services.platform import email_outbox
+
+        await email_outbox.enqueue(
             session,
             recipient,
-            event=email_event,
-            guild_name=guild_name or "a guild",
-            levels=levels,
-            requester=requester,
+            category=category_of(notification_type),
+            pieces=email_service.access_grant_pieces(
+                recipient,
+                event=email_event,
+                guild_name=guild_name or "a guild",
+                levels=levels,
+                requester=requester,
+            ),
         )
-    except email_service.EmailNotConfiguredError:
-        pass
     except Exception as exc:  # best effort
         logger.error("PAM email notification failed: %s", exc, exc_info=True)
 

@@ -276,12 +276,6 @@
     "timezone": "Zona horaria",
     "timezonePlaceholder": "Seleccionar zona horaria",
     "timezoneEmpty": "No se encontró zona horaria.",
-    "overdueTime": "Hora de recordatorio de vencidos",
-    "overdueTimeHelp": "Hora diaria de recordatorio (usa la zona horaria indicada arriba).",
-    "saveSchedule": "Guardar programación",
-    "savingSchedule": "Guardando…",
-    "scheduleSuccess": "Programación de notificaciones actualizada",
-    "scheduleError": "No se pudo actualizar la programación de notificaciones",
     "toggleError": "No se pudo actualizar la configuración de notificaciones",
     "categoryHeader": "Categoría",
     "categories": {
@@ -311,8 +305,6 @@
       "day_one": "{{count}} día antes",
       "day_other": "{{count}} días antes"
     },
-    "scheduleTitle": "Recordatorio diario",
-    "scheduleDescription": "Cuándo sale el aviso de tareas vencidas, y con qué reloj.",
     "channelsTitle": "De qué te enteras",
     "channelsDescription": "Una fila por tipo de novedad, un interruptor por canal. Nada está activo si no lo has dejado activo.",
     "switchLabel": "{{category}} por {{channel}}",
@@ -360,6 +352,53 @@
         "personal": "Solo lo que me nombra",
         "nothing": "Nada"
       }
+    },
+    "timing": {
+      "title": "Cuándo te enteras",
+      "description": "El correo puede llegar al instante o agrupado. Solo se retiene lo que hayas pedido retener.",
+      "cadence": {
+        "label": "El correo llega",
+        "instant": "Al instante",
+        "hourly": "Una vez por hora",
+        "daily": "Una vez al día",
+        "weekly": "Una vez por semana",
+        "help": "Todo lo retenido llega en un solo mensaje."
+      },
+      "day": "El",
+      "time": "A las",
+      "timeHelp": "Tu correo programado, y el recordatorio de tareas vencidas, salen a esta hora.",
+      "personalInstant": "Enviar al instante lo dirigido a mí",
+      "personalInstantHelp": "Menciones, respuestas, tareas asignadas, invitaciones y mensajes directos se saltan la cola.",
+      "respectPresence": "No me interrumpas mientras uso Initiative",
+      "respectPresenceHelp": "Si ya estás aquí, la campana te lo ha dicho. El correo espera unos minutos y el móvil se queda callado.",
+      "pause": {
+        "title": "Pausar notificaciones",
+        "description": "El correo y el móvil se detienen hasta la fecha que elijas. La campana sigue recogiendo, y al volver recibes un resumen de todo.",
+        "active": "En pausa hasta el {{until}}",
+        "resume": "Reanudar",
+        "resumed": "Notificaciones reanudadas",
+        "for": "Pausar durante",
+        "options": {
+          "hour": "1 hora",
+          "today": "El resto del día",
+          "tomorrow": "Hasta mañana por la mañana",
+          "week": "Hasta el lunes que viene",
+          "custom": "Elegir una fecha"
+        },
+        "confirm": "Pausar",
+        "note": "Los restablecimientos de contraseña y los correos de inicio de sesión siguen llegando. Esos no son notificaciones."
+      },
+      "saved": "Guardado",
+      "saveError": "No se pudo actualizar cuándo te enteras"
+    },
+    "weekdays": {
+      "1": "lunes",
+      "2": "martes",
+      "3": "miércoles",
+      "4": "jueves",
+      "5": "viernes",
+      "6": "sábado",
+      "7": "domingo"
     }
   },
   "dangerZone": {
