@@ -4,9 +4,9 @@
  * Two things it has to get right. Which question it asks: an account that
  * holds a password is changing one and is asked for the old; an account that
  * holds none is setting a first and has nothing to be asked for. And what it
- * offers: giving the password up is on the table only where a passkey is
- * standing ready to take over, and the set of recovery codes that comes back
- * is readable once, here.
+ * offers: giving the password up is on the table only in a browser, only
+ * where a passkey is standing ready to take over, and the set of recovery
+ * codes that comes back is readable once, here.
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -40,7 +40,7 @@ vi.mock("@/hooks/useUsers", () => ({
 vi.mock("@/api/generated/auth/auth", () => ({
   getListPasskeysApiV1AuthPasskeysGetQueryKey: () => ["/api/v1/auth/passkeys"],
   getReadSecondFactorApiV1AuthTotpGetQueryKey: () => ["/api/v1/auth/totp"],
-  useListPasskeysApiV1AuthPasskeysGet: () => mocks.passkeys(),
+  useListPasskeysApiV1AuthPasskeysGet: (options?: unknown) => mocks.passkeys(options),
   useRemovePasswordApiV1AuthPasswordRemovePost: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void | Promise<void> };
   }) => ({
@@ -66,8 +66,26 @@ const holding = (count: number, rest: Record<string, unknown> = {}) => ({
   isError: false,
 });
 
-const render = (user: UserRead = buildUser()) =>
-  renderWithProviders(<UserSettingsAccountPage user={user} refreshUser={mocks.refreshUser} />);
+const render = (
+  user: UserRead = buildUser(),
+  options: Parameters<typeof renderWithProviders>[1] = {}
+) =>
+  renderWithProviders(
+    <UserSettingsAccountPage user={user} refreshUser={mocks.refreshUser} />,
+    options
+  );
+
+/** Open the dialog, answer it, and send it. */
+const giveUpPassword = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole("button", { name: /remove your password/i }));
+  await user.type(
+    await screen.findByLabelText(/current password/i, { selector: "#remove-current-password" }),
+    "a-password"
+  );
+  await user.click(
+    screen.getAllByRole("button", { name: /remove your password/i }).at(-1) as HTMLElement
+  );
+};
 
 describe("UserSettingsAccountPage", () => {
   beforeEach(() => {
@@ -87,6 +105,7 @@ describe("UserSettingsAccountPage", () => {
     rerender(<UserSettingsAccountPage user={buildUser()} refreshUser={mocks.refreshUser} />);
 
     expect(screen.getByRole("button", { name: /remove your password/i })).toBeInTheDocument();
+    expect(mocks.passkeys).toHaveBeenCalledWith({ query: { enabled: true } });
   });
 
   it("does not offer it where the deployment has withdrawn passkeys", () => {
@@ -101,14 +120,7 @@ describe("UserSettingsAccountPage", () => {
     mocks.removeAnswer.mockReturnValue({ codes: ["aaaaa-bbbbb", "ccccc-ddddd"] });
     render();
 
-    await user.click(screen.getByRole("button", { name: /remove your password/i }));
-    await user.type(
-      await screen.findByLabelText(/current password/i, { selector: "#remove-current-password" }),
-      "a-password"
-    );
-    await user.click(
-      screen.getAllByRole("button", { name: /remove your password/i }).at(-1) as HTMLElement
-    );
+    await giveUpPassword(user);
 
     await waitFor(() =>
       expect(mocks.removePassword).toHaveBeenCalledWith({
@@ -120,6 +132,30 @@ describe("UserSettingsAccountPage", () => {
     expect(mocks.refreshUser).toHaveBeenCalled();
   });
 
+  it("keeps the codes on screen when the account refresh does not land", async () => {
+    const user = userEvent.setup();
+    mocks.removeAnswer.mockReturnValue({ codes: ["aaaaa-bbbbb", "ccccc-ddddd"] });
+    mocks.refreshUser.mockRejectedValue(new Error("offline"));
+    render();
+
+    await giveUpPassword(user);
+
+    expect(await screen.findByText("aaaaa-bbbbb")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.refreshUser).toHaveBeenCalled());
+    // Shown once: the dialog stays on them whatever the refresh did.
+    expect(screen.getByText("aaaaa-bbbbb")).toBeInTheDocument();
+    expect(screen.getByText("ccccc-ddddd")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /done/i })).toBeInTheDocument();
+  });
+
+  it("sends the app to a browser rather than offering it", () => {
+    render(buildUser(), { server: { isNativePlatform: true } });
+
+    expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/from a browser signed in to this site/i)).toBeInTheDocument();
+    expect(mocks.passkeys).toHaveBeenCalledWith({ query: { enabled: false } });
+  });
+
   it("asks for no current password where the account holds none", () => {
     render(buildUser({ has_password: false }));
 
@@ -128,5 +164,7 @@ describe("UserSettingsAccountPage", () => {
     expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
+    // Nothing on the page reads the list, so nothing asks for it.
+    expect(mocks.passkeys).toHaveBeenCalledWith({ query: { enabled: false } });
   });
 });

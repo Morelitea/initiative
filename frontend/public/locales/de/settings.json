@@ -1460,9 +1460,10 @@
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
     "removePassword": "Passwort entfernen",
+    "removePasswordFromBrowser": "Gib dein Passwort in einem Browser auf, der bei dieser Seite angemeldet ist.",
     "removePasswordTitle": "Passwort entfernen",
-    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Falls dein Konto noch keine Wiederherstellungscodes hat, bekommst du einen Satz angezeigt – bewahre ihn auf, denn damit legst du wieder ein Passwort fest.",
-    "removePasswordCodes": "Bewahre diese Codes sicher auf. Ohne Passwort legst du damit wieder eines fest, falls dein Passkey weg ist. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal.",
+    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Falls dein Konto noch keine Wiederherstellungscodes hat, bekommst du einen Satz angezeigt – bewahre ihn auf.",
+    "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal.",
     "passwordRemoved": "Dein Passwort wurde entfernt.",
     "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
   },

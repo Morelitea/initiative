@@ -1,4 +1,3 @@
-import { Capacitor } from "@capacitor/core";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { useServer } from "@/hooks/useServer";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -51,6 +51,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
   // namespaces mid-submit.
   const { t } = useTranslation(["settings", "auth", "errors", "common"]);
+  const { isNativePlatform } = useServer();
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -76,7 +77,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
       // be sent and 401 us out, so drop it and let the fresh cookie carry the
       // session. (Native uses bearer/device-token auth with no cookie fallback,
       // so it re-authenticates instead — left as-is.)
-      if (variables.password && !Capacitor.isNativePlatform()) {
+      if (variables.password && !isNativePlatform) {
         setAuthToken(null);
       }
       setPassword("");
@@ -94,11 +95,17 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
     },
   });
 
-  // What else the account could sign in with. Giving up the password is only
-  // on offer where a passkey stands ready to take over.
-  const passkeys = useListPasskeysApiV1AuthPasskeysGet();
+  // Giving the password up is a browser errand — the server takes it there and
+  // not from the app, which signs in with a device token. An account that holds
+  // no password has nothing to give up either.
+  const offersRemoval = user.has_password && !isNativePlatform;
+  // What else the account could sign in with. Nothing else on this page reads
+  // it, so it is asked for only where the offer stands.
+  const passkeys = useListPasskeysApiV1AuthPasskeysGet({
+    query: { enabled: offersRemoval },
+  });
   const canRemovePassword =
-    user.has_password &&
+    offersRemoval &&
     (passkeys.data?.offered ?? false) &&
     (passkeys.data?.passkeys?.length ?? 0) > 0;
 
@@ -115,21 +122,31 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
       onSuccess: async (data) => {
         setRemoveError(null);
         setRemoveCurrentPassword("");
+        // A set arrives only where the account held none, and this is the one
+        // place it is ever readable. It goes on screen before anything that
+        // can fail runs, and stays there whatever the rest of this does.
+        const issued = data.codes.length > 0;
+        if (issued) {
+          setRemoveCodes(data.codes);
+        }
         // This device is carried over on fresh cookies; the in-memory bearer
         // that was minted with the old ones is not the one to send.
-        if (!Capacitor.isNativePlatform()) {
+        if (!isNativePlatform) {
           setAuthToken(null);
         }
-        await refreshUser();
         void queryClient.invalidateQueries({
           queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey(),
         });
         void queryClient.invalidateQueries({
           queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey(),
         });
-        // A set arrives only where the account held none. Shown once, here.
-        if (data.codes.length > 0) {
-          setRemoveCodes(data.codes);
+        try {
+          await refreshUser();
+        } catch {
+          // The page holds a stale copy of the account for a moment. The codes
+          // above are what this dialog is for, so they stay put.
+        }
+        if (issued) {
           return;
         }
         toast.success(t("account.passwordRemoved"));
@@ -301,6 +318,12 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           </div>
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
+
+          {user.has_password && isNativePlatform ? (
+            <p className="border-t pt-4 text-muted-foreground text-sm">
+              {t("account.removePasswordFromBrowser")}
+            </p>
+          ) : null}
 
           {canRemovePassword ? (
             <div className="space-y-2 border-t pt-4">

@@ -31,7 +31,7 @@ Not sure which one was the lost phone? The list says when each was last used. Th
 
 ## Going without a password
 
-Once a passkey is in the list, the password is optional. **User settings → Account → Password → Remove password** takes it away for good: from then on the passkey is how you get in, every other device is signed out, and if you didn't already have them you're shown ten **recovery codes**, once.
+Once a passkey is in the list, the password is optional. **User settings → Account → Password → Remove password** — from a browser, not the phone app — takes it away for good: from then on the passkey is how you get in, every other device is signed out, and if you didn't already have them you're shown ten **recovery codes**, once.
 
 Keep those somewhere that isn't the device with the passkey on it. They're the way back if the passkey is ever gone: on the sign-in screen, **Forgot password? → Use a recovery code**, and you set a new password with one. Then you're an account with a password again, free to add a fresh passkey and take the password away once more.
 

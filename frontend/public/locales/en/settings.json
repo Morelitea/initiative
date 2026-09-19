@@ -1460,9 +1460,10 @@
     "setPasswordTitle": "Set a password",
     "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
     "removePassword": "Remove your password",
+    "removePasswordFromBrowser": "Give your password up from a browser signed in to this site.",
     "removePasswordTitle": "Remove your password",
-    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your account has no recovery codes yet, you will be shown a set — save them, because they are how you set a password again.",
-    "removePasswordCodes": "Save these somewhere safe. With no password, they are how you set one again if your passkey is gone. Each code works once, and you won't be shown these again.",
+    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If your account has no recovery codes yet, you will be shown a set — save them.",
+    "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again.",
     "passwordRemoved": "Your password has been removed.",
     "removePasswordError": "Could not remove your password."
   },
