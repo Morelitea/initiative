@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
-from app.testing.audit import recorded
+from app.testing import emitted
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -31,14 +31,17 @@ PASSWORD = "testpassword123"
 
 
 def _where(row) -> tuple:
-    """The five columns every record is read by."""
+    """The four columns every record is read by."""
     return (
-        row.actor_user_id,
-        row.target_user_id,
-        row.guild_id,
-        row.target_type,
-        row.target_id,
+        row["actor_user_id"],
+        row["target_user_id"],
+        row["guild_id"],
+        row["target"],
     )
+
+
+def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
+    return [row for row in written if row["event_type"] == event_type.value]
 
 
 async def _guild_with_admin(
@@ -54,10 +57,11 @@ async def _guild_with_admin(
 
 
 async def test_creating_a_guild_records_the_guild_and_its_first_member(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session)
     user_id = user.id
+    capfd.readouterr()
 
     response = await client.post(
         "/api/v1/guilds/", headers=get_auth_headers(user), json={"name": "Audited"}
@@ -65,24 +69,26 @@ async def test_creating_a_guild_records_the_guild_and_its_first_member(
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
 
-    created = await recorded(session, AuditEventType.GUILD_CREATED)
+    written = emitted(capfd)
+    created = _of_type(written, AuditEventType.GUILD_CREATED)
     assert [_where(row) for row in created] == [
-        (user_id, user_id, guild_id, "guild", guild_id)
+        (user_id, user_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert created[0].envelope["detail"] == {"owner_is_actor": True}
+    assert created[0]["detail"] == {"owner_is_actor": True}
 
-    added = await recorded(session, AuditEventType.GUILD_MEMBER_ADDED)
+    added = _of_type(written, AuditEventType.GUILD_MEMBER_ADDED)
     assert [_where(row) for row in added] == [
-        (user_id, user_id, guild_id, "guild", guild_id)
+        (user_id, user_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert added[0].envelope["detail"] == {"role": "superadmin", "via": "created"}
+    assert added[0]["detail"] == {"role": "superadmin", "via": "created"}
 
 
 async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session)
     admin_id, guild_id = admin.id, guild.id
+    capfd.readouterr()
 
     minted = await client.post(
         f"/api/v1/guilds/{guild_id}/invites",
@@ -92,14 +98,14 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
     assert minted.status_code == 201, minted.text
     invite = minted.json()
 
-    rows = await recorded(session, AuditEventType.GUILD_INVITE_CREATED)
+    rows = emitted(capfd, AuditEventType.GUILD_INVITE_CREATED)
     assert [_where(row) for row in rows] == [
-        (admin_id, None, guild_id, "guild_invite", invite["id"])
+        (admin_id, None, guild_id, {"type": "guild_invite", "id": invite["id"]})
     ]
-    assert rows[0].envelope["detail"]["max_uses"] == 3
-    assert rows[0].envelope["detail"]["addressed"] is False
+    assert rows[0]["detail"]["max_uses"] == 3
+    assert rows[0]["detail"]["addressed"] is False
     # The code is the invite; the record describes its terms and never carries it.
-    assert "code" not in rows[0].envelope["detail"]
+    assert "code" not in rows[0]["detail"]
 
     joiner = await create_user(session)
     joiner_id = joiner.id
@@ -110,11 +116,11 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
     )
     assert accepted.status_code == 200, accepted.text
 
-    added = await recorded(session, AuditEventType.GUILD_MEMBER_ADDED)
+    added = emitted(capfd, AuditEventType.GUILD_MEMBER_ADDED)
     assert [_where(row) for row in added] == [
-        (joiner_id, joiner_id, guild_id, "guild", guild_id)
+        (joiner_id, joiner_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert added[0].envelope["detail"] == {
+    assert added[0]["detail"] == {
         "role": "member",
         "via": "invite",
         "invite_id": invite["id"],
@@ -125,27 +131,28 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
         headers=get_auth_headers(admin),
     )
     assert withdrawn.status_code == 204, withdrawn.text
-    revoked = await recorded(session, AuditEventType.GUILD_INVITE_REVOKED)
+    revoked = emitted(capfd, AuditEventType.GUILD_INVITE_REVOKED)
     assert [_where(row) for row in revoked] == [
-        (admin_id, None, guild_id, "guild_invite", invite["id"])
+        (admin_id, None, guild_id, {"type": "guild_invite", "id": invite["id"]})
     ]
 
 
 async def test_withdrawing_an_invite_that_is_not_there_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session)
+    capfd.readouterr()
 
     response = await client.delete(
         f"/api/v1/guilds/{guild.id}/invites/9999999",
         headers=get_auth_headers(admin),
     )
     assert response.status_code == 204, response.text
-    assert await recorded(session, AuditEventType.GUILD_INVITE_REVOKED) == []
+    assert emitted(capfd, AuditEventType.GUILD_INVITE_REVOKED) == []
 
 
 async def test_leaving_a_guild_is_recorded_against_the_leaver(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Nobody else acted, so the person leaving is both actor and subject."""
     _owner, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
@@ -155,21 +162,22 @@ async def test_leaving_a_guild_is_recorded_against_the_leaver(
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     response = await client.delete(
         f"/api/v1/guilds/{guild_id}/leave", headers=get_auth_headers(member)
     )
     assert response.status_code == 204, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_MEMBER_REMOVED)
+    rows = emitted(capfd, AuditEventType.GUILD_MEMBER_REMOVED)
     assert [_where(row) for row in rows] == [
-        (member_id, member_id, guild_id, "guild", guild_id)
+        (member_id, member_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"role": "member", "via": "left"}
+    assert rows[0]["detail"] == {"role": "member", "via": "left"}
 
 
 async def test_a_role_change_short_of_the_seat_is_its_own_event(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
     owner_id, guild_id = owner.id, guild.id
@@ -178,6 +186,7 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     promoted = await client.patch(
         f"/api/v1/guilds/{guild_id}/members/{member_id}",
@@ -186,13 +195,14 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
     )
     assert promoted.status_code == 204, promoted.text
 
-    rows = await recorded(session, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)
+    written = emitted(capfd)
+    rows = _of_type(written, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)
     assert [_where(row) for row in rows] == [
-        (owner_id, member_id, guild_id, "guild", guild_id)
+        (owner_id, member_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"from": "member", "to": "admin"}
+    assert rows[0]["detail"] == {"from": "member", "to": "admin"}
     # The seat moving is a different event, and this was not the seat.
-    assert await recorded(session, AuditEventType.GUILD_SUPERADMIN_CHANGED) == []
+    assert _of_type(written, AuditEventType.GUILD_SUPERADMIN_CHANGED) == []
 
     # Restating the role they already hold moved nothing.
     again = await client.patch(
@@ -201,17 +211,18 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
         json={"role": "admin"},
     )
     assert again.status_code == 204, again.text
-    assert len(await recorded(session, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)) == 1
+    assert emitted(capfd, AuditEventType.GUILD_MEMBER_ROLE_CHANGED) == []
 
 
 # --- settings ---------------------------------------------------------------
 
 
 async def test_a_profile_edit_names_the_fields_that_moved_and_copies_neither(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session)
     admin_id, guild_id = admin.id, guild.id
+    capfd.readouterr()
 
     response = await client.patch(
         f"/api/v1/guilds/{guild_id}",
@@ -220,11 +231,11 @@ async def test_a_profile_edit_names_the_fields_that_moved_and_copies_neither(
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_SETTINGS_CHANGED)
+    rows = emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED)
     assert [_where(row) for row in rows] == [
-        (admin_id, None, guild_id, "guild", guild_id)
+        (admin_id, None, guild_id, {"type": "guild", "id": guild_id})
     ]
-    detail = rows[0].envelope["detail"]
+    detail = rows[0]["detail"]
     assert detail["area"] == "profile"
     assert detail["changed"] == ["description", "name"]
     # Both hold free text, so the record names them and carries neither value.
@@ -236,14 +247,15 @@ async def test_a_profile_edit_names_the_fields_that_moved_and_copies_neither(
         json={"name": "Renamed"},
     )
     assert unchanged.status_code == 200, unchanged.text
-    assert len(await recorded(session, AuditEventType.GUILD_SETTINGS_CHANGED)) == 1
+    assert emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED) == []
 
 
 async def test_retention_is_recorded_as_its_own_area_with_its_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session)
     guild_id = guild.id
+    capfd.readouterr()
 
     response = await client.patch(
         f"/api/v1/guilds/{guild_id}",
@@ -252,8 +264,8 @@ async def test_retention_is_recorded_as_its_own_area_with_its_values(
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_SETTINGS_CHANGED)
-    assert [row.envelope["detail"] for row in rows] == [
+    rows = emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED)
+    assert [row["detail"] for row in rows] == [
         {
             "area": "retention",
             "changed": ["retention_days"],
@@ -264,11 +276,12 @@ async def test_retention_is_recorded_as_its_own_area_with_its_values(
 
 
 async def test_the_seats_own_switches_are_recorded_area_by_area(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
     admin_id, guild_id = admin.id, guild.id
     headers = get_auth_headers(admin)
+    capfd.readouterr()
 
     api_access = await client.put(
         f"/api/v1/guilds/{guild_id}/api-access",
@@ -284,12 +297,12 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     )
     assert session_limit.status_code == 200, session_limit.text
 
-    rows = await recorded(session, AuditEventType.GUILD_SETTINGS_CHANGED)
+    rows = emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED)
     assert [_where(row) for row in rows] == [
-        (admin_id, None, guild_id, "guild", guild_id),
-        (admin_id, None, guild_id, "guild", guild_id),
+        (admin_id, None, guild_id, {"type": "guild", "id": guild_id}),
+        (admin_id, None, guild_id, {"type": "guild", "id": guild_id}),
     ]
-    assert [row.envelope["detail"] for row in rows] == [
+    assert [row["detail"] for row in rows] == [
         {
             "area": "api_access",
             "changed": ["allow_api_keys"],
@@ -309,11 +322,11 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
         json={"allow_api_keys": False},
     )
     assert again.status_code == 200, again.text
-    assert len(await recorded(session, AuditEventType.GUILD_SETTINGS_CHANGED)) == 2
+    assert emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED) == []
 
 
 async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session, role=GuildRole.superadmin)
     admin_id, guild_id = admin.id, guild.id
@@ -325,17 +338,18 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
         + get_auth_token(admin, satisfied_providers=[provider_id])
     }
     body = {"policy": "required", "provider_id": provider_id}
+    capfd.readouterr()
 
     required = await client.put(
         f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers, json=body
     )
     assert required.status_code == 200, required.text
 
-    rows = await recorded(session, AuditEventType.GUILD_AUTH_POLICY_CHANGED)
+    rows = emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED)
     assert [_where(row) for row in rows] == [
-        (admin_id, None, guild_id, "guild", guild_id)
+        (admin_id, None, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {
+    assert rows[0]["detail"] == {
         "from": "open",
         "to": "required",
         "provider_id": provider_id,
@@ -347,7 +361,7 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
         f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers, json=body
     )
     assert restated.status_code == 200, restated.text
-    assert len(await recorded(session, AuditEventType.GUILD_AUTH_POLICY_CHANGED)) == 1
+    assert emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED) == []
 
     cleared = await client.put(
         f"/api/v1/guilds/{guild_id}/auth-policy",
@@ -355,8 +369,8 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
         json={"policy": "open"},
     )
     assert cleared.status_code == 200, cleared.text
-    rows = await recorded(session, AuditEventType.GUILD_AUTH_POLICY_CHANGED)
-    assert rows[-1].envelope["detail"] == {
+    rows = emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED)
+    assert rows[-1]["detail"] == {
         "from": "required",
         "to": "open",
         "provider_id": None,
@@ -368,10 +382,11 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
 
 
 async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session, name="To Delete")
     admin_id, guild_id = admin.id, guild.id
+    capfd.readouterr()
 
     response = await client.request(
         "DELETE",
@@ -384,18 +399,19 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
     )
     assert response.status_code == 204, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_DELETED)
+    rows = emitted(capfd, AuditEventType.GUILD_DELETED)
     # The record outlives the row it names — no foreign key follows the guild.
     assert [_where(row) for row in rows] == [
-        (admin_id, None, guild_id, "guild", guild_id)
+        (admin_id, None, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"via": "admin"}
+    assert rows[0]["detail"] == {"via": "admin"}
 
 
 async def test_a_refused_guild_deletion_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin, guild = await _guild_with_admin(session, name="To Delete")
+    capfd.readouterr()
 
     response = await client.request(
         "DELETE",
@@ -404,4 +420,4 @@ async def test_a_refused_guild_deletion_records_nothing(
         json={"password": PASSWORD, "confirmation_text": "DELETE GUILD WRONG"},
     )
     assert response.status_code == 400
-    assert await recorded(session, AuditEventType.GUILD_DELETED) == []
+    assert emitted(capfd, AuditEventType.GUILD_DELETED) == []

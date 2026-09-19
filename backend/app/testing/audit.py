@@ -1,30 +1,27 @@
-"""Reading the audit log back in a test."""
+"""Reading the audit stream back in a test."""
 
 from __future__ import annotations
 
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+import json
+from typing import Any
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.audit_event import AuditEvent
 
 
-async def recorded(
-    session: AsyncSession, event_type: AuditEventType
-) -> list[AuditEvent]:
-    """Every row of ``event_type``, oldest first.
+def emitted(capfd, event_type: AuditEventType | None = None) -> list[dict[str, Any]]:
+    """The envelopes written to stdout since the capture was last read,
+    oldest first — those of ``event_type``, or all of them.
 
-    Read fresh from the database — rows another session committed, the
-    request's own in an endpoint test, are loaded rather than remembered —
-    without expiring anything else the test holds.
+    Reading consumes the capture, so take everything a test needs from one
+    call. The served logging wiring is applied when ``app.main`` is imported,
+    which the test suite does, so no level is forced here.
     """
-    return list(
-        (
-            await session.exec(
-                select(AuditEvent)
-                .where(AuditEvent.event_type == event_type.value)
-                .order_by(AuditEvent.id)
-                .execution_options(populate_existing=True)
-            )
-        ).all()
-    )
+    out = capfd.readouterr().out
+    envelopes = [
+        json.loads(line)
+        for line in out.splitlines()
+        if line.startswith("{") and '"event_type"' in line
+    ]
+    if event_type is None:
+        return envelopes
+    return [e for e in envelopes if e["event_type"] == event_type.value]

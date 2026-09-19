@@ -21,9 +21,9 @@ from app.testing import (
     create_guild_membership,
     create_marketplace_listing,
     create_user,
+    emitted,
     get_auth_headers,
     marketplace_uid,
-    recorded,
 )
 
 pytestmark = pytest.mark.integration
@@ -59,9 +59,11 @@ async def mandatory_registration(session: AsyncSession):
 
 
 async def test_a_new_guild_records_its_provided_app_against_the_owner(
-    client: AsyncClient, session: AsyncSession, mandatory_registration
+    client: AsyncClient, session: AsyncSession, mandatory_registration, capfd
 ):
     user = await create_user(session, email="audit-founder@example.com")
+    user_id = user.id
+    capfd.readouterr()
 
     response = await client.post(
         "/api/v1/guilds/", headers=get_auth_headers(user), json={"name": "Fresh guild"}
@@ -69,12 +71,12 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
 
-    (row,) = await recorded(session, AuditEventType.APP_INSTALLED)
-    assert row.actor_user_id == user.id
-    assert row.guild_id == guild_id
-    assert row.target_type == "app"
-    assert row.target_id is not None
-    assert row.envelope["detail"] == {
+    (row,) = emitted(capfd, AuditEventType.APP_INSTALLED)
+    assert row["actor_user_id"] == user_id
+    assert row["guild_id"] == guild_id
+    assert row["target"]["type"] == "app"
+    assert row["target"]["id"] is not None
+    assert row["detail"] == {
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",
@@ -82,24 +84,25 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
 
 
 async def test_the_boot_sweep_records_an_install_nobody_made(
-    session: AsyncSession, mandatory_registration
+    session: AsyncSession, mandatory_registration, capfd
 ):
     """The sweep routes into each guild without an account behind it, so the
     record names none — and the install is still recorded as provided."""
     creator = await create_user(session, email="audit-existing@example.com")
     guild = await create_guild(session, creator=creator, name="Existing guild")
+    guild_id = guild.id
     await create_guild_membership(
         session, user=creator, guild=guild, role=GuildRole.admin
     )
+    capfd.readouterr()
 
     result = await backfill_mandatory_apps()
     assert (result.installed, result.failed) == (1, 0)
 
-    (row,) = await recorded(session, AuditEventType.APP_INSTALLED)
-    assert row.actor_user_id is None
-    assert row.guild_id == guild.id
-    assert row.envelope["actor_user_id"] is None
-    assert row.envelope["detail"] == {
+    (row,) = emitted(capfd, AuditEventType.APP_INSTALLED)
+    assert row["actor_user_id"] is None
+    assert row["guild_id"] == guild_id
+    assert row["detail"] == {
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",

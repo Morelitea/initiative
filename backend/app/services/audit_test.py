@@ -3,11 +3,8 @@
 import json
 
 import pytest
-from sqlmodel import select
-
 from app.core.audit_events import SCHEMA_VERSION, AuditCategory, AuditEventType
 from app.core.logging_config import configure_logging
-from app.models.platform.audit_event import AuditEvent
 from app.services import audit as audit_service
 from app.testing import create_user
 
@@ -30,73 +27,38 @@ def _audit_lines(out: str) -> list[dict]:
     ]
 
 
-async def test_a_record_lands_in_the_callers_transaction(session):
-    """Staged, not committed — which is what makes the record atomic with the
-    action it describes."""
-    actor = await create_user(session)
-    subject = await create_user(session)
-
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.USER_AVATAR_REMOVED,
-        actor_user_id=actor.id,
-        target_user_id=subject.id,
-        target_type="user",
-        target_id=subject.id,
-    )
-    await session.commit()
-
-    row = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.actor_user_id == actor.id)
-        )
-    ).one()
-    assert row.event_type == "user.avatar_removed"
-    assert row.target_user_id == subject.id
-    assert row.tier == 2
-
-
-async def test_the_envelope_carries_ids_and_no_identity(session):
-    """Names are resolved when the board is read. A name written into the
-    record would outlive the erasure of the account it belongs to."""
+async def test_the_envelope_carries_ids_and_no_identity(session, capfd):
+    """Names are resolved by whoever reads the stream, from ids. A name
+    written into the record would outlive the erasure of the account."""
     actor = await create_user(session, full_name="Ada Admin")
     subject = await create_user(session, full_name="Sam Subject")
-
-    event = await audit_service.record(
-        session,
-        event_type=AuditEventType.USER_AVATAR_REMOVED,
-        actor_user_id=actor.id,
-        target_user_id=subject.id,
-    )
-    await session.commit()
-
-    serialized = json.dumps(event.envelope)
-    assert "Ada Admin" not in serialized
-    assert "Sam Subject" not in serialized
-    assert event.envelope["schema_version"] == SCHEMA_VERSION
-    assert event.envelope["actor_user_id"] == actor.id
-
-
-async def test_the_same_envelope_goes_to_stdout(session, capfd):
-    """The ingestible seam: one bare JSON line on stdout per event, which an
-    operator's existing container-log pipeline ships as-is. Read from the
-    stream itself, under the served wiring, with no level forced."""
-    actor = await create_user(session)
+    actor_id, subject_id = actor.id, subject.id
     capfd.readouterr()
 
-    event = await audit_service.record(
+    envelope = await audit_service.record(
         session,
         event_type=AuditEventType.USER_AVATAR_REMOVED,
-        actor_user_id=actor.id,
+        actor_user_id=actor_id,
+        target_user_id=subject_id,
+        target_type="user",
+        target_id=subject_id,
     )
     await session.commit()
 
-    assert _audit_lines(capfd.readouterr().out) == [event.envelope]
+    (line,) = _audit_lines(capfd.readouterr().out)
+    assert line == envelope
+    serialized = json.dumps(line)
+    assert "Ada Admin" not in serialized and "Sam Subject" not in serialized
+    assert line["schema_version"] == SCHEMA_VERSION
+    assert line["event_type"] == "user.avatar_removed"
+    assert line["actor_user_id"] == actor_id
+    assert line["target_user_id"] == subject_id
+    assert line["target"] == {"type": "user", "id": subject_id}
+    assert line["tier"] == 2 and line["category"] == "moderation"
 
 
 async def test_nothing_is_logged_until_the_write_lands(session, capfd):
-    """The line is held until the transaction commits. Staged is not done, and
-    a log that claimed otherwise would disagree with the table."""
+    """The line is held until the transaction commits. Staged is not done."""
     actor = await create_user(session)
     capfd.readouterr()
 
@@ -112,12 +74,9 @@ async def test_nothing_is_logged_until_the_write_lands(session, capfd):
 
 
 async def test_a_rolled_back_action_tells_nobody(session, capfd):
-    """An action that did not happen leaves no row and no line — the two sinks
-    cannot disagree about it."""
+    """An action that did not happen leaves no line."""
     actor = await create_user(session)
     await session.commit()
-    # Held before the rollback: it expires every loaded object, and reading an
-    # attribute back would be a lazy load rather than the assertion we mean.
     actor_id = actor.id
     capfd.readouterr()
 
@@ -125,18 +84,11 @@ async def test_a_rolled_back_action_tells_nobody(session, capfd):
         session,
         event_type=AuditEventType.USER_AVATAR_REMOVED,
         actor_user_id=actor_id,
-        target_type="user",
-        target_id=actor_id,
     )
     await session.rollback()
+    await session.commit()
 
     assert _audit_lines(capfd.readouterr().out) == []
-    rows = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.actor_user_id == actor_id)
-        )
-    ).all()
-    assert rows == []
 
 
 async def test_a_record_in_a_rolled_back_savepoint_tells_nobody(session, capfd):
@@ -161,66 +113,22 @@ async def test_a_record_in_a_rolled_back_savepoint_tells_nobody(session, capfd):
     await savepoint.rollback()
     await session.commit()
 
-    assert _audit_lines(capfd.readouterr().out) == [kept.envelope]
-    rows = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.actor_user_id == actor_id)
-        )
-    ).all()
-    assert [r.event_type for r in rows] == ["user.avatar_removed"]
+    assert _audit_lines(capfd.readouterr().out) == [kept]
 
 
-async def test_a_record_the_session_let_go_of_still_lands(session, capfd):
-    """The row is written at the call, so a session that expunges everything
-    afterwards — a sync hopping between communities does — still commits it,
-    and the line still goes out."""
-    actor = await create_user(session)
-    await session.commit()
-    actor_id = actor.id
+async def test_a_record_before_the_first_statement_lands_with_the_commit(
+    session, capfd
+):
+    """Staged before the session has begun a transaction, the record rides
+    the one the commit closes."""
     capfd.readouterr()
-
-    event = await audit_service.record(
+    envelope = await audit_service.record(
         session,
         event_type=AuditEventType.USER_AVATAR_REMOVED,
-        actor_user_id=actor_id,
+        actor_user_id=None,
     )
-    envelope = event.envelope
-    session.expunge_all()
     await session.commit()
-
     assert _audit_lines(capfd.readouterr().out) == [envelope]
-    rows = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.actor_user_id == actor_id)
-        )
-    ).all()
-    assert len(rows) == 1
-
-
-async def test_a_record_survives_the_account_it_names(session):
-    """No foreign key, by design: deleting the subject must not take the
-    record of what was done to them with it."""
-    actor = await create_user(session)
-    subject = await create_user(session)
-    subject_id = subject.id
-
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.USER_AVATAR_REMOVED,
-        actor_user_id=actor.id,
-        target_user_id=subject_id,
-    )
-    await session.commit()
-
-    await session.delete(subject)
-    await session.commit()
-
-    row = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.target_user_id == subject_id)
-        )
-    ).one()
-    assert row.target_user_id == subject_id
 
 
 @pytest.mark.parametrize(

@@ -17,10 +17,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.security import decode_session_token
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import user_tokens
-from app.testing import create_user
+from app.testing import create_user, emitted
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -36,23 +35,22 @@ async def _sign_in_native(client: AsyncClient, email: str) -> dict:
     return response.json()
 
 
-async def _events(session: AsyncSession, user_id: int) -> list[str]:
-    rows = (
-        await session.exec(
-            select(AuditEvent)
-            .where(AuditEvent.actor_user_id == user_id)
-            .order_by(AuditEvent.id)
-        )
-    ).all()
-    return [row.event_type for row in rows]
+def _events(capfd, user_id: int) -> list[str]:
+    return [
+        envelope["event_type"]
+        for envelope in emitted(capfd)
+        if envelope["actor_user_id"] == user_id
+    ]
 
 
 async def test_a_native_sign_in_hands_back_a_session_too(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Both credentials, so a build that prefers the session has one from the
     first sign-in and a build that does not is unaffected."""
     user = await create_user(session, email="native-signin@example.com")
+    user_id = user.id
+    capfd.readouterr()
 
     body = await _sign_in_native(client, "native-signin@example.com")
 
@@ -63,9 +61,7 @@ async def test_a_native_sign_in_hands_back_a_session_too(
     claims = decode_session_token(body["access_token"])
     assert claims["sid"]
 
-    assert AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value in await _events(
-        session, user.id
-    )
+    assert AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value in _events(capfd, user_id)
 
 
 async def test_the_session_renews_without_a_cookie(
@@ -180,22 +176,24 @@ async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(
 
 
 async def test_an_exchange_is_not_counted_as_an_issue(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Nothing was issued — the token already existed. The two are counted
     apart so one of them can read as movement onto the session path."""
     user = await create_user(session, email="native-counted@example.com")
+    user_id = user.id
     device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="old-phone"
+        session, user_id=user_id, device_name="old-phone"
     )
     await session.commit()
+    capfd.readouterr()
 
     response = await client.post(
         "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
     )
     assert response.status_code == 200, response.text
 
-    recorded = await _events(session, user.id)
+    recorded = _events(capfd, user_id)
     assert AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED.value in recorded
     assert AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value not in recorded
 

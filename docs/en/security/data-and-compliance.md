@@ -72,7 +72,7 @@ Together, the **export** tools above and these **removal** tools cover the two r
 
 ### Accountability
 
-Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. The deployment's operator reads it in the app, and every entry is also written out as one line for their log platform. Entries name accounts by id, never by name or address, never contain a secret, and are kept after the accounts and communities they name are gone. What is recorded:
+Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. Every entry is written out as one line to the deployment's log platform, which is where it is kept, queried and retained. Entries name accounts by id, never by name or address, never contain a secret, and outlive the accounts and communities they name. What is recorded:
 
 - **Privileged access.** When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why.
 - **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.

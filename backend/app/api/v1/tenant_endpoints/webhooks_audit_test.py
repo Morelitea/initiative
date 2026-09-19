@@ -7,17 +7,17 @@ subscription itself lives under: the host it points at, never the path, the
 query or the signing secret.
 """
 
+import json
 import socket
 from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
-from app.testing import recorded
+from app.testing import emitted
 
 pytestmark = pytest.mark.integration
 
@@ -73,30 +73,35 @@ async def _create(client: AsyncClient, actor) -> dict:
 
 
 async def test_registering_records_the_host_and_never_the_rest_of_the_url(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    capfd.readouterr()
     created = await _create(client, a)
 
-    (row,) = await recorded(session, AuditEventType.WEBHOOK_CREATED)
-    assert row.actor_user_id == a.user.id
-    assert row.guild_id == a.guild.id
-    assert (row.target_type, row.target_id) == ("webhook_subscription", created["id"])
-    assert row.envelope["detail"] == {
+    (row,) = emitted(capfd, AuditEventType.WEBHOOK_CREATED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["guild_id"] == a.guild.id
+    assert row["target"] == {
+        "type": "webhook_subscription",
+        "id": created["id"],
+    }
+    assert row["detail"] == {
         "target_host": _WEBHOOK_HOST,
         "event_types": ["tasks.created"],
         "app_install_id": None,
     }
     # The whole envelope, not just the key somebody remembered to leave out.
-    assert "secret-path" not in str(row.envelope)
-    assert created["hmac_secret"] not in str(row.envelope)
+    assert "secret-path" not in json.dumps(row)
+    assert created["hmac_secret"] not in json.dumps(row)
 
 
 async def test_a_refused_registration_records_nothing(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user, capfd
 ):
     """Nothing was registered, so there is nothing to write down."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    capfd.readouterr()
 
     with _mock_public_dns():
         response = await client.post(
@@ -106,14 +111,15 @@ async def test_a_refused_registration_records_nothing(
         )
     assert response.status_code == 400
 
-    assert await recorded(session, AuditEventType.WEBHOOK_CREATED) == []
+    assert emitted(capfd, AuditEventType.WEBHOOK_CREATED) == []
 
 
 async def test_a_rewrite_records_which_fields_moved(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     created = await _create(client, a)
+    capfd.readouterr()
 
     response = await client.patch(
         _url(a.guild.id, f"/{created['id']}"),
@@ -122,11 +128,14 @@ async def test_a_rewrite_records_which_fields_moved(
     )
     assert response.status_code == 200, response.text
 
-    (row,) = await recorded(session, AuditEventType.WEBHOOK_UPDATED)
-    assert row.actor_user_id == a.user.id
-    assert row.guild_id == a.guild.id
-    assert (row.target_type, row.target_id) == ("webhook_subscription", created["id"])
-    assert row.envelope["detail"] == {
+    (row,) = emitted(capfd, AuditEventType.WEBHOOK_UPDATED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["guild_id"] == a.guild.id
+    assert row["target"] == {
+        "type": "webhook_subscription",
+        "id": created["id"],
+    }
+    assert row["detail"] == {
         "changed": ["active"],
         "values": {"active": {"from": True, "to": False}},
         "target_host_changed": False,
@@ -134,10 +143,11 @@ async def test_a_rewrite_records_which_fields_moved(
 
 
 async def test_a_rewrite_that_moves_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     created = await _create(client, a)
+    capfd.readouterr()
 
     response = await client.patch(
         _url(a.guild.id, f"/{created['id']}"),
@@ -146,25 +156,29 @@ async def test_a_rewrite_that_moves_nothing_records_nothing(
     )
     assert response.status_code == 200, response.text
 
-    assert await recorded(session, AuditEventType.WEBHOOK_UPDATED) == []
+    assert emitted(capfd, AuditEventType.WEBHOOK_UPDATED) == []
 
 
 async def test_removing_one_records_where_it_had_been_pointing(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     created = await _create(client, a)
+    capfd.readouterr()
 
     response = await client.delete(
         _url(a.guild.id, f"/{created['id']}"), headers=a.headers
     )
     assert response.status_code == 204, response.text
 
-    (row,) = await recorded(session, AuditEventType.WEBHOOK_DELETED)
-    assert row.actor_user_id == a.user.id
-    assert row.guild_id == a.guild.id
-    assert (row.target_type, row.target_id) == ("webhook_subscription", created["id"])
-    assert row.envelope["detail"] == {
+    (row,) = emitted(capfd, AuditEventType.WEBHOOK_DELETED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["guild_id"] == a.guild.id
+    assert row["target"] == {
+        "type": "webhook_subscription",
+        "id": created["id"],
+    }
+    assert row["detail"] == {
         "target_host": _WEBHOOK_HOST,
         "app_install_id": None,
     }

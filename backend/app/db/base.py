@@ -92,7 +92,6 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.guild_image import GuildImage
-from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.user_totp import UserTotp

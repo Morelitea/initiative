@@ -22,8 +22,7 @@ from app.models.platform.oidc_claim_mapping import (
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.services.oidc_sync import sync_oidc_assignments
 from app.services.tenant.initiatives import get_pm_role
-from app.testing import route_session_to_guild
-from app.testing.audit import recorded
+from app.testing import emitted, route_session_to_guild
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -36,12 +35,15 @@ pytestmark = pytest.mark.integration
 
 def _where(row) -> tuple:
     return (
-        row.actor_user_id,
-        row.target_user_id,
-        row.guild_id,
-        row.target_type,
-        row.target_id,
+        row["actor_user_id"],
+        row["target_user_id"],
+        row["guild_id"],
+        row["target"],
     )
+
+
+def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
+    return [row for row in written if row["event_type"] == event_type.value]
 
 
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
@@ -54,7 +56,7 @@ async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims
 
 
 async def test_a_first_arrival_records_the_guild_and_the_initiative(
-    session: AsyncSession,
+    session: AsyncSession, capfd
 ):
     provider = await create_auth_provider(session)
     provider_id = provider.id
@@ -80,6 +82,7 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
         )
     )
     await session.commit()
+    capfd.readouterr()
 
     await _sync(
         session,
@@ -88,19 +91,20 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
         claims={"engineering"},
     )
 
-    joined = await recorded(session, AuditEventType.GUILD_MEMBER_ADDED)
+    written = emitted(capfd)
+    joined = _of_type(written, AuditEventType.GUILD_MEMBER_ADDED)
     # No actor: the session is inside the guild with no account behind it, and
     # that is the truthful reading of a sync besides.
     assert [_where(row) for row in joined] == [
-        (None, newcomer_id, guild_id, "guild", guild_id)
+        (None, newcomer_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert joined[0].envelope["detail"] == {"role": "member", "via": "claim_sync"}
+    assert joined[0]["detail"] == {"role": "member", "via": "claim_sync"}
 
-    placed = await recorded(session, AuditEventType.INITIATIVE_MEMBER_ADDED)
+    placed = _of_type(written, AuditEventType.INITIATIVE_MEMBER_ADDED)
     assert [_where(row) for row in placed] == [
-        (None, newcomer_id, guild_id, "initiative", initiative_id)
+        (None, newcomer_id, guild_id, {"type": "initiative", "id": initiative_id})
     ]
-    assert placed[0].envelope["detail"] == {
+    assert placed[0]["detail"] == {
         "via": "claim_sync",
         "role_id": pm_role_id,
         "role": pm_role_name,
@@ -113,12 +117,13 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
         provider_id=provider_id,
         claims={"engineering"},
     )
-    assert len(await recorded(session, AuditEventType.GUILD_MEMBER_ADDED)) == 1
-    assert len(await recorded(session, AuditEventType.INITIATIVE_MEMBER_ADDED)) == 1
+    again = emitted(capfd)
+    assert _of_type(again, AuditEventType.GUILD_MEMBER_ADDED) == []
+    assert _of_type(again, AuditEventType.INITIATIVE_MEMBER_ADDED) == []
 
 
 async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
-    session: AsyncSession,
+    session: AsyncSession, capfd
 ):
     provider = await create_auth_provider(session, slug="movers")
     provider_id = provider.id
@@ -172,16 +177,17 @@ async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
     mapping.initiative_role_id = other_role_id
     session.add(mapping)
     await session.commit()
+    capfd.readouterr()
 
     await _sync(
         session, user_id=newcomer_id, provider_id=provider_id, claims={"engineering"}
     )
 
-    moved = await recorded(session, AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED)
+    moved = emitted(capfd, AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED)
     assert [_where(row) for row in moved] == [
-        (None, newcomer_id, guild_id, "initiative", initiative_id)
+        (None, newcomer_id, guild_id, {"type": "initiative", "id": initiative_id})
     ]
-    assert moved[0].envelope["detail"] == {
+    assert moved[0]["detail"] == {
         "from_role_id": pm_role_id,
         "from": pm_role_name,
         "to_role_id": other_role_id,
@@ -191,14 +197,15 @@ async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
     # The claim stops being asserted, and the sync takes both places back.
     await _sync(session, user_id=newcomer_id, provider_id=provider_id, claims=set())
 
-    dropped = await recorded(session, AuditEventType.INITIATIVE_MEMBER_REMOVED)
+    written = emitted(capfd)
+    dropped = _of_type(written, AuditEventType.INITIATIVE_MEMBER_REMOVED)
     assert [_where(row) for row in dropped] == [
-        (None, newcomer_id, guild_id, "initiative", initiative_id)
+        (None, newcomer_id, guild_id, {"type": "initiative", "id": initiative_id})
     ]
-    assert dropped[0].envelope["detail"] == {"via": "claim_sync"}
+    assert dropped[0]["detail"] == {"via": "claim_sync"}
 
-    left = await recorded(session, AuditEventType.GUILD_MEMBER_REMOVED)
+    left = _of_type(written, AuditEventType.GUILD_MEMBER_REMOVED)
     assert [_where(row) for row in left] == [
-        (None, newcomer_id, guild_id, "guild", guild_id)
+        (None, newcomer_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert left[0].envelope["detail"] == {"role": "member", "via": "claim_sync"}
+    assert left[0]["detail"] == {"role": "member", "via": "claim_sync"}

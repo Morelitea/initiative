@@ -46,12 +46,6 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.announcementsManage],
       },
       {
-        value: "audit",
-        label: t("operatorDashboard.tabs.audit"),
-        path: "/settings/operator/audit",
-        capabilities: [Capability.auditRead],
-      },
-      {
         value: "access",
         label: t("operatorDashboard.tabs.access"),
         path: "/settings/operator/access",

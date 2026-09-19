@@ -7,8 +7,6 @@ global mode is an area of the deployment's settings row, and is recorded as
 one.
 """
 
-from __future__ import annotations
-
 import json
 
 import pytest
@@ -16,7 +14,7 @@ import pytest
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.services import ai_settings as ai_settings_service
-from app.testing.audit import recorded
+from app.testing.audit import emitted
 
 pytestmark = pytest.mark.database
 
@@ -52,20 +50,26 @@ def _shared_key(label: str) -> dict:
     }
 
 
+def _of(envelopes: list[dict], event: AuditEventType) -> list[dict]:
+    """The envelopes of one event type, out of a single read of the stream."""
+    return [e for e in envelopes if e["event_type"] == event.value]
+
+
 # --- the global mode ---------------------------------------------------------
 
 
 async def test_changing_the_global_mode_is_an_area_of_the_settings_row(
-    client, acting_user, session
+    client, acting_user, capfd
 ):
     owner = await acting_user()
     owner_id = owner.user.id
+    capfd.readouterr()
 
     await _set_mode(client, owner, "platform")
 
-    rows = await recorded(session, AuditEventType.PLATFORM_SETTINGS_CHANGED)
-    assert [(r.actor_user_id, r.guild_id) for r in rows] == [(owner_id, None)]
-    detail = rows[0].envelope["detail"]
+    rows = emitted(capfd, AuditEventType.PLATFORM_SETTINGS_CHANGED)
+    assert [(r["actor_user_id"], r["guild_id"]) for r in rows] == [(owner_id, None)]
+    detail = rows[0]["detail"]
     assert detail["area"] == "ai_mode"
     assert detail["changed"] == ["ai_config_mode"]
     # The mode is a string, so it is named and not copied.
@@ -73,27 +77,27 @@ async def test_changing_the_global_mode_is_an_area_of_the_settings_row(
 
 
 async def test_setting_the_mode_it_is_already_on_records_nothing(
-    client, acting_user, session
+    client, acting_user, capfd
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "platform")
-    before = len(await recorded(session, AuditEventType.PLATFORM_SETTINGS_CHANGED))
+    capfd.readouterr()
 
     await _set_mode(client, owner, "platform")
 
-    after = await recorded(session, AuditEventType.PLATFORM_SETTINGS_CHANGED)
-    assert len(after) == before
+    assert emitted(capfd, AuditEventType.PLATFORM_SETTINGS_CHANGED) == []
 
 
 # --- the operator's own connections ------------------------------------------
 
 
 async def test_an_operator_connection_is_recorded_through_its_life(
-    client, acting_user, session
+    client, acting_user, capfd
 ):
     owner = await acting_user()
     owner_id = owner.user.id
     await _set_mode(client, owner, "platform")
+    capfd.readouterr()
 
     created = await client.post(
         PLATFORM_CONNS, headers=owner.headers, json=_shared_key("Company OpenAI")
@@ -112,38 +116,38 @@ async def test_an_operator_connection_is_recorded_through_its_life(
     )
     assert gone.status_code == 204, gone.text
 
+    envelopes = emitted(capfd)
     for event in (
         AuditEventType.AI_CONNECTION_CREATED,
         AuditEventType.AI_CONNECTION_UPDATED,
         AuditEventType.AI_CONNECTION_DELETED,
     ):
-        rows = await recorded(session, event)
-        assert [
-            (r.actor_user_id, r.guild_id, r.target_type, r.target_id) for r in rows
-        ] == [(owner_id, None, "ai_connection", connection_id)], event
-        assert rows[0].envelope["detail"]["scope"] == "platform"
+        rows = _of(envelopes, event)
+        assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
+            (owner_id, None, {"type": "ai_connection", "id": connection_id})
+        ], event
+        assert rows[0]["detail"]["scope"] == "platform"
 
-    born = (await recorded(session, AuditEventType.AI_CONNECTION_CREATED))[0]
-    assert born.envelope["detail"]["secret_changed"] is True
-    assert {"label", "provider", "model", "enabled"} <= set(
-        born.envelope["detail"]["changed"]
-    )
+    born = _of(envelopes, AuditEventType.AI_CONNECTION_CREATED)[0]
+    assert born["detail"]["secret_changed"] is True
+    assert {"label", "provider", "model", "enabled"} <= set(born["detail"]["changed"])
     # The label, the provider and the model name it; only the switches carry a
     # value.
-    assert set(born.envelope["detail"]["values"]) == {
+    assert set(born["detail"]["values"]) == {
         "enabled",
         "is_default",
         "allow_member_keys",
     }
 
-    moved = (await recorded(session, AuditEventType.AI_CONNECTION_UPDATED))[0]
-    assert moved.envelope["detail"]["changed"] == ["enabled"]
-    assert moved.envelope["detail"]["secret_changed"] is False
+    moved = _of(envelopes, AuditEventType.AI_CONNECTION_UPDATED)[0]
+    assert moved["detail"]["changed"] == ["enabled"]
+    assert moved["detail"]["secret_changed"] is False
 
 
-async def test_no_record_of_a_connection_carries_its_key(client, acting_user, session):
+async def test_no_record_of_a_connection_carries_its_key(client, acting_user, capfd):
     owner = await acting_user()
     await _set_mode(client, owner, "platform")
+    capfd.readouterr()
 
     created = await client.post(
         PLATFORM_CONNS, headers=owner.headers, json=_shared_key("Company OpenAI")
@@ -156,13 +160,14 @@ async def test_no_record_of_a_connection_carries_its_key(client, acting_user, se
     )
     assert rotated.status_code == 200, rotated.text
 
+    written = emitted(capfd)
     envelopes = [
-        row.envelope
+        envelope
         for event in (
             AuditEventType.AI_CONNECTION_CREATED,
             AuditEventType.AI_CONNECTION_UPDATED,
         )
-        for row in await recorded(session, event)
+        for envelope in _of(written, event)
     ]
     assert envelopes
     for envelope in envelopes:
@@ -173,12 +178,13 @@ async def test_no_record_of_a_connection_carries_its_key(client, acting_user, se
 
 
 async def test_a_community_connection_is_recorded_against_its_community(
-    client, acting_user, session
+    client, acting_user, capfd
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
     seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     seat_id, guild_id = seat.user.id, seat.guild.id
+    capfd.readouterr()
 
     created = await client.post(
         seat.g("/settings/ai/connections"),
@@ -199,20 +205,21 @@ async def test_a_community_connection_is_recorded_against_its_community(
     )
     assert gone.status_code == 204, gone.text
 
+    envelopes = emitted(capfd)
     for event in (
         AuditEventType.AI_CONNECTION_CREATED,
         AuditEventType.AI_CONNECTION_UPDATED,
         AuditEventType.AI_CONNECTION_DELETED,
     ):
-        rows = await recorded(session, event)
-        assert [
-            (r.actor_user_id, r.guild_id, r.target_type, r.target_id) for r in rows
-        ] == [(seat_id, guild_id, "ai_connection", connection_id)], event
-        assert rows[0].envelope["detail"]["scope"] == "guild"
+        rows = _of(envelopes, event)
+        assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
+            (seat_id, guild_id, {"type": "ai_connection", "id": connection_id})
+        ], event
+        assert rows[0]["detail"]["scope"] == "guild"
 
 
 async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
-    client, acting_user, session
+    client, acting_user, capfd
 ):
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
@@ -224,6 +231,7 @@ async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
         json=_shared_key("Team OpenAI"),
     )
     assert created.status_code == 200, created.text
+    capfd.readouterr()
 
     same = await client.put(
         seat.g(f"/settings/ai/connections/{created.json()['id']}"),
@@ -232,14 +240,15 @@ async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
     )
     assert same.status_code == 200, same.text
 
-    assert await recorded(session, AuditEventType.AI_CONNECTION_UPDATED) == []
+    assert emitted(capfd, AuditEventType.AI_CONNECTION_UPDATED) == []
 
 
-async def test_a_refused_connection_write_records_nothing(client, acting_user, session):
+async def test_a_refused_connection_write_records_nothing(client, acting_user, capfd):
     """Running a community is not the seat that connects it to a provider."""
     owner = await acting_user()
     await _set_mode(client, owner, "guild")
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    capfd.readouterr()
 
     refused = await client.post(
         admin.g("/settings/ai/connections"),
@@ -248,4 +257,4 @@ async def test_a_refused_connection_write_records_nothing(client, acting_user, s
     )
     assert refused.status_code == 403, refused.text
 
-    assert await recorded(session, AuditEventType.AI_CONNECTION_CREATED) == []
+    assert emitted(capfd, AuditEventType.AI_CONNECTION_CREATED) == []

@@ -22,7 +22,7 @@ from app.models.platform.app_service_registration import (
 )
 from app.models.platform.user import UserRole
 from app.services.marketplace.handshake import HandshakeResult
-from app.testing.audit import recorded
+from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -80,9 +80,10 @@ async def _seed(session: AsyncSession, **overrides) -> AppServiceRegistration:
 
 
 async def test_registering_an_app_service_names_what_it_confers(
-    client: AsyncClient, session: AsyncSession, answering_app
+    client: AsyncClient, session: AsyncSession, answering_app, capfd
 ):
     owner_id, headers = await _owner(session)
+    capfd.readouterr()
 
     created = await client.post(
         BASE,
@@ -97,11 +98,11 @@ async def test_registering_an_app_service_names_what_it_confers(
     assert created.status_code == 201, created.text
     registration_id = created.json()["id"]
 
-    rows = await recorded(session, AuditEventType.APP_SERVICE_CREATED)
-    assert [(r.actor_user_id, r.target_type, r.target_id) for r in rows] == [
-        (owner_id, "app_service_registration", registration_id)
+    rows = emitted(capfd, AuditEventType.APP_SERVICE_CREATED)
+    assert [(r["actor_user_id"], r["target"]) for r in rows] == [
+        (owner_id, {"type": "app_service_registration", "id": registration_id})
     ]
-    detail = rows[0].envelope["detail"]
+    detail = rows[0]["detail"]
     assert detail["secret_changed"] is True
     assert {"public_id", "base_url", "grants", "mandatory", "enabled"} <= set(
         detail["changed"]
@@ -110,15 +111,16 @@ async def test_registering_an_app_service_names_what_it_confers(
     # The address and the powers list are strings: named, never copied.
     assert "base_url" not in detail["values"]
     assert "grants" not in detail["values"]
-    assert SECRET not in json.dumps(rows[0].envelope)
+    assert SECRET not in json.dumps(rows[0])
 
 
 async def test_editing_a_registration_records_what_moved_and_the_secret_with_it(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner_id, headers = await _owner(session)
     row = await _seed(session)
     registration_id = row.id
+    capfd.readouterr()
 
     edited = await client.patch(
         f"{BASE}{registration_id}",
@@ -127,76 +129,80 @@ async def test_editing_a_registration_records_what_moved_and_the_secret_with_it(
     )
     assert edited.status_code == 200, edited.text
 
-    rows = await recorded(session, AuditEventType.APP_SERVICE_UPDATED)
-    assert [(r.actor_user_id, r.target_id) for r in rows] == [
+    rows = emitted(capfd, AuditEventType.APP_SERVICE_UPDATED)
+    assert [(r["actor_user_id"], r["target"]["id"]) for r in rows] == [
         (owner_id, registration_id)
     ]
-    detail = rows[0].envelope["detail"]
+    detail = rows[0]["detail"]
     assert detail["secret_changed"] is True
     assert detail["values"]["enabled"] == {"from": True, "to": False}
 
 
 async def test_an_edit_that_changes_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     _, headers = await _owner(session)
     row = await _seed(session)
+    capfd.readouterr()
 
     same = await client.patch(
         f"{BASE}{row.id}", headers=headers, json={"enabled": True, "mandatory": False}
     )
     assert same.status_code == 200, same.text
 
-    assert await recorded(session, AuditEventType.APP_SERVICE_UPDATED) == []
+    assert emitted(capfd, AuditEventType.APP_SERVICE_UPDATED) == []
 
 
 async def test_a_refused_request_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     member = await create_user(session, role=UserRole.member)
     row = await _seed(session)
+    capfd.readouterr()
 
     refused = await client.patch(
         f"{BASE}{row.id}", headers=get_auth_headers(member), json={"enabled": False}
     )
     assert refused.status_code == 403
 
-    assert await recorded(session, AuditEventType.APP_SERVICE_UPDATED) == []
+    assert emitted(capfd, AuditEventType.APP_SERVICE_UPDATED) == []
 
 
 async def test_removing_a_registration_is_recorded(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner_id, headers = await _owner(session)
     row = await _seed(session)
     registration_id = row.id
+    capfd.readouterr()
 
     gone = await client.delete(f"{BASE}{registration_id}", headers=headers)
     assert gone.status_code == 204, gone.text
 
-    rows = await recorded(session, AuditEventType.APP_SERVICE_DELETED)
-    assert [(r.actor_user_id, r.target_type, r.target_id) for r in rows] == [
-        (owner_id, "app_service_registration", registration_id)
+    rows = emitted(capfd, AuditEventType.APP_SERVICE_DELETED)
+    assert [(r["actor_user_id"], r["target"]) for r in rows] == [
+        (owner_id, {"type": "app_service_registration", "id": registration_id})
     ]
 
 
 async def test_a_verification_records_the_status_it_ended_on(
-    client: AsyncClient, session: AsyncSession, answering_app
+    client: AsyncClient, session: AsyncSession, answering_app, capfd
 ):
     owner_id, headers = await _owner(session)
     row = await _seed(session)
     registration_id = row.id
+    capfd.readouterr()
 
     verified = await client.post(
         f"{BASE}{registration_id}/verify", headers=headers, json={}
     )
     assert verified.status_code == 200, verified.text
 
-    rows = await recorded(session, AuditEventType.APP_SERVICE_VERIFIED)
-    assert [(r.actor_user_id, r.target_id) for r in rows] == [
+    rows = emitted(capfd, AuditEventType.APP_SERVICE_VERIFIED)
+    assert [(r["actor_user_id"], r["target"]["id"]) for r in rows] == [
         (owner_id, registration_id)
     ]
-    assert rows[0].envelope["detail"] == {
+    assert rows[0]["detail"] == {
         "status": AppServiceStatus.OK,
         "protocol_version": 1,
     }

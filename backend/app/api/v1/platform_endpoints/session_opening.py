@@ -48,7 +48,6 @@ from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
 from app.services.platform import auth_posture
-from app.services.platform import security_rules
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +133,6 @@ async def record_sign_in_failure(
     *,
     method: str,
     reason: str,
-    watch: bool = True,
 ) -> None:
     """Write down a refused sign-in and commit it.
 
@@ -145,16 +143,11 @@ async def record_sign_in_failure(
     ``method`` is how the sign-in was being attempted — a password, a passkey —
     so the board can tell one run of refusals from another.
 
-    ``watch`` is whether the refusal counts toward the repeated-refusal rule.
-    A route sets it aside where what was refused says nothing about the account
-    the record names; the record itself is written either way.
 
-    Its own commit because the request is about to raise, and ``audit_events``
-    is reached on the system engine — the request-path role holds nothing on
-    that table.
+    Its own commit because the request is about to raise.
     """
     target_user_id = user.id if user is not None else None
-    event = await audit_service.record(
+    await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
@@ -164,17 +157,6 @@ async def record_sign_in_failure(
         detail={"method": method, "reason": reason},
     )
     await admin_session.commit()
-
-    # The refusal is recorded; a rule now reads the window it belongs to. Only
-    # where an account resolved, because a rule names the account and an
-    # address nobody holds names nothing. Detached from this request, which is
-    # about to refuse regardless.
-    if watch and target_user_id is not None:
-        security_rules.watch(
-            security_rules.note_failed_sign_in(
-                target_user_id, event_uuid=str(event.event_uuid)
-            )
-        )
 
 
 async def open_session(

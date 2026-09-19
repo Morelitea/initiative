@@ -80,11 +80,10 @@ async def test_the_read_floor_holds_no_sequences(engine):
                 "  JOIN pg_namespace n ON n.oid = c.relnamespace"
                 "  WHERE n.nspname = 'public' AND c.relkind = 'S') "
                 "SELECT count(*) FROM s "
-                "WHERE s.oid::regclass::text <> :log_sequence "
-                "AND (has_sequence_privilege(:r, s.oid, 'SELECT') "
-                "     OR has_sequence_privilege(:r, s.oid, 'USAGE'))"
+                "WHERE has_sequence_privilege(:r, s.oid, 'SELECT') "
+                "   OR has_sequence_privilege(:r, s.oid, 'USAGE')"
             ),
-            {"r": READ_FLOOR, "log_sequence": _APPEND_ONLY_LOG_SEQUENCE},
+            {"r": READ_FLOOR},
         )
         assert held == 0
 
@@ -104,13 +103,6 @@ async def test_the_read_floor_takes_no_default_privileges(engine):
         assert entries == 0
 
 
-#: The one table the read floor appends to: the audit log, where what a
-#: read-only session did is written down (migration 0318). INSERT only, and
-#: USAGE on the sequence that numbers it.
-_APPEND_ONLY_LOG = {"INSERT": {"audit_events"}}
-_APPEND_ONLY_LOG_SEQUENCE = "audit_events_id_seq"
-
-
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])
 async def test_the_read_floor_writes_nothing(engine, verb):
     async with engine.connect() as conn:
@@ -125,4 +117,4 @@ async def test_the_read_floor_writes_nothing(engine, verb):
                 {"r": READ_FLOOR, "v": verb},
             )
         ).all()
-    assert {row.name for row in writable} == _APPEND_ONLY_LOG.get(verb, set())
+    assert [row.name for row in writable] == []

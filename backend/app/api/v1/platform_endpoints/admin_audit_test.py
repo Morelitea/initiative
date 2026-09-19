@@ -1,8 +1,7 @@
-"""What the operator surfaces write down, and how the board is read back.
+"""What the operator surfaces write down.
 
 An operator reaches accounts and communities they are not in, so what they do
-is recorded with the community it touched — which is also how the board is
-filtered.
+is recorded with the community it touched.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.testing.audit import recorded
+from app.testing import emitted
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -27,11 +26,10 @@ pytestmark = pytest.mark.integration
 
 def _where(row) -> tuple:
     return (
-        row.actor_user_id,
-        row.target_user_id,
-        row.guild_id,
-        row.target_type,
-        row.target_id,
+        row["actor_user_id"],
+        row["target_user_id"],
+        row["guild_id"],
+        row["target"],
     )
 
 
@@ -39,31 +37,33 @@ def _where(row) -> tuple:
 
 
 async def test_exporting_every_account_is_recorded_with_its_count(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Nothing changed, which is exactly what makes it worth writing down."""
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
     await create_user(session)
+    capfd.readouterr()
 
     response = await client.get(
         "/api/v1/admin/users/export.csv", headers=get_auth_headers(operator)
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.PLATFORM_USERS_EXPORTED)
-    assert [_where(row) for row in rows] == [(operator_id, None, None, None, None)]
-    assert rows[0].envelope["detail"]["subset"] is False
-    assert rows[0].envelope["detail"]["count"] >= 2
+    rows = emitted(capfd, AuditEventType.PLATFORM_USERS_EXPORTED)
+    assert [_where(row) for row in rows] == [(operator_id, None, None, None)]
+    assert rows[0]["detail"]["subset"] is False
+    assert rows[0]["detail"]["count"] >= 2
     # A read changed nothing, and the envelope says so.
-    assert rows[0].envelope["is_write"] is False
+    assert rows[0]["is_write"] is False
 
 
 async def test_an_export_of_one_account_records_that_it_was_a_subset(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     target = await create_user(session)
+    capfd.readouterr()
 
     response = await client.get(
         f"/api/v1/admin/users/export.csv?user_id={target.id}",
@@ -71,21 +71,22 @@ async def test_an_export_of_one_account_records_that_it_was_a_subset(
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.PLATFORM_USERS_EXPORTED)
-    assert [row.envelope["detail"] for row in rows] == [{"count": 1, "subset": True}]
+    rows = emitted(capfd, AuditEventType.PLATFORM_USERS_EXPORTED)
+    assert [row["detail"] for row in rows] == [{"count": 1, "subset": True}]
 
 
 async def test_an_export_that_matched_nobody_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
+    capfd.readouterr()
 
     response = await client.get(
         "/api/v1/admin/users/export.csv?user_id=9999998&user_id=9999999",
         headers=get_auth_headers(operator),
     )
     assert response.status_code == 404
-    assert await recorded(session, AuditEventType.PLATFORM_USERS_EXPORTED) == []
+    assert emitted(capfd, AuditEventType.PLATFORM_USERS_EXPORTED) == []
 
 
 # --- accounts ---------------------------------------------------------------
@@ -100,12 +101,13 @@ async def test_an_export_that_matched_nobody_records_nothing(
     ],
 )
 async def test_closing_someone_elses_account_is_recorded_against_them(
-    client: AsyncClient, session: AsyncSession, action: str, event_type
+    client: AsyncClient, session: AsyncSession, action: str, event_type, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
     target = await create_user(session)
     target_id = target.id
+    capfd.readouterr()
 
     response = await client.request(
         "DELETE",
@@ -115,15 +117,15 @@ async def test_closing_someone_elses_account_is_recorded_against_them(
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, event_type)
+    rows = emitted(capfd, event_type)
     assert [_where(row) for row in rows] == [
-        (operator_id, target_id, None, "user", target_id)
+        (operator_id, target_id, None, {"type": "user", "id": target_id})
     ]
-    assert rows[0].envelope["detail"] == {"self": False}
+    assert rows[0]["detail"] == {"self": False}
 
 
 async def test_closing_an_account_records_every_community_it_left(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
@@ -138,6 +140,7 @@ async def test_closing_an_account_records_every_community_it_left(
     await create_guild_membership(
         session, user=target, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     response = await client.request(
         "DELETE",
@@ -147,18 +150,19 @@ async def test_closing_an_account_records_every_community_it_left(
     )
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_MEMBER_REMOVED)
+    rows = emitted(capfd, AuditEventType.GUILD_MEMBER_REMOVED)
     assert [_where(row) for row in rows] == [
-        (operator_id, target_id, guild_id, "guild", guild_id)
+        (operator_id, target_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"role": "member", "via": "account_closed"}
+    assert rows[0]["detail"] == {"role": "member", "via": "account_closed"}
 
 
 async def test_a_refused_account_deletion_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Deleting yourself from here is refused; nothing happened to record."""
     operator = await create_user(session, role=UserRole.operator)
+    capfd.readouterr()
 
     response = await client.request(
         "DELETE",
@@ -167,14 +171,14 @@ async def test_a_refused_account_deletion_records_nothing(
         json={"action": "deactivate"},
     )
     assert response.status_code == 400
-    assert await recorded(session, AuditEventType.USER_DEACTIVATED) == []
+    assert emitted(capfd, AuditEventType.USER_DEACTIVATED) == []
 
 
 # --- communities ------------------------------------------------------------
 
 
 async def test_an_operator_changing_a_guild_role_is_recorded_with_the_guild(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
@@ -189,6 +193,7 @@ async def test_an_operator_changing_a_guild_role_is_recorded_with_the_guild(
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     response = await client.patch(
         f"/api/v1/admin/guilds/{guild_id}/members/{member_id}/role",
@@ -197,15 +202,15 @@ async def test_an_operator_changing_a_guild_role_is_recorded_with_the_guild(
     )
     assert response.status_code == 204, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)
+    rows = emitted(capfd, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)
     assert [_where(row) for row in rows] == [
-        (operator_id, member_id, guild_id, "guild", guild_id)
+        (operator_id, member_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"from": "member", "to": "admin"}
+    assert rows[0]["detail"] == {"from": "member", "to": "admin"}
 
 
 async def test_an_operator_deleting_a_blocking_guild_records_who_it_was_for(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
@@ -221,6 +226,7 @@ async def test_an_operator_deleting_a_blocking_guild_records_who_it_was_for(
     await create_guild_membership(
         session, user=bystander, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     response = await client.delete(
         f"/api/v1/admin/guilds/{guild_id}?blocked_user_id={stuck_id}",
@@ -228,15 +234,15 @@ async def test_an_operator_deleting_a_blocking_guild_records_who_it_was_for(
     )
     assert response.status_code == 204, response.text
 
-    rows = await recorded(session, AuditEventType.GUILD_DELETED)
+    rows = emitted(capfd, AuditEventType.GUILD_DELETED)
     assert [_where(row) for row in rows] == [
-        (operator_id, stuck_id, guild_id, "guild", guild_id)
+        (operator_id, stuck_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0].envelope["detail"] == {"via": "operator"}
+    assert rows[0]["detail"] == {"via": "operator"}
 
 
 async def test_a_refused_guild_deletion_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """The guild blocks nobody, so it is not this endpoint's to delete."""
     operator = await create_user(session, role=UserRole.operator)
@@ -246,41 +252,11 @@ async def test_a_refused_guild_deletion_records_nothing(
         session, user=owner, guild=guild, role=GuildRole.superadmin
     )
     bystander = await create_user(session)
+    capfd.readouterr()
 
     response = await client.delete(
         f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={bystander.id}",
         headers=get_auth_headers(operator),
     )
     assert response.status_code == 403
-    assert await recorded(session, AuditEventType.GUILD_DELETED) == []
-
-
-# --- the board --------------------------------------------------------------
-
-
-async def test_the_board_filters_by_community(
-    client: AsyncClient, session: AsyncSession
-):
-    """``guild_id`` is what an operator reads one community's history by, so a
-    row belonging to another must not come back with it."""
-    operator = await create_user(session, role=UserRole.owner)
-    headers = get_auth_headers(operator)
-
-    guild_ids = []
-    for name in ("Board One", "Board Two"):
-        created = await client.post(
-            "/api/v1/guilds/", headers=headers, json={"name": name}
-        )
-        assert created.status_code == 201, created.text
-        guild_ids.append(created.json()["id"])
-    first, second = guild_ids
-
-    listing = await client.get(
-        "/api/v1/admin/audit-events",
-        headers=headers,
-        params={"event_type": AuditEventType.GUILD_CREATED.value, "guild_id": first},
-    )
-    assert listing.status_code == 200, listing.text
-    items = listing.json()["items"]
-    assert [item["guild_id"] for item in items] == [first]
-    assert second not in [item["guild_id"] for item in items]
+    assert emitted(capfd, AuditEventType.GUILD_DELETED) == []

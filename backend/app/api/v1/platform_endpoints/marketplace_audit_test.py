@@ -14,7 +14,7 @@ import pytest
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.testing.audit import recorded
+from app.testing import emitted
 
 pytestmark = pytest.mark.integration
 
@@ -55,20 +55,21 @@ def catalog_dir(tmp_path, monkeypatch):
 
 
 async def test_a_rescan_records_its_source_and_what_it_moved(
-    client, acting_user, session, catalog_dir
+    client, acting_user, catalog_dir, capfd
 ):
     (catalog_dir / "standup.json").write_text(json.dumps(_manifest()), encoding="utf-8")
     actor = await acting_user("owner")
     actor_id = actor.user.id
+    capfd.readouterr()
 
     response = await client.post(RESCAN_URL, headers=actor.headers)
     assert response.status_code == 200, response.text
 
-    rows = await recorded(session, AuditEventType.MARKETPLACE_CATALOG_REFRESHED)
-    assert [(r.actor_user_id, r.guild_id, r.target_type) for r in rows] == [
+    rows = emitted(capfd, AuditEventType.MARKETPLACE_CATALOG_REFRESHED)
+    assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
         (actor_id, None, None)
     ]
-    assert rows[0].envelope["detail"] == {
+    assert rows[0]["detail"] == {
         "source": "operator_catalog",
         "published": 1,
         "withdrawn": 0,
@@ -77,24 +78,26 @@ async def test_a_rescan_records_its_source_and_what_it_moved(
 
 
 async def test_a_scan_with_nowhere_to_read_from_records_nothing(
-    client, acting_user, session, monkeypatch
+    client, acting_user, monkeypatch, capfd
 ):
     monkeypatch.setattr(settings, "MARKETPLACE_EXTRA_CATALOG_DIR", None)
     actor = await acting_user("owner")
+    capfd.readouterr()
 
     refused = await client.post(RESCAN_URL, headers=actor.headers)
     assert refused.status_code == 400, refused.text
 
-    assert await recorded(session, AuditEventType.MARKETPLACE_CATALOG_REFRESHED) == []
+    assert emitted(capfd, AuditEventType.MARKETPLACE_CATALOG_REFRESHED) == []
 
 
 async def test_a_rescan_a_lower_tier_asked_for_records_nothing(
-    client, acting_user, session, catalog_dir
+    client, acting_user, catalog_dir, capfd
 ):
     (catalog_dir / "standup.json").write_text(json.dumps(_manifest()), encoding="utf-8")
     actor = await acting_user("moderator")
+    capfd.readouterr()
 
     refused = await client.post(RESCAN_URL, headers=actor.headers)
     assert refused.status_code == 403, refused.text
 
-    assert await recorded(session, AuditEventType.MARKETPLACE_CATALOG_REFRESHED) == []
+    assert emitted(capfd, AuditEventType.MARKETPLACE_CATALOG_REFRESHED) == []

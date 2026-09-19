@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
-from app.testing.audit import recorded
+from app.testing import emitted
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -26,20 +26,20 @@ pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 def _where(row) -> tuple:
     return (
-        row.actor_user_id,
-        row.target_user_id,
-        row.guild_id,
-        row.target_type,
-        row.target_id,
+        row["actor_user_id"],
+        row["target_user_id"],
+        row["guild_id"],
+        row["target"],
     )
 
 
 async def test_minting_and_dropping_a_key_are_both_recorded(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session)
     user_id = user.id
     headers = get_auth_headers(user)
+    capfd.readouterr()
 
     minted = await client.post(
         "/api/v1/users/me/api-keys", headers=headers, json={"name": "laptop"}
@@ -47,31 +47,31 @@ async def test_minting_and_dropping_a_key_are_both_recorded(
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]
 
-    created = await recorded(session, AuditEventType.API_KEY_CREATED)
+    created = emitted(capfd, AuditEventType.API_KEY_CREATED)
     assert [_where(row) for row in created] == [
-        (user_id, user_id, None, "user_api_key", key_id)
+        (user_id, user_id, None, {"type": "user_api_key", "id": key_id})
     ]
-    assert created[0].envelope["detail"] == {
+    assert created[0]["detail"] == {
         "read_only": False,
         "expires_at": None,
         "guild_bound": False,
     }
     # What the key is called is the account's business, not the log's.
-    assert "name" not in created[0].envelope["detail"]
+    assert "name" not in created[0]["detail"]
 
     dropped = await client.delete(
         f"/api/v1/users/me/api-keys/{key_id}", headers=headers
     )
     assert dropped.status_code == 204, dropped.text
 
-    deleted = await recorded(session, AuditEventType.API_KEY_DELETED)
+    deleted = emitted(capfd, AuditEventType.API_KEY_DELETED)
     assert [_where(row) for row in deleted] == [
-        (user_id, user_id, None, "user_api_key", key_id)
+        (user_id, user_id, None, {"type": "user_api_key", "id": key_id})
     ]
 
 
 async def test_a_key_bound_to_one_community_records_which(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session)
     user_id = user.id
@@ -80,6 +80,7 @@ async def test_a_key_bound_to_one_community_records_which(
     await create_guild_membership(
         session, user=user, guild=guild, role=GuildRole.member
     )
+    capfd.readouterr()
 
     minted = await client.post(
         "/api/v1/users/me/api-keys",
@@ -89,11 +90,11 @@ async def test_a_key_bound_to_one_community_records_which(
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]
 
-    created = await recorded(session, AuditEventType.API_KEY_CREATED)
+    created = emitted(capfd, AuditEventType.API_KEY_CREATED)
     assert [_where(row) for row in created] == [
-        (user_id, user_id, guild_id, "user_api_key", key_id)
+        (user_id, user_id, guild_id, {"type": "user_api_key", "id": key_id})
     ]
-    assert created[0].envelope["detail"] == {
+    assert created[0]["detail"] == {
         "read_only": True,
         "expires_at": None,
         "guild_bound": True,
@@ -101,7 +102,7 @@ async def test_a_key_bound_to_one_community_records_which(
 
 
 async def test_dropping_a_key_that_is_not_yours_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner = await create_user(session)
     other = await create_user(session)
@@ -113,9 +114,10 @@ async def test_dropping_a_key_that_is_not_yours_records_nothing(
     )
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]
+    capfd.readouterr()
 
     refused = await client.delete(
         f"/api/v1/users/me/api-keys/{key_id}", headers=get_auth_headers(other)
     )
     assert refused.status_code == 404
-    assert await recorded(session, AuditEventType.API_KEY_DELETED) == []
+    assert emitted(capfd, AuditEventType.API_KEY_DELETED) == []

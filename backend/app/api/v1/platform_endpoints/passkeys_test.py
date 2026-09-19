@@ -24,15 +24,13 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     get_password_hash,
 )
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
 from app.services.auth import passkeys as passkey_service
-from app.services.platform import security_rules
-from app.testing import create_user, get_auth_headers, get_auth_token
+from app.testing import create_user, emitted, get_auth_headers, get_auth_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -400,23 +398,20 @@ async def test_only_the_transports_webauthn_names_are_kept(
 
 
 async def test_registering_is_recorded(
-    client: AsyncClient, session: AsyncSession, ceremony
+    client: AsyncClient, session: AsyncSession, ceremony, capfd
 ):
     user = await _account(session, "pk-audit@example.com")
     user_id = user.id
+    capfd.readouterr()
     body = await _register(client, user)
 
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_PASSKEY_REGISTERED.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_PASSKEY_REGISTERED)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    detail = events[0].envelope["detail"]
+    detail = events[0]["detail"]
     assert detail["passkey_id"] == body["id"]
     assert detail["backed_up"] is True
     assert detail["user_verified"] is True
@@ -572,11 +567,12 @@ async def test_removing_asks_for_the_password(
 
 
 async def test_removing_forgets_the_credential(
-    client: AsyncClient, session: AsyncSession, ceremony
+    client: AsyncClient, session: AsyncSession, ceremony, capfd
 ):
     user = await _account(session, "pk-remove@example.com")
     user_id = user.id
     body = await _register(client, user)
+    capfd.readouterr()
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
@@ -590,16 +586,13 @@ async def test_removing_forgets_the_credential(
         await session.exec(select(UserPasskey).where(UserPasskey.user_id == user_id))
     ).all()
     assert rows == []
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_PASSKEY_REMOVED.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_PASSKEY_REMOVED)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    assert events[0].envelope["detail"]["passkey_id"] == body["id"]
+    assert events[0]["detail"]["passkey_id"] == body["id"]
 
 
 async def test_another_accounts_passkey_cannot_be_removed(
@@ -807,13 +800,14 @@ async def test_beginning_names_the_deployment_and_nobody_else(
 
 
 async def test_an_assertion_opens_a_session(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """A device-bound key records ``hwk``, and ``mfa`` beside it because the
     ceremony proved the person as well as the device."""
     user = await _account(session, "pk-signin@example.com")
     user_id = user.id
     await _credential_for(session, user)
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -832,16 +826,13 @@ async def test_an_assertion_opens_a_session(
     assert len(sessions) == 1
     assert sessions[0].amr == ["hwk", "mfa"]
 
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_SIGNED_IN.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    assert events[0].envelope["detail"]["method"] == "passkey"
+    assert events[0]["detail"]["method"] == "passkey"
 
 
 async def test_a_synced_key_says_so(
@@ -912,10 +903,11 @@ async def test_a_challenge_answers_one_sign_in(
 
 
 async def test_a_credential_nobody_registered_is_refused(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     user = await _account(session, "pk-stranger@example.com")
     await _credential_for(session, user)
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -925,24 +917,17 @@ async def test_a_credential_nobody_registered_is_refused(
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
 
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
-            )
-        )
-    ).all()
+    events = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     assert len(events) == 1
-    detail = events[0].envelope["detail"]
+    detail = events[0]["detail"]
     assert detail["method"] == "passkey"
     assert detail["reason"] == "unknown"
     # Nobody resolved, so the record names nobody.
-    assert events[0].target_user_id is None
+    assert events[0]["target_user_id"] is None
 
 
 async def test_a_credential_that_does_not_verify_names_its_account(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
 ):
     """The client is told the same thing either way; the record is not. A
     credential this deployment holds names the account it belongs to."""
@@ -956,6 +941,7 @@ async def test_a_credential_that_does_not_verify_names_its_account(
     monkeypatch.setattr(
         passkey_service.webauthn, "verify_authentication_response", refuse
     )
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -964,49 +950,26 @@ async def test_a_credential_that_does_not_verify_names_its_account(
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
 
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
-            )
-        )
-    ).all()
+    events = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     assert len(events) == 1
-    assert events[0].target_user_id == user_id
-    assert events[0].envelope["detail"]["reason"] == "invalid"
-
-
-@pytest.fixture
-def rule_calls(monkeypatch):
-    """The accounts the repeated-refusal rule was asked about.
-
-    It runs detached from the request that triggered it, so a test that reads
-    this list drains the rules first.
-    """
-    asked: list[int] = []
-
-    async def note(user_id: int, **kwargs) -> None:
-        asked.append(user_id)
-        return None
-
-    monkeypatch.setattr(security_rules, "note_failed_sign_in", note)
-    return asked
+    assert events[0]["target_user_id"] == user_id
+    assert events[0]["detail"]["reason"] == "invalid"
 
 
 async def test_a_credential_from_another_domain_is_recorded_and_left_there(
-    client: AsyncClient, session: AsyncSession, assertion, rule_calls
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """A deployment that has moved domain refuses every credential made under
     the old one. The refusal is written down against the account the credential
-    belongs to, and the repeated-refusal rule is not asked about it: what the
-    record says is about the move, not about the account."""
+    belongs to: what the record says is about the move, not about the
+    account."""
     user = await _account(session, "pk-moved-domain@example.com")
     user_id = user.id
     row = await _credential_for(session, user)
     row.rp_id = "before.example.org"
     session.add(row)
     await session.commit()
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -1015,50 +978,14 @@ async def test_a_credential_from_another_domain_is_recorded_and_left_there(
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
 
-    await security_rules.drain()
-    assert rule_calls == []
-
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
-            )
-        )
-    ).all()
+    events = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     assert len(events) == 1
-    assert events[0].target_user_id == user_id
-    assert events[0].envelope["detail"]["reason"] == "wrong_rp"
-
-
-async def test_an_assertion_that_does_not_verify_reaches_the_rule(
-    client: AsyncClient, session: AsyncSession, monkeypatch, rule_calls
-):
-    """The other half of the pair above: a signature that did not check out is
-    about this account's credential, so the rule reads the window it falls in."""
-    user = await _account(session, "pk-watched@example.com")
-    user_id = user.id
-    await _credential_for(session, user)
-
-    def refuse(**kwargs):
-        raise ValueError("signature")
-
-    monkeypatch.setattr(
-        passkey_service.webauthn, "verify_authentication_response", refuse
-    )
-
-    challenge = await _begin_sign_in(client)
-    response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
-    )
-    assert response.status_code == 400
-
-    await security_rules.drain()
-    assert rule_calls == [user_id]
+    assert events[0]["target_user_id"] == user_id
+    assert events[0]["detail"]["reason"] == "wrong_rp"
 
 
 async def test_an_inactive_account_is_refused(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """No session, nothing kept from the assertion, and the refusal written
     down against the account the credential named."""
@@ -1070,6 +997,7 @@ async def test_an_inactive_account_is_refused(
     user.status = UserStatus.deactivated
     session.add(user)
     await session.commit()
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -1089,16 +1017,10 @@ async def test_an_inactive_account_is_refused(
     assert stored.sign_count == 0
     assert stored.last_used_at is None
 
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.event_type == AuditEventType.AUTH_SIGN_IN_FAILED.value
-            )
-        )
-    ).all()
+    events = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     assert len(events) == 1
-    assert events[0].target_user_id == user_id
-    detail = events[0].envelope["detail"]
+    assert events[0]["target_user_id"] == user_id
+    detail = events[0]["detail"]
     assert detail["method"] == "passkey"
     assert detail["reason"] == "inactive"
 
@@ -1139,7 +1061,7 @@ async def test_a_sign_in_challenge_cannot_finish_a_registration(
 
 
 async def test_a_phone_is_handed_a_device_token(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """The relay page in the system browser opens no session of its own: it is
     given the address the app is waiting at, carrying a device token."""
@@ -1148,6 +1070,7 @@ async def test_a_phone_is_handed_a_device_token(
     user = await _account(session, "pk-mobile@example.com")
     user_id = user.id
     await _credential_for(session, user)
+    capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
@@ -1179,16 +1102,13 @@ async def test_a_phone_is_handed_a_device_token(
     assert SESSION_COOKIE_NAME not in response.cookies
     assert REFRESH_COOKIE_NAME not in response.cookies
 
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_DEVICE_TOKEN_ISSUED.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_DEVICE_TOKEN_ISSUED)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    assert events[0].envelope["detail"] == {
+    assert events[0]["detail"] == {
         "method": "passkey",
         "device_name": "Pixel 9",
     }
@@ -1383,7 +1303,7 @@ async def test_an_assertion_adds_the_passkey_to_the_session(
 
 
 async def test_another_accounts_credential_does_not_step_up_this_session(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """The assertion has to name this account's own credential; a refusal is
     recorded against the account that asked."""
@@ -1393,6 +1313,7 @@ async def test_another_accounts_credential_does_not_step_up_this_session(
     other = await _account(session, "pk-stepup-theirs@example.com")
     await _credential_for(session, other, credential_id="credential-two")
     _id, headers = await _open_session(session, user)
+    capfd.readouterr()
 
     challenge = await _begin_step_up(client, headers)
     response = await client.post(
@@ -1403,17 +1324,13 @@ async def test_another_accounts_credential_does_not_step_up_this_session(
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
 
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_SECOND_FACTOR_FAILED.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_SECOND_FACTOR_FAILED)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    assert events[0].envelope["detail"] == {
+    assert events[0]["detail"] == {
         "method": "passkey",
         "during": "step_up",
         "reason": "other_account",
@@ -1421,7 +1338,7 @@ async def test_another_accounts_credential_does_not_step_up_this_session(
 
 
 async def test_a_step_up_records_which_refusal_it_was(
-    client: AsyncClient, session: AsyncSession, assertion
+    client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """A credential this deployment holds no row for proves nothing, and the
     record says which of the refusals it was — the same account the sign-in
@@ -1430,6 +1347,7 @@ async def test_a_step_up_records_which_refusal_it_was(
     user_id = user.id
     await _credential_for(session, user)
     _id, headers = await _open_session(session, user)
+    capfd.readouterr()
 
     challenge = await _begin_step_up(client, headers)
     response = await client.post(
@@ -1440,17 +1358,13 @@ async def test_a_step_up_records_which_refusal_it_was(
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
 
-    session.expire_all()
-    events = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.actor_user_id == user_id,
-                AuditEvent.event_type == AuditEventType.AUTH_SECOND_FACTOR_FAILED.value,
-            )
-        )
-    ).all()
+    events = [
+        row
+        for row in emitted(capfd, AuditEventType.AUTH_SECOND_FACTOR_FAILED)
+        if row["actor_user_id"] == user_id
+    ]
     assert len(events) == 1
-    assert events[0].envelope["detail"] == {
+    assert events[0]["detail"] == {
         "method": "passkey",
         "during": "step_up",
         "reason": "unknown",

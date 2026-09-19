@@ -39,7 +39,6 @@ from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
-from app.services.platform import security_rules
 from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
@@ -380,10 +379,6 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        # First, while the engines are still up: a security rule runs after the
-        # row it reads has committed, so one cut off partway leaves a crossing
-        # recorded and no case raised.
-        await security_rules.drain()
         await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.

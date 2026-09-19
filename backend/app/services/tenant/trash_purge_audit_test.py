@@ -17,7 +17,7 @@ from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.initiative import Initiative
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.services.tenant.trash_purge import _purge_all_guilds
-from app.testing import recorded
+from app.testing import emitted
 from app.testing.factories import (
     create_guild,
     create_initiative,
@@ -49,43 +49,47 @@ async def _expired_initiative(session: AsyncSession, guild, user, **overrides):
 
 
 async def test_a_sweep_records_one_pass_per_guild_with_its_counts(
-    session: AsyncSession, role_session
+    session: AsyncSession, role_session, capfd
 ):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
+    guild_id = guild.id
     await _expired_initiative(session, guild, user, name="Swept")
 
     admin = await role_session("app_admin")
+    capfd.readouterr()
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     rows = [
         row
-        for row in await recorded(session, AuditEventType.TRASH_PURGED)
-        if row.guild_id == guild.id
+        for row in emitted(capfd, AuditEventType.TRASH_PURGED)
+        if row["guild_id"] == guild_id
     ]
     assert len(rows) == 1
     (row,) = rows
     # Nobody signed in caused this, so there is no actor to name.
-    assert row.actor_user_id is None
-    assert row.target_type is None
-    assert row.envelope["detail"]["via"] == "sweep"
+    assert row["actor_user_id"] is None
+    assert row["target"] is None
+    assert row["detail"]["via"] == "sweep"
     # The project under it went with the initiative, so the initiative is what
     # the pass walked.
-    assert row.envelope["detail"]["counts"] == {"initiative": 1}
+    assert row["detail"]["counts"] == {"initiative": 1}
 
 
 async def test_a_guild_with_nothing_due_records_nothing(
-    session: AsyncSession, role_session
+    session: AsyncSession, role_session, capfd
 ):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
+    guild_id = guild.id
     await create_initiative(session, guild, user, name="Still here")
 
     admin = await role_session("app_admin")
+    capfd.readouterr()
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     assert [
         row
-        for row in await recorded(session, AuditEventType.TRASH_PURGED)
-        if row.guild_id == guild.id
+        for row in emitted(capfd, AuditEventType.TRASH_PURGED)
+        if row["guild_id"] == guild_id
     ] == []

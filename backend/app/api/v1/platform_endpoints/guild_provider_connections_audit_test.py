@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import Guild, GuildRole
-from app.testing.audit import recorded
+from app.testing import emitted
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -50,16 +50,21 @@ def _rules(guild_id: int) -> str:
     return f"/api/v1/guilds/{guild_id}/auth/rules"
 
 
+def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
+    return [row for row in written if row["event_type"] == event_type.value]
+
+
 # --- connections -------------------------------------------------------------
 
 
 async def test_connecting_narrowing_and_disconnecting_are_each_recorded(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin_id, guild, headers = await _seat(session)
     guild_id = guild.id
     provider = await create_auth_provider(session, slug="google")
     provider_id = provider.id
+    capfd.readouterr()
 
     connected = await client.post(
         _connections(guild_id),
@@ -84,43 +89,49 @@ async def test_connecting_narrowing_and_disconnecting_are_each_recorded(
     )
     assert gone.status_code == 204, gone.text
 
+    written = emitted(capfd)
     for event in (
         AuditEventType.GUILD_PROVIDER_CONNECTED,
         AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED,
         AuditEventType.GUILD_PROVIDER_DISCONNECTED,
     ):
-        rows = await recorded(session, event)
-        assert [
-            (r.actor_user_id, r.guild_id, r.target_type, r.target_id) for r in rows
-        ] == [(admin_id, guild_id, "guild_provider_connection", connection_id)], event
-        assert rows[0].envelope["detail"]["provider_id"] == provider_id
+        rows = _of_type(written, event)
+        assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
+            (
+                admin_id,
+                guild_id,
+                {"type": "guild_provider_connection", "id": connection_id},
+            )
+        ], event
+        assert rows[0]["detail"]["provider_id"] == provider_id
 
-    born = (await recorded(session, AuditEventType.GUILD_PROVIDER_CONNECTED))[0]
-    detail = born.envelope["detail"]
+    born = _of_type(written, AuditEventType.GUILD_PROVIDER_CONNECTED)[0]
+    detail = born["detail"]
     assert {"provider_id", "claim", "claim_values", "enabled"} <= set(detail["changed"])
     # The claim and the values that count are strings: named, never copied.
     assert "claim" not in detail["values"]
     assert "claim_values" not in detail["values"]
     assert detail["values"]["enabled"] == {"from": None, "to": True}
-    assert TENANT_CLAIM_VALUE not in json.dumps(born.envelope)
+    assert TENANT_CLAIM_VALUE not in json.dumps(born)
 
     updated = AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED
-    moved = (await recorded(session, updated))[0]
-    assert moved.envelope["detail"]["changed"] == ["auto_join"]
-    assert moved.envelope["detail"]["values"]["auto_join"] == {
+    moved = _of_type(written, updated)[0]
+    assert moved["detail"]["changed"] == ["auto_join"]
+    assert moved["detail"]["values"]["auto_join"] == {
         "from": False,
         "to": True,
     }
 
 
 async def test_a_connection_edit_that_changes_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     _, guild, headers = await _seat(session)
     provider = await create_auth_provider(session, slug="google")
     connection = await create_guild_provider_connection(
         session, guild=guild, provider=provider
     )
+    capfd.readouterr()
 
     same = await client.patch(
         f"{_connections(guild.id)}/{connection.id}",
@@ -129,13 +140,11 @@ async def test_a_connection_edit_that_changes_nothing_records_nothing(
     )
     assert same.status_code == 200, same.text
 
-    assert (
-        await recorded(session, AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED) == []
-    )
+    assert emitted(capfd, AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED) == []
 
 
 async def test_a_refused_connection_write_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """Running a community is not the seat that decides who may enter it."""
     _, guild, _ = await _seat(session)
@@ -144,6 +153,7 @@ async def test_a_refused_connection_write_records_nothing(
         session, user=ordinary, guild=guild, role=GuildRole.admin
     )
     provider = await create_auth_provider(session, slug="google")
+    capfd.readouterr()
 
     refused = await client.post(
         _connections(guild.id),
@@ -152,14 +162,14 @@ async def test_a_refused_connection_write_records_nothing(
     )
     assert refused.status_code == 403, refused.text
 
-    assert await recorded(session, AuditEventType.GUILD_PROVIDER_CONNECTED) == []
+    assert emitted(capfd, AuditEventType.GUILD_PROVIDER_CONNECTED) == []
 
 
 # --- the rules riding a connection -------------------------------------------
 
 
 async def test_a_communitys_own_rule_is_recorded_through_its_life(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     admin_id, guild, headers = await _seat(session)
     guild_id = guild.id
@@ -168,6 +178,7 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
     )
     provider_id = provider.id
     await create_guild_provider_connection(session, guild=guild, provider=provider)
+    capfd.readouterr()
 
     created = await client.post(
         _rules(guild_id),
@@ -188,31 +199,32 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
     gone = await client.delete(f"{_rules(guild_id)}/{rule_id}", headers=headers)
     assert gone.status_code == 204, gone.text
 
+    written = emitted(capfd)
     for event in (
         AuditEventType.CLAIM_RULE_CREATED,
         AuditEventType.CLAIM_RULE_UPDATED,
         AuditEventType.CLAIM_RULE_DELETED,
     ):
-        rows = await recorded(session, event)
-        assert [
-            (r.actor_user_id, r.guild_id, r.target_type, r.target_id) for r in rows
-        ] == [(admin_id, guild_id, "claim_rule", rule_id)], event
+        rows = _of_type(written, event)
+        assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
+            (admin_id, guild_id, {"type": "claim_rule", "id": rule_id})
+        ], event
         # The same rows an operator writes, told apart by who wrote them.
-        assert rows[0].envelope["detail"]["via"] == "guild"
+        assert rows[0]["detail"]["via"] == "guild"
 
-    born = (await recorded(session, AuditEventType.CLAIM_RULE_CREATED))[0]
-    assert GROUP_CLAIM_VALUE not in json.dumps(born.envelope)
-    assert born.envelope["detail"]["values"]["provider_id"] == {
+    born = _of_type(written, AuditEventType.CLAIM_RULE_CREATED)[0]
+    assert GROUP_CLAIM_VALUE not in json.dumps(born)
+    assert born["detail"]["values"]["provider_id"] == {
         "from": None,
         "to": provider_id,
     }
 
-    moved = (await recorded(session, AuditEventType.CLAIM_RULE_UPDATED))[0]
-    assert moved.envelope["detail"]["changed"] == ["guild_role"]
+    moved = _of_type(written, AuditEventType.CLAIM_RULE_UPDATED)[0]
+    assert moved["detail"]["changed"] == ["guild_role"]
 
 
 async def test_a_rule_edit_that_changes_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     _, guild, headers = await _seat(session)
     provider = await create_auth_provider(session, slug="entra")
@@ -227,6 +239,7 @@ async def test_a_rule_edit_that_changes_nothing_records_nothing(
         },
     )
     assert created.status_code == 201, created.text
+    capfd.readouterr()
 
     same = await client.patch(
         f"{_rules(guild.id)}/{created.json()['id']}",
@@ -235,4 +248,4 @@ async def test_a_rule_edit_that_changes_nothing_records_nothing(
     )
     assert same.status_code == 200, same.text
 
-    assert await recorded(session, AuditEventType.CLAIM_RULE_UPDATED) == []
+    assert emitted(capfd, AuditEventType.CLAIM_RULE_UPDATED) == []

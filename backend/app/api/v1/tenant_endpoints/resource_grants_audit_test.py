@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
-from app.testing import recorded
+from app.testing import emitted
 
 pytestmark = pytest.mark.integration
 
@@ -44,7 +43,7 @@ async def _share(client: AsyncClient, actor, document_id: int, grants: list):
 
 class TestSharing:
     async def test_granting_somebody_access_records_the_level_they_gained(
-        self, client: AsyncClient, session: AsyncSession, acting_user
+        self, client: AsyncClient, acting_user, capfd
     ):
         owner = await acting_user(guild_role=GuildRole.member, initiative=True)
         reader = await acting_user(
@@ -54,18 +53,19 @@ class TestSharing:
             initiative_role="member",
         )
         document_id = await _document(client, owner, grants=[])
+        capfd.readouterr()
 
         response = await _share(
             client, owner, document_id, [{"user_id": reader.user.id, "level": "write"}]
         )
         assert response.status_code == 200, response.text
 
-        (row,) = await recorded(session, AuditEventType.SHARING_GRANT_CHANGED)
-        assert row.actor_user_id == owner.user.id
-        assert row.target_user_id == reader.user.id
-        assert row.guild_id == owner.guild.id
-        assert (row.target_type, row.target_id) == ("document", document_id)
-        assert row.envelope["detail"] == {
+        (row,) = emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED)
+        assert row["actor_user_id"] == owner.user.id
+        assert row["target_user_id"] == reader.user.id
+        assert row["guild_id"] == owner.guild.id
+        assert row["target"] == {"type": "document", "id": document_id}
+        assert row["detail"] == {
             "initiative_id": owner.initiative.id,
             "grantee": {"kind": "user", "id": reader.user.id},
             "from": None,
@@ -73,7 +73,7 @@ class TestSharing:
         }
 
     async def test_saving_the_same_list_again_records_nothing(
-        self, client: AsyncClient, session: AsyncSession, acting_user
+        self, client: AsyncClient, acting_user, capfd
     ):
         owner = await acting_user(guild_role=GuildRole.member, initiative=True)
         reader = await acting_user(
@@ -84,15 +84,16 @@ class TestSharing:
         )
         document_id = await _document(client, owner, grants=[])
         grants = [{"user_id": reader.user.id, "level": "read"}]
+        capfd.readouterr()
 
         first = await _share(client, owner, document_id, grants)
         second = await _share(client, owner, document_id, grants)
         assert first.status_code == second.status_code == 200
 
-        assert len(await recorded(session, AuditEventType.SHARING_GRANT_CHANGED)) == 1
+        assert len(emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED)) == 1
 
     async def test_a_level_that_moves_carries_both_ends(
-        self, client: AsyncClient, session: AsyncSession, acting_user
+        self, client: AsyncClient, acting_user, capfd
     ):
         owner = await acting_user(guild_role=GuildRole.member, initiative=True)
         reader = await acting_user(
@@ -102,6 +103,7 @@ class TestSharing:
             initiative_role="member",
         )
         document_id = await _document(client, owner, grants=[])
+        capfd.readouterr()
 
         await _share(
             client, owner, document_id, [{"user_id": reader.user.id, "level": "read"}]
@@ -112,26 +114,28 @@ class TestSharing:
         withdrawn = await _share(client, owner, document_id, [])
         assert raised.status_code == withdrawn.status_code == 200
 
-        rows = await recorded(session, AuditEventType.SHARING_GRANT_CHANGED)
-        assert [
-            (row.envelope["detail"]["from"], row.envelope["detail"]["to"])
-            for row in rows
-        ] == [(None, "read"), ("read", "write"), ("write", None)]
+        rows = emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED)
+        assert [(row["detail"]["from"], row["detail"]["to"]) for row in rows] == [
+            (None, "read"),
+            ("read", "write"),
+            ("write", None),
+        ]
 
     async def test_creating_a_document_records_the_share_it_starts_with(
-        self, client: AsyncClient, session: AsyncSession, acting_user
+        self, client: AsyncClient, acting_user, capfd
     ):
         """A new document is shared with the whole initiative by default, and
         that is a grant like any other."""
         owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        capfd.readouterr()
 
         document_id = await _document(client, owner)
 
-        (row,) = await recorded(session, AuditEventType.SHARING_GRANT_CHANGED)
-        assert row.actor_user_id == owner.user.id
-        assert row.target_user_id is None
-        assert (row.target_type, row.target_id) == ("document", document_id)
-        assert row.envelope["detail"] == {
+        (row,) = emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED)
+        assert row["actor_user_id"] == owner.user.id
+        assert row["target_user_id"] is None
+        assert row["target"] == {"type": "document", "id": document_id}
+        assert row["detail"] == {
             "initiative_id": owner.initiative.id,
             "grantee": {"kind": "all_members", "id": None},
             "from": None,
@@ -139,7 +143,7 @@ class TestSharing:
         }
 
     async def test_a_refused_share_records_nothing(
-        self, client: AsyncClient, session: AsyncSession, acting_user
+        self, client: AsyncClient, acting_user, capfd
     ):
         owner = await acting_user(guild_role=GuildRole.member, initiative=True)
         outsider = await acting_user(
@@ -149,6 +153,7 @@ class TestSharing:
             initiative_role="member",
         )
         document_id = await _document(client, owner, grants=[])
+        capfd.readouterr()
 
         response = await _share(
             client,
@@ -158,4 +163,4 @@ class TestSharing:
         )
         assert response.status_code in (403, 404)
 
-        assert await recorded(session, AuditEventType.SHARING_GRANT_CHANGED) == []
+        assert emitted(capfd, AuditEventType.SHARING_GRANT_CHANGED) == []

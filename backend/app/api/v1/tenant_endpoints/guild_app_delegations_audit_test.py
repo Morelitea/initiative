@@ -15,7 +15,7 @@ from app.core import config as config_module
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.testing import recorded
+from app.testing import emitted
 from app.testing.delegation import install_delegate, register_delegate
 
 pytestmark = pytest.mark.integration
@@ -51,60 +51,63 @@ async def _grant(client: AsyncClient, actor, app_id: int, *, can_write: bool = T
 
 
 async def test_authorizing_records_the_member_and_the_depth(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.member)
     app = await _installed_for(session, a)
+    capfd.readouterr()
 
     await _grant(client, a, app.id, can_write=True)
 
-    (row,) = await recorded(session, AuditEventType.DELEGATION_GRANTED)
-    assert row.actor_user_id == a.user.id
-    assert row.target_user_id == a.user.id
-    assert row.guild_id == a.guild.id
-    assert (row.target_type, row.target_id) == ("app", app.id)
-    assert row.envelope["detail"] == {"can_write": True, "via": "self"}
+    (row,) = emitted(capfd, AuditEventType.DELEGATION_GRANTED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["target_user_id"] == a.user.id
+    assert row["guild_id"] == a.guild.id
+    assert row["target"] == {"type": "app", "id": app.id}
+    assert row["detail"] == {"can_write": True, "via": "self"}
 
 
 async def test_withdrawing_your_own_records_it_as_yours(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.member)
     app = await _installed_for(session, a)
     await _grant(client, a, app.id)
+    capfd.readouterr()
 
     response = await client.delete(a.g(f"/apps/{app.id}/delegation"), headers=a.headers)
     assert response.status_code == 204, response.text
 
-    (row,) = await recorded(session, AuditEventType.DELEGATION_REVOKED)
-    assert row.actor_user_id == a.user.id
-    assert row.target_user_id == a.user.id
-    assert row.guild_id == a.guild.id
-    assert (row.target_type, row.target_id) == ("app", app.id)
-    assert row.envelope["detail"] == {"via": "self"}
+    (row,) = emitted(capfd, AuditEventType.DELEGATION_REVOKED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["target_user_id"] == a.user.id
+    assert row["guild_id"] == a.guild.id
+    assert row["target"] == {"type": "app", "id": app.id}
+    assert row["detail"] == {"via": "self"}
 
 
 async def test_the_seat_ending_a_members_authorization_names_both_of_them(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     a = await acting_user(guild_role=GuildRole.superadmin)
     member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     app = await _installed_for(session, a)
     await _grant(client, member, app.id)
+    capfd.readouterr()
 
     response = await client.delete(
         a.g(f"/apps/{app.id}/members/{member.user.id}/delegation"), headers=a.headers
     )
     assert response.status_code == 204, response.text
 
-    (row,) = await recorded(session, AuditEventType.DELEGATION_REVOKED)
-    assert row.actor_user_id == a.user.id
-    assert row.target_user_id == member.user.id
-    assert row.envelope["detail"] == {"via": "admin"}
+    (row,) = emitted(capfd, AuditEventType.DELEGATION_REVOKED)
+    assert row["actor_user_id"] == a.user.id
+    assert row["target_user_id"] == member.user.id
+    assert row["detail"] == {"via": "admin"}
 
 
 async def test_ending_everyones_records_one_per_member(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     """One row per authorization actually withdrawn, each naming its member:
     "everything ever granted to this person" is a query on the target."""
@@ -113,29 +116,31 @@ async def test_ending_everyones_records_one_per_member(
     app = await _installed_for(session, a)
     for actor in (a, member):
         await _grant(client, actor, app.id)
+    capfd.readouterr()
 
     response = await client.post(
         a.g(f"/apps/{app.id}/delegations/revoke-all"), headers=a.headers
     )
     assert response.status_code == 204, response.text
 
-    rows = await recorded(session, AuditEventType.DELEGATION_REVOKED)
-    assert sorted(row.target_user_id for row in rows) == sorted(
+    rows = emitted(capfd, AuditEventType.DELEGATION_REVOKED)
+    assert sorted(row["target_user_id"] for row in rows) == sorted(
         [a.user.id, member.user.id]
     )
-    assert {row.actor_user_id for row in rows} == {a.user.id}
-    assert [row.envelope["detail"] for row in rows] == [{"via": "admin"}] * 2
+    assert {row["actor_user_id"] for row in rows} == {a.user.id}
+    assert [row["detail"] for row in rows] == [{"via": "admin"}] * 2
 
 
 async def test_withdrawing_what_was_never_granted_records_nothing(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     """The endpoint answers the same either way, so the log is what says
     whether anything was in force."""
     a = await acting_user(guild_role=GuildRole.member)
     app = await _installed_for(session, a)
+    capfd.readouterr()
 
     response = await client.delete(a.g(f"/apps/{app.id}/delegation"), headers=a.headers)
     assert response.status_code == 204, response.text
 
-    assert await recorded(session, AuditEventType.DELEGATION_REVOKED) == []
+    assert emitted(capfd, AuditEventType.DELEGATION_REVOKED) == []

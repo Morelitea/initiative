@@ -35,7 +35,6 @@ class Capability(str, Enum):
     # bypass RLS, gated purely by capability).
     USERS_READ = "users.read"
     GUILDS_READ = "guilds.read"
-    AUDIT_READ = "audit.read"
 
     # Trust & safety / user lifecycle.
     CONTENT_MODERATE = "content.moderate"
@@ -90,7 +89,6 @@ _SUPPORT: FrozenSet[Capability] = _MEMBER | {
     Capability.USERS_READ,
     Capability.USERS_AGE_UNBLOCK,
     Capability.GUILDS_READ,
-    Capability.AUDIT_READ,
     Capability.ACCESS_REQUEST,
 }
 

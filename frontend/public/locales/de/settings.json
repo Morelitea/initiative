@@ -695,7 +695,7 @@
     },
     "roleDescriptions": {
       "member": "Standardzugriff auf die eigenen Communitys. Keine plattformweiten Berechtigungen.",
-      "support": "Schreibgeschützte Plattformeinsicht (Benutzer, Communitys, Audit) und kann zeitlich begrenzten Zugriff auf eine Community anfordern.",
+      "support": "Schreibgeschützte Plattformeinsicht (Benutzer, Communitys) und kann zeitlich begrenzten Zugriff auf eine Community anfordern.",
       "moderator": "Alles, was Support kann, plus Benutzerverwaltung (Sperren/Wiederaktivieren) und Inhaltsmoderation.",
       "operator": "Verwaltet Benutzer, Communitys und Rollen plattformweit, mit Community-übergreifendem Datenzugriff, und genehmigt Zugriffsanfragen.",
       "owner": "Vollständige Kontrolle, einschließlich der app-weiten Konfiguration (Authentifizierung, Branding, E-Mail, KI). Die einzige Rolle, die die Konfiguration verwalten kann."
@@ -975,7 +975,6 @@
       "users": "Benutzer",
       "access": "Zugriff",
       "guilds": "Communitys",
-      "audit": "Prüfprotokoll",
       "announcements": "Ankündigungen"
     }
   },
@@ -1427,31 +1426,6 @@
     "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
     "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
     "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert."
-  },
-  "audit": {
-    "title": "Prüfprotokoll",
-    "description": "Was an Konten getan wurde, von wem und wann. Einträge bleiben erhalten, auch wenn die genannten Konten gelöscht sind.",
-    "whenColumn": "Wann",
-    "actionColumn": "Aktion",
-    "actorColumn": "Ausgeführt von",
-    "subjectColumn": "Betrifft",
-    "guildColumn": "Community",
-    "subjectFilterPlaceholder": "Nach Konto-ID filtern",
-    "guildFilterPlaceholder": "Nach Community-ID filtern",
-    "departedAccount": "Konto #{{id}} (gelöscht)",
-    "empty": "Bisher wurde nichts aufgezeichnet.",
-    "pageOf": "Seite {{page}} von {{total}} Einträgen",
-    "actions": {
-      "user.avatar_removed": "Profilbild entfernt",
-      "auth.signed_in": "Angemeldet",
-      "auth.sign_in_failed": "Anmeldung abgelehnt",
-      "auth.signed_out": "Abgemeldet",
-      "auth.password_changed": "Passwort geändert",
-      "auth.passkey_registered": "Passkey hinzugefügt",
-      "auth.passkey_removed": "Passkey entfernt",
-      "auth.identity_linked": "Single Sign-on verknüpft",
-      "auth.refresh_reuse_detected": "Wiederverwendetes Sitzungstoken abgelehnt"
-    }
   },
   "account": {
     "identityTitle": "Deine Anmeldung",

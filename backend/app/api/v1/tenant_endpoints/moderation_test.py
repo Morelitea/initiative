@@ -25,6 +25,7 @@ from app.testing import (
     create_initiative_member,
     create_task,
     create_user,
+    emitted,
     get_auth_headers,
 )
 
@@ -711,26 +712,22 @@ async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
 
 
 async def test_a_communitys_moderation_leaves_no_trace_in_the_platform_log(
-    client, session, scene, operations
+    client, session, scene, operations, capfd
 ):
     """A community's own moderation decisions are not the platform's record.
 
-    ``public.audit_events`` is the deployment operator's log, and what it holds
-    is the population we have to show we triaged. A community deciding its own
+    The audit stream is the deployment operator's log, and what it holds is the
+    population we have to show we triaged. A community deciding its own
     business is that community's, kept in its own schema and governed by its
-    own retention — so filing a report and settling it must add nothing here.
-    Escalation is the one crossing, and even it carries no row: what it opens
+    own retention — so filing a report and settling it must add nothing there.
+    Escalation is the one crossing, and even it carries no line: what it opens
     is an intake case, which is work rather than a record.
 
-    Asserted against the table rather than against the event registry, so a
+    Asserted against the stream rather than against the event registry, so a
     moderation decision that started writing one would fail here whichever
     member it chose.
     """
-    from app.models.platform.audit_event import AuditEvent
-
-    await set_rls_context(session)
-    before = (await session.exec(select(AuditEvent))).all()
-    before_ids = {row.id for row in before}
+    capfd.readouterr()
 
     await _report(
         client,
@@ -752,11 +749,8 @@ async def test_a_communitys_moderation_leaves_no_trace_in_the_platform_log(
     )
     assert settle.status_code == 200, settle.text
 
-    await set_rls_context(session)
-    session.expunge_all()
-    after = (await session.exec(select(AuditEvent))).all()
-    added = [row for row in after if row.id not in before_ids]
+    added = emitted(capfd)
     assert added == [], (
         "a community's moderation wrote to the platform audit log: "
-        f"{[row.event_type for row in added]}"
+        f"{[row['event_type'] for row in added]}"
     )
