@@ -193,6 +193,9 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    # One code for four different asks, so the header is what tells the page
+    # which line of the form the refusal is about.
+    assert response.headers["X-Auth-Policy-Unmet"] == "provider"
 
 
 async def test_a_requirement_can_be_cleared_without_the_entitlement(
@@ -1214,6 +1217,26 @@ async def _seat_headers(session: AsyncSession, guild, *, amr: list[str]):
     return {"Authorization": f"Bearer {token}"}
 
 
+async def test_asking_for_any_of_ours_needs_one_of_your_own(
+    client: AsyncClient, session: AsyncSession
+):
+    """The "any of ours" arm is held to the same rule a named provider is,
+    and the header says which of the two it was."""
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
+    headers = await _seat_headers(session, guild, amr=["pwd"])
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["sso"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "sso"
+
+
 async def test_asking_for_a_factor_needs_one_of_your_own(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1230,6 +1253,7 @@ async def test_asking_for_a_factor_needs_one_of_your_own(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
 
 
 async def test_a_factor_requirement_saves_once_you_hold_one(
@@ -1266,6 +1290,7 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
 
 
 # --- A community that asks for a passkey -------------------------------------
@@ -1378,6 +1403,7 @@ async def test_asking_for_a_passkey_needs_one_of_your_own(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "passkey"
 
 
 async def test_a_passkey_requirement_saves_once_you_hold_one(
@@ -1414,3 +1440,4 @@ async def test_a_community_cannot_ask_for_a_passkey_the_deployment_withholds(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "passkey"

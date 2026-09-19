@@ -1054,6 +1054,22 @@ async def _require_guild_auth_option(
         )
 
 
+#: Which part of the requirement the writer's own session came up short on.
+#: One refusal code covers four separate asks, so this is what tells the
+#: settings page which line of the form to point at. One of ``provider``,
+#: ``sso``, ``totp``, ``passkey``.
+AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
+
+
+def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
+    """A refused requirement, naming the part of it that was refused."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=detail,
+        headers={AUTH_POLICY_UNMET_HEADER: unmet},
+    )
+
+
 def _auth_policy_read(
     policy_row, provider_display_name: str | None = None
 ) -> GuildAuthPolicyRead:
@@ -1197,9 +1213,8 @@ async def set_guild_auth_policy(
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
         if provider.id not in satisfied_provider_ids():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
             )
 
     # The same rule the provider check makes, for "any of ours": the caller's
@@ -1210,9 +1225,8 @@ async def set_guild_auth_policy(
     if LoginMethod.sso in require_methods and not (
         await guild_connections.admits_this_session(admin_session, guild_id=guild_id)
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+        raise _auth_policy_refusal(
+            GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.sso.value
         )
 
     # And the one a second factor brings. Two things before a community may ask
@@ -1222,14 +1236,13 @@ async def set_guild_auth_policy(
     # somebody it already applies to.
     if LoginMethod.totp in require_methods:
         if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+                LoginMethod.totp.value,
             )
         if not auth_context.session_mfa():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.totp.value
             )
 
     # And the one a passkey brings, on the same two conditions. Read from the
@@ -1239,14 +1252,14 @@ async def set_guild_auth_policy(
         if not await auth_posture.login_method_allowed(
             admin_session, LoginMethod.passkey
         ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+                LoginMethod.passkey.value,
             )
         if not auth_context.session_passkey():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+                LoginMethod.passkey.value,
             )
 
     policy_row = await session.get(GuildAuthPolicy, guild_id)

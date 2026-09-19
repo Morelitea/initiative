@@ -66,6 +66,26 @@ async def require_login_method(session: AsyncSession, method: LoginMethod) -> No
         )
 
 
+def require_session_row(request: Request) -> uuid.UUID:
+    """The server-side session this request is on, or 403.
+
+    Named by the request's own access token: every client carries one of
+    those, and a credential that is not a session — a device token, an API
+    key — names none. The step-ups add to a session, so this is what they
+    have to be holding before a ceremony is worth starting.
+    """
+    raw = getattr(request.state, "session_id", None)
+    if raw:
+        try:
+            return uuid.UUID(str(raw))
+        except ValueError:
+            pass
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=AuthMessages.SESSION_REQUIRED,
+    )
+
+
 async def record_sign_in_failure(
     admin_session: AsyncSession,
     user: User | None,
@@ -213,12 +233,7 @@ async def upgrade_session(
     refresh cookie. A credential that is not a session is refused — this
     endpoint upgrades one, and there is nothing else here to add to.
     """
-    prior_id = getattr(request.state, "session_id", None)
-    prior = (
-        await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
-        if prior_id
-        else None
-    )
+    prior = await admin_session.get(AuthSession, require_session_row(request))
     if prior is not None and (prior.user_id != user.id or prior.revoked_at is not None):
         prior = None
     if prior is None:

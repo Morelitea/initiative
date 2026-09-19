@@ -1513,3 +1513,55 @@ async def test_a_standing_credential_cannot_step_up(
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
+
+
+async def test_a_device_token_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule for the app's own standing credential, and it is answered
+    before a ceremony is begun: nothing is stored for a request that has no
+    session to add the key to."""
+    from app.services.platform import user_tokens
+
+    user = await _account(session, "pk-stepup-device@example.com")
+    await _credential_for(session, user)
+    token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+
+    response = await client.post(
+        STEP_UP_BEGIN, headers={"Authorization": f"DeviceToken {token}"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
+
+    session.expire_all()
+    rows = (
+        await session.exec(
+            select(AuthChallenge).where(AuthChallenge.purpose == "passkey_step_up")
+        )
+    ).all()
+    assert rows == []
+
+
+async def test_a_withdrawn_method_stops_a_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """Withdrawing passkeys closes the ceremony against an open session too,
+    not only the ones that open a new one."""
+    user = await _account(session, "pk-stepup-withdrawn@example.com")
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+    await _withdraw_passkeys(session)
+
+    began = await client.post(STEP_UP_BEGIN, headers=headers)
+    assert began.status_code == 403
+    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+
+    finished = await client.post(
+        STEP_UP_FINISH,
+        json={"credential": _assertion("challenge-value")},
+        headers=headers,
+    )
+    assert finished.status_code == 403
+    assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"

@@ -34,6 +34,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     open_session,
     record_sign_in_failure,
     require_login_method,
+    require_session_row,
     upgrade_session,
 )
 from app.core.audit_events import AuditEventType
@@ -122,7 +123,8 @@ def _limit_reached() -> HTTPException:
 
 
 async def _require_passkeys_offered(session: AsyncSession) -> None:
-    """Refuse to register a credential this deployment would not accept.
+    """Refuse a ceremony this deployment would not accept — registering a
+    credential, or presenting one against a session already open.
 
     Server-side, so withdrawing the method closes the route rather than only
     hiding its button. The credentials an account already holds are left where
@@ -552,12 +554,19 @@ async def finish_passkey_sign_in(
 @limiter.limit("10/15minutes")
 async def begin_passkey_step_up(
     request: Request,
+    session: SessionDep,
     current_user: CurrentUser,
     admin_session: AdminSessionDep,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyAuthenticationOptions:
     """Options for presenting one of this account's passkeys against the
     session already open — the allow-list names the account's own."""
+    await _require_passkeys_offered(session)
+    # What the ceremony would be added to, asked for before it is begun: the
+    # finish route ends in an upgrade, which has nothing to upgrade unless this
+    # request is on a session of its own.
+    require_session_row(request)
+
     # Unlike a sign-in, which names nobody, there is already an account here:
     # the browser is asked for one of its credentials rather than for whatever
     # the authenticator holds for this domain. Read once and handed on, so the
@@ -593,6 +602,7 @@ async def begin_passkey_step_up(
 async def finish_passkey_step_up(
     request: Request,
     response: Response,
+    session: SessionDep,
     current_user: CurrentUser,
     admin_session: AdminSessionDep,
     payload: PasskeyStepUpFinish,
@@ -606,6 +616,8 @@ async def finish_passkey_step_up(
     proved carries forward and the old row is retired, the shape the other
     step-ups take.
     """
+    await _require_passkeys_offered(session)
+
     value = _challenge_from_client_data(payload.credential, refusal=_sign_in_invalid())
 
     challenge = await challenge_service.claim_attempt(
