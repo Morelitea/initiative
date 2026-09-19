@@ -193,6 +193,9 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    # One code for four different asks, so the header is what tells the page
+    # which line of the form the refusal is about.
+    assert response.headers["X-Auth-Policy-Unmet"] == "provider"
 
 
 async def test_a_requirement_can_be_cleared_without_the_entitlement(
@@ -665,6 +668,37 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession):
     assert ctx.guild_id == guild_id
 
 
+async def test_ws_token_carries_the_passkey_to_the_gate(session: AsyncSession):
+    """The same join path against a community that asks for a passkey:
+    ``authenticate_ws_token`` records what the session's ``amr`` proved, and
+    the ``establish_guild_access`` that follows reads it — so a socket is
+    admitted on the terms a page is."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id, policy="required", require_methods=["passkey"]
+        )
+    )
+    await session.commit()
+    guild_id = guild.id
+
+    with_a_password = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd"]), session
+    )
+    assert with_a_password is not None
+    with pytest.raises(GuildAccessError):
+        await establish_guild_access(session, with_a_password, guild_id)
+
+    with_a_key = await authenticate_ws_token(
+        get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
+    )
+    assert with_a_key is not None
+    ctx = await establish_guild_access(session, with_a_key, guild_id)
+    assert ctx.guild_id == guild_id
+
+
 async def test_system_sentinel_passes_policy_gate(session: AsyncSession):
     """User-attributed system work (export/import workers) passes the gate via
     the explicit sentinel — its enqueueing request already satisfied it."""
@@ -869,6 +903,7 @@ async def _database_admits(
     satisfied: list[int],
     asserted: dict | None = None,
     session_mfa: bool = False,
+    session_passkey: bool = False,
 ) -> bool:
     """What ``public.guild_auth_satisfied()`` says, given the GUCs a request
     with this standing would have set.
@@ -884,6 +919,7 @@ async def _database_admits(
                 "set_config('app.satisfied_providers', :satp, true), "
                 "set_config('app.satisfied_claims', :satc, true), "
                 "set_config('app.session_mfa', :mfa, true), "
+                "set_config('app.session_passkey', :pk, true), "
                 "public.guild_auth_satisfied() AS verdict"
             ),
             params={
@@ -892,6 +928,7 @@ async def _database_admits(
                 "satp": ",".join(str(p) for p in satisfied),
                 "satc": json.dumps(asserted or {}),
                 "mfa": "true" if session_mfa else "false",
+                "pk": "true" if session_passkey else "false",
             },
         )
     ).one()
@@ -905,6 +942,7 @@ async def _app_admits(
     satisfied,
     asserted: dict | None = None,
     session_mfa: bool = False,
+    session_passkey: bool = False,
 ) -> bool:
     """What the gate in ``deps.py`` says, given the same standing."""
     set_satisfied_providers(frozenset(satisfied))
@@ -916,6 +954,7 @@ async def _app_admits(
             guild_id,
             frozenset(satisfied),
             session_mfa,
+            session_passkey,
         )
     except GuildAccessError:
         return False
@@ -956,6 +995,7 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
         ),
         ("any of ours", {"policy": "required", "require_methods": ["sso"]}),
         ("a second factor", {"policy": "required", "require_methods": ["totp"]}),
+        ("a passkey", {"policy": "required", "require_methods": ["passkey"]}),
         (
             "any of ours, and a second factor",
             {"policy": "required", "require_methods": ["sso", "totp"]},
@@ -984,13 +1024,20 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
             {str(other_provider_id): {"hd": ["acme.com"]}},
         ),
     ]
-    # Each of those twice: a session that presented the account's second factor
-    # and one that did not. A rule asking for a factor is answered by nothing
-    # else on this list.
-    standings: list[tuple[str, list[int], dict, bool]] = [
-        (f"{name}{', with a factor' if mfa else ''}", sat, asserted, mfa)
+    # Each of those against what a session can have proved about itself: the
+    # account's second factor, a passkey, both, neither. A rule asking for one
+    # of them is answered by nothing else on this list, and the two are asked
+    # for separately — an assertion records the factor as well as the key.
+    proofs = [
+        (", with a factor", True, False),
+        (", with a passkey", False, True),
+        (", with a factor and a passkey", True, True),
+        ("", False, False),
+    ]
+    standings: list[tuple[str, list[int], dict, bool, bool]] = [
+        (f"{name}{suffix}", sat, asserted, mfa, passkey)
         for name, sat, asserted in bare
-        for mfa in (False, True)
+        for suffix, mfa, passkey in proofs
     ]
 
     for rule_name, fields in rules:
@@ -1003,9 +1050,9 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
         await session.commit()
         await session.refresh(stored)
 
-        for standing, satisfied, asserted, mfa in standings:
+        for standing, satisfied, asserted, mfa, passkey in standings:
             in_app = await _app_admits(
-                session, stored, guild_id, satisfied, asserted, mfa
+                session, stored, guild_id, satisfied, asserted, mfa, passkey
             )
             in_db = await _database_admits(
                 session,
@@ -1014,11 +1061,49 @@ async def test_the_gate_and_the_database_agree_on_every_rule(session: AsyncSessi
                 satisfied=satisfied,
                 asserted=asserted,
                 session_mfa=mfa,
+                session_passkey=passkey,
             )
             assert in_app == in_db, (
                 f"rule {rule_name!r} against a session showing {standing!r}: "
                 f"the gate says {in_app}, the database says {in_db}"
             )
+
+    # The matrix says the two layers agree; it does not say what they agree
+    # on. Name one answer outright: a community asking for a passkey takes the
+    # key and takes nothing else for it.
+    await session.exec(
+        text("DELETE FROM guild_auth_policies WHERE guild_id = :g"),
+        params={"g": guild_id},
+    )
+    await session.commit()
+    asking_for_a_key = GuildAuthPolicy(
+        guild_id=guild_id, policy="required", require_methods=["passkey"]
+    )
+    session.add(asking_for_a_key)
+    await session.commit()
+    await session.refresh(asking_for_a_key)
+    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, False, True)
+    assert await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=False,
+        session_passkey=True,
+    )
+    assert not await _app_admits(
+        session, asking_for_a_key, guild_id, [], None, True, False
+    )
+    assert not await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=True,
+        session_passkey=False,
+    )
 
     # The matrix would pass if both layers refused everything, so pin the two
     # ends of it: an open community admits a bare session, and a rule refuses one.
@@ -1121,15 +1206,35 @@ async def test_the_database_refuses_it_even_where_the_gate_is_skipped(
     )
 
 
-async def _seat_headers(session: AsyncSession, guild, *, with_factor: bool):
-    """The superadmin's own session, carrying a factor or not."""
+async def _seat_headers(session: AsyncSession, guild, *, amr: list[str]):
+    """The superadmin's own session, carrying what ``amr`` says it carries."""
     seat = await create_user(session)
     await create_guild_membership(
         session, user=seat, guild=guild, role=GuildRole.superadmin
     )
     await session.commit()
-    token = get_auth_token(seat, amr=["pwd", "otp", "mfa"] if with_factor else ["pwd"])
+    token = get_auth_token(seat, amr=amr)
     return {"Authorization": f"Bearer {token}"}
+
+
+async def test_asking_for_any_of_ours_needs_one_of_your_own(
+    client: AsyncClient, session: AsyncSession
+):
+    """The "any of ours" arm is held to the same rule a named provider is,
+    and the header says which of the two it was."""
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
+    headers = await _seat_headers(session, guild, amr=["pwd"])
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["sso"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "sso"
 
 
 async def test_asking_for_a_factor_needs_one_of_your_own(
@@ -1139,7 +1244,7 @@ async def test_asking_for_a_factor_needs_one_of_your_own(
     anybody, so a rule is only ever written by somebody it already applies
     to."""
     guild = await create_guild(session)
-    headers = await _seat_headers(session, guild, with_factor=False)
+    headers = await _seat_headers(session, guild, amr=["pwd"])
 
     refused = await client.put(
         f"/api/v1/guilds/{guild.id}/auth-policy",
@@ -1148,13 +1253,14 @@ async def test_asking_for_a_factor_needs_one_of_your_own(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
 
 
 async def test_a_factor_requirement_saves_once_you_hold_one(
     client: AsyncClient, session: AsyncSession
 ):
     guild = await create_guild(session)
-    headers = await _seat_headers(session, guild, with_factor=True)
+    headers = await _seat_headers(session, guild, amr=["pwd", "otp", "mfa"])
 
     saved = await client.put(
         f"/api/v1/guilds/{guild.id}/auth-policy",
@@ -1171,7 +1277,7 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
     from app.services.platform import app_settings as app_settings_service
 
     guild = await create_guild(session)
-    headers = await _seat_headers(session, guild, with_factor=True)
+    headers = await _seat_headers(session, guild, amr=["pwd", "otp", "mfa"])
     row = await app_settings_service.get_app_settings(session)
     row.login_methods = ["password", "sso"]
     session.add(row)
@@ -1184,3 +1290,154 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
+
+
+# --- A community that asks for a passkey -------------------------------------
+
+
+async def _guild_requiring_a_passkey(session: AsyncSession):
+    member = await create_user(session)
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id, policy="required", require_methods=["passkey"]
+        )
+    )
+    await session.commit()
+    return member, guild
+
+
+def _amr_headers(user, amr: list[str]):
+    return {"Authorization": f"Bearer {get_auth_token(user, amr=amr)}"}
+
+
+@pytest.mark.parametrize("marker", ["hwk", "swk"])
+async def test_a_session_opened_with_a_passkey_is_admitted(
+    client: AsyncClient, session: AsyncSession, marker: str
+):
+    """Either kind of key answers: one the device holds and one a password
+    manager syncs are both passkeys."""
+    member, guild = await _guild_requiring_a_passkey(session)
+    allowed = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_amr_headers(member, ["pwd", marker, "mfa"]),
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
+async def test_a_password_session_is_asked_for_the_passkey(
+    client: AsyncClient, session: AsyncSession
+):
+    """A 401 that names no provider: what answers it is a ceremony against the
+    session already open, not a sign-in page."""
+    member, guild = await _guild_requiring_a_passkey(session)
+    refused = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_amr_headers(member, ["pwd"]),
+    )
+    assert refused.status_code == 401
+    assert refused.json()["detail"] == "GUILD_AUTH_PASSKEY_REQUIRED"
+    assert refused.headers["X-Auth-Step-Up-Guild"] == str(guild.id)
+    assert "insufficient_user_authentication" in refused.headers["WWW-Authenticate"]
+
+
+async def test_a_typed_code_is_not_a_passkey(
+    client: AsyncClient, session: AsyncSession
+):
+    """An assertion records the second factor as well as the key, so a rule
+    naming the key reads the key's own markers and nothing else."""
+    member, guild = await _guild_requiring_a_passkey(session)
+    refused = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_amr_headers(member, ["pwd", "otp", "mfa"]),
+    )
+    assert refused.status_code == 401
+    assert refused.json()["detail"] == "GUILD_AUTH_PASSKEY_REQUIRED"
+
+
+async def test_the_database_refuses_a_passkey_rule_on_its_own(
+    session: AsyncSession, role_session
+):
+    """Both layers or neither: the row-level rule answers by itself."""
+    member, guild = await _guild_requiring_a_passkey(session)
+    guild_id, user_id = int(guild.id), int(member.id)
+
+    assert not await _database_admits(
+        session, guild_id=guild_id, user_id=user_id, satisfied=[], asserted={}
+    )
+    assert not await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=True,
+    )
+    assert await _database_admits(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        satisfied=[],
+        asserted={},
+        session_mfa=True,
+        session_passkey=True,
+    )
+
+
+async def test_asking_for_a_passkey_needs_one_of_your_own(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule the factor check makes: prove it before it binds anybody.
+    A second factor is not proof of a key."""
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, amr=["pwd", "otp", "mfa"])
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["passkey"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "passkey"
+
+
+async def test_a_passkey_requirement_saves_once_you_hold_one(
+    client: AsyncClient, session: AsyncSession
+):
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, amr=["pwd", "hwk", "mfa"])
+
+    saved = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["passkey"]},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["require_methods"] == ["passkey"]
+
+
+async def test_a_community_cannot_ask_for_a_passkey_the_deployment_withholds(
+    client: AsyncClient, session: AsyncSession
+):
+    from app.services.platform import app_settings as app_settings_service
+
+    guild = await create_guild(session)
+    headers = await _seat_headers(session, guild, amr=["pwd", "hwk", "mfa"])
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso", "totp"]
+    session.add(row)
+    await session.commit()
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "require_methods": ["passkey"]},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "passkey"

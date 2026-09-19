@@ -71,11 +71,14 @@ export const setApiBaseUrl = (url: string) => {
 
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
-/** A community wants the account's second factor on this session. */
+/** A community wants a factor of the account's own on this session. */
 export const AUTH_FACTOR_REQUIRED_EVENT = "initiative:auth:factor-required";
 
 export interface FactorChallengeDetail {
   guildId: number | null;
+  /** Which factor the community named, and so which answer the dialog asks
+   *  for: a code from the authenticator app, or a passkey. */
+  kind: "totp" | "passkey";
 }
 
 export interface StepUpEventDetail {
@@ -335,26 +338,37 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
 const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
   error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
 
-// The other half of the same idea: this community wants the account's second
-// factor, which no provider's sign-in page supplies. The session itself is
-// fine, so like the step-up above it must neither renew nor read as signed
-// out — what answers it is a code presented against the session already open.
-const isFactorChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
-  error.response?.data?.detail === "GUILD_AUTH_FACTOR_REQUIRED";
+// The other half of the same idea: this community wants a factor of the
+// account's own — a code from its authenticator app, or a passkey — which no
+// provider's sign-in page supplies. The session itself is fine, so like the
+// step-up above these must neither renew nor read as signed out; what answers
+// them is presented against the session already open.
+const FACTOR_CHALLENGE_KINDS: Record<string, FactorChallengeDetail["kind"]> = {
+  GUILD_AUTH_FACTOR_REQUIRED: "totp",
+  GUILD_AUTH_PASSKEY_REQUIRED: "passkey",
+};
+
+const factorChallengeKind = (error: {
+  response?: { data?: { detail?: unknown } };
+}): FactorChallengeDetail["kind"] | null => {
+  const detail = error.response?.data?.detail;
+  return typeof detail === "string" ? (FACTOR_CHALLENGE_KINDS[detail] ?? null) : null;
+};
 
 // Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
-  if (isFactorChallenge(error)) {
+  const factorKind = factorChallengeKind(error);
+  if (factorKind) {
     if (typeof window !== "undefined") {
       const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
       const guildId =
         typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
       window.dispatchEvent(
         new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
-          detail: { guildId },
+          detail: { guildId, kind: factorKind },
         })
       );
     }

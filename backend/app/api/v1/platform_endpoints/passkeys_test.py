@@ -32,7 +32,7 @@ from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
 from app.services.auth import passkeys as passkey_service
 from app.services.platform import security_rules
-from app.testing import create_user, get_auth_headers
+from app.testing import create_user, get_auth_headers, get_auth_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -1268,3 +1268,300 @@ async def test_a_deployment_that_offers_them_says_so(
     listed = await client.get("/api/v1/auth/passkeys", headers=get_auth_headers(user))
     assert listed.status_code == 200, listed.text
     assert listed.json()["offered"] is True
+
+
+# ---------------------------------------------------------------------------
+# Presenting one against the session already open
+# ---------------------------------------------------------------------------
+
+STEP_UP_BEGIN = "/api/v1/auth/step-up/passkey/begin"
+STEP_UP_FINISH = "/api/v1/auth/step-up/passkey/finish"
+
+
+async def _open_session(
+    session: AsyncSession,
+    user: User,
+    *,
+    amr: list[str] | None = None,
+    satisfied_providers: list[int] | None = None,
+):
+    """A token naming a real session row, which is what a step-up upgrades."""
+    from app.services.auth import sessions as session_service
+
+    amr = amr or ["pwd"]
+    satisfied_providers = satisfied_providers or []
+    issued = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=amr,
+        satisfied_providers=satisfied_providers,
+    )
+    await session.commit()
+    headers = {
+        "Authorization": "Bearer "
+        + get_auth_token(
+            user,
+            session_id=issued.session.id,
+            amr=amr,
+            satisfied_providers=satisfied_providers,
+        )
+    }
+    return issued.session.id, headers
+
+
+async def _begin_step_up(client: AsyncClient, headers: dict) -> str:
+    response = await client.post(STEP_UP_BEGIN, headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["options"]["challenge"]
+
+
+async def test_stepping_up_offers_only_this_accounts_credentials(
+    client: AsyncClient, session: AsyncSession
+):
+    """There is already an account here, so the browser is asked for one of its
+    own credentials rather than for whatever the authenticator holds."""
+    user = await _account(session, "pk-stepup-list@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+    other = await _account(session, "pk-stepup-other@example.com")
+    await _credential_for(session, other, credential_id="credential-two")
+    _id, headers = await _open_session(session, user)
+
+    response = await client.post(STEP_UP_BEGIN, headers=headers)
+    assert response.status_code == 200, response.text
+    offered = response.json()["options"]["allowCredentials"]
+    assert [entry["id"] for entry in offered] == [bytes_to_base64url(b"credential-one")]
+
+    session.expire_all()
+    rows = (
+        await session.exec(
+            select(AuthChallenge).where(AuthChallenge.purpose == "passkey_step_up")
+        )
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].user_id == user_id
+
+
+async def test_an_account_with_no_passkey_is_told_so(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing to present, so the answer sends the person to add one rather
+    than opening a prompt that can only fail."""
+    user = await _account(session, "pk-stepup-none@example.com")
+    _id, headers = await _open_session(session, user)
+
+    response = await client.post(STEP_UP_BEGIN, headers=headers)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_NOT_FOUND"
+
+
+async def test_an_assertion_adds_the_passkey_to_the_session(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    """The session is upgraded rather than replaced: what it had proved carries
+    forward, the key it just presented is added, and the old row is retired."""
+    from app.core.security import decode_session_token
+
+    user = await _account(session, "pk-stepup@example.com")
+    await _credential_for(session, user)
+    prior_id, headers = await _open_session(
+        session, user, amr=["pwd", "oidc:corp"], satisfied_providers=[9]
+    )
+
+    challenge = await _begin_step_up(client, headers)
+    response = await client.post(
+        STEP_UP_FINISH, json={"credential": _assertion(challenge)}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    claims = decode_session_token(response.json()["access_token"])
+    assert set(claims["amr"]) >= {"pwd", "oidc:corp", "hwk", "mfa"}
+    assert claims["sat"] == [9]
+
+    session.expire_all()
+    retired = await session.get(AuthSession, prior_id)
+    assert retired.revoked_at is not None
+
+
+async def test_another_accounts_credential_does_not_step_up_this_session(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    """The assertion has to name this account's own credential; a refusal is
+    recorded against the account that asked."""
+    user = await _account(session, "pk-stepup-mine@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+    other = await _account(session, "pk-stepup-theirs@example.com")
+    await _credential_for(session, other, credential_id="credential-two")
+    _id, headers = await _open_session(session, user)
+
+    challenge = await _begin_step_up(client, headers)
+    response = await client.post(
+        STEP_UP_FINISH,
+        json={"credential": _assertion(challenge, credential_id="credential-two")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+    session.expire_all()
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.actor_user_id == user_id,
+                AuditEvent.event_type == AuditEventType.AUTH_SECOND_FACTOR_FAILED.value,
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].envelope["detail"] == {
+        "method": "passkey",
+        "during": "step_up",
+        "reason": "other_account",
+    }
+
+
+async def test_a_step_up_records_which_refusal_it_was(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    """A credential this deployment holds no row for proves nothing, and the
+    record says which of the refusals it was — the same account the sign-in
+    route writes down."""
+    user = await _account(session, "pk-stepup-unknown@example.com")
+    user_id = user.id
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+
+    challenge = await _begin_step_up(client, headers)
+    response = await client.post(
+        STEP_UP_FINISH,
+        json={"credential": _assertion(challenge, credential_id="credential-nobody")},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+    session.expire_all()
+    events = (
+        await session.exec(
+            select(AuditEvent).where(
+                AuditEvent.actor_user_id == user_id,
+                AuditEvent.event_type == AuditEventType.AUTH_SECOND_FACTOR_FAILED.value,
+            )
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].envelope["detail"] == {
+        "method": "passkey",
+        "during": "step_up",
+        "reason": "unknown",
+    }
+
+
+async def test_a_sign_in_challenge_cannot_step_up_a_session(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    """Each ceremony is finished as the one it was begun as."""
+    user = await _account(session, "pk-stepup-crossed@example.com")
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+
+    challenge = await _begin_sign_in(client)
+    response = await client.post(
+        STEP_UP_FINISH, json={"credential": _assertion(challenge)}, headers=headers
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+
+async def test_a_step_up_challenge_answers_one_ceremony(
+    client: AsyncClient, session: AsyncSession, assertion
+):
+    user = await _account(session, "pk-stepup-twice@example.com")
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+
+    challenge = await _begin_step_up(client, headers)
+    credential = _assertion(challenge)
+    first = await client.post(
+        STEP_UP_FINISH, json={"credential": credential}, headers=headers
+    )
+    assert first.status_code == 200, first.text
+
+    again = await client.post(
+        STEP_UP_FINISH, json={"credential": credential}, headers=headers
+    )
+    assert again.status_code == 400
+    assert again.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
+
+
+async def test_a_standing_credential_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """The step-up hands back an interactive session, so it is made by the
+    person in one of their own."""
+    from app.services.platform import api_keys as api_keys_service
+
+    user = await _account(session, "pk-stepup-apikey@example.com")
+    await _credential_for(session, user)
+    secret, _row = await api_keys_service.create_api_key(
+        session, user=user, name="script"
+    )
+    await session.commit()
+
+    response = await client.post(
+        STEP_UP_BEGIN, headers={"Authorization": f"Bearer {secret}"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
+
+
+async def test_a_device_token_cannot_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule for the app's own standing credential, and it is answered
+    before a ceremony is begun: nothing is stored for a request that has no
+    session to add the key to."""
+    from app.services.platform import user_tokens
+
+    user = await _account(session, "pk-stepup-device@example.com")
+    await _credential_for(session, user)
+    token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+
+    response = await client.post(
+        STEP_UP_BEGIN, headers={"Authorization": f"DeviceToken {token}"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
+
+    session.expire_all()
+    rows = (
+        await session.exec(
+            select(AuthChallenge).where(AuthChallenge.purpose == "passkey_step_up")
+        )
+    ).all()
+    assert rows == []
+
+
+async def test_a_withdrawn_method_stops_a_step_up(
+    client: AsyncClient, session: AsyncSession
+):
+    """Withdrawing passkeys closes the ceremony against an open session too,
+    not only the ones that open a new one."""
+    user = await _account(session, "pk-stepup-withdrawn@example.com")
+    await _credential_for(session, user)
+    _id, headers = await _open_session(session, user)
+    await _withdraw_passkeys(session)
+
+    began = await client.post(STEP_UP_BEGIN, headers=headers)
+    assert began.status_code == 403
+    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+
+    finished = await client.post(
+        STEP_UP_FINISH,
+        json={"credential": _assertion("challenge-value")},
+        headers=headers,
+    )
+    assert finished.status_code == 403
+    assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"

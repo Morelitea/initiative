@@ -179,8 +179,14 @@ async def set_login_methods(
                 headers={"X-Affected-Count": str(requiring)},
             )
 
-    if LoginMethod.totp in withdrawn:
-        requiring = await guilds_requiring_method(session, LoginMethod.totp)
+    # The methods a community names one at a time. Withdrawing one leaves the
+    # communities that ask for it with a rule nothing can answer, so the rule
+    # is lifted first and the withdrawal then goes through. ``sso`` is counted
+    # above instead, where a rule naming a provider counts too.
+    for named in (LoginMethod.totp, LoginMethod.passkey):
+        if named not in withdrawn:
+            continue
+        requiring = await guilds_requiring_method(session, named)
         if requiring:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

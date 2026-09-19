@@ -116,3 +116,10 @@ class PasskeySignInResult(SanitizedBaseModel):
     #: For a mobile sign-in: the app's own callback address carrying the
     #: device token, which the relay page navigates to.
     redirect_to: Optional[str] = None
+
+
+class PasskeyStepUpFinish(SanitizedBaseModel):
+    """The browser's answer, presented against the session already open."""
+
+    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
+    credential: dict[str, Any]

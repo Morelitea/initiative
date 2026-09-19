@@ -9,7 +9,6 @@ are app_admin-only, because a factor is presented while signing in, before
 there is anybody to scope a policy to.
 """
 
-import uuid
 from datetime import datetime
 from typing import Annotated, Optional
 
@@ -19,21 +18,13 @@ from app.api.deps import get_current_active_user, require_first_party_session
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.rate_limit import get_inet_client_ip, limiter
-from app.core.security import (
-    REFRESH_COOKIE_NAME,
-    has_usable_password,
-    mint_access_token,
-)
+from app.core.rate_limit import limiter
+from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import require_password
-from app.api.v1.platform_endpoints.session_cookies import (
-    set_refresh_cookie,
-    set_session_cookie,
-)
+from app.api.v1.platform_endpoints.session_opening import upgrade_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_admin_session
-from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
@@ -53,7 +44,6 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
-from app.services.auth import subject as subject_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 
 router = APIRouter()
@@ -306,76 +296,12 @@ async def step_up_with_factor(
         await admin_session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    # The session this request is *on*, named by its own access token. Every
-    # client carries that; only a browser also carries a refresh cookie, so the
-    # token is what identifies the session to add the factor to.
-    prior_id = getattr(request.state, "session_id", None)
-    prior = (
-        await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
-        if prior_id
-        else None
-    )
-    if prior is not None and (
-        prior.user_id != current_user.id or prior.revoked_at is not None
-    ):
-        prior = None
-    if prior is None:
-        # Nothing to add the factor to: this endpoint upgrades a session, and a
-        # credential that is not one carries no assurance to carry forward.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.SESSION_REQUIRED,
-        )
-
-    amr = sorted(set(prior.amr) | set(factor_amr))
-    satisfied = sorted(set(prior.satisfied_providers))
-    provider_auth = prior.provider_auth
-
-    try:
-        issued = await session_service.create_session(
-            admin_session,
-            user_id=current_user.id,
-            amr=amr,
-            satisfied_providers=satisfied,
-            provider_auth=provider_auth,
-            user_agent=request.headers.get("user-agent"),
-            ip=get_inet_client_ip(request),
-        )
-        # The chain, not the one row: rotation can have left descendants, and
-        # the session issued just above is what replaces all of them. The
-        # provider step-up revokes the chain for the same reason. ``prior`` is
-        # not optional here — the request is refused above where there is none.
-        await session_service.revoke_chain(admin_session, session_id=prior.id)
-        subject = await subject_service.subject_for_user(
-            admin_session, user_id=current_user.id
-        )
-        await admin_session.commit()
-    except Exception as exc:
-        await admin_session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
-
-    access_token, access_max_age = mint_access_token(
-        subject=subject,
-        token_version=current_user.token_version,
-        session_id=issued.session.id,
-        amr=issued.session.amr,
-        satisfied_providers=issued.session.satisfied_providers,
-        provider_auth=issued.session.provider_auth,
-    )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(
-        access_token=access_token,
-        # The app keeps its own refresh token; a browser reads one from the
-        # cookie set above and is handed nothing here.
-        refresh_token=(
-            issued.refresh_token
-            if request.cookies.get(REFRESH_COOKIE_NAME) is None
-            else None
-        ),
+    return await upgrade_session(
+        request,
+        response,
+        admin_session,
+        user=current_user,
+        add_amr=factor_amr,
     )
 
 

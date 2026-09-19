@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ipaddress
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -296,21 +297,16 @@ async def store(
     return row
 
 
-async def begin_authentication(
-    session: AsyncSession, *, user_id: int | None = None
-) -> Ceremony:
+def begin_authentication(*, credentials: Sequence[UserPasskey] = ()) -> Ceremony:
     """Options for answering with a credential.
 
-    With no ``user_id`` the allow-list is empty, which is what lets somebody
-    sign in without saying who they are first: the authenticator offers what it
-    holds for this domain and the assertion names the credential.
+    With no ``credentials`` the allow-list is empty, which is what lets
+    somebody sign in without saying who they are first: the authenticator
+    offers what it holds for this domain and the assertion names the
+    credential. A step-up hands over the account's own rows, which it has
+    already read, so the browser is asked for one of those.
     """
-    allow: list[PublicKeyCredentialDescriptor] = []
-    if user_id is not None:
-        allow = [
-            PublicKeyCredentialDescriptor(id=row.credential_id)
-            for row in await list_for_user(session, user_id=user_id)
-        ]
+    allow = [PublicKeyCredentialDescriptor(id=row.credential_id) for row in credentials]
     options = webauthn.generate_authentication_options(
         rp_id=relying_party_id(),
         timeout=CEREMONY_TIMEOUT_MS,

@@ -61,6 +61,10 @@ class ChallengePurpose(str, Enum):
     #: WebAuthn challenge; unlike it, the row names no account — the assertion
     #: that answers is what says whose credential it is.
     passkey_sign_in = "passkey_sign_in"
+    #: A passkey is being presented against a session already open, to add it
+    #: to what that session has proved. Like a registration the row names the
+    #: account, because there already is one.
+    passkey_step_up = "passkey_step_up"
 
 
 @dataclass(frozen=True)

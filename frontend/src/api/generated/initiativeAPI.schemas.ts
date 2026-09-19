@@ -3986,6 +3986,7 @@ export type GuildAuthPolicyReadRequireMethodsItem =
 export const GuildAuthPolicyReadRequireMethodsItem = {
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 /**
@@ -4016,6 +4017,7 @@ export type GuildAuthPolicyUpdateRequireMethodsItem =
 export const GuildAuthPolicyUpdateRequireMethodsItem = {
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 export interface GuildAuthPolicyUpdate {
@@ -5579,6 +5581,15 @@ export interface PasskeySignInResult {
  */
 export interface PasskeySignInStart {
   [key: string]: unknown;
+}
+
+export type PasskeyStepUpFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer, presented against the session already open.
+ */
+export interface PasskeyStepUpFinish {
+  credential: PasskeyStepUpFinishCredential;
 }
 
 export interface PasswordResetRequest {

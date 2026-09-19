@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import create_upload_token
 from app.models.platform.access_grant import AccessGrant
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.document import Document
 from app.testing import (
     create_document,
@@ -120,6 +121,54 @@ async def test_sync_content_session_jwt_rejected_in_query_param(
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_sync_content_answers_a_community_that_asks_for_a_passkey(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """The page-unload sync authenticates through ``UploadUserDep``, so what
+    the session proved about the person has to reach the guild gate here as it
+    does on a page: the session opened with a passkey writes, and the one
+    opened with a password gets the soft no-access answer.
+    """
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=owner.guild.id, policy="required", require_methods=["passkey"]
+        )
+    )
+    await session.commit()
+    new_content = {"root": {"children": [{"type": "paragraph"}]}}
+
+    with_a_password = await client.post(
+        _sync_url(owner.guild.id, doc.id),
+        json=new_content,
+        headers={"Authorization": f"Bearer {get_auth_token(owner.user, amr=['pwd'])}"},
+    )
+    assert with_a_password.status_code == 200
+    assert with_a_password.json() == {
+        "status": "error",
+        "message": "No guild access",
+    }
+
+    with_a_passkey = await client.post(
+        _sync_url(owner.guild.id, doc.id),
+        json=new_content,
+        headers={
+            "Authorization": (
+                f"Bearer {get_auth_token(owner.user, amr=['pwd', 'hwk', 'mfa'])}"
+            )
+        },
+    )
+    assert with_a_passkey.status_code == 200
+    assert with_a_passkey.json() == {"status": "ok"}
+
+    refreshed = (
+        await session.exec(select(Document).where(Document.id == doc.id))
+    ).one()
+    assert refreshed.content == new_content
 
 
 @pytest.mark.integration

@@ -16,9 +16,24 @@ const statusIs = (enrolled: boolean) =>
     )
   );
 
-const fireChallenge = (guildId: number | null = 4) => {
+const passkeysAre = (passkeys: { id: string; name: string }[]) =>
+  server.use(
+    http.get("/api/v1/auth/passkeys", () =>
+      HttpResponse.json({ passkeys, limit: 10, password_required: true, offered: true })
+    )
+  );
+
+const fireChallenge = ({
+  guildId = 4,
+  kind = "totp",
+}: {
+  guildId?: number | null;
+  kind?: "totp" | "passkey";
+} = {}) => {
   act(() => {
-    window.dispatchEvent(new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { guildId } }));
+    window.dispatchEvent(
+      new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { guildId, kind } })
+    );
   });
 };
 
@@ -148,9 +163,9 @@ describe("SecondFactorStepUpDialog", () => {
     statusIs(true);
     renderWithProviders(<SecondFactorStepUpDialog />);
 
-    fireChallenge(4);
-    fireChallenge(4);
-    fireChallenge(4);
+    fireChallenge({ guildId: 4 });
+    fireChallenge({ guildId: 4 });
+    fireChallenge({ guildId: 4 });
 
     await screen.findByRole("dialog");
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -169,5 +184,92 @@ describe("SecondFactorStepUpDialog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     expect(stepUpWithFactor).not.toHaveBeenCalled();
+  });
+});
+
+describe("SecondFactorStepUpDialog, asked for a passkey", () => {
+  it("offers the passkey rather than a code box", async () => {
+    passkeysAre([{ id: "pk-1", name: "Laptop" }]);
+    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithPasskey: vi.fn() } });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(await screen.findByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
+  });
+
+  it("adds the passkey to the session already open", async () => {
+    passkeysAre([{ id: "pk-1", name: "Laptop" }]);
+    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(<SecondFactorStepUpDialog />, { auth: { stepUpWithPasskey } });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+    await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
+
+    await waitFor(() => {
+      expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
+    });
+    // The page behind it carries on rather than needing a reload.
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("sends an account holding none to add one", async () => {
+    passkeysAre([]);
+    const stepUpWithPasskey = vi.fn();
+    // Routed, because the way out of this branch is a link into the app.
+    const { router } = renderPage(SecondFactorStepUpDialog, { auth: { stepUpWithPasskey } });
+    await waitFor(() => {
+      expect(router.state.status).toBe("idle");
+    });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(await screen.findByRole("link", { name: /add a passkey/i })).toHaveAttribute(
+      "href",
+      "/profile/security"
+    );
+    expect(screen.queryByRole("button", { name: /use your passkey/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the passkey on offer when the account cannot be read", async () => {
+    server.use(http.get("/api/v1/auth/passkeys", () => HttpResponse.error()));
+    const { router } = renderPage(SecondFactorStepUpDialog, {
+      auth: { stepUpWithPasskey: vi.fn() },
+    });
+    await waitFor(() => {
+      expect(router.state.status).toBe("idle");
+    });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(screen.getByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /add a passkey/i })).toBeInTheDocument();
+    });
+  });
+
+  it("says where to present one when the app cannot", async () => {
+    const stepUpWithPasskey = vi.fn();
+    renderWithProviders(<SecondFactorStepUpDialog />, {
+      auth: { stepUpWithPasskey },
+      server: { isNativePlatform: true },
+    });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(screen.getByText(/open it in a browser/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /use your passkey/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /not now/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(stepUpWithPasskey).not.toHaveBeenCalled();
   });
 });

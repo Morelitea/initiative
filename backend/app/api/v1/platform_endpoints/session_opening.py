@@ -9,11 +9,18 @@ What each route keeps for itself is the proving. What they hand over is
 ``amr`` (what this sign-in actually proved) and ``audit_detail`` (what the
 record should say), so the one place that writes a session does not have to
 know how many ways there are to reach it.
+
+:func:`upgrade_session` is the same idea for a session that is already open:
+the step-ups prove something more against it and hand over the ``amr`` that
+adds, and the one place that rewrites a session does the rest. It is shared for
+the same reason — two step-ups that each carried their own copy would be two
+places for the carry-forward to diverge.
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from fastapi import HTTPException, Request, Response, status
@@ -27,7 +34,8 @@ from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
 from app.core.rate_limit import get_inet_client_ip
-from app.core.security import mint_access_token
+from app.core.security import REFRESH_COOKIE_NAME, mint_access_token
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
@@ -56,6 +64,26 @@ async def require_login_method(session: AsyncSession, method: LoginMethod) -> No
             status_code=status.HTTP_403_FORBIDDEN,
             detail=SettingsMessages.LOGIN_METHOD_NOT_PERMITTED,
         )
+
+
+def require_session_row(request: Request) -> uuid.UUID:
+    """The server-side session this request is on, or 403.
+
+    Named by the request's own access token: every client carries one of
+    those, and a credential that is not a session — a device token, an API
+    key — names none. The step-ups add to a session, so this is what they
+    have to be holding before a ceremony is worth starting.
+    """
+    raw = getattr(request.state, "session_id", None)
+    if raw:
+        try:
+            return uuid.UUID(str(raw))
+        except ValueError:
+            pass
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=AuthMessages.SESSION_REQUIRED,
+    )
 
 
 async def record_sign_in_failure(
@@ -177,4 +205,88 @@ async def open_session(
     return Token(
         access_token=access_token,
         refresh_token=issued.refresh_token if return_refresh_token else None,
+    )
+
+
+async def upgrade_session(
+    request: Request,
+    response: Response,
+    admin_session: AsyncSession,
+    *,
+    user: User,
+    add_amr: list[str],
+) -> Token:
+    """Add what was just proved to the session already signed in.
+
+    A community that asks for something a session never presented refuses it,
+    and signing out to sign back in would be a strange way to answer that. So
+    the factor — a code, a passkey — is taken against the live session and this
+    is what records it.
+
+    The session is upgraded rather than replaced from nothing: its ``amr``, its
+    satisfied providers and each provider's account of its own authentication
+    carry forward, and the old row is retired. Satisfying one community's
+    requirement never un-satisfies another's.
+
+    The session upgraded is the one this request is *on*, named by its own
+    access token: every client carries that, and only a browser also carries a
+    refresh cookie. A credential that is not a session is refused — this
+    endpoint upgrades one, and there is nothing else here to add to.
+    """
+    prior = await admin_session.get(AuthSession, require_session_row(request))
+    if prior is not None and (prior.user_id != user.id or prior.revoked_at is not None):
+        prior = None
+    if prior is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
+        )
+
+    amr = sorted(set(prior.amr) | set(add_amr))
+    satisfied = sorted(set(prior.satisfied_providers))
+    provider_auth = prior.provider_auth
+
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user.id,
+            amr=amr,
+            satisfied_providers=satisfied,
+            provider_auth=provider_auth,
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+        )
+        # The chain, not the one row: rotation can have left descendants, and
+        # the session issued just above is what replaces all of them. The
+        # provider step-up revokes the chain for the same reason. ``prior`` is
+        # not optional here — the request is refused above where there is none.
+        await session_service.revoke_chain(admin_session, session_id=prior.id)
+        subject = await subject_service.subject_for_user(admin_session, user_id=user.id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=user.token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
+    return Token(
+        access_token=access_token,
+        # The app keeps its own refresh token; a browser reads one from the
+        # cookie set above and is handed nothing here.
+        refresh_token=(
+            issued.refresh_token
+            if request.cookies.get(REFRESH_COOKIE_NAME) is None
+            else None
+        ),
     )

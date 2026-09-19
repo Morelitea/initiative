@@ -29,6 +29,12 @@ Remove its passkey: **User settings → Security → Passkeys**, the bin next to
 
 Not sure which one was the lost phone? The list says when each was last used. The one that stopped is the one that went.
 
+## If a community asks for one
+
+A community can require that everybody in it signed in with a passkey, the same way it can require a code from an authenticator app. Signed in with your password instead? You're asked for the passkey where you are — a small prompt, then everything fills in behind it. Nobody is signed out to satisfy a new rule.
+
+The phone app can't present one yet, so for that community, use a browser.
+
 ??? techspec "The details"
     WebAuthn, through the reference libraries on both sides. Credentials are made as discoverable, so a sign-in can start from the key rather than from a typed address, and every ceremony requires user verification: a passkey that cannot prove the person as well as the device is not one this site will register or accept.
 

@@ -110,6 +110,9 @@ class GuildMessages:
     #: factor, and this one did not. Answered apart from the provider step-up
     #: because what satisfies it is a code rather than a sign-in page.
     GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
+    #: The community asks that the session was opened, or stepped up, with a
+    #: passkey, and this one was not.
+    GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
     #: The community declines personal API keys. Raised both when one is being
     #: minted into the guild and when a request carrying one addresses it, so

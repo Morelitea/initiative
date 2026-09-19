@@ -845,6 +845,7 @@ async def issue_upload_token(
         else (),
         satisfied_claims=auth_context.satisfied_claims(),
         session_mfa=auth_context.session_mfa(),
+        session_passkey=auth_context.session_passkey(),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 

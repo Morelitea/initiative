@@ -6,6 +6,7 @@ import { clearRefreshToken, REFRESH_TOKEN_KEY, storeRefreshToken } from "@/lib/n
 import { removeItem } from "@/lib/storage";
 
 import {
+  AUTH_FACTOR_REQUIRED_EVENT,
   AUTH_STEP_UP_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
@@ -397,6 +398,43 @@ describe("silent session renewal", () => {
     } finally {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
       window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
+    }
+  });
+
+  it.each([
+    ["GUILD_AUTH_FACTOR_REQUIRED", "totp"],
+    ["GUILD_AUTH_PASSKEY_REQUIRED", "passkey"],
+  ])("announces %s as a challenge naming the factor", async (detail, kind) => {
+    let refreshCalls = 0;
+    server.use(
+      http.get("/api/v1/g/7/projects/", () =>
+        HttpResponse.json({ detail }, { status: 401, headers: { "X-Auth-Step-Up-Guild": "7" } })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    const onFactor = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+
+    try {
+      await expect(apiClient.get("/g/7/projects/")).rejects.toMatchObject({
+        response: { status: 401 },
+      });
+      // Neither renewed nor read as signed out: the session is fine, it is
+      // this community that wants more from it.
+      expect(refreshCalls).toBe(0);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect(onFactor).toHaveBeenCalledTimes(1);
+      expect((onFactor.mock.calls[0][0] as CustomEvent).detail).toEqual({ guildId: 7, kind });
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
+      setHasActiveSession(false);
     }
   });
 

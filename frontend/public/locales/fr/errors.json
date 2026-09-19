@@ -678,6 +678,7 @@
   "PASSKEY_NOT_PERMITTED": "Ce site ne propose pas de clés d'accès.",
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un mot de passe, l'authentification unique ou une clé d'accès. Un code d'authentification s'y ajoute, il ne les remplace pas.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Cette communauté demande un code de votre application d'authentification. Saisissez-en un pour continuer.",
+  "GUILD_AUTH_PASSKEY_REQUIRED": "Cette communauté demande une clé d'accès. Présentez-en une pour continuer.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Saisissez votre code d'authentification pour utiliser l'accès d'urgence.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "L'accès d'urgence nécessite une application d'authentification, et ce compte n'en a pas. Configurez-en une dans Sécurité d'abord.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Rien n’a répondu à cette adresse",

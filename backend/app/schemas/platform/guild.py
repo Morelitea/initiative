@@ -312,10 +312,11 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 #: What a community may require, beyond naming one provider. ``sso`` means its
 #: own single sign-on, whichever of its providers serves it — the deployment's
 #: providers are not its own. ``totp`` means the session carried the account's
-#: second factor. The platform's ``login_method`` vocabulary minus ``password``,
+#: second factor; ``passkey`` that it was opened, or stepped up, with one. The
+#: platform's ``login_method`` vocabulary minus ``password``,
 #: which only the deployment decides about: the same asymmetry the database
 #: holds as a CHECK on ``require_methods``.
-GuildRequirableMethod = Literal["sso", "totp"]
+GuildRequirableMethod = Literal["sso", "totp", "passkey"]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):

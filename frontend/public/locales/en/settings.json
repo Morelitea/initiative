@@ -1119,10 +1119,16 @@
       "error": "Could not save the sign-in requirement",
       "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
       "signInWith": "Sign in with {{providerName}}",
+      "unmetFactor": "Enter a code from your authenticator app first, then save.",
+      "presentFactor": "Enter a code",
+      "unmetPasskey": "Present your passkey first, then save.",
+      "presentPasskey": "Present passkey",
       "anyProvider": "Any of our sign-in providers",
       "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count.",
       "requireFactor": "Also require a second factor",
-      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out."
+      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
+      "requirePasskey": "Also require a passkey",
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
     },
     "apiAccess": {
       "title": "API access",
