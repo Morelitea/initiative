@@ -40,13 +40,32 @@ interface EntityPickerProps {
 }
 
 /**
+ * Where a suggestion lives, as one line under its name.
+ *
+ * The name on its own is often not a choice anybody can make: six projects run
+ * from one template hold six tasks called "Do a thing", and the project is the
+ * only thing that tells them apart.
+ *
+ * The initiative is named only when the picker is not already confined to one
+ * — inside a single initiative it is the same word on every row, which is
+ * noise rather than context.
+ */
+const whereItLives = (item: SearchSuggestion, initiativeId: number | null): string | undefined => {
+  const parts = [initiativeId == null ? item.initiative_name : null, item.tool_title].filter(
+    (part): part is string => Boolean(part?.trim())
+  );
+  return parts.length ? parts.join(" · ") : undefined;
+};
+
+/**
  * Pick one thing of any kind.
  *
  * The search that backs it is the same one every other picker in the app uses,
  * only without a kind narrowed down to one — so it offers what somebody looked
  * at recently before anything is typed, and matches by name once something is.
- * Each row says what kind of thing it is, because in a list drawn from thirteen
- * of them a name alone often is not enough to tell two apart.
+ * Each row says what kind of thing it is, and where it lives, because in a list
+ * drawn from thirteen kinds a name alone often is not enough to tell two apart
+ * — nor is it within one kind, once a template has been run six times.
  *
  * It hands back the whole suggestion rather than an id: the caller needs the
  * kind to build the edge, and the title to keep showing what is selected after
@@ -88,15 +107,20 @@ export const EntityPicker = ({
         label: item.title,
         icon: hitIcon(item),
         hint: t(`search:types.${item.entity_type}`, { defaultValue: item.entity_type }),
+        sublabel: whereItLives(item, initiativeId),
       })),
-    [suggestions.items, t]
+    [suggestions.items, initiativeId, t]
   );
 
   return (
     <AsyncCombobox
       items={items}
       value={value ? `${value.entity_type}:${value.entity_id}` : null}
-      selectedLabel={value?.title ?? null}
+      // What was picked, said the same way the row said it — otherwise the
+      // button reads "Do a thing" and the choice cannot be checked.
+      selectedLabel={
+        value ? [value.title, whereItLives(value, initiativeId)].filter(Boolean).join(" · ") : null
+      }
       onValueChange={(next) => onChange(byValue.get(next) ?? null)}
       onSearchChange={setQuery}
       onOpenChange={setOpen}

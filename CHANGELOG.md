@@ -35,6 +35,7 @@ below them are held here until the grant is offered, rather than announced in
 - **A community's Authentication tab is now Security** — in two sections, *Who gets in* and *On what terms*, each appearing only where the operator granted it. AI and Apps become one **Integrations** tab.
 - **Quiet hours tell you what happened, not how much** — when the window closes, the mail it held arrives as itself, grouped by community, instead of a line counting what you missed.
 - **Overdue task reminders ride your email schedule** — they used to have their own daily clock. That clock is now the one your scheduled email goes out on, so choosing a weekly summary means hearing about overdue work weekly rather than being chased about the same list every day.
+- **Relations say where a thing lives** — run six projects from one template and you get six tasks called "Do a thing", and a picker offering all six was offering a choice nobody could make. Every row now names the project, wiki, calendar or queue the thing sits in, under its name; outside a single initiative it names that too. The card you get after linking says the same, so a shelf of connections can be read without opening each one.
 
 ### Removed
 

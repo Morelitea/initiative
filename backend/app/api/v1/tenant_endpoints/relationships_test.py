@@ -841,3 +841,32 @@ async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
         },
     )
     assert response.status_code == 201, response.text
+
+
+async def test_a_far_end_says_what_it_lives_in(
+    client: AsyncClient, acting_user, session
+):
+    """A card reading "Do a thing" says nothing when six of them are linked.
+    The far end carries its project so the card can say which one."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Do a thing")
+
+    created = await client.post(
+        _url(a),
+        headers=a.headers,
+        json={
+            "source": {"type": "project", "id": a.project.id},
+            "relationship_type": "attached",
+            "target": {"type": "task", "id": task.id},
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["other"]["tool_title"] == a.project.name
+
+    # Read from the task's side, the far end is the project itself — which
+    # lives in no tool, so there is nothing to name.
+    from_task = await client.get(
+        _url(a), headers=a.headers, params={"entity": f"task:{task.id}"}
+    )
+    (edge,) = from_task.json()
+    assert edge["other"]["tool_title"] is None

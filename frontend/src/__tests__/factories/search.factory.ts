@@ -31,9 +31,9 @@ export function buildSearchHit(overrides: Partial<SearchHit> = {}): SearchHit {
 }
 
 /** A palette suggestion: a hit without the snippet, which the palette has no
- *  room to show. */
+ *  room to show, plus the two names that say where the thing lives. */
 export function buildSearchSuggestion(overrides: Partial<SearchSuggestion> = {}): SearchSuggestion {
-  const hit = buildSearchHit(overrides);
+  const hit = buildSearchHit(overrides as Partial<SearchHit>);
   return {
     entity_type: hit.entity_type,
     entity_id: hit.entity_id,
@@ -41,6 +41,11 @@ export function buildSearchSuggestion(overrides: Partial<SearchSuggestion> = {})
     initiative_id: hit.initiative_id,
     tool: hit.tool,
     tool_id: hit.tool_id,
+    // Null by default, which is what a tool's own row reports: a project does
+    // not live in a project.
+    tool_title: null,
+    initiative_name: null,
+    ...overrides,
   };
 }
 

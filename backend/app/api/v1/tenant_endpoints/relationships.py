@@ -234,6 +234,7 @@ def _render(
             updated_at=found.updated_at,
             tool=found.tool,
             tool_id=found.tool_id,
+            tool_title=found.tool_title,
             image_urls=found.image_urls,
             icon=found.icon,
             color=found.color,
