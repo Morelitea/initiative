@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 #: The longest name a passkey may be given. Mirrors the service's cap.
 NAME_MAX_LENGTH = 64
@@ -63,11 +63,11 @@ class PasskeyRegisterFinish(SanitizedBaseModel):
 
     #: ``RegistrationResponseJSON`` — the credential as the browser returned it.
     credential: dict[str, Any]
-    name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
+    name: TitleStr = Field(min_length=1, max_length=NAME_MAX_LENGTH)
 
 
 class PasskeyRename(SanitizedBaseModel):
-    name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
+    name: TitleStr = Field(min_length=1, max_length=NAME_MAX_LENGTH)
 
 
 class PasskeyRemove(SanitizedBaseModel):
