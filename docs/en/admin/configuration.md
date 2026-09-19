@@ -149,6 +149,8 @@ Two streams come out of the container, and they are for different readers.
 
 That is where the record is kept, searched and alerted on. A filter on `event_type` is an alert; `guild_id` is on every line about a community. `LOG_LEVEL` has no say over any of it. Accounts appear as ids, and no line ever holds a secret, an address or a name.
 
+**What stays on the box.** Docker holds a container's output in a file that keeps growing until you say how much to keep. The example compose file says the last 50 MB per container, in five files it rotates through. Treat that as a buffer rather than the record: if the audit stream matters to you, ship it somewhere durable and let the buffer cover the stretch when the shipper is down.
+
 ## After changing settings
 
 Most settings are read at startup, so **restart the container** after editing them:
