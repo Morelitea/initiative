@@ -41,6 +41,7 @@ import type {
   PasskeySignInFinish,
   PasskeySignInResult,
   PasskeySignInStart,
+  PasskeyStepUpFinish,
   PasswordResetRequest,
   PasswordResetSubmit,
   ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
@@ -3705,6 +3706,189 @@ export const useFinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost = <
 > => {
   return useMutation(
     getFinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Options for presenting one of this account's passkeys against the
+ * session already open — the allow-list names the account's own.
+ * @summary Begin Passkey Step Up
+ */
+export const beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PasskeyAuthenticationOptions>(
+    { url: `/api/v1/auth/step-up/passkey/begin`, method: "POST", signal },
+    options
+  );
+};
+
+export const getBeginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>,
+    void
+  > = () => {
+    return beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BeginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>
+>;
+
+export type BeginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Begin Passkey Step Up
+ */
+export const useBeginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof beginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getBeginPasskeyStepUpApiV1AuthStepUpPasskeyBeginPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Add the passkey to the session already signed in.
+ *
+ * A community that asks for one refuses a session that was not opened with
+ * one, and signing out to sign back in would be a strange way to answer that.
+ * The session is upgraded rather than replaced from nothing: what it had
+ * proved carries forward and the old row is retired, the shape the other
+ * step-ups take.
+ * @summary Finish Passkey Step Up
+ */
+export const finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost = (
+  passkeyStepUpFinish: BodyType<PasskeyStepUpFinish>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/step-up/passkey/finish`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passkeyStepUpFinish,
+      signal,
+    },
+    options
+  );
+};
+
+export const getFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>,
+    TError,
+    { data: BodyType<PasskeyStepUpFinish> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>,
+  TError,
+  { data: BodyType<PasskeyStepUpFinish> },
+  TContext
+> => {
+  const mutationKey = ["finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>,
+    { data: BodyType<PasskeyStepUpFinish> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>
+>;
+export type FinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationBody =
+  BodyType<PasskeyStepUpFinish>;
+export type FinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Finish Passkey Step Up
+ */
+export const useFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>,
+      TError,
+      { data: BodyType<PasskeyStepUpFinish> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof finishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost>>,
+  TError,
+  { data: BodyType<PasskeyStepUpFinish> },
+  TContext
+> => {
+  return useMutation(
+    getFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPostMutationOptions(options),
     queryClient
   );
 };

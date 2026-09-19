@@ -34,6 +34,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     open_session,
     record_sign_in_failure,
     require_login_method,
+    upgrade_session,
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
@@ -55,7 +56,9 @@ from app.schemas.platform.passkey import (
     PasskeySignInFinish,
     PasskeySignInResult,
     PasskeySignInStart,
+    PasskeyStepUpFinish,
 )
+from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
@@ -80,6 +83,7 @@ FirstPartyOnly = Depends(require_first_party_session)
 #: begun for one cannot be finished as the other.
 _REGISTER_PURPOSES = (challenge_service.ChallengePurpose.passkey_register,)
 _SIGN_IN_PURPOSES = (challenge_service.ChallengePurpose.passkey_sign_in,)
+_STEP_UP_PURPOSES = (challenge_service.ChallengePurpose.passkey_step_up,)
 
 #: What a phone's device list shows when the relay page sent no name.
 _DEFAULT_DEVICE_NAME = "Mobile Device"
@@ -542,3 +546,106 @@ async def finish_passkey_sign_in(
         audit_detail={"method": "passkey", "passkey_id": passkey_id},
     )
     return PasskeySignInResult(access_token=token.access_token)
+
+
+@router.post("/step-up/passkey/begin", response_model=PasskeyAuthenticationOptions)
+@limiter.limit("10/15minutes")
+async def begin_passkey_step_up(
+    request: Request,
+    current_user: CurrentUser,
+    admin_session: AdminSessionDep,
+    _first_party: str = FirstPartyOnly,
+) -> PasskeyAuthenticationOptions:
+    """Options for presenting one of this account's passkeys against the
+    session already open — the allow-list names the account's own."""
+    # Unlike a sign-in, which names nobody, there is already an account here:
+    # the browser is asked for one of its credentials rather than for whatever
+    # the authenticator holds for this domain.
+    if not await passkey_service.list_for_user(admin_session, user_id=current_user.id):
+        # Nothing to present. The dialog sends the person to the security page
+        # to add one rather than opening a prompt that can only fail.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_NOT_FOUND,
+        )
+
+    ceremony = await passkey_service.begin_authentication(
+        admin_session, user_id=current_user.id
+    )
+    # Bound to the account, the way a registration's challenge is: this
+    # ceremony is about a session that already names somebody. Stored as the
+    # browser will write it back, so the finish route can look the row up by
+    # what it reads out of the signed client data.
+    await challenge_service.create(
+        admin_session,
+        user_id=current_user.id,
+        purpose=challenge_service.ChallengePurpose.passkey_step_up,
+        value=bytes_to_base64url(ceremony.challenge),
+    )
+    await admin_session.commit()
+    return PasskeyAuthenticationOptions(options=ceremony.options)
+
+
+@router.post("/step-up/passkey/finish", response_model=Token)
+@limiter.limit("10/15minutes")
+async def finish_passkey_step_up(
+    request: Request,
+    response: Response,
+    current_user: CurrentUser,
+    admin_session: AdminSessionDep,
+    payload: PasskeyStepUpFinish,
+    _first_party: str = FirstPartyOnly,
+) -> Token:
+    """Add the passkey to the session already signed in.
+
+    A community that asks for one refuses a session that was not opened with
+    one, and signing out to sign back in would be a strange way to answer that.
+    The session is upgraded rather than replaced from nothing: what it had
+    proved carries forward and the old row is retired, the shape the other
+    step-ups take.
+    """
+    value = _challenge_from_client_data(payload.credential, refusal=_sign_in_invalid())
+
+    challenge = await challenge_service.claim_attempt(
+        admin_session, value=value, purposes=_STEP_UP_PURPOSES
+    )
+    if challenge is None or challenge.user_id != current_user.id:
+        # The attempt is counted whether or not the answer was any good, so
+        # the commit comes before the refusal.
+        await admin_session.commit()
+        raise _sign_in_invalid()
+
+    assertion = await passkey_service.finish_authentication(
+        admin_session,
+        credential=payload.credential,
+        expected_challenge=webauthn.base64url_to_bytes(value),
+    )
+    if assertion is None or assertion.passkey.user_id != current_user.id:
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=current_user.id,
+            detail={"method": "passkey", "during": "step_up"},
+        )
+        await admin_session.commit()
+        raise _sign_in_invalid()
+
+    # Read off the credential while the row is attached: the upgrade below may
+    # roll the transaction back, which expires its attributes.
+    backed_up = assertion.passkey.backed_up
+
+    if not await challenge_service.consume(admin_session, challenge):
+        # Spent between the claim and here, so the upgrade it bought is not
+        # this request's to take a second time. The counter the assertion moved
+        # goes back with the transaction.
+        await admin_session.rollback()
+        raise _sign_in_invalid()
+
+    # The spent challenge and the credential's counter commit with the session.
+    return await upgrade_session(
+        request,
+        response,
+        admin_session,
+        user=current_user,
+        add_amr=passkey_amr(backed_up=backed_up),
+    )

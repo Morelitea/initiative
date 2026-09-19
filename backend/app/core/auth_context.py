@@ -122,6 +122,24 @@ def session_mfa() -> bool:
     return _session_mfa.get()
 
 
+#: Whether this request's credential was opened, or stepped up, with a passkey.
+#: Read from the session's own ``amr`` — the markers a WebAuthn assertion
+#: writes — and handed to the database so a community's rule is answered there
+#: as well as here. A community asking for a passkey is asking for one of
+#: those markers, which a code alone does not write.
+_session_passkey: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_session_passkey", default=False
+)
+
+
+def set_session_passkey(value: bool) -> None:
+    _session_passkey.set(bool(value))
+
+
+def session_passkey() -> bool:
+    return _session_passkey.get()
+
+
 #: Whether a personal API key is what authenticated this request. Recorded by
 #: the two validators that accept one, and read where a community's refusal of
 #: them is applied: the guild-access gate and the cross-guild aggregates.

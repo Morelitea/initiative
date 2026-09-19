@@ -1232,6 +1232,23 @@ async def set_guild_auth_policy(
                 detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
             )
 
+    # And the one a passkey brings, on the same two conditions. Read from the
+    # passkey markers rather than the factor's, so holding a second factor is
+    # not taken for holding a key.
+    if LoginMethod.passkey in require_methods:
+        if not await auth_posture.login_method_allowed(
+            admin_session, LoginMethod.passkey
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+            )
+        if not auth_context.session_passkey():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            )
+
     policy_row = await session.get(GuildAuthPolicy, guild_id)
     if policy_row is None:
         policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")

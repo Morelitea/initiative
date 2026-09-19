@@ -182,6 +182,7 @@ _CONTEXT_SQL = (
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.satisfied_claims', :satc, true), "
     "set_config('app.session_mfa', :mfa, true), "
+    "set_config('app.session_passkey', :pk, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
@@ -240,6 +241,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             # No session at all on this path, so it answers for none of the
             # things a session records about how somebody signed in.
             "mfa": "false",
+            "pk": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
@@ -326,6 +328,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # Whether the credential recorded the account's own second factor. A plain
     # string, because the policy leg compares it as one.
     mfa = "true" if params.get("session_mfa") else "false"
+    # And whether a passkey is what opened it, in the same form and read by the
+    # leg beside it.
+    pk = "true" if params.get("session_passkey") else "false"
 
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
@@ -333,6 +338,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "mfa": mfa,
+        "pk": pk,
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
@@ -398,6 +404,7 @@ async def set_rls_context(
     satisfied_providers: Optional[Sequence[int] | str] = None,
     satisfied_claims: Optional[dict] = None,
     session_mfa: bool = False,
+    session_passkey: bool = False,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
@@ -492,6 +499,7 @@ async def set_rls_context(
         satisfied_providers=satisfied_providers,
         satisfied_claims=satisfied_claims,
         session_mfa=session_mfa,
+        session_passkey=session_passkey,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
@@ -542,6 +550,7 @@ async def set_rls_context(
         "satisfied_providers": satisfied_providers,
         "satisfied_claims": satisfied_claims,
         "session_mfa": session_mfa,
+        "session_passkey": session_passkey,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
