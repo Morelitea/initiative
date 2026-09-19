@@ -8,17 +8,17 @@ The surface is curated and default-deny, so a newly added route can't silently
 become a tool:
   * **Reads** — every ``GET`` route for initiatives and for the tools they hold
     (projects and tasks, documents, queues, counters, calendars and their
-    events, notices, dashboards), plus the two comment reads that pair with the
-    comment write (a parent's thread and a single comment by id), plus the one
-    relationships read, which answers what a thing is linked to. A handful are
-    carved back out: file downloads, who voted and who has read, and the
-    dashboard editor's own palette.
+    events, wikis and their pages, notices, dashboards), plus the two comment
+    reads that pair with the comment write (a parent's thread and a single
+    comment by id), plus the one relationships read, which answers what a thing
+    is linked to. A handful are carved back out: file downloads, who voted and
+    who has read, and the dashboard editor's own palette.
   * **Writes** — an explicit allow-list, matched by path shape: create and edit
-    every tool (projects, documents, queues, counters, calendars, notices,
-    dashboards) and the things they hold (tasks, queue items, counters,
-    calendar events, comments), plus the two writes that shape alone doesn't
-    reach — moving a task, and moving a counter's count — plus drawing one
-    relationship between two of them. Each is gated client-side by Claude Code's
+    every tool (projects, documents, queues, counters, calendars, wikis,
+    notices, dashboards) and the things they hold (tasks, queue items, counters,
+    calendar events, wiki pages, comments), plus the two writes that shape alone
+    doesn't reach — moving a task, and moving a counter's count — plus drawing
+    one relationship between two of them. Each is gated client-side by Claude Code's
     per-write permission prompt. Destructive (delete, archive, reset), bulk
     (reorder, batch, archive-all, replacing a thing's links wholesale),
     AI-generation, sharing (grants), and property/tag routes are deliberately
@@ -69,6 +69,7 @@ READ_TAGS = (
     "calendar-events",
     "posts",
     "galleries",
+    "wikis",
     "dashboards",
 )
 
@@ -110,12 +111,14 @@ _WRITABLE_SEGMENTS = (
     # Every tool an initiative holds, addressed by its own path segment.
     *(tool.plural.replace("_", "-") for tool in Tool),
     # And what those tools hold in turn: a project's tasks, a calendar's
-    # events, a queue's items, a counter group's counters. Not derivable from
-    # the enum — each names its parent differently — so each is spelled out.
+    # events, a queue's items, a counter group's counters, a wiki's pages. Not
+    # derivable from the enum — each names its parent differently — so each is
+    # spelled out.
     "tasks",
     "calendar-events",
     "queues/" + _ID + "/items",
     "counter-groups/" + _ID + "/counters",
+    "wikis/" + _ID + "/pages",
     # The comment surface every tool shares.
     "comments",
 )
