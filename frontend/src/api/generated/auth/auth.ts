@@ -3904,6 +3904,10 @@ export const useFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost = <
  *
  * Hands back a recovery set when the account holds none yet — the one time
  * those exist in the clear — and an empty list when it already does.
+ *
+ * Done from a browser. The answer retires every credential the account holds
+ * and hands this caller a replacement session in cookies, which is not what
+ * the native app carries, so the app is told to do this on the web instead.
  * @summary Remove Password
  */
 export const removePasswordApiV1AuthPasswordRemovePost = (

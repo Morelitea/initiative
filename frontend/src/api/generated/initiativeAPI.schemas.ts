@@ -4128,9 +4128,11 @@ export interface GuildCreate {
  *
  * - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
  *   phrase uppercased) so the action can't be triggered by a stray click.
- * - ``password`` is the current user's password. It is ignored for
- *   OIDC-only users (who have no usable password), mirroring the
- *   account-deletion endpoint, which is why it defaults to empty.
+ * - ``password`` is the current user's password. An account that holds
+ *   none — one that signs in with a passkey or through an identity
+ *   provider — has nothing to confirm with and answers with the phrase
+ *   alone, mirroring the account-deletion endpoint, which is why it
+ *   defaults to empty.
  */
 export interface GuildDeletionRequest {
   password?: string;

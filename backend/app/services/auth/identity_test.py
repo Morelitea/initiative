@@ -535,12 +535,20 @@ async def test_two_ways_in_withdrawn_together_strand_the_account(session):
         == 1
     )
 
-    assert await passkey_only_user_count(session) == 0
-
 
 # ---------------------------------------------------------------------------
 # Which ways in an account has today
 # ---------------------------------------------------------------------------
+
+
+async def _withdraw_passkeys(session) -> None:
+    """Leave the deployment permitting the other three."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso", "totp"]
+    session.add(row)
+    await session.commit()
 
 
 async def test_ways_in_reads_the_account_and_the_deployment(session):

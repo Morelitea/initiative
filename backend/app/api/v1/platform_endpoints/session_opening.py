@@ -10,6 +10,10 @@ What each route keeps for itself is the proving. What they hand over is
 record should say), so the one place that writes a session does not have to
 know how many ways there are to reach it.
 
+:func:`replace_session` is the same idea for the changes that retire every
+credential an account holds: the caller revokes, and this opens the session the
+caller carries on with.
+
 :func:`upgrade_session` is the same idea for a session that is already open:
 the step-ups prove something more against it and hand over the ``amr`` that
 adds, and the one place that rewrites a session does the rest. It is shared for
@@ -206,6 +210,74 @@ async def open_session(
         access_token=access_token,
         refresh_token=issued.refresh_token if return_refresh_token else None,
     )
+
+
+async def replace_session(
+    request: Request,
+    response: Response,
+    admin_session: AsyncSession,
+    *,
+    user: User,
+    amr: list[str],
+    satisfied_providers: list[int],
+    provider_auth: dict[str, Any] | None = None,
+) -> Token:
+    """Open a session in place of the one this request is on, and hand the
+    caller back onto it.
+
+    For the changes that retire every credential an account holds — a password
+    set, a password given up — which would otherwise take the caller's own
+    session with them. What the account held is revoked by the caller and
+    staged on ``admin_session``; the session opened here joins that staging, so
+    one commit carries both and a failure leaves the account holding what it
+    had.
+
+    Both cookies are re-issued: the access token names the new session, and the
+    refresh cookie is the chain it rotates on. What carries into it is the
+    caller's to decide — ``amr`` is what the replacement may claim was proved,
+    and the satisfied providers and their own account of it come forward where
+    the request has one to carry.
+
+    A session is the only credential there is, so a store that cannot be
+    written ends the request rather than answering with a lesser one.
+    """
+    # Read before the writes below: ``user`` may be staged on ``admin_session``,
+    # and a rollback leaves its columns to be fetched again.
+    user_id = user.id
+    token_version = user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=amr,
+            satisfied_providers=satisfied_providers,
+            provider_auth=provider_auth,
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+        )
+        # The name the token will carry, minted in the same transaction as the
+        # session it belongs to.
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
+    return Token(access_token=access_token)
 
 
 async def upgrade_session(

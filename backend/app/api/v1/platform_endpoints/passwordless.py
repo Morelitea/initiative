@@ -16,23 +16,22 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_active_user, require_first_party_session
-from app.api.v1.platform_endpoints.password_recheck import require_password
-from app.api.v1.platform_endpoints.session_cookies import (
-    set_refresh_cookie,
-    set_session_cookie,
+from app.api.deps import (
+    CREDENTIAL_DEVICE_TOKEN,
+    get_current_active_user,
+    require_first_party_session,
 )
-from app.api.v1.platform_endpoints.session_opening import require_login_method
+from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.session_opening import (
+    replace_session,
+    require_login_method,
+)
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
-from app.core.rate_limit import get_inet_client_ip, limiter
-from app.core.security import (
-    get_password_hash,
-    has_usable_password,
-    mint_access_token,
-)
+from app.core.rate_limit import limiter
+from app.core.security import get_password_hash, has_usable_password
 from app.db.session import get_admin_session, get_session
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
@@ -43,8 +42,6 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
-from app.services.auth import sessions as session_service
-from app.services.auth import subject as subject_service
 from app.services.auth import totp as totp_service
 from app.services.platform import user_tokens
 
@@ -107,7 +104,16 @@ async def remove_password(
 
     Hands back a recovery set when the account holds none yet — the one time
     those exist in the clear — and an empty list when it already does.
+
+    Done from a browser. The answer retires every credential the account holds
+    and hands this caller a replacement session in cookies, which is not what
+    the native app carries, so the app is told to do this on the web instead.
     """
+    if _first_party == CREDENTIAL_DEVICE_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
+        )
     if not has_usable_password(current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,23 +134,30 @@ async def remove_password(
         )
 
     # The session this request is on, read before the revocation below retires
-    # it: the one that replaces it carries what it had proved.
+    # it: the one that replaces it carries what it had proved, which communities
+    # asking for a sign-in of their own it had satisfied, and each provider's
+    # own account of that.
     prior_id = getattr(request.state, "session_id", None)
     prior = (
         await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
         if prior_id
         else None
     )
-    carried_amr = (
-        sorted(set(prior.amr))
-        if prior is not None and prior.user_id == current_user.id
-        else []
+    if prior is not None and (
+        prior.user_id != current_user.id or prior.revoked_at is not None
+    ):
+        prior = None
+    carried_amr = sorted(set(prior.amr)) if prior is not None else []
+    carried_providers = (
+        sorted(set(prior.satisfied_providers)) if prior is not None else []
     )
+    carried_provider_auth = prior.provider_auth if prior is not None else None
 
     # Device tokens are revoked and committed on the request path first: they
     # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction. A failure after this point signs the account
-    # out everywhere and leaves the password where it was.
+    # cannot share a transaction. Everything after this point is staged, so a
+    # failure there leaves the account signed out on its phones with the
+    # password still where it was.
     await user_tokens.revoke_active_device_tokens(session, user_id=current_user.id)
     await session.commit()
 
@@ -176,12 +189,14 @@ async def remove_password(
     # A recovery set exists from the moment the account becomes passwordless,
     # because a code is now how it gets a password back — on a deployment with
     # no mail configured, which is the self-hosted case, it is the only way.
-    # An account that already holds codes keeps them; they are still good.
+    # An account that already holds a set keeps it; they are still good. One
+    # down to its last few is given a fresh set instead, at the same count the
+    # settings page has been calling low.
     codes: list[str] = []
     held = await totp_service.remaining_recovery_codes(
         admin_session, user_id=account.id
     )
-    if held == 0:
+    if held < totp_service.LOW_ON_RECOVERY_CODES:
         codes = await totp_service.issue_recovery_codes(
             admin_session, user_id=account.id
         )
@@ -193,49 +208,19 @@ async def remove_password(
 
     # ...and keep THIS device signed in: the revocation above took the caller's
     # own access token and refresh chain with everything else, so a fresh
-    # session is opened and both cookies re-issued. Its ``amr`` is what the
-    # session it replaces had proved.
-    #
-    # A session is the only credential there is, so a store that cannot be
-    # written ends the request rather than answering with a lesser one.
-    try:
-        issued = await session_service.create_session(
-            admin_session,
-            user_id=account.id,
-            amr=carried_amr,
-            satisfied_providers=[],
-            user_agent=request.headers.get("user-agent"),
-            ip=get_inet_client_ip(request),
-        )
-        # The name the token will carry, minted in the same transaction as the
-        # session it belongs to.
-        subject = await subject_service.subject_for_user(
-            admin_session, user_id=account.id
-        )
-        # One commit for the password, the record, the revocations, the codes
-        # and the session that stands in for this device's.
-        await admin_session.commit()
-    except Exception as exc:
-        await admin_session.rollback()
-        logger.exception(
-            "Could not open a session for user %s after removing its password",
-            current_user.id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
-    await session.commit()
-
-    access_token, access_max_age = mint_access_token(
-        subject=subject,
-        token_version=account.token_version,
-        session_id=issued.session.id,
-        amr=issued.session.amr,
-        satisfied_providers=issued.session.satisfied_providers,
+    # session is opened and both cookies re-issued. One commit for the
+    # password, the record, the revocations, the codes and the session that
+    # stands in for this device's.
+    await replace_session(
+        request,
+        response,
+        admin_session,
+        user=account,
+        amr=carried_amr,
+        satisfied_providers=carried_providers,
+        provider_auth=carried_provider_auth,
     )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
+    await session.commit()
 
     await email_service.announce_password_removed(admin_session, account)
     return RecoveryCodes(codes=codes)
@@ -276,8 +261,10 @@ async def recover_with_code(
 
     # Device tokens are revoked and committed on the request path first: they
     # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction. A failure after this point signs the account
-    # out everywhere and leaves it passwordless, which is where it began.
+    # cannot share a transaction. Everything after this point is staged, so a
+    # failure there leaves the account signed out on its phones and still
+    # passwordless, which is where it began — and its code unspent, so the same
+    # one works on the retry.
     await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
     await session.commit()
 
@@ -304,11 +291,23 @@ async def recover_with_code(
     )
     # Bump token_version and retire the device tokens, API keys and refresh
     # sessions the account held before it was recovered.
-    await user_tokens.revoke_user_sessions(
-        session, user=user, admin_session=admin_session
-    )
-    user.updated_at = datetime.now(timezone.utc)
-    admin_session.add(user)
-    await session.commit()
-    await admin_session.commit()
+    #
+    # ``user`` is staged on ``admin_session``, so its id is read here rather
+    # than after a rollback that would leave the columns to be fetched again.
+    user_id = user.id
+    try:
+        await user_tokens.revoke_user_sessions(
+            session, user=user, admin_session=admin_session
+        )
+        user.updated_at = datetime.now(timezone.utc)
+        admin_session.add(user)
+        await session.commit()
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not record a recovery for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
     return VerificationSendResponse(status="reset")

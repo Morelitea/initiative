@@ -14,9 +14,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import (
-    DEFAULT_LOGIN_METHODS,
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
+    methods_from_values,
 )
 from app.core.messages import SettingsMessages
 from app.models.platform.app_setting import AppSetting
@@ -38,13 +38,7 @@ def methods_from_row(row: AppSetting) -> frozenset[LoginMethod]:
     Pure, so a caller that already holds the settings row does not fetch it
     twice; :func:`resolve_login_methods` is the form for callers that do not.
     """
-    resolved = set()
-    for value in row.login_methods or ():
-        try:
-            resolved.add(LoginMethod(value))
-        except ValueError:
-            continue
-    return frozenset(resolved) or frozenset(DEFAULT_LOGIN_METHODS)
+    return methods_from_values(row.login_methods)
 
 
 async def resolve_login_methods(session: AsyncSession) -> frozenset[LoginMethod]:

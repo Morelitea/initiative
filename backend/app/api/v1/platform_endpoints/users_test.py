@@ -21,6 +21,7 @@ from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
@@ -1270,12 +1271,11 @@ async def test_users_me_reports_linked_identity(
 async def test_oidc_user_can_self_delete_without_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """SSO-provisioned users have no usable password (the random hash
-    set at provisioning was never shown). The self-deletion endpoint
-    must skip the password gate for them, otherwise they'd be
-    permanently blocked from the "Delete account" flow.
-    """
-    user = await create_user(session, email="oidc-user@example.com")
+    """An SSO-provisioned account holds no usable password, so there is none
+    for the gate to ask for: it deletes with the confirmation phrase alone."""
+    user = await create_user(
+        session, email="oidc-user@example.com", hashed_password=None
+    )
     await create_federated_identity(session, user, subject="oidc-subject-123")
 
     headers = get_auth_headers(user)
@@ -1293,6 +1293,65 @@ async def test_oidc_user_can_self_delete_without_password(
     body = response.json()
     assert body["success"] is True
     assert body["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_a_passkey_only_account_can_self_delete_without_a_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """The account signs in with a credential and holds no password at all.
+    What it is asked for is the phrase."""
+    user = await create_user(
+        session, email="passkey-only-delete@example.com", hashed_password=None
+    )
+    session.add(
+        UserPasskey(
+            user_id=user.id,
+            credential_id=b"delete-account-key",
+            public_key=b"public-key-bytes",
+            rp_id="localhost",
+            sign_count=0,
+            transports=["internal"],
+            name="Laptop",
+        )
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=get_auth_headers(user),
+        json={
+            "action": "soft_delete",
+            "password": "",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_a_linked_account_that_holds_a_password_is_asked_for_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """An identity link is not the question. An account can hold both, and one
+    that holds a password confirms with it."""
+    user = await create_user(session, email="linked-and-local@example.com")
+    await create_federated_identity(session, user, subject="linked-local-1")
+
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=get_auth_headers(user),
+        json={
+            "action": "soft_delete",
+            "password": "wrong-password",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_PASSWORD"
 
 
 @pytest.mark.integration

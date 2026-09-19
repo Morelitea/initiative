@@ -19,12 +19,14 @@ from app.core.security import (
 )
 from app.models.platform.audit_event import AuditEvent
 from app.models.platform.auth_session import AuthSession
+from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
 from app.services.auth import sessions as session_service
 from app.services.auth import totp as totp_service
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import user_tokens
 from app.testing import create_user, get_auth_headers
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -297,6 +299,92 @@ async def test_a_letter_that_cannot_go_does_not_undo_the_removal(
     assert account.hashed_password is None
 
 
+async def test_the_app_is_sent_to_a_browser_for_this(
+    client: AsyncClient, session: AsyncSession
+):
+    """The answer hands back a replacement session in cookies, which the native
+    app does not carry, so the route asks for a browser."""
+    user = await _account(session, "pl-device@example.com")
+    user_id = user.id
+    await _seed_passkey(session, user)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user_id, device_name="Phone"
+    )
+    await session.commit()
+
+    response = await client.post(
+        REMOVE,
+        json={"current_password": PASSWORD},
+        headers={"Authorization": f"DeviceToken {device_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
+
+    session.expire_all()
+    account = await session.get(User, user_id)
+    assert account is not None
+    assert account.hashed_password is not None
+
+
+async def test_a_thin_set_is_replaced_on_the_way_out(
+    client: AsyncClient, session: AsyncSession
+):
+    """A code is how a passwordless account gets a password back, so an account
+    down to its last few leaves with a full set rather than those few."""
+    user = await _account(session, "pl-thin@example.com")
+    user_id = user.id
+    await _seed_passkey(session, user)
+    await _issue_codes(session, user)
+    held = (
+        await session.exec(
+            select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == user_id)
+        )
+    ).all()
+    for row in held[totp_service.LOW_ON_RECOVERY_CODES - 1 :]:
+        await session.delete(row)
+    await session.commit()
+
+    response = await client.post(
+        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+    )
+    assert response.status_code == 200, response.text
+    assert len(response.json()["codes"]) == totp_service.RECOVERY_CODE_COUNT
+
+    session.expire_all()
+    assert (
+        await totp_service.remaining_recovery_codes(session, user_id=user_id)
+        == totp_service.RECOVERY_CODE_COUNT
+    )
+
+
+async def test_a_session_that_cannot_be_opened_leaves_the_password(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The password goes in the same transaction as the session that replaces
+    this device's, so neither lands without the other."""
+
+    async def fail(*args, **kwargs):
+        raise RuntimeError("no session store")
+
+    monkeypatch.setattr(session_service, "create_session", fail)
+
+    user = await _account(session, "pl-nosession@example.com")
+    user_id = user.id
+    hash_before = user.hashed_password
+    await _seed_passkey(session, user)
+
+    response = await client.post(
+        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
+
+    session.expire_all()
+    account = await session.get(User, user_id)
+    assert account is not None
+    assert account.hashed_password == hash_before
+
+
 # ---------------------------------------------------------------------------
 # Getting one back with a recovery code
 # ---------------------------------------------------------------------------
@@ -410,6 +498,43 @@ async def test_the_policy_runs_before_the_code_is_spent(
     assert response.json()["detail"] == PasswordMessages.TOO_SHORT
 
     session.expire_all()
+    assert (
+        await totp_service.remaining_recovery_codes(session, user_id=user_id)
+        == totp_service.RECOVERY_CODE_COUNT
+    )
+
+
+async def test_a_recovery_that_does_not_land_leaves_the_account_as_it_was(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The password, the spent code and the retired sessions share one commit
+    on the system engine. A write that does not land leaves all three."""
+
+    async def fail(*args, **kwargs):
+        raise RuntimeError("no system engine")
+
+    monkeypatch.setattr(user_tokens, "revoke_user_sessions", fail)
+
+    user = await _account(session, "pl-norecover@example.com", password=None)
+    user_id = user.id
+    codes = await _issue_codes(session, user)
+
+    response = await client.post(
+        RECOVER,
+        json={
+            "email": "pl-norecover@example.com",
+            "recovery_code": codes[0],
+            "password": NEW_PASSWORD,
+        },
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "SESSION_STORE_UNAVAILABLE"
+
+    session.expire_all()
+    account = await session.get(User, user_id)
+    assert account is not None
+    assert account.hashed_password is None
+    # The code it presented is still good, so the same one works on the retry.
     assert (
         await totp_service.remaining_recovery_codes(session, user_id=user_id)
         == totp_service.RECOVERY_CODE_COUNT

@@ -25,20 +25,17 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.session_cookies import (
-    set_refresh_cookie,
-    set_session_cookie,
-)
+from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
-from app.core.rate_limit import get_inet_client_ip, limiter
+from app.core.rate_limit import limiter
 from app.core.security import (
     get_password_hash,
     has_usable_password,
-    mint_access_token,
     verify_password,
 )
 from app.core.user_input_validators import (
@@ -106,8 +103,6 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.auth import addresses
-from app.services.auth import sessions as session_service
-from app.services.auth import subject as subject_service
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_events import AuditEventType
@@ -1019,49 +1014,20 @@ async def update_users_me(
         await user_tokens_service.revoke_user_sessions(
             session, user=current_user, admin_session=admin_session, commit=False
         )
-        # ...but keep THIS device signed in: the revocation above killed the
-        # caller's own access token AND refresh chain, so open a fresh session
-        # and re-issue both cookies — every *other* session/device still dies.
-        # ``amr`` records what this request proved: the current password for
-        # local accounts; nothing for the SSO-exempt path (no factor was
-        # presented here).
-        #
-        # A session is the only credential there is, so a store that cannot be
-        # written ends the request rather than downgrading it.
-        try:
-            issued = await session_service.create_session(
-                admin_session,
-                user_id=current_user.id,
-                amr=[] if is_sso_account else ["pwd"],
-                satisfied_providers=[],
-                user_agent=request.headers.get("user-agent"),
-                ip=get_inet_client_ip(request),
-            )
-            # The name the token will carry, minted in the same transaction as
-            # the session it belongs to.
-            subject = await subject_service.subject_for_user(
-                admin_session, user_id=current_user.id
-            )
-            await admin_session.commit()
-            refreshed_token, refreshed_max_age = mint_access_token(
-                subject=subject,
-                token_version=current_user.token_version,
-                session_id=issued.session.id,
-                amr=issued.session.amr,
-                satisfied_providers=issued.session.satisfied_providers,
-            )
-            set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
-            set_refresh_cookie(response, issued.refresh_token)
-        except Exception as exc:
-            await admin_session.rollback()
-            logger.exception(
-                "Could not open a session for user %s after a password change",
-                current_user.id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-            ) from exc
+        # ...but keep THIS device signed in: the revocation above took the
+        # caller's own access token AND refresh chain, so a fresh session is
+        # opened and both cookies re-issued — every *other* session/device
+        # still dies. ``amr`` records what this request proved: the current
+        # password for local accounts; nothing for the exempt path, where no
+        # factor was presented here.
+        await replace_session(
+            request,
+            response,
+            admin_session,
+            user=current_user,
+            amr=[] if is_sso_account else ["pwd"],
+            satisfied_providers=[],
+        )
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1344,23 +1310,19 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
         )
 
-    # Verify password — skipped for SSO-only users, who have no password
-    # (NULL ``hashed_password``; identity provisioning flow). Without this
-    # exemption an SSO-only account would have no way to satisfy the gate
-    # and could only be removed by an admin.
-    if not await has_federated_identity(session, user_id=current_user.id):
-        if not verify_password(request.password, current_user.hashed_password):
-            # 400 (not 401): the user IS authenticated — they passed
-            # ``get_current_active_user`` to reach this endpoint. The
-            # global axios interceptor treats every 401 as a session
-            # expiry and force-logs-out the SPA, so a wrong-password
-            # response on this form would knock the user out of the
-            # session they were trying to confirm into. 400 keeps the
-            # error scoped to the form's onError handler.
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=UserMessages.INVALID_PASSWORD,
-            )
+    # Re-check the password, where the account holds one to re-check. An
+    # account that signs in another way — a passkey, an identity provider —
+    # has none to supply, and is asked for the confirmation phrase alone.
+    #
+    # 400 (not 401): the user IS authenticated — they passed
+    # ``get_current_active_user`` to reach this endpoint. The global axios
+    # interceptor treats every 401 as a session expiry and force-logs-out the
+    # SPA, so a wrong-password response on this form would knock the user out
+    # of the session they were trying to confirm into. 400 keeps the error
+    # scoped to the form's onError handler.
+    require_password(
+        current_user, request.password, detail=UserMessages.INVALID_PASSWORD
+    )
 
     # The confirmation phrase is action-specific so the user can't accidentally
     # anonymize when they meant to deactivate, or vice versa.
