@@ -21,6 +21,7 @@ from app.testing import (
     create_comment,
     create_document,
     create_post,
+    create_project,
     create_tag,
     create_task,
     route_session_to_guild,
@@ -520,6 +521,14 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     assert private_template.id not in {r["entity_id"] for r in response.json()}
 
 
+async def _suggest(client, actor: Actor, **params) -> list[dict]:
+    response = await client.get(
+        actor.g("/search/suggest"), headers=actor.headers, params=params
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 async def _recent(client, actor: Actor, **params) -> list[dict]:
     response = await client.get(
         actor.g("/search/recent"), headers=actor.headers, params=params
@@ -723,3 +732,50 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
     # Only one of them is this reader's to change.
     assert by_id[mine.id]["can_write"] is True
     assert by_id[theirs.id]["can_write"] is False
+
+
+async def test_a_suggestion_says_what_it_lives_in(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Two tasks of the same name in different projects are two different
+    tasks, and a picker offering both has to say which is which."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    first = await create_project(session, a.initiative, a.user, name="Harvest")
+    second = await create_project(session, a.initiative, a.user, name="Winterhold")
+    await create_task(session, first, title="Do a thing")
+    await create_task(session, second, title="Do a thing")
+
+    rows = [
+        row
+        for row in await _suggest(client, a, q="Do a thing", types="task")
+        if row["title"] == "Do a thing"
+    ]
+    assert len(rows) == 2
+    assert {row["tool_title"] for row in rows} == {"Harvest", "Winterhold"}
+    assert {row["initiative_name"] for row in rows} == {a.initiative.name}
+
+
+async def test_a_tool_does_not_live_in_itself(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A project's own sharing gate is the project, so naming its container
+    would only repeat its title back."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await create_project(session, a.initiative, a.user, name="Harvest")
+
+    rows = await _suggest(client, a, q="Harvest", types="project")
+    assert [row["tool_title"] for row in rows] == [None]
+    assert [row["initiative_name"] for row in rows] == [a.initiative.name]
+
+
+async def test_recents_say_where_they_live_too(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A picker that has not been typed in yet shows recents, and they are the
+    same rows — so they cannot be less legible than the ones typing finds."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, a.initiative, a.user, name="Harvest")
+    await create_task(session, project, title="Do a thing")
+
+    rows = await _recent(client, a, types="task")
+    assert [row["tool_title"] for row in rows] == ["Harvest"]

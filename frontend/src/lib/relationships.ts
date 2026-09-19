@@ -248,6 +248,13 @@ export interface LinkedRef {
   type: SearchEntityType;
   id: number;
   title: string | null;
+  /**
+   * What the thing it lives in is called — the project a task sits in, the
+   * wiki a page sits in. Optional because it is only ever shown: a caller that
+   * has a title and nothing else still names a thing, it just names it less
+   * clearly when two of them share a name.
+   */
+  toolTitle?: string | null;
 }
 
 /** A linked thing as a reference spells it — `task:12`, and a stable list key. */

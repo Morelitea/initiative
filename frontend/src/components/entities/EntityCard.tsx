@@ -140,7 +140,13 @@ export const EntityCard = ({
     </div>
   );
 
-  const caption = linkedAt ? t("card.kindLinked", { kind: kindLabel, date: linked }) : kindLabel;
+  const kindCaption = linkedAt
+    ? t("card.kindLinked", { kind: kindLabel, date: linked })
+    : kindLabel;
+  // Where it lives, ahead of what it is: six tasks called "Do a thing" are all
+  // tasks, and the project is the only thing that tells them apart.
+  const where = end.tool_title?.trim();
+  const caption = where ? `${where} · ${kindCaption}` : kindCaption;
 
   const body = compact ? (
     <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-1.5">
@@ -177,7 +183,9 @@ export const EntityCard = ({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <p className="text-muted-foreground text-xs">{caption}</p>
+        {/* Two lines: where a thing lives is often longer than the box, and
+            cutting it at one can leave the project name a stub. */}
+        <p className="line-clamp-2 text-muted-foreground text-xs">{caption}</p>
       </div>
     </>
   );
