@@ -670,8 +670,16 @@
   "TOTP_NOT_ENROLLED": "Für dieses Konto ist keine Zwei-Faktor-Authentifizierung eingerichtet.",
   "RECOVERY_CODE_INVALID": "Dieser Wiederherstellungscode stimmt nicht oder wurde bereits verwendet.",
   "TOTP_NOT_PERMITTED": "Diese Seite bietet die Authenticator-App nicht an.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Authenticator-Code kommt zum Passwort oder zur Anmeldung per SSO hinzu, nicht an deren Stelle.",
+  "PASSKEY_LIMIT_REACHED": "Dieses Konto hat so viele Passkeys, wie es haben kann. Entferne einen, um einen neuen hinzuzufügen.",
+  "PASSKEY_REGISTRATION_INVALID": "Dieser Passkey konnte nicht registriert werden. Beginne noch einmal über „Passkey hinzufügen“.",
+  "PASSKEY_NOT_FOUND": "Dieser Passkey gehört nicht zu diesem Konto.",
+  "PASSKEY_SITE_UNSUPPORTED": "Passkeys brauchen für diese Seite einen richtigen Domainnamen und https. Beides fehlt noch, deshalb lassen sich hier keine anlegen.",
+  "PASSKEY_SIGN_IN_INVALID": "Dieser Passkey hat nicht funktioniert. Versuche es erneut oder melde dich anders an.",
+  "PASSKEY_NOT_PERMITTED": "Diese Seite bietet keine Passkeys an.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Passwort, Single Sign-on oder ein Passkey. Ein Authenticator-Code kommt dazu, nicht an deren Stelle.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Diese Community verlangt einen Code aus deiner Authenticator-App. Gib einen ein, um fortzufahren.",
+  "GUILD_AUTH_PASSKEY_REQUIRED": "Diese Community verlangt einen Passkey. Lege einen vor, um fortzufahren.",
+  "RECENT_PROOF_REQUIRED": "Für diese Änderung ist zuerst eine frische Anmeldung nötig.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Gib deinen Authenticator-Code ein, um den Notzugriff zu nutzen.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Der Notzugriff erfordert einen Authenticator, und dieses Konto hat keinen. Richte zuerst unter Sicherheit einen ein.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Unter dieser Adresse hat nichts geantwortet",
@@ -698,5 +706,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Die Vorlage muss eine Seite dieses Wikis sein",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Diese Regel gehört nicht zu euch",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Verbindet diesen Anbieter mit eurer Community, bevor ihr festlegt, was seine Gruppen bedeuten",
-  "AUTH_PROVIDER_RULE_EXISTS": "Diese Gruppe landet dort bereits"
+  "AUTH_PROVIDER_RULE_EXISTS": "Diese Gruppe landet dort bereits",
+  "PASSWORD_IS_LAST_METHOD": "Dein Passwort ist der einzige Zugang zu diesem Konto. Füge zuerst einen Passkey hinzu.",
+  "PASSKEY_IS_LAST_METHOD": "Dieser Passkey ist der einzige Zugang zu diesem Konto. Lege zuerst ein Passwort fest oder füge einen weiteren Passkey hinzu.",
+  "PASSWORD_NOT_HELD": "Dieses Konto hat kein Passwort."
 }

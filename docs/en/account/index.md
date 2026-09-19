@@ -23,7 +23,7 @@ This section is about **your** settings.
 | **Privacy** | Who can ask to message you, your connections, and pending requests. See [Messages](../guides/messages.md#who-can-reach-you). |
 | **AI** | Your personal AI settings. Only appears if there's a connection for you to set up. See [AI features](ai-features.md). |
 | **Import** | Bring tasks in from other tools. See below. |
-| **Security** | Signed-in devices and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
+| **Security** | [Two-factor authentication](two-factor-authentication.md), [passkeys](passkeys.md), signed-in devices and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
 | **Trash** | Things you recently deleted. |
 | **Danger Zone** | Deactivate or delete your account. |
 

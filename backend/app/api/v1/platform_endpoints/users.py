@@ -25,21 +25,19 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.session_cookies import (
-    set_refresh_cookie,
-    set_session_cookie,
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
 )
+from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
-from app.core.rate_limit import get_inet_client_ip, limiter
+from app.core.rate_limit import limiter
 from app.core.security import (
     get_password_hash,
     has_usable_password,
-    mint_access_token,
-    verify_password,
 )
 from app.core.user_input_validators import (
     normalize_notification_time,
@@ -106,8 +104,6 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.auth import addresses
-from app.services.auth import sessions as session_service
-from app.services.auth import subject as subject_service
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_events import AuditEventType
@@ -183,6 +179,7 @@ async def read_users_me(
     payload.has_federated_identity = await has_federated_identity(
         session, user_id=current_user.id
     )
+    payload.has_password = has_usable_password(current_user.hashed_password)
     # The standing age gate. Costs a query only for an account that has not
     # confirmed on a deployment that asks — it short-circuits on the column
     # for everyone else, and stops for good once they answer.
@@ -979,6 +976,7 @@ async def update_users_me(
     if not update_data:
         payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
+        payload.has_password = has_usable_password(current_user.hashed_password)
         return payload
 
     new_full_name = update_data.get("full_name")
@@ -987,25 +985,18 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it. The
-        # exemption is for an account that holds no password to confirm — one
-        # provisioned through an identity provider. Holding a federated
-        # identity is a different question: an account can have both, and one
-        # that has a password is asked for it. So is "the column is NULL": a
-        # hash no scheme verifies is not a password, and asking for one nobody
-        # can supply would leave the account unable to set one.
-        if has_usable_password(current_user.hashed_password):
-            current_password = update_data.get("current_password")
-            if not current_password:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_REQUIRED,
-                )
-            if not verify_password(current_password, current_user.hashed_password):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_INCORRECT,
-                )
+        # Read before the hash below replaces it: what the account held going
+        # in is what the re-check asks about and what the replacement session
+        # may claim was proved here.
+        held_password = has_usable_password(current_user.hashed_password)
+        # Re-authenticate with the current password before changing it. An
+        # account that holds none answers with a recent sign-in instead.
+        await require_password_or_recent_proof(
+            request,
+            admin_session,
+            current_user,
+            update_data.get("current_password"),
+        )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
@@ -1017,49 +1008,20 @@ async def update_users_me(
         await user_tokens_service.revoke_user_sessions(
             session, user=current_user, admin_session=admin_session, commit=False
         )
-        # ...but keep THIS device signed in: the revocation above killed the
-        # caller's own access token AND refresh chain, so open a fresh session
-        # and re-issue both cookies — every *other* session/device still dies.
-        # ``amr`` records what this request proved: the current password for
-        # local accounts; nothing for the SSO-exempt path (no factor was
-        # presented here).
-        #
-        # A session is the only credential there is, so a store that cannot be
-        # written ends the request rather than downgrading it.
-        try:
-            issued = await session_service.create_session(
-                admin_session,
-                user_id=current_user.id,
-                amr=[] if is_sso_account else ["pwd"],
-                satisfied_providers=[],
-                user_agent=request.headers.get("user-agent"),
-                ip=get_inet_client_ip(request),
-            )
-            # The name the token will carry, minted in the same transaction as
-            # the session it belongs to.
-            subject = await subject_service.subject_for_user(
-                admin_session, user_id=current_user.id
-            )
-            await admin_session.commit()
-            refreshed_token, refreshed_max_age = mint_access_token(
-                subject=subject,
-                token_version=current_user.token_version,
-                session_id=issued.session.id,
-                amr=issued.session.amr,
-                satisfied_providers=issued.session.satisfied_providers,
-            )
-            set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
-            set_refresh_cookie(response, issued.refresh_token)
-        except Exception as exc:
-            await admin_session.rollback()
-            logger.exception(
-                "Could not open a session for user %s after a password change",
-                current_user.id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-            ) from exc
+        # ...but keep THIS device signed in: the revocation above took the
+        # caller's own access token AND refresh chain, so a fresh session is
+        # opened and both cookies re-issued — every *other* session/device
+        # still dies. ``amr`` records what this request proved: the current
+        # password where the account held one; nothing where it did not, since
+        # no factor was presented here.
+        await replace_session(
+            request,
+            response,
+            admin_session,
+            user=current_user,
+            amr=["pwd"] if held_password else [],
+            satisfied_providers=[],
+        )
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
@@ -1198,6 +1160,7 @@ async def update_users_me(
     # linked-identity signal /users/me serves.
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
+    payload.has_password = has_usable_password(current_user.hashed_password)
     return payload
 
 
@@ -1326,6 +1289,7 @@ async def get_my_initiative_members(
 
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
+    http_request: Request,
     request: AccountDeletionRequest,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1341,23 +1305,24 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_OWNER,
         )
 
-    # Verify password — skipped for SSO-only users, who have no password
-    # (NULL ``hashed_password``; identity provisioning flow). Without this
-    # exemption an SSO-only account would have no way to satisfy the gate
-    # and could only be removed by an admin.
-    if not await has_federated_identity(session, user_id=current_user.id):
-        if not verify_password(request.password, current_user.hashed_password):
-            # 400 (not 401): the user IS authenticated — they passed
-            # ``get_current_active_user`` to reach this endpoint. The
-            # global axios interceptor treats every 401 as a session
-            # expiry and force-logs-out the SPA, so a wrong-password
-            # response on this form would knock the user out of the
-            # session they were trying to confirm into. 400 keeps the
-            # error scoped to the form's onError handler.
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=UserMessages.INVALID_PASSWORD,
-            )
+    # Re-check the password, where the account holds one to re-check. An
+    # account that signs in another way — a passkey, an identity provider —
+    # has none to supply, and answers with a recent sign-in and the
+    # confirmation phrase.
+    #
+    # 400 (not 401): the user IS authenticated — they passed
+    # ``get_current_active_user`` to reach this endpoint. The global axios
+    # interceptor treats every 401 as a session expiry and force-logs-out the
+    # SPA, so a wrong-password response on this form would knock the user out
+    # of the session they were trying to confirm into. 400 keeps the error
+    # scoped to the form's onError handler.
+    await require_password_or_recent_proof(
+        http_request,
+        session,
+        current_user,
+        request.password,
+        detail=UserMessages.INVALID_PASSWORD,
+    )
 
     # The confirmation phrase is action-specific so the user can't accidentally
     # anonymize when they meant to deactivate, or vice versa.

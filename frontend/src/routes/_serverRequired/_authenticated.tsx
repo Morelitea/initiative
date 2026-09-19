@@ -53,6 +53,7 @@ import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
+import { returnPath } from "@/lib/returnPath";
 import { cn } from "@/lib/utils";
 
 /**
@@ -70,7 +71,7 @@ const FullScreenLoader = () => (
 );
 
 export const Route = createFileRoute("/_serverRequired/_authenticated")({
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, location }) => {
     const { auth, server } = context;
 
     // If auth state is already determined and user is not authenticated,
@@ -80,7 +81,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
     // so a signed-out session always redirects.
     if (!isJustSignedIn() && !auth?.loading && !auth?.user) {
       const redirectTo = server?.isNativePlatform ? "/login" : "/welcome";
-      throw redirect({ to: redirectTo });
+      // Carry where they were headed, so signing in finishes the trip they
+      // started rather than landing them at the front page: the app sends a
+      // phone to a browser for a passkey, and that browser signs in first.
+      // Somewhere in this app only — a path, never another site.
+      const next = returnPath(location.href);
+      const carry = next && next !== "/" ? { next } : undefined;
+      throw redirect({ to: redirectTo, search: carry });
     }
   },
   component: AppLayout,

@@ -138,6 +138,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     can_create_guilds: true,
     status: "active",
     email_verified: true,
+    // Signs in with a password, like most accounts. A test about the
+    // passwordless account overrides it.
+    has_password: true,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     custom_status: { emoji: null, text: null },

@@ -14,6 +14,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.datastructures import Headers
+from starlette.requests import Request
 
 from app.core import rate_limit
 from app.core.config import settings
@@ -21,6 +22,7 @@ from app.core.rate_limit import (
     _default_limits,
     get_inet_client_ip,
     get_real_client_ip,
+    get_user_or_ip_key,
     limiter,
 )
 from app.main import app
@@ -172,3 +174,33 @@ class TestRealClientIp:
             client = _Client()
 
         assert get_real_client_ip(_Request()) == "198.51.100.7"
+
+
+class TestUserOrIpKey:
+    """``get_user_or_ip_key`` counts per account where there is one.
+
+    The routes that use it are reached only while signed in, and several
+    accounts commonly share one address, so the account is the counter rather
+    than the address it arrived from.
+    """
+
+    @staticmethod
+    def _request(*, user_id: int | None = None) -> Request:
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/",
+                "headers": [],
+                "client": ("198.51.100.7", 40404),
+            }
+        )
+        if user_id is not None:
+            request.state.user_id = user_id
+        return request
+
+    def test_a_signed_in_account_is_its_own_counter(self):
+        assert get_user_or_ip_key(self._request(user_id=42)) == "user:42"
+
+    def test_the_address_is_the_counter_when_nobody_is_named(self):
+        assert get_user_or_ip_key(self._request()) == "198.51.100.7"

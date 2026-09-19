@@ -49,6 +49,10 @@ TOTP_DRIFT_STEPS = 1
 #: How many recovery codes a set holds, and how much randomness each carries.
 RECOVERY_CODE_COUNT = 10
 _RECOVERY_CODE_BYTES = 16
+#: When a set is running out. The settings page turns the count red at the
+#: same number, so what the person is being warned about and what a route acts
+#: on are the one figure.
+LOW_ON_RECOVERY_CODES = 3
 #: Characters a recovery code is written in — the digits and letters that
 #: survive being read aloud or copied off a screen.
 _RECOVERY_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"

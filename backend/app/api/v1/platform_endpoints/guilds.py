@@ -22,6 +22,9 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
@@ -32,7 +35,6 @@ from app.core.rate_limit import limiter
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
-    verify_password,
 )
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
@@ -85,7 +87,6 @@ from app.schemas.platform.guild import (
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth import session_lifetime
-from app.services.auth.identity import has_federated_identity
 from app.services.auth import (
     guild_provider_connections as guild_connections,
 )
@@ -1021,6 +1022,22 @@ async def _require_guild_auth_option(
         )
 
 
+#: Which part of the requirement the writer's own session came up short on.
+#: One refusal code covers four separate asks, so this is what tells the
+#: settings page which line of the form to point at. One of ``provider``,
+#: ``sso``, ``totp``, ``passkey``.
+AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
+
+
+def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
+    """A refused requirement, naming the part of it that was refused."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=detail,
+        headers={AUTH_POLICY_UNMET_HEADER: unmet},
+    )
+
+
 def _auth_policy_read(
     policy_row, provider_display_name: str | None = None
 ) -> GuildAuthPolicyRead:
@@ -1164,9 +1181,8 @@ async def set_guild_auth_policy(
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
         if provider.id not in satisfied_provider_ids():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
             )
 
     # The same rule the provider check makes, for "any of ours": the caller's
@@ -1177,9 +1193,8 @@ async def set_guild_auth_policy(
     if LoginMethod.sso in require_methods and not (
         await guild_connections.admits_this_session(admin_session, guild_id=guild_id)
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+        raise _auth_policy_refusal(
+            GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.sso.value
         )
 
     # And the one a second factor brings. Two things before a community may ask
@@ -1189,14 +1204,30 @@ async def set_guild_auth_policy(
     # somebody it already applies to.
     if LoginMethod.totp in require_methods:
         if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+                LoginMethod.totp.value,
             )
         if not auth_context.session_mfa():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.totp.value
+            )
+
+    # And the one a passkey brings, on the same two conditions. Read from the
+    # passkey markers rather than the factor's, so holding a second factor is
+    # not taken for holding a key.
+    if LoginMethod.passkey in require_methods:
+        if not await auth_posture.login_method_allowed(
+            admin_session, LoginMethod.passkey
+        ):
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+                LoginMethod.passkey.value,
+            )
+        if not auth_context.session_passkey():
+            raise _auth_policy_refusal(
+                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+                LoginMethod.passkey.value,
             )
 
     policy_row = await session.get(GuildAuthPolicy, guild_id)
@@ -1295,6 +1326,7 @@ async def set_guild_session_limit(
 )
 async def delete_guild(
     guild_id: int,
+    http_request: Request,
     request: GuildDeletionRequest,
     session: SessionDep,
     admin_session: AdminSessionDep,
@@ -1308,17 +1340,19 @@ async def delete_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
 
-    # Password gate — skipped for SSO-only users (provisioned with a
-    # random hash they were never shown), same rationale as the
-    # account-deletion endpoint. 400 not 401 so the SPA's axios
-    # interceptor doesn't treat a wrong password as a session expiry and
-    # force-log-out the user mid-confirmation.
-    if not await has_federated_identity(admin_session, user_id=current_user.id):
-        if not verify_password(request.password, current_user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.INVALID_PASSWORD,
-            )
+    # Re-check the password, where the account holds one to re-check — the
+    # same gate the account-deletion endpoint asks. An account that signs in
+    # another way has none to supply, and answers with a recent sign-in and the
+    # phrase. 400 not 401 so the SPA's axios interceptor doesn't treat a wrong
+    # password as a session expiry and force-log-out the user
+    # mid-confirmation.
+    await require_password_or_recent_proof(
+        http_request,
+        admin_session,
+        current_user,
+        request.password,
+        detail=GuildMessages.INVALID_PASSWORD,
+    )
 
     # The whole phrase is uppercased, including the name, so casing on
     # the guild name can't trip up the confirmation.

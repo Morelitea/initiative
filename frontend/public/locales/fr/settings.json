@@ -642,6 +642,10 @@
       "totp": {
         "label": "Application d'authentification",
         "help": "Un code d'une application, demandé après le mot de passe. Chacun l'active pour soi."
+      },
+      "passkey": {
+        "label": "Clé d'accès",
+        "help": "Une clé conservée sur un appareil ou dans un gestionnaire de mots de passe, qui répond à une invite au lieu d'un mot de passe. Chacun les ajoute pour soi."
       }
     },
     "sessionLifetime": {
@@ -1115,10 +1119,16 @@
       "error": "Impossible d'enregistrer l'exigence de connexion",
       "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
       "signInWith": "Se connecter avec {{providerName}}",
+      "unmetFactor": "Saisissez d'abord un code de votre application d'authentification, puis enregistrez.",
+      "presentFactor": "Saisir un code",
+      "unmetPasskey": "Présentez d'abord votre clé d'accès, puis enregistrez.",
+      "presentPasskey": "Présenter la clé d'accès",
       "anyProvider": "L'un de nos fournisseurs de connexion",
       "anyProviderHelp": "Les membres peuvent entrer par n'importe quel fournisseur configuré par cette communauté. Se connecter ailleurs sur cette installation ne compte pas.",
       "requireFactor": "Exiger aussi un second facteur",
-      "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter."
+      "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
+      "requirePasskey": "Exiger aussi une clé d'accès",
+      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter."
     },
     "apiAccess": {
       "title": "Accès par API",
@@ -1435,6 +1445,8 @@
       "auth.sign_in_failed": "Connexion refusée",
       "auth.signed_out": "Déconnexion",
       "auth.password_changed": "Mot de passe modifié",
+      "auth.passkey_registered": "Clé d'accès ajoutée",
+      "auth.passkey_removed": "Clé d'accès supprimée",
       "auth.identity_linked": "Authentification unique liée",
       "auth.refresh_reuse_detected": "Jeton de session réutilisé rejeté"
     }
@@ -1444,7 +1456,16 @@
     "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
-    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
+    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo.",
+    "setPasswordTitle": "Définir un mot de passe",
+    "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",
+    "removePassword": "Supprimer votre mot de passe",
+    "removePasswordFromBrowser": "Abandonnez votre mot de passe depuis un navigateur connecté à ce site.",
+    "removePasswordTitle": "Supprimer votre mot de passe",
+    "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. S'il vous en reste moins de trois, un nouveau jeu vous sera présenté : conservez-le.",
+    "removePasswordCodes": "Conservez-les en lieu sûr. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Chaque code sert une fois, et ils ne vous seront plus montrés. Les codes que vous déteniez auparavant ne fonctionnent plus.",
+    "passwordRemoved": "Votre mot de passe a été supprimé.",
+    "removePasswordError": "Impossible de supprimer votre mot de passe."
   },
   "privacy": {
     "title": "Confidentialité",
@@ -1543,7 +1564,49 @@
     "codePlaceholder": "123456",
     "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
     "copyUnavailable": "Copie impossible — notez les codes à la main.",
-    "notOffered": "Cette installation ne propose pas l'application d'authentification."
+    "notOffered": "Cette installation ne propose pas l'application d'authentification.",
+    "passwordlessCodes": "Votre compte se connecte sans mot de passe. Ces codes vous permettent d'en redéfinir un si vous perdez votre clé d'accès."
+  },
+  "passkeys": {
+    "title": "Clés d'accès",
+    "description": "Connectez-vous avec l'empreinte, le visage ou le verrouillage d'écran de votre appareil plutôt qu'avec votre mot de passe.",
+    "loading": "Vérification…",
+    "listError": "Impossible de vérifier les clés d'accès de ce compte. Rechargez la page.",
+    "empty": "Pas encore de clé d'accès.",
+    "emptyHint": "Une clé d'accès reste sur votre téléphone, votre ordinateur ou dans votre gestionnaire de mots de passe, et ne fonctionne que sur ce site.",
+    "add": "Ajouter une clé d'accès",
+    "addTitle": "Ajouter une clé d'accès",
+    "addPrompt": "Donnez-lui un nom que vous reconnaîtrez plus tard. Votre navigateur s'occupe du reste.",
+    "nameLabel": "Nom",
+    "namePlaceholder": "Ordinateur, téléphone, clé de sécurité",
+    "passwordLabel": "Mot de passe actuel",
+    "continue": "Continuer",
+    "prompting": "Suivez l'invite de votre navigateur pour terminer.",
+    "promptingHint": "Votre navigateur ou votre gestionnaire de mots de passe vous demande de confirmer. Rien d'autre à faire ici.",
+    "added": "Clé d'accès ajoutée.",
+    "rename": "Renommer",
+    "renameTitle": "Renommer la clé d'accès",
+    "renamePrompt": "Ce nom n'est que pour vous, pour distinguer vos clés d'accès.",
+    "save": "Enregistrer",
+    "renamed": "Clé d'accès renommée.",
+    "remove": "Supprimer",
+    "removeTitle": "Supprimer la clé d'accès",
+    "removeConfirm": "{{name}} ne vous connectera plus. Vous pourrez en ajouter une autre quand vous le souhaitez.",
+    "removed": "Clé d'accès supprimée.",
+    "synced": "Synchronisée",
+    "addedOn": "Ajoutée le {{date}}",
+    "lastUsed": "Dernière utilisation le {{date}}",
+    "neverUsed": "Pas encore utilisée.",
+    "cancelled": "Vous avez annulé, ou l'invite a expiré.",
+    "alreadyRegistered": "Cet appareil ou ce gestionnaire de mots de passe possède déjà une clé d'accès pour ce site.",
+    "siteMismatch": "Impossible de créer une clé d'accès à cette adresse : elle ne correspond pas à l'adresse pour laquelle ce site est configuré. La personne qui gère le site peut corriger cela.",
+    "browserError": "Votre navigateur n'a pas pu créer la clé d'accès. Réessayez.",
+    "unsupported": "Ce navigateur ne peut pas créer de clé d'accès. Ouvrez cette page dans un navigateur à jour.",
+    "siteUnsupported": "Les clés d'accès exigent que ce site ait un vrai nom de domaine et https. La personne qui gère le site peut y remédier.",
+    "limitReached": "Ce compte a autant de clés d'accès qu'il peut en avoir ({{limit}}). Supprimez-en une pour en ajouter une autre.",
+    "addFromBrowser": "Une clé d'accès s'ajoute depuis un navigateur connecté à ce site. « Ajouter une clé d'accès » en ouvre un pour vous.",
+    "notOffered": "Ce site ne propose pas de clés d'accès. Celles que vous avez sont conservées.",
+    "error": "Cela n'a pas fonctionné. Réessayez."
   },
   "providerDefaults": {
     "title": "Ce dont hérite une communauté",

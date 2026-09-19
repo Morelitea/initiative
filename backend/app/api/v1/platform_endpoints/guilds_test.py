@@ -21,7 +21,9 @@ from sqlmodel import select
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.user import UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
 from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.platform.user import User
 from app.testing.factories import (
     create_federated_identity,
     guild_administration,
@@ -29,7 +31,23 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
     get_auth_headers,
+    get_auth_token,
 )
+
+
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers a confirmation with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
 
 
 @pytest.mark.integration
@@ -584,19 +602,78 @@ async def test_delete_guild_wrong_confirmation(
 async def test_delete_guild_oidc_user_skips_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """SSO-only users delete with just the phrase — no password required."""
-    user = await create_user(session, email="sso@example.com")
+    """An SSO-provisioned account holds no password, so there is none for the
+    gate to ask for — it deletes with just the phrase."""
+    user = await create_user(session, email="sso@example.com", hashed_password=None)
     await create_federated_identity(session, user, subject="sso-123")
     guild = await create_guild(session, name="To Delete")
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
-    headers = get_auth_headers(user)
+    headers = await _just_signed_in(session, user)
     body = {"confirmation_text": "DELETE GUILD TO DELETE"}
     response = await client.request(
         "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
     )
 
     assert response.status_code == 204
+
+
+@pytest.mark.integration
+async def test_delete_guild_passkey_only_admin_skips_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """An admin who signs in with a credential and holds no password at all."""
+    user = await create_user(
+        session, email="passkey-admin@example.com", hashed_password=None
+    )
+    session.add(
+        UserPasskey(
+            user_id=user.id,
+            credential_id=b"delete-guild-key",
+            public_key=b"public-key-bytes",
+            rp_id="localhost",
+            sign_count=0,
+            transports=["internal"],
+            name="Laptop",
+        )
+    )
+    await session.commit()
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=await _just_signed_in(session, user),
+        json={"confirmation_text": "DELETE GUILD TO DELETE"},
+    )
+
+    assert response.status_code == 204
+
+
+@pytest.mark.integration
+async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """An identity link is not the question: an account can hold both, and one
+    that holds a password confirms with it."""
+    user = await create_user(session, email="linked-admin@example.com")
+    await create_federated_identity(session, user, subject="linked-admin-1")
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=get_auth_headers(user),
+        json={
+            "password": "wrongpassword",
+            "confirmation_text": "DELETE GUILD TO DELETE",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
 
 
 @pytest.mark.integration

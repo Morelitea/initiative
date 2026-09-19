@@ -4,24 +4,32 @@ The ceremony is the library's; what lives here is everything around it — which
 relying party this deployment is, what a credential row holds, and the rules
 about when one may be made or used.
 
-Two things are deliberately *not* here. Nothing in this module opens a session:
-it reports what a ceremony proved and the caller decides what that is worth.
-And no route calls it yet — enrolment is the change after this one.
+One thing is deliberately *not* here: nothing in this module opens a session.
+It reports what a ceremony proved and the caller decides what that is worth.
+
+Every ceremony requires user verification, registration and sign-in alike, so
+a credential this deployment holds proves the person as well as the device.
+``user_verified`` stays on the row because it records what the ceremony
+reported rather than what was asked for.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import webauthn
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
     PublicKeyCredentialDescriptor,
     ResidentKeyRequirement,
     UserVerificationRequirement,
@@ -40,6 +48,11 @@ CEREMONY_TIMEOUT_MS = 60_000
 MAX_PASSKEYS_PER_USER = 20
 
 MAX_NAME_LENGTH = 64
+
+#: The ways of naming the machine itself. A browser treats all three as a
+#: secure context, so a deployment addressed by one is an ordinary development
+#: setup rather than an address passkeys cannot use.
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 class PasskeyLimitReached(Exception):
@@ -89,6 +102,38 @@ def relying_party_name() -> str:
     return relying_party_id()
 
 
+def site_refusal() -> str | None:
+    """Why this deployment's address cannot carry passkeys, or ``None``.
+
+    A credential is bound to a named host reached over https. ``"no_host"``
+    says ``APP_URL`` names no host at all; ``"ip_host"`` says it names an
+    address rather than a domain; ``"insecure_origin"`` says it is plain http
+    somewhere other than the machine itself. All three are properties of the
+    deployment's address, so they are answered before a ceremony is begun
+    rather than by the browser afterwards — and a caller that has one of them
+    never reaches :func:`relying_party_id`, which has no answer to give.
+    """
+    from app.core.config import settings
+
+    parts = urlsplit(settings.APP_URL.strip())
+    host = parts.hostname
+    if not host:
+        return "no_host"
+    # The machine itself is a development address, however it is spelled, so
+    # loopback is settled before the address-rather-than-domain rule.
+    if host.lower() in _LOCAL_HOSTS:
+        return None
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return "ip_host"
+    if parts.scheme.lower() == "http":
+        return "insecure_origin"
+    return None
+
+
 @dataclass(frozen=True)
 class Ceremony:
     """Options for the browser, and the challenge they must come back with."""
@@ -120,7 +165,13 @@ async def list_for_user(session: AsyncSession, *, user_id: int) -> list[UserPass
 
 
 async def count_for_user(session: AsyncSession, *, user_id: int) -> int:
-    return len(await list_for_user(session, user_id=user_id))
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(UserPasskey)
+            .where(UserPasskey.user_id == user_id)
+        )
+    ).one()
 
 
 async def begin_registration(
@@ -147,10 +198,12 @@ async def begin_registration(
             # from a typed address — which is the whole shape of the sign-in
             # this is for.
             resident_key=ResidentKeyRequirement.PREFERRED,
-            # Asked for, not insisted on: a key that only proves the device is
-            # still a way in, and the row records which kind it was so a rule
-            # can tell them apart later.
-            user_verification=UserVerificationRequirement.PREFERRED,
+            # Required: a credential registered here proves the person — a
+            # PIN, a fingerprint, a face — as well as the device, which is
+            # what makes signing in with one a multi-factor authentication and
+            # why no code is asked for afterwards. The row still records what
+            # the ceremony reported.
+            user_verification=UserVerificationRequirement.REQUIRED,
         ),
         exclude_credentials=[
             PublicKeyCredentialDescriptor(id=row.credential_id) for row in existing
@@ -170,8 +223,9 @@ def finish_registration(
         expected_challenge=expected_challenge,
         expected_rp_id=relying_party_id(),
         expected_origin=expected_origin(),
+        require_user_verification=True,
     )
-    transports = credential.get("response", {}).get("transports") or []
+    response = credential.get("response")
     return RegisteredCredential(
         credential_id=bytes(verified.credential_id),
         public_key=bytes(verified.credential_public_key),
@@ -179,8 +233,31 @@ def finish_registration(
         aaguid=verified.aaguid,
         user_verified=bool(verified.user_verified),
         backed_up=bool(verified.credential_backed_up),
-        transports=[str(t) for t in transports],
+        transports=_accepted_transports(
+            response.get("transports") if isinstance(response, dict) else None
+        ),
     )
+
+
+def _accepted_transports(reported: Any) -> list[str]:
+    """The transports the browser reported, keeping the ones WebAuthn defines.
+
+    The value arrives from the client, and the column and the options sent back
+    to a browser later hold whatever is kept, so anything the specification does
+    not name is dropped.
+    """
+    if not isinstance(reported, list):
+        return []
+    kept: list[str] = []
+    for value in reported:
+        if not isinstance(value, str):
+            continue
+        try:
+            AuthenticatorTransport(value)
+        except ValueError:
+            continue
+        kept.append(value)
+    return kept
 
 
 async def store(
@@ -220,26 +297,23 @@ async def store(
     return row
 
 
-async def begin_authentication(
-    session: AsyncSession, *, user_id: int | None = None
-) -> Ceremony:
+def begin_authentication(*, credentials: Sequence[UserPasskey] = ()) -> Ceremony:
     """Options for answering with a credential.
 
-    With no ``user_id`` the allow-list is empty, which is what lets somebody
-    sign in without saying who they are first: the authenticator offers what it
-    holds for this domain and the assertion names the credential.
+    With no ``credentials`` the allow-list is empty, which is what lets
+    somebody sign in without saying who they are first: the authenticator
+    offers what it holds for this domain and the assertion names the
+    credential. A step-up hands over the account's own rows, which it has
+    already read, so the browser is asked for one of those.
     """
-    allow: list[PublicKeyCredentialDescriptor] = []
-    if user_id is not None:
-        allow = [
-            PublicKeyCredentialDescriptor(id=row.credential_id)
-            for row in await list_for_user(session, user_id=user_id)
-        ]
+    allow = [PublicKeyCredentialDescriptor(id=row.credential_id) for row in credentials]
     options = webauthn.generate_authentication_options(
         rp_id=relying_party_id(),
         timeout=CEREMONY_TIMEOUT_MS,
         allow_credentials=allow or None,
-        user_verification=UserVerificationRequirement.PREFERRED,
+        # Required, as at registration: the assertion proves the person as
+        # well as the device, so the session it opens is a multi-factor one.
+        user_verification=UserVerificationRequirement.REQUIRED,
     )
     return Ceremony(
         options=_options_to_dict(options), challenge=bytes(options.challenge)
@@ -264,34 +338,51 @@ class Assertion:
     user_verified: bool
 
 
+@dataclass(frozen=True)
+class AssertionRefusal:
+    """Why an assertion proved nothing, and the credential it named.
+
+    ``unknown`` is a credential id this deployment holds no row for,
+    ``wrong_rp`` one registered while it answered to another domain, and
+    ``invalid`` one whose signature did not check out. ``passkey`` is the row
+    the id named where there is one, so the caller can write the refusal down
+    against the account it belongs to. What the caller answers the client with
+    is the same for all three.
+    """
+
+    reason: Literal["unknown", "wrong_rp", "invalid"]
+    passkey: UserPasskey | None = None
+
+
 async def finish_authentication(
     session: AsyncSession, *, credential: dict[str, Any], expected_challenge: bytes
-) -> Assertion | None:
+) -> Assertion | AssertionRefusal:
     """Check an assertion and record that the credential was used.
 
-    ``None`` when the credential is unknown, was made for another domain, or
-    does not verify — one answer for all three, because the caller's refusal is
-    the same either way.
+    An :class:`AssertionRefusal` where nothing was proved, carrying which of
+    the three it was and the credential the id named. An assertion that did not
+    verify the person is one of the ones that does not verify: user
+    verification is required here.
     """
     raw_id = credential.get("rawId") or credential.get("id")
     if not raw_id:
-        return None
+        return AssertionRefusal(reason="unknown")
     try:
         credential_id = webauthn.base64url_to_bytes(raw_id)
     except Exception:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     row = await find_by_credential_id(
         session, credential_id=credential_id, for_update=True
     )
     if row is None:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     rp_id = relying_party_id()
     if row.rp_id != rp_id:
         # Registered when this deployment answered to another name. It cannot
         # verify here, and saying so is better than a failed signature.
-        return None
+        return AssertionRefusal(reason="wrong_rp", passkey=row)
 
     try:
         verified = webauthn.verify_authentication_response(
@@ -301,9 +392,10 @@ async def finish_authentication(
             expected_origin=expected_origin(),
             credential_public_key=row.public_key,
             credential_current_sign_count=row.sign_count,
+            require_user_verification=True,
         )
     except Exception:
-        return None
+        return AssertionRefusal(reason="invalid", passkey=row)
 
     row.sign_count = int(verified.new_sign_count)
     row.last_used_at = _now()
@@ -315,14 +407,18 @@ async def finish_authentication(
 
 async def rename(
     session: AsyncSession, *, user_id: int, passkey_id: Any, name: str
-) -> bool:
+) -> UserPasskey | None:
+    """Give the account's credential another name, and hand the row back.
+
+    ``None`` when the account holds no such credential.
+    """
     row = await session.get(UserPasskey, passkey_id)
     if row is None or row.user_id != user_id:
-        return False
+        return None
     row.name = name[:MAX_NAME_LENGTH]
     session.add(row)
     await session.flush()
-    return True
+    return row
 
 
 async def remove(session: AsyncSession, *, user_id: int, passkey_id: Any) -> bool:

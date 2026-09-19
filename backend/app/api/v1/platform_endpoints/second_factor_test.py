@@ -774,3 +774,68 @@ async def test_stepping_up_leaves_no_other_session_live(
     ).all()
     assert len(live) == 1, f"expected one live session, found {len(live)}"
     assert live[0].id not in {first_id, child_id}
+
+
+# ---------------------------------------------------------------------------
+# An account that signs in without a password
+# ---------------------------------------------------------------------------
+
+
+async def _passwordless(session: AsyncSession, email: str) -> User:
+    return await create_user(
+        session,
+        email=email,
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+
+
+async def test_the_status_reports_a_passwordless_account(
+    client: AsyncClient, session: AsyncSession
+):
+    """The recovery set answers for the account there rather than for a factor,
+    so it is reported whether or not the authenticator is enrolled."""
+    user = await _passwordless(session, "sf-passwordless@example.com")
+    await totp_service.issue_recovery_codes(session, user_id=user.id)
+    await session.commit()
+
+    response = await client.get("/api/v1/auth/totp", headers=get_auth_headers(user))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["passwordless"] is True
+    assert body["enrolled"] is False
+    assert body["recovery_codes_remaining"] == totp_service.RECOVERY_CODE_COUNT
+
+
+async def test_a_passwordless_account_may_re_issue_its_codes(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _passwordless(session, "sf-regenerate@example.com")
+    first = await totp_service.issue_recovery_codes(session, user_id=user.id)
+    await session.commit()
+
+    # No password to re-check, so what it answers with is the sign-in.
+    response = await client.post(
+        "/api/v1/auth/recovery-codes/regenerate",
+        json={},
+        headers=await _session_headers(session, user),
+    )
+    assert response.status_code == 200, response.text
+    codes = response.json()["codes"]
+    assert len(codes) == totp_service.RECOVERY_CODE_COUNT
+    assert set(codes).isdisjoint(first)
+
+
+async def test_an_account_with_a_password_and_no_factor_has_nothing_to_re_issue(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "sf-regenerate-none@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/recovery-codes/regenerate",
+        json={"current_password": PASSWORD},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TOTP_NOT_ENROLLED"

@@ -323,6 +323,7 @@ def create_upload_token(
     satisfied_providers: Sequence[int] = (),
     satisfied_claims: dict | None = None,
     session_mfa: bool = False,
+    session_passkey: bool = False,
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -348,6 +349,9 @@ def create_upload_token(
         # community that asks for a second factor is made by somebody who
         # presented one.
         "mfa": bool(session_mfa),
+        # And the same for a community that asks for a passkey: the token
+        # carries the standing of the session that asked for it.
+        "pk": bool(session_passkey),
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -357,10 +361,10 @@ def create_upload_token(
 
 def verify_upload_token(
     token: str,
-) -> tuple[int, frozenset[int], dict, bool]:
+) -> tuple[int, frozenset[int], dict, bool, bool]:
     """Verify a scoped upload token; return the user id, its satisfied set,
-    what those providers asserted, and whether the minting session recorded
-    the account's second factor.
+    what those providers asserted, whether the minting session recorded the
+    account's second factor, and whether a passkey opened it.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -393,7 +397,13 @@ def verify_upload_token(
     claims = payload.get("satc")
     if claims is not None and not isinstance(claims, dict):
         raise UploadTokenError("satc must be an object")
-    return user_id, satisfied, dict(claims or {}), bool(payload.get("mfa"))
+    return (
+        user_id,
+        satisfied,
+        dict(claims or {}),
+        bool(payload.get("mfa")),
+        bool(payload.get("pk")),
+    )
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):

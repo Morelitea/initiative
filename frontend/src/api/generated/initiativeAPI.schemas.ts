@@ -482,6 +482,7 @@ export interface AdminUserRead {
   task_completion_haptic_feedback: boolean;
   locale: string;
   has_federated_identity: boolean;
+  has_password: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**
@@ -3988,6 +3989,7 @@ export type GuildAuthPolicyReadRequireMethodsItem =
 export const GuildAuthPolicyReadRequireMethodsItem = {
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 /**
@@ -4018,6 +4020,7 @@ export type GuildAuthPolicyUpdateRequireMethodsItem =
 export const GuildAuthPolicyUpdateRequireMethodsItem = {
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 export interface GuildAuthPolicyUpdate {
@@ -4127,9 +4130,11 @@ export interface GuildCreate {
  *
  * - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
  *   phrase uppercased) so the action can't be triggered by a stray click.
- * - ``password`` is the current user's password. It is ignored for
- *   OIDC-only users (who have no usable password), mirroring the
- *   account-deletion endpoint, which is why it defaults to empty.
+ * - ``password`` is the current user's password. An account that holds
+ *   none — one that signs in with a passkey or through an identity
+ *   provider — has nothing to confirm with and answers with the phrase
+ *   alone, mirroring the account-deletion endpoint, which is why it
+ *   defaults to empty.
  */
 export interface GuildDeletionRequest {
   password?: string;
@@ -4889,6 +4894,7 @@ export const LoginMethod = {
   password: "password",
   sso: "sso",
   totp: "totp",
+  passkey: "passkey",
 } as const;
 
 /**
@@ -5465,6 +5471,159 @@ export type OwnershipTransferResponseCounts = { [key: string]: number };
 export interface OwnershipTransferResponse {
   counts: OwnershipTransferResponseCounts;
   total: number;
+}
+
+export type PasskeyAuthenticationOptionsOptions = { [key: string]: unknown };
+
+/**
+ * What the browser's credential API is handed, as the library renders it.
+ */
+export interface PasskeyAuthenticationOptions {
+  options: PasskeyAuthenticationOptionsOptions;
+}
+
+/**
+ * One credential, as its holder sees it.
+ */
+export interface PasskeyRead {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at?: string | null;
+  backed_up: boolean;
+  user_verified: boolean;
+  transports?: string[];
+  aaguid?: string | null;
+}
+
+/**
+ * What the account holds, for the settings surface.
+ */
+export interface PasskeyList {
+  passkeys?: PasskeyRead[];
+  password_required?: boolean;
+  limit: number;
+  site_supported?: boolean;
+  offered?: boolean;
+}
+
+export type PasskeyRegisterFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer, and the name the person gives the credential.
+ */
+export interface PasskeyRegisterFinish {
+  credential: PasskeyRegisterFinishCredential;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+}
+
+/**
+ * Beginning a registration. The name is settled here, before the browser
+ * makes anything; the password is re-checked as it is for a password change,
+ * and an account with no usable password sends nothing.
+ */
+export interface PasskeyRegisterStart {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+  current_password?: string | null;
+}
+
+export type PasskeyRegistrationOptionsOptions = { [key: string]: unknown };
+
+/**
+ * What the browser's credential API is handed, as the library renders it.
+ */
+export interface PasskeyRegistrationOptions {
+  options: PasskeyRegistrationOptionsOptions;
+}
+
+/**
+ * Removing a way in asks for the password, where there is one.
+ */
+export interface PasskeyRemove {
+  current_password?: string | null;
+}
+
+export interface PasskeyRename {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
+}
+
+export type PasskeySignInFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer.
+ */
+export interface PasskeySignInFinish {
+  credential: PasskeySignInFinishCredential;
+  mobile?: boolean;
+  /** @maxLength 255 */
+  device_name?: string;
+}
+
+/**
+ * A session for a browser, or a way back to the app for a phone.
+ */
+export interface PasskeySignInResult {
+  access_token?: string | null;
+  token_type?: string;
+  redirect_to?: string | null;
+}
+
+/**
+ * Beginning a sign-in. No account is named: the authenticator offers what
+ * it holds for this domain, and the assertion names the credential.
+ */
+export interface PasskeySignInStart {
+  [key: string]: unknown;
+}
+
+export type PasskeyStepUpFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer, presented against the session already open.
+ */
+export interface PasskeyStepUpFinish {
+  credential: PasskeyStepUpFinishCredential;
+}
+
+/**
+ * Setting a password with a recovery code, for an account that holds none.
+ *
+ * The address names the account, the code proves it, and the password is what
+ * the account signs in with from now on.
+ */
+export interface PasswordRecover {
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  recovery_code: string;
+  /** @maxLength 256 */
+  password: string;
+}
+
+/**
+ * Giving up the password. It is asked for one last time, as a change asks
+ * for it; an account holding none has nothing to remove.
+ */
+export interface PasswordRemove {
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  current_password: string;
 }
 
 export interface PasswordResetRequest {
@@ -6803,6 +6962,7 @@ export interface SecondFactorStatus {
   recovery_codes_remaining?: number;
   password_required?: boolean;
   offered?: boolean;
+  passwordless?: boolean;
 }
 
 /**
@@ -7657,6 +7817,7 @@ export interface UserRead {
   task_completion_haptic_feedback: boolean;
   locale: string;
   has_federated_identity: boolean;
+  has_password: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**

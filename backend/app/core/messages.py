@@ -48,6 +48,9 @@ class AuthMessages:
     #: than through a standing credential (an API key, a device token, an app
     #: acting on someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
+    #: The account holds no password to re-check, and the session is not fresh
+    #: enough to stand in for one.
+    RECENT_PROOF_REQUIRED = "RECENT_PROOF_REQUIRED"
     #: The password was right and the account holds a second factor, so the
     #: sign-in is not finished. Answered with the challenge to present it
     #: against.
@@ -67,6 +70,28 @@ class AuthMessages:
     TOTP_NOT_ENROLLED = "TOTP_NOT_ENROLLED"
     #: The recovery code did not match an unused one.
     RECOVERY_CODE_INVALID = "RECOVERY_CODE_INVALID"
+    #: The account already holds as many passkeys as one may.
+    PASSKEY_LIMIT_REACHED = "PASSKEY_LIMIT_REACHED"
+    #: The registration ceremony did not verify, or its challenge is not
+    #: standing: never issued, spent, expired, or out of attempts. One code for
+    #: all of those.
+    PASSKEY_REGISTRATION_INVALID = "PASSKEY_REGISTRATION_INVALID"
+    #: No passkey by that id on this account.
+    PASSKEY_NOT_FOUND = "PASSKEY_NOT_FOUND"
+    #: Passkeys need a named host and https; this deployment's address has
+    #: neither.
+    PASSKEY_SITE_UNSUPPORTED = "PASSKEY_SITE_UNSUPPORTED"
+    #: The assertion did not verify, named a credential nobody registered, or
+    #: its challenge is not standing. One code for all of those.
+    PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
+    #: The deployment does not offer passkeys.
+    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
+    #: The password is the account's only way to start a session, so it stays.
+    PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
+    #: The passkey is the account's only way to start a session, so it stays.
+    PASSKEY_IS_LAST_METHOD = "PASSKEY_IS_LAST_METHOD"
+    #: Removing a password from an account that holds none.
+    PASSWORD_NOT_HELD = "PASSWORD_NOT_HELD"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"
@@ -94,6 +119,9 @@ class GuildMessages:
     #: factor, and this one did not. Answered apart from the provider step-up
     #: because what satisfies it is a code rather than a sign-in page.
     GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
+    #: The community asks that the session was opened, or stepped up, with a
+    #: passkey, and this one was not.
+    GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
     #: The community declines personal API keys. Raised both when one is being
     #: minted into the guild and when a request carrying one addresses it, so

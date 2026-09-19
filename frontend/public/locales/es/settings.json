@@ -642,6 +642,10 @@
       "totp": {
         "label": "Aplicación de autenticación",
         "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
+      },
+      "passkey": {
+        "label": "Clave de acceso",
+        "help": "Una clave guardada en un dispositivo o en un gestor de contraseñas, que responde a una solicitud en lugar de a una contraseña. Cada persona las añade por su cuenta."
       }
     },
     "sessionLifetime": {
@@ -1115,10 +1119,16 @@
       "error": "No se pudo guardar el requisito de inicio de sesión",
       "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
       "signInWith": "Iniciar sesión con {{providerName}}",
+      "unmetFactor": "Introduce primero un código de tu aplicación de autenticación y luego guarda.",
+      "presentFactor": "Introducir un código",
+      "unmetPasskey": "Presenta primero tu clave de acceso y luego guarda.",
+      "presentPasskey": "Presentar clave de acceso",
       "anyProvider": "Cualquiera de nuestros proveedores",
       "anyProviderHelp": "Los miembros pueden entrar por cualquier proveedor que esta comunidad haya configurado. Iniciar sesión en otro sitio de esta instalación no cuenta.",
       "requireFactor": "Exigir también un segundo factor",
-      "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión."
+      "requireFactorHelp": "Los miembros deben haber presentado un código de su aplicación de autenticación en esta sesión. Pueden añadirlo sin cerrar sesión.",
+      "requirePasskey": "Exigir también una clave de acceso",
+      "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión."
     },
     "apiAccess": {
       "title": "Acceso por API",
@@ -1435,6 +1445,8 @@
       "auth.sign_in_failed": "Inicio de sesión rechazado",
       "auth.signed_out": "Sesión cerrada",
       "auth.password_changed": "Contraseña cambiada",
+      "auth.passkey_registered": "Clave de acceso añadida",
+      "auth.passkey_removed": "Clave de acceso eliminada",
       "auth.identity_linked": "Inicio de sesión único vinculado",
       "auth.refresh_reuse_detected": "Token de sesión reutilizado rechazado"
     }
@@ -1444,7 +1456,16 @@
     "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
-    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador."
+    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador.",
+    "setPasswordTitle": "Establecer una contraseña",
+    "setPasswordDescription": "Tu cuenta inicia sesión sin contraseña. Establece una aquí para tener otra forma de entrar.",
+    "removePassword": "Quitar tu contraseña",
+    "removePasswordFromBrowser": "Renuncia a tu contraseña desde un navegador con la sesión iniciada en este sitio.",
+    "removePasswordTitle": "Quitar tu contraseña",
+    "removePasswordBody": "A partir de ahora entrarás con tu clave de acceso, y se cerrará tu sesión en los demás dispositivos. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Si te quedan menos de tres códigos, se te mostrará un juego nuevo: guárdalo.",
+    "removePasswordCodes": "Guárdalos en un lugar seguro. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Cada código sirve una vez y no volverás a verlos. Los códigos que tuvieras antes han dejado de servir.",
+    "passwordRemoved": "Se ha quitado tu contraseña.",
+    "removePasswordError": "No se ha podido quitar tu contraseña."
   },
   "privacy": {
     "title": "Privacidad",
@@ -1543,7 +1564,49 @@
     "codePlaceholder": "123456",
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
     "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
-    "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
+    "notOffered": "Esta instalación no ofrece la aplicación de autenticación.",
+    "passwordlessCodes": "Tu cuenta inicia sesión sin contraseña. Con estos códigos vuelves a establecer una si pierdes tu clave de acceso."
+  },
+  "passkeys": {
+    "title": "Claves de acceso",
+    "description": "Inicia sesión con la huella, la cara o el bloqueo de pantalla de tu dispositivo en lugar de tu contraseña.",
+    "loading": "Comprobando…",
+    "listError": "No se ha podido comprobar qué claves de acceso tiene esta cuenta. Recarga la página.",
+    "empty": "Aún no hay claves de acceso.",
+    "emptyHint": "Una clave de acceso vive en tu teléfono, tu portátil o tu gestor de contraseñas, y solo sirve en este sitio.",
+    "add": "Añadir una clave de acceso",
+    "addTitle": "Añadir una clave de acceso",
+    "addPrompt": "Ponle un nombre que reconozcas después. Del resto se encarga tu navegador.",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Portátil, teléfono, llave de seguridad",
+    "passwordLabel": "Contraseña actual",
+    "continue": "Continuar",
+    "prompting": "Sigue las indicaciones de tu navegador para terminar.",
+    "promptingHint": "Tu navegador o tu gestor de contraseñas te está pidiendo confirmación. Aquí no hay nada más que hacer.",
+    "added": "Clave de acceso añadida.",
+    "rename": "Cambiar el nombre",
+    "renameTitle": "Cambiar el nombre de la clave de acceso",
+    "renamePrompt": "Este nombre es solo para ti, para distinguir unas claves de otras.",
+    "save": "Guardar",
+    "renamed": "Nombre cambiado.",
+    "remove": "Quitar",
+    "removeTitle": "Quitar la clave de acceso",
+    "removeConfirm": "{{name}} dejará de iniciar tu sesión. Puedes añadir otra cuando quieras.",
+    "removed": "Clave de acceso quitada.",
+    "synced": "Sincronizada",
+    "addedOn": "Añadida el {{date}}",
+    "lastUsed": "Usada por última vez el {{date}}",
+    "neverUsed": "Aún sin usar.",
+    "cancelled": "Has cancelado, o la solicitud ha caducado.",
+    "alreadyRegistered": "Este dispositivo o gestor de contraseñas ya tiene una clave de acceso para este sitio.",
+    "siteMismatch": "No se puede crear una clave de acceso en esta dirección: no coincide con la dirección para la que está configurado este sitio. Quien gestiona el sitio puede corregirlo.",
+    "browserError": "Tu navegador no ha podido crear la clave de acceso. Inténtalo de nuevo.",
+    "unsupported": "Este navegador no puede crear claves de acceso. Abre esta página en un navegador actualizado.",
+    "siteUnsupported": "Las claves de acceso necesitan que este sitio tenga un nombre de dominio propio y https. Quien gestiona el sitio puede solucionarlo.",
+    "limitReached": "Esta cuenta tiene todas las claves de acceso que puede tener ({{limit}}). Quita una para añadir otra.",
+    "addFromBrowser": "Las claves de acceso se añaden desde un navegador con la sesión iniciada en este sitio. «Añadir una clave de acceso» abre uno.",
+    "notOffered": "Este sitio no ofrece claves de acceso. Las que ya tienes se conservan.",
+    "error": "No ha funcionado. Inténtalo de nuevo."
   },
   "providerDefaults": {
     "title": "Lo que hereda una comunidad",

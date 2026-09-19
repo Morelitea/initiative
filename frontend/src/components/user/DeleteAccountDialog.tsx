@@ -151,17 +151,16 @@ export function DeleteAccountDialog({
   };
 
   const expectedConfirmation = CONFIRMATION_PHRASES[action];
-  // SSO accounts have no usable password (the random hash assigned at
-  // provisioning was never shown to the user). The backend skips the
-  // password gate for these users; the dialog hides the password field
-  // accordingly.
-  const isOidcUser = user.has_federated_identity;
+  // Some accounts hold no password at all — provisioned through an identity
+  // provider, or signing in with a passkey. The server asks such an account
+  // for none, so the dialog offers no field to fill.
+  const passwordless = !user.has_password;
 
   // Validation
   const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
   const canConfirm =
-    (isOidcUser || password.length > 0) && confirmationText === expectedConfirmation;
+    (passwordless || password.length > 0) && confirmationText === expectedConfirmation;
 
   const description: Record<DeletionStep, string> = {
     "choose-type": t("deleteAccount.chooseTypeDescription"),
@@ -303,7 +302,7 @@ export function DeleteAccountDialog({
               </AlertDescription>
             </Alert>
 
-            {!isOidcUser && (
+            {!passwordless && (
               <div className="space-y-2">
                 <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
                 <Input

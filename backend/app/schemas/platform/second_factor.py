@@ -25,6 +25,10 @@ class SecondFactorStatus(SanitizedBaseModel):
     #: an enrolment already made is left alone and simply stops being asked
     #: for, so the surface stops offering it rather than pretending it is off.
     offered: bool = True
+    #: Whether the account signs in without a password. The recovery set then
+    #: serves the account itself rather than a factor, and is reported here
+    #: whether or not the authenticator is enrolled.
+    passwordless: bool = False
 
 
 class SecondFactorEnrolStart(SanitizedBaseModel):

@@ -32,16 +32,17 @@ export const SettingsGuildDangerZonePage = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // SSO accounts have no usable password (the random hash assigned at
-  // provisioning was never shown to the user). The backend skips the
-  // password gate for these users, so we hide the field.
-  const isOidcUser = user?.has_federated_identity === true;
+  // Some accounts hold no password at all — provisioned through an identity
+  // provider, or signing in with a passkey. The server asks such an account
+  // for none, so the field is hidden. An account still on its way in is asked,
+  // as it is today.
+  const passwordless = user?.has_password === false;
 
   // The whole phrase is uppercased, including the guild name, so casing
   // never trips up the confirmation. Mirrors the backend check.
   const expectedPhrase = activeGuild ? `DELETE GUILD ${activeGuild.name.toUpperCase()}` : "";
   const canConfirmDelete =
-    deleteConfirmText === expectedPhrase && (isOidcUser || password.length > 0);
+    deleteConfirmText === expectedPhrase && (passwordless || password.length > 0);
 
   const resetDialog = () => {
     setDeleteConfirmText("");
@@ -156,7 +157,7 @@ export const SettingsGuildDangerZonePage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-2">
-            {!isOidcUser && (
+            {!passwordless && (
               <div className="space-y-2">
                 <Label htmlFor="delete-guild-password">
                   {t("settings.deleteConfirmPasswordLabel")}

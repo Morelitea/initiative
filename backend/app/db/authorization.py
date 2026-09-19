@@ -23,8 +23,12 @@ here rather than holding a copy.
 
 **Editing one.** Change the text here and ship it; boot applies it. A change
 that alters *behaviour* still wants a migration, so the deployment converges
-before it serves rather than at its next restart — the migration should
-``op.execute`` the constant from this module, never a copy of it.
+before it serves rather than at its next restart. That migration states the
+new body in full and keeps the one it replaces for its downgrade: a revision
+is a record of one moment, and a body read from this module would change what
+a past revision does every time this file is edited. ``CREATE OR REPLACE``
+keeps the OID, so every policy deferring to the function picks the new body up
+unrewritten.
 
 The bodies name guild-local tables that are not on the ``search_path`` at
 creation time, so applying them needs ``check_function_bodies = false``. That
@@ -182,6 +186,15 @@ AS $function$
                       'totp' = ANY(p.require_methods)
                       AND COALESCE(
                             current_setting('app.session_mfa', true), 'false'
+                          ) <> 'true'
+                  )
+                  -- Or a passkey, where the community asks for one. Its own
+                  -- leg rather than the factor's: an assertion records the
+                  -- second factor too, so the two are asked for separately.
+                  OR (
+                      'passkey' = ANY(p.require_methods)
+                      AND COALESCE(
+                            current_setting('app.session_passkey', true), 'false'
                           ) <> 'true'
                   )
                   -- Or any of its own, whichever provider served it. Named

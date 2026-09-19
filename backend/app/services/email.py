@@ -520,6 +520,102 @@ async def announce_second_factor_change(
         )
 
 
+async def send_passkey_changed_email(
+    session: AsyncSession, user: User, *, added: bool, name: str
+) -> None:
+    """Tell the account a passkey was added or removed.
+
+    Account mail, like the second-factor letter: a way in changed, so it goes
+    to every address its holder has proved rather than only the nominated one.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    holder = _display_name(user)
+    key = "passkey.added" if added else "passkey.removed"
+    body = f"""
+    <p>{email_t("passkey.greeting", locale=locale, name=holder)}</p>
+    <p>{email_t(f"{key}.body", locale=locale, passkey=name)}</p>
+    <p>{email_t("passkey.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t(f"{key}.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(f"{key}.textBody", locale=locale, passkey=name, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_passkey_change(
+    session: AsyncSession, user: User, *, added: bool, name: str
+) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the passkey has been added or removed and committed.
+    A deployment with no mail configured still made that change, and answering
+    the request with a failure would say otherwise.
+    """
+    try:
+        await send_passkey_changed_email(session, user, added=added, name=name)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; passkey change for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce passkey change for account %s", user.id)
+
+
+async def send_password_removed_email(session: AsyncSession, user: User) -> None:
+    """Tell the account its password is gone and what signs it in now.
+
+    Account mail, like the passkey and second-factor letters: a way in changed,
+    so it goes to every address its holder has proved rather than only the
+    nominated one.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    body = f"""
+    <p>{email_t("passwordRemoved.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("passwordRemoved.body", locale=locale)}</p>
+    <p>{email_t("passwordRemoved.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("passwordRemoved.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t("passwordRemoved.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t("passwordRemoved.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_password_removed(session: AsyncSession, user: User) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the password is gone and committed. A deployment with
+    no mail configured still made that change, and answering the request with a
+    failure would say otherwise.
+    """
+    try:
+        await send_password_removed_email(session, user)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; password removal for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce password removal for account %s", user.id)
+
+
 async def send_initiative_added_email(
     session: AsyncSession, user: User, initiative_name: str
 ) -> None:

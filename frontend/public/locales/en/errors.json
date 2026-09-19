@@ -670,8 +670,16 @@
   "TOTP_NOT_ENROLLED": "Two-factor authentication isn't set up on this account.",
   "RECOVERY_CODE_INVALID": "That recovery code isn't right, or it has already been used.",
   "TOTP_NOT_PERMITTED": "This site doesn't offer the authenticator app.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — an authenticator code goes alongside a password or single sign-on, not instead of one.",
+  "PASSKEY_LIMIT_REACHED": "This account holds as many passkeys as it can. Remove one to add another.",
+  "PASSKEY_REGISTRATION_INVALID": "That passkey couldn't be registered. Start again from the Add button.",
+  "PASSKEY_NOT_FOUND": "That passkey isn't one of this account's.",
+  "PASSKEY_SITE_UNSUPPORTED": "Passkeys need this site to have a proper domain name and https. It doesn't yet, so they can't be added here.",
+  "PASSKEY_SIGN_IN_INVALID": "That passkey didn't work. Try again, or sign in another way.",
+  "PASSKEY_NOT_PERMITTED": "This site doesn't offer passkeys.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — a password, single sign-on or a passkey. An authenticator code goes alongside one of those, not instead of one.",
   "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
+  "GUILD_AUTH_PASSKEY_REQUIRED": "This community asks for a passkey. Present one to carry on.",
+  "RECENT_PROOF_REQUIRED": "This change needs a fresh sign-in first.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Enter your authenticator code to break glass.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "Breaking glass needs an authenticator, and this account has none. Set one up under Security first.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Nothing answered at that address",
@@ -698,5 +706,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "The template has to be one of this wiki’s own pages",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connect that provider to your community before saying what its groups mean",
-  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there"
+  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there",
+  "PASSWORD_IS_LAST_METHOD": "Your password is the only way into this account. Add a passkey first.",
+  "PASSKEY_IS_LAST_METHOD": "This passkey is the only way into this account. Set a password or add another passkey first.",
+  "PASSWORD_NOT_HELD": "This account doesn't have a password."
 }

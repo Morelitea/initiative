@@ -4,7 +4,9 @@ import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.sc
 import {
   activeMention,
   entityMentionSyntax,
+  hasReservedSigil,
   MENTIONABLE_TYPES,
+  RESERVED_SIGILS,
   supportsEntityMentions,
   typeForTrigger,
   typeTrigger,
@@ -26,6 +28,15 @@ describe("what can be mentioned", () => {
 
   it("still reads the shorthand already sitting in stored comments", () => {
     expect(typeForTrigger("doc")).toBe(SearchEntityType.document);
+  });
+
+  // A name is what a mention points at, so it does not also spell one. The
+  // backend holds names to the same two characters; this is this side of it.
+  it("keeps the two triggers out of a typed name", () => {
+    expect(RESERVED_SIGILS).toEqual(["@", "#"]);
+    expect(hasReservedSigil("#1 laptop")).toBe(true);
+    expect(hasReservedSigil("me@work")).toBe(true);
+    expect(hasReservedSigil("Work laptop")).toBe(false);
   });
 });
 

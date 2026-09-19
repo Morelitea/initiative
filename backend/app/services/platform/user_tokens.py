@@ -135,23 +135,26 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
     await session.commit()
 
 
-# ``user_tokens`` is a shared/public table the system engine holds DELETE on
-# (see app/db/system_grants.py), so the sweep runs on AdminSessionLocal with
-# no guild routing.
+# ``user_tokens`` and ``auth_challenges`` are shared/public tables the system
+# engine holds DELETE on (see app/db/system_grants.py), so the sweep runs on
+# AdminSessionLocal with no guild routing.
 TOKEN_PURGE_POLL_SECONDS = 3600
 
 
 async def process_expired_token_purge() -> None:
-    """Hourly background sweep: delete expired ``user_tokens`` rows.
+    """Hourly background sweep: delete the rows nothing can use again.
 
-    Covers all purposes — consumed/expired password-reset and email-verify
-    tokens as well as device tokens past their sliding-window cap. Without
-    it, expired rows accumulate forever.
+    Covers all ``user_tokens`` purposes — consumed/expired password-reset and
+    email-verify tokens as well as device tokens past their sliding-window cap
+    — and the part-way sign-ins in ``auth_challenges``, which end the same way.
+    Without it, those rows accumulate forever.
     """
     from app.db.session import AdminSessionLocal
 
     async with AdminSessionLocal() as session:
         await purge_expired_tokens(session)
+        await challenge_service.purge_expired(session)
+        await session.commit()
 
 
 # Device token functions
@@ -353,6 +356,23 @@ async def revoke_active_device_tokens(
         )
         .values(consumed_at=datetime.now(timezone.utc))
     )
+
+
+async def revoke_device_tokens_first(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> None:
+    """Revoke the account's device tokens and commit them, ahead of the rest.
+
+    They live on a table the system engine holds no UPDATE on, so the two
+    halves of a credential change cannot share a transaction. This half goes
+    first, which is the order that fails safely: everything after it is staged,
+    so a failure there leaves the account signed out on its phones with the
+    password where it was.
+    """
+    await revoke_active_device_tokens(session, user_id=user_id)
+    await session.commit()
 
 
 async def revoke_user_sessions(

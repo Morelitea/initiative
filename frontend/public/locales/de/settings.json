@@ -642,6 +642,10 @@
       "totp": {
         "label": "Authenticator-App",
         "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
+      },
+      "passkey": {
+        "label": "Passkey",
+        "help": "Ein Schlüssel auf einem Gerät oder in einem Passwort-Manager, der eine Abfrage beantwortet statt eines Passworts. Jede Person fügt ihn selbst hinzu."
       }
     },
     "sessionLifetime": {
@@ -1115,10 +1119,16 @@
       "error": "Anmeldeanforderung konnte nicht gespeichert werden",
       "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
       "signInWith": "Mit {{providerName}} anmelden",
+      "unmetFactor": "Gib zuerst einen Code aus deiner Authenticator-App ein und speichere dann.",
+      "presentFactor": "Code eingeben",
+      "unmetPasskey": "Lege zuerst deinen Passkey vor und speichere dann.",
+      "presentPasskey": "Passkey vorlegen",
       "anyProvider": "Einer unserer Anmeldeanbieter",
       "anyProviderHelp": "Mitglieder können über jeden Anbieter kommen, den diese Community eingerichtet hat. Eine Anmeldung anderswo auf dieser Installation zählt nicht.",
       "requireFactor": "Zusätzlich einen zweiten Faktor verlangen",
-      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
+      "requireFactorHelp": "Mitglieder müssen in dieser Sitzung einen Code aus ihrer Authenticator-App vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
+      "requirePasskey": "Zusätzlich einen Passkey verlangen",
+      "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen."
     },
     "apiAccess": {
       "title": "API-Zugriff",
@@ -1435,6 +1445,8 @@
       "auth.sign_in_failed": "Anmeldung abgelehnt",
       "auth.signed_out": "Abgemeldet",
       "auth.password_changed": "Passwort geändert",
+      "auth.passkey_registered": "Passkey hinzugefügt",
+      "auth.passkey_removed": "Passkey entfernt",
       "auth.identity_linked": "Single Sign-on verknüpft",
       "auth.refresh_reuse_detected": "Wiederverwendetes Sitzungstoken abgelehnt"
     }
@@ -1444,7 +1456,16 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
+    "setPasswordTitle": "Passwort festlegen",
+    "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
+    "removePassword": "Passwort entfernen",
+    "removePasswordFromBrowser": "Gib dein Passwort in einem Browser auf, der bei dieser Seite angemeldet ist.",
+    "removePasswordTitle": "Passwort entfernen",
+    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Wenn du weniger als drei Codes hast, bekommst du einen neuen Satz angezeigt – bewahre ihn auf.",
+    "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal. Alle Codes, die du vorher hattest, funktionieren nicht mehr.",
+    "passwordRemoved": "Dein Passwort wurde entfernt.",
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
   },
   "privacy": {
     "title": "Privatsphäre",
@@ -1543,7 +1564,49 @@
     "codePlaceholder": "123456",
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
-    "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+    "notOffered": "Diese Installation bietet die Authenticator-App nicht an.",
+    "passwordlessCodes": "Dein Konto meldet sich ohne Passwort an. Mit diesen Codes legst du wieder eines fest, falls du deinen Passkey verlierst."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "description": "Melde dich mit Fingerabdruck, Gesicht oder Bildschirmsperre deines Geräts an – statt mit deinem Passwort.",
+    "loading": "Wird geprüft …",
+    "listError": "Es ließ sich nicht prüfen, welche Passkeys dieses Konto hat. Lade die Seite neu.",
+    "empty": "Noch keine Passkeys.",
+    "emptyHint": "Ein Passkey liegt auf deinem Telefon, deinem Laptop oder in deinem Passwort-Manager und funktioniert nur auf dieser Seite.",
+    "add": "Passkey hinzufügen",
+    "addTitle": "Passkey hinzufügen",
+    "addPrompt": "Gib ihm einen Namen, den du später wiedererkennst. Um den Rest kümmert sich dein Browser.",
+    "nameLabel": "Name",
+    "namePlaceholder": "Laptop, Telefon, Sicherheitsschlüssel",
+    "passwordLabel": "Aktuelles Passwort",
+    "continue": "Weiter",
+    "prompting": "Folge der Abfrage deines Browsers, um fertig zu werden.",
+    "promptingHint": "Dein Browser oder Passwort-Manager bittet dich um Bestätigung. Hier ist nichts weiter zu tun.",
+    "added": "Passkey hinzugefügt.",
+    "rename": "Umbenennen",
+    "renameTitle": "Passkey umbenennen",
+    "renamePrompt": "Dieser Name ist nur für dich, damit du deine Passkeys auseinanderhalten kannst.",
+    "save": "Speichern",
+    "renamed": "Passkey umbenannt.",
+    "remove": "Entfernen",
+    "removeTitle": "Passkey entfernen",
+    "removeConfirm": "{{name}} meldet dich dann nicht mehr an. Du kannst jederzeit einen neuen hinzufügen.",
+    "removed": "Passkey entfernt.",
+    "synced": "Synchronisiert",
+    "addedOn": "Hinzugefügt am {{date}}",
+    "lastUsed": "Zuletzt verwendet {{date}}",
+    "neverUsed": "Noch nicht verwendet.",
+    "cancelled": "Du hast abgebrochen, oder die Abfrage ist abgelaufen.",
+    "alreadyRegistered": "Dieses Gerät oder dieser Passwort-Manager hat bereits einen Passkey für diese Seite.",
+    "siteMismatch": "An dieser Adresse lässt sich kein Passkey erstellen – sie stimmt nicht mit der Adresse überein, für die diese Seite eingerichtet ist. Wer die Seite betreibt, kann das korrigieren.",
+    "browserError": "Dein Browser konnte den Passkey nicht erstellen. Versuche es erneut.",
+    "unsupported": "Dieser Browser kann keine Passkeys erstellen. Öffne diese Seite in einem aktuellen Browser.",
+    "siteUnsupported": "Passkeys brauchen für diese Seite einen richtigen Domainnamen und https. Wer die Seite betreibt, kann das einrichten.",
+    "limitReached": "Dieses Konto hat so viele Passkeys, wie es haben kann ({{limit}}). Entferne einen, um einen neuen hinzuzufügen.",
+    "addFromBrowser": "Ein Passkey wird in einem Browser hinzugefügt, der auf dieser Seite angemeldet ist. „Passkey hinzufügen“ öffnet einen für dich.",
+    "notOffered": "Diese Seite bietet keine Passkeys an. Die vorhandenen bleiben erhalten.",
+    "error": "Das hat nicht geklappt. Versuche es erneut."
   },
   "providerDefaults": {
     "title": "Was eine Community erbt",

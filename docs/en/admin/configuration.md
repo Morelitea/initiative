@@ -17,7 +17,7 @@ Initiative is configured with **environment variables**, set in your `docker-com
 | `DATABASE_URL` | Provisioning connection — migrations and community/role creation (`app_provisioner`, not a superuser). | *required* |
 | `DATABASE_URL_APP` | Security-enforced connection for normal requests (`app_user`). | *required* |
 | `DATABASE_URL_ADMIN` | Connection for migrations and background jobs (`app_admin`). | *required* |
-| `APP_URL` | Your public base URL. Needed for single-sign-on callbacks and correct links. | — |
+| `APP_URL` | Your public base URL. Needed for single-sign-on callbacks and correct links. Passkeys are bound to its host: change the host and every passkey registered stops answering, so people sign in another way and add new ones. | — |
 
 See [Installation](installation.md#the-database-connections) for how the database URLs work together.
 

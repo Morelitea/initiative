@@ -250,5 +250,29 @@
       "body": "Your account no longer asks for a code when you sign in, and the recovery codes you had have been discarded. You were signed out everywhere else.",
       "textBody": "Two-factor authentication is now off for your account, and your recovery codes have been discarded."
     }
+  },
+  "passwordRemoved": {
+    "subject": "Your password was removed",
+    "title": "Your password was removed",
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "body": "Your account no longer has a password. From now on you sign in with your passkey or your sign-in provider. Keep your recovery codes somewhere safe — they are how you set a password again if you ever need one.",
+    "fallbackText": "If this wasn't you, use one of your recovery codes to set a password straight away and get in touch with whoever runs this site.",
+    "textBody": "Your account no longer has a password. You now sign in with your passkey or your sign-in provider."
+  },
+  "passkey": {
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "fallbackText": "If this wasn't you, change your password straight away and get in touch with whoever runs this site.",
+    "added": {
+      "subject": "A passkey was added to your account",
+      "title": "A passkey was added to your account",
+      "body": "A passkey called <strong>{{passkey}}</strong> can now be used to sign in to your account. Passkeys live on the device or password manager that made them, so keep the one you used to hand.",
+      "textBody": "A passkey called {{passkey}} was added to your account and can now be used to sign in."
+    },
+    "removed": {
+      "subject": "A passkey was removed from your account",
+      "title": "A passkey was removed from your account",
+      "body": "The passkey called <strong>{{passkey}}</strong> can no longer be used to sign in. The other ways you sign in are unchanged, and you are still signed in everywhere you were.",
+      "textBody": "The passkey called {{passkey}} was removed from your account and can no longer be used to sign in."
+    }
   }
 }

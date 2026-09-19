@@ -18,11 +18,12 @@ from app.core.auth_context import (
     set_device_token_id,
     set_satisfied_providers,
     set_session_mfa,
+    set_session_passkey,
     claims_from_provider_auth,
     set_satisfied_claims,
 )
 from app.services.auth import guild_provider_connections as guild_connections
-from app.services.auth.assurance import SECOND_FACTOR_AMR
+from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -309,6 +310,7 @@ async def get_current_user(
     set_satisfied_providers(None)
     set_satisfied_claims(None)
     set_session_mfa(False)
+    set_session_passkey(False)
     set_device_token_id(None)
     # Not an API key until the branch below says so, which is the answer a
     # community that declines them admits.
@@ -385,6 +387,9 @@ async def get_current_user(
     # legacy token and on every credential that is not a session, which is
     # fail-closed for a community that asks for one.
     set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+    # And which kind of key answered, where one did. A community asking for a
+    # passkey is asking for that; a code presented after a password is not it.
+    set_session_passkey(carries_passkey(token_data.amr or ()))
 
     if not token_data.sub:
         raise HTTPException(
@@ -448,6 +453,7 @@ async def get_current_user_optional(
 
 
 async def get_current_active_user(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """The caller, if their account may hold a session at all.
@@ -461,6 +467,10 @@ async def get_current_active_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
+    # Whose request this is, for the few things that run before the endpoint
+    # does and have only the request to read — see
+    # ``app.core.rate_limit.get_user_or_ip_key``.
+    request.state.user_id = current_user.id
     return current_user
 
 
@@ -588,6 +598,7 @@ async def _enforce_guild_auth_policy(
     guild_id: int,
     satisfied: frozenset[int] | str,
     session_mfa: bool = False,
+    session_passkey: bool = False,
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -643,6 +654,15 @@ async def _enforce_guild_auth_policy(
     if LoginMethod.totp in policy.require_methods and not session_mfa:
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
+
+    # And a passkey, where the community asks for one. Read from the passkey
+    # markers rather than the factor's, so each method is answered by itself:
+    # an assertion records the second factor as well as the key.
+    if LoginMethod.passkey in policy.require_methods and not session_passkey:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
@@ -800,6 +820,7 @@ async def _load_guild_context(
             guild_id,
             satisfied,
             auth_context.session_mfa(),
+            auth_context.session_passkey(),
         )
         # Every grantee gets the ``support`` role — a first-class identity for
         # PAM access rather than a ``member`` masquerade. It is the content
@@ -833,6 +854,7 @@ async def _load_guild_context(
         guild_id,
         satisfied,
         auth_context.session_mfa(),
+        auth_context.session_passkey(),
     )
     return GuildContext(
         guild=guild,
@@ -894,12 +916,16 @@ async def get_guild_membership(
             satisfied=auth_context.satisfied_providers(),
         )
     except GuildAccessError as exc:
-        if exc.detail == GuildMessages.GUILD_AUTH_FACTOR_REQUIRED:
+        if exc.detail in (
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+        ):
             # 401 for the same reason as the provider step-up below, and apart
-            # from it because what satisfies this is a code presented against
-            # the session already open rather than a sign-in page to visit.
-            # RFC 9470 all the same: the session authenticated, and what is
-            # missing is a factor.
+            # from it because what satisfies these is presented against the
+            # session already open rather than a sign-in page to visit. RFC
+            # 9470 all the same: the session authenticated, and what is missing
+            # is a factor. The detail says which of the two, so the dialog
+            # knows whether to ask for a code or run a ceremony.
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=exc.detail,
@@ -1032,6 +1058,7 @@ async def _apply_guild_session_context(
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
             session_mfa=auth_context.session_mfa(),
+            session_passkey=auth_context.session_passkey(),
         )
         return session
 
@@ -1065,6 +1092,7 @@ async def _apply_guild_session_context(
         satisfied_providers=_satp_param(satisfied),
         satisfied_claims=auth_context.satisfied_claims(),
         session_mfa=auth_context.session_mfa(),
+        session_passkey=auth_context.session_passkey(),
     )
     # The initiatives where this member holds "Full access", for the sync DAC
     # checks (gate 4, without an async query) and for the policies that read
@@ -1267,9 +1295,13 @@ async def _authenticate_upload_query_token(
     """
     # 1. Scoped upload token (preferred for native media).
     try:
-        user_id, token_satisfied, token_claims, token_mfa = verify_upload_token(
-            token_param
-        )
+        (
+            user_id,
+            token_satisfied,
+            token_claims,
+            token_mfa,
+            token_passkey,
+        ) = verify_upload_token(token_param)
     except UploadTokenError:
         pass
     else:
@@ -1278,6 +1310,7 @@ async def _authenticate_upload_query_token(
         set_satisfied_providers(token_satisfied)
         set_satisfied_claims(token_claims)
         set_session_mfa(token_mfa)
+        set_session_passkey(token_passkey)
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).
@@ -1322,6 +1355,8 @@ async def get_upload_user(
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
+    set_session_mfa(False)
+    set_session_passkey(False)
     set_device_token_id(None)
     set_api_key_credential(False)
 
@@ -1417,6 +1452,11 @@ async def get_upload_user(
         )
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_satisfied_claims(claims_from_provider_auth(token_data.satd))
+    # What the session proved about the person, read from its own ``amr`` as
+    # ``get_current_user`` reads it — a community asking for either answers a
+    # picture and a download the same way it answers a page.
+    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+    set_session_passkey(carries_passkey(token_data.amr or ()))
     return user
 
 

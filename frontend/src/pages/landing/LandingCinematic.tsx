@@ -297,7 +297,9 @@ export const LandingCinematic = () => {
             </Button>
             <ModeToggle />
             <Button asChild>
-              <Link to="/login">{t("nav.signIn")}</Link>
+              <Link to="/login" search={true}>
+                {t("nav.signIn")}
+              </Link>
             </Button>
           </div>
         </div>
@@ -434,7 +436,9 @@ export const LandingCinematic = () => {
               className="h-12 px-8 font-semibold text-base transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-primary/25"
               asChild
             >
-              <Link to="/login">{t("hero.ctaSignIn")}</Link>
+              <Link to="/login" search={true}>
+                {t("hero.ctaSignIn")}
+              </Link>
             </Button>
             {startButton(
               "lg",
@@ -856,7 +860,9 @@ export const LandingCinematic = () => {
                 className="h-14 px-10 font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-primary/25 hover:shadow-xl"
                 asChild
               >
-                <Link to="/login">{t("cta.signIn")}</Link>
+                <Link to="/login" search={true}>
+                  {t("cta.signIn")}
+                </Link>
               </Button>
               {startButton("lg", "h-14 px-10 font-semibold text-lg")}
             </div>

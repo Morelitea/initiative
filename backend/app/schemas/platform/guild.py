@@ -312,10 +312,11 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 #: What a community may require, beyond naming one provider. ``sso`` means its
 #: own single sign-on, whichever of its providers serves it — the deployment's
 #: providers are not its own. ``totp`` means the session carried the account's
-#: second factor. The platform's ``login_method`` vocabulary minus ``password``,
+#: second factor; ``passkey`` that it was opened, or stepped up, with one. The
+#: platform's ``login_method`` vocabulary minus ``password``,
 #: which only the deployment decides about: the same asymmetry the database
 #: holds as a CHECK on ``require_methods``.
-GuildRequirableMethod = Literal["sso", "totp"]
+GuildRequirableMethod = Literal["sso", "totp", "passkey"]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
@@ -393,9 +394,11 @@ class GuildDeletionRequest(SanitizedBaseModel):
 
     - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
       phrase uppercased) so the action can't be triggered by a stray click.
-    - ``password`` is the current user's password. It is ignored for
-      OIDC-only users (who have no usable password), mirroring the
-      account-deletion endpoint, which is why it defaults to empty.
+    - ``password`` is the current user's password. An account that holds
+      none — one that signs in with a passkey or through an identity
+      provider — has nothing to confirm with and answers with the phrase
+      alone, mirroring the account-deletion endpoint, which is why it
+      defaults to empty.
     """
 
     password: RawTextStr = ""

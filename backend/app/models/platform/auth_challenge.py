@@ -44,13 +44,17 @@ class AuthChallenge(SQLModel, table=True):
         sa_column=Column(LargeBinary, nullable=False, unique=True)
     )
 
-    user_id: int = Field(
+    #: The account the challenge belongs to, where one is known. A passkey
+    #: sign-in begins from the credential rather than from an address, so the
+    #: account is named by the assertion that answers rather than by the row.
+    user_id: Optional[int] = Field(
+        default=None,
         sa_column=Column(
             Integer,
             ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
+            nullable=True,
             index=True,
-        )
+        ),
     )
 
     purpose: str = Field(sa_column=Column(Text, nullable=False))

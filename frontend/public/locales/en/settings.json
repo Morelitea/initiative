@@ -642,6 +642,10 @@
       "totp": {
         "label": "Authenticator app",
         "help": "A code from an app, asked for after a password. People turn it on for themselves."
+      },
+      "passkey": {
+        "label": "Passkey",
+        "help": "A key held by a device or a password manager, answering a prompt instead of a password. People add them for themselves."
       }
     },
     "sessionLifetime": {
@@ -1115,10 +1119,16 @@
       "error": "Could not save the sign-in requirement",
       "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
       "signInWith": "Sign in with {{providerName}}",
+      "unmetFactor": "Enter a code from your authenticator app first, then save.",
+      "presentFactor": "Enter a code",
+      "unmetPasskey": "Present your passkey first, then save.",
+      "presentPasskey": "Present passkey",
       "anyProvider": "Any of our sign-in providers",
       "anyProviderHelp": "Members can come in through any provider this community has set up. Signing in somewhere else on this deployment does not count.",
       "requireFactor": "Also require a second factor",
-      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out."
+      "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
+      "requirePasskey": "Also require a passkey",
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
     },
     "apiAccess": {
       "title": "API access",
@@ -1435,6 +1445,8 @@
       "auth.sign_in_failed": "Sign-in refused",
       "auth.signed_out": "Signed out",
       "auth.password_changed": "Password changed",
+      "auth.passkey_registered": "Passkey added",
+      "auth.passkey_removed": "Passkey removed",
       "auth.identity_linked": "Single sign-on linked",
       "auth.refresh_reuse_detected": "Reused session token rejected"
     }
@@ -1444,7 +1456,16 @@
     "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
-    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
+    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
+    "setPasswordTitle": "Set a password",
+    "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
+    "removePassword": "Remove your password",
+    "removePasswordFromBrowser": "Give your password up from a browser signed in to this site.",
+    "removePasswordTitle": "Remove your password",
+    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If you hold fewer than three codes, you'll be shown a fresh set — save them.",
+    "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again. Any codes you held before have stopped working.",
+    "passwordRemoved": "Your password has been removed.",
+    "removePasswordError": "Could not remove your password."
   },
   "privacy": {
     "title": "Privacy",
@@ -1543,7 +1564,49 @@
     "codePlaceholder": "123456",
     "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
     "copyUnavailable": "Couldn't copy — write the codes down instead.",
-    "notOffered": "This deployment does not offer the authenticator app."
+    "notOffered": "This deployment does not offer the authenticator app.",
+    "passwordlessCodes": "Your account signs in without a password. These codes are how you set one again if you lose your passkey."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "description": "Sign in with your device's fingerprint, face or screen lock instead of your password.",
+    "loading": "Checking…",
+    "listError": "Couldn't check which passkeys this account holds. Reload the page to try again.",
+    "empty": "No passkeys yet.",
+    "emptyHint": "A passkey lives on your phone, your laptop or your password manager, and works only on this site.",
+    "add": "Add a passkey",
+    "addTitle": "Add a passkey",
+    "addPrompt": "Give it a name you'll recognise later. Your browser asks for the rest.",
+    "nameLabel": "Name",
+    "namePlaceholder": "Laptop, phone, security key",
+    "passwordLabel": "Current password",
+    "continue": "Continue",
+    "prompting": "Follow your browser's prompt to finish.",
+    "promptingHint": "Your browser or password manager is asking you to confirm. Nothing more to do here.",
+    "added": "Passkey added.",
+    "rename": "Rename",
+    "renameTitle": "Rename passkey",
+    "renamePrompt": "This name is only for you, so you can tell your passkeys apart.",
+    "save": "Save",
+    "renamed": "Passkey renamed.",
+    "remove": "Remove",
+    "removeTitle": "Remove passkey",
+    "removeConfirm": "{{name}} will stop signing you in. You can add another whenever you like.",
+    "removed": "Passkey removed.",
+    "synced": "Synced",
+    "addedOn": "Added {{date}}",
+    "lastUsed": "Last used {{date}}",
+    "neverUsed": "Not used yet.",
+    "cancelled": "You cancelled, or the prompt timed out.",
+    "alreadyRegistered": "This device or password manager already holds a passkey for this site.",
+    "siteMismatch": "A passkey can't be made at this address — it doesn't match the address this site is set up under. Whoever runs the site can put that right.",
+    "browserError": "Your browser couldn't make the passkey. Try again.",
+    "unsupported": "This browser can't make a passkey. Open this page in an up-to-date browser instead.",
+    "siteUnsupported": "Passkeys need this site to have a proper domain name and https. Whoever runs it can put that right.",
+    "limitReached": "This account holds as many passkeys as it can ({{limit}}). Remove one to add another.",
+    "addFromBrowser": "A passkey is added from a browser signed in to this site. Add opens one for you.",
+    "notOffered": "This site doesn't offer passkeys. The ones you have are kept.",
+    "error": "That didn't work. Try again."
   },
   "providerDefaults": {
     "title": "What a community inherits",
