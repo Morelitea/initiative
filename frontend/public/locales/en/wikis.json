@@ -50,7 +50,10 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "moved": "Page moved",
-    "draft": "Draft"
+    "draft": "Draft",
+    "previous": "Previous",
+    "next": "Next",
+    "nav": "Pages either side of this one"
   },
   "links": {
     "title": "Connections",

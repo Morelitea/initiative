@@ -7,10 +7,10 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
-    SessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -43,12 +43,17 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _validate_project_write_access(
-    session: SessionDep,
+    session: AsyncSession,
     project_id: int,
     user: User,
     guild_id: int,
 ) -> Project:
-    """Validate user has write access to a project using centralized DAC."""
+    """Validate user has write access to a project using centralized DAC.
+
+    Takes a plain session: this is a helper the handlers call, not a route
+    dependency, so it accepts whichever session its caller is already using
+    (the guild-routed one, in every case today).
+    """
     project_stmt = (
         select(Project)
         .join(Project.initiative)

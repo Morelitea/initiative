@@ -193,7 +193,7 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
 
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "auth_options": ["providers", "require_sign_in", "restrictions"],
+        "auth_options": ["providers", "restrictions"],
         "allow_api_keys": False,
         "enforce_compliance_session": True,
     }

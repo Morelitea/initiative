@@ -541,7 +541,7 @@ async def test_operator_grants_and_withdraws_guild_auth_options(
     row = {r["name"]: r for r in listed.json()}[guild.name]
     assert row["auth_options"] == []
 
-    # One option without the other: a guild may offer its IdP without insisting.
+    # One switch without the other: neither needs the other to count.
     partial = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
         json={"auth_options": ["providers"]},
@@ -552,11 +552,11 @@ async def test_operator_grants_and_withdraws_guild_auth_options(
 
     both = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"auth_options": ["providers", "require_sign_in"]},
+        json={"auth_options": ["providers", "restrictions"]},
         headers=headers,
     )
     assert both.status_code == 200
-    assert both.json()["auth_options"] == ["providers", "require_sign_in"]
+    assert both.json()["auth_options"] == ["providers", "restrictions"]
 
     none = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
@@ -581,7 +581,7 @@ async def test_guild_auth_options_null_is_noop(
         session, email="owner-gauth-null@example.com", role=UserRole.owner
     )
     guild = await create_guild(
-        session, creator=owner, auth_options=["providers", "require_sign_in"]
+        session, creator=owner, auth_options=["providers", "restrictions"]
     )
     headers = get_auth_headers(owner)
 
@@ -591,7 +591,7 @@ async def test_guild_auth_options_null_is_noop(
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["auth_options"] == ["providers", "require_sign_in"]
+    assert resp.json()["auth_options"] == ["providers", "restrictions"]
     assert resp.json()["max_users"] == 5
 
 

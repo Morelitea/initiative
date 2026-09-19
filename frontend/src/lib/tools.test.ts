@@ -430,4 +430,47 @@ describe("tool imports", () => {
     expect(toolEnvelopeType(Tool.calendar)).toBe("initiative-calendar");
     expect(toolForEnvelopeType("initiative-backup")).toBeNull();
   });
+
+  // The data-jobs table labels a job by its `source` column, which the backend
+  // writes as the envelope type for an import and the adapter key for an
+  // export. Both are derived from the enum, so both label sets are too — a key
+  // that matches no source renders as its own raw key in the UI, which is how
+  // `initiative-calendar-events` survived a calendar rename unnoticed.
+  it("labels every import source in every locale", async () => {
+    const { BULK_EXPORT_TOOLS, toolEnvelopeType } = await import("@/lib/tools");
+    for (const locale of locales) {
+      const file = await import(`../../public/locales/${locale}/imports.json`);
+      const labels = (file.default ?? file).table.source as Record<string, string>;
+      const expected = ["backup", ...BULK_EXPORT_TOOLS.map(toolEnvelopeType)];
+      expect(Object.keys(labels).sort(), `${locale}/imports.json table.source`).toEqual(
+        expected.sort()
+      );
+      for (const key of expected) {
+        expect(labels[key], `${locale}/imports.json table.source.${key} is empty`).toBeTruthy();
+      }
+    }
+  });
+
+  it("labels every export source in every locale", async () => {
+    const { BULK_EXPORT_TOOLS, toolKebabSingular } = await import("@/lib/tools");
+    for (const locale of locales) {
+      const file = await import(`../../public/locales/${locale}/exports.json`);
+      const labels = (file.default ?? file).table.source as Record<string, string>;
+      // `tasks` is a project sub-resource and `initiative`/`guild` are the
+      // aggregate backup scopes — the same three non-tool sources the backend's
+      // adapter-coverage test allows.
+      const expected = [
+        "tasks",
+        "initiative",
+        "guild",
+        ...BULK_EXPORT_TOOLS.map(toolKebabSingular),
+      ];
+      expect(Object.keys(labels).sort(), `${locale}/exports.json table.source`).toEqual(
+        expected.sort()
+      );
+      for (const key of expected) {
+        expect(labels[key], `${locale}/exports.json table.source.${key} is empty`).toBeTruthy();
+      }
+    }
+  });
 });

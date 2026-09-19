@@ -86,5 +86,8 @@
   "createGallery": "New Gallery",
   "moderation": "Moderation",
   "wikis": "Wikis",
-  "createWiki": "New Wiki"
+  "createWiki": "New Wiki",
+  "sidebar": {
+    "resize": "Drag to resize the sidebar"
+  }
 }

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, FilePlus2, Plus, Search, Settings } from "lucide-react";
+import { ChevronLeft, FilePlus, Search, Settings } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   useCreateWikiPage,
+  useMoveWikiDocument,
   useMoveWikiPage,
   useRemoveWikiDocument,
   useWiki,
@@ -26,7 +27,11 @@ import {
 } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
+import { TOOL_ICONS, toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
+
+// Adding a document to a wiki is named by the documents tool itself, so the row
+// says which tool it reaches into rather than inventing a second mark for it.
+const DocumentIcon = TOOL_ICONS[Tool.document];
 
 interface WikiSidebarContentProps {
   wikiId: number;
@@ -62,14 +67,11 @@ export const WikiSidebarContent = ({
   const wikiQuery = useWiki(wikiId);
   const pagesQuery = useWikiPages(wikiId);
   const createPage = useCreateWikiPage(wikiId);
-  // The page a drag is moving. The mutation is per page, so the hook is built
-  // for whichever one the tree hands over — `0` while none is in flight, which
-  // the tree never triggers.
-  const [movingPageId, setMovingPageId] = useState(0);
   // Putting a document in the wiki, and taking one back out.
   const [addingDocument, setAddingDocument] = useState(false);
   const removeDocument = useRemoveWikiDocument(wikiId);
-  const movePage = useMoveWikiPage(wikiId, movingPageId);
+  const movePage = useMoveWikiPage(wikiId);
+  const moveDocument = useMoveWikiDocument(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
 
@@ -99,9 +101,16 @@ export const WikiSidebarContent = ({
 
   // A drop tells the server where the page landed; the tree is then redrawn
   // from what comes back rather than from what the drag guessed.
-  const movePageTo = (page: WikiPageSummary, position: number) => {
-    setMovingPageId(page.id);
-    movePage.mutate({ position });
+  const movePageTo = (page: WikiPageSummary, parentPageId: number | null, position: number) => {
+    // Both kinds of row sit in one tree; which endpoint keeps their place is
+    // the only thing that differs, because a document's place belongs to the
+    // wiki — and it is always at the top of it, so it is never filed under a
+    // page.
+    if (page.kind === WikiPageKind.document) {
+      moveDocument.mutate({ documentId: page.id, position });
+    } else {
+      movePage.mutate({ pageId: page.id, parent_page_id: parentPageId, position });
+    }
   };
 
   return (
@@ -214,13 +223,13 @@ export const WikiSidebarContent = ({
                       onClick={() => addPage()}
                       disabled={createPage.isPending}
                     >
-                      <Plus className="h-4 w-4" />
+                      <FilePlus className="h-4 w-4" />
                       <span>{t("pages.newPage")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton size="sm" onClick={() => setAddingDocument(true)}>
-                      <FilePlus2 className="h-4 w-4" />
+                      <DocumentIcon className="h-4 w-4" />
                       <span>{t("documents.addDocument")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

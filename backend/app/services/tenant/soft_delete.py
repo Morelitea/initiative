@@ -16,6 +16,9 @@ walks here are ordered against that: a stamp goes deepest-first, a restore
 shallowest-first, and each level is flushed before the next so the order is the
 one the database sees rather than the one the unit of work picks.
 
+That same read-only rule is why a row which holds a NAME lets go of it on the
+way INTO the bin rather than on the way out — see ``RELEASED_NAMES``.
+
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
 ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
 ``app.db.guild_ddl`` from the SoftDeleteMixin subclasses) admits only a routed
@@ -31,6 +34,7 @@ the doomed documents are also removed.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy import text
@@ -78,10 +82,90 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
     Queue: [(QueueItem, "queue_id")],
     CounterGroup: [(Counter, "counter_group_id")],
     Wiki: [(WikiPage, "wiki_id"), (Comment, "wiki_id")],
+    # A page takes what is filed under it: a section is put away whole, the
+    # same self-cascade a comment thread uses.
+    WikiPage: [(WikiPage, "parent_page_id")],
     # A page takes its sub-pages with it: a section is put away whole,
     # the same self-cascade a comment thread uses.
     Comment: [(Comment, "parent_comment_id")],
 }
+
+
+#: Rows that hold a NAME which is unique among their siblings, mapped to the
+#: column holding it and the column that says which siblings it competes with.
+#:
+#: A name is an address somebody types, not a fact about the row, so a row in
+#: the bin has no business keeping one: a wiki page called "Step 1", thrown
+#: away, must not stop the next "Step 1" from being written. It therefore
+#: PARKS its name when it is stamped and takes it back when it is restored —
+#: with a suffix, if somebody has taken it in the meantime, because coming back
+#: under a slightly different address always beats not coming back.
+#:
+#: Which way round that happens is forced by the freeze: a trashed row takes no
+#: content writes, so the park rides along in the same UPDATE as the stamp, and
+#: the reclaim is a second UPDATE once the row is live again.
+RELEASED_NAMES: dict[type, tuple[str, str]] = {
+    WikiPage: ("slug", "wiki_id"),
+}
+
+#: What a parked name is parked behind. Deliberately outside the alphabet these
+#: names are generated from (see ``wikis.slugify_page_title``), so a parked name
+#: can never be one a live row would pick, and the id after it makes it unique
+#: among everything else in the bin.
+_PARK = "~"
+
+
+def _name_limit(model: type, column: str, fallback: int) -> int:
+    """How long the column lets a name be."""
+    return model.__table__.c[column].type.length or fallback
+
+
+def _park_name(row: SoftDeleteMixin) -> None:
+    """Let go of the row's name, in the same write that stamps it."""
+    spec = RELEASED_NAMES.get(type(row))
+    if spec is None:
+        return
+    column, _scope = spec
+    current = getattr(row, column, None)
+    if not current or _PARK in current:
+        return
+    suffix = f"{_PARK}{row.id}"
+    limit = _name_limit(type(row), column, len(current) + len(suffix))
+    setattr(row, column, f"{current[: limit - len(suffix)]}{suffix}")
+
+
+async def _reclaim_name(session: AsyncSession, row: SoftDeleteMixin) -> None:
+    """Take the name back, now that the row is live enough to be written.
+
+    The one it parked, if it is still free; the same with ``-2``, ``-3``, … if
+    a row written since has it. Live siblings only — the query goes through the
+    session's soft-delete filter — so two rows in the bin never argue over a
+    name neither of them is using.
+    """
+    spec = RELEASED_NAMES.get(type(row))
+    if spec is None:
+        return
+    column, scope_column = spec
+    parked = getattr(row, column, None) or ""
+    if _PARK not in parked:
+        return
+    wanted = parked.rsplit(_PARK, 1)[0]
+    model = type(row)
+    statement = select(getattr(model, column)).where(
+        getattr(model, scope_column) == getattr(row, scope_column)
+    )
+    taken = set((await session.exec(statement)).all())
+
+    limit = _name_limit(model, column, len(wanted))
+    candidate = wanted
+    suffix = 2
+    while candidate in taken:
+        tail = f"-{suffix}"
+        candidate = f"{wanted[: limit - len(tail)]}{tail}"
+        suffix += 1
+    setattr(row, column, candidate)
+    session.add(row)
+    await session.flush()
 
 
 def _utc_now() -> datetime:
@@ -163,12 +247,14 @@ async def soft_delete_entity(
             child.deleted_at = deleted_at
             child.deleted_by = deleted_by_user_id
             child.purge_at = purge_at
+            _park_name(child)
             session.add(child)
         await session.flush()
 
     entity.deleted_at = deleted_at
     entity.deleted_by = deleted_by_user_id
     entity.purge_at = purge_at
+    _park_name(entity)
     session.add(entity)
     await session.flush()
 
@@ -247,6 +333,7 @@ async def restore_entity(
     entity.purge_at = None
     session.add(entity)
     await session.flush()
+    await _reclaim_name(session, entity)
 
     for level in levels:
         for child in level:
@@ -255,6 +342,8 @@ async def restore_entity(
             child.purge_at = None
             session.add(child)
         await session.flush()
+        for child in level:
+            await _reclaim_name(session, child)
 
 
 async def _purge_relationships(

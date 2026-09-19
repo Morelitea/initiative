@@ -1,11 +1,20 @@
 """Wiki pages: the spine, and the slugs that address it.
 
-A wiki's pages are a flat, ordered list. That order is one column —
-``position`` — and this module owns every operation that has to keep it
-coherent: naming a page, placing it, moving it, and reading the list back.
+A wiki's pages form a tree. That tree is two columns — ``parent_page_id`` and
+``position`` — and this module owns every operation that has to keep them
+coherent: naming a page, filing it, moving it, and reading the tree back.
 
-Pages do not nest. Structure *inside* a page is its headings, which are content
-and live in the body, so the navigation nests without the table needing to.
+Two kinds of thing sit in that tree: the pages written in the wiki, and the
+documents borrowed into it. A borrowed document keeps its own address and its
+own owner, so the wiki cannot write a position onto it — it records where it
+put it instead, in ``Wiki.document_positions`` — and it is always at the top
+level, because which page it is filed under would be a fact about a document
+that belongs to other places too. :func:`load_list` is the one place pages and
+documents are read as a single order, and :func:`place_in_list` is the one
+place that order is rewritten.
+
+A third structure, the headings inside a page, is content rather than filing
+and lives in the body.
 
 What is deliberately NOT here: anything a page connects to. A page ``part_of``
 a task, a page ``related_to`` another wiki's page, and the ``references`` edges
@@ -16,7 +25,7 @@ the edges are meaning, and they are kept apart on purpose.
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -25,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
+from app.core.messages import WikiMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -146,14 +156,29 @@ async def unique_page_slug(
     raise ValueError("could not derive a unique wiki page slug")
 
 
-async def next_position(session: AsyncSession, wiki_id: int) -> int:
-    """Where a new page lands: at the end of the list.
+async def next_position(
+    session: AsyncSession, wiki: Wiki, parent_page_id: int | None = None
+) -> int:
+    """Where a new page lands: after the last thing filed beside it.
 
     Positions are sparse and never renumbered on insert, so this is a read of
-    the current maximum rather than a count.
+    the current maximum rather than a count. At the top level it reads the
+    documents' places too, because they are filed there and a new page goes
+    after them.
     """
-    statement = select(WikiPage.position).where(WikiPage.wiki_id == wiki_id)
-    positions = (await session.exec(statement)).all()
+    statement = select(WikiPage.position).where(WikiPage.wiki_id == wiki.id)
+    statement = (
+        statement.where(WikiPage.parent_page_id.is_(None))
+        if parent_page_id is None
+        else statement.where(WikiPage.parent_page_id == parent_page_id)
+    )
+    positions = list((await session.exec(statement)).all())
+    if parent_page_id is None:
+        positions.extend(
+            int(spot)
+            for spot in (wiki.document_positions or {}).values()
+            if isinstance(spot, int) and spot != UNPLACED
+        )
     return (max(positions) + 1) if positions else 0
 
 
@@ -190,6 +215,210 @@ async def load_pages(
     return list(
         (await session.exec(statement.order_by(*_ORDERINGS[page_order]()))).all()
     )
+
+
+#: Where something nobody has placed sits: after everything that has been. Far
+#: enough out that no real position reaches it, and the same for every one of
+#: them, so unplaced documents fall back to the tie-break below (their name).
+UNPLACED = 1_000_000_000
+
+
+def _document_position(wiki: Wiki, document: Any) -> int:
+    """Where this wiki puts this document, or the end if it has not said."""
+    recorded = (wiki.document_positions or {}).get(str(document.id))
+    return int(recorded) if isinstance(recorded, int) else UNPLACED
+
+
+def _sort_key(wiki: Wiki, item: Any, page_order: WikiPageOrder):
+    """One key over both kinds of row, so a list can hold them together.
+
+    A page and a document answer the same three questions in different words —
+    a page has a ``title`` and a document a ``name`` — so the key asks each in
+    its own terms and the comparison never sees the difference.
+    """
+    is_page = isinstance(item, WikiPage)
+    title = (item.title if is_page else item.name) or ""
+    if page_order is WikiPageOrder.title:
+        return (title.lower(), item.id)
+    if page_order is WikiPageOrder.recently_updated:
+        # Negated rather than reversed: the whole list sorts one way, and
+        # "recently updated" means the newest first.
+        return (-item.updated_at.timestamp(), -item.id)
+    position = item.position if is_page else _document_position(wiki, item)
+    # Ties are ordinary: positions are sparse and a page arrives at 0 before
+    # anybody drags anything. Broken by arrival — pages first, then the
+    # documents borrowed in — rather than by name, so a list somebody has not
+    # arranged still reads in the order it was written.
+    return (position, 0 if is_page else 1, item.id)
+
+
+def _parent_of(item: Any, known: set[int]) -> int | None:
+    """What a row is filed under, as far as THIS read can see.
+
+    A page whose parent is not in the set — a draft hidden from a reader, a
+    page the reader may not see — is drawn at the top rather than dropped, so a
+    partial read still shows every row it was given.
+    """
+    parent = getattr(item, "parent_page_id", None)
+    return parent if parent in known else None
+
+
+async def load_list(
+    session: AsyncSession,
+    wiki: Wiki,
+    *,
+    include_drafts: bool = True,
+) -> list[Any]:
+    """A wiki's whole tree — its pages and its documents — in reading order.
+
+    Depth-first: each row, then everything filed under it. The navigation draws
+    this, and the order it comes back in is the order it reads in. Assembled
+    here rather than in SQL because it spans two tables and a wiki's list is
+    the size of a table of contents, not of a table.
+    """
+    pages = await load_pages(
+        session, wiki.id, page_order=wiki.page_order, include_drafts=include_drafts
+    )
+    documents = await linked_documents(session, wiki.id)
+    known = {page.id for page in pages}
+
+    filed: dict[int | None, list[Any]] = {}
+    for item in (*pages, *documents):
+        parent = _parent_of(item, known) if isinstance(item, WikiPage) else None
+        filed.setdefault(parent, []).append(item)
+    for group in filed.values():
+        group.sort(key=lambda item: _sort_key(wiki, item, wiki.page_order))
+
+    ordered: list[Any] = []
+
+    def walk(parent: int | None) -> None:
+        for item in filed.get(parent, []):
+            ordered.append(item)
+            if isinstance(item, WikiPage):
+                walk(item.id)
+
+    walk(None)
+    return ordered
+
+
+async def siblings_of(
+    session: AsyncSession, wiki: Wiki, parent_page_id: int | None
+) -> list[Any]:
+    """Everything filed in one place, in order.
+
+    At the top of a wiki that is its unfiled pages and every document borrowed
+    into it; under a page it is that page's own, because a document is never
+    filed under anything.
+    """
+    pages = [
+        page
+        for page in await load_pages(session, wiki.id, page_order=wiki.page_order)
+        if page.parent_page_id == parent_page_id
+    ]
+    group: list[Any] = [*pages]
+    if parent_page_id is None:
+        group.extend(await linked_documents(session, wiki.id))
+    group.sort(key=lambda item: _sort_key(wiki, item, wiki.page_order))
+    return group
+
+
+async def place_in_list(
+    session: AsyncSession,
+    wiki: Wiki,
+    moved: Any,
+    position: int,
+    parent_page_id: int | None = None,
+) -> None:
+    """File one row somewhere and put it in order there — what a drag is.
+
+    Only the row's new neighbours are renumbered: positions mean something
+    among the things filed together and nothing across the tree, so one pass
+    over one group leaves no two of them sharing a number. Each is written
+    where it can be — a page in its own column, a document in the wiki's record
+    of where it put things — so a document is reordered without being touched.
+
+    Drafts are counted even for a reader who cannot see them: the index comes
+    from a list the person dragging was looking at, and they can write here.
+    """
+    if isinstance(moved, WikiPage):
+        moved.parent_page_id = parent_page_id
+        session.add(moved)
+
+    others = [
+        item
+        for item in await siblings_of(session, wiki, parent_page_id)
+        if not (type(item) is type(moved) and item.id == moved.id)
+    ]
+    index = min(position, len(others))
+    ordered = [*others[:index], moved, *others[index:]]
+
+    placements = dict(wiki.document_positions or {})
+    for spot, item in enumerate(ordered):
+        if isinstance(item, WikiPage):
+            item.position = spot
+            session.add(item)
+        else:
+            placements[str(item.id)] = spot
+    # Replaced rather than mutated: SQLAlchemy tracks the attribute, not what
+    # the dict does to itself.
+    wiki.document_positions = placements
+    session.add(wiki)
+
+
+def descendant_ids(pages: Iterable[WikiPage], root_id: int) -> set[int]:
+    """Every page beneath ``root_id``, the root excluded."""
+    filed: dict[int | None, list[int]] = {}
+    for page in pages:
+        filed.setdefault(page.parent_page_id, []).append(page.id)
+
+    found: set[int] = set()
+    frontier = list(filed.get(root_id, []))
+    while frontier:
+        page_id = frontier.pop()
+        if page_id in found:
+            continue
+        found.add(page_id)
+        frontier.extend(filed.get(page_id, []))
+    return found
+
+
+async def validate_reparent(
+    session: AsyncSession, page: WikiPage, new_parent_id: int | None
+) -> None:
+    """Refuse a move that would take a branch out of the tree.
+
+    A page cannot be filed under itself, under one of its own descendants, or
+    under a page belonging to another wiki.
+    """
+    if new_parent_id is None:
+        return
+    if new_parent_id == page.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=WikiMessages.PAGE_PARENT_ITSELF,
+        )
+
+    parent = await get_page(session, page.wiki_id, new_parent_id)
+    if parent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=WikiMessages.PAGE_NOT_FOUND,
+        )
+
+    pages = await load_pages(session, page.wiki_id)
+    if new_parent_id in descendant_ids(pages, page.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=WikiMessages.PAGE_PARENT_DESCENDANT,
+        )
+
+
+def forget_document_placement(wiki: Wiki, document_id: int) -> None:
+    """Drop a document's place when it leaves the wiki, so it does not come
+    back to a spot it was given last time."""
+    placements = dict(wiki.document_positions or {})
+    if placements.pop(str(document_id), None) is not None:
+        wiki.document_positions = placements
 
 
 #: What an anchor keeps. Mirrors ``slugify`` in the frontend, which is what
@@ -267,6 +496,31 @@ async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> N
     counts = dict(result.all())
     for wiki in rows:
         object.__setattr__(wiki, "page_count", counts.get(wiki.id, 0))
+
+
+async def list_wiki_ids_for_export(
+    session: AsyncSession,
+    current_user: Any,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every wiki the user may export in the given initiatives —
+    DAC-visible to the user (a request that reaches the whole guild sees all),
+    feature-flag respected. Deterministic order for stable backup output."""
+
+    if not initiative_ids:
+        return []
+    statement = (
+        select(Wiki.id)
+        .join(Initiative, Initiative.id == Wiki.initiative_id)
+        .where(
+            Wiki.initiative_id.in_(initiative_ids),
+            Initiative.wikis_enabled == True,  # noqa: E712
+        )
+        .order_by(Wiki.id.asc())
+    )
+    return list(await session.exec(statement))
 
 
 async def get_wiki_for_export(

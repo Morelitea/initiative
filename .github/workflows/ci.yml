@@ -60,6 +60,16 @@ jobs:
       - name: Check for backend changes
         id: changes
         run: |
+          # Integration-branch pushes are the authoritative whole-tree
+          # signal. Pull requests may use scoped feedback, but a push to main
+          # or dev must never report green after skipping the caller's tests.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "alembic_changed=true" >> $GITHUB_OUTPUT
+            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
+            echo "Integration push — running the full backend suite"
+            exit 0
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             DIFF="git diff --name-only origin/${{ github.base_ref }}...HEAD"
           else
@@ -224,6 +234,13 @@ jobs:
       - name: Check for frontend changes
         id: filter
         run: |
+          # Pushes to the integration branches are whole-tree verification;
+          # only pull requests use the changed-file shortcut.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Integration push — running the full frontend suite"
+            exit 0
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- frontend/ || true)
           else

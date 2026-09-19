@@ -86,5 +86,8 @@
   "createGallery": "Neue Galerie",
   "moderation": "Moderation",
   "wikis": "Wikis",
-  "createWiki": "Neues Wiki"
+  "createWiki": "Neues Wiki",
+  "sidebar": {
+    "resize": "Ziehen, um die Seitenleiste breiter zu machen"
+  }
 }

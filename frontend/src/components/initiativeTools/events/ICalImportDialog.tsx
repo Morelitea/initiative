@@ -1,9 +1,8 @@
 import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiMutator } from "@/api/mutator";
-import { invalidate, q } from "@/api/query-keys";
+import type { ICalImportResult, ICalParseResult } from "@/api/generated/initiativeAPI.schemas";
 import { isWritableCalendar } from "@/components/initiativeTools/events/CreateEventDialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,30 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { useImportIcalEvents, useParseIcalFile } from "@/hooks/useCalendarEvents";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import type { DialogProps } from "@/types/dialog";
-
-interface ICalEventPreview {
-  summary: string;
-  start_at: string;
-  end_at: string | null;
-  all_day: boolean;
-  has_recurrence: boolean;
-}
-
-interface ICalParseResult {
-  event_count: number;
-  events: ICalEventPreview[];
-  has_recurring: boolean;
-}
-
-interface ICalImportResult {
-  events_created: number;
-  events_failed: number;
-  errors: string[];
-}
 
 type Step = "upload" | "result";
 
@@ -60,8 +40,15 @@ export const ICalImportDialog = ({
   );
   const [parseResult, setParseResult] = useState<ICalParseResult | null>(null);
   const [importResult, setImportResult] = useState<ICalImportResult | null>(null);
-  const [isParsing, setIsParsing] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+
+  const parseIcal = useParseIcalFile();
+  const importIcal = useImportIcalEvents();
+
+  // The counts a finished import reports, defaulted for the fields the API
+  // leaves out when they are zero.
+  const eventsCreated = importResult?.events_created ?? 0;
+  const eventsFailed = importResult?.events_failed ?? 0;
+  const importErrors = importResult?.errors ?? [];
 
   useEffect(() => {
     if (!open) {
@@ -91,47 +78,23 @@ export const ICalImportDialog = ({
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setIcsContent(content);
-      doParse(content);
+      parseIcal.mutate({ ics_content: content }, { onSuccess: setParseResult });
     };
     reader.readAsText(file);
   };
 
-  const doParse = async (content: string) => {
-    setIsParsing(true);
-    try {
-      const result = await apiMutator<ICalParseResult>({
-        url: "/api/v1/calendar-events/import/parse",
-        method: "POST",
-        data: { ics_content: content },
-        headers: { "Content-Type": "application/json" },
-      });
-      setParseResult(result);
-    } catch {
-      toast.error(t("calendars:import.parseFailed"));
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  const handleImport = useCallback(async () => {
+  const handleImport = () => {
     if (!selectedCalendarId || !icsContent) return;
-    setIsImporting(true);
-    try {
-      const result = await apiMutator<ICalImportResult>({
-        url: "/api/v1/calendar-events/import",
-        method: "POST",
-        data: { calendar_id: selectedCalendarId, ics_content: icsContent },
-        headers: { "Content-Type": "application/json" },
-      });
-      setImportResult(result);
-      commit("result");
-      void invalidate(q.allCalendarEvents());
-    } catch {
-      toast.error(t("calendars:import.importError"));
-    } finally {
-      setIsImporting(false);
-    }
-  }, [selectedCalendarId, icsContent, t, commit]);
+    importIcal.mutate(
+      { calendar_id: selectedCalendarId, ics_content: icsContent },
+      {
+        onSuccess: (result) => {
+          setImportResult(result);
+          commit("result");
+        },
+      }
+    );
+  };
 
   // One question and then a report on what it did, so there is no position
   // worth stating and no dots.
@@ -151,7 +114,7 @@ export const ICalImportDialog = ({
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
                 <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                 <span className="text-muted-foreground text-sm">
-                  {isParsing
+                  {parseIcal.isPending
                     ? t("calendars:import.parsing")
                     : t("calendars:import.uploadFileLabel")}
                 </span>
@@ -221,9 +184,11 @@ export const ICalImportDialog = ({
             </Button>
             <Button
               onClick={handleImport}
-              disabled={!parseResult || !selectedCalendarId || isImporting}
+              disabled={!parseResult || !selectedCalendarId || importIcal.isPending}
             >
-              {isImporting ? t("calendars:import.importing") : t("calendars:import.importButton")}
+              {importIcal.isPending
+                ? t("calendars:import.importing")
+                : t("calendars:import.importButton")}
             </Button>
           </div>
         </div>
@@ -233,10 +198,10 @@ export const ICalImportDialog = ({
         <div className="space-y-4">
           <div
             className={`flex items-center gap-3 rounded-lg p-4 ${
-              importResult.events_failed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
+              eventsFailed === 0 ? "bg-green-500/10" : "bg-yellow-500/10"
             }`}
           >
-            {importResult.events_failed === 0 ? (
+            {eventsFailed === 0 ? (
               <CheckCircle2 className="h-8 w-8 text-green-500" />
             ) : (
               <AlertCircle className="h-8 w-8 text-yellow-500" />
@@ -244,19 +209,17 @@ export const ICalImportDialog = ({
             <div>
               <p className="font-medium">{t("calendars:import.importSuccess")}</p>
               <p className="text-muted-foreground text-sm">
-                {t("calendars:import.eventsCreated", {
-                  count: importResult.events_created,
-                })}
-                {importResult.events_failed > 0 &&
-                  `, ${t("calendars:import.eventsFailed", { count: importResult.events_failed })}`}
+                {t("calendars:import.eventsCreated", { count: eventsCreated })}
+                {eventsFailed > 0 &&
+                  `, ${t("calendars:import.eventsFailed", { count: eventsFailed })}`}
               </p>
             </div>
           </div>
 
-          {importResult.errors.length > 0 && (
+          {importErrors.length > 0 && (
             <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
               <ul className="space-y-1 text-muted-foreground text-xs">
-                {importResult.errors.map((error) => (
+                {importErrors.map((error) => (
                   <li key={error}>{error}</li>
                 ))}
               </ul>

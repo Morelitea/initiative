@@ -9,7 +9,7 @@ import { renderPage } from "@/__tests__/helpers/render";
 let guildRole = "superadmin";
 let isGuildAdmin = true;
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
-let authOptions: string[] = ["restrictions", "providers", "require_sign_in"];
+let authOptions: string[] = ["restrictions", "providers"];
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -36,27 +36,35 @@ describe("GuildSettingsLayout", () => {
     guildRole = "superadmin";
     isGuildAdmin = true;
     grantSettingsLevel = null;
-    authOptions = ["restrictions", "providers", "require_sign_in"];
+    authOptions = ["restrictions", "providers"];
   });
 
-  it("offers the Authentication tab to the seat that owns it", async () => {
+  it("offers the Security tab to the seat that owns it", async () => {
     render();
 
-    expect(await screen.findByRole("tab", { name: /authentication/i })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
   });
 
-  it.each(["ai", "apps"])("offers %s to the seat and not to an admin", async (tab) => {
+  it.each([["providers"], ["restrictions"]])("offers it on the %s grant alone", async (option) => {
+    // The two grants are independent, and either one puts something on the
+    // page worth reaching.
+    authOptions = [option];
+    render();
+
+    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
+  });
+
+  it("offers Integrations to the seat and not to an admin", async () => {
     // What the community hands to somebody outside it is the seat's, the way
     // its sign-in is.
-    const label = tab === "ai" ? /^ai$/i : /^apps$/i;
     render();
-    expect(await screen.findByRole("tab", { name: label })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: /integrations/i })).toBeInTheDocument();
 
     cleanup();
     guildRole = "admin";
     render();
     expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: label })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /integrations/i })).not.toBeInTheDocument();
   });
 
   it.each(["admin", "member"])("does not offer it to %s", async (role) => {
@@ -66,10 +74,10 @@ describe("GuildSettingsLayout", () => {
     render();
 
     expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /authentication/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /security/i })).not.toBeInTheDocument();
   });
 
-  it("offers only Authentication to a superadmin settings grantee", async () => {
+  it("offers only Security to a superadmin settings grantee", async () => {
     guildRole = "member";
     isGuildAdmin = false;
     grantSettingsLevel = "superadmin";
@@ -78,18 +86,18 @@ describe("GuildSettingsLayout", () => {
     authOptions = [];
     render();
 
-    expect(await screen.findByRole("tab", { name: /authentication/i })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /community/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/permission/i)).not.toBeInTheDocument();
   });
 
   it("does not offer it to a community the operator has granted nothing", async () => {
-    // Which is most of them: without the master option there is nothing on
-    // that tab for anybody, seat or no seat.
+    // Which is most of them: with neither grant there is nothing on that tab
+    // for anybody, seat or no seat.
     authOptions = [];
     render();
 
     expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /authentication/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /security/i })).not.toBeInTheDocument();
   });
 });

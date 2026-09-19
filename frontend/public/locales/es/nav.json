@@ -86,5 +86,8 @@
   "createGallery": "Nueva galería",
   "moderation": "Moderación",
   "wikis": "Wikis",
-  "createWiki": "Nuevo wiki"
+  "createWiki": "Nuevo wiki",
+  "sidebar": {
+    "resize": "Arrastra para cambiar el ancho de la barra lateral"
+  }
 }

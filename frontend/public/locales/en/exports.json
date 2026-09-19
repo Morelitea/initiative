@@ -105,9 +105,12 @@
       "document": "Document",
       "queue": "Queue",
       "counter-group": "Counter group",
-      "calendar-event": "Calendar",
+      "calendar": "Calendar",
+      "post": "Post",
+      "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Community"
+      "guild": "Community",
+      "gallery": "Gallery"
     },
     "download": "Download",
     "empty": "No exports yet.",

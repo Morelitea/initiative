@@ -129,7 +129,32 @@ async def test_create_page_records_its_author_and_slug(
     body = response.json()
     assert body["created_by"] == a.user.id
     assert body["slug"] == "the-bar-float"
-    assert body["is_draft"] is False
+
+
+@pytest.mark.integration
+async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, session):
+    """Nobody writes a page in one keystroke, and the people who only read this
+    wiki have no use for an empty one — so it is published when it is ready."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    created = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"),
+        headers=a.headers,
+        json={"title": "The bar float"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["is_draft"] is True
+
+    published = await client.patch(
+        a.g(f"/wikis/{wiki.id}/pages/{created.json()['id']}"),
+        headers=a.headers,
+        json={"is_draft": False},
+    )
+
+    assert published.status_code == 200, published.text
+    assert published.json()["is_draft"] is False
 
 
 @pytest.mark.integration
@@ -169,6 +194,158 @@ async def test_two_pages_with_one_title_get_distinct_slugs(
         slugs.append(response.json()["slug"])
 
     assert slugs == ["rules", "rules-2"]
+
+
+@pytest.mark.integration
+async def test_a_name_goes_back_into_circulation_with_the_trash(
+    client: AsyncClient, acting_user, session
+):
+    """Write "Step 1", throw it away, write "Step 1" again.
+
+    A page in the bin holds no address, so the second one gets the first one's
+    slug rather than a suffix — and, before this was a partial index, rather
+    than a unique violation nobody could see the cause of.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    first = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["slug"] == "step-1"
+
+    trashed = await client.delete(
+        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
+    )
+    assert trashed.status_code == 204, trashed.text
+
+    second = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+
+    assert second.status_code == 201, second.text
+    assert second.json()["slug"] == "step-1"
+
+
+@pytest.mark.integration
+async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
+    client: AsyncClient, acting_user, session
+):
+    """The same freed name, taken by a rename rather than by a new page."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    first = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+    assert first.status_code == 201, first.text
+    await client.delete(
+        a.g(f"/wikis/{wiki.id}/pages/{first.json()['id']}"), headers=a.headers
+    )
+
+    second = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Untitled"}
+    )
+    assert second.status_code == 201, second.text
+
+    renamed = await client.patch(
+        a.g(f"/wikis/{wiki.id}/pages/{second.json()['id']}"),
+        headers=a.headers,
+        json={"title": "Step 1"},
+    )
+
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["slug"] == "step-1"
+
+
+@pytest.mark.integration
+async def test_a_restored_page_takes_its_name_back(
+    client: AsyncClient, acting_user, session
+):
+    """Out of the bin and back at its own address, when it is still free."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    page = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+    page_id = page.json()["id"]
+    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+
+    restored = await client.post(
+        a.g(f"/trash/wiki_page/{page_id}/restore"), headers=a.headers
+    )
+
+    assert restored.status_code == 200, restored.text
+    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    assert back.status_code == 200, back.text
+    assert back.json()["slug"] == "step-1"
+
+
+@pytest.mark.integration
+async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
+    client: AsyncClient, acting_user, session
+):
+    """The other end of the same rule: a page in the bin has no claim on a name
+    somebody has used since, so it comes back under a suffixed one rather than
+    not coming back at all."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+
+    first = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+    page_id = first.json()["id"]
+    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    replacement = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": "Step 1"}
+    )
+    assert replacement.json()["slug"] == "step-1"
+
+    restored = await client.post(
+        a.g(f"/trash/wiki_page/{page_id}/restore"), headers=a.headers
+    )
+
+    assert restored.status_code == 200, restored.text
+    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    assert back.status_code == 200, back.text
+    assert back.json()["slug"] == "step-1-2"
+    # And the page that took the name in the meantime keeps it.
+    held = await client.get(
+        a.g(f"/wikis/{wiki.id}/pages/{replacement.json()['id']}"), headers=a.headers
+    )
+    assert held.json()["slug"] == "step-1"
+
+
+@pytest.mark.integration
+async def test_a_wiki_restored_whole_keeps_its_pages_addresses(
+    client: AsyncClient, acting_user, session
+):
+    """Nothing can take a name while the whole wiki is in the bin, so every
+    page comes back at the address links point at."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    for title in ("Step 1", "Step 2"):
+        response = await client.post(
+            a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers, json={"title": title}
+        )
+        assert response.status_code == 201, response.text
+
+    await client.delete(a.g(f"/wikis/{wiki.id}"), headers=a.headers)
+    restored = await client.post(
+        a.g(f"/trash/wiki/{wiki.id}/restore"), headers=a.headers
+    )
+    assert restored.status_code == 200, restored.text
+
+    pages = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert pages.status_code == 200, pages.text
+    assert [page["slug"] for page in pages.json()["items"]] == ["step-1", "step-2"]
 
 
 @pytest.mark.integration
@@ -281,6 +458,235 @@ async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
 
     rows = {row["title"]: row["kind"] for row in response.json()["items"]}
     assert rows == {"Written here": "page", document.name: "document"}
+
+
+@pytest.mark.integration
+async def test_a_page_filed_under_another_reads_after_it(
+    client: AsyncClient, acting_user, session
+):
+    """Reading order is depth-first: a page, then what is filed under it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    parent = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await create_wiki_page(session, wiki, a.user, title="Afterwards")
+
+    filed = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages"),
+        headers=a.headers,
+        json={"title": "Combat", "parent_page_id": parent.id},
+    )
+
+    assert filed.status_code == 201, filed.text
+    assert filed.json()["parent_page_id"] == parent.id
+
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in listed.json()["items"]] == [
+        "Rules",
+        "Combat",
+        "Afterwards",
+    ]
+
+
+@pytest.mark.integration
+async def test_a_drag_files_a_page_and_places_it_in_one_request(
+    client: AsyncClient, acting_user, session
+):
+    """A drag is one gesture, so filing and ordering arrive together."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    parent = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await create_wiki_page(
+        session, wiki, a.user, title="Combat", parent_page_id=parent.id, position=0
+    )
+    loose = await create_wiki_page(session, wiki, a.user, title="Travel")
+
+    moved = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": parent.id, "position": 0},
+    )
+
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["parent_page_id"] == parent.id
+
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in listed.json()["items"]] == [
+        "Rules",
+        "Travel",
+        "Combat",
+    ]
+
+
+@pytest.mark.integration
+async def test_a_page_cannot_be_filed_under_its_own_descendant(
+    client: AsyncClient, acting_user, session
+):
+    """It would take the branch out of the wiki, so it is refused by name."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    parent = await create_wiki_page(session, wiki, a.user, title="Rules")
+    child = await create_wiki_page(
+        session, wiki, a.user, title="Combat", parent_page_id=parent.id
+    )
+
+    response = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages/{parent.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": child.id, "position": 0},
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "WIKI_PAGE_PARENT_DESCENDANT"
+
+
+@pytest.mark.integration
+async def test_a_page_cannot_be_its_own_parent(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Rules")
+
+    response = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages/{page.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": page.id, "position": 0},
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "WIKI_PAGE_PARENT_ITSELF"
+
+
+@pytest.mark.integration
+async def test_trashing_a_page_takes_what_is_filed_under_it(
+    client: AsyncClient, acting_user, session
+):
+    """A section is put away whole, and comes back whole."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    parent = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await create_wiki_page(
+        session, wiki, a.user, title="Combat", parent_page_id=parent.id
+    )
+
+    trashed = await client.delete(
+        a.g(f"/wikis/{wiki.id}/pages/{parent.id}"), headers=a.headers
+    )
+    assert trashed.status_code == 204, trashed.text
+
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert listed.json()["items"] == []
+
+    restored = await client.post(
+        a.g(f"/trash/wiki_page/{parent.id}/restore"), headers=a.headers
+    )
+    assert restored.status_code == 200, restored.text
+    back = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in back.json()["items"]] == ["Rules", "Combat"]
+
+
+@pytest.mark.integration
+async def test_a_document_can_be_moved_among_the_pages(
+    client: AsyncClient, acting_user, session
+):
+    """A borrowed document is a row of the wiki's list, so it is arranged like
+    one — and the document itself is never written to say so."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    await create_wiki_page(session, wiki, a.user, title="First")
+    await create_wiki_page(session, wiki, a.user, title="Second")
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+
+    moved = await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"position": 0},
+    )
+
+    assert moved.status_code == 200, moved.text
+    assert [row["title"] for row in moved.json()["items"]] == [
+        "Borrowed",
+        "First",
+        "Second",
+    ]
+
+    # And it stays there, because the order is the wiki's own record of it.
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in listed.json()["items"]] == [
+        "Borrowed",
+        "First",
+        "Second",
+    ]
+
+
+@pytest.mark.integration
+async def test_a_page_can_be_moved_past_a_document(
+    client: AsyncClient, acting_user, session
+):
+    """The other half of one list: moving a page counts the documents in it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    first = await create_wiki_page(session, wiki, a.user, title="First")
+    await create_wiki_page(session, wiki, a.user, title="Second")
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+
+    moved = await client.post(
+        a.g(f"/wikis/{wiki.id}/pages/{first.id}/move"),
+        headers=a.headers,
+        json={"position": 2},
+    )
+    assert moved.status_code == 200, moved.text
+
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in listed.json()["items"]] == [
+        "Second",
+        "Borrowed",
+        "First",
+    ]
+
+
+@pytest.mark.integration
+async def test_a_document_taken_out_gives_up_its_place(
+    client: AsyncClient, acting_user, session
+):
+    """Put back in later, it arrives at the end like a new one rather than in
+    the spot it held last time."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    await create_wiki_page(session, wiki, a.user, title="First")
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"position": 0},
+    )
+
+    removed = await client.delete(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    assert removed.status_code == 204, removed.text
+    again = await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+
+    assert [row["title"] for row in again.json()["items"]] == ["First", "Borrowed"]
 
 
 @pytest.mark.integration

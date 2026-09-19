@@ -6,8 +6,10 @@ import {
   getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey,
   getListMyCalendarEventsApiV1MeCalendarEventsGetQueryKey,
   getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey,
+  importIcalEventsApiV1GGuildIdCalendarEventsImportPost,
   listCalendarEventsApiV1GGuildIdCalendarEventsGet,
   listMyCalendarEventsApiV1MeCalendarEventsGet,
+  parseIcalFileApiV1GGuildIdCalendarEventsImportParsePost,
   readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
   setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
@@ -20,6 +22,10 @@ import type {
   CalendarEventRead,
   CalendarEventRSVPUpdate,
   CalendarEventUpdate,
+  ICalImportRequest,
+  ICalImportResult,
+  ICalParseRequest,
+  ICalParseResult,
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   TagSetRequest,
@@ -130,6 +136,31 @@ export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) =>
         deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
+    },
+    options
+  );
+
+// ── iCal Import ─────────────────────────────────────────────────────────────
+
+/** Read an .ics file and report what is in it. Writes nothing. */
+export const useParseIcalFile = (options?: MutationOpts<ICalParseResult, ICalParseRequest>) =>
+  useGuildMutation<ICalParseResult, ICalParseRequest>(
+    {
+      mutationFn: (guildId, data) =>
+        parseIcalFileApiV1GGuildIdCalendarEventsImportParsePost(guildId, data),
+      errorKey: "calendars:import.parseFailed",
+    },
+    options
+  );
+
+/** Create the file's events in one calendar. */
+export const useImportIcalEvents = (options?: MutationOpts<ICalImportResult, ICalImportRequest>) =>
+  useGuildMutation<ICalImportResult, ICalImportRequest>(
+    {
+      mutationFn: (guildId, data) =>
+        importIcalEventsApiV1GGuildIdCalendarEventsImportPost(guildId, data),
+      invalidate: () => invalidate(q.allCalendarEvents()),
+      errorKey: "calendars:import.importError",
     },
     options
   );

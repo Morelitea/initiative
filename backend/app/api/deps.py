@@ -801,7 +801,14 @@ async def _load_guild_context(
             satisfied,
             auth_context.session_mfa(),
         )
-        # A synthesized support role lets endpoint guards evaluate the grant.
+        # Every grantee gets the ``support`` role — a first-class identity for
+        # PAM access rather than a ``member`` masquerade. It is the content
+        # grant's identity and clears no guard of its own: what of the
+        # community's configuration this request may work is the settings grant
+        # beside it, read at its own rung (``settings_rung_reaches``). The role
+        # is in-memory only; it never reaches ``set_rls_context`` (the
+        # ``is_pam`` branch passes ``guild_role=None``), so the ``guild_role``
+        # GUC and DB enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,

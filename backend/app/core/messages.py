@@ -872,6 +872,11 @@ class GalleryMessages:
 
 class WikiMessages:
     PAGE_NOT_FOUND = "WIKI_PAGE_NOT_FOUND"
+    #: A page cannot be its own parent.
+    PAGE_PARENT_ITSELF = "WIKI_PAGE_PARENT_ITSELF"
+    #: Filing a page under one of its own descendants would detach the branch
+    #: from the wiki.
+    PAGE_PARENT_DESCENDANT = "WIKI_PAGE_PARENT_DESCENDANT"
     #: A home page has to be one of the wiki's own pages.
     HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
     #: So does the page new ones are copied from.

@@ -139,11 +139,6 @@ NON_EXPORTABLE_TOOLS = frozenset(
         # Export/import ships with the marketplace, which owns the definition
         # envelope format.
         Tool.dashboard,
-        # A gallery is its image files, and the export engine carries JSON
-        # envelopes; a backup that dropped the pictures and kept their captions
-        # would be worse than none. Carrying the blobs is its own piece of
-        # work, tracked separately.
-        Tool.gallery,
     }
 )
 
@@ -200,6 +195,17 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key / endpoint segment for a tool."""
     return tool.value.replace("_", "-")
+
+
+def tool_envelope_type(tool: Tool) -> str:
+    """The import/export envelope ``type`` discriminator for a tool.
+
+    One rule, spelled once: a tool's envelope is ``initiative-<kebab
+    singular>``. The importers and the export adapters each restate it as a
+    literal — a pydantic ``Literal`` cannot be computed — and
+    ``tools_test.py`` holds the importer registry to this.
+    """
+    return f"initiative-{tool_export_source(tool)}"
 
 
 def tool_for_create_permission(permission_value: str) -> Tool:

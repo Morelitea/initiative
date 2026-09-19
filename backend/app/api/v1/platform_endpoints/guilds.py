@@ -1119,9 +1119,7 @@ async def set_guild_auth_policy(
             await session.commit()
         return GuildAuthPolicyRead(policy="open")
 
-    await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.require_sign_in
-    )
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     # Hold the settings row for the rest of this transaction. An operator
     # withdrawing single sign-on takes the same row exclusively, so the two
     # order rather than interleave: either they see this requirement and are

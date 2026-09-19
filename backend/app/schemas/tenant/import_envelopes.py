@@ -71,6 +71,79 @@ class DocumentEnvelope(_EnvelopeBase):
         return data
 
 
+class WikiPageEnvelope(SanitizedBaseModel):
+    """One page: its body, where it sits, and what it is filed under.
+
+    ``parent`` is a **slug**, not an id, and it is resolved after every page
+    exists — the export writes pages in navigation order, which can put a
+    child before its parent.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str
+    slug: str
+    parent: Optional[str] = None
+    position: int = 0
+    is_draft: bool = False
+    content: dict[str, Any] = {}
+    tags: list[str] = []
+
+
+class WikiEnvelope(_EnvelopeBase):
+    """A wiki, its pages, and the shape they sit in.
+
+    What it deliberately drops is the sharing, for the reason every envelope
+    drops it: who may read this is a fact about the community it was written
+    in, not about the writing. ``home_page`` crosses as a slug like the tree.
+    """
+
+    type: Literal["initiative-wiki"]
+    name: str
+    description: Optional[str] = None
+    home_page: Optional[str] = None
+    tags: list[str] = []
+    pages: list[WikiPageEnvelope] = []
+
+
+class GalleryImageEnvelope(SanitizedBaseModel):
+    """One picture: what the row says about it, and the key naming its bytes.
+
+    ``storage_key`` is the blob's name under ``assets/`` in the backup zip. A
+    picture whose bytes did not travel is skipped on apply and counted — a
+    gallery row pointing at a file that is not there would render as a broken
+    tile forever.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    storage_key: str
+    title: Optional[str] = None
+    caption: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    original_filename: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    tags: list[str] = []
+
+
+class GalleryEnvelope(_EnvelopeBase):
+    """A gallery and its pictures.
+
+    Only meaningful inside a backup: the bytes ride under ``assets/`` and the
+    images name them by key. Thumbnails are not carried — the app makes those
+    from the picture.
+    """
+
+    type: Literal["initiative-gallery"]
+    name: str
+    description: Optional[str] = None
+    cover: Optional[str] = None
+    tags: list[str] = []
+    images: list[GalleryImageEnvelope] = []
+
+
 class QueueEnvelopeItem(SanitizedBaseModel):
     model_config = ConfigDict(extra="ignore")
 

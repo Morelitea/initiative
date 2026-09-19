@@ -65,13 +65,13 @@ import { Route as ServerRequiredAuthenticatedSettingsOperatorAuditRouteImport } 
 import { Route as ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/communities'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/users'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/index'
-import { Route as ServerRequiredAuthenticatedSettingsPlatformAiRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/ai'
-import { Route as ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/app-services'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformCommunityRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/community'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/intake'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/integrations'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformSecurityRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/security'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
 import { Route as ServerRequiredAuthenticatedCGuildIdAppsAppIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/apps_.$appId'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/index'
@@ -79,13 +79,12 @@ import { Route as ServerRequiredAuthenticatedCGuildIdIIndexRouteImport } from '.
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId'
 import { Route as ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/marketplace_.$publicId'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/index'
-import { Route as ServerRequiredAuthenticatedCGuildIdSettingsAiRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/ai'
-import { Route as ServerRequiredAuthenticatedCGuildIdSettingsAppsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/apps'
-import { Route as ServerRequiredAuthenticatedCGuildIdSettingsAuthRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/auth'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDataRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/data'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsExportRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/export'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
+import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/integrations'
+import { Route as ServerRequiredAuthenticatedCGuildIdSettingsSecurityRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/security'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/trash'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsUsersRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/users'
 import { Route as ServerRequiredAuthenticatedCGuildIdTagsTagIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/tags_.$tagId'
@@ -500,18 +499,6 @@ const ServerRequiredAuthenticatedSettingsPlatformIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
-const ServerRequiredAuthenticatedSettingsPlatformAiRoute =
-  ServerRequiredAuthenticatedSettingsPlatformAiRouteImport.update({
-    id: '/ai',
-    path: '/ai',
-    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
-  } as any)
-const ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute =
-  ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport.update({
-    id: '/app-services',
-    path: '/app-services',
-    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
-  } as any)
 const ServerRequiredAuthenticatedSettingsPlatformAuthRoute =
   ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport.update({
     id: '/auth',
@@ -540,6 +527,18 @@ const ServerRequiredAuthenticatedSettingsPlatformIntakeRoute =
   ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport.update({
     id: '/intake',
     path: '/intake',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute =
+  ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsPlatformSecurityRoute =
+  ServerRequiredAuthenticatedSettingsPlatformSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsPlatformStorageRoute =
@@ -584,24 +583,6 @@ const ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
   } as any)
-const ServerRequiredAuthenticatedCGuildIdSettingsAiRoute =
-  ServerRequiredAuthenticatedCGuildIdSettingsAiRouteImport.update({
-    id: '/ai',
-    path: '/ai',
-    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
-  } as any)
-const ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute =
-  ServerRequiredAuthenticatedCGuildIdSettingsAppsRouteImport.update({
-    id: '/apps',
-    path: '/apps',
-    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
-  } as any)
-const ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute =
-  ServerRequiredAuthenticatedCGuildIdSettingsAuthRouteImport.update({
-    id: '/auth',
-    path: '/auth',
-    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
-  } as any)
 const ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute =
   ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRouteImport.update({
     id: '/danger-zone',
@@ -624,6 +605,18 @@ const ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute =
   ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport.update({
     id: '/initiatives',
     path: '/initiatives',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute =
+  ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute =
+  ServerRequiredAuthenticatedCGuildIdSettingsSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute =
@@ -1410,13 +1403,13 @@ export interface FileRoutesByFullPath {
   '/settings/operator/audit': typeof ServerRequiredAuthenticatedSettingsOperatorAuditRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
-  '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
-  '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
+  '/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/settings/operator/': typeof ServerRequiredAuthenticatedSettingsOperatorIndexRoute
@@ -1424,13 +1417,12 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteWithChildren
   '/c/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
-  '/c/$guildId/settings/ai': typeof ServerRequiredAuthenticatedCGuildIdSettingsAiRoute
-  '/c/$guildId/settings/apps': typeof ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute
-  '/c/$guildId/settings/auth': typeof ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/export': typeof ServerRequiredAuthenticatedCGuildIdSettingsExportRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
+  '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
   '/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/c/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
@@ -1567,26 +1559,25 @@ export interface FileRoutesByTo {
   '/settings/operator/audit': typeof ServerRequiredAuthenticatedSettingsOperatorAuditRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
-  '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
-  '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
+  '/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/settings/operator': typeof ServerRequiredAuthenticatedSettingsOperatorIndexRoute
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
   '/c/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/c/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
-  '/c/$guildId/settings/ai': typeof ServerRequiredAuthenticatedCGuildIdSettingsAiRoute
-  '/c/$guildId/settings/apps': typeof ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute
-  '/c/$guildId/settings/auth': typeof ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/export': typeof ServerRequiredAuthenticatedCGuildIdSettingsExportRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
+  '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
   '/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/c/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
@@ -1720,13 +1711,13 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/operator/audit': typeof ServerRequiredAuthenticatedSettingsOperatorAuditRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
   '/_serverRequired/_authenticated/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
-  '/_serverRequired/_authenticated/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
-  '/_serverRequired/_authenticated/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/_serverRequired/_authenticated/settings/platform/community': typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/_serverRequired/_authenticated/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
+  '/_serverRequired/_authenticated/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/_serverRequired/_authenticated/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/_serverRequired/_authenticated/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/_serverRequired/_authenticated/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/operator/': typeof ServerRequiredAuthenticatedSettingsOperatorIndexRoute
@@ -1734,13 +1725,12 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/apps_/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/marketplace_/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
-  '/_serverRequired/_authenticated/c/$guildId/settings/ai': typeof ServerRequiredAuthenticatedCGuildIdSettingsAiRoute
-  '/_serverRequired/_authenticated/c/$guildId/settings/apps': typeof ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute
-  '/_serverRequired/_authenticated/c/$guildId/settings/auth': typeof ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/export': typeof ServerRequiredAuthenticatedCGuildIdSettingsExportRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/_serverRequired/_authenticated/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
+  '/_serverRequired/_authenticated/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/_serverRequired/_authenticated/c/$guildId/tags_/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
@@ -1884,13 +1874,13 @@ export interface FileRouteTypes {
     | '/settings/operator/audit'
     | '/settings/operator/communities'
     | '/settings/operator/users'
-    | '/settings/platform/ai'
-    | '/settings/platform/app-services'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/community'
     | '/settings/platform/email'
     | '/settings/platform/intake'
+    | '/settings/platform/integrations'
+    | '/settings/platform/security'
     | '/settings/platform/storage'
     | '/c/$guildId/'
     | '/settings/operator/'
@@ -1898,13 +1888,12 @@ export interface FileRouteTypes {
     | '/c/$guildId/apps/$appId'
     | '/c/$guildId/i/$initiativeId'
     | '/c/$guildId/marketplace/$publicId'
-    | '/c/$guildId/settings/ai'
-    | '/c/$guildId/settings/apps'
-    | '/c/$guildId/settings/auth'
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/export'
     | '/c/$guildId/settings/initiatives'
+    | '/c/$guildId/settings/integrations'
+    | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
     | '/c/$guildId/settings/users'
     | '/c/$guildId/tags/$tagId'
@@ -2041,26 +2030,25 @@ export interface FileRouteTypes {
     | '/settings/operator/audit'
     | '/settings/operator/communities'
     | '/settings/operator/users'
-    | '/settings/platform/ai'
-    | '/settings/platform/app-services'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/community'
     | '/settings/platform/email'
     | '/settings/platform/intake'
+    | '/settings/platform/integrations'
+    | '/settings/platform/security'
     | '/settings/platform/storage'
     | '/c/$guildId'
     | '/settings/operator'
     | '/settings/platform'
     | '/c/$guildId/apps/$appId'
     | '/c/$guildId/marketplace/$publicId'
-    | '/c/$guildId/settings/ai'
-    | '/c/$guildId/settings/apps'
-    | '/c/$guildId/settings/auth'
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/export'
     | '/c/$guildId/settings/initiatives'
+    | '/c/$guildId/settings/integrations'
+    | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
     | '/c/$guildId/settings/users'
     | '/c/$guildId/tags/$tagId'
@@ -2193,13 +2181,13 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/operator/audit'
     | '/_serverRequired/_authenticated/settings/operator/communities'
     | '/_serverRequired/_authenticated/settings/operator/users'
-    | '/_serverRequired/_authenticated/settings/platform/ai'
-    | '/_serverRequired/_authenticated/settings/platform/app-services'
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
     | '/_serverRequired/_authenticated/settings/platform/community'
     | '/_serverRequired/_authenticated/settings/platform/email'
     | '/_serverRequired/_authenticated/settings/platform/intake'
+    | '/_serverRequired/_authenticated/settings/platform/integrations'
+    | '/_serverRequired/_authenticated/settings/platform/security'
     | '/_serverRequired/_authenticated/settings/platform/storage'
     | '/_serverRequired/_authenticated/c/$guildId/'
     | '/_serverRequired/_authenticated/settings/operator/'
@@ -2207,13 +2195,12 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/apps_/$appId'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId'
     | '/_serverRequired/_authenticated/c/$guildId/marketplace_/$publicId'
-    | '/_serverRequired/_authenticated/c/$guildId/settings/ai'
-    | '/_serverRequired/_authenticated/c/$guildId/settings/apps'
-    | '/_serverRequired/_authenticated/c/$guildId/settings/auth'
     | '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
     | '/_serverRequired/_authenticated/c/$guildId/settings/data'
     | '/_serverRequired/_authenticated/c/$guildId/settings/export'
     | '/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
+    | '/_serverRequired/_authenticated/c/$guildId/settings/integrations'
+    | '/_serverRequired/_authenticated/c/$guildId/settings/security'
     | '/_serverRequired/_authenticated/c/$guildId/settings/trash'
     | '/_serverRequired/_authenticated/c/$guildId/settings/users'
     | '/_serverRequired/_authenticated/c/$guildId/tags_/$tagId'
@@ -2704,20 +2691,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
-    '/_serverRequired/_authenticated/settings/platform/ai': {
-      id: '/_serverRequired/_authenticated/settings/platform/ai'
-      path: '/ai'
-      fullPath: '/settings/platform/ai'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAiRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
-    }
-    '/_serverRequired/_authenticated/settings/platform/app-services': {
-      id: '/_serverRequired/_authenticated/settings/platform/app-services'
-      path: '/app-services'
-      fullPath: '/settings/platform/app-services'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
-    }
     '/_serverRequired/_authenticated/settings/platform/auth': {
       id: '/_serverRequired/_authenticated/settings/platform/auth'
       path: '/auth'
@@ -2751,6 +2724,20 @@ declare module '@tanstack/react-router' {
       path: '/intake'
       fullPath: '/settings/platform/intake'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
+    '/_serverRequired/_authenticated/settings/platform/integrations': {
+      id: '/_serverRequired/_authenticated/settings/platform/integrations'
+      path: '/integrations'
+      fullPath: '/settings/platform/integrations'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
+    '/_serverRequired/_authenticated/settings/platform/security': {
+      id: '/_serverRequired/_authenticated/settings/platform/security'
+      path: '/security'
+      fullPath: '/settings/platform/security'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
     '/_serverRequired/_authenticated/settings/platform/storage': {
@@ -2802,27 +2789,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
     }
-    '/_serverRequired/_authenticated/c/$guildId/settings/ai': {
-      id: '/_serverRequired/_authenticated/c/$guildId/settings/ai'
-      path: '/ai'
-      fullPath: '/c/$guildId/settings/ai'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAiRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
-    }
-    '/_serverRequired/_authenticated/c/$guildId/settings/apps': {
-      id: '/_serverRequired/_authenticated/c/$guildId/settings/apps'
-      path: '/apps'
-      fullPath: '/c/$guildId/settings/apps'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAppsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
-    }
-    '/_serverRequired/_authenticated/c/$guildId/settings/auth': {
-      id: '/_serverRequired/_authenticated/c/$guildId/settings/auth'
-      path: '/auth'
-      fullPath: '/c/$guildId/settings/auth'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAuthRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
-    }
     '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone': {
       id: '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
       path: '/danger-zone'
@@ -2849,6 +2815,20 @@ declare module '@tanstack/react-router' {
       path: '/initiatives'
       fullPath: '/c/$guildId/settings/initiatives'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/settings/integrations': {
+      id: '/_serverRequired/_authenticated/c/$guildId/settings/integrations'
+      path: '/integrations'
+      fullPath: '/c/$guildId/settings/integrations'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/settings/security': {
+      id: '/_serverRequired/_authenticated/c/$guildId/settings/security'
+      path: '/security'
+      fullPath: '/c/$guildId/settings/security'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/settings/trash': {
@@ -3522,23 +3502,19 @@ const ServerRequiredAuthenticatedSettingsOperatorRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
-  ServerRequiredAuthenticatedSettingsPlatformAiRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
-  ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   ServerRequiredAuthenticatedSettingsPlatformAuthRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   ServerRequiredAuthenticatedSettingsPlatformBrandingRoute: typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   ServerRequiredAuthenticatedSettingsPlatformCommunityRoute: typeof ServerRequiredAuthenticatedSettingsPlatformCommunityRoute
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   ServerRequiredAuthenticatedSettingsPlatformIntakeRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
+  ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  ServerRequiredAuthenticatedSettingsPlatformSecurityRoute: typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   ServerRequiredAuthenticatedSettingsPlatformStorageRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
 }
 
 const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAuthenticatedSettingsPlatformRouteChildren =
   {
-    ServerRequiredAuthenticatedSettingsPlatformAiRoute:
-      ServerRequiredAuthenticatedSettingsPlatformAiRoute,
-    ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute:
-      ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute,
     ServerRequiredAuthenticatedSettingsPlatformAuthRoute:
       ServerRequiredAuthenticatedSettingsPlatformAuthRoute,
     ServerRequiredAuthenticatedSettingsPlatformBrandingRoute:
@@ -3549,6 +3525,10 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformEmailRoute,
     ServerRequiredAuthenticatedSettingsPlatformIntakeRoute:
       ServerRequiredAuthenticatedSettingsPlatformIntakeRoute,
+    ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute:
+      ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute,
+    ServerRequiredAuthenticatedSettingsPlatformSecurityRoute:
+      ServerRequiredAuthenticatedSettingsPlatformSecurityRoute,
     ServerRequiredAuthenticatedSettingsPlatformStorageRoute:
       ServerRequiredAuthenticatedSettingsPlatformStorageRoute,
     ServerRequiredAuthenticatedSettingsPlatformIndexRoute:
@@ -3579,13 +3559,12 @@ const ServerRequiredAuthenticatedSettingsRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren {
-  ServerRequiredAuthenticatedCGuildIdSettingsAiRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAiRoute
-  ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute
-  ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute
   ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   ServerRequiredAuthenticatedCGuildIdSettingsDataRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   ServerRequiredAuthenticatedCGuildIdSettingsExportRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsExportRoute
   ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
+  ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
   ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
@@ -3593,12 +3572,6 @@ interface ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren {
 
 const ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren: ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren =
   {
-    ServerRequiredAuthenticatedCGuildIdSettingsAiRoute:
-      ServerRequiredAuthenticatedCGuildIdSettingsAiRoute,
-    ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute:
-      ServerRequiredAuthenticatedCGuildIdSettingsAppsRoute,
-    ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute:
-      ServerRequiredAuthenticatedCGuildIdSettingsAuthRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsDataRoute:
@@ -3607,6 +3580,10 @@ const ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedCGuildIdSettingsExportRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute,
+    ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute:
+      ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute,
+    ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute:
+      ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute:

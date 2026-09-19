@@ -33,14 +33,13 @@
     },
     "tabs": {
       "guild": "Comunidad",
-      "ai": "IA",
       "users": "Usuarios",
       "initiatives": "Iniciativas",
       "trash": "Papelera",
       "data": "Datos",
       "dangerZone": "Zona de peligro",
-      "auth": "Autenticación",
-      "apps": "Aplicaciones"
+      "security": "Seguridad",
+      "integrations": "Integraciones"
     }
   },
   "profile": {
@@ -858,16 +857,16 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Configura la autenticación, la personalización, el email, el directorio de comunidades, la IA, el almacenamiento de las comunidades y los servicios de aplicación de toda la plataforma.",
+    "subtitle": "Inicio de sesión, seguridad, marca, correo, el directorio de comunidades, integraciones, almacenamiento y entrada para toda la instalación.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
       "community": "Comunidad",
-      "ai": "IA",
       "storage": "Almacenamiento",
       "intake": "Entradas",
-      "appServices": "Servicios de aplicación"
+      "security": "Seguridad",
+      "integrations": "Integraciones"
     }
   },
   "appServices": {
@@ -1022,7 +1021,6 @@
       "openLabel": "Gestionar la configuración de {{name}}",
       "description": "Ajustes que solo tú puedes cambiar. Los administradores de esta comunidad los ven y no pueden editarlos.",
       "limits": "Límites",
-      "signIn": "Inicio de sesión",
       "features": "Funciones",
       "usersHelp": "Cuántas personas pueden pertenecer. Déjalo en blanco para no poner límite.",
       "storageHelp": "Cuánto pueden almacenar, en gigabytes. Déjalo en blanco para no poner límite.",
@@ -1032,20 +1030,17 @@
       "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
       "authOption": {
         "restrictions": {
-          "label": "Configurar su propio inicio de sesión",
-          "help": "Da a esta comunidad la pestaña Autenticación: claves de API personales, un límite de sesión de doce horas y lo que se marque debajo. Desactivado para la mayoría de comunidades: sin esto nunca ven la pestaña."
+          "label": "Su propio estándar de seguridad",
+          "help": "Sus administradores pueden rechazar las claves de API personales y limitar a los miembros a una sesión de doce horas. Para comunidades que rinden cuentas ante un auditor; la mayoría nunca lo necesita."
         },
         "providers": {
-          "label": "Sus propios proveedores de inicio de sesión",
-          "help": "Permite que sus administradores conecten un proveedor de identidad y den de alta cuentas nuevas por ahí."
-        },
-        "require_sign_in": {
-          "label": "Exigir un inicio de sesión",
-          "help": "Permite que sus administradores exijan que los miembros entren por uno de esos proveedores. Es un permiso aparte: una comunidad puede ofrecer su proveedor sin exigirlo."
+          "label": "Su propio inicio de sesión",
+          "help": "Sus administradores indican cuáles de los proveedores de inicio de sesión de esta instalación son suyos, dónde llegan las personas que entran por ellos —incluso como administradores de su comunidad— y si los miembros deben entrar por ahí."
         }
       },
       "usersLabel": "Miembros",
-      "storageLabel": "Límite de almacenamiento"
+      "storageLabel": "Límite de almacenamiento",
+      "decidesForItself": "Lo que decide por su cuenta"
     },
     "unlimited": "Sin límite"
   },
@@ -1115,7 +1110,7 @@
       "requiredLabel": "Requerir inicio de sesión único",
       "requiredHelp": "Los miembros solo pueden acceder a esta comunidad tras iniciar sesión con el proveedor seleccionado.",
       "providerPlaceholder": "Elige un proveedor…",
-      "noProviders": "Aún no hay proveedores configurados. Añade uno en Proveedores de identidad más abajo y luego exígelo aquí.",
+      "noProviders": "Conectad primero un proveedor en «Quién entra».",
       "saved": "Requisito de inicio de sesión guardado",
       "error": "No se pudo guardar el requisito de inicio de sesión",
       "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
@@ -1135,13 +1130,11 @@
       "error": "No se pudo guardar el acceso por API"
     },
     "sessionLimit": {
-      "title": "Límite de sesión",
-      "description": "Con qué frecuencia vuelven a iniciar sesión los miembros de esta comunidad.",
-      "allowLabel": "Límite de sesión de doce horas",
-      "onHelp": "Los miembros de esta comunidad vuelven a iniciar sesión cada doce horas, diga lo que diga el límite de la instalación. Para comunidades sujetas a una norma de cumplimiento.",
-      "offHelp": "Los miembros siguen con la sesión iniciada mientras lo permita la instalación.",
+      "title": "Duración de la sesión",
+      "allowLabel": "Volver a iniciar sesión cada doce horas",
       "saved": "Límite de sesión guardado",
-      "error": "No se pudo guardar el límite de sesión"
+      "error": "No se pudo guardar el límite de sesión",
+      "help": "Para comunidades a las que se les ha pedido limitar cuánto tiempo permanece abierta la sesión. Se aplica a vuestros miembros en todas partes, no solo aquí."
     },
     "connections": {
       "title": "Qué inicios de sesión son vuestros",
@@ -1211,6 +1204,40 @@
       "removeError": "No se pudo eliminar esa regla",
       "removeTitle": "¿Eliminar esta regla?",
       "removeDescription": "Quien lleve {{group}} dejará de ser asignado aquí, y quien esté aquí por esta regla perderá esa posición la próxima vez que inicie sesión con ese proveedor."
+    },
+    "sections": {
+      "whoGetsIn": "Quién entra",
+      "onWhatTerms": "En qué condiciones"
+    },
+    "emptyState": {
+      "title": "Aún no hay nada conectado",
+      "body": "Indicad qué proveedores de inicio de sesión de esta instalación son los vuestros y dónde aterriza quien llega por ellos.",
+      "button": "Configurar el inicio de sesión"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Por dónde entran",
+          "prompt": "Elija el proveedor con el que sus miembros ya inician sesión."
+        },
+        "narrowing": {
+          "title": "Qué personas",
+          "prompt": "Indique qué cuentas de ese proveedor son suyas, u omita este paso si ya solo alberga a su gente."
+        },
+        "landing": {
+          "title": "Dónde aterrizan",
+          "prompt": "Qué ocurre cuando llega una de esas personas."
+        },
+        "insist": {
+          "title": "Lo exigimos",
+          "prompt": "Si esta pasa a ser la única forma de entrar."
+        }
+      },
+      "skip": "Omitir",
+      "ruleTitle": "Un primer grupo",
+      "ruleHelp": "Opcional. Nombre un grupo que informe su proveedor y dónde aterriza su gente. Puede añadir más después.",
+      "requireLabel": "Exigir que los miembros entren por este proveedor",
+      "requireHelp": "Los miembros inician sesión solo por ahí. Puede cambiarlo más adelante."
     }
   },
   "authProviders": {
@@ -1535,5 +1562,9 @@
     "claimLabel": "Qué reclamación decide",
     "valuesLabel": "Valores que cuentan",
     "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
+  },
+  "platformSecurity": {
+    "title": "Seguridad",
+    "description": "Cuánto tiempo puede alguien mantener la sesión iniciada antes de volver a iniciarla."
   }
 }
