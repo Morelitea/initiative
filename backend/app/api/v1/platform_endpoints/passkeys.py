@@ -28,7 +28,9 @@ from webauthn.helpers import bytes_to_base64url
 from webauthn.helpers.exceptions import WebAuthnException
 
 from app.api.deps import get_current_active_user, require_first_party_session
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.api.v1.platform_endpoints.session_opening import (
     MOBILE_CALLBACK_URI,
     open_session,
@@ -203,7 +205,9 @@ async def begin_passkey_registration(
     await _require_passkeys_offered(session)
     if passkey_service.site_refusal() is not None:
         raise _site_unsupported()
-    require_password(current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, admin_session, current_user, payload.current_password
+    )
 
     # What the credential manager lists the account under. The address the
     # person signs in with where there is one, so two entries for the same
@@ -355,13 +359,17 @@ async def remove_passkey(
 ) -> None:
     """Forget the credential. The password is asked for again, as it is for a
     password change, because a way in is being taken away."""
-    require_password(current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, admin_session, current_user, payload.current_password
+    )
 
     # A credential is allowed to go while something else still opens a session
     # — another passkey, a password, a provider the deployment answers for.
-    # Where it is the whole of that, it stays.
+    # Where it is the whole of that, it stays. A deployment that has withdrawn
+    # passkeys leaves such an account with nothing at all, which is the same
+    # answer.
     ways = await identity_service.ways_in(admin_session, user_id=current_user.id)
-    if ways == frozenset({LoginMethod.passkey}) and (
+    if not (ways - {LoginMethod.passkey}) and (
         await passkey_service.count_for_user(admin_session, user_id=current_user.id)
         == 1
     ):

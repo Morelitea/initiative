@@ -25,7 +25,9 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
@@ -36,7 +38,6 @@ from app.core.rate_limit import limiter
 from app.core.security import (
     get_password_hash,
     has_usable_password,
-    verify_password,
 )
 from app.core.user_input_validators import (
     normalize_notification_time,
@@ -984,25 +985,18 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it. The
-        # exemption is for an account that holds no password to confirm — one
-        # provisioned through an identity provider. Holding a federated
-        # identity is a different question: an account can have both, and one
-        # that has a password is asked for it. So is "the column is NULL": a
-        # hash no scheme verifies is not a password, and asking for one nobody
-        # can supply would leave the account unable to set one.
-        if has_usable_password(current_user.hashed_password):
-            current_password = update_data.get("current_password")
-            if not current_password:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_REQUIRED,
-                )
-            if not verify_password(current_password, current_user.hashed_password):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.CURRENT_PASSWORD_INCORRECT,
-                )
+        # Read before the hash below replaces it: what the account held going
+        # in is what the re-check asks about and what the replacement session
+        # may claim was proved here.
+        held_password = has_usable_password(current_user.hashed_password)
+        # Re-authenticate with the current password before changing it. An
+        # account that holds none answers with a recent sign-in instead.
+        await require_password_or_recent_proof(
+            request,
+            admin_session,
+            current_user,
+            update_data.get("current_password"),
+        )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
@@ -1018,14 +1012,14 @@ async def update_users_me(
         # caller's own access token AND refresh chain, so a fresh session is
         # opened and both cookies re-issued — every *other* session/device
         # still dies. ``amr`` records what this request proved: the current
-        # password for local accounts; nothing for the exempt path, where no
-        # factor was presented here.
+        # password where the account held one; nothing where it did not, since
+        # no factor was presented here.
         await replace_session(
             request,
             response,
             admin_session,
             user=current_user,
-            amr=[] if is_sso_account else ["pwd"],
+            amr=["pwd"] if held_password else [],
             satisfied_providers=[],
         )
 
@@ -1295,6 +1289,7 @@ async def get_my_initiative_members(
 
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
+    http_request: Request,
     request: AccountDeletionRequest,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1312,7 +1307,8 @@ async def delete_own_account(
 
     # Re-check the password, where the account holds one to re-check. An
     # account that signs in another way — a passkey, an identity provider —
-    # has none to supply, and is asked for the confirmation phrase alone.
+    # has none to supply, and answers with a recent sign-in and the
+    # confirmation phrase.
     #
     # 400 (not 401): the user IS authenticated — they passed
     # ``get_current_active_user`` to reach this endpoint. The global axios
@@ -1320,8 +1316,12 @@ async def delete_own_account(
     # SPA, so a wrong-password response on this form would knock the user out
     # of the session they were trying to confirm into. 400 keeps the error
     # scoped to the form's onError handler.
-    require_password(
-        current_user, request.password, detail=UserMessages.INVALID_PASSWORD
+    await require_password_or_recent_proof(
+        http_request,
+        session,
+        current_user,
+        request.password,
+        detail=UserMessages.INVALID_PASSWORD,
     )
 
     # The confirmation phrase is action-specific so the user can't accidentally

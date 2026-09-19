@@ -1582,6 +1582,21 @@ async def _passwordless(session: AsyncSession, email: str) -> User:
     )
 
 
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
+
+
 async def test_the_last_credential_of_a_passwordless_account_stays(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1593,7 +1608,24 @@ async def test_the_last_credential_of_a_passwordless_account_stays(
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
         json={},
-        headers=get_auth_headers(user),
+        headers=await _just_signed_in(session, user),
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
+
+
+async def test_a_withdrawn_method_does_not_free_the_last_credential(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment that stopped accepting passkeys leaves such an account
+    with nothing that opens a session, so the credential stays."""
+    user = await _passwordless(session, "pk-last-withdrawn@example.com")
+    row = await _credential_for(session, user, credential_id="last-withdrawn")
+    headers = await _just_signed_in(session, user)
+    await _withdraw_passkeys(session)
+
+    response = await client.post(
+        f"/api/v1/auth/passkeys/{row.id}/remove", json={}, headers=headers
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
@@ -1623,6 +1655,6 @@ async def test_a_second_credential_lets_the_first_go(
     response = await client.post(
         f"/api/v1/auth/passkeys/{first.id}/remove",
         json={},
-        headers=get_auth_headers(user),
+        headers=await _just_signed_in(session, user),
     )
     assert response.status_code == 204, response.text

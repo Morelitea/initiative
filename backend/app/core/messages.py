@@ -48,6 +48,9 @@ class AuthMessages:
     #: than through a standing credential (an API key, a device token, an app
     #: acting on someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
+    #: The account holds no password to re-check, and the session is not fresh
+    #: enough to stand in for one.
+    RECENT_PROOF_REQUIRED = "RECENT_PROOF_REQUIRED"
     #: The password was right and the account holds a second factor, so the
     #: sign-in is not finished. Answered with the challenge to present it
     #: against.

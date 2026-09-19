@@ -22,7 +22,9 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
@@ -1357,6 +1359,7 @@ async def set_guild_session_limit(
 )
 async def delete_guild(
     guild_id: int,
+    http_request: Request,
     request: GuildDeletionRequest,
     session: SessionDep,
     admin_session: AdminSessionDep,
@@ -1372,11 +1375,16 @@ async def delete_guild(
 
     # Re-check the password, where the account holds one to re-check — the
     # same gate the account-deletion endpoint asks. An account that signs in
-    # another way has none to supply, and answers with the phrase alone. 400
-    # not 401 so the SPA's axios interceptor doesn't treat a wrong password as
-    # a session expiry and force-log-out the user mid-confirmation.
-    require_password(
-        current_user, request.password, detail=GuildMessages.INVALID_PASSWORD
+    # another way has none to supply, and answers with a recent sign-in and the
+    # phrase. 400 not 401 so the SPA's axios interceptor doesn't treat a wrong
+    # password as a session expiry and force-log-out the user
+    # mid-confirmation.
+    await require_password_or_recent_proof(
+        http_request,
+        admin_session,
+        current_user,
+        request.password,
+        detail=GuildMessages.INVALID_PASSWORD,
     )
 
     # The whole phrase is uppercased, including the name, so casing on

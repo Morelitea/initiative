@@ -25,9 +25,11 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException, Request, Response, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.platform_endpoints.session_cookies import (
@@ -88,6 +90,42 @@ def require_session_row(request: Request) -> uuid.UUID:
         status_code=status.HTTP_403_FORBIDDEN,
         detail=AuthMessages.SESSION_REQUIRED,
     )
+
+
+# Walk a session back up its rotation chain and read the oldest row there.
+# ``parent_id`` always points at an older, pre-existing row and
+# ``ck_auth_sessions_parent_not_self`` blocks the only reachable self-loop, so
+# the graph is a strict in-tree and the recursion terminates.
+_CHAIN_ROOT_SQL = text(
+    """
+    WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id, created_at FROM auth_sessions WHERE id = :sid
+        UNION
+        SELECT s.id, s.parent_id, s.created_at
+        FROM auth_sessions s JOIN ancestors a ON s.id = a.parent_id
+    )
+    SELECT created_at FROM ancestors ORDER BY created_at LIMIT 1
+    """
+)
+
+
+async def chain_started_at(
+    admin_session: AsyncSession, *, session_id: uuid.UUID
+) -> datetime | None:
+    """When the sign-in this session descends from was opened.
+
+    Every refresh mints a new row pointing at the one it replaced, so a session
+    that has been renewed for a week is still the same chain; its root is the
+    sign-in. A step-up and a replacement each start a chain of their own, so
+    both read as the moment they happened.
+
+    ``None`` where there is no such row.
+    """
+    # One round trip on the session's own connection: a chain gains a row per
+    # refresh, so walking it a row at a time would be as many.
+    connection = await admin_session.connection()
+    result = await connection.execute(_CHAIN_ROOT_SQL, {"sid": session_id})
+    return result.scalar_one_or_none()
 
 
 async def record_sign_in_failure(

@@ -815,10 +815,11 @@ async def test_a_passwordless_account_may_re_issue_its_codes(
     first = await totp_service.issue_recovery_codes(session, user_id=user.id)
     await session.commit()
 
+    # No password to re-check, so what it answers with is the sign-in.
     response = await client.post(
         "/api/v1/auth/recovery-codes/regenerate",
         json={},
-        headers=get_auth_headers(user),
+        headers=await _session_headers(session, user),
     )
     assert response.status_code == 200, response.text
     codes = response.json()["codes"]

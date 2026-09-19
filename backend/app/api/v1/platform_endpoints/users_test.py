@@ -1267,6 +1267,21 @@ async def test_users_me_reports_linked_identity(
     assert response.json()["has_federated_identity"] is False
 
 
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers a confirmation with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
+
+
 @pytest.mark.integration
 async def test_oidc_user_can_self_delete_without_password(
     client: AsyncClient, session: AsyncSession
@@ -1278,7 +1293,7 @@ async def test_oidc_user_can_self_delete_without_password(
     )
     await create_federated_identity(session, user, subject="oidc-subject-123")
 
-    headers = get_auth_headers(user)
+    headers = await _just_signed_in(session, user)
     response = await client.post(
         "/api/v1/users/me/delete-account",
         headers=headers,
@@ -1319,7 +1334,7 @@ async def test_a_passkey_only_account_can_self_delete_without_a_password(
 
     response = await client.post(
         "/api/v1/users/me/delete-account",
-        headers=get_auth_headers(user),
+        headers=await _just_signed_in(session, user),
         json={
             "action": "soft_delete",
             "password": "",

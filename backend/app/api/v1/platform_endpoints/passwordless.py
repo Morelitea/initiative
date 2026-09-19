@@ -102,8 +102,9 @@ async def remove_password(
     """Give up the password, keeping the passkey or the sign-in provider that
     will open sessions from now on.
 
-    Hands back a recovery set when the account holds none yet — the one time
-    those exist in the clear — and an empty list when it already does.
+    Hands back a fresh recovery set where the account is down to fewer than a
+    handful of codes — the one time those exist in the clear, and the ones it
+    held stop working — and an empty list where it still holds enough.
 
     Done from a browser. The answer retires every credential the account holds
     and hands this caller a replacement session in cookies, which is not what
@@ -153,13 +154,7 @@ async def remove_password(
     )
     carried_provider_auth = prior.provider_auth if prior is not None else None
 
-    # Device tokens are revoked and committed on the request path first: they
-    # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction. Everything after this point is staged, so a
-    # failure there leaves the account signed out on its phones with the
-    # password still where it was.
-    await user_tokens.revoke_active_device_tokens(session, user_id=current_user.id)
-    await session.commit()
+    await user_tokens.revoke_device_tokens_first(session, user_id=current_user.id)
 
     # The row is written on the system engine, which is where the rest of this
     # request's writes land.
@@ -259,14 +254,10 @@ async def recover_with_code(
         await _record_recovery_refusal(admin_session, user_id=user.id)
         raise _recovery_code_invalid()
 
-    # Device tokens are revoked and committed on the request path first: they
-    # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction. Everything after this point is staged, so a
-    # failure there leaves the account signed out on its phones and still
-    # passwordless, which is where it began — and its code unspent, so the same
-    # one works on the retry.
-    await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
-    await session.commit()
+    # The account is left signed out on its phones and still passwordless,
+    # which is where it began — and its code unspent, so the same one works on
+    # the retry.
+    await user_tokens.revoke_device_tokens_first(session, user_id=user.id)
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
@@ -296,13 +287,15 @@ async def recover_with_code(
     # than after a rollback that would leave the columns to be fetched again.
     user_id = user.id
     try:
+        # Staged before the call below, which is what commits the system
+        # engine: the password, the stamp, the spent code and the records all
+        # land on that one commit.
+        user.updated_at = datetime.now(timezone.utc)
+        admin_session.add(user)
         await user_tokens.revoke_user_sessions(
             session, user=user, admin_session=admin_session
         )
-        user.updated_at = datetime.now(timezone.utc)
-        admin_session.add(user)
         await session.commit()
-        await admin_session.commit()
     except Exception as exc:
         await admin_session.rollback()
         logger.exception("Could not record a recovery for user %s", user_id)

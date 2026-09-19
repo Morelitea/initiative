@@ -3902,8 +3902,9 @@ export const useFinishPasskeyStepUpApiV1AuthStepUpPasskeyFinishPost = <
  * Give up the password, keeping the passkey or the sign-in provider that
  * will open sessions from now on.
  *
- * Hands back a recovery set when the account holds none yet — the one time
- * those exist in the clear — and an empty list when it already does.
+ * Hands back a fresh recovery set where the account is down to fewer than a
+ * handful of codes — the one time those exist in the clear, and the ones it
+ * held stop working — and an empty list where it still holds enough.
  *
  * Done from a browser. The answer retires every credential the account holds
  * and hands this caller a replacement session in cookies, which is not what

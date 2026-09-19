@@ -1,16 +1,33 @@
 """Re-checking the account's password before it changes how it is signed into.
 
-Shared by the routes that add or take away a way in — the second factor and
-the passkeys — so both ask the same question in the same words.
+Shared by the routes that add or take away a way in — the second factor, the
+passkeys, the password itself — and by the two that end something for good, so
+all of them ask the same question in the same words.
+
+An account that holds no password has nothing to re-check, so what stands in
+for it is the sign-in itself: :func:`require_password_or_recent_proof` asks
+such an account to be on a session opened within the last few minutes.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.messages import UserMessages
+from app.api.v1.platform_endpoints.session_opening import (
+    chain_started_at,
+    require_session_row,
+)
+from app.core.messages import AuthMessages, UserMessages
 from app.core.security import has_usable_password, verify_password
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
+
+#: How long after a sign-in that sign-in still answers for the account. Short
+#: enough that the person is still the one at the keyboard, long enough to read
+#: a confirmation form and type a phrase into it.
+RECENT_PROOF_MINUTES = 10
 
 
 def require_password(
@@ -41,3 +58,49 @@ def require_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail or UserMessages.CURRENT_PASSWORD_INCORRECT,
         )
+
+
+def _recent_proof_required() -> HTTPException:
+    # The account holds no password to re-check, and the session is not fresh
+    # enough to stand in for one.
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=AuthMessages.RECENT_PROOF_REQUIRED,
+    )
+
+
+async def require_password_or_recent_proof(
+    request: Request,
+    admin_session: AsyncSession,
+    user: User,
+    supplied: Optional[str],
+    *,
+    detail: Optional[str] = None,
+) -> None:
+    """Ask for the password, or for a sign-in recent enough to speak for it.
+
+    An account that holds a password answers the question
+    :func:`require_password` asks, in the same words and with the same
+    ``detail``. One that holds none answers a different question: it has to be
+    on a server-side session of its own — a standing credential is not somebody
+    signing in — and that session's chain has to have begun within
+    :data:`RECENT_PROOF_MINUTES`.
+
+    The chain, not the row: a refresh mints a new row every so often and the
+    sign-in is at the root of them, so the age read is the sign-in's. A step-up
+    and a replacement each open a chain of their own, which is what lets a
+    person prove themselves again and carry on.
+    """
+    if has_usable_password(user.hashed_password):
+        require_password(user, supplied, detail=detail)
+        return
+
+    session_id = require_session_row(request)
+    row = await admin_session.get(AuthSession, session_id)
+    if row is None or row.user_id != user.id or row.revoked_at is not None:
+        raise _recent_proof_required()
+    started = await chain_started_at(admin_session, session_id=session_id)
+    if started is None or datetime.now(timezone.utc) - started > timedelta(
+        minutes=RECENT_PROOF_MINUTES
+    ):
+        raise _recent_proof_required()

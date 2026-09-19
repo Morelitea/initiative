@@ -20,7 +20,10 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.rate_limit import limiter
 from app.core.security import has_usable_password
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password,
+    require_password_or_recent_proof,
+)
 from app.api.v1.platform_endpoints.session_opening import upgrade_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -344,7 +347,9 @@ async def regenerate_recovery_codes(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    require_password(current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, admin_session, current_user, payload.current_password
+    )
 
     codes = await totp_service.issue_recovery_codes(
         admin_session, user_id=current_user.id
