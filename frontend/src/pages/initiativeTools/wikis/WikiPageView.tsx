@@ -472,7 +472,14 @@ export const WikiPageView = () => {
             <SheetTitle>{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            <ToolCommentsPanel tool={Tool.wiki} entity={wiki} />
+            {/* The page's thread, not the wiki's: a note about the rota
+                belongs on the rota. The wiki still answers for whether there
+                is one at all, and for who may read it. */}
+            <ToolCommentsPanel
+              tool={Tool.wiki}
+              entity={wiki}
+              target={{ type: "wiki_page", id: pageId }}
+            />
           </div>
         </SheetContent>
       </Sheet>

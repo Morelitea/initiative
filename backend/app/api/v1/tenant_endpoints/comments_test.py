@@ -9,6 +9,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_task,
+    create_wiki_page,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -449,6 +450,117 @@ class TestToolCommentSwitch:
         )
         assert listed.status_code == 200
         assert [c["content"] for c in listed.json()] == ["Before"]
+
+    async def test_a_wiki_thread_belongs_to_the_page(
+        self, client, session, acting_user
+    ):
+        """A wiki's conversation happens on its pages: two pages of one wiki
+        hold two threads, and neither is the wiki's own."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
+        rota = await create_wiki_page(session, wiki, a.user, title="Rota")
+        rules = await create_wiki_page(session, wiki, a.user, title="Rules")
+
+        for page, said in ((rota, "Who is on Tuesday?"), (rules, "Rule 3 is stale")):
+            posted = await client.post(
+                a.g("/comments/"),
+                headers=a.headers,
+                json={"content": said, "wiki_page_id": page.id},
+            )
+            assert posted.status_code == 201, posted.text
+            assert posted.json()["wiki_page_id"] == page.id
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"wiki_page_id": rota.id}
+        )
+        assert listed.status_code == 200, listed.text
+        assert [c["content"] for c in listed.json()] == ["Who is on Tuesday?"]
+
+        # The wiki's own thread is a different thread, and empty.
+        wiki_thread = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"wiki_id": wiki.id}
+        )
+        assert wiki_thread.status_code == 200
+        assert wiki_thread.json() == []
+
+        # The feed names the page, not the wiki it is filed in.
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        pages = [e for e in recent.json() if e["entity_type"] == "wiki_page"]
+        assert {e["entity_id"] for e in pages} == {rota.id, rules.id}
+        assert {e["entity_name"] for e in pages} == {"Rota", "Rules"}
+        assert all(e["initiative_id"] == a.initiative.id for e in pages)
+
+    async def test_a_wiki_switch_governs_its_pages(self, client, session, acting_user):
+        """Unlike a task, a page has no switch of its own — the wiki is where
+        that choice is made, so it reaches the pages."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
+        page = await create_wiki_page(session, wiki, a.user)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Before", "wiki_page_id": page.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        off = await client.put(
+            a.g(f"/tools/{Tool.wiki.value}/{wiki.id}/comments"),
+            headers=a.headers,
+            json={"comments_enabled": False},
+        )
+        assert off.status_code == 200, off.text
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"wiki_page_id": page.id}
+        )
+        assert listed.status_code == 403
+        assert listed.json()["detail"] == CommentMessages.COMMENTS_DISABLED
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "After", "wiki_page_id": page.id},
+        )
+        assert posted.status_code == 403
+
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        assert not [e for e in recent.json() if e["entity_type"] == "wiki_page"]
+
+    async def test_a_page_thread_takes_the_wikis_sharing(
+        self, client, session, acting_user
+    ):
+        """The page is not shared separately: reaching its thread is reaching
+        the wiki."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
+        page = await create_wiki_page(session, wiki, a.user)
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+
+        denied = await client.get(
+            a.g("/comments/"), headers=b.headers, params={"wiki_page_id": page.id}
+        )
+        assert denied.status_code == 403
+        assert denied.json()["detail"] == CommentMessages.PERMISSION_DENIED
+
+        await _grant(session, Tool.wiki, wiki, b.user, ResourceAccessLevel.read)
+
+        allowed = await client.get(
+            a.g("/comments/"), headers=b.headers, params={"wiki_page_id": page.id}
+        )
+        assert allowed.status_code == 200, allowed.text
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=b.headers,
+            json={"content": "Joining in", "wiki_page_id": page.id},
+        )
+        assert posted.status_code == 201, posted.text
 
     async def test_a_project_switch_leaves_task_threads_alone(
         self, client, session, acting_user

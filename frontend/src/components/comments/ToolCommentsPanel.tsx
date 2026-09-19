@@ -1,6 +1,5 @@
 /**
- * One tool entity's comment thread, ready to drop at the bottom of that
- * entity's page.
+ * One comment thread, ready to drop at the bottom of the page it belongs on.
  *
  * It takes the ENTITY, not a pile of fields pulled out of it: every tool's read
  * schema carries the same three facts a thread needs — its id, the initiative
@@ -8,6 +7,11 @@
  * which `tools_test.py` holds every tool to). Deriving them here means a tool
  * page says which tool and which row, and a seventh tool needs no new wiring at
  * all.
+ *
+ * `target` splits the thread from what answers for it, which is what the
+ * backend does too: a wiki page's conversation is the page's, while the
+ * switch, the sharing and the initiative are the wiki's. Left out, the thread
+ * is the tool entity's own.
  */
 
 import { useMemo } from "react";
@@ -17,15 +21,19 @@ import type {
   ListCommentsApiV1GGuildIdCommentsGetParams,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { CommentEntity } from "@/components/comments/CommentSection";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
 import type { ToolCommentEntity } from "@/lib/tools";
 
 interface ToolCommentsPanelProps {
-  /** Which tool the entity belongs to — the comment target's field name. */
+  /** Which tool answers for the thread — its switch, its sharing. */
   tool: Tool;
   /** The tool entity itself, as its read schema returns it. */
   entity: ToolCommentEntity;
+  /** The thread itself, where it is not the tool entity's own — a wiki page.
+   *  Its `type` is the comment target's field name. */
+  target?: { type: CommentEntity; id: number };
   canModerate?: boolean;
   title?: string;
   /** Called with +1/-1 when the thread grows or shrinks, for a page that shows
@@ -36,13 +44,15 @@ interface ToolCommentsPanelProps {
 export const ToolCommentsPanel = ({
   tool,
   entity,
+  target,
   canModerate = false,
   title,
   onCountChange,
 }: ToolCommentsPanelProps) => {
   const { t } = useTranslation("comments");
 
-  const entityId = entity.id;
+  const targetType: CommentEntity = target?.type ?? tool;
+  const entityId = target?.id ?? entity.id;
   const enabled = entity.comments_enabled ?? true;
   // A guild-level entity (an app-installed calendar) belongs to no initiative;
   // 0 is what the mention lookups read as "no initiative to search".
@@ -50,9 +60,9 @@ export const ToolCommentsPanel = ({
 
   const params = useMemo<ListCommentsApiV1GGuildIdCommentsGetParams>(() => {
     const next: ListCommentsApiV1GGuildIdCommentsGetParams = {};
-    next[`${tool}_id`] = entityId;
+    next[`${targetType}_id`] = entityId;
     return next;
-  }, [tool, entityId]);
+  }, [targetType, entityId]);
 
   const commentsQuery = useComments(params, {
     enabled: Number.isFinite(entityId) && enabled,
@@ -67,7 +77,7 @@ export const ToolCommentsPanel = ({
     <div className="space-y-2">
       {commentsQuery.isError && <p className="text-destructive text-sm">{t("loadError")}</p>}
       <CommentSection
-        entityType={tool}
+        entityType={targetType}
         entityId={entityId}
         comments={commentsQuery.data ?? []}
         isLoading={commentsQuery.isLoading}

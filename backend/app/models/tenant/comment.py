@@ -4,26 +4,25 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
-from app.core.tools import Tool
+from app.core.tools import COMMENT_TARGETS
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 from app.models.platform.user_profile_view import MemberProfile
 
 
-#: The comment columns naming a parent — the task plus one per tool — as the
-#: single-parent CHECK spells them. Derived from the enum so the constraint and
-#: the columns below cannot name different sets.
-COMMENT_PARENT_COLUMN_SQL = ", ".join(
-    ["task_id", *(f"{tool.value}_id" for tool in Tool)]
-)
+#: The comment columns naming a parent — one per tool plus the content-level
+#: extras — as the single-parent CHECK spells them. Derived from the registry
+#: so the constraint and the columns below cannot name different sets.
+COMMENT_PARENT_COLUMN_SQL = ", ".join(f"{target}_id" for target in COMMENT_TARGETS)
 
 
 class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
-        # A comment hangs off exactly ONE parent: a task, or one tool entity.
-        # The column list is derived from the Tool enum, so a new tool's column
-        # joins the rule by existing rather than by being remembered here.
+        # A comment hangs off exactly ONE parent: one tool entity, or one of
+        # the content-level extras. The column list is derived from
+        # ``COMMENT_TARGETS``, so a new parent's column joins the rule by
+        # existing rather than by being remembered here.
         CheckConstraint(
             f"num_nonnulls({COMMENT_PARENT_COLUMN_SQL}) = 1",
             name="ck_comments_single_parent",
@@ -108,6 +107,15 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(
             Integer, ForeignKey("wikis.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    # A wiki's conversation happens on its pages: a note about the rota belongs
+    # on the rota. The wiki's own column above stays a parent so the tool is
+    # commentable like every other, but the thread people use is this one.
+    wiki_page_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("wiki_pages.id", ondelete="CASCADE"), nullable=True
         ),
     )
     parent_comment_id: Optional[int] = Field(

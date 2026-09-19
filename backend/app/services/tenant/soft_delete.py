@@ -82,11 +82,10 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
     Queue: [(QueueItem, "queue_id")],
     CounterGroup: [(Counter, "counter_group_id")],
     Wiki: [(WikiPage, "wiki_id"), (Comment, "wiki_id")],
-    # A page takes what is filed under it: a section is put away whole, the
-    # same self-cascade a comment thread uses.
-    WikiPage: [(WikiPage, "parent_page_id")],
-    # A page takes its sub-pages with it: a section is put away whole,
-    # the same self-cascade a comment thread uses.
+    # A page takes what is filed under it — a section is put away whole, the
+    # same self-cascade a comment thread uses — and the conversation about it,
+    # which is the page's and not the wiki's.
+    WikiPage: [(WikiPage, "parent_page_id"), (Comment, "wiki_page_id")],
     Comment: [(Comment, "parent_comment_id")],
 }
 

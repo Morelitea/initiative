@@ -53,7 +53,10 @@
     "draft": "Borrador",
     "previous": "Anterior",
     "next": "Siguiente",
-    "nav": "Páginas a ambos lados de esta"
+    "nav": "Páginas a ambos lados de esta",
+    "expandAll": "Expandir todo",
+    "collapseAll": "Contraer todo",
+    "groupLabel": "Páginas"
   },
   "links": {
     "title": "Conexiones",
@@ -72,7 +75,9 @@
     "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchWikis": "Buscar wikis...",
-    "noMatchingWikis": "Ningún wiki coincide con tus filtros."
+    "noMatchingWikis": "Ningún wiki coincide con tus filtros.",
+    "tags": "Etiquetas",
+    "anyTag": "Cualquier etiqueta"
   },
   "settings": {
     "title": "Configuración del wiki",
@@ -103,8 +108,8 @@
     "templateDescription": "Copia el contenido de una página en cada página nueva. Útil para que las entradas mantengan la misma forma.",
     "templateNone": "Una página vacía",
     "saved": "Configuración guardada",
-    "tabSite": "Sitio",
-    "reading": "Lectura",
+    "tabReading": "Lectura",
+    "reading": "Diseño de página",
     "readingDescription": "Cuánto se extiende una página y qué la acompaña.",
     "appearance": "Apariencia",
     "appearanceDescription": "El color por el que se reconoce este wiki.",

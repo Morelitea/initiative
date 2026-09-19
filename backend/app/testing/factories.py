@@ -1869,6 +1869,7 @@ async def create_comment(
     author: User,
     *,
     task: Task | None = None,
+    wiki_page: WikiPage | None = None,
     wiki: Wiki | None = None,
     document: Document | None = None,
     project: Project | None = None,
@@ -1882,9 +1883,11 @@ async def create_comment(
     commit: bool = True,
     **overrides: Any,
 ) -> Comment:
-    """Create a comment on exactly one parent — a task or any tool entity."""
+    """Create a comment on exactly one parent — any tool entity, or one of the
+    content-level extras (a task, a wiki page)."""
     named = {
         "task": task,
+        "wiki_page": wiki_page,
         Tool.project.value: project,
         Tool.document.value: document,
         Tool.queue.value: queue,

@@ -544,12 +544,19 @@ def via_property(
 
 @dataclass(frozen=True)
 class CommentParent:
-    """One thing a comment can hang off, declared once and rendered three ways.
+    """One thing a comment can hang off, declared once and rendered five ways.
 
     ``frm``/``tie``/``initiative`` give the membership legs and the outbox
     locator; ``chain`` names the addressable resources an event about the
     comment carries, read off that same join. So a comment cannot be gated
     through one parent and have its events attributed through another.
+
+    ``table``/``governed_by``/``tool_fk`` say which tool's SHARING answers for
+    the thread, which is not always the parent itself: a task is shared as part
+    of its project and a wiki page as part of its wiki. Everything that has to
+    resolve a comment's tool — the DAC legs here, the search index's sharing
+    columns, the freeze check, the initiative lookup — reads them from here
+    rather than carrying its own special case per parent.
     """
 
     #: The ``comments`` column naming this parent.
@@ -562,6 +569,13 @@ class CommentParent:
     initiative: str
     #: (addressable table, column of ``frm`` holding its id), innermost first.
     chain: tuple[tuple[str, str], ...]
+    #: The parent's own table.
+    table: str
+    #: The tool whose sharing governs this parent's rows.
+    governed_by: Tool
+    #: The column of :attr:`table` holding that tool's id, or ``None`` when the
+    #: parent IS the tool row and ``column`` already names it.
+    tool_fk: str | None = None
 
 
 def _tool_comment_parent(tool: Tool) -> CommentParent:
@@ -578,13 +592,16 @@ def _tool_comment_parent(tool: Tool) -> CommentParent:
         f"{table}.id",
         f"{table}.initiative_id",
         ((table, f"{table}.id"),),
+        table=table,
+        governed_by=tool,
     )
 
 
-#: Every Tool appears here plus the task, matching the comment table's
-#: single-parent constraint. A comment on a task names the project too: it is
-#: the surface a task comment shows up on, and the join is already made — which
-#: is why the task is the one entry written out rather than derived.
+#: Every Tool appears here plus the content-level extras, matching the comment
+#: table's single-parent constraint. The extras are written out rather than
+#: derived because each names its own way up to a tool: a comment on a task
+#: names the project too — it is the surface a task comment shows up on, and
+#: the join is already made — and a comment on a wiki page names the wiki.
 _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     CommentParent(
         "task_id",
@@ -592,33 +609,55 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
         "tk.id",
         "pr.initiative_id",
         (("tasks", "tk.id"), ("projects", "pr.id")),
+        table="tasks",
+        governed_by=Tool.project,
+        tool_fk="project_id",
+    ),
+    CommentParent(
+        "wiki_page_id",
+        "wiki_pages wp JOIN wikis wkp ON wkp.id = wp.wiki_id",
+        "wp.id",
+        "wkp.initiative_id",
+        # The wiki alone: a page has no address of its own — it is read at
+        # ``/wikis/{id}/pages/{id}`` — so it is not something an event can put
+        # an id under. Its wiki is, which is where a reader would go anyway.
+        (("wikis", "wkp.id"),),
+        table="wiki_pages",
+        governed_by=Tool.wiki,
+        tool_fk="wiki_id",
     ),
     *(_tool_comment_parent(tool) for tool in Tool),
 )
 
 
+#: Every comment parent by its column — what the other derivations look it up
+#: by, so the parent set is stated once and they cannot disagree.
+COMMENT_PARENTS: dict[str, CommentParent] = {p.column: p for p in _COMMENT_PARENTS}
+
 #: The comment columns naming a parent, in declaration order. Search reads this
 #: to work out which tool's sharing governs a comment, so the parent set is
 #: stated once and the two derivations cannot disagree.
-COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(p.column for p in _COMMENT_PARENTS)
+COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(COMMENT_PARENTS)
 
 
 def _comments_dac() -> DacPath:
     """Which tool's sharing governs a comment — its one parent's.
 
     Derived from ``_COMMENT_PARENTS``, so the sharing legs and the membership
-    legs are the same list read twice. A comment on a task is the one parent
-    whose resource is not its own column: a task is shared as part of its
-    project.
+    legs are the same list read twice. A parent that is not itself a tool row
+    takes the extra hop its registry entry names.
     """
 
     def build(t: str, command: str, w: bool) -> str:
         legs = []
-        for col in COMMENT_PARENT_COLUMNS:
-            if col == "task_id":
-                leg = _dac_two_hop("tasks", "project_id", "projects", col)
+        for parent in _COMMENT_PARENTS:
+            col = parent.column
+            if parent.tool_fk is None:
+                leg = _dac_via(parent.governed_by.plural, col)
             else:
-                leg = _dac_via(Tool(col.removesuffix("_id")).plural, col)
+                leg = _dac_two_hop(
+                    parent.table, parent.tool_fk, parent.governed_by.plural, col
+                )
             legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
         return "(" + " OR ".join(legs) + ")"
 

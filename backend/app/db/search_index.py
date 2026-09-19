@@ -25,7 +25,7 @@ from sqlmodel import SQLModel
 
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db.initiative_rls import COMMENT_PARENT_COLUMNS, initiative_locator
+from app.db.initiative_rls import COMMENT_PARENTS, initiative_locator
 
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE.
 ROW = "($1)"
@@ -219,21 +219,21 @@ def _comment_dac(row: str) -> tuple[str, str]:
 
     A comment hangs off exactly one parent, and the parents are declared once
     for the RLS policies — so the legs are derived from that same list rather
-    than restated here. A comment on a task is the one leg whose id is not its
-    own column: a task is shared as part of its project.
+    than restated here. A parent that is not itself a tool row names the tool
+    it is shared as part of: a task by its project, a wiki page by its wiki.
     """
     tools: list[str] = []
     ids: list[str] = []
-    for column in COMMENT_PARENT_COLUMNS:
-        if column == "task_id":
-            tool, ident = (
-                Tool.project,
-                (f"(SELECT project_id FROM tasks WHERE id = {row}.task_id)"),
-            )
-        else:
-            tool = Tool(column.removesuffix("_id"))
-            ident = f"{row}.{column}"
-        tools.append(f"WHEN {row}.{column} IS NOT NULL THEN '{tool.value}'")
+    for column, parent in COMMENT_PARENTS.items():
+        ident = (
+            f"{row}.{column}"
+            if parent.tool_fk is None
+            else f"(SELECT {parent.tool_fk} FROM {parent.table} "  # noqa: S608 — names from the parent registry
+            f"WHERE id = {row}.{column})"
+        )
+        tools.append(
+            f"WHEN {row}.{column} IS NOT NULL THEN '{parent.governed_by.value}'"
+        )
         ids.append(f"WHEN {row}.{column} IS NOT NULL THEN {ident}")
     return f"(CASE {' '.join(tools)} END)", f"(CASE {' '.join(ids)} END)"
 

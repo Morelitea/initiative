@@ -53,7 +53,10 @@
     "draft": "Draft",
     "previous": "Previous",
     "next": "Next",
-    "nav": "Pages either side of this one"
+    "nav": "Pages either side of this one",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "groupLabel": "Pages"
   },
   "links": {
     "title": "Connections",
@@ -72,7 +75,9 @@
     "heading": "Filters",
     "searchLabel": "Name or description",
     "searchWikis": "Search wikis...",
-    "noMatchingWikis": "No wikis match your filters."
+    "noMatchingWikis": "No wikis match your filters.",
+    "tags": "Tags",
+    "anyTag": "Any tag"
   },
   "settings": {
     "title": "Wiki settings",
@@ -103,8 +108,8 @@
     "templateDescription": "Copy a page's contents into every new page. Good for keeping entries the same shape.",
     "templateNone": "An empty page",
     "saved": "Settings saved",
-    "tabSite": "Site",
-    "reading": "Reading",
+    "tabReading": "Reading",
+    "reading": "Page layout",
     "readingDescription": "How wide a page runs, and what sits beside it.",
     "appearance": "Appearance",
     "appearanceDescription": "The colour this wiki is recognised by.",

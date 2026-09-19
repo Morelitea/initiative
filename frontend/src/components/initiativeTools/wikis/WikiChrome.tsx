@@ -30,6 +30,9 @@ interface WikiChromeProps {
   onPublish?: () => void;
   onToggleEditing: () => void;
   onOpenComments: () => void;
+  /** Whether there is a thread to open. The wiki answers for its own pages;
+   *  a borrowed document answers for itself. */
+  commentsEnabled?: boolean;
   onToggleConnections: () => void;
   connectionsOpen: boolean;
   /** Anything this particular surface adds — a way out to a document, say. */
@@ -63,6 +66,7 @@ export const WikiChrome = ({
   onPublish,
   onToggleEditing,
   onOpenComments,
+  commentsEnabled,
   onToggleConnections,
   connectionsOpen,
   trailing,
@@ -162,7 +166,7 @@ export const WikiChrome = ({
           </Tooltip>
         ) : null}
 
-        {wiki.comments_enabled ? (
+        {(commentsEnabled ?? wiki.comments_enabled) ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

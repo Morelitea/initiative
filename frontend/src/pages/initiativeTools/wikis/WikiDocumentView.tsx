@@ -115,6 +115,7 @@ export const WikiDocumentView = () => {
           editing={false}
           onToggleEditing={() => {}}
           onOpenComments={() => setCommentsOpen(true)}
+          commentsEnabled={document_?.comments_enabled ?? false}
           onToggleConnections={() => {
             setRailAsked(true);
             setShowConnections((shown) => !shown);
@@ -201,7 +202,9 @@ export const WikiDocumentView = () => {
             <SheetTitle>{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            <ToolCommentsPanel tool={Tool.wiki} entity={wiki} />
+            {/* A document in a wiki is still that document — its thread is
+                its own, and is the same one its detail page shows. */}
+            {document_ ? <ToolCommentsPanel tool={Tool.document} entity={document_} /> : null}
           </div>
         </SheetContent>
       </Sheet>

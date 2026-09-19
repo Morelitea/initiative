@@ -56,9 +56,13 @@ _KINDS: tuple[tuple[str, int, str], ...] = (
 #: The set as it stood before this migration — what a downgrade restores.
 _KINDS_BEFORE = tuple(entry for entry in _KINDS if entry[1] < 15)
 
-# Every comment parent after this revision — the task plus one column per tool.
+# Every comment parent after this revision — one column per tool, plus the
+# content-level extras. A wiki's conversation happens on its pages, so
+# ``wiki_page_id`` is the thread people use; ``wiki_id`` is there because every
+# tool carries one.
 _PARENTS_AFTER = (
     "task_id",
+    "wiki_page_id",
     "project_id",
     "document_id",
     "queue_id",
@@ -69,7 +73,9 @@ _PARENTS_AFTER = (
     "gallery_id",
     "wiki_id",
 )
-_PARENTS_BEFORE = tuple(c for c in _PARENTS_AFTER if c != "wiki_id")
+_PARENTS_BEFORE = tuple(
+    c for c in _PARENTS_AFTER if c not in ("wiki_id", "wiki_page_id")
+)
 
 _PERMISSION_KEYS_AFTER = (
     "calendars_enabled",
@@ -402,8 +408,10 @@ def _apply_upgrade() -> None:
             )
         )
 
-    # The comment parent. Its FK cascades so deleting a wiki takes its thread
-    # with it, matching every other tool parent.
+    # The comment parents. Both FKs cascade so deleting a wiki takes its own
+    # thread and its pages' with it, matching every other tool parent. The
+    # wiki's column is the tool's, carried because every tool carries one; the
+    # page's is the thread readers actually use.
     with op.batch_alter_table("comments", schema=None) as batch_op:
         batch_op.add_column(sa.Column("wiki_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
@@ -415,6 +423,17 @@ def _apply_upgrade() -> None:
         ondelete="CASCADE",
     )
     op.create_index("ix_comments_wiki_id", "comments", ["wiki_id"])
+    with op.batch_alter_table("comments", schema=None) as batch_op:
+        batch_op.add_column(sa.Column("wiki_page_id", sa.Integer(), nullable=True))
+    op.create_foreign_key(
+        "comments_wiki_page_id_fkey",
+        "comments",
+        "wiki_pages",
+        ["wiki_page_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.create_index("ix_comments_wiki_page_id", "comments", ["wiki_page_id"])
     _swap_comment_parent_check(_PARENTS_AFTER)
 
     _swap_permission_key_check(_PERMISSION_KEYS_AFTER)
@@ -449,7 +468,10 @@ def _apply_downgrade() -> None:
     _write_unforced(
         "recent_views", "DELETE FROM recent_views WHERE entity_type = 'wiki'"
     )
-    _write_unforced("comments", "DELETE FROM comments WHERE wiki_id IS NOT NULL")
+    _write_unforced(
+        "comments",
+        "DELETE FROM comments WHERE wiki_id IS NOT NULL OR wiki_page_id IS NOT NULL",
+    )
     _retype_endpoint_checks(_KINDS_BEFORE)
     _swap_recent_check(_RECENT_TYPES_BEFORE)
 
@@ -460,9 +482,12 @@ def _apply_downgrade() -> None:
     )
     _swap_permission_key_check(_PERMISSION_KEYS_BEFORE)
 
+    op.drop_index("ix_comments_wiki_page_id", table_name="comments")
+    op.drop_constraint("comments_wiki_page_id_fkey", "comments", type_="foreignkey")
     op.drop_index("ix_comments_wiki_id", table_name="comments")
     op.drop_constraint("comments_wiki_id_fkey", "comments", type_="foreignkey")
     with op.batch_alter_table("comments", schema=None) as batch_op:
+        batch_op.drop_column("wiki_page_id")
         batch_op.drop_column("wiki_id")
     _swap_comment_parent_check(_PARENTS_BEFORE)
 

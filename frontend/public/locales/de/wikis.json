@@ -53,7 +53,10 @@
     "draft": "Entwurf",
     "previous": "Zurück",
     "next": "Weiter",
-    "nav": "Seiten neben dieser"
+    "nav": "Seiten neben dieser",
+    "expandAll": "Alle ausklappen",
+    "collapseAll": "Alle einklappen",
+    "groupLabel": "Seiten"
   },
   "links": {
     "title": "Verbindungen",
@@ -72,7 +75,9 @@
     "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
     "searchWikis": "Wikis durchsuchen ...",
-    "noMatchingWikis": "Keine Wikis entsprechen deinen Filtern."
+    "noMatchingWikis": "Keine Wikis entsprechen deinen Filtern.",
+    "tags": "Tags",
+    "anyTag": "Beliebiges Tag"
   },
   "settings": {
     "title": "Wiki-Einstellungen",
@@ -103,8 +108,8 @@
     "templateDescription": "Kopiert den Inhalt einer Seite in jede neue Seite. Gut, damit Einträge dieselbe Form behalten.",
     "templateNone": "Einer leeren Seite",
     "saved": "Einstellungen gespeichert",
-    "tabSite": "Website",
-    "reading": "Lesen",
+    "tabReading": "Lesen",
+    "reading": "Seitenlayout",
     "readingDescription": "Wie breit eine Seite läuft und was daneben steht.",
     "appearance": "Erscheinungsbild",
     "appearanceDescription": "Die Farbe, an der dieses Wiki erkannt wird.",
