@@ -18,7 +18,6 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import CalendarMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
@@ -134,13 +133,13 @@ async def get_calendar_for_export(
             calendar_id,
             int(current_user.id or 0),
             guild_id,
-            not_found=CalendarMessages.NOT_FOUND,
-            denied=CalendarMessages.PERMISSION_REQUIRED,
+            not_found=Tool.calendar.not_found_code,
+            denied=Tool.calendar.no_access_code,
         )
     if calendar.initiative is not None and not calendar.initiative.calendars_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.FEATURE_DISABLED,
+            detail=Tool.calendar.feature_disabled_code,
         )
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.calendar],

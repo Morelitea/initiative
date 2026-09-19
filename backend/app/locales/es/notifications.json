@@ -103,6 +103,8 @@
   "accessGrant": {
     "levelRead": "de solo lectura",
     "levelReadWrite": "de lectura y escritura",
+    "levelAdmin": "a los ajustes de la comunidad (administrador)",
+    "levelSuperadmin": "a los ajustes de la comunidad (superadministrador)",
     "requested": {
       "title": "Nueva solicitud de acceso",
       "body": "{{requester}} solicitó acceso {{level}} a {{guild}}"
@@ -123,6 +125,9 @@
   "directMessage": {
     "title": "{{sender}} te envió un mensaje",
     "body": "Abre Initiative para leerlo."
+  },
+  "directMessageGroup": {
+    "body": "{{sender}} ha enviado un mensaje."
   },
   "deviceSync": {
     "title": "Un dispositivo nuevo está esperando",

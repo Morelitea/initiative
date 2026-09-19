@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   conversations: vi.fn(),
   createConversation: vi.fn(),
+  acceptInvitation: vi.fn(),
+  leaveConversation: vi.fn(),
   messageRequests: vi.fn(),
   dmPermission: vi.fn(),
   requestMessage: vi.fn(),
@@ -56,6 +58,8 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // identity, so a stand-in would prove nothing.
   RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
     .RecipientHasNoDeviceError,
+  RecipientDevicesUnverifiedError: (await importOriginal<Record<string, unknown>>())
+    .RecipientDevicesUnverifiedError,
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
@@ -94,6 +98,10 @@ vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal
   listConversationsApiV1MeDmConversationsGet: () => mocks.conversations(),
   createConversationApiV1MeDmConversationsPost: (body: { user_id: number }) =>
     mocks.createConversation(body),
+  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost: (id: string) =>
+    mocks.acceptInvitation(id),
+  leaveConversationApiV1MeDmConversationsConversationIdDelete: (id: string) =>
+    mocks.leaveConversation(id),
 }));
 
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
@@ -187,6 +195,8 @@ beforeEach(() => {
     data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
     isSuccess: true,
   });
+  mocks.acceptInvitation.mockResolvedValue(undefined);
+  mocks.leaveConversation.mockResolvedValue(undefined);
   mocks.historyRequest.mockResolvedValue(undefined);
   mocks.historyAsk.mockResolvedValue(undefined);
   mocks.answerHistoryRequest.mockResolvedValue(undefined);
@@ -354,7 +364,7 @@ describe("My Messages", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /write a message/i }), "yes");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "yes", { replyTo: "m1" });
+    expect(mocks.sendText).toHaveBeenCalledWith("conv-1", [7], "yes", { replyTo: "m1" });
   });
 
   it("quotes who it is answering, and goes back to them when picked", async () => {
@@ -461,7 +471,7 @@ describe("My Messages", () => {
     await userEvent.type(field, "monday");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(mocks.sendEdit).toHaveBeenCalledWith("conv-1", 7, "m1", "monday");
+    expect(mocks.sendEdit).toHaveBeenCalledWith("conv-1", [7], "m1", "monday");
     expect(mocks.sendText).not.toHaveBeenCalled();
   });
 
@@ -511,7 +521,7 @@ describe("My Messages", () => {
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Remove" })
     );
 
-    expect(mocks.sendRemove).toHaveBeenCalledWith("conv-1", 7, "m1");
+    expect(mocks.sendRemove).toHaveBeenCalledWith("conv-1", [7], "m1");
   });
 
   it("leaves a line where a removed message was, and nothing to do about it", async () => {
@@ -558,7 +568,7 @@ describe("My Messages", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /👍, 1/ }));
 
-    expect(mocks.sendReaction).toHaveBeenCalledWith("conv-1", 7, "m1", "👍", false);
+    expect(mocks.sendReaction).toHaveBeenCalledWith("conv-1", [7], "m1", "👍", false);
   });
 
   it("collects again when a dm frame invalidates the mailbox", async () => {
@@ -820,7 +830,140 @@ describe("My Messages", () => {
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
 
     await waitFor(() =>
-      expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "hello", { replyTo: undefined })
+      expect(mocks.sendText).toHaveBeenCalledWith("conv-1", [7], "hello", { replyTo: undefined })
     );
+  });
+});
+
+describe("a group thread", () => {
+  /** A group as the server answers it: no single other party, a roster. */
+  const groupThread = (overrides: Record<string, unknown> = {}) => ({
+    id: "conv-g",
+    other_user_id: 7,
+    created_at: "2026-09-01T00:00:00Z",
+    kind: "group",
+    member_ids: [7, 9],
+    members: [
+      { user_id: 7, username: "alex", discriminator: 1234 },
+      { user_id: 9, username: "sam", discriminator: 5678 },
+    ],
+    pending: false,
+    ...overrides,
+  });
+
+  it("is named by who is on it, not by one of them", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+
+    await renderMessages({ thread: "conv-g" });
+
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+  });
+
+  it("draws each message against the face of whoever said it", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    // Nobody here has sent a message request, which is the ordinary case for a
+    // group: agreeing to the roster was the whole of the ask. The roster the
+    // conversation carries is therefore the only way to draw these people.
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      // A minute apart, so the quiet gap that also breaks a run cannot be what
+      // separates them: the only thing between these two is who said them.
+      { id: "m1", body: "monday then", at: "2026-09-01T00:00:00Z", mine: false, author: 7 },
+      { id: "m2", body: "works for me", at: "2026-09-01T00:01:00Z", mine: false, author: 9 },
+    ]);
+
+    await renderMessages({ thread: "conv-g" });
+    await screen.findByText("works for me");
+
+    // One face each, from the roster: a group has no single other party, so a
+    // message drawn against "them" would be drawn against nobody. Neither has
+    // a picture set, so each is drawn as their own initial.
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("S")).toBeInTheDocument();
+  });
+
+  it("opens from its id, because it has no handle to be addressed by", async () => {
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+
+    await renderMessages({ thread: "conv-g" });
+
+    // The composer is there, which is the thread rather than the list.
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+    expect(mocks.logGet).toHaveBeenCalledWith("conv-g");
+  });
+
+  it("offers the roster and an answer while the invitation is unanswered", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+
+    // The whole roster before the answer: seeing who is on it is what makes
+    // accepting consent rather than notification.
+    expect(await screen.findByText("alex#1234, sam#5678")).toBeInTheDocument();
+    const join = await screen.findByRole("button", { name: "Join" });
+
+    await userEvent.click(join);
+
+    await waitFor(() => expect(mocks.acceptInvitation).toHaveBeenCalledWith("conv-g"));
+  });
+
+  it("declines through the ordinary leave", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+    await userEvent.click(await screen.findByRole("button", { name: "No thanks" }));
+
+    await waitFor(() => expect(mocks.leaveConversation).toHaveBeenCalledWith("conv-g"));
+  });
+
+  it("does not open a conversation behind a thread named by id", async () => {
+    // Both selectors at once: the id is what is on screen, so acting on the
+    // handle would open a conversation with somebody under a thread that is
+    // not theirs.
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+
+    await renderMessages({ thread: "conv-g", with: "alex1234" });
+    await screen.findByText("alex#1234, sam#5678");
+
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+  });
+
+  it("is not mistaken for the conversation with its lowest member", async () => {
+    // A group's other_user_id is the lowest id on its roster, so a handle
+    // lookup must not land on it.
+    mocks.conversations.mockResolvedValue({ conversations: [groupThread()] });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.dmPermission.mockReturnValue({ data: { permission: "open" } });
+
+    await renderMessages({ with: "alex1234" });
+
+    // It opened the pair rather than showing the group.
+    await waitFor(() => expect(mocks.createConversation).toHaveBeenCalledWith({ user_id: 7 }));
+  });
+
+  it("reads nothing into a thread nobody has answered yet", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [groupThread({ pending: true })],
+    });
+
+    await renderMessages({ thread: "conv-g" });
+    await screen.findByRole("button", { name: "Join" });
+
+    // Nothing is delivered to somebody who has not agreed to be there, so
+    // there is no thread to read.
+    expect(mocks.logGet).not.toHaveBeenCalledWith("conv-g");
   });
 });

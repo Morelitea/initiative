@@ -18,8 +18,9 @@ from app.core.messages import (
     AuthMessages,
     GuildMessages,
     InitiativeMessages,
+    UserMessages,
 )
-from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
@@ -55,7 +56,6 @@ from app.schemas.tenant.initiative import (
 )
 from app.schemas.platform.user import (
     UserPublic,
-    UserSummary,
     UserSummaryListResponse,
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
@@ -334,10 +334,9 @@ async def join_initiative(
     themselves onto an initiative is how they bring it into their own
     navigation. It is the same act as ticking themselves in guild settings.
     """
-    # A scoped grantee reaches this guild for a window; the membership row this
-    # would create has no end date, so joining is for real guild members.
-    # (Break-glass is routed as a full guild admin and already adds members.)
-    if guild_context.is_pam and not guild_context.break_glass:
+    # A grantee reaches this guild for a window; the membership row this would
+    # create has no end date, so joining is for real guild members.
+    if guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -380,10 +379,8 @@ def _require_no_scoped_grant(guild_context: GuildContext) -> None:
 
     A grant reaches the guild for a window; the membership row on the other side
     of an approval has no end date, so the two are never traded for each other.
-    Break-glass is routed as a full guild admin and passes — it is the same
-    authority a guild admin already exercises over its members.
     """
-    if guild_context.is_pam and not guild_context.break_glass:
+    if guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
@@ -1101,10 +1098,10 @@ async def get_my_initiative_permissions(
         initiative_id, session, guild_context.guild_id
     )
 
-    # Whether a tool is available in this initiative at all: core tools always,
-    # toggleable tools per their master switch.
+    # Whether a tool is available in this initiative at all: its master switch,
+    # for every tool.
     def tool_available(t: Tool) -> bool:
-        return t in CORE_TOOLS or bool(getattr(initiative, t.view_permission))
+        return bool(getattr(initiative, t.view_permission))
 
     # Content writes are frozen (read_only lifecycle status): report create
     # permissions as denied so the UI hides its create affordances instead of
@@ -1307,7 +1304,9 @@ async def search_initiative_members(
     )
 
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in users],
+        items=await users_service.summaries_with_guild_role(
+            session, guild_context.guild_id, users
+        ),
         total_count=total_count,
         page=actual_page,
         page_size=page_size,
@@ -1360,7 +1359,7 @@ async def add_initiative_member(
     if not guild_membership:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=InitiativeMessages.USER_NOT_IN_GUILD,
+            detail=UserMessages.NOT_IN_GUILD,
         )
 
     requested_role = None

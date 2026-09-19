@@ -36,7 +36,7 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import CORE_TOOLS, RECENTABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -188,19 +188,17 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    if tool not in CORE_TOOLS:
-        # Opt-in tools carry a switch on the initiative; the core two are always
-        # on and have no column. A guild admin or a PAM grantee reaches the
-        # content of a tool that is switched off — the endpoints still refuse
-        # them, and a maintenance sweep has to be able to see it.
-        legs.append(
-            f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-            f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-            f" WHERE i.id = {initiative}), false))"
-        )
+    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # grantee reaches the content of a tool that is switched off — the endpoints
+    # still refuse them, and a maintenance sweep has to be able to see it.
+    legs.append(
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {initiative}), false))"
+    )
 
     key = tool.create_permission if creating else tool.view_permission
-    default = "false" if creating else str(tool in CORE_TOOLS).lower()
+    default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
         f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
     )
@@ -332,6 +330,43 @@ def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
 
+def _full_access(initiative_expr: str, write: bool) -> str:
+    """Defer to the narrower standing: full access in this initiative.
+
+    ``public.initiative_full_access`` reads ``app.override_initiatives`` — the
+    GUC the request already sets from the reader's roles, and the one
+    ``public.resource_access`` already consults for the sharing override. So a
+    table taking this path is reachable by whoever already sees everything in
+    the initiative, and by the guild admin, and by nobody else.
+    """
+    return f"public.initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
+
+
+def direct_full_access() -> InitiativePath:
+    """Own ``initiative_id`` column, gated on full access rather than membership."""
+    return InitiativePath(
+        predicate=lambda t, w: _full_access(f"{t}.initiative_id", w),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+        parents=_no_parents,
+    )
+
+
+def via_full_access(parent: str, fk: str) -> InitiativePath:
+    """One hop to a parent that is itself gated on full access."""
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM {parent} "
+            f"WHERE {parent}.id = {t}.{fk} "
+            f"AND {_full_access(f'{parent}.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
+            f"WHERE {parent}.id = {r}.{fk})"
+        ),
+        parents=lambda r: _one_parent(parent, f"{r}.{fk}"),
+    )
+
+
 def direct() -> InitiativePath:
     """The table has its own ``initiative_id`` column."""
     return InitiativePath(
@@ -381,29 +416,6 @@ def via_task_project(fk: str = "task_id") -> InitiativePath:
             ("projects", "tk.project_id"),
         ),
         dac=_dac_two_hop("tasks", "project_id", "projects", fk),
-    )
-
-
-def via_queue_item(fk: str = "queue_item_id") -> InitiativePath:
-    """Two hops: ``table.<fk> -> queue_items -> queues.initiative_id``."""
-    return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM queue_items qi JOIN queues q ON q.id = qi.queue_id "
-            f"WHERE qi.id = {t}.{fk} "
-            f"AND {_access('q.initiative_id', w)})"
-        ),
-        initiative_expr=lambda r: (
-            f"(SELECT q.initiative_id FROM queue_items qi "  # noqa: S608
-            f"JOIN queues q ON q.id = qi.queue_id WHERE qi.id = {r}.{fk})"
-        ),
-        parents=lambda r: _parent_chain(
-            "queue_items qi",
-            "qi.id",
-            f"{r}.{fk}",
-            ("queue_items", "qi.id"),
-            ("queues", "qi.queue_id"),
-        ),
-        dac=_dac_two_hop("queue_items", "queue_id", "queues", fk),
     )
 
 
@@ -532,12 +544,19 @@ def via_property(
 
 @dataclass(frozen=True)
 class CommentParent:
-    """One thing a comment can hang off, declared once and rendered three ways.
+    """One thing a comment can hang off, declared once and rendered five ways.
 
     ``frm``/``tie``/``initiative`` give the membership legs and the outbox
     locator; ``chain`` names the addressable resources an event about the
     comment carries, read off that same join. So a comment cannot be gated
     through one parent and have its events attributed through another.
+
+    ``table``/``governed_by``/``tool_fk`` say which tool's SHARING answers for
+    the thread, which is not always the parent itself: a task is shared as part
+    of its project and a wiki page as part of its wiki. Everything that has to
+    resolve a comment's tool — the DAC legs here, the search index's sharing
+    columns, the freeze check, the initiative lookup — reads them from here
+    rather than carrying its own special case per parent.
     """
 
     #: The ``comments`` column naming this parent.
@@ -550,11 +569,39 @@ class CommentParent:
     initiative: str
     #: (addressable table, column of ``frm`` holding its id), innermost first.
     chain: tuple[tuple[str, str], ...]
+    #: The parent's own table.
+    table: str
+    #: The tool whose sharing governs this parent's rows.
+    governed_by: Tool
+    #: The column of :attr:`table` holding that tool's id, or ``None`` when the
+    #: parent IS the tool row and ``column`` already names it.
+    tool_fk: str | None = None
 
 
-#: Every Tool appears here plus the task, matching the comment table's
-#: single-parent constraint. A comment on a task names the project too: it is
-#: the surface a task comment shows up on, and the join is already made.
+def _tool_comment_parent(tool: Tool) -> CommentParent:
+    """The comment parent for one tool — every tool's is the same shape.
+
+    A tool entity names its own initiative, so the join is the table itself and
+    the table stands as its own alias. Derived rather than listed so a comment
+    thread arrives with a new tool instead of waiting to be wired.
+    """
+    table = tool.plural
+    return CommentParent(
+        f"{tool.value}_id",
+        table,
+        f"{table}.id",
+        f"{table}.initiative_id",
+        ((table, f"{table}.id"),),
+        table=table,
+        governed_by=tool,
+    )
+
+
+#: Every Tool appears here plus the content-level extras, matching the comment
+#: table's single-parent constraint. The extras are written out rather than
+#: derived because each names its own way up to a tool: a comment on a task
+#: names the project too — it is the surface a task comment shows up on, and
+#: the join is already made — and a comment on a wiki page names the wiki.
 _COMMENT_PARENTS: tuple[CommentParent, ...] = (
     CommentParent(
         "task_id",
@@ -562,76 +609,55 @@ _COMMENT_PARENTS: tuple[CommentParent, ...] = (
         "tk.id",
         "pr.initiative_id",
         (("tasks", "tk.id"), ("projects", "pr.id")),
+        table="tasks",
+        governed_by=Tool.project,
+        tool_fk="project_id",
     ),
     CommentParent(
-        "document_id",
-        "documents d",
-        "d.id",
-        "d.initiative_id",
-        (("documents", "d.id"),),
+        "wiki_page_id",
+        "wiki_pages wp JOIN wikis wkp ON wkp.id = wp.wiki_id",
+        "wp.id",
+        "wkp.initiative_id",
+        # The wiki alone: a page has no address of its own — it is read at
+        # ``/wikis/{id}/pages/{id}`` — so it is not something an event can put
+        # an id under. Its wiki is, which is where a reader would go anyway.
+        (("wikis", "wkp.id"),),
+        table="wiki_pages",
+        governed_by=Tool.wiki,
+        tool_fk="wiki_id",
     ),
-    CommentParent(
-        "project_id", "projects p", "p.id", "p.initiative_id", (("projects", "p.id"),)
-    ),
-    CommentParent(
-        "queue_id", "queues q", "q.id", "q.initiative_id", (("queues", "q.id"),)
-    ),
-    CommentParent(
-        "counter_group_id",
-        "counter_groups cg",
-        "cg.id",
-        "cg.initiative_id",
-        (("counter_groups", "cg.id"),),
-    ),
-    CommentParent(
-        "calendar_id",
-        "calendars cal",
-        "cal.id",
-        "cal.initiative_id",
-        (("calendars", "cal.id"),),
-    ),
-    CommentParent(
-        "dashboard_id",
-        "dashboards dsh",
-        "dsh.id",
-        "dsh.initiative_id",
-        (("dashboards", "dsh.id"),),
-    ),
-    CommentParent(
-        "post_id", "posts po", "po.id", "po.initiative_id", (("posts", "po.id"),)
-    ),
-    CommentParent(
-        "gallery_id",
-        "galleries ga",
-        "ga.id",
-        "ga.initiative_id",
-        (("galleries", "ga.id"),),
-    ),
+    *(_tool_comment_parent(tool) for tool in Tool),
 )
 
+
+#: Every comment parent by its column — what the other derivations look it up
+#: by, so the parent set is stated once and they cannot disagree.
+COMMENT_PARENTS: dict[str, CommentParent] = {p.column: p for p in _COMMENT_PARENTS}
 
 #: The comment columns naming a parent, in declaration order. Search reads this
 #: to work out which tool's sharing governs a comment, so the parent set is
 #: stated once and the two derivations cannot disagree.
-COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(p.column for p in _COMMENT_PARENTS)
+COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(COMMENT_PARENTS)
 
 
 def _comments_dac() -> DacPath:
     """Which tool's sharing governs a comment — its one parent's.
 
     Derived from ``_COMMENT_PARENTS``, so the sharing legs and the membership
-    legs are the same list read twice. A comment on a task is the one parent
-    whose resource is not its own column: a task is shared as part of its
-    project.
+    legs are the same list read twice. A parent that is not itself a tool row
+    takes the extra hop its registry entry names.
     """
 
     def build(t: str, command: str, w: bool) -> str:
         legs = []
-        for col in COMMENT_PARENT_COLUMNS:
-            if col == "task_id":
-                leg = _dac_two_hop("tasks", "project_id", "projects", col)
+        for parent in _COMMENT_PARENTS:
+            col = parent.column
+            if parent.tool_fk is None:
+                leg = _dac_via(parent.governed_by.plural, col)
             else:
-                leg = _dac_via(Tool(col.removesuffix("_id")).plural, col)
+                leg = _dac_two_hop(
+                    parent.table, parent.tool_fk, parent.governed_by.plural, col
+                )
             legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
         return "(" + " OR ".join(legs) + ")"
 
@@ -983,21 +1009,15 @@ def _search_tool_gate(t: str, write: bool) -> str:
     """
     switch_arms = " ".join(
         f"WHEN '{tool.value}' THEN "
-        + (
-            "true"
-            if tool in CORE_TOOLS
-            else (
-                f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-                f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-                f" WHERE i.id = {t}.initiative_id), false))"
-            )
-        )
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
+        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
+        f" WHERE i.id = {t}.initiative_id), false))"
         for tool in Tool
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN public.initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
-        f"{str(tool in CORE_TOOLS).lower()})"
+        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
         for tool in Tool
     )
     return (
@@ -1077,6 +1097,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "dashboards": direct(),
     "posts": direct(),
     "galleries": direct(),
+    "wikis": direct(),
     "property_definitions": direct(),
     # Sharing itself. It carries no sharing leg of its own: resource_access
     # reads this table, so a policy here that called it would not resolve.
@@ -1086,11 +1107,22 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
     # Reading is the question this path answers; writing is the capture
     # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
+    # No sharing leg, decided 2026-09-10: the envelope is identifiers and
+    # changed column names, and every consumer reads current state back
+    # through the REST path, where sharing decides. The initiative gate is
+    # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Reports a community settles. Reached by whoever already sees everything
+    # in the initiative, plus the guild admin — see direct_full_access.
+    "moderation_reports": direct_full_access(),
+    "moderation_report_reporters": via_full_access("moderation_reports", "report_id"),
+    # Where a stream of operations work lands. Reached by whoever can reach the
+    # project it names, which is the initiative that does the work.
+    "intake_bindings": via("projects", "project_id"),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -1101,6 +1133,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "queue_items": via("queues", "queue_id"),
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
+    # One hop -> wikis. The page tree is a column on this table, not a
+    # second path: every page of a wiki is reached exactly as hard as the
+    # wiki, however deep it sits.
+    "wiki_pages": via("wikis", "wiki_id"),
     # One hop -> calendars
     "calendar_events": via("calendars", "calendar_id"),
     # One hop -> dashboards
@@ -1113,6 +1149,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "task_assignees": via_task_project("task_id"),
+    # A case is read exactly as hard as the task it describes, so it hangs off
+    # the task rather than off the project column it is keyed by.
+    "intake_cases": via_task_project("task_id"),
     # Two hops -> queue_items -> queues
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
@@ -1540,6 +1579,10 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "webhook_subscriptions": Silent(
         "integration config; it reports on content, not on itself"
     ),
+    "intake_bindings": Silent("routing config; it reports on no content"),
+    "moderation_reports": Silent("who reported whom is not an automation signal"),
+    "moderation_report_reporters": Silent("the reporters behind one report"),
+    "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     # Guild-level, and kept out on disclosure: an upload row is reachable from
     # more than one place, so the initiative gate is not the whole answer for it
     # the way it is for tags. Gate it properly or leave it silent — silent.
@@ -1605,6 +1648,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # own, so every change to one reports as the gallery it is in — its tags
     # and its history one hop further out.
     "gallery_images": Emit(reports_as=reports_as("galleries", "gallery_id", "images")),
+    # A wiki page is addressed through its wiki — `/wikis/{id}/pages/{id}` —
+    # and an envelope carries ids rather than paths, so a change to one reports
+    # as the wiki it is in. A subscriber re-reads the wiki's list, which is
+    # where the page's place in it lives anyway.
+    "wiki_pages": Emit(reports_as=reports_as("wikis", "wiki_id", "pages")),
     "gallery_image_versions": Emit(reports_as=gallery_facets_report_on_their_gallery()),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
     "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),

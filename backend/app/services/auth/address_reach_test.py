@@ -57,12 +57,28 @@ async def test_account_mail_skips_an_unproven_address(session: AsyncSession):
 
 
 @pytest.mark.unit
-async def test_account_mail_falls_back_to_what_users_carries(
-    session: AsyncSession, caplog
+async def test_account_mail_reaches_an_address_nobody_confirmed(
+    session: AsyncSession,
 ):
-    """An account whose rows did not come across still gets its mail."""
-    import logging
+    """An account that signed up before an address had to be confirmed, and
+    never confirmed one, is still written to — at its primary. Reset mail is
+    how somebody in that position gets back in."""
+    user = await create_user(
+        session, email="unconfirmed@example.com", email_verified=False
+    )
+    user_id = user.id
 
+    assert await addresses.proven_addresses(session, user_id=user_id) == [
+        "unconfirmed@example.com"
+    ]
+
+
+@pytest.mark.unit
+async def test_account_mail_reaches_nobody_without_an_address(
+    session: AsyncSession,
+):
+    """And an account holding no address at all is written to nowhere, rather
+    than somewhere guessed."""
     user = await create_user(session, email="stranded@example.com")
     user_id = user.id
     for row in (
@@ -71,11 +87,7 @@ async def test_account_mail_falls_back_to_what_users_carries(
         await session.delete(row)
     await session.commit()
 
-    with caplog.at_level(logging.WARNING, logger="app.services.auth.addresses"):
-        reach = await addresses.proven_addresses(session, user_id=user_id)
-
-    assert reach == ["stranded@example.com"]
-    assert f"account {user_id}" in caplog.text
+    assert await addresses.proven_addresses(session, user_id=user_id) == []
 
 
 @pytest.mark.unit

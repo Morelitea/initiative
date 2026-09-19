@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import TYPE_CHECKING, List
 
 
 from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
@@ -10,15 +10,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.db.session import set_rls_context
+from app.core.encryption import hash_email
+from app.db.session import set_rls_context, set_system_guild_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
+from app.services.auth import challenges as challenge_service
+from app.services.auth import totp as totp_service
 from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant.resource_grant import ResourceGrant
@@ -28,153 +30,137 @@ from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.ai_member_key import GuildAIMemberKey
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.platform.user import AdminUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 
-async def is_last_admin_of_guild(
-    session: AsyncSession, guild_id: int, user_id: int, *, for_update: bool = False
-) -> bool:
-    """
-    Check if user is the last admin of a specific guild.
+class SeatWouldBeEmptied(Exception):
+    """Removing this account would leave a community with no superadmin.
 
-    Args:
-        session: Database session
-        guild_id: Guild ID to check
-        user_id: User ID to check
-        for_update: If True, lock the existing admin membership rows so a
-            concurrent demotion/removal of a *current* admin can't race this
-            check within the same transaction.
-
-    Concurrency caveat: ``for_update`` locks only the admin rows that already
-    exist. It does NOT prevent a concurrent transaction from INSERTing a
-    brand-new admin membership (a phantom — Postgres row locks aren't predicate
-    locks outside SERIALIZABLE). So a caller relying on a True result to gate a
-    follow-up mutation has a narrow window where a second admin could appear
-    just after the check. Harmless for the current callers (demote-last-admin
-    guards, and the blocker-scoped guild delete, which cascades that new row
-    away anyway); a caller needing a hard guarantee should take a per-guild
-    advisory lock that all admin-mutation paths also honor.
+    Raised from the membership drop rather than from an eligibility check,
+    because that is where it can be true at the moment it matters: the check
+    an endpoint runs first is a report, and two accounts can each pass it by
+    seeing the other.
     """
-    # Check if user is an admin of this guild
-    if for_update:
-        membership_stmt = (
-            select(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id == user_id,
+
+    def __init__(self, guild_names: List[str]) -> None:
+        self.guild_names = guild_names
+        super().__init__(", ".join(guild_names))
+
+
+async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
+    """Take every seat lock this removal touches, then check under it.
+
+    Ordered by guild id so two accounts leaving the same pair of communities
+    queue behind each other instead of each holding what the other wants. The
+    locks last to the end of the caller's transaction, which is the one that
+    removes the memberships — so the answer is still true when it does.
+    """
+    from app.services.platform.guilds import lock_guild_seats, would_strand_guild
+
+    guild_ids = sorted(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id,
+                    GuildMembership.role == GuildRole.superadmin,
+                )
             )
-            .with_for_update()
-        )
-    else:
-        membership_stmt = select(GuildMembership).where(
-            GuildMembership.guild_id == guild_id,
-            GuildMembership.user_id == user_id,
-        )
-    result = await session.exec(membership_stmt)
-    membership = result.one_or_none()
-
-    if not membership or membership.role != GuildRole.admin:
-        return False
-
-    # Count all admins in this guild (with lock if for_update)
-    if for_update:
-        admin_stmt = (
-            select(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.admin,
-            )
-            .with_for_update()
-        )
-        admin_result = await session.exec(admin_stmt)
-        admin_count = len(admin_result.all())
-    else:
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == guild_id,
-            GuildMembership.role == GuildRole.admin,
-        )
-        count_result = await session.exec(count_stmt)
-        admin_count = count_result.one()
-
-    return admin_count <= 1
-
-
-async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
-    """
-    Check if user is the last admin of any guild.
-    Returns list of guild names where user is the last admin.
-    """
-    # Get all guilds where user is an admin
-    stmt = select(GuildMembership).where(
-        GuildMembership.user_id == user_id,
-        GuildMembership.role == GuildRole.admin,
+        ).all()
     )
-    result = await session.exec(stmt)
-    user_admin_memberships = result.all()
+    if not guild_ids:
+        return
 
-    last_admin_guild_names = []
+    stranded: List[str] = []
+    for guild_id in guild_ids:
+        await lock_guild_seats(session, guild_id)
+        if not await would_strand_guild(session, guild_id=guild_id, user_id=user_id):
+            continue
+        from app.models.platform.guild import Guild
 
-    for membership in user_admin_memberships:
-        # Count other admins in this guild
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == membership.guild_id,
-            GuildMembership.role == GuildRole.admin,
-            GuildMembership.user_id != user_id,
-        )
-        count_result = await session.exec(count_stmt)
-        other_admin_count = count_result.one()
+        guild = (
+            await session.exec(select(Guild).where(Guild.id == guild_id))
+        ).one_or_none()
+        stranded.append(guild.name if guild else str(guild_id))
 
-        if other_admin_count == 0:
-            # User is the last admin, get guild name
-            from app.models.platform.guild import Guild
-
-            guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
-            guild_result = await session.exec(guild_stmt)
-            guild = guild_result.one_or_none()
-            if guild:
-                last_admin_guild_names.append(guild.name)
-
-    return last_admin_guild_names
+    if stranded:
+        raise SeatWouldBeEmptied(stranded)
 
 
-async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
-    """
-    Get detailed info about guilds where user is the last admin.
-    Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
+async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[str]:
+    """Communities where this account holds the only superadmin seat.
+
+    An ordinary admin does not count: a community left with admins but no
+    seat cannot appoint one, reach its billing, or change its sign-in until
+    an operator seats somebody. A community whose only member is this account
+    does not count either — there is nobody there to strand.
     """
     from app.models.platform.guild import Guild
 
-    stmt = select(GuildMembership).where(
-        GuildMembership.user_id == user_id,
-        GuildMembership.role == GuildRole.admin,
-    )
-    result = await session.exec(stmt)
-    user_admin_memberships = result.all()
+    seats = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+
+    from app.services.platform.guilds import would_strand_guild
+
+    names: List[str] = []
+    for membership in seats:
+        if not await would_strand_guild(
+            session, guild_id=membership.guild_id, user_id=user_id
+        ):
+            continue
+        guild = (
+            await session.exec(select(Guild).where(Guild.id == membership.guild_id))
+        ).one_or_none()
+        if guild:
+            names.append(guild.name)
+    return names
+
+
+async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
+    """Communities this account's removal would leave without a superadmin.
+
+    What :func:`is_last_guild_superadmin` reports, with the roster the operator
+    needs to act on it: ``guild_id``, ``guild_name``, and the other members —
+    the people who could be made superadmin instead of the community being
+    deleted. An empty ``other_members`` is the case where deleting the
+    community is the only way through.
+    """
+    from app.models.platform.guild import Guild
+    from app.services.platform.guilds import would_strand_guild
+
+    seats = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
 
     blockers = []
 
-    for membership in user_admin_memberships:
-        # Count other admins in this guild
-        count_stmt = select(func.count(GuildMembership.user_id)).where(
-            GuildMembership.guild_id == membership.guild_id,
-            GuildMembership.role == GuildRole.admin,
-            GuildMembership.user_id != user_id,
-        )
-        count_result = await session.exec(count_stmt)
-        other_admin_count = count_result.one()
-
-        if other_admin_count == 0:
-            # User is the last admin - get guild info and other members
+    for membership in seats:
+        if await would_strand_guild(
+            session, guild_id=membership.guild_id, user_id=user_id
+        ):
             guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
             guild_result = await session.exec(guild_stmt)
             guild = guild_result.one_or_none()
             if not guild:
                 continue
 
-            # Get other members who could be promoted
+            # Who could take the seat instead.
             members_stmt = (
                 select(User)
                 .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -223,10 +209,14 @@ async def check_deletion_eligibility(
     Check if user can be deleted.
     Returns: (can_delete, blockers)
 
-    The only blocker is being the last admin of a guild. Owning content is not
-    one: ownership is released on the way out and the content is left unowned
-    for a guild admin to claim, so there is nothing for the departing user to
-    decide.
+    The only blocker is holding a community's sole superadmin seat, which would
+    leave it with nobody who can appoint one, reach its billing, or change its
+    sign-in. Being its last ordinary admin is not one: every community has a
+    superadmin, so there is always somebody left who can promote another.
+
+    Owning content is not a blocker: ownership is released on the way out and
+    the content is left unowned for a guild admin to claim, so there is nothing
+    for the departing user to decide.
 
     Args:
         session: Database session
@@ -235,20 +225,19 @@ async def check_deletion_eligibility(
     """
     blockers = []
 
-    # Check if user is last admin of any guild
-    last_admin_guilds = await is_last_guild_admin(session, user_id)
-    if last_admin_guilds:
-        for guild_name in last_admin_guilds:
-            if admin_context:
-                blockers.append(
-                    f"User is the last admin of community '{guild_name}'. "
-                    f"Another user must be promoted to admin or the community must be deleted first."
-                )
-            else:
-                blockers.append(
-                    f"You are the last admin of community '{guild_name}'. "
-                    f"Promote another user to admin or delete the community before deleting your account."
-                )
+    for guild_name in await is_last_guild_superadmin(session, user_id):
+        if admin_context:
+            blockers.append(
+                f"User is the only superadmin of community '{guild_name}'. "
+                f"Another user must be made superadmin or the community must be "
+                f"deleted first."
+            )
+        else:
+            blockers.append(
+                f"You are the only superadmin of community '{guild_name}'. "
+                f"Make another user superadmin or delete the community before "
+                f"deleting your account."
+            )
 
     can_delete = len(blockers) == 0
 
@@ -280,6 +269,11 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             )
         ).all()
     )
+
+    # Every community this account holds the seat of keeps it. Asked here, under
+    # the same locks the leave and demotion paths take, because this is the
+    # transaction that removes the rows.
+    await _hold_seats_or_refuse(session, user_id)
 
     # Initiative membership + owned-document handoff is guild-scoped — its rows
     # live in each guild's schema. Route into every guild as superadmin (system
@@ -365,7 +359,7 @@ async def _scrub_invites_addressed_to(
     Fernet output is non-deterministic (the same address encrypts differently
     every time), so there is no indexed equality lookup: we load every bound
     invite and compare the decrypted address the same way redemption does
-    (via ``hash_email``, matching the ``users.email_hash`` normalization).
+    (via ``hash_email``, matching how an address is hashed everywhere else).
 
     A match is NULLed (removing the PII) *and* neutralised (``max_uses = 0``, so
     ``invite_is_active`` returns False). Nulling alone is not enough: an invite
@@ -395,9 +389,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     """Soft-delete (anonymize) a user account.
 
     Drops memberships like ``deactivate_user``, then strips every PII
-    field on the row, randomises ``email_hash`` / ``email_encrypted`` so
-    no future signup or admin lookup can resolve to this row, blanks the
-    password hash, and removes auth artifacts (API keys, push tokens,
+    field on the row, replaces every address the account held with a
+    sentinel, blanks the password hash, and removes auth artifacts (API keys, push tokens,
     user_tokens, sign-in sessions). The row stays so existing FKs (comment authors, task
     assignees, project owners, …) continue to resolve and the UI can
     render the placeholder "Deleted user #{id}" wherever the original
@@ -424,8 +417,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     all_guild_ids = list((await session.exec(select(Guild.id))).all())
     for gid in all_guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         # Drop the user's AI credentials (member API keys) + connection
         # preference in this guild — the encrypted keys are a secret we must not
         # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
@@ -442,10 +436,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     user = await _drop_user_memberships(session, user_id)
 
-    # Capture the real email hash before it's overwritten with the sentinel
-    # below — it's how we find guild invites bound to this person's address.
+    # Captured before ``replace_all`` below overwrites them — it is how a guild
+    # invite bound to one of this person's addresses is found.
     original_email_hashes = await addresses.held_hashes(session, user_id=user_id)
-    original_email_hashes.add(user.email_hash)
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -457,24 +450,19 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     if not user.username_chosen:
         user.username = usernames.random_name()
         user.discriminator = usernames.random_discriminator()
-    # Demote any platform admin to member. The row is now an empty husk
+    # Drop any platform role back to member. The row is now an empty husk
     # that can't act on anything; leaving the admin role on it would be
     # misleading in audit views and would inflate any role-only count
     # that doesn't also filter by status.
     user.role = UserRole.member
 
-    # Replace email with a sentinel that won't collide on the unique index
-    # and can't be looked up by anyone trying to authenticate. The
-    # encrypted blob holds the same nonsense so decryption (if ever invoked)
-    # yields a string that's obviously not a real email. Domain is
-    # RFC 2606 example.com so EmailStr serialization on user-facing
-    # endpoints (admin user list, etc.) doesn't reject the row.
+    # Every address the account held is replaced with one sentinel. It reads as
+    # obvious nonsense if it is ever decrypted, and its domain is RFC 2606
+    # example.com so EmailStr serialization on user-facing endpoints (the admin
+    # user list, and so on) does not reject the row.
     sentinel_email = (
         f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
     )
-    user.email_hash = hash_email(sentinel_email)
-    user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
-    # Every address the account held goes with it, not just the one on ``users``.
     await addresses.replace_all(
         session,
         user_id=user_id,
@@ -514,6 +502,11 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # and user agents its account signed in from. A hard delete gets this from
     # the ``users`` foreign key; the row survives here, so it is explicit.
     await session_service.delete_all_for_user(session, user_id=user_id)
+    # And the second factor, its seed and the codes that stand in for it. The
+    # seed goes with the factor by cascade; the rest are the account's, so a
+    # husk that keeps its ``users`` row would otherwise keep them.
+    await totp_service.disable(session, user_id=user_id)
+    await challenge_service.revoke_for_user(session, user_id=user_id)
 
     # Scrub the user's address out of any guild invite bound to it. Without
     # this, an unexpired/lingering invite keeps a recoverable copy of the very
@@ -626,27 +619,6 @@ async def is_last_capability_holder(
     return (await session.exec(others_stmt)).one() == 0
 
 
-# Backwards-compatible wrappers. The invariant we protect is "can the platform
-# still manage its own configuration", i.e. at least one ``owner`` remains
-# (``config.manage`` is owner-only).
-async def count_platform_admins(
-    session: AsyncSession, *, for_update: bool = False
-) -> int:
-    """Count active users who can manage platform configuration (owners)."""
-    return await count_capability_holders(
-        session, Capability.CONFIG_MANAGE, for_update=for_update
-    )
-
-
-async def is_last_platform_admin(
-    session: AsyncSession, user_id: int, *, for_update: bool = False
-) -> bool:
-    """True iff removing this user would leave the platform with no config managers."""
-    return await is_last_capability_holder(
-        session, user_id, Capability.CONFIG_MANAGE, for_update=for_update
-    )
-
-
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,
@@ -703,7 +675,9 @@ async def hard_delete_user(
         # text (@-mentions in comments, document mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
+        await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
@@ -790,8 +764,6 @@ async def hard_delete_user(
     # (the ``created_by`` NULLing above only covers invites this user
     # *sent*, not ones addressed *to* them).
     held = await addresses.held_hashes(session, user_id=user.id)
-    if user.email_hash:
-        held.add(user.email_hash)
     if held:
         await _scrub_invites_addressed_to(session, email_hashes=held)
 
@@ -813,6 +785,41 @@ async def hard_delete_user(
 #: string and a title is a sentence, so the two are tuned against different
 #: things even where the number happens to agree.
 MEMBER_MATCH_THRESHOLD = 0.4
+
+
+async def summaries_with_guild_role(
+    session: AsyncSession,
+    guild_id: int,
+    users,
+) -> List["UserSummary"]:
+    """``UserSummary`` per user, with the guild role actually filled in.
+
+    ``UserSummary`` defaults ``guild_role`` to ``None`` and ``is_guild_admin``
+    to ``False``, and ``model_validate`` over a profile row carries nothing
+    that could correct either -- the role lives on ``GuildMembership``, not on
+    the profile. So a guild admin came back from the roster endpoints looking
+    like an ordinary member, and a key-set assertion could not see it: the
+    field was present, and wrong.
+
+    One query for the whole batch, so this does not reintroduce an N+1 on a
+    typeahead.
+    """
+    from app.schemas.platform.user import UserSummary
+    from app.services import membership as membership_service
+
+    users = list(users)
+    roles = await membership_service.guild_role_map(
+        session, guild_id, [user.id for user in users]
+    )
+    summaries: List[UserSummary] = []
+    for user in users:
+        summary = UserSummary.model_validate(user)
+        role = roles.get(user.id)
+        if role is not None:
+            summary.guild_role = role.value
+            summary.is_guild_admin = role in GUILD_ADMIN_ROLES
+        summaries.append(summary)
+    return summaries
 
 
 def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
@@ -893,3 +900,69 @@ def visible_to_other_people(status_column=None):
     """
     column = MemberProfile.status if status_column is None else status_column
     return column != UserStatus.suspended
+
+
+async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
+    """Each account's address and whether it has proved one.
+
+    On its own system-engine session: ``user_emails`` carries no request-path
+    grants, so the role a request runs as cannot read it. Two queries for the
+    whole page rather than two per row.
+
+    Private, and deliberately so. It returns addresses in the clear for
+    whatever ids it is handed, and decides nothing about who may see them —
+    that belongs to the two shapes below, which is the only thing that calls
+    it: ``to_self_read`` for the address's own holder, ``to_admin_read`` for
+    everybody else, masked.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return (
+            await addresses.primary_addresses(admin_session, user_ids=user_ids),
+            await addresses.accounts_with_a_proven_address(
+                admin_session, user_ids=user_ids
+            ),
+        )
+
+
+async def to_self_read(user: User) -> "UserRead":
+    """An account's own record, with the address it is reached at, in full.
+
+    For handing somebody their *own* account and nothing else — the address is
+    unmasked. Reading somebody else's account gets ``to_admin_read``.
+
+    The address and whether one has been proved both live in ``user_emails``,
+    so the ``users`` row cannot answer either on its own. This is where the two
+    are put back together, for the endpoints that hand somebody their own
+    account.
+    """
+    from app.schemas.platform.user import UserRead
+
+    primary, proven = await _reach([user.id])
+    payload = UserRead.model_validate(user)
+    payload.email = primary.get(user.id)
+    payload.email_verified = user.id in proven
+    return payload
+
+
+async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
+    """The same, for staff reading other people's accounts.
+
+    The shape masks the address itself.
+    """
+    from app.schemas.platform.user import AdminUserRead
+
+    primary, proven = await _reach([u.id for u in users])
+    out: List[AdminUserRead] = []
+    for user in users:
+        payload = AdminUserRead.model_validate(user)
+        payload.email = primary.get(user.id) or ""
+        payload.email_verified = user.id in proven
+        out.append(payload)
+    return out
+
+
+async def to_admin_read_one(user: User) -> "AdminUserRead":
+    """``to_admin_read`` for the routes that return one account."""
+    return (await to_admin_read([user]))[0]

@@ -149,6 +149,8 @@
     "greeting": "Hola <strong>{{name}}</strong>:",
     "levelRead": "de solo lectura",
     "levelReadWrite": "de lectura y escritura",
+    "levelAdmin": "a los ajustes de la comunidad (administrador)",
+    "levelSuperadmin": "a los ajustes de la comunidad (superadministrador)",
     "requested": {
       "subject": "Solicitud de acceso para {{guildName}}",
       "title": "Nueva solicitud de acceso",
@@ -231,6 +233,46 @@
       "connections": "{{count}} cambios de contactos",
       "jobs": "{{count}} exportaciones e importaciones",
       "account": "{{count}} avisos de cuenta"
+    }
+  },
+  "secondFactor": {
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "enabled": {
+      "subject": "La verificación en dos pasos está activada",
+      "title": "La verificación en dos pasos está activada",
+      "body": "A partir de ahora, al iniciar sesión con tu contraseña también se te pedirá un código de tu aplicación de autenticación. Guarda tus códigos de recuperación en un lugar seguro: son la forma de entrar si pierdes la aplicación.",
+      "textBody": "La verificación en dos pasos ya está activada en tu cuenta. Al iniciar sesión se te pedirá un código de tu aplicación de autenticación."
+    },
+    "disabled": {
+      "subject": "La verificación en dos pasos está desactivada",
+      "title": "La verificación en dos pasos está desactivada",
+      "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos.",
+      "textBody": "La verificación en dos pasos ya está desactivada en tu cuenta y tus códigos de recuperación se han descartado."
+    }
+  },
+  "passwordRemoved": {
+    "subject": "Se ha eliminado tu contraseña",
+    "title": "Se ha eliminado tu contraseña",
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "body": "Tu cuenta ya no tiene contraseña. A partir de ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad. Guarda bien tus códigos de recuperación: son la forma de volver a establecer una contraseña si la necesitas.",
+    "fallbackText": "Si no has sido tú, usa uno de tus códigos de recuperación para establecer una contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "textBody": "Tu cuenta ya no tiene contraseña. Ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad."
+  },
+  "passkey": {
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "added": {
+      "subject": "Se ha añadido una clave de acceso a tu cuenta",
+      "title": "Se ha añadido una clave de acceso a tu cuenta",
+      "body": "Ya puedes iniciar sesión en tu cuenta con la clave de acceso <strong>{{passkey}}</strong>. Las claves de acceso viven en el dispositivo o el gestor de contraseñas donde se crearon, así que ten a mano el que usaste.",
+      "textBody": "Se ha añadido a tu cuenta la clave de acceso {{passkey}} y ya puede usarse para iniciar sesión."
+    },
+    "removed": {
+      "subject": "Se ha eliminado una clave de acceso de tu cuenta",
+      "title": "Se ha eliminado una clave de acceso de tu cuenta",
+      "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba.",
+      "textBody": "La clave de acceso {{passkey}} se ha eliminado de tu cuenta y ya no sirve para iniciar sesión."
     }
   }
 }

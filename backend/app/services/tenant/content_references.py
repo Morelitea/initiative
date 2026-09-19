@@ -43,6 +43,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.post import Post
 from app.models.tenant.relationship import EntityRelationship
+from app.models.tenant.wiki import WikiPage
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant.relationships import Endpoint
 
@@ -53,6 +54,7 @@ from app.services.tenant.relationships import Endpoint
 BODY_COLUMNS: dict[SearchEntityType, tuple[type, str]] = {
     SearchEntityType.document: (Document, "content"),
     SearchEntityType.post: (Post, "body"),
+    SearchEntityType.wiki_page: (WikiPage, "content"),
 }
 
 #: Kind -> the comment column naming a parent of that kind. Derived from the

@@ -1,4 +1,4 @@
-FROM node:24-alpine AS frontend-build
+FROM node:24-alpine@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS frontend-build
 WORKDIR /frontend
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN apk add --no-cache zip
@@ -23,7 +23,7 @@ RUN cp -r dist /tmp/browser-dist \
  && sha256sum /ota/bundle.zip | cut -d' ' -f1 > /ota/bundle.sha256 \
  && rm -rf dist && mv /tmp/browser-dist dist
 
-FROM python:3.12-slim AS backend-runtime
+FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS backend-runtime
 ARG VERSION=0.1.0
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.title="Initiative"

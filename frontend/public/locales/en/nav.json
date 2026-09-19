@@ -76,12 +76,18 @@
     "finalizing": "Finalizing redirect…",
     "goHome": "Go back home"
   },
-  "adminDashboard": "Admin Dashboard",
+  "operatorDashboard": "Operator Dashboard",
   "pastAnnouncements": "Past announcements",
   "requestsWaiting_one": "{{count}} waiting",
   "requestsWaiting_other": "{{count}} waiting",
   "posts": "Posts",
   "createPost": "New Post",
   "galleries": "Galleries",
-  "createGallery": "New Gallery"
+  "createGallery": "New Gallery",
+  "moderation": "Moderation",
+  "wikis": "Wikis",
+  "createWiki": "New Wiki",
+  "sidebar": {
+    "resize": "Drag to resize the sidebar"
+  }
 }

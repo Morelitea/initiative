@@ -16,6 +16,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import InitiativeMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole
@@ -27,7 +28,15 @@ from app.testing.factories import create_guild_membership, create_initiative_mem
 from app.testing.factories import create_initiative
 
 
-async def _live_grant(session: AsyncSession, *, user, guild, approver, level: str):
+async def _live_grant(
+    session: AsyncSession,
+    *,
+    user,
+    guild,
+    approver,
+    level: str,
+    purpose: str = "content",
+):
     """An approved, currently-live access grant — the PAM branch of GuildContext."""
     from datetime import datetime, timedelta, timezone
 
@@ -38,6 +47,7 @@ async def _live_grant(session: AsyncSession, *, user, guild, approver, level: st
         AccessGrant(
             user_id=user.id,
             guild_id=guild.id,
+            purpose=purpose,
             access_level=level,
             status="approved",
             reason="ticket",
@@ -650,7 +660,15 @@ async def test_search_initiative_members_slim_and_filtered(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
+    # Asserted as a value, not only as a key: the schema defaults it to False,
+    # so a key-set check passes just as happily on an endpoint that never
+    # fills it in.
+    by_name = {item["full_name"]: item for item in body["items"]}
+    assert by_name["Zed Admin"]["is_guild_admin"] is True
+    assert by_name["Alice Wonderland"]["is_guild_admin"] is False
+    assert by_name["Bob Builder"]["is_guild_admin"] is False
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
@@ -834,7 +852,7 @@ async def test_add_user_not_in_guild_fails(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
 
 
 @pytest.mark.integration
@@ -2202,7 +2220,7 @@ async def test_approve_creates_membership_and_flips_content_visibility(
     assert membership is not None
     assert membership.role_ref.name == "member"
     assert membership.role_ref.is_manager is False
-    assert membership.oidc_managed is False
+    assert membership.oidc_provider_id is None
 
     after = await client.get(
         member.g(f"/projects/{project.id}"), headers=member.headers
@@ -2458,13 +2476,8 @@ async def test_scoped_grantee_cannot_resolve(
 
 
 @pytest.mark.integration
-async def test_break_glass_can_approve(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Break-glass is routed as a full guild admin for its window, which is the
-    same authority a guild admin already exercises over its members."""
-    from app.models.platform.user import UserRole
-
+async def _pending_join_request(client, session, acting_user):
+    """A community with somebody knocking at one of its initiatives."""
     manager = await acting_user(guild_role=GuildRole.admin)
     initiative = await _requestable(session, manager, name="Knockable")
     requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
@@ -2473,17 +2486,42 @@ async def test_break_glass_can_approve(
         headers=requester.headers,
         json={},
     )
-    request_id = created.json()["id"]
+    return manager, initiative, requester, created.json()["id"]
 
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "held",
+    [
+        pytest.param((("content", "read_write"),), id="a content grant"),
+        pytest.param(
+            (("content", "read_write"), ("settings", "superadmin")),
+            id="everything breaking glass issues",
+        ),
+    ],
+)
+async def test_no_grant_answers_a_join_request(
+    client: AsyncClient, session: AsyncSession, acting_user, held
+):
+    """A grant reaches a community for a window. The membership on the other
+    side of an approval has no end date, so the two are never traded for each
+    other — and holding the highest grant there is does not change that."""
+    from app.models.platform.user import UserRole
+
+    manager, initiative, requester, request_id = await _pending_join_request(
+        client, session, acting_user
+    )
     # data.bypass platform admin, deliberately NOT a guild member.
     bg_admin = await acting_user(UserRole.operator)
-    await _live_grant(
-        session,
-        user=bg_admin.user,
-        guild=manager.guild,
-        approver=manager.user,
-        level="read_write",
-    )
+    for purpose, level in held:
+        await _live_grant(
+            session,
+            user=bg_admin.user,
+            guild=manager.guild,
+            approver=manager.user,
+            level=level,
+            purpose=purpose,
+        )
 
     response = await client.post(
         f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}"
@@ -2491,13 +2529,14 @@ async def test_break_glass_can_approve(
         headers=bg_admin.headers,
     )
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "approved"
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS
+    # The person knocking is still outside it.
     assert (
         await initiatives_service.get_initiative_membership(
             session, initiative_id=initiative.id, user_id=requester.user.id
         )
-    ) is not None
+    ) is None
 
 
 @pytest.mark.integration

@@ -49,10 +49,15 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { holdsGuildSeat } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
+//: What this community's roles are, in the order the picker offers them. The
+//: seat is only on the list for somebody who already holds it — an admin can
+//: neither appoint nor demote one, and the server says so too.
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
+const SEAT_ROLE_OPTIONS: GuildRole[] = ["superadmin", "admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
   const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -89,7 +94,8 @@ export const SettingsUsersPage = () => {
   const { activeGuild } = useGuilds();
   const { billing, openPortal } = useBillingPortal();
   // Guild admin check is based on guild membership role only (independent from platform role)
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  const roleOptions = holdsGuildSeat(activeGuild) ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
 
   const activeGuildId = activeGuild?.id ?? null;
 
@@ -153,8 +159,7 @@ export const SettingsUsersPage = () => {
   // Ownership can only be handed to a guild admin, so the picker is the guild's
   // admin roster rather than every member.
   const guildAdmins = useMemo(
-    () =>
-      (usersQuery.data ?? []).filter((m) => m.guild_role === "admin" && m.status !== "anonymized"),
+    () => (usersQuery.data ?? []).filter((m) => m.is_guild_admin && m.status !== "anonymized"),
     [usersQuery.data]
   );
 
@@ -275,7 +280,7 @@ export const SettingsUsersPage = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {GUILD_ROLE_OPTIONS.map((roleOption) => (
+                {roleOptions.map((roleOption) => (
                   <SelectItem key={roleOption} value={roleOption}>
                     {t(`users.guildRole.${roleOption}` as never)}
                   </SelectItem>
@@ -433,7 +438,7 @@ export const SettingsUsersPage = () => {
               </Button>
             </div>
           </form>
-          {atUserLimit && billing && activeGuildId ? (
+          {atUserLimit && billing && activeGuildId && holdsGuildSeat(activeGuild) ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-muted-foreground text-sm">
                 {planName
@@ -500,6 +505,18 @@ export const SettingsUsersPage = () => {
           <div>
             <CardTitle>{t("users.usersTitle")}</CardTitle>
             <CardDescription>{t("users.usersDescription")}</CardDescription>
+            {/* Three words that get mixed up constantly, explained where the
+                choice is actually made rather than in the help centre. */}
+            <dl className="mt-3 space-y-1 text-muted-foreground text-xs">
+              {roleOptions.map((roleOption) => (
+                <div key={roleOption} className="flex gap-1.5">
+                  <dt className="font-medium text-foreground">
+                    {t(`users.guildRole.${roleOption}` as never)}
+                  </dt>
+                  <dd>{t(`users.guildRoleHelp.${roleOption}` as never)}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
           <Button
             type="button"

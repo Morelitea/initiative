@@ -91,16 +91,27 @@ Anyone who opens it joins after signing in or making an account.
 |---|---|
 | **Member** | Take part in the initiatives and projects they're added to. |
 | **Admin** | All of that, **plus** run the community: members, invites, initiatives, settings. An admin can see and manage everything in their community. |
+| **Superadmin** | All of that, plus how people **get in** — the community's own sign-in. Whoever made the community holds it. |
 
 Promote and demote from **Community settings → Users**.
 
 Promoting somebody also lifts the **initiative roles they already hold** — every initiative they're in moves them up to project manager, so the app starts treating them as the authority they now actually are. They get told when somebody asks to join, and waiting requests show up on the front page. A membership left behind by an older promotion can be fixed from that initiative's **Members** tab.
 
+### Why superadmin is separate
+
+Running a community and holding the keys to it turn out to be different jobs. Your most reliable organiser is the person you want as admin. They are not necessarily the person you want changing how everybody signs in.
+
+So the top seat is its own rung, and it's narrow on purpose: the [Security and Integrations tabs](#community-settings-admins), and nothing else an admin couldn't already do. An ordinary admin doesn't see that tab at all. (On a hosted server it also holds the billing screen, when there is one to hold — a self-hosted install has no such thing.)
+
+**Only a superadmin passes the seat on.** An admin can't appoint one and can't demote one, which also means nobody can quietly take it from you.
+
+**A community always keeps one.** The last superadmin can't be demoted or removed, and can't leave or close their account while anybody else is still there. Promote somebody first. The one exception is the obvious one: if you're the only person left, there's nobody to strand and nobody to promote, so you're free to go.
+
 ### What the member list shows
 
 The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
-A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [admin dashboard](../admin/platform-roles.md#managing-platform-users).
+A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../admin/platform-roles.md#managing-platform-users).
 
 !!! note "Community admin is not the same as running the server"
     Being an admin of *your* community gives you total control of that community — and precisely no control over the server or anybody else's community. Server-wide roles are a separate thing entirely: see [Platform roles](../admin/platform-roles.md).
@@ -112,11 +123,10 @@ Open **Community settings** from the sidebar or the rail:
 | Tab | What's in it |
 |---|---|
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
-| **AI** | Optional AI settings — see [AI features](../account/ai-features.md). |
 | **Users** | Members, roles, invite links. |
-| **Authentication** | Single sign-on for this community, where your server offers it. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Apps** | Installed apps — see [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
+| **Security** | Who gets in — single sign-on for this community, where its people land, and whether members must carry a second factor or a passkey — and on what terms: whether personal API keys reach it, and whether members sign in again every twelve hours. Each half appears only where your server has granted it; most communities never see this tab. |
+| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, and re-download a finished export. |
 | **Danger zone** | The stuff you can't undo. |
@@ -142,7 +152,7 @@ The friction is entirely deliberate and we're not sorry about it. Only come here
 
 On the **community rail**, open the community's menu and choose **Leave community**. That removes you and nobody else. Everyone carries on without you, which is either a relief or mildly wounding depending on the day you're having.
 
-If you're the *last administrator*, you'll be made to promote somebody first. Walking out and leaving a community with nobody in charge is a favour to no one, least of all the person who eventually notices.
+If you're the *last superadmin*, you'll be made to promote somebody first. Walking out and leaving a community nobody can configure is a favour to no one, least of all the person who eventually notices. Ordinary admins can come and go freely — there's always the seat above them.
 
 ## Related
 

@@ -70,14 +70,15 @@ def test_permission_keys_are_exactly_the_derived_tool_pairs():
         assert set(role_permissions) == set(PermissionKey)
 
 
-def test_initiative_master_switches_are_exactly_the_toggleable_tools():
-    # Every non-core tool has an initiative-level `{plural}_enabled` master
-    # switch (model column + read/create/update schema fields); core tools are
-    # always-on and must NOT grow one.
-    from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS
+def test_every_tool_has_an_initiative_master_switch():
+    # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
+    # column + read/create/update schema fields) — projects and documents
+    # included, which is the whole of making them optional.
+    from app.core.tools import TOGGLEABLE_TOOLS, Tool
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
 
+    assert set(TOGGLEABLE_TOOLS) == set(Tool)
     switches = {t.view_permission for t in TOGGLEABLE_TOOLS}
     model_fields = set(Initiative.model_fields)
     schema_fields = set(InitiativeBase.model_fields)
@@ -85,9 +86,21 @@ def test_initiative_master_switches_are_exactly_the_toggleable_tools():
     assert switches <= model_fields
     assert switches <= schema_fields
     assert switches <= update_fields
-    for core in CORE_TOOLS:
-        assert core.view_permission not in model_fields
-        assert core.view_permission not in schema_fields
+
+
+def test_an_initiative_starts_with_projects_and_documents_on():
+    # Optional is not the same as off. An initiative created without an opinion
+    # about its tools is the one people already had, so the two that used to be
+    # unconditional keep arriving switched on and everything else stays opt-in.
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+    from app.models.tenant.initiative import Initiative
+    from app.schemas.tenant.initiative import InitiativeBase
+
+    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.document}
+    for tool in Tool:
+        expected = tool in DEFAULT_ENABLED_TOOLS
+        assert Initiative.model_fields[tool.view_permission].default is expected
+        assert InitiativeBase.model_fields[tool.view_permission].default is expected
 
 
 def test_member_read_flags_are_exactly_the_derived_tool_pairs():
@@ -137,28 +150,46 @@ def test_every_tool_is_taggable():
 
 
 def test_every_tool_is_commentable():
-    # Comments span EVERY tool plus the task: the service registry, the
-    # comments table's parent FKs, the RLS parent declaration, and the create
-    # schema's target fields all agree. A new tool that forgets its
-    # CommentTarget fails here.
+    # Comments span EVERY tool plus the content-level extras: the service
+    # registry, the comments table's parent FKs, the RLS parent declaration,
+    # and the create schema's target fields all agree. A new tool that forgets
+    # its CommentTarget — or an extra that forgets its column — fails here.
     from sqlalchemy import inspect as sa_inspect
 
+    from app.core.tools import COMMENTABLE_EXTRAS, COMMENT_TARGETS
     from app.db.initiative_rls import _COMMENT_PARENTS
     from app.models.tenant.comment import Comment
     from app.schemas.tenant.comment import COMMENT_TARGET_FIELDS
     from app.services.tenant.comments import (
         COMMENT_PARENT_COLUMNS,
+        EXTRA_COMMENT_TARGETS,
         TOOL_COMMENT_TARGETS,
     )
 
     assert set(TOOL_COMMENT_TARGETS) == set(Tool)
-    assert set(COMMENT_PARENT_COLUMNS) == {"task_id"} | {f"{t.value}_id" for t in Tool}
+    # The extras are the ones that are NOT tools, and nothing is both.
+    assert set(COMMENT_TARGETS) == set(COMMENTABLE_EXTRAS) | {t.value for t in Tool}
+    assert not set(COMMENTABLE_EXTRAS) & {t.value for t in Tool}
+    assert set(COMMENT_PARENT_COLUMNS) == {f"{target}_id" for target in COMMENT_TARGETS}
+    assert set(EXTRA_COMMENT_TARGETS) == {f"{extra}_id" for extra in COMMENTABLE_EXTRAS}
 
     model_columns = {c.name for c in sa_inspect(Comment).persist_selectable.columns}
     assert set(COMMENT_PARENT_COLUMNS) <= model_columns
 
     assert {p.column for p in _COMMENT_PARENTS} == set(COMMENT_PARENT_COLUMNS)
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
+
+    # Every extra names a tool to answer for it, and a real column to reach it
+    # by — that is what makes a thread on something that is not a tool gated
+    # like one.
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        parent = next(p for p in _COMMENT_PARENTS if p.column == column)
+        assert parent.tool_fk is not None, column
+        extra_columns = {
+            c.name for c in sa_inspect(extra.model).persist_selectable.columns
+        }
+        assert parent.tool_fk in extra_columns, column
+        assert extra.title_field in extra_columns, column
 
 
 def test_every_tool_has_its_sharing_refusal_in_every_locale():
@@ -371,4 +402,36 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     } & set(ADAPTERS)
     assert not unflagged, (
         f"adapter exists but tool not in BULK_EXPORT_TOOLS: {unflagged}"
+    )
+
+
+def test_importers_cover_exactly_the_portable_tools():
+    """Export and import are ONE capability — a tool's JSON envelope
+    round-trips through both — so the importer registry answers to the same set
+    the export side writes, keyed by the same derived discriminator.
+
+    A tool with an export adapter and no importer emits an envelope the
+    envelope endpoint refuses as an unknown type and a backup restore skips.
+    The frontend derives its import affordance from the same set
+    (``toolForEnvelopeType``), so it offers whatever is listed here.
+    """
+    from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_envelope_type
+    from app.services.import_engine.importers import IMPORTERS
+
+    derived = {tool_envelope_type(tool) for tool in BULK_EXPORT_TOOLS}
+    assert tool_envelope_type(Tool.counter_group) == "initiative-counter-group"
+    assert set(IMPORTERS) == derived, (
+        f"missing importers for {sorted(derived - set(IMPORTERS))}; "
+        f"unregistered importer types {sorted(set(IMPORTERS) - derived)}"
+    )
+    # Keyed by its own declared attribute, so the registry dict and the class
+    # cannot disagree about which type an importer answers to.
+    for envelope_type, importer in IMPORTERS.items():
+        assert importer.envelope_type == envelope_type
+    # A non-portable tool must not quietly grow one either.
+    unflagged = {
+        tool_envelope_type(t) for t in Tool if t not in BULK_EXPORT_TOOLS
+    } & set(IMPORTERS)
+    assert not unflagged, (
+        f"importer exists but tool not in BULK_EXPORT_TOOLS: {sorted(unflagged)}"
     )

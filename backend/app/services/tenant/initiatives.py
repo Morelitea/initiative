@@ -24,7 +24,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.platform.user import UserInitiativeRole, UserSummary
@@ -35,9 +35,6 @@ from app.schemas.tenant.initiative import (
 
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_INITIATIVE_NAME = "Default Initiative"
-DEFAULT_INITIATIVE_COLOR = "#2563eb"
 
 
 async def get_role_by_name(
@@ -95,14 +92,14 @@ async def is_guild_admin_member(
     guild_id: int,
     user_id: int,
 ) -> bool:
-    """Whether ``user_id`` holds the admin role in ``guild_id``."""
+    """Whether ``user_id`` administers ``guild_id`` — admin or above."""
     result = await session.exec(
         select(GuildMembership.role).where(
             GuildMembership.guild_id == guild_id,
             GuildMembership.user_id == user_id,
         )
     )
-    return result.one_or_none() == GuildRole.admin
+    return result.one_or_none() in GUILD_ADMIN_ROLES
 
 
 async def resolve_membership_role(
@@ -242,55 +239,6 @@ async def create_builtin_roles(
     return roles
 
 
-async def ensure_default_initiative(
-    session: AsyncSession, admin_user: User, *, guild_id: int
-) -> Initiative:
-    statement = select(Initiative).where(
-        Initiative.guild_id == guild_id,
-        Initiative.is_default.is_(True),
-    )
-    result = await session.exec(statement)
-    default_initiative = result.one_or_none()
-    if default_initiative:
-        await _ensure_membership_as_moderator(
-            session,
-            initiative_id=default_initiative.id,
-            user_id=admin_user.id,
-            guild_id=guild_id,
-        )
-        await session.refresh(default_initiative, attribute_names=["memberships"])
-        return default_initiative
-
-    now = datetime.now(timezone.utc)
-    default_initiative = Initiative(
-        guild_id=guild_id,
-        name=DEFAULT_INITIATIVE_NAME,
-        description="Automatically created default initiative",
-        color=DEFAULT_INITIATIVE_COLOR,
-        is_default=True,
-        created_at=now,
-        updated_at=now,
-    )
-    session.add(default_initiative)
-    await session.flush()
-
-    # Create built-in roles for this initiative
-    roles = await create_builtin_roles(session, initiative_id=default_initiative.id)
-
-    # The guild's admin joins on the moderator role, as every admin does.
-    session.add(
-        InitiativeMember(
-            initiative_id=default_initiative.id,
-            user_id=admin_user.id,
-            role_id=roles["moderator"].id,
-            guild_id=guild_id,
-        )
-    )
-    await session.flush()
-    await session.refresh(default_initiative, attribute_names=["memberships"])
-    return default_initiative
-
-
 async def load_user_initiative_roles(
     session: AsyncSession, users: Sequence[User]
 ) -> None:
@@ -326,44 +274,6 @@ async def load_user_initiative_roles(
     for user in users:
         user_assignments = assignments.get(user.id or 0, [])
         object.__setattr__(user, "initiative_roles", user_assignments)
-
-
-async def _ensure_membership_as_moderator(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-    guild_id: int,
-) -> None:
-    """Ensure user is a member on the moderator role."""
-    role = await get_moderator_role(session, initiative_id=initiative_id)
-    if not role:
-        # Create roles if they don't exist (migration safety)
-        role = (await create_builtin_roles(session, initiative_id=initiative_id))[
-            "moderator"
-        ]
-
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    membership = result.one_or_none()
-    if membership:
-        if membership.role_id != role.id:
-            membership.role_id = role.id
-            session.add(membership)
-            await session.flush()
-        return
-    session.add(
-        InitiativeMember(
-            initiative_id=initiative_id,
-            user_id=user_id,
-            role_id=role.id,
-            guild_id=guild_id,
-        )
-    )
-    await session.flush()
 
 
 async def get_initiative_membership(
@@ -818,7 +728,7 @@ async def self_join(
 
     The floor, not the ceiling: ``member`` is view-only on the core tools and
     creates nothing, and per-resource sharing still decides what is reachable
-    inside. The row is ordinary — ``oidc_managed`` false, so group sync neither
+    inside. The row is ordinary — no managing provider, so group sync neither
     reaps it nor fights it — which is the whole point: every join path ends at
     the same membership row RLS already reads.
 
@@ -847,7 +757,7 @@ async def self_join(
         user_id=user_id,
         role_id=role.id,
         guild_id=initiative.guild_id,
-        oidc_managed=False,
+        oidc_provider_id=None,
     )
     # Two overlapping joins both clear the lookup above, and the composite
     # primary key then rejects the loser. That is the same outcome the caller
@@ -903,7 +813,7 @@ async def enroll_in_auto_join_initiatives(
     """Enrol a brand-new guild member in the guild's auto-join initiatives.
 
     Each enrolment routes through :func:`self_join`, so an arrival lands on the
-    same membership row every other join path writes — ``oidc_managed`` false,
+    same membership row every other join path writes — no managing provider,
     so group sync neither reaps nor fights it.
 
     Best effort, per initiative: one initiative that cannot take a member (its
@@ -1045,7 +955,7 @@ async def resolve_join_request(
     """Settle a pending request, creating the membership row on approval.
 
     Approval routes through :func:`self_join`, so an approved requester lands on
-    exactly the row every other join path produces — ``oidc_managed`` false —
+    exactly the row every other join path produces — no managing provider —
     and someone who became a member by another route while the request sat in
     the queue is absorbed rather than colliding.
 
@@ -1211,7 +1121,7 @@ async def create_imported_initiative(
     on collision (always-create policy) instead of 409ing, and the tool
     master switches taken from the backup manifest. Flush-only — the backup
     orchestrator owns its per-chunk transaction."""
-    from app.core.tools import TOGGLEABLE_TOOLS
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
     from app.services.import_engine.common import unique_name
 
     existing = {
@@ -1228,7 +1138,13 @@ async def create_imported_initiative(
         color=color,
         guild_id=guild_id,
         **{
-            t.view_permission: bool(tool_flags.get(t.view_permission, False))
+            # A manifest that says nothing about a tool falls back to that
+            # tool's own default rather than to off: a backup written before
+            # projects and documents had switches names no state for them, and
+            # restoring it must not produce an initiative with neither.
+            t.view_permission: bool(
+                tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)
+            )
             for t in TOGGLEABLE_TOOLS
         },
     )

@@ -6,14 +6,12 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    ForeignKey,
-    Integer,
     String,
     Text,
     UniqueConstraint,
     text,
 )
-from sqlmodel import Field, Index, SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class AuthProviderKind(str, Enum):
@@ -38,28 +36,27 @@ AUTH_PROVIDER_KINDS: tuple[str, ...] = tuple(k.value for k in AuthProviderKind)
 class AuthProvider(SQLModel, table=True):
     """A configured identity source Initiative acts as a relying party to.
 
-    Replaces the single ``app_settings.oidc_*`` config with a registry that can
-    hold many providers. ``guild_id IS NULL`` is an **operator-global** provider
-    (platform-level login); a set ``guild_id`` is a **guild-scoped** IdP,
-    managed by that guild's admins when the platform runs per-guild auth.
+    Every row is the **operator's**. A community does not own a provider; it
+    owns a :class:`~app.models.platform.guild_provider_connection.GuildProviderConnection`
+    to one, optionally narrowed to its own tenant. So the operator says *this
+    deployment can sign people in with Google*, and a community says *our
+    members come in through that, and only our workspace*.
+
+    A community bringing its own identity provider is the same shape: the
+    operator registers it when they onboard them, and the community connects.
+    That way nobody outside this registry supplies an issuer, a client id or a
+    secret.
 
     Metadata only — the client *secret* lives in a separate, ``app_admin``-only
-    companion table added with the OIDC-login phase; nothing here is sensitive
-    (``issuer``/``client_id`` are public in OIDC).
+    companion table; nothing here is sensitive (``issuer``/``client_id`` are
+    public in OIDC).
     """
 
     __tablename__ = "auth_providers"
     __table_args__ = (
-        # Guild-scoped slugs are unique within their guild.
-        UniqueConstraint("guild_id", "slug", name="uq_auth_providers_guild_slug"),
-        # Operator-global slugs (guild_id IS NULL, which the composite above does
-        # not constrain) must also be unique — a partial unique index.
-        Index(
-            "uq_auth_providers_global_slug",
-            "slug",
-            unique=True,
-            postgresql_where=text("guild_id IS NULL"),
-        ),
+        # One registry, so one namespace. A slug is in the sign-in URLs, so it
+        # never changes once saved.
+        UniqueConstraint("slug", name="uq_auth_providers_slug"),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -73,17 +70,6 @@ class AuthProvider(SQLModel, table=True):
     )
     enabled: bool = Field(
         sa_column=Column(Boolean, nullable=False, server_default=text("false"))
-    )
-
-    # NULL = operator-global (platform-level); set = guild-scoped enterprise IdP.
-    guild_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("guilds.id", ondelete="CASCADE"),
-            nullable=True,
-            index=True,
-        ),
     )
 
     # OIDC / OAuth2 discovery + client identity (non-secret).

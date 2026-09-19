@@ -70,6 +70,28 @@ ARGON2_HASH_PREFIX = "$argon2"
 BCRYPT_HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
 USABLE_HASH_PREFIXES = (ARGON2_HASH_PREFIX, *BCRYPT_HASH_PREFIXES)
 
+
+def has_usable_password(hashed: str | None) -> bool:
+    """Whether a stored hash is one :func:`verify_password` can actually check.
+
+    The question a caller asks when it must know whether an account holds a
+    password *without* checking one — re-authenticating before a change, or
+    deciding whether there is anything to re-authenticate against at all.
+
+    A value outside :data:`USABLE_HASH_PREFIXES` never verifies, so it is not a
+    password: NULL and the ``'!'`` marker a 0152 downgrade writes read the same
+    here. The one thing it cannot see is an account provisioned before 0152,
+    whose throwaway hash is a real argon2 value — that reads as holding a
+    password, which is the conservative direction, and such an account reaches
+    itself through password reset.
+
+    The row-level form of the same question is
+    ``services.auth.identity._no_usable_password_clause``; both read these
+    prefixes, so there is one definition.
+    """
+    return bool(hashed) and hashed.startswith(USABLE_HASH_PREFIXES)
+
+
 # argon2id with library defaults — OWASP-aligned. Stored hashes embed the
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
@@ -168,23 +190,6 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
         return True
 
 
-def create_access_token(
-    subject: str, *, token_version: int, expires_delta: timedelta | None = None
-) -> str:
-    """Mint a **legacy-shape** session JWT — no ``aud``/``iss``/``sid``.
-
-    Nothing in the running app issues one any more: every sign-in goes through
-    :func:`mint_access_token`. It stays because :func:`decode_session_token`
-    still accepts the shape, and the tests that prove it need something that
-    produces one.
-    """
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
-    )
-    to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
-    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-
-
 # ──────────────────────────────────────────────────────────────────────────
 # New login model — stateless access token (auth rewrite, Phase 0)
 #
@@ -261,47 +266,26 @@ def mint_access_token(
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode a session credential, accepting BOTH schemes during the
-    dual-verify cutover window (history/auth-detailed-design.md §3.1):
+    """Decode a session credential (history/auth-detailed-design.md §3.1).
 
-    - the **new-model access token** — ``aud=initiative:access`` /
-      ``iss=initiative``, additionally carrying ``sid``/``amr``/``sat``.
-    - the **legacy session JWT** — no ``aud``/``iss``.
+    One shape: the access token ``mint_access_token`` issues —
+    ``aud=initiative:access`` / ``iss=initiative``, carrying ``sub``, ``ver``
+    (the caller checks it against ``users.token_version``) and
+    ``sid``/``amr``/``sat``.
 
-    Both carry ``sub`` + ``ver`` (the caller checks ``ver`` against
-    ``users.token_version``). Raises :class:`jwt.PyJWTError` for anything else,
-    which every call site already maps to 401. Crucially this keeps the session
-    path refusing **scoped** tokens: an upload/handoff token carries a *foreign*
-    ``aud`` that fails the new decode (wrong audience) AND the legacy decode
-    (which rejects any token bearing an ``aud``), so neither is honored as a
-    session. Bad signature / expiry / missing claims raise as before.
-
-    New scheme is tried first, so once issuance flips it's the single-decode
-    fast path; during the window a legacy token pays one extra HMAC verify.
+    Anything else raises :class:`jwt.PyJWTError`, which every call site maps to
+    401. That covers the scoped credentials — an upload or handoff token
+    carries its own ``aud`` — and the pre-session JWT this accepted until
+    0.69.0, whose holder renews through the refresh cookie and carries on.
     """
-    try:
-        return jwt.decode(
-            token,
-            settings.jwt_signing_key,
-            algorithms=[JWT_ALGORITHM],
-            audience=AUTH_ACCESS_AUDIENCE,
-            issuer=AUTH_TOKEN_ISSUER,
-            options={"require": ["exp", "sub", "ver", "aud", "iss"]},
-        )
-    except (
-        jwt.InvalidAudienceError,
-        jwt.InvalidIssuerError,
-        jwt.MissingRequiredClaimError,
-    ):
-        # These three mean "not a new-model token" — absent/foreign aud or iss,
-        # or missing the new claims — so fall back to the legacy scheme. An
-        # expired/invalid-signature/malformed JWT raises a *different* PyJWTError
-        # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
-        # it propagates with its true type instead of being masked by the
-        # legacy decode's audience error — keeping cutover-window logs honest.
-        # A legacy token bearing any aud (upload/handoff) still fails the legacy
-        # decode below and is rejected.
-        return jwt.decode(token, settings.jwt_signing_key, algorithms=[JWT_ALGORITHM])
+    return jwt.decode(
+        token,
+        settings.jwt_signing_key,
+        algorithms=[JWT_ALGORITHM],
+        audience=AUTH_ACCESS_AUDIENCE,
+        issuer=AUTH_TOKEN_ISSUER,
+        options={"require": ["exp", "sub", "ver", "aud", "iss"]},
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -337,6 +321,9 @@ def create_upload_token(
     *,
     user_id: int,
     satisfied_providers: Sequence[int] = (),
+    satisfied_claims: dict | None = None,
+    session_mfa: bool = False,
+    session_passkey: bool = False,
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -346,9 +333,10 @@ def create_upload_token(
     JWT but distinguished by its ``aud``/``scope`` claims and the absence of
     ``ver`` — the general auth path will not accept it.
 
-    ``satisfied_providers`` copies the minting session's ``sat`` claim so a
-    download/keepalive in a policy-gated guild carries the same satisfaction
-    as the session that requested it (bounded by this token's short lifetime).
+    ``satisfied_providers`` copies the minting session's ``sat`` claim, and
+    ``satisfied_claims`` what those providers asserted, so a download or
+    keepalive in a guild with a requirement carries the same standing as the
+    session that requested it (bounded by this token's short lifetime).
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -356,6 +344,14 @@ def create_upload_token(
         "aud": UPLOAD_TOKEN_AUDIENCE,
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
+        "satc": dict(satisfied_claims or {}),
+        # Copied from the minting session like the two above: an upload in a
+        # community that asks for a second factor is made by somebody who
+        # presented one.
+        "mfa": bool(session_mfa),
+        # And the same for a community that asks for a passkey: the token
+        # carries the standing of the session that asked for it.
+        "pk": bool(session_passkey),
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -363,8 +359,12 @@ def create_upload_token(
     return token, int(expires_in.total_seconds())
 
 
-def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
-    """Verify a scoped upload token; return the user id and satisfied set.
+def verify_upload_token(
+    token: str,
+) -> tuple[int, frozenset[int], dict, bool, bool]:
+    """Verify a scoped upload token; return the user id, its satisfied set,
+    what those providers asserted, whether the minting session recorded the
+    account's second factor, and whether a passkey opened it.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -394,7 +394,16 @@ def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
         satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sat must be a list of provider ids") from exc
-    return user_id, satisfied
+    claims = payload.get("satc")
+    if claims is not None and not isinstance(claims, dict):
+        raise UploadTokenError("satc must be an object")
+    return (
+        user_id,
+        satisfied,
+        dict(claims or {}),
+        bool(payload.get("mfa")),
+        bool(payload.get("pk")),
+    )
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):

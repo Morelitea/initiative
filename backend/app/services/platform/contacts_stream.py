@@ -27,11 +27,6 @@ from app.services.platform import user_stream
 RESOURCE = "contacts"
 
 
-async def signal_contacts(user_id: int, action: str = "changed") -> None:
-    """Tell one account's open tabs to re-read their contact lists."""
-    await user_stream.publish(user_id, user_stream.build_frame(RESOURCE, action))
-
-
 def queue_contacts_signal(
     session: Any, user_id: int | None, action: str = "changed"
 ) -> None:

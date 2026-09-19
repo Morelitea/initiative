@@ -1,15 +1,16 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
+from app.core.login_methods import LoginMethod
 from app.models.platform.user_dm_settings import DmPolicy
 
-# Login posture (platform vs guild) is a deploy-time setting, read from
-# ``settings.AUTH_SCOPE`` — see ``app.core.config.AuthScope``. Platform OIDC
-# config lives on the provider registry row (``auth_providers`` slug ``oidc``);
-# neither is stored here.
+# Platform OIDC config lives on the provider registry row (``auth_providers``
+# slug ``oidc``), not here. Which ways in the deployment permits does — see
+# ``login_methods`` below and ``app.services.platform.auth_posture``.
 
 
 class AppSetting(SQLModel, table=True):
@@ -40,6 +41,34 @@ class AppSetting(SQLModel, table=True):
     )
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
+    )
+
+    # Which ways in this deployment permits. A Postgres enum array: adding a
+    # method later is a value on the type, not a column per method, and the
+    # database validates the elements rather than a hand-kept CHECK list. The
+    # non-empty constraint is the "at least one" rule — see
+    # ``app.core.login_methods``.
+    # How long somebody may stay signed in before signing in again, in hours.
+    # This is the *absolute* limit; ``AUTH_REFRESH_TTL_DAYS`` is the separate
+    # question of how long they may leave the app alone.
+    #
+    # NULL, the default, asks for no limit — a self-hosted deployment is not
+    # answering to anybody, and the idle window already ends a session nobody
+    # uses. It also has to be longer than that window to mean anything: set
+    # equal to it, the absolute limit always binds first and the idle window
+    # stops sliding, so a daily user is signed out on a timer regardless.
+    session_max_hours: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+    login_methods: list[str] = Field(
+        default_factory=lambda: [m.value for m in LoginMethod],
+        sa_column=Column(
+            ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
+            nullable=False,
+            # Matches what migration 0315 sets on the column.
+            server_default="{password,sso,totp,passkey}",
+        ),
     )
 
     smtp_host: Optional[str] = Field(
@@ -85,6 +114,17 @@ class AppSetting(SQLModel, table=True):
     # rollout knows and a public one does not. Independent of the directory
     # switch above so the assertion survives the directory being toggled.
     community_age_gate_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether this deployment offers direct messages at all -- My Messages,
+    # and every connection and message request that feeds it. On by default, so
+    # a deployment that upgrades into it keeps the messaging its people are
+    # already using; a platform owner turns it off for somewhere messaging does
+    # not belong. Switching it off keeps every channel and policy exactly as it
+    # was, so switching it back on restores them rather than rebuilding them.
+    direct_messages_enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
@@ -154,4 +194,19 @@ class AppSetting(SQLModel, table=True):
     s3_local_fallback: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # The guild that receives this deployment's operations work — security,
+    # moderation, support and feedback cases. NULL on every fresh and existing
+    # install, which is what "this deployment routes nothing" looks like: the
+    # writer resolves no binding and every call it makes is a no-op.
+    #
+    # An ordinary guild in every other respect. Which project each stream lands
+    # in is per-guild config inside it (``intake_bindings``), so the platform
+    # holds a pointer and no second copy of the tooling.
+    operations_guild_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("guilds.id", ondelete="SET NULL"), nullable=True
+        ),
     )

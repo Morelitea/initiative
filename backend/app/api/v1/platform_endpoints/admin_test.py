@@ -4,6 +4,8 @@ import csv
 import io
 
 import pytest
+
+from app.core.messages import InitiativeMessages
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -280,7 +282,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
 async def test_demote_admin_uses_for_update_path_without_postgres_error(
     client: AsyncClient, session: AsyncSession
 ):
-    """Regression: ``is_last_platform_admin(..., for_update=True)`` ran
+    """Regression: ``is_last_capability_holder(..., for_update=True)`` ran
     a ``SELECT COUNT(...) FOR UPDATE``, which PostgreSQL rejects with
     "FOR UPDATE is not allowed with aggregate functions". Every valid
     demote of an active admin would crash with an unhandled
@@ -351,7 +353,7 @@ async def test_admin_delete_guild_requires_sole_admin_blocker(
 async def test_admin_delete_guild_deletes_genuine_blocker(
     client: AsyncClient, session: AsyncSession
 ):
-    """When the user is the guild's sole admin, the operator can delete it to
+    """When the user holds the guild's sole seat, the operator can delete it to
     resolve the user-deletion blocker."""
     from sqlmodel import select
 
@@ -364,7 +366,14 @@ async def test_admin_delete_guild_deletes_genuine_blocker(
     target = await create_user(session, email="sole-admin2@example.com")
     guild = await create_guild(session, creator=target)
     await create_guild_membership(
-        session, user=target, guild=guild, role=GuildRole.admin
+        session, user=target, guild=guild, role=GuildRole.superadmin
+    )
+    # A community of one strands nobody, so it is not a blocker at all.
+    await create_guild_membership(
+        session,
+        user=await create_user(session, email="bystander@example.com"),
+        guild=guild,
+        role=GuildRole.member,
     )
 
     resp = await client.delete(
@@ -399,7 +408,6 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
 ):
     """The role switch names a role of that initiative — custom ones included;
     a name the initiative doesn't define is a 404."""
-    from app.core.messages import AdminMessages
     from app.models.platform.guild import GuildRole
 
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -441,7 +449,7 @@ async def test_admin_initiative_role_update_takes_any_role_the_initiative_define
         url, headers=get_auth_headers(operator), json={"role": "no_such_role"}
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == AdminMessages.ROLE_NOT_FOUND
+    assert resp.json()["detail"] == InitiativeMessages.ROLE_NOT_FOUND
 
 
 @pytest.mark.integration

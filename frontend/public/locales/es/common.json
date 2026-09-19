@@ -44,6 +44,8 @@
   "viewAll": "Ver todo",
   "copyToClipboard": "Copiar al portapapeles",
   "copied": "¡Copiado!",
+  "copy": "Copiar",
+  "copyUnavailable": "No se pudo copiar: cópialo a mano",
   "untitled": "Sin título",
   "appName": "initiative",
   "send": "Enviar",
@@ -53,6 +55,7 @@
   "previous": "Anterior",
   "rowsPerPage": "Filas por página:",
   "pageOf": "Página {{current}} de {{total}}",
+  "stepOf": "Paso {{current}} de {{total}}",
   "select": "Seleccionar",
   "exitSelection": "Salir de selección",
   "enableSelectionMode": "Activar modo de selección",
@@ -186,5 +189,22 @@
     "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
   },
   "archiveError": "No se pudo archivar. Inténtalo de nuevo.",
-  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo."
+  "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo.",
+  "markdownEditor": {
+    "toolbar": "Formato",
+    "write": "Escribir",
+    "preview": "Vista previa",
+    "nothingToPreview": "Todavía no hay nada que previsualizar.",
+    "heading": "Encabezado",
+    "bold": "Negrita",
+    "italic": "Cursiva",
+    "strikethrough": "Tachado",
+    "link": "Enlace",
+    "quote": "Cita",
+    "code": "Código",
+    "bulletedList": "Lista con viñetas",
+    "numberedList": "Lista numerada",
+    "taskList": "Lista de tareas",
+    "more": "Más formato"
+  }
 }

@@ -26,6 +26,7 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { usePostsList } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useWikisList } from "@/hooks/useWikis";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -180,6 +181,19 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         keywords: [gallery.description ?? ""],
         icon: null,
         path: toolDetailRoute(Tool.gallery, gallery.initiative_id, gallery.id),
+      }));
+    },
+  },
+  [Tool.wiki]: {
+    useHeading: () => useGroupHeading(Tool.wiki),
+    useItems: ({ enabled }) => {
+      const query = useWikisList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+      return (query.data?.items ?? []).map((wiki) => ({
+        id: wiki.id,
+        label: wiki.name,
+        keywords: [wiki.description ?? ""],
+        icon: null,
+        path: toolDetailRoute(Tool.wiki, wiki.initiative_id, wiki.id),
       }));
     },
   },

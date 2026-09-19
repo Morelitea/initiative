@@ -8,12 +8,23 @@ import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
  */
 interface MessagesSearch {
   with?: string;
+  /**
+   * Which thread to open, by conversation id — `/messages?thread=<uuid>`.
+   *
+   * A group is addressed this way because it has nothing else to be addressed
+   * by: it has no name and no single handle, and the people on it are the only
+   * thing it is, which is a set rather than an address. A pair keeps `with`,
+   * where the handle is the point — it opens a conversation that may not exist
+   * yet, which an id cannot do.
+   */
+  thread?: string;
 }
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/messages")({
   validateSearch: (search: Record<string, unknown>): MessagesSearch => {
     const handle = typeof search.with === "string" ? search.with.trim() : "";
-    return handle ? { with: handle } : {};
+    const thread = typeof search.thread === "string" ? search.thread.trim() : "";
+    return { ...(handle ? { with: handle } : {}), ...(thread ? { thread } : {}) };
   },
   // No loader: a thread is read out of this device's own store, which the page
   // itself unlocks. There is nothing for the router to prefetch.

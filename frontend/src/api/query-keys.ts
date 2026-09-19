@@ -403,6 +403,23 @@ const appConfig = (): Spec => ({ personalExact: ["/api/v1/config"] });
 /** The owner's own read of the three community-wide decisions. */
 const communitySettings = (): Spec => ({ personalExact: ["/api/v1/settings/community"] });
 
+/** Where sign-in is configured, which ways in are permitted, and the counts a
+ *  change to either would turn on. */
+const platformAuthSettings = (): Spec => ({
+  personalExact: ["/api/v1/settings/auth/platform"],
+});
+
+/** Where each stream of operations work lands, and what it could land in. */
+const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
+
+const intakeOptions = (): Spec => ({ personalExact: ["/api/v1/settings/intake/options"] });
+
+/** One initiative's moderation reports. A prefix, so the open list and the
+ *  settled one — which differ only in their params — both move on a write. */
+const moderationReports = (initiativeId: number): Spec => ({
+  guildPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
+});
+
 const oidcMappings = (): Spec => ({ personalPrefix: ["/api/v1/settings/oidc-mappings"] });
 
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
@@ -556,6 +573,20 @@ const galleryImages = (galleryId: number): Spec => ({
   guildPrefix: [`/api/v1/galleries/${galleryId}/images`],
 });
 
+// ── Wikis (guild) ────────────────────────────────────────────────────────────
+
+const allWikis = (): Spec => ({ guildPrefix: ["/api/v1/wikis"] });
+
+const wiki = (wikiId: number): Spec => ({
+  guildExact: [`/api/v1/wikis/${wikiId}`],
+});
+
+/** A wiki's pages — the tree, each page's own read, and its connections —
+ *  without the wiki row itself. */
+const wikiPages = (wikiId: number): Spec => ({
+  guildPrefix: [`/api/v1/wikis/${wikiId}/pages`],
+});
+
 // ── Version (personal) ───────────────────────────────────────────────────────
 
 const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
@@ -584,6 +615,7 @@ const TOOL_SPECS: Record<Tool, (id: number) => Spec> = {
   [Tool.dashboard]: (id) => compose(dashboard(id), allDashboards()),
   [Tool.post]: (id) => compose(post(id), allPosts()),
   [Tool.gallery]: (id) => compose(gallery(id), allGalleries()),
+  [Tool.wiki]: (id) => compose(wiki(id), allWikis()),
 };
 
 const tool = (which: Tool, id: number): Spec => TOOL_SPECS[which](id);
@@ -606,6 +638,7 @@ const guildContent = (): Spec =>
     allDashboards(),
     allPosts(),
     allGalleries(),
+    allWikis(),
     allTasks(),
     allComments()
   );
@@ -631,6 +664,7 @@ export const q = {
   allSettings,
   allTags,
   allTaskStatuses,
+  allWikis,
   allTasks,
   announcements,
   appConfig,
@@ -642,6 +676,10 @@ export const q = {
   calendarEvent,
   commentsOnResource,
   communitySettings,
+  platformAuthSettings,
+  intakeOptions,
+  intakeSettings,
+  moderationReports,
   contactGrants,
   contacts,
   counterGroup,
@@ -696,6 +734,8 @@ export const q = {
   userStats,
   version,
   writableProjects,
+  wiki,
+  wikiPages,
 };
 
 // ── Guild Switch ─────────────────────────────────────────────────────────────

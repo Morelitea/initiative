@@ -17,6 +17,7 @@ from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
+from app.models.platform.user_passkey import UserPasskey
 
 # Registers ``MemberProfile`` in the mapper registry — the tenant
 # relationships that name a person resolve it by name.
@@ -57,6 +58,7 @@ from app.models.tenant.gallery import (
     GalleryImage,
     GalleryImageVersion,
 )
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
 from app.models.tenant.counter import (
@@ -87,10 +89,16 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.identity_ref import IdentityRef
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_provider_connection import GuildProviderConnection
+from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
+from app.models.platform.user_totp import UserTotp
+from app.models.platform.user_totp_secret import UserTotpSecret
+from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -101,6 +109,8 @@ from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
@@ -120,6 +130,7 @@ __all__ = [
     "AnnouncementImage",
     "AnnouncementReadReceipt",
     "User",
+    "UserPasskey",
     "MemberProfile",
     "AccessGrant",
     "AuthProvider",
@@ -131,6 +142,8 @@ __all__ = [
     "FederatedIdentitySecret",
     "IdentityRef",
     "GuildAuthPolicy",
+    "GuildProviderConnection",
+    "PlatformProviderDefault",
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
@@ -174,6 +187,8 @@ __all__ = [
     "Gallery",
     "GalleryImage",
     "GalleryImageVersion",
+    "Wiki",
+    "WikiPage",
     "PostRead",
     "PostPoll",
     "PostPollOption",
@@ -205,6 +220,10 @@ __all__ = [
     "EntityRelationship",
     "WebhookDelivery",
     "WebhookSubscription",
+    "IntakeBinding",
+    "IntakeCase",
+    "ModerationReport",
+    "ModerationReportReporter",
     "AppServiceRegistration",
     "AppServiceNonce",
     "MarketplaceMedia",
@@ -216,4 +235,8 @@ __all__ = [
     "GuildApp",
     "GuildAppUserConnection",
     "GuildAppUserDelegation",
+    "UserTotp",
+    "UserTotpSecret",
+    "MfaRecoveryCode",
+    "AuthChallenge",
 ]

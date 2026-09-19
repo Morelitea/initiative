@@ -1,6 +1,6 @@
 """The operator-global platform OIDC provider — registry-row native.
 
-The ``auth_providers`` row with slug ``oidc`` (``guild_id IS NULL``) is the
+The ``auth_providers`` row with slug ``oidc`` is the
 **single source of truth** for the platform provider: the settings endpoints
 write it directly, the login path and refresh sweep read it, and the client
 secret lives in its ``auth_provider_secrets`` companion (write-only, shared
@@ -69,15 +69,20 @@ def can_serve_login_clause() -> ColumnElement[bool]:
     over ``auth_providers``.
 
     :func:`login_ready_clause` plus the platform row's extra condition: the
-    platform flow has always required a stored client secret, where a
-    PKCE-only public client is a guild-provider affordance (see
+    platform flow has always required a stored client secret, where a row
+    beside it may be a PKCE-only public client (see
     ``_active_platform_provider``). Row-form callers branch between the two
     halves; a query that must ask of rows it is not loading needs them as one.
+
+    The platform row is the one carrying the platform slug, which is how
+    :func:`get_platform_provider` names it. One registry means one namespace,
+    so the slug alone identifies it.
     """
+    is_platform_row = AuthProvider.slug == PLATFORM_OIDC_SLUG
     return and_(
         login_ready_clause(),
         or_(
-            AuthProvider.slug != PLATFORM_OIDC_SLUG,
+            ~is_platform_row,
             select(AuthProviderSecret.provider_id)
             .where(
                 AuthProviderSecret.provider_id == AuthProvider.id,
@@ -107,13 +112,10 @@ def _join_scopes(scopes: list[str] | None) -> str | None:
 
 
 async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
-    """The operator-global (``guild_id IS NULL``) platform provider row."""
+    """The platform provider row — the one carrying the platform slug."""
     return (
         await session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                AuthProvider.guild_id.is_(None),
-            )
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
         )
     ).first()
 
@@ -124,7 +126,6 @@ async def _create_platform_row(session: AsyncSession, **fields) -> AuthProvider:
     provider = AuthProvider(
         slug=PLATFORM_OIDC_SLUG,
         kind=AuthProviderKind.oidc.value,
-        guild_id=None,  # operator-global: platform-level login
         allow_jit=True,  # the platform flow JIT-provisions unknown users
         **fields,
     )
@@ -186,32 +187,6 @@ async def upsert_platform_provider(
     await session.commit()
     await session.refresh(provider)
     return provider
-
-
-async def set_platform_claim_path(
-    session: AsyncSession, claim_path: str | None
-) -> str | None:
-    """Set the platform provider's role-claim path (the OIDC mappings surface).
-
-    A missing platform row is created as a disabled skeleton so the path has a
-    home before the provider itself is configured — dormant until the operator
-    fills in issuer/client id.
-    """
-    provider = await get_platform_provider(session)
-    cleaned = _normalize(claim_path)
-    if provider is None:
-        provider = await _create_platform_row(
-            session, display_name="SSO", enabled=False, role_claim_path=cleaned
-        )
-    # Falls through in both branches: a fresh skeleton already carries the
-    # path (no-op), while a row from a lost concurrent-creation race carries
-    # the winner's — this caller's value must still land.
-    if provider.role_claim_path != cleaned:
-        provider.role_claim_path = cleaned
-        session.add(provider)
-        await session.commit()
-        await session.refresh(provider)
-    return provider.role_claim_path
 
 
 async def seed_platform_provider_from_env(session: AsyncSession) -> bool:

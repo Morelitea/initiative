@@ -30,7 +30,7 @@ const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
 const setup = (overrides: Partial<GuildRead>) => {
-  const guild = buildGuild({ role: "admin", name: "Alpha", ...overrides }) as GuildRead;
+  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as GuildRead;
   renderPage(
     () => (
       <GuildContextMenu guild={guild}>

@@ -55,11 +55,13 @@ A task can hold:
 
 ### Statuses
 
-Every project starts with four:
+Every project starts with three:
 
-**Backlog → To Do → In Progress → Done**
+**To Do → In Progress → Done**
 
-You can rename them, add your own, and give each one an icon and colour, from **Project settings → Task statuses**. Each one still belongs to one of the four underlying stages, which is how "archive done tasks" knows what counts as done.
+You can rename them, add your own, and give each one an icon and colour, from **Project settings → Task statuses**. Each one still belongs to one of four underlying stages — Backlog, To Do, In Progress, Done — which is how "archive done tasks" knows what counts as done. Backlog is there if you want a holding pen ahead of To Do; new projects just don't start with one.
+
+Delete a status you don't want and its tasks move somewhere sensible — you pick where, or let them fall to the project's default. The only one you can't delete is the last one standing.
 
 ### Checklists
 
@@ -154,7 +156,7 @@ Your choice is yours alone and it's remembered, so you can settle into one witho
 
 ### Moving a task to another project
 
-You can move a task from its menu. One thing that catches people out: because every project can have its own statuses, a moved task restarts at **Backlog** in its new home.
+You can move a task from its menu. One thing that catches people out: because every project can have its own statuses, a moved task restarts at the new project's default status.
 
 Nothing's broken and you haven't lost anything. Set the new status and carry on.
 

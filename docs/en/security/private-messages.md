@@ -20,7 +20,7 @@ Encryption keeps *what you said* private. It doesn't hide *that you said somethi
 
 The server has to know where to deliver a message, so it can tell:
 
-- **Which accounts have a conversation open**, and when it started.
+- **Which accounts have a conversation open**, who is on it, and when it started.
 - **Roughly when messages moved**, and how many.
 - **The devices on an account**, and when each was last used.
 - **The ordinary account details**: your handle, your email address, when you joined.
@@ -46,6 +46,8 @@ These two things are connected. If the server kept a readable archive so a new p
 
 So there isn't one. Each device keeps its own copy, a device that wasn't there doesn't have the older messages, and signing out takes that device's copy with it. It's a genuine cost, and it's what buys everything above. See [Your messages live on your devices](../guides/messages.md#your-messages-live-on-your-devices).
 
+Two places history moves between devices, and neither changes that: your own other device can send a new one its copy, and somebody joining a group is sent the thread by a member who has it. Both are ordinary encrypted messages, written by a device and read by a device. The server carries them the way it carries everything else, and keeps them no longer.
+
 ## Messages aren't community content
 
 If you run a community, this is the part to know: your authority over your community is real and it stops at the edge of a private conversation.
@@ -61,7 +63,7 @@ So if somebody is behaving badly, the thing to report is the **account**, not th
 If you're the person who has to answer for this choice to a board, a client, or your own conscience:
 
 - Messages use the **Double Ratchet**, the same algorithm behind the mainstream encrypted messengers, through a well-established and independently audited open-source implementation. We did not invent a cipher, and you should be suspicious of anyone who has.
-- Conversations are **one-to-one only**. Group messaging isn't offered, so no key is ever shared beyond two people.
+- **No key is ever shared between more than two devices**, including in a group. A group message is encrypted separately for each device it is going to, on that pair's own ratchet — there is no group key, and nothing to leak when somebody leaves.
 - There are **no recovery keys and no exceptional access**. Nothing is held in reserve, so nothing can be lost or demanded.
 - The code is **open source**, like the rest of Initiative. You can read it rather than take our word for it.
 

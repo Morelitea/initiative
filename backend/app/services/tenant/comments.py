@@ -2,14 +2,18 @@
 
 ``TOOL_COMMENT_TARGETS`` is the registry: **every** ``Tool`` entity is
 commentable — one nullable FK per tool on ``comments``, drift-tested against
-the enum — plus the task, the one content-level extra (it anchors to its
-project for access). Reading a thread takes read access on the parent, posting
-takes write access, exactly as it always has for tasks and documents.
+the enum — plus the content-level extras in ``EXTRA_COMMENT_TARGETS``, which
+are not tools and anchor to the tool that owns them for access (a task to its
+project, a wiki page to its wiki). Reading a thread takes read access on that
+anchor, posting takes write access, exactly as it always has for tasks and
+documents.
 
 Every tool entity also carries its own switch, ``comments_enabled``: while it
 is off, that entity's thread is neither readable nor postable and the UI shows
-none of it. Tasks have no switch — a task's thread belongs to the task, not to
-the project's tool surface.
+none of it. An extra has no switch of its own, so its anchor's is what answers
+for it — a wiki with comments off has no threads on its pages. The task is the
+exception: its thread belongs to the task, not to the project's tool surface,
+so a project with comments off still has task threads.
 """
 
 from __future__ import annotations
@@ -26,15 +30,16 @@ from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import (
-    CalendarMessages,
     CommentMessages,
-    CounterMessages,
-    DashboardMessages,
-    GalleryMessages,
-    PostMessages,
-    QueueMessages,
+    TaskMessages,
+    WikiMessages,
 )
 from app.core.tools import Tool
+from app.db.initiative_rls import (
+    COMMENT_PARENTS,
+    COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
+)
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import CounterGroup
@@ -42,10 +47,11 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -96,61 +102,104 @@ class CommentTarget:
         return f"{self.tool.value}_id"
 
 
-# Every Tool is commentable — comments_test asserts this spans the enum, and
-# that the columns here match the model and the RLS parent registry
-# (app.db.initiative_rls._COMMENT_PARENTS).
+#: Every tool's model, imported so it is *registered*: a class has to have been
+#: imported before ``tool_models`` can find it by table name. Naming them here is
+#: what makes the lookup below independent of import order.
+_REGISTERED = (
+    Calendar,
+    CounterGroup,
+    Dashboard,
+    Document,
+    Gallery,
+    Post,
+    Project,
+    Queue,
+    Wiki,
+)
+
+#: The one tool whose "no such thing" code is its own rather than the generic
+#: comment-target one. A document comment is the oldest surface here and its
+#: refusal is already mapped in every locale under that code.
+_OWN_NOT_FOUND_CODE = frozenset({Tool.document})
+
+# Every Tool is commentable, derived from the enum rather than listed — a new
+# tool carries a comment thread the day its model exists. comments_test asserts
+# this spans the enum, and that the columns here match the model and the RLS
+# parent registry (app.db.initiative_rls._COMMENT_PARENTS).
 TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
-    Tool.project: CommentTarget(
-        Tool.project, Project, CommentMessages.TARGET_NOT_FOUND
-    ),
-    Tool.document: CommentTarget(
-        Tool.document, Document, CommentMessages.DOCUMENT_NOT_FOUND
-    ),
-    Tool.queue: CommentTarget(
-        Tool.queue,
-        Queue,
-        CommentMessages.TARGET_NOT_FOUND,
-        QueueMessages.FEATURE_DISABLED,
-    ),
-    Tool.counter_group: CommentTarget(
-        Tool.counter_group,
-        CounterGroup,
-        CommentMessages.TARGET_NOT_FOUND,
-        CounterMessages.FEATURE_DISABLED,
-    ),
-    Tool.calendar: CommentTarget(
-        Tool.calendar,
-        Calendar,
-        CommentMessages.TARGET_NOT_FOUND,
-        CalendarMessages.FEATURE_DISABLED,
-    ),
-    Tool.dashboard: CommentTarget(
-        Tool.dashboard,
-        Dashboard,
-        CommentMessages.TARGET_NOT_FOUND,
-        DashboardMessages.FEATURE_DISABLED,
-    ),
-    Tool.post: CommentTarget(
-        Tool.post,
-        Post,
-        CommentMessages.TARGET_NOT_FOUND,
-        PostMessages.FEATURE_DISABLED,
-    ),
-    Tool.gallery: CommentTarget(
-        Tool.gallery,
-        Gallery,
-        CommentMessages.TARGET_NOT_FOUND,
-        GalleryMessages.FEATURE_DISABLED,
-    ),
+    tool: CommentTarget(
+        tool,
+        tool_models()[tool.plural],
+        tool.not_found_code
+        if tool in _OWN_NOT_FOUND_CODE
+        else CommentMessages.TARGET_NOT_FOUND,
+        tool.feature_disabled_code,
+    )
+    for tool in Tool
 }
+
 
 _TARGETS_BY_COLUMN: dict[str, CommentTarget] = {
     target.column: target for target in TOOL_COMMENT_TARGETS.values()
 }
 
-#: Every comment-parent column, task first — the single-parent rule and the
-#: create/list surfaces all read this tuple.
-COMMENT_PARENT_COLUMNS: tuple[str, ...] = ("task_id", *_TARGETS_BY_COLUMN)
+
+@dataclass(frozen=True)
+class ExtraCommentTarget:
+    """A commentable thing that is NOT a tool — a task, a wiki page.
+
+    It has no sharing and no comment switch of its own, so the tool it belongs
+    to answers both; which tool that is, and how a row reaches it, is declared
+    once in ``app.db.initiative_rls.COMMENT_PARENTS`` and read from there. What
+    is left is what only this layer knows: the model to load, the field that
+    titles the thread, and the code its absence reports.
+    """
+
+    #: The kind's name — the ``{kind}_id`` column, and what an event or a
+    #: notification about this thread calls it.
+    kind: str
+    model: type[SQLModel]
+    #: The column holding what the thread is called.
+    title_field: str
+    not_found: str
+    #: Whether a new comment tells whoever wrote the row. A page's author
+    #: wants to hear about a note on their page; a task instead tells the
+    #: people it is assigned to, which is a different question and already
+    #: answered further down.
+    notifies_author: bool = True
+    #: Whether the anchoring tool's ``comments_enabled`` governs this thread.
+    #: True for a wiki page — the wiki is where that switch is offered, and a
+    #: wiki with comments off should have none on its pages. False for a task:
+    #: its thread belongs to the task, so a project with comments off still
+    #: has task threads. Either way the anchor's SHARING is what admits the
+    #: reader.
+    anchor_switch: bool = True
+
+    @property
+    def column(self) -> str:
+        return f"{self.kind}_id"
+
+
+#: The content-level extras, in the order the parent registry declares them.
+EXTRA_COMMENT_TARGETS: dict[str, ExtraCommentTarget] = {
+    target.column: target
+    for target in (
+        ExtraCommentTarget(
+            "task",
+            Task,
+            "title",
+            TaskMessages.NOT_FOUND,
+            notifies_author=False,
+            anchor_switch=False,
+        ),
+        ExtraCommentTarget("wiki_page", WikiPage, "title", WikiMessages.PAGE_NOT_FOUND),
+    )
+}
+
+#: Every comment-parent column, extras first — the single-parent rule and the
+#: create/list surfaces all read this tuple. Ordered by the parent registry so
+#: this and the policies cannot disagree about the set.
+COMMENT_PARENT_COLUMNS: tuple[str, ...] = RLS_COMMENT_PARENT_COLUMNS
 
 
 async def annotate_comment_counts(
@@ -192,11 +241,12 @@ async def annotate_comment_counts(
 class _ParentContext:
     """The resolved parent of a comment, whichever shape it takes.
 
-    A task comment anchors to its project (``task``/``project`` set); a tool
-    comment carries the tool and its row (``tool``/``resource`` set). Either
-    way the fields every caller needs — the comments column, the parent id,
-    the initiative (``None`` for a guild-level calendar), a display title —
-    are filled.
+    A tool comment carries the tool and its row (``tool``/``resource`` set). An
+    extra carries its own row as well (``extra``/``extra_row``), plus the tool
+    it anchors to — a task also fills ``task``/``project``, which is the pair
+    the task notifications and the task serializer read. Either way the fields
+    every caller needs — the comments column, the parent id, the initiative
+    (``None`` for a guild-level calendar), a display title — are filled.
     """
 
     column: str
@@ -207,6 +257,34 @@ class _ParentContext:
     project: Optional[Project] = None
     tool: Optional[Tool] = None
     resource: Optional[SQLModel] = None
+    extra: Optional[ExtraCommentTarget] = None
+    extra_row: Optional[SQLModel] = None
+
+    @property
+    def ref_type(self) -> Optional[str]:
+        """What a notification about this thread is ABOUT — the extra's own
+        kind where there is one, else the tool. This names the thread, which is
+        not always the same as where a link to it goes."""
+        if self.extra is not None:
+            return self.extra.kind
+        return self.tool.value if self.tool is not None else None
+
+    @property
+    def address(self) -> Optional[tuple[str, int]]:
+        """Where a link about this thread should land, as (ref type, id).
+
+        Not every thread's parent has a page of its own: a wiki page is read
+        inside its wiki and has no address taking only its own id, so a link
+        about one opens the wiki. The tool it anchors to is always addressable,
+        which is why that is the fallback rather than nothing.
+        """
+        if self.extra is not None:
+            if self.tool is None or self.resource is None:
+                return None
+            return self.tool.value, cast(int, self.resource.id)
+        if self.tool is None:
+            return None
+        return self.tool.value, self.entity_id
 
 
 def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
@@ -214,11 +292,6 @@ def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
     if len(provided) != 1:
         raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
     return provided[0]
-
-
-def comment_target(comment: Comment) -> tuple[str, int]:
-    """Which parent column a comment hangs off, and that parent's id."""
-    return _comment_target(comment)
 
 
 def _comment_target(comment: Comment) -> tuple[str, int]:
@@ -256,7 +329,47 @@ async def _get_task_context(
         title=task.title,
         task=task,
         project=project,
+        extra=EXTRA_COMMENT_TARGETS["task_id"],
+        extra_row=task,
     )
+
+
+async def _get_extra_context(
+    session: AsyncSession,
+    target: ExtraCommentTarget,
+    *,
+    entity_id: int,
+    guild_id: int,
+) -> Optional[_ParentContext]:
+    """One extra's row, resolved through the tool that answers for it.
+
+    The anchor is loaded by the same call a comment ON that tool would make, so
+    a thread on a page is gated by exactly what a thread on its wiki is gated
+    by — the master switch, the comment switch, and the sharing — and only the
+    identity of the thread differs.
+    """
+    row = (
+        await session.exec(
+            select(target.model).where(target.model.id == entity_id)  # type: ignore[attr-defined]
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    parent = COMMENT_PARENTS[target.column]
+    anchor = await _get_tool_context(
+        session,
+        TOOL_COMMENT_TARGETS[parent.governed_by],
+        entity_id=getattr(row, cast(str, parent.tool_fk)),
+        guild_id=guild_id,
+    )
+    if anchor is None:
+        return None
+    anchor.column = target.column
+    anchor.entity_id = cast(int, row.id)
+    anchor.title = getattr(row, target.title_field)
+    anchor.extra = target
+    anchor.extra_row = row
+    return anchor
 
 
 async def _get_tool_context(
@@ -311,6 +424,11 @@ async def _load_parent(
 ) -> Optional[_ParentContext]:
     if column == "task_id":
         return await _get_task_context(session, task_id=entity_id, guild_id=guild_id)
+    extra = EXTRA_COMMENT_TARGETS.get(column)
+    if extra is not None:
+        return await _get_extra_context(
+            session, extra, entity_id=entity_id, guild_id=guild_id
+        )
     return await _get_tool_context(
         session, _TARGETS_BY_COLUMN[column], entity_id=entity_id, guild_id=guild_id
     )
@@ -355,10 +473,16 @@ async def _ensure_parent_access(
     request that reaches the whole guild (guild admin, or a live PAM grant at
     the right level) needs no grant row.
 
-    The comment switch is checked for tool entities only: a task's thread
-    belongs to the task, so a project with comments off still has task threads.
+    The comment switch is checked through whatever answers for the thread: a
+    tool entity's own, or — for an extra — the tool it anchors to, which is how
+    a wiki with comments off has none on its pages. The task is the exception,
+    and gets the project's sharing without the project's switch: its thread
+    belongs to the task, not to the project's tool surface.
     """
-    if ctx.task is not None:
+    if ctx.extra is not None and not ctx.extra.anchor_switch:
+        # An extra whose thread is its own: admitted by the anchor's sharing,
+        # asked none of its switches. The task is the one, and its context
+        # carries the project that answers for it.
         anchor_model, anchor_row = Project, ctx.project
     else:
         target = TOOL_COMMENT_TARGETS[cast(Tool, ctx.tool)]
@@ -448,8 +572,9 @@ async def _get_comment(
 
 
 def _parent_not_found(column: str) -> str:
-    if column == "task_id":
-        return CommentMessages.TASK_NOT_FOUND
+    extra = EXTRA_COMMENT_TARGETS.get(column)
+    if extra is not None:
+        return extra.not_found
     return _TARGETS_BY_COLUMN[column].not_found
 
 
@@ -469,9 +594,7 @@ async def _resolved_parent(
     if ctx is None:
         # The policies took the parent out before this ran. In the initiative
         # it is the reader's to know about, so sharing is what refused it.
-        table = (
-            "tasks" if column == "task_id" else _TARGETS_BY_COLUMN[column].tool.plural
-        )
+        table = COMMENT_PARENTS[column].table
         if await reachability.reader_is_in_the_initiative(
             table, entity_id, cast(int, user.id), guild_id
         ):
@@ -554,39 +677,6 @@ async def get_comment(
     return comment
 
 
-async def initiative_of_comment(
-    session: AsyncSession, comment: Comment
-) -> Optional[int]:
-    """Which initiative a comment's parent lives in, or None.
-
-    Resolved through whichever parent the comment hangs off — the task's
-    project, or the tool entity itself. A parent that names no initiative (a
-    guild-level calendar) yields None, and so does a parent the routed session
-    cannot see. Both callers of this — the comment events and the reaction
-    events — must land in the SAME room for the same comment, which is why
-    there is one lookup rather than two.
-    """
-    if comment.task_id is not None:
-        row = (
-            await session.exec(
-                select(Project.initiative_id)
-                .join(Task, Task.project_id == Project.id)
-                .where(Task.id == comment.task_id)
-            )
-        ).one_or_none()
-        return row
-    for target in TOOL_COMMENT_TARGETS.values():
-        value = getattr(comment, target.column)
-        if value is None:
-            continue
-        return (
-            await session.exec(
-                select(target.model.initiative_id).where(target.model.id == value)
-            )
-        ).one_or_none()
-    return None
-
-
 def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
     """Where a notification about ``comment`` should land.
 
@@ -602,7 +692,10 @@ def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
         )
     if comment.document_id is not None:
         return notifications.document_target_path(comment.document_id)
-    return notifications.tool_target_path(cast(Tool, ctx.tool).value, ctx.entity_id)
+    address = ctx.address
+    if address is None:  # pragma: no cover - every parent resolves to one
+        return "/"
+    return notifications.tool_target_path(*address)
 
 
 async def create_comment(
@@ -620,6 +713,8 @@ async def create_comment(
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
     gallery_id: Optional[int] = None,
+    wiki_id: Optional[int] = None,
+    wiki_page_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
     parent_comment = None
@@ -631,6 +726,7 @@ async def create_comment(
     column, entity_id = _single_target(
         {
             "task_id": task_id,
+            "wiki_page_id": wiki_page_id,
             "document_id": document_id,
             "project_id": project_id,
             "queue_id": queue_id,
@@ -639,6 +735,7 @@ async def create_comment(
             "dashboard_id": dashboard_id,
             "post_id": post_id,
             "gallery_id": gallery_id,
+            "wiki_id": wiki_id,
         }
     )
     ctx = await _resolved_parent(
@@ -748,12 +845,13 @@ async def _process_comment_notifications(
         else None
     )
 
-    # Tool parents beyond task/document link through the entity reference the
-    # resolver understands; the original pair keeps its dedicated fields.
+    # Parents beyond task/document link through the entity reference the
+    # resolver understands; the original pair keeps its dedicated fields. An
+    # extra names ITSELF here — a note on a page opens the page, not the wiki.
     extra_entity_type: str | None = None
     extra_entity_id: int | None = None
     if ctx.tool is not None and ctx.tool is not Tool.document:
-        extra_entity_type = ctx.tool.value
+        extra_entity_type = ctx.ref_type
         extra_entity_id = ctx.entity_id
 
     # 1. Reply to comment → notify parent comment author
@@ -864,21 +962,28 @@ async def _process_comment_notifications(
                 )
                 notified_user_ids.add(assignee.id)
 
-    # 5. Tool comment → notify the entity's creator (if not already notified)
-    if ctx.resource is not None:
-        owner = await _notify_target(ctx.resource.created_by, actor_id=author.id)
+    # 5. Comment on a tool entity, or on an extra that tells its author →
+    #    notify whoever wrote it (if not already notified). The row is the one
+    #    the thread hangs off, so a note on a page reaches the page's author
+    #    rather than whoever started the wiki.
+    owner_row = ctx.extra_row if ctx.extra is not None else ctx.resource
+    if owner_row is not None and (ctx.extra is None or ctx.extra.notifies_author):
+        owner = await _notify_target(owner_row.created_by, actor_id=author.id)
         if owner and owner.id != author.id and owner.id not in notified_user_ids:
             await notifications.notify_comment_on_resource(
                 session,
                 owner=owner,
                 commenter=author,
                 comment_id=cast(int, comment.id),
-                entity_type=cast(Tool, ctx.tool).value,
+                entity_type=cast(str, ctx.ref_type),
                 entity_id=ctx.entity_id,
                 entity_name=ctx.title,
                 guild_id=guild_id,
                 initiative_id=ctx.initiative_id,
                 tool=comment_tool,
+                # The notice is ABOUT the page; it OPENS the wiki, because that
+                # is what has an address. Rolled up per thread all the same.
+                target=ctx.address,
             )
             notified_user_ids.add(cast(int, owner.id))
 
@@ -897,10 +1002,13 @@ async def list_comments(
     dashboard_id: Optional[int] = None,
     post_id: Optional[int] = None,
     gallery_id: Optional[int] = None,
+    wiki_id: Optional[int] = None,
+    wiki_page_id: Optional[int] = None,
 ) -> Sequence[Comment]:
     column, entity_id = _single_target(
         {
             "task_id": task_id,
+            "wiki_page_id": wiki_page_id,
             "document_id": document_id,
             "project_id": project_id,
             "queue_id": queue_id,
@@ -909,6 +1017,7 @@ async def list_comments(
             "dashboard_id": dashboard_id,
             "post_id": post_id,
             "gallery_id": gallery_id,
+            "wiki_id": wiki_id,
         }
     )
     ctx = await _resolved_parent(
@@ -954,7 +1063,7 @@ async def delete_comment(
     initiative_id = ctx.initiative_id
 
     is_author = comment.created_by == user.id
-    is_guild_admin = guild_role == GuildRole.admin
+    is_guild_admin = guild_role in GUILD_ADMIN_ROLES
     is_initiative_manager = False
     if not is_author and not is_guild_admin and initiative_id is not None:
         is_initiative_manager = await rls_service.is_initiative_manager(

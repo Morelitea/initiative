@@ -27,14 +27,13 @@ vi.mock("@/hooks/useCollaboration", () => ({
   }),
 }));
 
+const editedBody = { root: { children: [{ type: "edited" }] } };
+
 // Stands in for Lexical, exposing the one thing these tests drive: a body edit,
 // reported back the way the real editor reports one.
 vi.mock("@/components/documents/editor/editor", () => ({
   Editor: ({ onSerializedChange }: { onSerializedChange: (state: unknown) => void }) => (
-    <button
-      type="button"
-      onClick={() => onSerializedChange({ root: { children: [{ type: "edited" }] } })}
-    >
+    <button type="button" onClick={() => onSerializedChange(editedBody)}>
       edit the body
     </button>
   ),
@@ -162,6 +161,57 @@ describe("renaming a document", () => {
     await vi.advanceTimersByTimeAsync(45_000);
 
     expect(patches).toEqual([]);
+    expect(sendContent).not.toHaveBeenCalled();
+  });
+
+  it("saves a rename with the Save button while collaborating", async () => {
+    // The room owns the body while it is live and refuses one sent by PATCH,
+    // so the Save button hands the body to the room and sends only the name.
+    collaborating.value = true;
+    const user = userEvent.setup();
+    renderDoc();
+
+    const input = await screen.findByDisplayValue("Original");
+    await user.click(await screen.findByRole("button", { name: "edit the body" }));
+    await user.clear(input);
+    await user.type(input, "Renamed");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toMatchObject({ name: "Renamed" });
+    expect(patches[0]).not.toHaveProperty("content");
+    expect(sendContent).toHaveBeenCalledWith(editedBody);
+  });
+
+  it("saves a rename with Ctrl+S while collaborating", async () => {
+    collaborating.value = true;
+    const user = userEvent.setup();
+    renderDoc();
+
+    const input = await screen.findByDisplayValue("Original");
+    await user.click(await screen.findByRole("button", { name: "edit the body" }));
+    await user.clear(input);
+    await user.type(input, "Renamed");
+    await user.keyboard("{Control>}s{/Control}");
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toMatchObject({ name: "Renamed" });
+    expect(patches[0]).not.toHaveProperty("content");
+    expect(sendContent).toHaveBeenCalledWith(editedBody);
+  });
+
+  it("saves a rename with Ctrl+S when not collaborating", async () => {
+    const user = userEvent.setup();
+    renderDoc();
+
+    const input = await screen.findByDisplayValue("Original");
+    await user.click(await screen.findByRole("button", { name: "edit the body" }));
+    await user.clear(input);
+    await user.type(input, "Renamed");
+    await user.keyboard("{Control>}s{/Control}");
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toMatchObject({ name: "Renamed", content: editedBody });
     expect(sendContent).not.toHaveBeenCalled();
   });
 

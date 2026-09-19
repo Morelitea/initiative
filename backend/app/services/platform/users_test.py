@@ -14,7 +14,9 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.capabilities import Capability
 from app.models.platform.guild import GuildRole
+from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
 from app.services.platform import users as user_service
 from app.testing.factories import (
@@ -26,100 +28,76 @@ from app.testing.factories import (
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_true(session: AsyncSession):
-    """Test detection when user is the last admin of a guild."""
-    # Create a guild with one admin
-    admin_user = await create_user(session)
-    guild = await create_guild(session, creator=admin_user)
+async def test_the_sole_seat_is_reported(session: AsyncSession):
+    """A community whose only superadmin is this account."""
+    seat = await create_user(session)
+    guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session,
-        user=admin_user,
-        guild=guild,
-        role=GuildRole.admin,
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    # Somebody to strand: a community of one is the exception, tested below.
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
     )
 
-    # Check if user is last admin
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin_user.id)
-
-    assert len(last_admin_guilds) == 1
-    assert last_admin_guilds[0] == guild.name
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_false_multiple_admins(session: AsyncSession):
-    """Test that user is not considered last admin when other admins exist."""
-    # Create a guild with two admins
-    admin1 = await create_user(session, email="admin1@example.com")
-    admin2 = await create_user(session, email="admin2@example.com")
-    guild = await create_guild(session, creator=admin1)
+async def test_another_seat_holder_clears_it(session: AsyncSession):
+    """Two superadmins, so neither is the last one."""
+    first = await create_user(session, email="first@example.com")
+    second = await create_user(session, email="second@example.com")
+    guild = await create_guild(session, creator=first)
+    for user in (first, second):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
 
-    await create_guild_membership(
-        session, user=admin1, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=admin2, guild=guild, role=GuildRole.admin
-    )
-
-    # Check if admin1 is last admin (should be False)
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin1.id)
-
-    assert len(last_admin_guilds) == 0
+    assert await user_service.is_last_guild_superadmin(session, first.id) == []
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_false_only_member(session: AsyncSession):
-    """Test that regular members are not considered as last admin."""
-    # Create a guild with an admin and a member
+async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
+    """An admin does not count, which is the whole point of the split: their
+    leaving never strands a community, because its seat is still there."""
+    seat = await create_user(session, email="seat@example.com")
     admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, creator=admin)
-
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
 
-    # Check if member is last admin (should be False)
-    last_admin_guilds = await user_service.is_last_guild_admin(session, member.id)
-
-    assert len(last_admin_guilds) == 0
+    assert await user_service.is_last_guild_superadmin(session, admin.id) == []
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_guild_admin_multiple_guilds(session: AsyncSession):
-    """Test detection across multiple guilds."""
-    admin = await create_user(session)
-
-    # Guild 1: admin is last admin
-    guild1 = await create_guild(session, name="Guild 1", creator=admin)
+async def test_seats_are_reported_per_community(session: AsyncSession):
+    """One community where they are the only seat, one where they are not."""
+    seat = await create_user(session)
+    alone = await create_guild(session, name="Alone", creator=seat)
     await create_guild_membership(
-        session, user=admin, guild=guild1, role=GuildRole.admin
-    )
-
-    # Guild 2: admin is one of two admins
-    other_admin = await create_user(session, email="other@example.com")
-    guild2 = await create_guild(session, name="Guild 2", creator=other_admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild2, role=GuildRole.admin
+        session, user=seat, guild=alone, role=GuildRole.superadmin
     )
     await create_guild_membership(
-        session, user=other_admin, guild=guild2, role=GuildRole.admin
+        session, user=await create_user(session), guild=alone, role=GuildRole.member
     )
+    other = await create_user(session, email="other@example.com")
+    shared = await create_guild(session, name="Shared", creator=other)
+    for user in (seat, other):
+        await create_guild_membership(
+            session, user=user, guild=shared, role=GuildRole.superadmin
+        )
 
-    # Check which guilds admin is last admin of
-    last_admin_guilds = await user_service.is_last_guild_admin(session, admin.id)
-
-    assert len(last_admin_guilds) == 1
-    assert "Guild 1" in last_admin_guilds
-    assert "Guild 2" not in last_admin_guilds
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
 
 
-@pytest.mark.unit
 @pytest.mark.service
 async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     """Test that user can be deleted when they have no blocking conditions."""
@@ -147,25 +125,135 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_check_deletion_eligibility_blocked_last_admin(session: AsyncSession):
-    """Test that user cannot be deleted when they are last admin of a guild."""
-    # Create a guild where user is the only admin
-    admin = await create_user(session)
-    guild = await create_guild(session, name="My Guild", creator=admin)
+async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
+    """Holding a community's only seat is what stops an account going."""
+    seat = await create_user(session)
+    guild = await create_guild(session, name="My Guild", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
+
+    can_delete, blockers = await user_service.check_deletion_eligibility(
+        session,
+        seat.id,
+    )
+
+    assert can_delete is False
+    assert any("My Guild" in blocker for blocker in blockers)
+    assert any("superadmin" in blocker.lower() for blocker in blockers)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
+    """Being a community's last *admin* stops nobody: its seat is still there
+    and can promote somebody else."""
+    seat = await create_user(session, email="seat@example.com")
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, name="My Guild", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
 
-    # Check deletion eligibility
     can_delete, blockers = await user_service.check_deletion_eligibility(
-        session,
-        admin.id,
+        session, admin.id
     )
 
-    assert can_delete is False
-    assert len(blockers) >= 1
-    assert any("My Guild" in blocker for blocker in blockers)
-    assert any("last admin" in blocker.lower() for blocker in blockers)
+    assert can_delete is True
+    assert blockers == []
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_removing_the_only_seat_is_refused_where_the_rows_go(
+    session: AsyncSession,
+):
+    """The refusal lives in the drop, not only in the check an endpoint runs
+    first: that check is a report, and two accounts can each pass it by seeing
+    the other still there."""
+    seat = await create_user(session)
+    guild = await create_guild(session, name="Stranded", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=await create_user(session), guild=guild, role=GuildRole.member
+    )
+
+    with pytest.raises(user_service.SeatWouldBeEmptied) as refusal:
+        await user_service.deactivate_user(session, seat.id)
+    assert refusal.value.guild_names == ["Stranded"]
+
+    # The account is untouched by the refusal.
+    await session.refresh(seat)
+    assert seat.status == UserStatus.active
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
+    """Nobody to strand, and no remedy to offer: appointing another superadmin
+    takes somebody to appoint. The community is left with no members."""
+    alone = await create_user(session)
+    guild = await create_guild(session, name="Just Me", creator=alone)
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    assert await user_service.is_last_guild_superadmin(session, alone.id) == []
+
+    alone_id = alone.id
+    await user_service.deactivate_user(session, alone_id)
+    reloaded = (await session.exec(select(User).where(User.id == alone_id))).one()
+    assert reloaded.status == UserStatus.deactivated
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_one_other_member_brings_the_block_back(session: AsyncSession):
+    """Somebody else is there, so there is somebody to appoint — and somebody
+    to strand by not appointing them."""
+    seat = await create_user(session, email="seat@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session, name="Not Just Me", creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    assert await user_service.is_last_guild_superadmin(session, seat.id) == [
+        "Not Just Me"
+    ]
+    with pytest.raises(user_service.SeatWouldBeEmptied):
+        await user_service.deactivate_user(session, seat.id)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
+    """Somebody else holds it, so nothing is stranded."""
+    leaving = await create_user(session, email="leaving@example.com")
+    staying = await create_user(session, email="staying@example.com")
+    guild = await create_guild(session, creator=leaving)
+    for user in (leaving, staying):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.superadmin
+        )
+
+    leaving_id = leaving.id
+    await user_service.deactivate_user(session, leaving_id)
+
+    # Re-read rather than refresh: the drop expunges as it walks the guilds.
+    reloaded = (await session.exec(select(User).where(User.id == leaving_id))).one()
+    assert reloaded.status == UserStatus.deactivated
 
 
 @pytest.mark.unit
@@ -198,12 +286,14 @@ async def test_deactivate_user(session: AsyncSession):
     assert deactivated.token_version == original_token_version + 1
     # PII preserved — admin can reactivate.
     assert deactivated.full_name == "Original Name"
-    assert deactivated.email == "todeactivate@example.com"
+    assert await addresses.holds_address(
+        session, user_id=deactivated.id, email="todeactivate@example.com"
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
+async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
     demotes platform admins to member, revokes auth artifacts, and keeps
     the row so historical FKs resolve."""
@@ -263,9 +353,9 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
 
     original_id = user.id
     original_token_version = user.token_version
-    original_email_hash = user.email_hash
 
-    await user_service.soft_delete_user(session, user.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, original_id)
 
     stmt = select(User).where(User.id == original_id)
     result = await session.exec(stmt)
@@ -294,10 +384,11 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     ).all()
     assert remaining_identities == []
     assert (await session.get(FederatedIdentitySecret, identity.id)) is None
-    assert anonymized.email_hash != original_email_hash
-    # Login is doubly impossible: the email_hash no longer matches the
-    # user's old email, and the password hash is fresh nonsense.
-    assert anonymized.email != "toanonymize@example.com"
+    # Every address the account held was replaced with the sentinel, so the one
+    # it signed in with reaches nobody and the password hash is fresh nonsense.
+    assert not await addresses.holds_address(
+        session, user_id=anonymized.id, email="toanonymize@example.com"
+    )
     # Token version bumped (deactivate already bumped, anonymize keeps it).
     assert anonymized.token_version >= original_token_version + 1
 
@@ -367,7 +458,9 @@ async def test_erasing_a_user_stops_their_references_resolving(
     assert await resolve_ref(session, ref=kept) is not None
 
 
-async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
+async def test_soft_delete_user_scrubs_addressed_invites(
+    session: AsyncSession, role_session
+):
     """Anonymizing a user must erase their address from any guild invite bound
     to it — a lingering invite otherwise keeps a reversible copy of the very
     email the erasure was meant to remove. The matched invite is also
@@ -417,8 +510,10 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 
     # Sanity: the victim's invite is active/bound before erasure.
     assert guild_service.invite_is_active(victim_invite) is True
+    await session.commit()
 
-    await user_service.soft_delete_user(session, victim.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim.id)
     session.expunge_all()
 
     scrubbed = (
@@ -449,7 +544,9 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
+async def test_hard_delete_user_scrubs_addressed_invites(
+    session: AsyncSession, role_session
+):
     """Hard delete has the same residual-PII gap: an invite addressed to the
     removed user keeps a reversible copy of their email. The invitee address
     must be scrubbed — distinct from the ``created_by`` NULLing, which
@@ -475,8 +572,10 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     )
     invite_id = invite.id
     victim_id = victim.id
+    await session.commit()
 
-    await user_service.hard_delete_user(session, victim_id)
+    admin_session = await role_session("app_admin")
+    await user_service.hard_delete_user(admin_session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -552,11 +651,11 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_ignores_inactive_targets(session: AsyncSession):
+async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSession):
     """An owner whose status isn't ``active`` doesn't contribute to the
     active config-manager count, so they can never be "the last owner".
 
-    ``is_last_platform_admin`` now tracks holders of ``config.manage``
+    ``is_last_capability_holder`` tracks holders of ``config.manage``
     (owners) — the invariant that keeps the platform able to manage its own
     configuration.
     """
@@ -571,31 +670,51 @@ async def test_is_last_platform_admin_ignores_inactive_targets(session: AsyncSes
     await user_service.deactivate_user(session, deact_owner.id)
 
     # The active owner really is the last *active* config manager.
-    assert await user_service.is_last_platform_admin(session, active_owner.id) is True
+    assert (
+        await user_service.is_last_capability_holder(
+            session, active_owner.id, Capability.CONFIG_MANAGE
+        )
+        is True
+    )
 
     # The deactivated owner is never "the last owner" — they're not in
     # the count to begin with, so removing them changes nothing.
-    assert await user_service.is_last_platform_admin(session, deact_owner.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, deact_owner.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_with_other_active_owner(session: AsyncSession):
+async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):
     """When a second active owner exists, neither is the last owner."""
     from app.models.platform.user import UserRole
 
     a = await create_user(session, email="a@example.com", role=UserRole.owner)
     b = await create_user(session, email="b@example.com", role=UserRole.owner)
 
-    assert await user_service.is_last_platform_admin(session, a.id) is False
-    assert await user_service.is_last_platform_admin(session, b.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, a.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
+    assert (
+        await user_service.is_last_capability_holder(
+            session, b.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession):
-    """A plain ``admin`` no longer holds ``config.manage``, so they're not
-    counted as a config manager and are never "the last owner"."""
+async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
+    """An operator does not hold ``config.manage``, so they are not counted
+    as a config manager and are never "the last owner"."""
     from app.models.platform.user import UserRole
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
@@ -603,11 +722,18 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
         session, email="admin@example.com", role=UserRole.operator
     )
 
-    assert await user_service.is_last_platform_admin(session, plain_admin.id) is False
+    assert (
+        await user_service.is_last_capability_holder(
+            session, plain_admin.id, Capability.CONFIG_MANAGE
+        )
+        is False
+    )
 
 
 @pytest.mark.integration
-async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSession):
+async def test_soft_delete_removes_membership_in_guild_schema(
+    session: AsyncSession, role_session
+):
     """Production-faithful routing check (schema-per-guild).
 
     The membership-drop cascade must operate on the GUILD schema where the
@@ -638,7 +764,8 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     ).all()
     assert len(before) == 1
 
-    await user_service.soft_delete_user(session, member.id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, member.id)
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
@@ -658,7 +785,9 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
+async def test_soft_delete_scrubs_embedded_mentions(
+    session: AsyncSession, role_session
+):
     """Anonymizing a user rewrites their display name wherever content embedded
     it as literal text: @-mention markup in comments, Lexical mention nodes in
     documents (with yjs_state cleared), and digest-row name snapshots
@@ -726,7 +855,25 @@ async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
     await session.commit()
     victim_id = victim.id
 
-    await user_service.soft_delete_user(session, victim_id)
+    # Account erasure is trusted system work and must not be narrowed by an
+    # evolving tenant UPDATE policy.  This restrictive policy independently
+    # proves the lifecycle path retains its system identity while routed into
+    # the guild schema.
+    from sqlalchemy import text
+
+    from app.db.session import set_rls_context
+
+    await set_rls_context(session)
+    await session.exec(
+        text(
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
+            "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
+        )
+    )
+    await session.commit()
+
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim_id)
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
@@ -760,7 +907,9 @@ async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
 
 @pytest.mark.integration
 @pytest.mark.service
-async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSession):
+async def test_hard_delete_anonymized_user_cleans_guild_data(
+    session: AsyncSession, role_session
+):
     """Hard-deleting an already-anonymized user must still clean their
     guild-scoped rows. Anonymize drops the membership rows, so enumerating
     memberships found no guilds and silently left everything behind
@@ -788,10 +937,11 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSessi
     task_id = task.id
 
     # Anonymize first — this drops the guild membership rows.
-    await user_service.soft_delete_user(session, victim_id)
+    admin_session = await role_session("app_admin")
+    await user_service.soft_delete_user(admin_session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(session, victim_id)
+    await user_service.hard_delete_user(admin_session, victim_id)
     session.expunge_all()
 
     # The users row is gone.
@@ -851,3 +1001,50 @@ async def test_soft_delete_user_removes_sign_in_sessions(session: AsyncSession):
     session.expire_all()
     assert await session.get(AuthSession, mine_id) is None
     assert await session.get(AuthSession, theirs_id) is not None
+
+
+async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession):
+    """Erasure empties the account of its factor, the seed behind it, the codes
+    that stand in for it, and any sign-in held part-way through."""
+    import pyotp
+
+    from app.models.platform.auth_challenge import AuthChallenge
+    from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+    from app.models.platform.user_totp import UserTotp
+    from app.models.platform.user_totp_secret import UserTotpSecret
+    from app.services.auth import challenges as challenge_service
+    from app.services.auth import totp as totp_service
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    for holder in (user, bystander):
+        enrolment = await totp_service.begin_enrolment(
+            session, user_id=holder.id, account="a@example.com", issuer="Initiative"
+        )
+        await totp_service.confirm_enrolment(
+            session, user_id=holder.id, code=pyotp.TOTP(enrolment.secret).now()
+        )
+        await totp_service.issue_recovery_codes(session, user_id=holder.id)
+        await challenge_service.create(
+            session,
+            user_id=holder.id,
+            purpose=challenge_service.ChallengePurpose.sign_in,
+        )
+    await session.commit()
+    user_id, bystander_id = user.id, bystander.id
+
+    await user_service.soft_delete_user(session, user_id)
+    session.expire_all()
+
+    assert await session.get(UserTotp, user_id) is None
+    assert await session.get(UserTotpSecret, user_id) is None
+    for model in (MfaRecoveryCode, AuthChallenge):
+        rows = (await session.exec(select(model).where(model.user_id == user_id))).all()
+        assert rows == [], f"{model.__tablename__} kept a row"
+
+    # The account beside it is untouched.
+    assert await session.get(UserTotp, bystander_id) is not None
+    assert (
+        await totp_service.remaining_recovery_codes(session, user_id=bystander_id)
+        == totp_service.RECOVERY_CODE_COUNT
+    )

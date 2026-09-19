@@ -21,6 +21,7 @@ from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
@@ -393,7 +394,12 @@ async def test_search_users_returns_slim_paginated_envelope(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
+    # Asserted as a value, not only as a key. The schema defaults it to False,
+    # so a key-set check passes just as happily on an endpoint that never
+    # fills it in -- which is the state this test was written against.
+    assert summary["is_guild_admin"] is False
     # This guild takes the default and shows names.
     assert summary["full_name"] == "Aaa"
 
@@ -1261,19 +1267,33 @@ async def test_users_me_reports_linked_identity(
     assert response.json()["has_federated_identity"] is False
 
 
+async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
+    """Headers naming a session row opened a moment ago — what an account with
+    no password to re-check answers a confirmation with."""
+    from app.services.auth import sessions as session_service
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
+    )
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
+    }
+
+
 @pytest.mark.integration
 async def test_oidc_user_can_self_delete_without_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """SSO-provisioned users have no usable password (the random hash
-    set at provisioning was never shown). The self-deletion endpoint
-    must skip the password gate for them, otherwise they'd be
-    permanently blocked from the "Delete account" flow.
-    """
-    user = await create_user(session, email="oidc-user@example.com")
+    """An SSO-provisioned account holds no usable password, so there is none
+    for the gate to ask for: it deletes with the confirmation phrase alone."""
+    user = await create_user(
+        session, email="oidc-user@example.com", hashed_password=None
+    )
     await create_federated_identity(session, user, subject="oidc-subject-123")
 
-    headers = get_auth_headers(user)
+    headers = await _just_signed_in(session, user)
     response = await client.post(
         "/api/v1/users/me/delete-account",
         headers=headers,
@@ -1288,6 +1308,65 @@ async def test_oidc_user_can_self_delete_without_password(
     body = response.json()
     assert body["success"] is True
     assert body["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_a_passkey_only_account_can_self_delete_without_a_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """The account signs in with a credential and holds no password at all.
+    What it is asked for is the phrase."""
+    user = await create_user(
+        session, email="passkey-only-delete@example.com", hashed_password=None
+    )
+    session.add(
+        UserPasskey(
+            user_id=user.id,
+            credential_id=b"delete-account-key",
+            public_key=b"public-key-bytes",
+            rp_id="localhost",
+            sign_count=0,
+            transports=["internal"],
+            name="Laptop",
+        )
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=await _just_signed_in(session, user),
+        json={
+            "action": "soft_delete",
+            "password": "",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_a_linked_account_that_holds_a_password_is_asked_for_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """An identity link is not the question. An account can hold both, and one
+    that holds a password confirms with it."""
+    user = await create_user(session, email="linked-and-local@example.com")
+    await create_federated_identity(session, user, subject="linked-local-1")
+
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=get_auth_headers(user),
+        json={
+            "action": "soft_delete",
+            "password": "wrong-password",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_PASSWORD"
 
 
 @pytest.mark.integration
@@ -1322,7 +1401,7 @@ async def test_password_user_cannot_skip_password_check(
 
 @pytest.mark.integration
 async def test_initiative_members_excludes_anonymized(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, role_session
 ):
     """The transfer-target picker must not return anonymized rows.
 
@@ -1348,7 +1427,8 @@ async def test_initiative_members_excludes_anonymized(
     await create_initiative_member(session, initiative=initiative, user=survivor)
 
     # Anonymize the departing user — they should disappear from the picker.
-    await users_service.soft_delete_user(session, departing.id)
+    admin_session = await role_session("app_admin")
+    await users_service.soft_delete_user(admin_session, departing.id)
 
     headers = get_auth_headers(creator)
     response = await client.get(

@@ -3,9 +3,11 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  InitiativeJoinPolicy,
   InitiativeMemberRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
 import { InitiativeJoinRequestQueue } from "@/components/initiatives/settings/InitiativeJoinRequestQueue";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +39,16 @@ interface InitiativeSettingsMembersTabProps {
   members: InitiativeMemberRead[];
   roles: InitiativeRoleRead[] | undefined;
   canManageMembers: boolean;
+  /** How guild members may join this initiative. */
+  joinPolicy: InitiativeJoinPolicy;
+  onChangeJoinPolicy: (value: InitiativeJoinPolicy) => void;
+  /** Whether every new guild member is enrolled here on arrival. */
+  autoJoin: boolean;
+  onChangeAutoJoin: (next: boolean) => void;
+  /** Auto-join is the guild admin's to set, even among initiative managers. */
+  canManageAutoJoin: boolean;
+  /** A policy or auto-join save is in flight. */
+  isSavingJoinPolicy: boolean;
   activeGuildId: number | undefined;
   selectedUserId: string;
   setSelectedUserId: (value: string) => void;
@@ -50,6 +62,12 @@ export const InitiativeSettingsMembersTab = ({
   members,
   roles,
   canManageMembers,
+  joinPolicy,
+  onChangeJoinPolicy,
+  autoJoin,
+  onChangeAutoJoin,
+  canManageAutoJoin,
+  isSavingJoinPolicy,
   activeGuildId,
   selectedUserId,
   setSelectedUserId,
@@ -84,7 +102,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         (usersQuery.data ?? [])
-          .filter((candidate) => candidate.guild_role === "admin")
+          .filter((candidate) => candidate.is_guild_admin)
           .map((candidate) => candidate.id)
       ),
     [usersQuery.data]
@@ -274,6 +292,18 @@ export const InitiativeSettingsMembersTab = ({
           answering one is the same act as adding a member by hand. Manager-only,
           matching who may answer them. */}
       {canManageMembers ? <InitiativeJoinRequestQueue initiativeId={initiativeId} /> : null}
+      {/* The door, above the people who came through it. It saves on change —
+          it is a single setting, not a field of a form with a Save button. */}
+      <JoinPolicySection
+        value={joinPolicy}
+        onChange={onChangeJoinPolicy}
+        canManage={canManageMembers}
+        isSaving={isSavingJoinPolicy}
+        autoJoin={autoJoin}
+        // Absent for a manager who is not a guild admin: the server refuses the
+        // field from them, so the control is not offered rather than shown inert.
+        onChangeAutoJoin={canManageAutoJoin ? onChangeAutoJoin : undefined}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.membersTitle")}</CardTitle>

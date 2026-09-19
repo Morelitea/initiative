@@ -42,7 +42,13 @@ import {
 export type GuildEntry = GuildRead & {
   accessType?: "member" | "grant";
   grantExpiresAt?: string | null;
-  grantAccessLevel?: "read" | "read_write" | null;
+  /** The content rung of the grant this guild is reached by. A settings grant
+   *  carries its own vocabulary in the same field, and never gets here — a
+   *  guild reached only by one confers no content access to gate. */
+  grantAccessLevel?: string | null;
+  /** The separate settings rung held for this community. It never confers
+   * content access and must not be represented as a roster role. */
+  grantSettingsLevel?: "admin" | "superadmin" | null;
 };
 
 interface GuildContextValue {
@@ -84,8 +90,13 @@ const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
   });
 };
 
-/** Build a synthetic switcher entry for a guild reachable only via a live grant. */
-const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
+/** Build a synthetic switcher entry for a guild reachable only via live grants. */
+const settingsGrantLevel = (grant?: AccessGrantRead): "admin" | "superadmin" | null =>
+  grant?.access_level === "admin" || grant?.access_level === "superadmin"
+    ? grant.access_level
+    : null;
+
+const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): GuildEntry => ({
   id: grant.guild_id,
   name: grant.guild_name ?? `Guild #${grant.guild_id}`,
   description: null,
@@ -96,6 +107,9 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // arrives and says so.
   online_count: 0,
   role: "member",
+  // A placeholder until the guild's own payload arrives and says what this
+  // grant reaches; the server settles it there.
+  is_admin: false,
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,
@@ -108,8 +122,13 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // PAM/break-glass overrides the lifecycle status — a grantee's writability
   // comes from the grant level, never from the guild being frozen.
   content_read_only: false,
-  // Admin-only entitlement; a grantee acts as a member here, so it's absent.
-  guild_auth_enabled: null,
+  // Admin-only entitlements; a grantee acts as a member here, so they're absent.
+  auth_options: null,
+  // Likewise: these settings are not inferred into a synthetic entry. An
+  // authorized settings grantee reads their real values from the dedicated
+  // settings endpoint when opening Authentication.
+  allow_api_keys: null,
+  enforce_compliance_session: null,
   // A grant reaches one named guild directly; the directory is not how the
   // grantee got here, and this synthetic entry is never listed in it.
   is_community: false,
@@ -123,7 +142,8 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   updated_at: grant.requested_at,
   accessType: "grant",
   grantExpiresAt: grant.expires_at,
-  grantAccessLevel: grant.access_level,
+  grantAccessLevel: grant.purpose === "content" ? grant.access_level : null,
+  grantSettingsLevel: settingsGrantLevel(settingsGrant),
 });
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
@@ -229,21 +249,33 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       const memberIds = new Set(response.data.map((g) => g.id));
       let grantGuilds: GuildEntry[] = [];
       let grantsKnown = true;
+      const liveByGuild = new Map<
+        number,
+        { content?: AccessGrantRead; settings?: AccessGrantRead }
+      >();
       try {
         const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/", {
           params: { mine: true },
         });
-        const liveByGuild = new Map<number, AccessGrantRead>();
         for (const grant of grants.data) {
-          if (grant.is_live && !memberIds.has(grant.guild_id)) {
-            // Keep the latest-expiring live grant per guild.
-            const existing = liveByGuild.get(grant.guild_id);
-            if (!existing || (grant.expires_at ?? "") > (existing.expires_at ?? "")) {
-              liveByGuild.set(grant.guild_id, grant);
-            }
+          if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
+            continue;
+          }
+          const pair = liveByGuild.get(grant.guild_id) ?? {};
+          const purpose = grant.purpose;
+          const existing = pair[purpose];
+          if (!existing || (grant.expires_at ?? "") > (existing.expires_at ?? "")) {
+            pair[purpose] = grant;
+            liveByGuild.set(grant.guild_id, pair);
           }
         }
-        grantGuilds = Array.from(liveByGuild.values()).map(grantEntry);
+        grantGuilds = Array.from(liveByGuild.entries()).flatMap(
+          ([guildId, { content, settings }]) => {
+            if (memberIds.has(guildId)) return [];
+            if (content) return [grantEntry(content, settings)];
+            return settings ? [grantEntry(settings, settings)] : [];
+          }
+        );
       } catch (grantErr) {
         grantsKnown = false;
         console.error("Failed to load access grants for guild switcher", grantErr);
@@ -271,7 +303,13 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      applyGuildState([...response.data, ...grantGuilds], grantsKnown);
+      const memberGuilds = response.data.map(
+        (guild): GuildEntry => ({
+          ...guild,
+          grantSettingsLevel: settingsGrantLevel(liveByGuild.get(guild.id)?.settings),
+        })
+      );
+      applyGuildState([...memberGuilds, ...grantGuilds], grantsKnown);
     } catch (err) {
       if (userIdRef.current !== forUser) return;
       // Nothing answered: fall back to the communities this device last saw, so

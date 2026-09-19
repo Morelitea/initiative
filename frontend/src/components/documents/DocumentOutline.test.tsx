@@ -127,10 +127,7 @@ const layOut = (tops: Record<string, number>, toolbarHeight: number) => {
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
     configurable: true,
     get(this: HTMLElement) {
-      // Only the wide row is on screen at this width; the narrow one is display:none.
-      return this.hasAttribute("data-editor-toolbar") && this.className.includes("lg:flex")
-        ? toolbarHeight
-        : 0;
+      return this.hasAttribute("data-editor-toolbar") ? toolbarHeight : 0;
     },
   });
 };
@@ -189,12 +186,10 @@ describe("the document's contents", () => {
     scrollPort.scrollTo = scrollTo;
     atTop(scrollPort, 100);
 
-    // The wide toolbar is the one on screen; the narrow one measures nothing.
-    const [wide, narrow] = Array.from(
-      scrollPort.querySelectorAll<HTMLElement>("[data-editor-toolbar]")
-    );
-    expect(narrow).toBeDefined();
-    Object.defineProperty(wide, "offsetHeight", { value: 48, configurable: true });
+    // One toolbar, whatever the width: it sheds controls rather than swapping.
+    const toolbars = scrollPort.querySelectorAll<HTMLElement>("[data-editor-toolbar]");
+    expect(toolbars).toHaveLength(1);
+    Object.defineProperty(toolbars[0], "offsetHeight", { value: 48, configurable: true });
 
     const keys = editor.getEditorState().read(() =>
       $getRoot()

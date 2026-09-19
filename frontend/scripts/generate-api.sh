@@ -17,7 +17,9 @@ if [[ -n "$SPEC_PATH" ]]; then
   echo "Using provided OpenAPI spec: $SPEC_PATH"
   cp "$SPEC_PATH" "${FRONTEND_DIR}/openapi.json"
 else
-  API_URL="${VITE_API_URL:-http://localhost:8000/api/v1}"
+  # Not a browser: this needs an absolute address, so it reads the proxy
+  # target rather than VITE_API_URL, which the SPA takes relative.
+  API_URL="${VITE_DEV_PROXY_TARGET:-http://localhost:8000}/api/v1"
   echo "Fetching OpenAPI spec from ${API_URL}/openapi.json..."
   # The backend takes several seconds to boot (migrations + guild backfill +
   # seeding), and editor tasks often start it in parallel with this script —

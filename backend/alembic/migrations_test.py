@@ -65,6 +65,11 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # so stamping 0162 back would leave the revision disagreeing with the
         # physical schema. One-way door; restore from a backup instead.
         "20260811_0163",
+        # an_account_is_reached_by_its_addresses: users.email_hash was NOT NULL
+        # and unique across the table, and user_emails allows an account to hold
+        # no address, so the column cannot be rebuilt for every row. Roll
+        # forward; restore from a backup instead.
+        "20260915_0274",
     }
 )
 
@@ -595,6 +600,163 @@ class TestMigrationsAgainstDatabase:
             "the shared user_api_keys id sequence must survive the drop"
         )
 
+    def test_guild_auth_upgrade_carries_the_entitlement_it_replaces(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260916_0285 coming forward carries a guild that held the flag.
+
+        The direction every existing deployment takes, and the one a fresh
+        database cannot exercise: with no rows to carry, the carry never runs
+        and its own row-count check never compares anything. So the rows are
+        fabricated at 0284 and the revision is applied over them.
+        """
+        _run_alembic("upgrade", "20260916_0284")
+
+        # Fabricated the same way as the case below, and restored before the
+        # revision runs so it meets the mode it ships against.
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Entitled', NULL), ('Plain', NULL);"
+            "INSERT INTO public.guild_administration (guild_id, guild_auth_enabled) "
+            "SELECT id, g.name = 'Entitled' FROM public.guilds g "
+            "WHERE g.name IN ('Entitled', 'Plain');"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
+
+        _run_alembic("upgrade", "20260916_0285")
+
+        def options(name: str):
+            return _fetchval(
+                "SELECT a.auth_options FROM public.guild_administration a "
+                "JOIN public.guilds g ON g.id = a.guild_id "
+                f"WHERE g.name = '{name}'"
+            )
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+        )
+        try:
+            assert sorted(options("Entitled")) == ["providers", "require_sign_in"], (
+                "one boolean stood for both options, so a guild that held it earns both"
+            )
+            assert options("Plain") == [], "a guild that never held it gains nothing"
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            )
+
+    def test_guild_auth_downgrade_hands_back_no_more_than_was_granted(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260916_0285 going back is narrower than coming forward.
+
+        One boolean cannot hold two options, and the flag stands for both. A
+        guild earns it by holding ``providers``.
+
+        Staged at the revision under test rather than at the head, like the
+        case above: ``require_sign_in`` is a label 0313 took back out of the
+        type, so the fixture below can only be written while the database is
+        at a revision that still has it.
+        """
+        _run_alembic("upgrade", "20260916_0285")
+
+        # Fabricating rows these tables would not otherwise take, the same
+        # lift-and-restore ``_SEED_SQL`` uses. Restored before the downgrade
+        # runs, so the revision under test meets the mode it ships against.
+        rows = "".join(
+            "INSERT INTO public.guild_administration (guild_id, auth_options) "
+            f"SELECT id, '{options}'::guild_auth_option[] "
+            f"FROM public.guilds WHERE name = '{name}';"
+            for name, options in (
+                ("Requires only", "{require_sign_in}"),
+                ("Both", "{providers,require_sign_in}"),
+                ("Neither", "{}"),
+            )
+        )
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Requires only', NULL), ('Both', NULL), ('Neither', NULL);"
+            + rows
+            + "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
+
+        _run_alembic("downgrade", "20260916_0284")
+
+        def flag(name: str):
+            return _fetchval(
+                "SELECT a.guild_auth_enabled FROM public.guild_administration a "
+                "JOIN public.guilds g ON g.id = a.guild_id "
+                f"WHERE g.name = '{name}'"
+            )
+
+        # Reading the fixture back is this test's own business rather than the
+        # revision's, so it reads in the mode it wrote in. Otherwise an empty
+        # answer would stand in for a wrong one.
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+        )
+        try:
+            assert flag("Both") is True, "a guild that held providers keeps the flag"
+            assert flag("Requires only") is False, (
+                "the flag stands for provider management too, so it is earned by "
+                "holding that option"
+            )
+            assert flag("Neither") is False
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            )
+
+    def test_session_standard_upgrade_carries_enabled_guilds(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """0300 preserves the standard while both source tables FORCE RLS."""
+        _run_alembic("upgrade", "20260917_0299")
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (name, created_by) "
+            "VALUES ('Standard on', NULL), ('Standard off', NULL);"
+            "INSERT INTO public.guild_administration "
+            "(guild_id, enforce_compliance_session) "
+            "SELECT id, name = 'Standard on' FROM public.guilds "
+            "WHERE name IN ('Standard on', 'Standard off');"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+        )
+
+        _run_alembic("upgrade", "20260917_0300")
+
+        _execute_sql("ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY")
+        try:
+            assert (
+                _fetchval(
+                    "SELECT enforce_compliance_session FROM public.guilds "
+                    "WHERE name = 'Standard on'"
+                )
+                is True
+            )
+            assert (
+                _fetchval(
+                    "SELECT enforce_compliance_session FROM public.guilds "
+                    "WHERE name = 'Standard off'"
+                )
+                is False
+            )
+        finally:
+            _execute_sql("ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY")
+
     def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
         self, fresh_migrations_db: str
     ) -> None:
@@ -611,10 +773,14 @@ class TestMigrationsAgainstDatabase:
 
         A fresh database has only ``guild_template``, which does carry the keys,
         so the other shape is fabricated here — drop them, then replay the
-        revision over it, in both directions.
+        revision over it.
+
+        Walked to this one revision and back rather than to head and down from
+        there: what is under test is how *this* revision handles the two
+        shapes, and the chain above it need not be reversible — part of it is
+        deliberately not.
         """
-        _run_alembic("upgrade", "head")
-        _run_alembic("downgrade", PRE_AUTHOR_RENAME_REVISION)
+        _run_alembic("upgrade", PRE_AUTHOR_RENAME_REVISION)
 
         for table, column in AUTHOR_FOREIGN_KEY_TABLES:
             name = f"{table}_{column}_fkey"
@@ -624,7 +790,7 @@ class TestMigrationsAgainstDatabase:
             )
             _execute_sql(f"ALTER TABLE guild_template.{table} DROP CONSTRAINT {name}")
 
-        _run_alembic("upgrade", "head")
+        _run_alembic("upgrade", AUTHOR_RENAME_REVISION)
 
         for table, _column in AUTHOR_FOREIGN_KEY_TABLES:
             assert _column_exists(table, "created_by", schema="guild_template"), (
@@ -1122,3 +1288,163 @@ class TestResourceAccessRollback:
             "schema and leave its tables with row-level security on and no "
             "policy to answer for them"
         )
+
+
+_PRE_TWO_SWITCHES = "20260918_0312"
+_TWO_SWITCHES = "20260918_0313"
+
+# Every shape a row could hold under the ladder, and what each becomes once
+# the master rule goes. The ones with no master are the point: the old rules
+# discarded them, so a screen never showed them, and they must not start
+# counting on their own.
+_AUTH_OPTION_SEED_SQL = """
+ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.guilds (id, name, created_at, updated_at) VALUES
+    (1, 'master only', now(), now()),
+    (2, 'master and both', now(), now()),
+    (3, 'providers left behind', now(), now()),
+    (4, 'requirement left behind', now(), now()),
+    (5, 'nothing', now(), now());
+
+INSERT INTO public.guild_administration (guild_id, auth_options) VALUES
+    (1, ARRAY['restrictions']::guild_auth_option[]),
+    (2, ARRAY['restrictions', 'providers', 'require_sign_in']::guild_auth_option[]),
+    (3, ARRAY['providers']::guild_auth_option[]),
+    (4, ARRAY['providers', 'require_sign_in']::guild_auth_option[]),
+    (5, ARRAY[]::guild_auth_option[]);
+
+ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;
+"""
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestTwoSwitchesNotThreeTicks:
+    """Revision 0313 replayed over rows that hold every shape the ladder allowed."""
+
+    def _stage(self) -> None:
+        _run_alembic("upgrade", _PRE_TWO_SWITCHES)
+        _execute_sql(_AUTH_OPTION_SEED_SQL)
+
+    def _options(self, guild_id: int) -> list[str]:
+        """The row as stored. The table FORCEs row-level security, which binds
+        this connection too, so the read lifts it the way the seed does."""
+        _execute_sql(
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY"
+        )
+        try:
+            return list(
+                _fetchval(
+                    "SELECT auth_options::text[] FROM public.guild_administration "
+                    f"WHERE guild_id = {guild_id}"
+                )
+            )
+        finally:
+            _execute_sql(
+                "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY"
+            )
+
+    def test_the_type_is_rebuilt_without_the_retired_value(
+        self, fresh_migrations_db: str
+    ) -> None:
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        labels = _fetchval(
+            "SELECT array_agg(e.enumlabel::text ORDER BY e.enumsortorder) "
+            "FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+            "WHERE t.typname = 'guild_auth_option'"
+        )
+        assert list(labels) == ["providers", "restrictions"]
+        leftover = _fetchval(
+            "SELECT count(*) FROM pg_type WHERE typname = 'guild_auth_option_old'"
+        )
+        assert leftover == 0, "the old type was dropped"
+
+    def test_a_grant_the_ladder_discarded_does_not_start_counting(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Ticking both and unticking the master stored ``['providers']``, which
+        no screen showed. It is cleared rather than promoted."""
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        assert self._options(3) == []
+        assert self._options(4) == []
+
+    def test_a_grant_the_ladder_honoured_is_kept(
+        self, fresh_migrations_db: str
+    ) -> None:
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        assert self._options(1) == ["restrictions"]
+        assert self._options(2) == ["providers", "restrictions"]
+        assert self._options(5) == []
+
+    def test_the_default_survives_the_rebuild(self, fresh_migrations_db: str) -> None:
+        """The column default names the type, so it has to come off and go
+        back; a row inserted without options afterwards gets an empty array."""
+        self._stage()
+        _run_alembic("upgrade", _TWO_SWITCHES)
+
+        _execute_sql(
+            "ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guild_administration NO FORCE ROW LEVEL SECURITY;"
+            "INSERT INTO public.guilds (id, name, created_at, updated_at) "
+            "VALUES (6, 'after', now(), now());"
+            "INSERT INTO public.guild_administration (guild_id) VALUES (6);"
+            "ALTER TABLE public.guild_administration FORCE ROW LEVEL SECURITY;"
+            "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
+        )
+        assert self._options(6) == []
+
+
+_PRE_PASSKEYS_OFFERED = "20260918_0314"
+_PASSKEYS_OFFERED = "20260918_0315"
+
+_PASSKEY_AND_FACTOR_SEED_SQL = """
+ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.app_settings (id, login_methods)
+VALUES (1, ARRAY['passkey', 'totp']::login_method[]);
+
+ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY;
+"""
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestEveryDeploymentOffersPasskeys:
+    """Revision 0315 rolled back over a deployment that permits a passkey and
+    the second factor, and no password or sso."""
+
+    def _login_methods(self) -> list[str]:
+        """The row as stored. The table FORCEs row-level security, which binds
+        this connection too, so the read lifts it the way the seed does."""
+        _execute_sql("ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY")
+        try:
+            return list(
+                _fetchval(
+                    "SELECT login_methods::text[] FROM public.app_settings WHERE id = 1"
+                )
+            )
+        finally:
+            _execute_sql("ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY")
+
+    def test_the_downgrade_lands_a_passkey_only_deployment_on_the_default_set(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Taking the value back leaves this row with the second factor alone,
+        which the narrower CHECK the downgrade puts back does not accept, so
+        the row lands on the set the downgraded version defaults to."""
+        _run_alembic("upgrade", _PASSKEYS_OFFERED)
+        _execute_sql(_PASSKEY_AND_FACTOR_SEED_SQL)
+
+        _run_alembic("downgrade", _PRE_PASSKEYS_OFFERED)
+        assert _current_alembic_revision() == _PRE_PASSKEYS_OFFERED
+
+        assert self._login_methods() == ["password", "sso", "totp"]

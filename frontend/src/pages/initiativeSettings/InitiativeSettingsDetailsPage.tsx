@@ -1,22 +1,17 @@
 /**
- * `/settings` — an initiative's name, description, colour, how people join it,
- * and which optional tools it offers.
+ * `/settings` — an initiative's name, description, colour, and which optional
+ * tools it offers. How people join it lives with the roster, on
+ * `/settings/members`.
  *
- * The name/description/colour form saves on its button; the join policy, the
- * auto-join switch, and the tool switches are single settings that save on
- * change, each sending only the field that moved — with the one coupling the
- * server enforces (auto-join needs an open policy) resolved before the request.
+ * The name/description/colour form saves on its button; the tool switches are
+ * single settings that save on change, each sending only the field that moved.
  */
 
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  InitiativeJoinPolicy,
-  type InitiativeUpdate,
-  type Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeUpdate, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeSettingsDetailsTab } from "@/components/initiatives/settings/InitiativeSettingsDetailsTab";
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import {
@@ -37,7 +32,7 @@ const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsDetailsPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { initiativeId, initiative, canManageMembers, isGuildAdmin } = useInitiativeSettings();
+  const { initiativeId, initiative, canManageMembers } = useInitiativeSettings();
 
   const guildId = useActiveGuildId();
   const navigate = useNavigate();
@@ -68,9 +63,9 @@ export const InitiativeSettingsDetailsPage = () => {
   const setDescription = (next: string) => details.set({ description: next });
   const setColor = (next: string) => details.set({ color: next });
 
-  // Shared with the join-policy and auto-join switches below, which write one
-  // field each — so settling the details form belongs to the details save, not
-  // here, or a switch would mark somebody's half-written description saved.
+  // Shared with the tool switches, which write one field each — so settling the
+  // details form belongs to the details save, not here, or a switch would mark
+  // somebody's half-written description saved.
   const updateInitiative = useUpdateInitiative({
     onSuccess: () => {
       toast.success(t("settings.updated"));
@@ -99,32 +94,6 @@ export const InitiativeSettingsDetailsPage = () => {
       },
       { onSuccess: () => details.settle(sent) }
     );
-  };
-
-  // Only the field the manager touched is sent, so an unrelated save never
-  // rewrites a policy this screen wasn't asked about.
-  //
-  // The one exception is auto-join, which is not an independent field: it is
-  // valid only alongside `open`, so a guild admin closing the initiative sends
-  // both halves at once rather than being handed a refusal for a pair the UI
-  // let them assemble. A manager who is not a guild admin cannot send the field
-  // at all, so for them the section locks the other policies instead.
-  const handleChangeJoinPolicy = (value: InitiativeJoinPolicy) => {
-    const clearsAutoJoin =
-      isGuildAdmin && Boolean(initiative?.auto_join) && value !== InitiativeJoinPolicy.open;
-    updateInitiative.mutate(
-      {
-        initiativeId,
-        data: clearsAutoJoin ? { join_policy: value, auto_join: false } : { join_policy: value },
-      },
-      clearsAutoJoin
-        ? { onSuccess: () => toast.info(t("initiatives:settings.autoJoin.turnedOff")) }
-        : undefined
-    );
-  };
-
-  const handleChangeAutoJoin = (next: boolean) => {
-    updateInitiative.mutate({ initiativeId, data: { auto_join: next } });
   };
 
   // The switch asks before it acts, because flipping it is only half of what
@@ -200,11 +169,6 @@ export const InitiativeSettingsDetailsPage = () => {
           TOGGLEABLE_TOOLS.map((tool) => [tool, Boolean(isToolEnabled(tool, initiative))])
         )}
         onToggleTool={handleToggleTool}
-        joinPolicy={initiative.join_policy}
-        onChangeJoinPolicy={handleChangeJoinPolicy}
-        autoJoin={initiative.auto_join}
-        onChangeAutoJoin={handleChangeAutoJoin}
-        canManageAutoJoin={isGuildAdmin}
         canManageMembers={canManageMembers}
         isSaving={isSaving}
         onSaveDetails={handleSaveDetails}

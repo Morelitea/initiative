@@ -21,6 +21,7 @@ from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
 from app.testing import (
+    create_comment,
     create_guild,
     create_initiative_member,
     create_guild_membership,
@@ -363,6 +364,79 @@ class TestAncestorFreeze:
             ).bindparams(id=task.id)
         )
         await routed.commit()
+
+    async def test_a_comment_under_an_archived_task_comes_back_with_it(
+        self, session, routed, workspace
+    ):
+        """A comment carries no ``archived_at``, so unstamped inside an archived
+        thing is the only state it has — and the state it was in before the
+        trash took the whole tree. Coming out of the trash has to put it back.
+        """
+        user, _g, initiative, project, task = workspace
+        comment = await create_comment(session, user, task=task)
+        await _archive(session, task)
+        await _trash(session, initiative, by=user.id)
+
+        # Shallowest first, the order ``restore_entity`` writes in: each level
+        # is out of the trash before the one under it is written, so what the
+        # walk still sees above the comment is the archive on its task.
+        for table, rid in (
+            ("initiatives", initiative.id),
+            ("projects", project.id),
+            ("tasks", task.id),
+            ("comments", comment.id),
+        ):
+            await routed.exec(
+                text(
+                    f"UPDATE {table} SET deleted_at = NULL, deleted_by = NULL, "
+                    "purge_at = NULL WHERE id = :id"
+                ).bindparams(id=rid)
+            )
+        await routed.commit()
+
+        still_archived = (
+            await routed.exec(
+                text("SELECT archived_at FROM tasks WHERE id = :id").bindparams(
+                    id=task.id
+                )
+            )
+        ).scalar()
+        assert still_archived is not None
+
+    async def test_a_comment_cannot_come_out_from_under_a_trashed_task(
+        self, session, routed, workspace
+    ):
+        """The other half of the same rule, kept: the thing above it is in the
+        trash, so bringing this back alone would leave it live where nobody can
+        reach it — and it would come back a second time with its task."""
+        user, _g, _i, _p, task = workspace
+        comment = await create_comment(session, user, task=task)
+        await _trash(session, task, by=user.id)
+
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
+                    "purge_at = NULL WHERE id = :id"
+                ).bindparams(id=comment.id)
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
+    async def test_a_comment_under_an_archived_task_is_still_read_only(
+        self, session, routed, workspace
+    ):
+        """Inheriting the archive is not being exempt from it."""
+        user, _g, _i, _p, task = workspace
+        comment = await create_comment(session, user, task=task)
+        await _archive(session, task)
+
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "UPDATE comments SET content = 'edited' WHERE id = :id"
+                ).bindparams(id=comment.id)
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 
     async def test_live_content_is_untouched(self, routed, workspace):
         _u, _g, _i, _p, task = workspace

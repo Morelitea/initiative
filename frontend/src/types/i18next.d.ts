@@ -21,9 +21,11 @@ import type guilds from "../../public/locales/en/guilds.json";
 import type importNs from "../../public/locales/en/import.json";
 import type importsNs from "../../public/locales/en/imports.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
+import type intake from "../../public/locales/en/intake.json";
 import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
 import type messages from "../../public/locales/en/messages.json";
+import type moderation from "../../public/locales/en/moderation.json";
 import type myTools from "../../public/locales/en/myTools.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
@@ -39,6 +41,7 @@ import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
 import type tasks from "../../public/locales/en/tasks.json";
 import type trash from "../../public/locales/en/trash.json";
+import type wikis from "../../public/locales/en/wikis.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -70,6 +73,8 @@ declare module "i18next" {
       import: typeof importNs;
       imports: typeof importsNs;
       initiatives: typeof initiatives;
+      intake: typeof intake;
+      moderation: typeof moderation;
       landing: typeof landing;
       nav: typeof nav;
       notifications: typeof notifications;
@@ -78,6 +83,7 @@ declare module "i18next" {
       properties: typeof properties;
       posts: typeof posts;
       galleries: typeof galleries;
+      wikis: typeof wikis;
       queues: typeof queues;
       relations: typeof relations;
       search: typeof search;

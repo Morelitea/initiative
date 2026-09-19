@@ -1,83 +1,141 @@
 {
   "nav": {
     "signIn": "Iniciar sesión",
-    "getStarted": "Comenzar"
+    "getStarted": "Crear una comunidad",
+    "pricing": "Precios",
+    "help": "Ayuda"
   },
   "hero": {
-    "tagline": "Hecho para gamers, por gamers",
-    "preTitle": "¿Estás listo para",
-    "titleLine1": "TIRAR POR",
-    "titleLine2": "INICIATIVA",
-    "titleAria": "Tirar por iniciativa",
-    "subtitle": "Una app de gestión de proyectos basada en comunidades, diseñada para grupos de juego. Crea tu propia comunidad, invita a tu grupo y conquisten misiones juntos.",
-    "ctaStart": "Comienza tu aventura",
-    "ctaSignIn": "Inicia sesión en tu comunidad",
-    "scroll": "Desplazar",
-    "loading": "Cargando..."
+    "eyebrow": "Código abierto. La comunidad primero.",
+    "titleLine1": "Fuera del chat de grupo.",
+    "titleLine2": "Todo en un solo sitio.",
+    "titleAria": "Fuera del chat de grupo. Todo en un solo sitio.",
+    "subtitle": "Proyectos, tareas, documentos, el calendario, y cada conversación sobre ellos, pegada a la cosa de la que trata. La siguiente persona lo encuentra sin que nadie le diga dónde mirar.",
+    "ctaSignIn": "Iniciar sesión",
+    "ctaStart": "Crear una comunidad",
+    "invited": "¿Te han mandado un enlace de invitación? Ábrelo. Él se encarga del resto.",
+    "scroll": "Echa un vistazo",
+    "loading": "Cargando…",
+    "screenshotAlt": "Las tareas de una semana en todas tus comunidades"
   },
-  "heroScreenshot": {
-    "dashboard": "Panel de Initiative"
+  "ribbon": {
+    "aria": "Los tipos de grupos que usan Initiative",
+    "fete": "la verbena",
+    "rota": "el cuadrante de turnos",
+    "pta": "el AMPA",
+    "dnd": "el D&D de los martes",
+    "shop": "la tienda",
+    "band": "el grupo de música",
+    "festival": "el equipo del festival",
+    "committee": "la junta de voluntarios",
+    "dayJob": "el trabajo",
+    "family": "el calendario familiar",
+    "bookClub": "el club de lectura",
+    "fiveASide": "el equipo de fútbol sala"
   },
-  "stats": {
-    "initiatives": "Iniciativas",
-    "initiativesValue": "Ilimitadas",
-    "partyMembers": "Miembros del grupo",
-    "partyMembersValue": "Sin límites",
-    "openSource": "Código abierto",
-    "openSourceValue": "Para siempre",
-    "selfHosted": "Autoalojado",
-    "selfHostedValue": "Tus datos"
+  "invited": {
+    "sectionLabel": "¿Nuevo por aquí?",
+    "title": "Alguien te ha añadido. ¿Y ahora qué?",
+    "description": "La mayoría llega porque su grupo ya vive aquí y alguien le ha mandado un enlace. No hay nada que configurar, y no hace falta saber qué es un tablero Kanban. Si alguna vez has escrito la lista de la compra, estás sobrecualificado.",
+    "step1Title": "Abre el enlace que te han mandado",
+    "step1Body": "Crea tu cuenta y te deja dentro de tu grupo. ¿Ya tienes una? Simplemente le añade la comunidad.",
+    "step2Title": "Echa un vistazo",
+    "step2Body": "Ya está todo ahí. Haz clic en las cosas. Abre menús. Arrastra cosas de un lado a otro.",
+    "step3Title": "No puedes romper esto",
+    "step3Body": "¿Has borrado algo? Está en la papelera, enfurruñado. ¿Has movido una tarea donde no tocaba? Devuélvela. Nadie lo ha visto.",
+    "cta": "El recorrido de cinco minutos"
   },
-  "features": {
-    "sectionLabel": "Arsenal",
-    "title": "Todo lo que tu grupo necesita",
-    "description": "Cada comunidad obtiene un espacio de trabajo privado con proyectos, tareas y documentos. Ya sea que estés dirigiendo una campaña, organizando noches de raid o gestionando una comunidad de juego, mantén todo en un solo lugar.",
-    "campaignTitle": "Gestión de campañas",
-    "campaignDescription": "Organiza tus campañas de TTRPG con facilidad. Rastrea historias, NPCs y ganchos de trama a lo largo de múltiples sesiones.",
-    "partyTitle": "Coordinación del grupo",
-    "partyDescription": "Mantén a tu grupo de juego sincronizado. Asigna tareas, programa sesiones y asegúrate de que todos conozcan su rol.",
-    "worldTitle": "Construcción de mundos",
-    "worldDescription": "Documenta tu lore, mapas y detalles del mundo. Construye escenarios ricos que tus jugadores amarán explorar.",
-    "questTitle": "Seguimiento de misiones",
-    "questDescription": "Nunca pierdas el rastro de las misiones secundarias. Gestiona objetivos, recompensas y progresión de la historia en un solo lugar.",
-    "sessionTitle": "Notas de sesión",
-    "sessionDescription": "Documentos colaborativos para resúmenes de sesión, material para jugadores y conocimiento compartido del grupo.",
-    "eventTitle": "Planificación de eventos",
-    "eventDescription": "Coordina noches de juego, horarios de raid y eventos de la comunidad. Todos se mantienen en la misma página."
+  "tools": {
+    "sectionLabel": "Qué hay dentro",
+    "title": "Aprende una herramienta y conoce el resto",
+    "description": "Todo lo que hay dentro de una comunidad es una herramienta. Se comparten igual, se etiquetan igual, se comentan igual, así que la segunda te resulta familiar antes de abrirla.",
+    "projects": "Tableros, listas y un calendario con las mismas tareas. Fechas límite, subtareas, y esas tareas que en secreto son tres tareas con gabardina.",
+    "documents": "Páginas, hojas de cálculo y pizarras, editadas entre todos, con la conversación sobre ellas justo encima.",
+    "queues": "A quién le toca escribir al ayuntamiento. A nadie. Nunca le toca a nadie. Ponlo en una cola.",
+    "counterGroups": "Cuenta lo que de otro modo contarías con los dedos. Entradas vendidas, tartas prometidas, sillas que aún faltan.",
+    "calendars": "Ensayos, partidos, la asamblea anual. Con recordatorios, para que el recordatorio no seas tú.",
+    "dashboards": "Una pantalla con los números, legible desde la otra punta de un pabellón con corriente.",
+    "wikis": "Lo que el grupo sabe, en vez de lo que está haciendo. Eso que alguien explicó una vez en un mensaje, escrito donde lo encuentre la siguiente persona.",
+    "posts": "Anuncios que se quedan donde están, en vez de perderse bajo cuarenta respuestas.",
+    "galleries": "Las fotos del día, guardadas con el día, no en seis carretes distintos."
   },
   "gallery": {
-    "sectionLabel": "Míralo en acción",
-    "title": "Diseñado para tu flujo de trabajo",
-    "projectAlt": "Vista de gestión de proyectos",
-    "projectCaption": "Organiza proyectos con tableros, listas y vistas personalizadas",
-    "documentAlt": "Colaboración en documentos",
-    "documentCaption": "Colabora en documentos con todo tu comunidad"
+    "sectionLabel": "Míralo",
+    "title": "Así es como se ve",
+    "tasksAlt": "Todo lo que tienes asignado, en todas tus comunidades",
+    "tasksCaption": "Tu semana, en todas las comunidades donde estás",
+    "projectAlt": "Un tablero de proyecto",
+    "projectCaption": "Las mismas tareas como tablero, tabla o calendario",
+    "documentAlt": "Un documento editado entre varias personas",
+    "documentCaption": "Documentos con la conversación encima"
   },
-  "useCases": {
-    "sectionLabel": "Tu misión te espera",
-    "title": "Tu comunidad, a tu manera",
-    "description": "Crea una comunidad privada para tu grupo. Invita miembros, organízalos en iniciativas y gestionen proyectos juntos. Todos se mantienen sincronizados y tus datos son tuyos.",
-    "ttrpgName": "Grupos de TTRPG",
-    "ttrpgDesc": "Gestiona campañas, rastrea misiones y comparte notas de sesión con tu grupo de aventureros.",
-    "mmoName": "Comunidades de MMO",
-    "mmoDesc": "Coordina horarios de raid, distribución de botín y eventos de la comunidad.",
-    "esportsName": "Equipos de Esports",
-    "esportsDesc": "Rastrea horarios de práctica, preparación de torneos y objetivos del equipo.",
-    "communityName": "Comunidades de juego",
-    "communityDesc": "Organiza eventos, gestiona proyectos y mantén a tu comunidad participando.",
-    "cta": "Crea tu comunidad"
+  "pricing": {
+    "sectionLabel": "Planes",
+    "seeAll": "Ver todos los planes y lo que desbloquea cada uno",
+    "storage": "Almacenamiento",
+    "automations": "Automatizaciones",
+    "members": "Personas",
+    "support": "Soporte",
+    "loading": "Buscando la lista de precios…",
+    "tierListAria": "Planes"
+  },
+  "download": {
+    "sectionLabel": "Llévatelo",
+    "title": "Descarga la app",
+    "description": "Funciona en el navegador, y usarla así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono, su propia ventana y, en Android, notificaciones que llegan mientras no estás mirando.",
+    "detected": "Parece que estás en {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "iPhone y iPad",
+    "platformDesktop": "un ordenador",
+    "androidTitle": "Android",
+    "androidButton": "Descargar para Android",
+    "androidReleases": "Ver todas las versiones",
+    "androidNote": "O deja que <1>Obtainium</1> la mantenga actualizada por ti.",
+    "iosTitle": "iPhone y iPad",
+    "iosButton": "Añadir a la pantalla de inicio",
+    "iosNote": "Botón de compartir y luego «Añadir a pantalla de inicio». La misma app, sin tienda.",
+    "desktopTitle": "Ordenador",
+    "desktopButton": "Instalar desde el navegador",
+    "desktopNote": "El icono de instalar, en el extremo derecho de la barra de direcciones. O no, y usa la pestaña. También vale.",
+    "guide": "Cómo funciona la instalación"
+  },
+  "docs": {
+    "sectionLabel": "Ayuda",
+    "title": "Oriéntate",
+    "description": "Escrita para la persona a la que le ha tocado organizar algo y teme, en silencio, que sea complicado. No lo será.",
+    "gettingStartedTitle": "Primeros pasos",
+    "gettingStartedBody": "Crea una cuenta, oriéntate, únete a tu grupo.",
+    "tourTitle": "Un recorrido rápido",
+    "tourBody": "Cinco minutos sobre dónde está cada cosa.",
+    "guidesTitle": "Usar Initiative",
+    "guidesBody": "Guías paso a paso para cada herramienta.",
+    "faqTitle": "Preguntas frecuentes",
+    "faqBody": "Respuestas rápidas a lo que más pregunta la gente.",
+    "adminTitle": "Para administradores",
+    "adminBody": "Instalar, configurar y cuidar tu propio servidor.",
+    "securityTitle": "Seguridad y privacidad",
+    "securityBody": "Qué significa «seguro» para ti, y cómo lo de tu grupo sigue siendo vuestro."
+  },
+  "principles": {
+    "openSourceTitle": "Código abierto",
+    "openSourceBody": "Léelo, cámbialo, ponlo en marcha.",
+    "sameAppTitle": "Todas las funciones, de las dos formas",
+    "sameAppBody": "Nada se reserva para los clientes de pago.",
+    "oneLoginTitle": "Un solo inicio de sesión",
+    "oneLoginBody": "Todas las comunidades donde estás, desde la misma cuenta.",
+    "yourDataTitle": "Tus datos siguen siendo tuyos",
+    "yourDataBody": "Expórtalos, bórralos, llévatelos a otra parte."
   },
   "cta": {
-    "title": "¿Listo para <1>subir de nivel</1>?",
-    "titleReady": "¿Listo para",
-    "titleHighlight": "subir de nivel",
-    "description": "Únete a los grupos de juego que ya usan Initiative para mantenerse organizados y divertirse más juntos.",
-    "button": "Comienza gratis"
+    "title": "Cuando tú quieras.",
+    "description": "Inicia sesión si tu grupo ya está aquí. Crea una comunidad si no.",
+    "signIn": "Iniciar sesión",
+    "start": "Crear una comunidad"
   },
   "footer": {
-    "copyright": "\u00a9 {{year}} Initiative. Tira alto, mantente organizado."
-  },
-  "screenshot": {
-    "placeholder": "Captura de pantalla"
+    "copyright": "© {{year}} Initiative. Código abierto, y así seguirá.",
+    "docs": "Centro de ayuda",
+    "source": "Código fuente",
+    "changelog": "Novedades"
   }
 }

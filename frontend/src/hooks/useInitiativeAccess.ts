@@ -6,7 +6,7 @@ import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { Capability, hasCapability } from "@/lib/permissions";
 import {
-  CORE_TOOLS,
+  DEFAULT_ENABLED_TOOLS,
   isToolEnabled,
   TOOLS,
   toolMemberCreateFlag,
@@ -51,7 +51,7 @@ export function deriveGuildAccess(
   guild: GuildEntry | null | undefined,
   user: Pick<UserRead, "capabilities"> | null | undefined
 ): GuildAccessContext {
-  const isGuildAdmin = guild?.role === "admin";
+  const isGuildAdmin = guild?.is_admin ?? false;
   const isGrantGuild = guild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && guild?.grantAccessLevel === "read_write";
   const isBreakGlass = grantReadWrite && hasCapability(user, Capability.dataBypass);
@@ -69,11 +69,20 @@ const fullAccess = (initiative: InitiativeRead, canCreate: boolean): InitiativeT
     })
   ) as InitiativeToolAccess;
 
-// Bare read of the always-visible core tools for someone with no membership
-// and no grant — mirrors the historical non-member default.
-const readOnlyDefault: InitiativeToolAccess = Object.fromEntries(
-  TOOLS.map((tool) => [tool, { view: CORE_TOOLS.has(tool), create: false }])
-) as InitiativeToolAccess;
+// Bare read for someone with no membership and no grant — the historical
+// non-member default, now also answerable to the initiative's own switches.
+// A tool this initiative has turned off is not something a non-member should
+// be offered a tab for, whatever the default for that tool would otherwise be.
+const readOnlyDefault = (initiative: InitiativeRead): InitiativeToolAccess =>
+  Object.fromEntries(
+    TOOLS.map((tool) => [
+      tool,
+      {
+        view: DEFAULT_ENABLED_TOOLS.has(tool) && isToolEnabled(tool, initiative),
+        create: false,
+      },
+    ])
+  ) as InitiativeToolAccess;
 
 /**
  * Effective per-tool access for one initiative given a resolved guild context —
@@ -90,12 +99,12 @@ export function toolAccessForInitiative(
   if (isGuildAdmin) return fullAccess(initiative, !contentReadOnly);
   if (isGrantGuild) return fullAccess(initiative, isBreakGlass);
   const membership = initiative.members.find((m) => m.user.id === userId);
-  if (!membership) return readOnlyDefault;
+  if (!membership) return readOnlyDefault(initiative);
   return Object.fromEntries(
     TOOLS.map((tool) => [
       tool,
       {
-        view: Boolean(membership[toolMemberViewFlag(tool)] ?? CORE_TOOLS.has(tool)),
+        view: Boolean(membership[toolMemberViewFlag(tool)] ?? DEFAULT_ENABLED_TOOLS.has(tool)),
         create: !contentReadOnly && Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
       },
     ])
@@ -192,7 +201,7 @@ export function useInitiativeAccess() {
   /** Effective per-tool access for one initiative, keyed by Tool. */
   const permissionsFor = useCallback(
     (initiative: InitiativeRead): InitiativeToolAccess => {
-      if (!user) return readOnlyDefault;
+      if (!user) return readOnlyDefault(initiative);
       return toolAccessForInitiative(access, initiative, user.id);
     },
     [user, access]

@@ -66,6 +66,7 @@ nav = [
       "en/guides/dashboards.md",
       "en/guides/posts.md",
       "en/guides/galleries.md",
+      "en/guides/wikis.md",
     ] },
     "en/guides/apps-and-marketplace.md",
     "en/guides/tags.md",
@@ -92,6 +93,8 @@ nav = [
     "en/account/profile-and-preferences.md",
     "en/account/ai-features.md",
     "en/account/api-keys-and-integrations.md",
+    "en/account/two-factor-authentication.md",
+    "en/account/passkeys.md",
   ] },
   { "For administrators" = [
     "en/admin/index.md",

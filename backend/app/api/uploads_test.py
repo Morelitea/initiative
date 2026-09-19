@@ -414,8 +414,8 @@ async def test_upload_row_in_guild_schema_is_served(
 async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     """Regression for the uploads 500 (schema-per-guild grant boundary).
 
-    The serve route runs as ``app_admin``, which has NO grants on a guild
-    schema — reading it requires ``SET ROLE`` into the guild role (what
+    The serve route runs as ``app_admin``, which has no direct grant on the
+    uploads table — reading it requires ``SET ROLE`` into the guild role (what
     ``set_rls_context`` does). A raw cross-schema ``SELECT`` as ``app_admin``
     is permission-denied. The default superuser-backed ``session`` fixture
     hides this (it bypasses grants), so this test runs as the REAL role via
@@ -516,3 +516,108 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
         f"/uploads/{guild.id}/suspended_guild.txt", headers=get_auth_headers(grantee)
     )
     assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.integration
+async def test_a_served_upload_is_typed_from_its_row(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The response describes what the row says the file is, and a file that is
+    not a raster picture is handed over as a download with scripts off — read
+    from the recorded type rather than from the name the blob was stored under.
+    """
+    from app.models.tenant.upload import Upload
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(
+        guild.id,
+        "recorded_as_svg.png",
+        b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    )
+    session.add(
+        Upload(
+            filename="recorded_as_svg.png",
+            guild_id=guild.id,
+            created_by=user.id,
+            size_bytes=44,
+            content_type="image/svg+xml",
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        f"/uploads/{guild.id}/recorded_as_svg.png", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert response.headers["content-disposition"] == "attachment"
+    assert response.headers["content-security-policy"] == "script-src 'none'"
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+@pytest.mark.integration
+async def test_a_served_raster_stays_inline(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A picture is still drawn where it was placed."""
+    from app.models.tenant.upload import Upload
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "picture.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    session.add(
+        Upload(
+            filename="picture.png",
+            guild_id=guild.id,
+            created_by=user.id,
+            size_bytes=16,
+            content_type="image/png",
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        f"/uploads/{guild.id}/picture.png", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/png")
+    assert "content-disposition" not in response.headers
+
+
+@pytest.mark.integration
+async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Rows written before the type column existed carry no type; their stored
+    name is all there is to go on, and it still decides the same way."""
+    from app.models.tenant.upload import Upload
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    for name in ("legacy.png", "legacy.svg"):
+        _stage_upload(guild.id, name, b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+        session.add(
+            Upload(
+                filename=name,
+                guild_id=guild.id,
+                created_by=user.id,
+                size_bytes=16,
+            )
+        )
+    await session.commit()
+    headers = get_auth_headers(user)
+
+    raster = await client.get(f"/uploads/{guild.id}/legacy.png", headers=headers)
+    assert raster.status_code == 200
+    assert "content-disposition" not in raster.headers
+
+    markup = await client.get(f"/uploads/{guild.id}/legacy.svg", headers=headers)
+    assert markup.status_code == 200
+    assert markup.headers["content-disposition"] == "attachment"
+    assert markup.headers["content-security-policy"] == "script-src 'none'"

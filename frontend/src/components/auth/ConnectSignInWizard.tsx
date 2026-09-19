@@ -1,0 +1,382 @@
+/**
+ * Connecting a sign-in provider, asked one question at a time.
+ *
+ * A community answers four things, and they are four different kinds of
+ * question. Which provider is a recognition — the name is the answer, so it
+ * is a grid of marks rather than a dropdown. Which of its accounts are ours
+ * is the only one that needs a word from the provider's own vocabulary. Where
+ * arrivals land is a pair of defaults somebody may want to change. And
+ * whether we insist on it is a decision about everybody else, which is why it
+ * comes last and starts off.
+ *
+ *   1. Which way in    — the providers on offer, marks and names
+ *   2. Whose people    — the narrowing, or skip it
+ *   3. Where they land — joining on arrival, and a first group rule
+ *   4. Do we insist    — only where the reader may set the requirement
+ *
+ * Editing an arrangement does not come through here. Somebody changing one
+ * field should not walk three screens, so the list on the page edits in place.
+ */
+
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import type {
+  ConnectableProviderRead,
+  GuildProviderConnectionRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import { ProviderMark } from "@/components/auth/ProviderMark";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
+import {
+  useConnectableProviders,
+  useConnectProvider,
+  useCreateClaimRule,
+  useGuildProviderConnections,
+  useUpdateGuildAuthPolicy,
+} from "@/hooks/useGuildAuthPolicy";
+import { useWizard } from "@/hooks/useWizard";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
+
+/** Which claim narrows which provider. Each one spells "our tenant"
+ *  differently, and only the provider knows which word it uses. */
+const NARROWING_CLAIMS = ["hd", "tid", "groups", "domain"] as const;
+
+type Step = "provider" | "narrowing" | "landing" | "insist";
+
+/** Comma- or space-separated, the way a list of domains gets typed. */
+const splitValues = (raw: string): string[] =>
+  raw
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+export interface ConnectSignInWizardProps {
+  guildId: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Whether this reader may also make the provider the way in. */
+  canRequire: boolean;
+}
+
+export const ConnectSignInWizard = ({
+  guildId,
+  open,
+  onOpenChange,
+  canRequire,
+}: ConnectSignInWizardProps) => {
+  const { t } = useTranslation(["settings", "common"]);
+  const { step, go, back, canGoBack, reset } = useWizard<Step>("provider");
+
+  const availableQuery = useConnectableProviders(guildId);
+  const connectionsQuery = useGuildProviderConnections(guildId);
+  const connect = useConnectProvider(guildId);
+  const createRule = useCreateClaimRule(guildId);
+  const updatePolicy = useUpdateGuildAuthPolicy(guildId);
+
+  const [providerId, setProviderId] = useState<number | null>(null);
+  const [claim, setClaim] = useState("");
+  const [claimValues, setClaimValues] = useState("");
+  const [autoJoin, setAutoJoin] = useState(false);
+  const [ruleGroup, setRuleGroup] = useState("");
+  const [ruleRole, setRuleRole] = useState("member");
+  const [insist, setInsist] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const connections: GuildProviderConnectionRead[] = connectionsQuery.data ?? [];
+  // A provider the community merely inherits stays choosable: connecting to it
+  // is how the deployment's arrangement is taken over. Only what the community
+  // said itself leaves the grid.
+  const ownIds = new Set(connections.filter((row) => !row.inherited).map((row) => row.provider_id));
+  const inheritedByProvider = new Map(
+    connections.filter((row) => row.inherited).map((row) => [row.provider_id, row])
+  );
+  const choosable = (availableQuery.data ?? []).filter(
+    (row: ConnectableProviderRead) => !ownIds.has(row.id)
+  );
+
+  // The requirement is a question only somebody who may answer it is asked,
+  // so the wizard is three steps long for everybody else.
+  const steps: Step[] = canRequire
+    ? ["provider", "narrowing", "landing", "insist"]
+    : ["provider", "narrowing", "landing"];
+  const landingIsLast = !canRequire;
+
+  const values = splitValues(claimValues);
+  const narrowed = claim !== "" && values.length > 0;
+  // Both halves or neither: a claim with nothing to match on, or values with
+  // no claim to match them against, is half an answer.
+  const narrowingReady = narrowed || (claim === "" && values.length === 0);
+
+  const closeWizard = () => {
+    onOpenChange(false);
+    reset();
+    setProviderId(null);
+    setClaim("");
+    setClaimValues("");
+    setAutoJoin(false);
+    setRuleGroup("");
+    setRuleRole("member");
+    setInsist(false);
+    setSaving(false);
+  };
+
+  /** Choosing a provider carries the deployment's answer forward where there
+   *  is one, so taking an arrangement over starts from it rather than blank. */
+  const chooseProvider = (row: ConnectableProviderRead) => {
+    const inherited = inheritedByProvider.get(row.id);
+    setProviderId(row.id);
+    setClaim(inherited?.claim ?? "");
+    setClaimValues(inherited?.claim_values.join(", ") ?? "");
+    go("narrowing");
+  };
+
+  const skipNarrowing = () => {
+    setClaim("");
+    setClaimValues("");
+    go("landing");
+  };
+
+  const finish = async () => {
+    if (providerId === null) return;
+    setSaving(true);
+    try {
+      await connect.mutateAsync({
+        provider_id: providerId,
+        claim: narrowed ? claim : null,
+        claim_values: narrowed ? values : null,
+        auto_join: autoJoin,
+        enabled: true,
+      });
+      const group = ruleGroup.trim();
+      if (group !== "") {
+        await createRule.mutateAsync({
+          provider_id: providerId,
+          claim_value: group,
+          guild_role: ruleRole,
+        });
+      }
+      if (insist) {
+        await updatePolicy.mutateAsync({
+          policy: "required",
+          provider_id: providerId,
+          require_methods: [],
+        });
+      }
+      toast.success(t("settings:guildAuth.connections.connected"));
+      closeWizard();
+    } catch (error) {
+      // The answers stay on screen: whichever call failed, the step somebody
+      // is standing on is the one to try again from.
+      toast.error(getErrorMessage(error, "settings:guildAuth.connections.connectError"));
+      setSaving(false);
+    }
+  };
+
+  const savingLabel = (
+    <>
+      <Loader2 className="h-4 w-4 animate-spin" />
+      {t("settings:authProviders.saving")}
+    </>
+  );
+
+  const stepTitle: Record<Step, string> = {
+    provider: t("settings:guildAuth.wizard.steps.provider.title"),
+    narrowing: t("settings:guildAuth.wizard.steps.narrowing.title"),
+    landing: t("settings:guildAuth.wizard.steps.landing.title"),
+    insist: t("settings:guildAuth.wizard.steps.insist.title"),
+  };
+
+  const stepDescription: Record<Step, string> = {
+    provider: t("settings:guildAuth.wizard.steps.provider.prompt"),
+    narrowing: t("settings:guildAuth.wizard.steps.narrowing.prompt"),
+    landing: t("settings:guildAuth.wizard.steps.landing.prompt"),
+    insist: t("settings:guildAuth.wizard.steps.insist.prompt"),
+  };
+
+  return (
+    <WizardDialog
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : closeWizard())}
+      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      title={stepTitle[step]}
+      description={stepDescription[step]}
+      progress={{ current: steps.indexOf(step) + 1, total: steps.length }}
+      onBack={canGoBack ? back : undefined}
+      backLabel={t("common:back")}
+      backDisabled={saving}
+    >
+      {step === "provider" &&
+        (choosable.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            {t("settings:guildAuth.connections.noneOffered")}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {choosable.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                disabled={!row.login_ready}
+                className="flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                onClick={() => chooseProvider(row)}
+              >
+                <ProviderMark icon={row.icon} className="mt-0.5" />
+                <div className="min-w-0 space-y-1">
+                  <div className="truncate font-medium text-sm">{row.display_name}</div>
+                  {!row.login_ready && (
+                    <Badge variant="outline">{t("settings:guildAuth.connections.notReady")}</Badge>
+                  )}
+                  {row.login_ready && inheritedByProvider.has(row.id) && (
+                    <Badge variant="outline">{t("settings:guildAuth.connections.inherited")}</Badge>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        ))}
+
+      {step === "narrowing" && (
+        <div className="space-y-4">
+          <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+            <Label htmlFor="wizard-claim">{t("settings:guildAuth.connections.claimLabel")}</Label>
+            <p className="text-muted-foreground text-xs">
+              {t("settings:guildAuth.connections.claimHelp")}
+            </p>
+            <Select value={claim} onValueChange={setClaim}>
+              <SelectTrigger id="wizard-claim">
+                <SelectValue placeholder={t("settings:guildAuth.connections.claimPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {NARROWING_CLAIMS.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {t(`settings:guildAuth.connections.claimOptions.${name}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label={t("settings:guildAuth.connections.claimValuesLabel")}
+              placeholder={t("settings:guildAuth.connections.claimValuesPlaceholder")}
+              value={claimValues}
+              onChange={(event) => setClaimValues(event.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={skipNarrowing}>
+              {t("settings:guildAuth.wizard.skip")}
+            </Button>
+            <Button
+              className="flex-1"
+              type="button"
+              disabled={!narrowingReady}
+              onClick={() => go("landing")}
+            >
+              {t("common:next")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "landing" && (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label htmlFor="wizard-auto-join">
+                {t("settings:guildAuth.connections.autoJoinLabel")}
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {t("settings:guildAuth.connections.autoJoinHelp")}
+              </p>
+            </div>
+            <Switch
+              id="wizard-auto-join"
+              checked={autoJoin}
+              onCheckedChange={(checked) => setAutoJoin(Boolean(checked))}
+            />
+          </div>
+
+          <div className="space-y-3 rounded-md border bg-muted/40 p-3">
+            <div className="space-y-1">
+              <Label htmlFor="wizard-rule-group">{t("settings:guildAuth.wizard.ruleTitle")}</Label>
+              <p className="text-muted-foreground text-xs">
+                {t("settings:guildAuth.wizard.ruleHelp")}
+              </p>
+            </div>
+            <Input
+              id="wizard-rule-group"
+              value={ruleGroup}
+              placeholder={t("settings:guildAuth.rules.groupPlaceholder")}
+              onChange={(event) => setRuleGroup(event.target.value)}
+            />
+            <div className="space-y-2">
+              <Label htmlFor="wizard-rule-role">
+                {t("settings:guildAuth.rules.standingLabel")}
+              </Label>
+              <Select value={ruleRole} onValueChange={setRuleRole}>
+                <SelectTrigger id="wizard-rule-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">
+                    {t("settings:guildAuth.rules.role.member")}
+                  </SelectItem>
+                  <SelectItem value="admin">{t("settings:guildAuth.rules.role.admin")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            className="w-full"
+            type="button"
+            disabled={saving}
+            onClick={() => (landingIsLast ? void finish() : go("insist"))}
+          >
+            {saving
+              ? savingLabel
+              : landingIsLast
+                ? t("settings:authProviders.wizard.connect")
+                : t("common:next")}
+          </Button>
+        </div>
+      )}
+
+      {step === "insist" && (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label htmlFor="wizard-require">{t("settings:guildAuth.wizard.requireLabel")}</Label>
+              <p className="text-muted-foreground text-xs">
+                {t("settings:guildAuth.wizard.requireHelp")}
+              </p>
+            </div>
+            <Switch
+              id="wizard-require"
+              checked={insist}
+              onCheckedChange={(checked) => setInsist(Boolean(checked))}
+            />
+          </div>
+
+          <Button className="w-full" type="button" disabled={saving} onClick={() => void finish()}>
+            {saving ? savingLabel : t("settings:authProviders.wizard.connect")}
+          </Button>
+        </div>
+      )}
+    </WizardDialog>
+  );
+};

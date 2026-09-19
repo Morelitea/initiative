@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { AgeConfirmationDialog } from "@/components/guilds/AgeConfirmationDialog";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -109,9 +110,19 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
           <div className="flex items-start gap-3">
             <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} />
             <div className="min-w-0 flex-1">
-              <h3 className="truncate font-semibold text-base" title={guild.name}>
-                {guild.name}
-              </h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="min-w-0 truncate font-semibold text-base" title={guild.name}>
+                  {guild.name}
+                </h3>
+                {/* A listing is the deployment's to answer for, not the
+                    community's own — so no community is sent with it. */}
+                <ReportButton
+                  targetType="directory_listing"
+                  targetId={guild.id}
+                  guildId={null}
+                  className="-mt-1 shrink-0"
+                />
+              </div>
               <p className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground text-xs">
                 {/* Who is here now, then how many there are in all. A guild with
                   nobody in it says nothing rather than "0 online", which reads

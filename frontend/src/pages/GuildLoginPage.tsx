@@ -2,6 +2,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
+import { ProviderMark } from "@/components/auth/ProviderMark";
 import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +17,16 @@ import { useGuildLoginProviders } from "@/hooks/useGuildAuthPolicy";
 import { useServer } from "@/hooks/useServer";
 
 /**
- * A guild's own sign-in page (per-guild auth posture) — the URL a guild admin
- * shares with members. Offers the guild's configured identity providers;
- * completing one signs the user in, admits them to the guild, and lands them
- * on the guild's home. Unauthenticated by design; a signed-in visitor just
- * adds the provider to their session (step-up union).
+ * A community's sign-in page — the URL its admins share with members.
+ *
+ * The community authenticates nobody. These are the deployment's own
+ * providers, filtered to the ones this community counts as its own, and each
+ * button leads to the deployment's sign-in. What the community made of that
+ * sign-in — whether the arrival counts as theirs, and whether it joins them —
+ * is applied when they reach the community, not here.
+ *
+ * Unauthenticated by design; a signed-in visitor just adds the provider to
+ * their session (step-up union).
  */
 export const GuildLoginPage = () => {
   const { t } = useTranslation(["auth", "common"]);
@@ -67,6 +73,7 @@ export const GuildLoginPage = () => {
                 className="w-full"
                 onClick={() => signIn(provider)}
               >
+                <ProviderMark icon={provider.icon} className="h-4 w-4" />
                 {t("login.continueWith", { provider: provider.display_name })}
               </Button>
             ))

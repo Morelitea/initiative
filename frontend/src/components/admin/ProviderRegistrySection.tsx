@@ -1,15 +1,20 @@
+import { Loader2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderProbeResult,
   AuthProviderUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ConnectProviderWizard, ProbeReport } from "@/components/admin/ConnectProviderWizard";
+import { ProviderMark } from "@/components/auth/ProviderMark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CopyButton } from "@/components/ui/copy-button";
 import {
   Dialog,
   DialogContent,
@@ -20,36 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
-
-// Create-dialog presets: pre-fill the well-known IdPs' discovery config so an
-// admin only supplies client credentials. "custom" is a blank OIDC form
-// (Keycloak, Authentik, Zitadel, … all take a custom issuer).
-const PRESETS = {
-  custom: { slug: "", display_name: "", issuer: "", icon: null as string | null },
-  google: {
-    slug: "google",
-    display_name: "Google",
-    issuer: "https://accounts.google.com",
-    icon: "google",
-  },
-  microsoft: {
-    slug: "microsoft",
-    display_name: "Microsoft",
-    issuer: "https://login.microsoftonline.com/{tenant}/v2.0",
-    icon: "microsoft",
-  },
-} as const;
-type PresetKey = keyof typeof PRESETS;
+import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
 
 interface ProviderFormState {
   slug: string;
@@ -58,6 +36,7 @@ interface ProviderFormState {
   client_id: string;
   client_secret: string;
   scopes: string;
+  role_claim_path: string;
   allow_jit: boolean;
   enabled: boolean;
 }
@@ -69,29 +48,22 @@ const EMPTY_FORM: ProviderFormState = {
   client_id: "",
   client_secret: "",
   scopes: "openid email profile",
+  role_claim_path: "",
   allow_jit: true,
   enabled: true,
 };
 
-// Mirrors the backend's validate_provider_slug: lowercase ASCII letters,
-// digits, and inner dashes; no leading/trailing dash.
-const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
-const isValidSlug = (value: string) =>
-  value.length >= 1 &&
-  value.length <= 64 &&
-  [...value].every((ch) => SLUG_CHARS.has(ch)) &&
-  !value.startsWith("-") &&
-  !value.endsWith("-");
-
 // The mutation surface the section needs — satisfied structurally by the
 // React Query mutation objects the wrappers' domain hooks return, so the
 // operator and guild registries plug in without sharing hook signatures.
-interface RegistryMutation<TVariables> {
+interface RegistryMutation<TVariables, TResult = unknown> {
   mutate: (
     variables: TVariables,
-    options?: { onSuccess?: () => void; onError?: (error: unknown) => void }
+    options?: { onSuccess?: (data: TResult) => void; onError?: (error: unknown) => void }
   ) => void;
   isPending: boolean;
+  /** Which row a shared mutation is currently busy with. */
+  variables?: TVariables;
 }
 
 export interface ProviderRegistrySectionProps {
@@ -103,6 +75,8 @@ export interface ProviderRegistrySectionProps {
   createProvider: RegistryMutation<AuthProviderCreate>;
   updateProvider: RegistryMutation<{ providerId: number; data: AuthProviderUpdate }>;
   deleteProvider: RegistryMutation<number>;
+  testProvider: RegistryMutation<number, AuthProviderProbeResult>;
+  discoverIssuer: RegistryMutation<{ issuer: string }, AuthProviderProbeResult>;
 }
 
 /**
@@ -121,12 +95,15 @@ export const ProviderRegistrySection = ({
   createProvider,
   updateProvider,
   deleteProvider,
+  testProvider,
+  discoverIssuer,
 }: ProviderRegistrySectionProps) => {
   const { t } = useTranslation("settings");
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AuthProviderAdminRead | null>(null);
-  const [preset, setPreset] = useState<PresetKey>("custom");
   const [form, setForm] = useState<ProviderFormState>(EMPTY_FORM);
+  const [probe, setProbe] = useState<AuthProviderProbeResult | null>(null);
   const [clearSecret, setClearSecret] = useState(false);
   const [slugError, setSlugError] = useState(false);
   const [deleting, setDeleting] = useState<AuthProviderAdminRead | null>(null);
@@ -134,19 +111,10 @@ export const ProviderRegistrySection = ({
   const closeDialog = () => {
     setDialogOpen(false);
     setEditing(null);
-    setPreset("custom");
     setForm(EMPTY_FORM);
     setClearSecret(false);
     setSlugError(false);
-  };
-
-  const openCreate = () => {
-    setEditing(null);
-    setPreset("custom");
-    setForm(EMPTY_FORM);
-    setClearSecret(false);
-    setSlugError(false);
-    setDialogOpen(true);
+    setProbe(null);
   };
 
   const openEdit = (provider: AuthProviderAdminRead) => {
@@ -158,87 +126,77 @@ export const ProviderRegistrySection = ({
       client_id: provider.client_id ?? "",
       client_secret: "",
       scopes: provider.scopes ?? "",
+      role_claim_path: provider.role_claim_path ?? "",
       allow_jit: provider.allow_jit,
       enabled: provider.enabled,
     });
     setClearSecret(false);
     setSlugError(false);
+    setProbe(null);
     setDialogOpen(true);
   };
 
-  const applyPreset = (key: PresetKey) => {
-    setPreset(key);
-    setSlugError(false);
-    const values = PRESETS[key];
-    setForm((prev) => ({
-      ...prev,
-      slug: values.slug,
-      display_name: values.display_name,
-      issuer: values.issuer,
-    }));
+  /** Check the address in the form, without saving it. */
+  const verify = () => {
+    discoverIssuer.mutate(
+      { issuer: form.issuer },
+      {
+        onSuccess: setProbe,
+        onError: (error) =>
+          toast.error(getErrorMessage(error, "settings:authProviders.verifyError")),
+      }
+    );
+  };
+
+  /** Check a saved provider, against the address on the row. */
+  const test = (provider: AuthProviderAdminRead) => {
+    testProvider.mutate(provider.id, {
+      onSuccess: (result) => {
+        if (result.ok) {
+          toast.success(t("authProviders.probe.reachable"));
+          return;
+        }
+        toast.error(messageForCode(result.error_code, "settings:authProviders.probe.failed"));
+      },
+      onError: (error) =>
+        toast.error(getErrorMessage(error, "settings:authProviders.probe.failed")),
+    });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editing && !isValidSlug(form.slug)) {
-      setSlugError(true);
-      return;
-    }
-    if (editing) {
-      updateProvider.mutate(
-        {
-          providerId: editing.id,
-          data: {
-            display_name: form.display_name,
-            issuer: form.issuer,
-            client_id: form.client_id,
-            scopes: form.scopes || null,
-            allow_jit: form.allow_jit,
-            enabled: form.enabled,
-            // Write-only secret: absent keeps, empty string clears.
-            ...(clearSecret
-              ? { client_secret: "" }
-              : form.client_secret
-                ? { client_secret: form.client_secret }
-                : {}),
-          },
-        },
-        {
-          onSuccess: () => {
-            toast.success(t("authProviders.saved"));
-            closeDialog();
-          },
-          onError: (error) =>
-            toast.error(getErrorMessage(error, "settings:authProviders.saveError")),
-        }
-      );
-    } else {
-      createProvider.mutate(
-        {
-          slug: form.slug,
+    if (!editing) return;
+    updateProvider.mutate(
+      {
+        providerId: editing.id,
+        data: {
           display_name: form.display_name,
           issuer: form.issuer,
           client_id: form.client_id,
-          client_secret: form.client_secret || null,
           scopes: form.scopes || null,
+          role_claim_path: form.role_claim_path.trim() || null,
           allow_jit: form.allow_jit,
           enabled: form.enabled,
-          icon: PRESETS[preset].icon,
+          // Write-only secret: absent keeps, empty string clears.
+          ...(clearSecret
+            ? { client_secret: "" }
+            : form.client_secret
+              ? { client_secret: form.client_secret }
+              : {}),
         },
-        {
-          onSuccess: () => {
-            toast.success(t("authProviders.created"));
-            closeDialog();
-          },
-          onError: (error) =>
-            toast.error(getErrorMessage(error, "settings:authProviders.saveError")),
-        }
-      );
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success(t("authProviders.saved"));
+          closeDialog();
+        },
+        onError: (error) => toast.error(getErrorMessage(error, "settings:authProviders.saveError")),
+      }
+    );
   };
 
   const rows = providers ?? [];
-  const saving = createProvider.isPending || updateProvider.isPending;
+  const saving = updateProvider.isPending;
 
   return (
     <Card className="shadow-sm">
@@ -247,7 +205,7 @@ export const ProviderRegistrySection = ({
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </div>
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" onClick={() => setWizardOpen(true)}>
           {t("authProviders.addProvider")}
         </Button>
       </CardHeader>
@@ -260,44 +218,69 @@ export const ProviderRegistrySection = ({
           <ul className="divide-y rounded-md border">
             {rows.map((provider) => (
               <li key={provider.id} className="flex items-center justify-between gap-4 px-3 py-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{provider.display_name}</span>
-                    <code className="rounded bg-muted px-1 py-0.5 text-xs">{provider.slug}</code>
-                    {!provider.enabled && (
-                      <Badge variant="outline">{t("authProviders.disabledBadge")}</Badge>
-                    )}
-                    {provider.reserved && (
-                      <Badge variant="secondary">{t("authProviders.reservedBadge")}</Badge>
-                    )}
+                <div className="flex min-w-0 items-start gap-3">
+                  <ProviderMark icon={provider.icon} className="mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{provider.display_name}</span>
+                      <code className="rounded bg-muted px-1 py-0.5 text-xs">{provider.slug}</code>
+                      {!provider.enabled && (
+                        <Badge variant="outline">{t("authProviders.disabledBadge")}</Badge>
+                      )}
+                    </div>
+                    <p className="truncate text-muted-foreground text-sm">{provider.issuer}</p>
+                    {/* The address this provider's IdP has to send the browser
+                        back to. It follows the slug, and a slug never changes,
+                        so it is good for as long as the provider is. */}
+                    <div className="mt-1 flex items-center gap-1 text-muted-foreground text-xs">
+                      <span className="shrink-0">{t("authProviders.callbackLabel")}</span>
+                      <code className="min-w-0 truncate rounded bg-muted px-1 py-0.5">
+                        {provider.callback_url}
+                      </code>
+                      <CopyButton
+                        value={provider.callback_url}
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        copiedMessage={t("authProviders.callbackCopied")}
+                      />
+                    </div>
                   </div>
-                  <p className="truncate text-muted-foreground text-sm">{provider.issuer}</p>
                 </div>
-                {provider.reserved ? (
-                  <p className="shrink-0 text-muted-foreground text-xs">
-                    {t("authProviders.reservedHelp")}
-                  </p>
-                ) : (
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(provider)}
-                    >
-                      {t("authProviders.edit")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => setDeleting(provider)}
-                    >
-                      {t("authProviders.delete")}
-                    </Button>
-                  </div>
-                )}
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => test(provider)}
+                    disabled={testProvider.isPending}
+                  >
+                    {testProvider.isPending && testProvider.variables === provider.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("authProviders.testing")}
+                      </>
+                    ) : (
+                      t("authProviders.test")
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(provider)}
+                  >
+                    {t("authProviders.edit")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => setDeleting(provider)}
+                  >
+                    {t("authProviders.delete")}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -310,27 +293,24 @@ export const ProviderRegistrySection = ({
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editing ? t("authProviders.editTitle") : t("authProviders.createTitle")}
-            </DialogTitle>
+            <DialogTitle>{t("authProviders.editTitle")}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {!editing && (
-              <div className="space-y-2">
-                <Label htmlFor="provider-preset">{t("authProviders.presetLabel")}</Label>
-                <Select value={preset} onValueChange={(value) => applyPreset(value as PresetKey)}>
-                  <SelectTrigger id="provider-preset">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="custom">{t("authProviders.presetCustom")}</SelectItem>
-                    <SelectItem value="google">Google</SelectItem>
-                    <SelectItem value="microsoft">Microsoft Entra ID</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* The one value that goes the other way, kept to hand for
+                somebody who is re-registering this provider at its own end. */}
+            <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+              <Label>{t("authProviders.callbackLabel")}</Label>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1.5 text-xs">
+                  {editing?.callback_url}
+                </code>
+                <CopyButton
+                  value={editing?.callback_url ?? ""}
+                  copiedMessage={t("authProviders.callbackCopied")}
+                />
               </div>
-            )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="provider-slug">{t("authProviders.slugLabel")}</Label>
               <Input
@@ -363,17 +343,37 @@ export const ProviderRegistrySection = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="provider-issuer">{t("authProviders.issuerLabel")}</Label>
-              <Input
-                id="provider-issuer"
-                type="url"
-                value={form.issuer}
-                onChange={(event) => setForm((prev) => ({ ...prev, issuer: event.target.value }))}
-                placeholder={t("authProviders.issuerPlaceholder")}
-                required
-              />
-              {preset === "microsoft" && !editing && (
-                <p className="text-muted-foreground text-xs">{t("authProviders.tenantHelp")}</p>
-              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  id="provider-issuer"
+                  type="url"
+                  value={form.issuer}
+                  onChange={(event) => {
+                    // A tick beside an address that has since been edited
+                    // would be vouching for something else.
+                    setProbe(null);
+                    setForm((prev) => ({ ...prev, issuer: event.target.value }));
+                  }}
+                  placeholder={t("authProviders.issuerPlaceholder")}
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={verify}
+                  disabled={!form.issuer.trim() || discoverIssuer.isPending}
+                >
+                  {discoverIssuer.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("authProviders.verifying")}
+                    </>
+                  ) : (
+                    t("authProviders.verify")
+                  )}
+                </Button>
+              </div>
+              {probe ? <ProbeReport probe={probe} /> : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="provider-client-id">{t("authProviders.clientIdLabel")}</Label>
@@ -421,6 +421,21 @@ export const ProviderRegistrySection = ({
                 onChange={(event) => setForm((prev) => ({ ...prev, scopes: event.target.value }))}
               />
             </div>
+            <div className="space-y-1">
+              {/* Whose groups these are and how this provider spells them.
+                  Rules below read it, and each provider spells it its own
+                  way — Keycloak nests roles, Entra flattens them. */}
+              <Label htmlFor="provider-claim-path">{t("authProviders.claimPathLabel")}</Label>
+              <Input
+                id="provider-claim-path"
+                value={form.role_claim_path}
+                placeholder={t("authProviders.claimPathPlaceholder")}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, role_claim_path: event.target.value }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">{t("authProviders.claimPathHelp")}</p>
+            </div>
             <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
               <div>
                 <Label htmlFor="provider-allow-jit" className="font-medium">
@@ -459,6 +474,13 @@ export const ProviderRegistrySection = ({
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConnectProviderWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        createProvider={createProvider}
+        discoverIssuer={discoverIssuer}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

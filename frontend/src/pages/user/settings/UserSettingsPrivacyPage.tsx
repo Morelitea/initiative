@@ -8,7 +8,11 @@ import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSec
 import { AgeConfirmationForm } from "@/components/contacts/UnreachableEmptyState";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Switch } from "@/components/ui/switch";
-import { useDmSettings, useUpdateDmSettings } from "@/hooks/useDirectMessages";
+import {
+  useDirectMessagesEnabled,
+  useDmSettings,
+  useUpdateDmSettings,
+} from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 
 /**
@@ -23,6 +27,7 @@ export const UserSettingsPrivacyPage = () => {
   const { t } = useTranslation("settings");
   const { data, isLoading } = useDmSettings();
   const updateSettings = useUpdateDmSettings();
+  const dmEnabled = useDirectMessagesEnabled();
 
   // The age question gates everything, on every deployment — there is no
   // policy to choose while it is unanswered.
@@ -33,6 +38,20 @@ export const UserSettingsPrivacyPage = () => {
       { data: body },
       { onSuccess: () => toast.success(t("privacy.dm.saved")) }
     );
+
+  // Every section here is about who may message this account, so a deployment
+  // that offers no messaging leaves nothing to set. The tab is already gone;
+  // this is for somebody who arrived by address or had it open when it was
+  // switched off.
+  if (!dmEnabled) {
+    return (
+      <SettingsSection title={t("privacy.dm.title")}>
+        <p className="max-w-prose text-muted-foreground text-sm">
+          {t("privacy.dm.platformDisabled")}
+        </p>
+      </SettingsSection>
+    );
+  }
 
   return (
     <div className="space-y-6">

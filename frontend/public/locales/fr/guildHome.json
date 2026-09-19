@@ -12,9 +12,13 @@
   },
   "emptyState": {
     "title": "Vous n’avez rejoint aucune initiative",
+    "adminTitle": "Cette communauté n’a encore aucune initiative",
     "description": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, documents et le reste. Rejoignez-en une pour voir son travail.",
+    "adminDescription": "Les initiatives contiennent tout ce qui existe dans une communauté — projets, documents et le reste. Créez la première pour dire à quoi sert cette communauté.",
     "nothingListedTitle": "Rien à rejoindre pour l’instant",
-    "nothingListedDescription": "Aucune initiative de cette communauté n’est ouverte pour le moment. Un administrateur de communauté ou un chef de projet peut vous ajouter."
+    "adminNothingListedTitle": "Créez la première initiative",
+    "nothingListedDescription": "Aucune initiative de cette communauté n’est ouverte pour le moment. Un administrateur de communauté ou un chef de projet peut vous ajouter.",
+    "adminNothingListedDescription": "Nommez un ensemble de travail — une équipe, une campagne, une saison — et tout ce qui s’y rattache y vivra."
   },
   "directory": {
     "title": "Initiatives",
@@ -55,7 +59,8 @@
       "calendars": "Description",
       "dashboards": "Origine",
       "posts": "Aperçu",
-      "galleries": "Images"
+      "galleries": "Images",
+      "wikis": "Pages"
     }
   },
   "detail": {

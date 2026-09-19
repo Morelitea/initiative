@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
+import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
@@ -127,9 +128,11 @@ export const GuildMembersPage = () => {
             {/* Only the exception is worn. Badging the other nine rows in ten
                 "member" would say nothing and cost the width the actions
                 need. */}
-            {row.original.guild_role === "admin" ? (
+            {row.original.is_guild_admin ? (
               <Badge variant="secondary" className="shrink-0">
-                {t("members.admin")}
+                {row.original.guild_role === GuildRole.superadmin
+                  ? t("members.superadmin")
+                  : t("members.admin")}
               </Badge>
             ) : null}
           </Link>

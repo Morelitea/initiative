@@ -7,7 +7,6 @@ import asyncpg
 from sqlalchemy import delete as sql_delete
 
 from app.core.config import settings
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.db.schema_provisioning import (
     deprovision_guild,
@@ -43,8 +42,6 @@ async def init_owner() -> None:
 
         # Create the first superuser (the platform owner)...
         user = User(
-            email_hash=hash_email(settings.FIRST_OWNER_EMAIL),
-            email_encrypted=encrypt_field(settings.FIRST_OWNER_EMAIL, SALT_EMAIL),
             full_name=settings.FIRST_OWNER_FULL_NAME,
             username=usernames.from_full_name(settings.FIRST_OWNER_FULL_NAME)
             or usernames.random_name(),
@@ -52,7 +49,6 @@ async def init_owner() -> None:
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
             password_set_at=datetime.now(timezone.utc),
             role=UserRole.owner,
-            email_verified=True,
         )
         session.add(user)
         await session.flush()

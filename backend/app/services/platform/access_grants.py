@@ -13,16 +13,18 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
+from app.core.login_methods import LoginMethod
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
+    LEVEL_LABEL_KEYS,
     AccessGrant,
     AccessGrantPurpose,
     AccessGrantStatus,
@@ -31,12 +33,15 @@ from app.models.platform.access_grant import (
 from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_totp import UserTotp
 from app.schemas.platform.access_grant import (
     AccessGrantCreate,
     AccessGrantRead,
     BreakGlassCreate,
 )
 from app.services import email as email_service
+from app.services.auth import addresses
+from app.services.platform import auth_posture
 from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
@@ -56,6 +61,16 @@ class AccessGrantError(Exception):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+async def _lock_user_guild_grants(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> None:
+    """Serialize grant changes for one user and guild until transaction end."""
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
+        params={"uid": int(user_id), "gid": int(guild_id)},
+    )
 
 
 # Per-role maximum grant duration (least privilege). Each is clamped to the
@@ -138,7 +153,7 @@ async def _push_and_email(
     push_key: str,
     email_event: str,
     guild_name: Optional[str],
-    access_level: Optional[str] = None,
+    levels: Optional[Sequence[str]] = None,
     requester: Optional[str] = None,
 ) -> None:
     """Best-effort push + email fan-out for a PAM event.
@@ -149,21 +164,25 @@ async def _push_and_email(
     ``accessGrant.<key>`` entry in the ``notifications`` namespace, localized to
     the recipient.
 
-    ``access_level`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
+    ``levels`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
     placeholders that only some body templates contain — ``requester`` is used by
     the ``requested`` event only and is intentionally ``None`` for approve/deny/
     revoke. Each is passed to the interpolator only when present, so it maps to
     exactly the placeholders its template declares.
+
+    ``levels`` is a sequence because one ask can be for two things at once. It
+    is what the recipient is being asked to decide about, so every one of them
+    is named: a message that described only the first would be asking for a
+    decision about something it had not mentioned.
     """
     locale = getattr(recipient, "locale", None) or "en"
     body_vars: dict[str, str] = {"guild": guild_name or "a guild"}
-    if access_level is not None:
-        level_key = (
-            "accessGrant.levelReadWrite"
-            if access_level == "read_write"
-            else "accessGrant.levelRead"
+    if levels:
+        body_vars["level"] = ", ".join(
+            translate(LEVEL_LABEL_KEYS[level], locale, namespace="notifications")
+            for level in levels
+            if level in LEVEL_LABEL_KEYS
         )
-        body_vars["level"] = translate(level_key, locale, namespace="notifications")
     if requester is not None:
         body_vars["requester"] = requester
     try:
@@ -193,7 +212,7 @@ async def _push_and_email(
             recipient,
             event=email_event,
             guild_name=guild_name or "a guild",
-            access_level=access_level,
+            levels=levels,
             requester=requester,
         )
     except email_service.EmailNotConfiguredError:
@@ -202,10 +221,21 @@ async def _push_and_email(
         logger.error("PAM email notification failed: %s", exc, exc_info=True)
 
 
-async def request_grant(
-    session: AsyncSession, *, requester: User, payload: AccessGrantCreate
-) -> AccessGrant:
-    """Create a pending access request for ``requester`` to ``payload.guild_id``."""
+async def request_grants(
+    session: AsyncSession,
+    *,
+    requester: User,
+    payload: AccessGrantCreate,
+    asks: list[tuple[str, str]],
+) -> list[AccessGrant]:
+    """Create the pending grants ``payload`` asks for, as one act.
+
+    Validate every purpose first, create one row per purpose, and notify each
+    approver once after the complete request is established.
+    """
+    await _lock_user_guild_grants(
+        session, user_id=requester.id, guild_id=payload.guild_id
+    )
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
@@ -219,51 +249,56 @@ async def request_grant(
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
-    # Reject a second open request for the same guild while one is still
-    # pending or live. Scoped to the purpose this flow issues, so an unrelated
-    # authority for the same guild neither blocks a request nor satisfies one.
-    existing = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == requester.id,
-            AccessGrant.guild_id == payload.guild_id,
-            AccessGrant.purpose == AccessGrantPurpose.content.value,
-            AccessGrant.status.in_(
-                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
-            ),
+    # Validate the complete request before creating any row.
+    for purpose, _level in asks:
+        existing = await session.exec(
+            select(AccessGrant).where(
+                AccessGrant.user_id == requester.id,
+                AccessGrant.guild_id == payload.guild_id,
+                AccessGrant.purpose == purpose,
+                AccessGrant.status.in_(
+                    [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+                ),
+            )
         )
-    )
-    for grant in existing.all():
-        if grant.status == AccessGrantStatus.pending.value or grant.is_live(now=_now()):
-            raise AccessGrantError("OVERLAPPING_GRANT")
+        for grant in existing.all():
+            if grant.status == AccessGrantStatus.pending.value or grant.is_live(
+                now=_now()
+            ):
+                raise AccessGrantError("OVERLAPPING_GRANT")
 
-    grant = AccessGrant(
-        user_id=requester.id,
-        guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
-        purpose=AccessGrantPurpose.content.value,
-        status=AccessGrantStatus.pending.value,
-        reason=payload.reason,
-        requested_duration_minutes=duration,
-        requested_by_id=requester.id,
-    )
-    session.add(grant)
+    created: list[AccessGrant] = []
+    for purpose, level in asks:
+        grant = AccessGrant(
+            user_id=requester.id,
+            guild_id=payload.guild_id,
+            access_level=level,
+            purpose=purpose,
+            status=AccessGrantStatus.pending.value,
+            reason=payload.reason,
+            requested_duration_minutes=duration,
+            requested_by_id=requester.id,
+        )
+        session.add(grant)
+        created.append(grant)
     await session.flush()
 
     requester_name = display_name(requester)
     for approver in await _approvers(session):
-        await user_notifications.create_notification(
-            session,
-            user_id=approver.id,
-            notification_type=NotificationType.access_grant_requested,
-            data={
-                "grant_id": str(grant.id),
-                "guild_id": str(grant.guild_id),
-                "guild_name": guild.name,
-                "requester_id": str(requester.id),
-                "requester_name": requester_name,
-                "access_level": grant.access_level,
-            },
-        )
+        for grant in created:
+            await user_notifications.create_notification(
+                session,
+                user_id=approver.id,
+                notification_type=NotificationType.access_grant_requested,
+                data={
+                    "grant_id": str(grant.id),
+                    "guild_id": str(grant.guild_id),
+                    "guild_name": guild.name,
+                    "requester_id": str(requester.id),
+                    "requester_name": requester_name,
+                    "access_level": grant.access_level,
+                },
+            )
         await _push_and_email(
             session,
             recipient=approver,
@@ -271,10 +306,43 @@ async def request_grant(
             push_key="requested",
             email_event="requested",
             guild_name=guild.name,
-            access_level=grant.access_level,
+            levels=[grant.access_level for grant in created],
             requester=requester_name,
         )
-    return grant
+    return created
+
+
+async def demands_second_factor(session: AsyncSession) -> bool:
+    """Whether breaking glass has to carry the account's own second factor.
+
+    Derived rather than configured, from two things that must both hold: the
+    deployment offers the authenticator app, and some active ``data.bypass``
+    holder has confirmed one.
+
+    The pair is what keeps the rule answerable. A holder who has not enrolled
+    is refused until they do, and the way back is their own Security page — so
+    the rule may only ask while that page can actually give them one. A
+    deployment that has withdrawn ``totp`` refuses new enrolments, which is why
+    it stops asking here too, rather than asking for something it will not let
+    anybody obtain.
+    """
+    if not await auth_posture.login_method_allowed(session, LoginMethod.totp):
+        return False
+
+    roles = list(roles_with_capability(Capability.DATA_BYPASS))
+    found = (
+        await session.exec(
+            select(UserTotp.user_id)
+            .join(User, User.id == UserTotp.user_id)
+            .where(
+                User.role.in_(roles),
+                User.status == UserStatus.active,
+                UserTotp.confirmed_at.is_not(None),
+            )
+            .limit(1)
+        )
+    ).first()
+    return found is not None
 
 
 async def break_glass(
@@ -284,19 +352,21 @@ async def break_glass(
     payload: BreakGlassCreate,
     allow_member: bool = False,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
+    level: str,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
-    The break-glass path repurposes ``data.bypass``: instead of a standing
-    all-guild bypass, an admin/owner self-approves a scoped, expiring PAM grant
-    in one step (capability is gated at the endpoint). The result is a recorded
-    ``access_grants`` row — requester == approver == ``actor`` — with a captured
-    reason, so emergency reach is always audited and never ambient. Read-only by
-    default; ``read_write`` is a deliberate escalation. Short window, capped
-    server-side; re-issue to extend.
+    The capability-gated endpoint lets an operator self-approve a scoped,
+    expiring PAM grant in one step. The result is an ``access_grants`` row with
+    requester and approver both set to ``actor`` and the supplied reason kept
+    for the audit trail. The window is capped server-side.
 
-    ``purpose`` scopes what the grant authorises; ``allow_member`` goes with a
-    non-content purpose, which membership does not already confer.
+    ``purpose`` scopes what the grant authorises and ``level`` says how far it
+    reaches within that purpose — the two vocabularies are different, which is
+    why the caller states the level rather than a request body carrying one.
+    ``allow_member`` goes with a non-content purpose, which membership does not
+    already confer.
+
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -315,10 +385,7 @@ async def break_glass(
     # makes a second concurrent request wait, then see the first's grant and hit
     # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
     # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
-        params={"uid": int(actor.id), "gid": int(payload.guild_id)},
-    )
+    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
 
     # Don't stack grants: a still-live grant already confers the access, and a
     # pending request would conflict. Re-trigger only after the current one ends.
@@ -343,7 +410,7 @@ async def break_glass(
     grant = AccessGrant(
         user_id=actor.id,
         guild_id=payload.guild_id,
-        access_level=payload.access_level.value,
+        access_level=level,
         purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
         status=AccessGrantStatus.approved.value,
@@ -373,9 +440,52 @@ async def break_glass(
         push_key="approved",
         email_event="approved",
         guild_name=data["guild_name"],
-        access_level=grant.access_level,
+        levels=[grant.access_level],
     )
     return grant
+
+
+async def reconcile_break_glass_pair(
+    session: AsyncSession,
+    *,
+    actor: User,
+    payload: BreakGlassCreate,
+) -> list[AccessGrant]:
+    """Close open grants replaced by the fixed break-glass pair."""
+    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    result = await session.exec(
+        select(AccessGrant).where(
+            AccessGrant.user_id == actor.id,
+            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.purpose.in_(
+                [AccessGrantPurpose.content.value, AccessGrantPurpose.settings.value]
+            ),
+            AccessGrant.status.in_(
+                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+            ),
+        )
+    )
+    now = _now()
+    replaced: list[AccessGrant] = []
+    for grant in result.all():
+        if grant.status == AccessGrantStatus.pending.value:
+            grant.status = AccessGrantStatus.denied.value
+            grant.approved_by_id = actor.id
+            grant.decided_at = now
+            grant.updated_at = now
+            session.add(grant)
+            replaced.append(grant)
+            continue
+        if not grant.is_live(now=now):
+            continue
+        grant.status = AccessGrantStatus.revoked.value
+        grant.revoked_by_id = actor.id
+        grant.revoked_at = now
+        grant.updated_at = now
+        session.add(grant)
+        replaced.append(grant)
+    await session.flush()
+    return replaced
 
 
 async def get_grant(session: AsyncSession, grant_id: int) -> Optional[AccessGrant]:
@@ -425,7 +535,7 @@ async def approve(
             push_key="approved",
             email_event="approved",
             guild_name=data["guild_name"],
-            access_level=grant.access_level,
+            levels=[grant.access_level],
         )
     return grant
 
@@ -613,6 +723,10 @@ async def to_read(
 
     users_result = await session.exec(select(User).where(User.id.in_(user_ids)))
     users = {u.id: u for u in users_result.all()}
+    # An account's address lives in ``user_emails``; one query for the page.
+    addresses_by_user = await addresses.primary_addresses(
+        session, user_ids=sorted(user_ids)
+    )
     guilds = {}
     for gid in guild_ids:
         guild = await guilds_service.get_guild(session, guild_id=gid)
@@ -624,7 +738,7 @@ async def to_read(
         read = AccessGrantRead.model_validate(g)
         grantee = users.get(g.user_id)
         if grantee is not None:
-            read.user_email = grantee.email
+            read.user_email = addresses_by_user.get(g.user_id)
             read.user_full_name = grantee.full_name
         guild = guilds.get(g.guild_id)
         if guild is not None:
@@ -633,7 +747,7 @@ async def to_read(
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:
-                read.approved_by_email = approver.email
+                read.approved_by_email = addresses_by_user.get(g.approved_by_id)
         out.append(read)
     return out
 
@@ -643,7 +757,7 @@ DEFAULT_DURATION_MINUTES = settings.PAM_DEFAULT_DURATION_MINUTES
 MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
-    "request_grant",
+    "request_grants",
     "break_glass",
     "get_grant",
     "approve",

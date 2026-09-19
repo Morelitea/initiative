@@ -1,28 +1,11 @@
 import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
 from pydantic import AwareDatetime, AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class AuthScope(str, Enum):
-    """Where login is configured — a **deploy-time** posture, set once at boot
-    via the ``AUTH_SCOPE`` env value, never toggled at runtime.
-
-    ``platform`` — sign-in is configured once for the whole instance
-    (operator-global providers). ``guild`` — each guild configures its own
-    sign-in and may require it. The two are mutually exclusive; an instance is
-    built one way. Switching is non-destructive (it never deletes users,
-    memberships, or providers), but a deployment that has granted access via
-    guild auth does not switch back.
-    """
-
-    platform = "platform"
-    guild = "guild"
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -408,6 +391,13 @@ class Settings(BaseSettings):
             frame_src += extra
             connect_src += extra
 
+        # The landing page reads the public pricing catalog straight from the
+        # billing portal, so its origin joins connect-src only on a deployment
+        # that has one. Reduced to an origin the same way as the app frames.
+        billing_origin = _origin_of(self.BILLING_URL) if self.BILLING_URL else None
+        if billing_origin:
+            connect_src.append(billing_origin)
+
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
@@ -498,10 +488,6 @@ class Settings(BaseSettings):
                 "frame-ancestors": ["'none'"],
             }
         )
-
-    # Deploy-time login posture (see AuthScope). Read directly from the
-    # environment; there is no runtime setter.
-    AUTH_SCOPE: AuthScope = AuthScope.platform
 
     OIDC_ENABLED: bool = False
     OIDC_ISSUER: str | None = None

@@ -52,6 +52,11 @@ class OidcMetadata:
     # Optional in the spec; when present it must be https like the required
     # endpoints. Used to enrich profile claims after the id_token is verified.
     userinfo_endpoint: str | None = None
+    # What the provider says it offers. Advisory: these fill in the scopes and
+    # groups-claim fields when somebody is setting a provider up, and no login
+    # decision reads them, so a malformed value is dropped rather than refused.
+    scopes_supported: tuple[str, ...] | None = None
+    claims_supported: tuple[str, ...] | None = None
 
 
 @dataclass
@@ -171,10 +176,25 @@ def _parse_metadata(document: Any, *, expected_issuer: str) -> OidcMetadata:
         userinfo_endpoint = userinfo
 
     return OidcMetadata(
-        issuer=expected_issuer,
+        # The provider's own spelling, not the normalized one.
+        issuer=doc_issuer.strip(),
         authorization_endpoint=endpoints["authorization_endpoint"],
         token_endpoint=endpoints["token_endpoint"],
         jwks_uri=endpoints["jwks_uri"],
         id_token_signing_alg_values_supported=alg_tuple,
         userinfo_endpoint=userinfo_endpoint,
+        scopes_supported=_string_list(document.get("scopes_supported")),
+        claims_supported=_string_list(document.get("claims_supported")),
     )
+
+
+def _string_list(value: Any) -> tuple[str, ...] | None:
+    """A list of strings, or ``None`` for anything else.
+
+    Used for the advisory fields only. They fill in a form, so a provider
+    listing something unexpected costs a suggestion rather than the document.
+    """
+    if not isinstance(value, list):
+        return None
+    strings = tuple(item for item in value if isinstance(item, str) and item)
+    return strings or None

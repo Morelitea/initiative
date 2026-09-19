@@ -19,13 +19,13 @@ from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
+    create_auth_provider,
     guild_administration,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_user,
     get_auth_headers,
-    set_auth_scope,
 )
 
 
@@ -146,6 +146,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
         session, user=owner, guild=guild, role=GuildRole.admin
     )
     initiative = await create_initiative(session, guild=guild, creator=owner)
+    provider = await create_auth_provider(session)
 
     headers = get_auth_headers(owner)
     options = (
@@ -160,6 +161,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     resp = await client.post(
         "/api/v1/settings/oidc-mappings",
         json={
+            "provider_id": provider.id,
             "claim_value": "eng-team",
             "target_type": "initiative",
             "guild_id": guild.id,
@@ -174,6 +176,62 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     # Denormalized names are resolved from the guild schema for display.
     assert body["initiative_name"] == initiative.name
     assert body["initiative_role_name"] == role["name"]
+    # And whose claim it reads, named for the editor that lists rules from several.
+    assert body["provider_id"] == provider.id
+    assert body["provider_name"] == provider.display_name
+
+
+@pytest.mark.integration
+async def test_an_operator_global_rule_names_any_guild(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The platform's own registry has no guild of its own, so its rules grant
+    in whichever guild they name."""
+    owner = await create_user(
+        session, email="owner-global-scope@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": provider.id,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.integration
+async def test_a_rule_names_a_provider_that_exists(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An unknown provider id is answered as the bad request it is."""
+    owner = await create_user(
+        session, email="owner-provider-missing@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "provider_id": 9_999_999,
+            "claim_value": "staff",
+            "target_type": "guild",
+            "guild_id": guild.id,
+            "guild_role": "member",
+        },
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"] == "AUTH_PROVIDER_NOT_FOUND"
 
 
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
@@ -187,49 +245,6 @@ _NON_OWNER_ROLES = [
     UserRole.moderator,
     UserRole.operator,
 ]
-
-
-@pytest.mark.integration
-async def test_claim_path_persists_before_provider_configured(
-    client: AsyncClient,
-    session: AsyncSession,
-) -> None:
-    """Setting the claim path through the real request path with NO platform
-    provider row yet must persist a dormant skeleton row — and survive into an
-    independent follow-up request (not just the writing request's session)."""
-    from app.models.platform.auth_provider import AuthProvider
-    from sqlmodel import select as sql_select
-
-    owner = await create_user(
-        session, email="owner-claimpath@example.com", role=UserRole.owner
-    )
-    headers = get_auth_headers(owner)
-
-    put = await client.put(
-        "/api/v1/settings/oidc-mappings/claim-path",
-        headers=headers,
-        json={"claim_path": "groups"},
-    )
-    assert put.status_code == 200, put.text
-    assert put.json()["claim_path"] == "groups"
-
-    # Independent DB read: the skeleton row landed and is dormant.
-    session.expire_all()
-    row = (
-        await session.exec(
-            sql_select(AuthProvider).where(
-                AuthProvider.slug == "oidc", AuthProvider.guild_id.is_(None)
-            )
-        )
-    ).one()
-    assert row.role_claim_path == "groups"
-    assert row.enabled is False
-    assert row.issuer is None
-
-    # And a second real request reads it back.
-    got = await client.get("/api/v1/settings/oidc-mappings", headers=headers)
-    assert got.status_code == 200
-    assert got.json()["claim_path"] == "groups"
 
 
 @pytest.mark.integration
@@ -260,7 +275,6 @@ async def test_oidc_mapping_endpoints_reject_non_owner(
                 "guild_role": "member",
             },
         ),
-        ("put", "/api/v1/settings/oidc-mappings/claim-path", {"claim_path": "groups"}),
         ("put", "/api/v1/settings/oidc-mappings/1", {"claim_value": "x"}),
         ("delete", "/api/v1/settings/oidc-mappings/1", None),
     ]
@@ -509,76 +523,88 @@ async def test_operator_sets_and_clears_guild_status(
 
 
 @pytest.mark.integration
-async def test_operator_toggles_guild_auth_enabled(
+async def test_operator_grants_and_withdraws_guild_auth_options(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """An operator turns a guild's per-guild sign-in entitlement on and off from
-    the Guilds tab; the flag round-trips through list + patch."""
+    """An operator grants a guild's sign-in options from the Guilds tab, one at
+    a time or together, and withdraws them; the set round-trips through list +
+    patch. A sent list replaces the set outright."""
     owner = await create_user(
         session, email="owner-gauth@example.com", role=UserRole.owner
     )
-    guild = await create_guild(session, creator=owner, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=owner, auth_options=[])
     headers = get_auth_headers(owner)
 
     listed = await client.get("/api/v1/settings/guilds", headers=headers)
     assert listed.status_code == 200
     row = {r["name"]: r for r in listed.json()}[guild.name]
-    assert row["guild_auth_enabled"] is False
+    assert row["auth_options"] == []
 
-    on = await client.patch(
+    # One switch without the other: neither needs the other to count.
+    partial = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": True},
+        json={"auth_options": ["providers"]},
         headers=headers,
     )
-    assert on.status_code == 200, on.text
-    assert on.json()["guild_auth_enabled"] is True
+    assert partial.status_code == 200, partial.text
+    assert partial.json()["auth_options"] == ["providers"]
 
-    off = await client.patch(
+    both = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": False},
+        json={"auth_options": ["providers", "restrictions"]},
         headers=headers,
     )
-    assert off.status_code == 200
-    assert off.json()["guild_auth_enabled"] is False
+    assert both.status_code == 200
+    assert both.json()["auth_options"] == ["providers", "restrictions"]
+
+    none = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"auth_options": []},
+        headers=headers,
+    )
+    assert none.status_code == 200
+    assert none.json()["auth_options"] == []
 
 
 @pytest.mark.integration
-async def test_guild_auth_enabled_null_is_noop(
+async def test_guild_auth_options_null_is_noop(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """An explicit JSON null for guild_auth_enabled is meaningless for a boolean
-    entitlement and must not silently disable it — Pydantic keeps the null in
-    model_fields_set, so a naive provided-flag would coerce it to False. A
+    """An explicit JSON null for auth_options is meaningless for an entitlement
+    and must not silently withdraw one — Pydantic keeps the null in
+    model_fields_set, so a naive provided-flag would coerce it to empty. A
     sibling field in the same PATCH still applies, proving the null is a no-op,
     not a poisoned request."""
     owner = await create_user(
         session, email="owner-gauth-null@example.com", role=UserRole.owner
     )
-    guild = await create_guild(session, creator=owner, guild_auth_enabled=True)
+    guild = await create_guild(
+        session, creator=owner, auth_options=["providers", "restrictions"]
+    )
     headers = get_auth_headers(owner)
 
     resp = await client.patch(
         f"/api/v1/settings/guilds/{guild.id}",
-        json={"guild_auth_enabled": None, "max_users": 5},
+        json={"auth_options": None, "max_users": 5},
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["guild_auth_enabled"] is True
+    assert resp.json()["auth_options"] == ["providers", "restrictions"]
     assert resp.json()["max_users"] == 5
 
 
 @pytest.mark.integration
-async def test_guild_auth_enabled_is_operator_only(
+async def test_guild_auth_options_are_operator_only(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """A guild's own admin cannot flip the entitlement through the guild-facing
-    PATCH — it is an operator field (like caps and status). The guild-admin
-    endpoint simply doesn't accept it, leaving the flag untouched."""
+    """A guild's own admin cannot grant itself an option through the
+    guild-facing PATCH — they are operator fields (like caps and status). The
+    guild-admin endpoint simply doesn't accept them, leaving the set empty."""
     admin = await create_user(session, email="gauth-admin@example.com")
-    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    guild = await create_guild(session, creator=admin, auth_options=[])
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
@@ -586,14 +612,14 @@ async def test_guild_auth_enabled_is_operator_only(
 
     resp = await client.patch(
         f"/api/v1/guilds/{guild_id}",
-        json={"guild_auth_enabled": True},
+        json={"auth_options": ["providers"]},
         headers=get_auth_headers(admin),
     )
-    # The guild-admin schema ignores unknown fields; the flag stays off.
+    # The guild-admin schema ignores unknown fields; the set stays empty.
     assert resp.status_code == 200, resp.text
     session.expire_all()
     guild = await session.get(Guild, guild_id)
-    assert (await guild_administration(session, guild)).guild_auth_enabled is False
+    assert (await guild_administration(session, guild)).auth_options == []
 
 
 @pytest.mark.integration
@@ -830,7 +856,7 @@ async def test_update_guild_storage_unknown_guild_returns_404(
         headers=get_auth_headers(owner),
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
 
 
 # The Guilds tab moved from Platform settings (owner-only) to the Admin
@@ -844,7 +870,7 @@ async def test_guild_storage_endpoints_allow_admin(
     session: AsyncSession,
 ) -> None:
     """A platform ``admin`` (guilds.manage) can list guilds and set a storage
-    cap from the Admin dashboard Guilds tab."""
+    cap from the Operator dashboard Guilds tab."""
     admin = await create_user(
         session, email="gstor-admin@example.com", role=UserRole.operator
     )
@@ -1135,67 +1161,26 @@ async def test_storage_endpoints_reject_non_owner(
 
 
 async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
-    resp = await client.put(
-        "/api/v1/settings/auth",
+    """Through the registry, which is where a provider is configured.
+
+    The ``oidc`` slug is what the pre-generalization callback URL resolves to,
+    and it is created here like any other — that it once could not be is the
+    exception this surface no longer carries.
+    """
+    resp = await client.post(
+        "/api/v1/settings/auth/providers/",
         json={
+            "slug": "oidc",
+            "display_name": "Okta",
             "enabled": True,
             "issuer": "https://idp.example.com",
             "client_id": "client-123",
             "client_secret": "s3cret",
-            "provider_name": "Okta",
-            "scopes": ["openid", "email"],
+            "scopes": "openid email",
         },
         headers=headers,
     )
-    assert resp.status_code == 200
-
-
-@pytest.mark.integration
-async def test_auth_scope_defaults_to_platform(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    owner = await create_user(session, role=UserRole.owner)
-
-    resp = await client.get("/api/v1/settings/auth", headers=get_auth_headers(owner))
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-
-    # Non-secret posture info is readable without config.manage (login page,
-    # guild settings) via the interface settings.
-    resp = await client.get("/api/v1/settings/interface")
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-
-
-@pytest.mark.integration
-async def test_guild_posture_keeps_platform_oidc_dormant(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Under guild posture the platform OIDC provider is dormant — not offered
-    on the login page and refused server-side — while its stored configuration
-    is left untouched (posture never deletes config)."""
-    owner = await create_user(session, role=UserRole.owner)
-    headers = get_auth_headers(owner)
-    await _configure_platform_oidc(client, headers)
-
-    async def _login_offered() -> bool:
-        listing = await client.get("/api/v1/auth/providers")
-        return any(p["slug"] == "oidc" for p in listing.json()["providers"])
-
-    assert await _login_offered() is True
-
-    set_auth_scope("guild")
-
-    # Config retained...
-    resp = await client.get("/api/v1/settings/auth", headers=headers)
-    assert resp.json()["auth_scope"] == "guild"
-    assert resp.json()["enabled"] is True
-    assert resp.json()["issuer"] == "https://idp.example.com"
-    # ...but the provider is neither offered nor usable.
-    assert await _login_offered() is False
-    login_resp = await client.get("/api/v1/auth/oidc/login")
-    assert login_resp.status_code == 404
-    assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
+    assert resp.status_code == 201, resp.text
 
 
 # --- Guilds tab: billing portal operator handoff ---
@@ -1288,7 +1273,7 @@ async def test_billing_handoff_404_for_unknown_guild(
         headers=get_auth_headers(owner),
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
 
 
 @pytest.mark.integration
@@ -1500,17 +1485,15 @@ async def test_billing_grant_does_not_block_a_content_break_glass(session, monke
     billing = await service.break_glass(
         session,
         actor=owner,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
+        level=AccessLevel.read.value,
     )
     content = await service.break_glass(
         session,
         actor=owner,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="incident", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="incident"),
+        level=AccessLevel.read_write.value,
     )
     assert billing.purpose == "billing"
     assert content.purpose == "content"
@@ -1545,21 +1528,23 @@ async def test_billing_grant_does_not_block_a_content_request(session):
     await service.break_glass(
         session,
         actor=support,
-        payload=BreakGlassCreate(
-            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
-        ),
+        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
+        level=AccessLevel.read.value,
     )
 
-    requested = await service.request_grant(
-        session,
-        requester=support,
-        payload=AccessGrantCreate(
-            guild_id=guild.id,
-            reason="investigating a ticket",
-            access_level=AccessLevel.read,
-        ),
-    )
+    requested = (
+        await service.request_grants(
+            session,
+            asks=[("content", AccessLevel.read.value)],
+            requester=support,
+            payload=AccessGrantCreate(
+                guild_id=guild.id,
+                reason="investigating a ticket",
+                access_level=AccessLevel.read,
+            ),
+        )
+    )[0]
     assert requested.purpose == "content"
 
 
@@ -1625,3 +1610,63 @@ async def test_community_switch_is_owner_only(
 
     assert resp.status_code == 403, f"{role.value}: {resp.status_code}"
     assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+# ---------------------------------------------------------------------------
+# How long somebody stays signed in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_the_session_limit_starts_unset(client, acting_user):
+    """A self-hosted deployment is not answering to anybody, so it asks for no
+    limit until somebody sets one."""
+    a = await acting_user("owner")
+
+    response = await client.get("/api/v1/settings/auth/platform", headers=a.headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["session_max_hours"] is None
+
+
+@pytest.mark.integration
+async def test_an_owner_sets_and_clears_the_session_limit(client, acting_user):
+    a = await acting_user("owner")
+
+    set_it = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 12},
+        headers=a.headers,
+    )
+    assert set_it.status_code == 200, set_it.text
+    assert set_it.json()["session_max_hours"] == 12
+
+    cleared = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": None},
+        headers=a.headers,
+    )
+    assert cleared.json()["session_max_hours"] is None
+
+
+@pytest.mark.integration
+async def test_a_zero_hour_limit_is_refused(client, acting_user):
+    a = await acting_user("owner")
+
+    response = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 0},
+        headers=a.headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_setting_the_session_limit_needs_config_manage(client, acting_user):
+    a = await acting_user("operator")
+
+    response = await client.put(
+        "/api/v1/settings/auth/session-lifetime",
+        json={"session_max_hours": 12},
+        headers=a.headers,
+    )
+    assert response.status_code == 403

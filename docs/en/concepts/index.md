@@ -15,7 +15,7 @@ graph TD
   I2["Initiative"]
   P1["Project<br/>(a task board)"]
   D1["Document"]
-  T1["Calendar · Queue · Counter<br/>Dashboard · Posts · Gallery"]
+  T1["Calendar · Queue · Counter<br/>Dashboard · Posts · Gallery · Wiki"]
   TASK["Tasks"]
 
   G --> I1
@@ -62,7 +62,7 @@ Why is there a middle layer at all? Because real groups have four things on the 
 
     Only the spring play people are in it. The summer show crew never see it, never scroll past it, and are never once tempted to have an opinion about it.
 
-Every community comes with a **Default Initiative** so there's always somewhere to start. Add as many more as you need.
+A new community has no initiatives — you make the first one and name it after the work it holds. Add as many more as you need.
 
 People are added as **members**, each with a **role** — "Director", "Cast" — that decides which tools they can use. See [Initiative roles](../sharing/initiative-roles.md).
 
@@ -88,11 +88,12 @@ A **task** carries a description, a status, a priority, dates, the people doing 
 - **Dashboards** — one screen that answers "how are we doing?"
 - **Posts** — a noticeboard, for the things that need saying rather than doing.
 - **Galleries** — a wall of pictures, for the things that need looking at rather than reading.
+- **Wikis** — linked pages, for the things your group knows rather than the things it is doing.
 
 Use none of these and nothing is missing. They aren't sitting there judging you. See [Tools](../guides/tools.md).
 
-!!! info "Eight today"
-    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Galleries is the most recent. When a ninth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
+!!! info "Nine today"
+    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Wikis is the most recent. When a tenth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
 
 ## Apps — what other groups already built
 

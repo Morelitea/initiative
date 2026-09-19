@@ -52,12 +52,15 @@ from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
+from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.services.export.engine import ExportError
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 
-# Tool keys as they appear in the selector's include/formats maps.
-_TOOLS = ("project", "document", "queue", "counter_group", "calendar", "post")
+# Tool keys as they appear in the selector's include/formats maps. Derived:
+# a backup covers what the engine can export, so a ninth tool is carried by
+# registering it rather than by remembering this line.
+_TOOLS = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
 # Report-mode format sets per tool (documents are per-type, validated below).
 _REPORT_FORMATS: dict[str, frozenset[str]] = {
@@ -223,6 +226,8 @@ async def _enumerate(
     from app.services.tenant.posts import list_post_ids_for_export
     from app.services.tenant.project_export import list_project_ids_for_export
     from app.services.tenant.queues import list_queue_ids_for_export
+    from app.services.tenant.galleries import list_gallery_ids_for_export
+    from app.services.tenant.wikis import list_wiki_ids_for_export
 
     ids: dict[str, dict[int, list[int]]] = {tool: {} for tool in _TOOLS}
     per_initiative_tools = {
@@ -239,6 +244,12 @@ async def _enumerate(
             session, user, guild_id, initiative_ids=iids
         ),
         "post": lambda iids: list_post_ids_for_export(
+            session, user, guild_id, initiative_ids=iids
+        ),
+        "wiki": lambda iids: list_wiki_ids_for_export(
+            session, user, guild_id, initiative_ids=iids
+        ),
+        "gallery": lambda iids: list_gallery_ids_for_export(
             session, user, guild_id, initiative_ids=iids
         ),
     }
@@ -392,7 +403,11 @@ async def _build_scope(
 def _initiative_tool_states(params: dict, initiative) -> dict[str, str]:
     states: dict[str, str] = {}
     for tool in _TOOLS:
-        flag = getattr(initiative, f"{tool}s_enabled", True)
+        # The switch column via the enum, not `tool + "s"`: the naive spelling
+        # is wrong for `gallery`, and every tool now carries a column, so a
+        # missing-attribute default would hide a real mismatch rather than
+        # cover for the two that used to have none.
+        flag = getattr(initiative, Tool(tool).view_permission)
         if not flag:
             states[tool] = "disabled"
         elif _included(params, tool):
@@ -453,6 +468,8 @@ class _ScopeBuilder:
         await self._add_counter_groups(initiative, folder)
         await self._add_calendars(initiative, folder)
         await self._add_posts(initiative, folder)
+        await self._add_wikis(initiative, folder)
+        await self._add_galleries(initiative, folder)
 
     # -- per-tool chunks -----------------------------------------------------
 
@@ -700,6 +717,116 @@ class _ScopeBuilder:
                 schema_version=1,
                 entity_id=post.id,
                 title=post.name,
+                initiative_id=initiative.id,
+            )
+
+    async def _add_wikis(self, initiative, folder: str) -> None:
+        """Every wiki in this initiative, with its pages and their shape.
+
+        JSON only, for the reason a notice is: a wiki's export is its
+        importable envelope, and there is no report shape for one — so a
+        report-mode export leaves wikis out rather than dropping a lone JSON
+        file into a zip of PDFs.
+        """
+        if self.mode != "backup":
+            return
+        if not _included(self.params, "wiki"):
+            return
+        if not initiative.wikis_enabled:
+            return
+        from app.services.export.adapters.wiki import build_wiki_item
+        from app.services.tenant.wikis import (
+            get_wiki_for_export,
+            list_wiki_ids_for_export,
+        )
+
+        for wiki_id in await list_wiki_ids_for_export(
+            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
+        ):
+            await self._refresh_access()
+            wiki, pages = await get_wiki_for_export(
+                self.session, self.user, self.guild_id, wiki_id=wiki_id
+            )
+            item = build_wiki_item(wiki, pages, self.now)
+            path_stem = f"{folder}/wikis/{_slug(wiki.id, wiki.name)}"
+            self._append_backup(
+                item,
+                path=f"{path_stem}.initiative-wiki.json",
+                tool="wiki",
+                type="initiative-wiki",
+                schema_version=1,
+                entity_id=wiki.id,
+                title=wiki.name,
+                initiative_id=initiative.id,
+            )
+
+    async def _add_galleries(self, initiative, folder: str) -> None:
+        """Every gallery in this initiative: one envelope each, and its
+        pictures' bytes registered as assets.
+
+        A gallery is mostly blobs, so it obeys the uploads toggle the way a
+        file document does — excluded uploads means the pictures do not
+        travel, and a gallery of captions without them is not worth writing,
+        so the whole gallery is recorded as skipped instead.
+        """
+        if self.mode != "backup":
+            return
+        if not _included(self.params, "gallery"):
+            return
+        if not initiative.galleries_enabled:
+            return
+        from app.schemas.tenant.backup_export import ManifestSkipped
+        from app.services.export.adapters.gallery import (
+            build_gallery_item,
+            storage_key_of,
+        )
+        from app.services.tenant.galleries import (
+            get_gallery_for_export,
+            list_gallery_ids_for_export,
+        )
+
+        for gallery_id in await list_gallery_ids_for_export(
+            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
+        ):
+            await self._refresh_access()
+            gallery, images = await get_gallery_for_export(
+                self.session, self.user, self.guild_id, gallery_id=gallery_id
+            )
+            if not _include_uploads(self.params):
+                self.skipped.append(
+                    ManifestSkipped(
+                        tool="gallery",
+                        entity_id=gallery.id,
+                        title=gallery.name,
+                        initiative_id=initiative.id,
+                        reason="uploads_excluded",
+                    )
+                )
+                continue
+            item = build_gallery_item(gallery, images, self.now)
+            path_stem = f"{folder}/galleries/{_slug(gallery.id, gallery.name)}"
+            path = f"{path_stem}.initiative-gallery.json"
+            for image in images:
+                key = storage_key_of(image.file_url)
+                if not key:
+                    continue
+                # The picture only; a thumbnail is a rendition the app makes
+                # again from it.
+                self._register_asset(
+                    key,
+                    original_filename=image.original_filename,
+                    content_type=image.file_content_type,
+                    size_bytes=int(image.file_size or 0),
+                    referenced_by=path,
+                )
+            self._append_backup(
+                item,
+                path=path,
+                tool="gallery",
+                type="initiative-gallery",
+                schema_version=1,
+                entity_id=gallery.id,
+                title=gallery.name,
                 initiative_id=initiative.id,
             )
 

@@ -68,6 +68,15 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     // so the backend offers no rendered format for one either.
     { format: "json", labelKey: "export.formatJson" },
   ],
+  [Tool.wiki]: [
+    // The importable envelope, carrying every page and the shape they sit in.
+    { format: "json", labelKey: "export.formatJson" },
+  ],
+  [Tool.gallery]: [
+    // The importable envelope. A gallery's pictures are blobs, so the
+    // envelope names them and the bytes ride in a backup zip alongside it.
+    { format: "json", labelKey: "export.formatJson" },
+  ],
   [Tool.project]: [
     // The importable JSON backup, then the task-table report formats.
     { format: "json", labelKey: "export.formatJson" },

@@ -13,6 +13,7 @@
 
 import {
   CalendarClock,
+  FileText,
   Hash,
   Image,
   type LucideIcon,
@@ -24,7 +25,14 @@ import {
 
 import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { counterRoute, eventRoute, TOOL_ICONS, taskRoute, toolDetailRoute } from "@/lib/tools";
+import {
+  counterRoute,
+  eventRoute,
+  TOOL_ICONS,
+  taskRoute,
+  toolDetailRoute,
+  wikiPageRoute,
+} from "@/lib/tools";
 
 /** The fields routing reads. Hits and palette suggestions both carry them. */
 export type SearchTarget = Pick<
@@ -71,6 +79,15 @@ const TOOL_CHILDREN: Partial<Record<SearchEntityType, ToolChild>> = {
     tool: Tool.gallery,
     icon: Image,
     path: (initiativeId, galleryId) => toolDetailRoute(Tool.gallery, initiativeId, galleryId),
+  },
+  // A wiki page IS read on a page of its own, inside its wiki — so unlike the
+  // rest of these it keeps its own id in the address. Without an entry here it
+  // would fall through to the tool rule and be addressed as if the page id
+  // were the wiki's.
+  [SearchEntityType.wiki_page]: {
+    tool: Tool.wiki,
+    icon: FileText,
+    path: wikiPageRoute,
   },
   // A comment is read on the thing it is on, so it goes there. Its own id
   // addresses nothing: there is no page for one comment.

@@ -11,24 +11,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { WizardDialog } from "@/components/ui/wizard-dialog";
 import {
   useAdminDeleteGuild,
   useAdminDeleteUser,
   useAdminPromoteGuildMember,
   useUserDeletionEligibility,
 } from "@/hooks/useAdmin";
+import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { DisplayableUser } from "@/lib/userDisplay";
@@ -101,7 +96,7 @@ export function AdminDeleteUserDialog({
 }: AdminDeleteUserDialogProps) {
   const { t } = useTranslation("settings");
   const validActions = validActionsFor(targetUser.status);
-  const [step, setStep] = useState<DeletionStep>("choose-type");
+  const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>("choose-type");
   const [action, setAction] = useState<AdminAction>(validActions[0]);
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
@@ -116,7 +111,7 @@ export function AdminDeleteUserDialog({
   // target lands on "soft_delete" and an anonymized one on "hard_delete".
   useEffect(() => {
     if (!open) {
-      setStep("choose-type");
+      reset();
       setAction(validActions[0]);
       setEligibility(null);
       setConfirmationText("");
@@ -124,7 +119,7 @@ export function AdminDeleteUserDialog({
       setGuildDeleteConfirm(null);
       setIsResolvingBlocker(false);
     }
-  }, [open, validActions]);
+  }, [open, validActions, reset]);
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
@@ -171,7 +166,7 @@ export function AdminDeleteUserDialog({
     if (result.data) {
       setEligibility(result.data);
       if (result.data.can_delete) {
-        setStep("confirm");
+        go("confirm");
       }
     }
   };
@@ -179,35 +174,21 @@ export function AdminDeleteUserDialog({
   // Step navigation handlers
   const handleNext = async () => {
     if (step === "choose-type") {
-      setStep("check-blockers");
+      go("check-blockers");
       const result = await checkEligibility();
       if (result.data) {
         setEligibility(result.data);
 
         if (!result.data.can_delete && result.data.guild_blockers.length > 0) {
-          setStep("resolve-blockers");
+          go("resolve-blockers");
         } else if (result.data.can_delete) {
-          setStep("confirm");
+          go("confirm");
         }
       }
     } else if (step === "check-blockers" || step === "resolve-blockers") {
       if (eligibility?.can_delete) {
-        setStep("confirm");
+        go("confirm");
       }
-    }
-  };
-
-  const handleBack = () => {
-    if (step === "confirm") {
-      if (hasBlockers) {
-        setStep("resolve-blockers");
-      } else {
-        setStep("check-blockers");
-      }
-    } else if (step === "resolve-blockers") {
-      setStep("check-blockers");
-    } else if (step === "check-blockers") {
-      setStep("choose-type");
     }
   };
 
@@ -254,26 +235,34 @@ export function AdminDeleteUserDialog({
     return handle;
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t("adminDeleteUser.subtitle", { email: displayName })}</DialogTitle>
-          <DialogDescription>
-            {step === "choose-type" && t("adminDeleteUser.stepType")}
-            {step === "check-blockers" && t("adminDeleteUser.checkingEligibility")}
-            {step === "resolve-blockers" && t("adminDeleteUser.stepBlockers")}
-            {step === "confirm" &&
-              t(
-                action === "deactivate"
-                  ? "adminDeleteUser.confirmDeactivateTitle"
-                  : action === "soft_delete"
-                    ? "adminDeleteUser.confirmAnonymizeTitle"
-                    : "adminDeleteUser.confirmTitle"
-              )}
-          </DialogDescription>
-        </DialogHeader>
+  const description: Record<DeletionStep, string> = {
+    "choose-type": t("adminDeleteUser.stepType"),
+    "check-blockers": t("adminDeleteUser.checkingEligibility"),
+    "resolve-blockers": t("adminDeleteUser.stepBlockers"),
+    confirm: t(
+      action === "deactivate"
+        ? "adminDeleteUser.confirmDeactivateTitle"
+        : action === "soft_delete"
+          ? "adminDeleteUser.confirmAnonymizeTitle"
+          : "adminDeleteUser.confirmTitle"
+    ),
+  };
+  const walked: DeletionStep[] = hasBlockers
+    ? ["choose-type", "check-blockers", "resolve-blockers", "confirm"]
+    : ["choose-type", "check-blockers", "confirm"];
 
+  return (
+    <>
+      <WizardDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        title={t("adminDeleteUser.subtitle", { email: displayName })}
+        description={description[step]}
+        // Resolving blockers only happens to somebody who has them, so it is
+        // not counted until they are actually sent there.
+        progress={{ current: walked.indexOf(step) + 1, total: walked.length }}
+      >
         <div className="space-y-6 py-4">
           {/* Step 1: Choose Type */}
           {step === "choose-type" && (
@@ -464,8 +453,8 @@ export function AdminDeleteUserDialog({
           <div className="flex w-full justify-between">
             <Button
               variant="outline"
-              onClick={handleBack}
-              disabled={step === "choose-type" || deleteUser.isPending || isResolvingBlocker}
+              onClick={back}
+              disabled={!canGoBack || deleteUser.isPending || isResolvingBlocker}
             >
               <ChevronLeft className="h-4 w-4" />
               {t("adminDeleteUser.back")}
@@ -525,9 +514,11 @@ export function AdminDeleteUserDialog({
             </div>
           </div>
         </DialogFooter>
-      </DialogContent>
+      </WizardDialog>
 
-      {/* Guild deletion confirmation dialog */}
+      {/* Guild deletion confirmation dialog. Its own AlertDialog with its own
+          portal, so it sits beside the wizard rather than inside it — the same
+          arrangement as everywhere else a confirm follows a dialog. */}
       <ConfirmDialog
         open={guildDeleteConfirm !== null}
         onOpenChange={(open) => !open && setGuildDeleteConfirm(null)}
@@ -540,6 +531,6 @@ export function AdminDeleteUserDialog({
         onConfirm={() => guildDeleteConfirm && handleDeleteGuild(guildDeleteConfirm.guild_id)}
         isLoading={deleteGuild.isPending}
       />
-    </Dialog>
+    </>
   );
 }

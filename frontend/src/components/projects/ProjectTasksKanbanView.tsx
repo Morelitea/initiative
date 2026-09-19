@@ -68,6 +68,11 @@ export const ProjectTasksKanbanView = ({
   useHorizontalDragScroll(scrollContainerRef);
 
   const taskStatusesLength = taskStatuses.length;
+  // Basis rather than min-width: it is what the collapse animates.
+  const columnBasis = cn(
+    "grow-0 basis-70 sm:grow",
+    taskStatusesLength > 4 ? "sm:basis-80" : "sm:basis-89"
+  );
 
   return (
     <DndContext
@@ -99,12 +104,8 @@ export const ProjectTasksKanbanView = ({
                 onToggleCollapse={onToggleCollapse}
                 taskCount={groupedTasks[status.id]?.length ?? 0}
                 className={cn(
-                  "max-h-[70vh] min-h-[70vh] shrink-0 transition-[width] duration-200",
-                  isCollapsed
-                    ? "w-12 min-w-12"
-                    : taskStatusesLength > 4
-                      ? "w-70 sm:w-80"
-                      : "w-70 sm:w-89"
+                  "max-h-[70vh] min-h-[70vh] shrink-0 transition-[flex-basis,flex-grow] duration-200",
+                  isCollapsed ? "grow-0 basis-12" : columnBasis
                 )}
                 onArchiveDoneTasks={onArchiveDoneTasks}
                 isArchiving={isArchivingDoneTasks}

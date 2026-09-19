@@ -11,8 +11,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
+from app.core.login_methods import LoginMethod
 from app.core import auth_context
-from app.core.auth_context import set_device_token_id, set_satisfied_providers
+from app.core.auth_context import (
+    set_api_key_credential,
+    set_device_token_id,
+    set_satisfied_providers,
+    set_session_mfa,
+    set_session_passkey,
+    claims_from_provider_auth,
+    set_satisfied_claims,
+)
+from app.services.auth import guild_provider_connections as guild_connections
+from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -21,6 +32,7 @@ from app.core.role_context import (
 )
 from app.core.messages import (
     AuthMessages,
+    DirectMessageMessages,
     GuildMessages,
     UserMessages,
 )
@@ -37,13 +49,25 @@ from app.core.security import (
 )
 from app.db.session import (
     SYSTEM_SATISFIED,
+    apply_override_initiatives,
     get_session,
-    set_override_initiatives,
     set_rls_context,
 )
-from app.models.platform.access_grant import AccessGrant, AccessLevel
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
+from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
+    Guild,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+    content_role,
+)
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
@@ -57,7 +81,6 @@ from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.marketplace import registration_lookup
 from app.services.platform import auto_delegation_blocklist
-from app.services.platform import guilds as guilds_service
 from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -285,7 +308,13 @@ async def get_current_user(
     # Start from the fail-closed empty satisfied-provider set; only the session
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_satisfied_claims(None)
+    set_session_mfa(False)
+    set_session_passkey(False)
     set_device_token_id(None)
+    # Not an API key until the branch below says so, which is the answer a
+    # community that declines them admits.
+    set_api_key_credential(False)
     # Which kind of credential this turns out to be, for the few endpoints that
     # care (see `require_first_party_session`). Set before any branch can
     # return, so an unrecognized path reads as something other than a session.
@@ -321,6 +350,7 @@ async def get_current_user(
     if api_auth:
         user, api_key = api_auth
         _enforce_api_key_scope(request, api_key)
+        set_api_key_credential(True)
         request.state.credential = CREDENTIAL_API_KEY
         return user
 
@@ -352,6 +382,14 @@ async def get_current_user(
     # tokens (and every non-session credential, which never reaches this
     # branch) leave it empty — fail-closed for policy-gated guilds.
     set_satisfied_providers(frozenset(token_data.sat or ()))
+    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
+    # The marker the sign-in wrote when a code was presented. Absent on a
+    # legacy token and on every credential that is not a session, which is
+    # fail-closed for a community that asks for one.
+    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+    # And which kind of key answered, where one did. A community asking for a
+    # passkey is asking for that; a code presented after a password is not it.
+    set_session_passkey(carries_passkey(token_data.amr or ()))
 
     if not token_data.sub:
         raise HTTPException(
@@ -370,6 +408,9 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
     request.state.credential = CREDENTIAL_SESSION
+    # Which session this request is: what lets an endpoint act on the
+    # account's other ones and leave the caller where they are.
+    request.state.session_id = token_data.sid
     return user
 
 
@@ -412,6 +453,7 @@ async def get_current_user_optional(
 
 
 async def get_current_active_user(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """The caller, if their account may hold a session at all.
@@ -425,6 +467,10 @@ async def get_current_active_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
+    # Whose request this is, for the few things that run before the endpoint
+    # does and have only the request to read — see
+    # ``app.core.rate_limit.get_user_or_ip_key``.
+    request.state.user_id = current_user.id
     return current_user
 
 
@@ -467,22 +513,23 @@ def require_capability(capability: Capability) -> Callable:
 class GuildContext:
     guild: Guild
     membership: GuildMembership
-    # Set when access is via a time-bound PAM grant rather than real
-    # membership. The ``membership`` is then a synthesized member-role stand-in
-    # so ``.role`` stays valid for endpoint guards, while RLS context is driven
-    # off the grant (scoped pam_read/pam_write, not the all-guild bypass).
+    # The live content grant used when the caller is not a member.
     grant: Optional[AccessGrant] = None
-    # True when the grant is a read_write *break-glass* grant held by a
-    # ``data.bypass`` user. Break-glass is deliberately unlimited — the holder
-    # acts as a full guild admin for the grant's window (synthesized admin role
-    # + guild-admin RLS context), unlike a regular PAM grant which stays scoped
-    # to content read/write. Still grant-gated: no live grant, no reach.
-    break_glass: bool = False
+    # The live settings rung, independent of content access.
+    settings_level: Optional[SettingsLevel] = None
     # True when the guild is in ``read_only`` status and access is via real
     # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
     # Postgres role so content writes are denied at the role level. Never set
-    # on the grant branches — PAM/break-glass override the guild status.
+    # on the grant branch — a grant carries its own read/write level.
     content_read_only: bool = False
+
+    def settings_rung_reaches(self, role: GuildRole) -> bool:
+        """Whether the settings grant includes ``role``'s authority."""
+        if self.settings_level is None:
+            return False
+        if self.settings_level is SettingsLevel.superadmin:
+            return role in (GuildRole.admin, GuildRole.superadmin)
+        return role is GuildRole.admin
 
     @property
     def guild_id(self) -> int:
@@ -493,8 +540,21 @@ class GuildContext:
         return self.membership.role
 
     @property
+    def is_admin(self) -> bool:
+        """Whether this request carries a guild admin's authority.
+
+        ``superadmin`` sits above ``admin``, so it answers yes — every
+        surface an admin reaches, the seat above it reaches too.
+        """
+        return self.role in GUILD_ADMIN_ROLES
+
+    @property
     def is_pam(self) -> bool:
-        return self.grant is not None
+        return self.grant is not None or self.settings_level is not None
+
+    @property
+    def is_settings_only(self) -> bool:
+        return self.grant is None and self.settings_level is not None
 
 
 class GuildAccessError(Exception):
@@ -534,8 +594,11 @@ def _satp_param(value: frozenset[int] | str) -> list[int] | str:
 
 async def _enforce_guild_auth_policy(
     session: AsyncSession,
+    policy: GuildAuthPolicy | None,
     guild_id: int,
     satisfied: frozenset[int] | str,
+    session_mfa: bool = False,
+    session_passkey: bool = False,
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -543,22 +606,149 @@ async def _enforce_guild_auth_policy(
     session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
     enqueueing request already passed this gate) passes. Mirrored at the
     database layer by ``public.guild_auth_satisfied()`` inside the guild
-    RLS."""
+    RLS.
+
+    A row can ask two things and a session has to answer both. ``provider_id``
+    names one provider the session must have come through; ``require_methods``
+    asks for any of this community's connections without naming which. Both
+    are one question to ``guild_connection_admits``, which also applies the
+    narrowing a community put on the connection.
+
+    ``policy`` is the guild's row as the session may see it, read by whichever
+    branch of :func:`_load_guild_context` got here — a member's read and a
+    grantee's happen under different contexts, and each carries its own.
+    """
     if satisfied == SYSTEM_SATISFIED:
         return
-    policy = (
-        await session.exec(
-            select(GuildAuthPolicy).where(GuildAuthPolicy.guild_id == guild_id)
-        )
-    ).one_or_none()
-    if policy is None or policy.policy == "open" or policy.provider_id is None:
+    if policy is None or policy.policy == "open":
         return
-    if isinstance(satisfied, str) or policy.provider_id not in satisfied:
+
+    def _refuse() -> None:
         raise GuildAccessError(
             detail=GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED,
             step_up_provider_slug=policy.provider_slug,
             step_up_guild_id=guild_id,
         )
+
+    if (
+        policy.provider_id is not None
+        and not await guild_connections.admits_this_session(
+            session, guild_id=guild_id, provider_id=policy.provider_id
+        )
+    ):
+        _refuse()
+
+    # "Any of ours": any connection this community holds, narrowing included.
+    # Named rather than counted: ``require_methods`` may hold more than one
+    # method, and each is read as itself. Mirrors the matching leg in
+    # ``public.guild_auth_satisfied()``, which the database applies to the same
+    # row.
+    if LoginMethod.sso in policy.require_methods and not (
+        await guild_connections.admits_this_session(session, guild_id=guild_id)
+    ):
+        _refuse()
+
+    # And the account's own second factor, where the community asks for one.
+    # The answer names no provider, so the step-up says a factor is what is
+    # wanted rather than pointing at a sign-in page.
+    if LoginMethod.totp in policy.require_methods and not session_mfa:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
+
+    # And a passkey, where the community asks for one. Read from the passkey
+    # markers rather than the factor's, so each method is answered by itself:
+    # an assertion records the second factor as well as the key.
+    if LoginMethod.passkey in policy.require_methods and not session_passkey:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
+
+
+def declines_this_credential(guild: Guild) -> bool:
+    """Whether ``guild`` declines the credential this request was made with.
+
+    True only for a personal API key against a community that has switched them
+    off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
+    and a key pinned nowhere both address this guild the same way.
+
+    The rule itself, so the three places that apply it read the same line — the
+    guild-context gate below, the ``/uploads`` route, which resolves the guild
+    itself, and the cross-guild aggregates, which visit each guild in turn (see
+    ``app.services.cross_guild``).
+    """
+    return not guild.allow_api_keys and auth_context.api_key_credential()
+
+
+def _enforce_guild_api_access(guild: Guild) -> None:
+    """A community that declines personal API keys is not reached with one.
+
+    Runs beside the sign-in gate and binds the same callers — members and
+    grantees alike — because the question is what the request was made with,
+    not who made it.
+
+    Covers every path that resolves its guild through
+    :func:`_load_guild_context`: REST, document downloads, the realtime sockets
+    and the keepalive. The two that resolve one themselves ask the same
+    question where they do it.
+    """
+    if declines_this_credential(guild):
+        raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
+
+
+async def _read_membership_gate(
+    session: AsyncSession, guild_id: int, user_id: int
+) -> tuple[GuildMembership, Guild, GuildAuthPolicy | None] | None:
+    """The three rows the gate needs about a member, in one query.
+
+    ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
+    ``public`` and are all keyed on the guild this request addresses, so asking
+    for them separately was three trips for one answer. Each row still comes
+    back under its own policies — an outer join to a row the session may not
+    read yields NULL, exactly as its own SELECT would have. ``None`` means no
+    membership the session can see, which is the grant branch's cue.
+    """
+    row = (
+        await session.exec(
+            select(GuildMembership, Guild, GuildAuthPolicy)
+            .select_from(GuildMembership)
+            .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
+            .outerjoin(
+                GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
+            )
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    membership, guild, policy = row
+    if guild is None:
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+    return membership, guild, policy
+
+
+async def _read_grant_gate(
+    session: AsyncSession, guild_id: int
+) -> tuple[Guild, GuildAuthPolicy | None]:
+    """The same two public rows for a grantee, whose PAM context has just been
+    applied — a grant reaches the guild row through its own policy leg, so this
+    read cannot be folded into the membership one above."""
+    row = (
+        await session.exec(
+            select(Guild, GuildAuthPolicy)
+            .select_from(Guild)
+            .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
+            .where(Guild.id == guild_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+    return row[0], row[1]
 
 
 async def _load_guild_context(
@@ -589,45 +779,30 @@ async def _load_guild_context(
     if current_user.status == UserStatus.suspended:
         raise GuildAccessError()
 
-    # Set minimal RLS context before querying guild_memberships (RLS-protected).
-    # Full guild context is set later by get_guild_session / RLSSessionDep.
-    # No standing bypass: a user reads their own membership row via the own-row
-    # policy leg; a non-member ``data.bypass`` holder finds nothing here and must
-    # break-glass into a PAM grant (below) to reach the guild — never ambiently.
+    # Establish the caller context before loading their membership.
     await set_rls_context(
         session,
         user_id=current_user.id,
     )
 
-    membership = await guilds_service.get_membership(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
-    if membership is None:
-        # No standing membership — fall back to a live PAM grant for this
-        # guild. The grantee can read (and write, if read_write) within the
-        # grant's window; RLS scopes it to this one guild via the pam flags
-        # set in get_guild_session. A synthesized member-role membership keeps
-        # ``GuildContext.role`` valid for endpoint guards without conferring
-        # any guild privilege on its own.
+    gate = await _read_membership_gate(session, guild_id, current_user.id)
+    if gate is None:
+        # Resolve live grants when the caller has no membership.
         grant = await access_grants_service.get_live_grant(
             session, user_id=current_user.id, guild_id=guild_id
         )
-        if grant is None:
-            raise GuildAccessError()
-        # A read_write grant held by a ``data.bypass`` user is a *break-glass*
-        # grant: the holder acts as a full guild admin for its window (see
-        # GuildContext.break_glass). A read grant — or any grant held by a
-        # non-bypass requester (support/moderator's request→approve flow) — stays
-        # a scoped PAM grantee. Both are gated on the live grant existing.
-        is_read_write = grant.access_level == AccessLevel.read_write.value
-        break_glass = is_read_write and user_has_capability(
-            current_user, Capability.DATA_BYPASS
+        settings_grant = await access_grants_service.get_live_grant(
+            session,
+            user_id=current_user.id,
+            guild_id=guild_id,
+            purpose=AccessGrantPurpose.settings,
         )
-        # Apply the pam context now so the grantee can actually read the guild
-        # row (and below, get_guild_session re-applies the full context). The
-        # guilds table has an additive pam_read policy keyed on pam_guild_id.
+        if grant is None and settings_grant is None:
+            raise GuildAccessError()
+        is_read_write = (
+            grant is not None and grant.access_level == AccessLevel.read_write.value
+        )
+        # Establish the grant context before loading guild metadata.
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -635,39 +810,52 @@ async def _load_guild_context(
             pam_read=True,
             pam_write=is_read_write,
         )
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        guild, policy = await _read_grant_gate(session, guild_id)
+        _enforce_guild_api_access(guild)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
-        await _enforce_guild_auth_policy(session, guild_id, satisfied)
-        # Break-glass acts as a full guild admin; a scoped grantee gets the
-        # ``support`` role — a first-class identity for PAM access rather than a
-        # ``member`` masquerade. ``support`` clears no admin guard (it is not
-        # ``admin``) but does open the guild settings surface (bound by the
-        # grant's read/write level at the Postgres role layer). The role is
-        # in-memory only; it never reaches ``set_rls_context`` (the ``is_pam``
-        # branch passes ``guild_role=None``), so the ``guild_role`` GUC and DB
-        # enum stay admin/member.
+        await _enforce_guild_auth_policy(
+            session,
+            policy,
+            guild_id,
+            satisfied,
+            auth_context.session_mfa(),
+            auth_context.session_passkey(),
+        )
+        # Every grantee gets the ``support`` role — a first-class identity for
+        # PAM access rather than a ``member`` masquerade. It is the content
+        # grant's identity and clears no guard of its own: what of the
+        # community's configuration this request may work is the settings grant
+        # beside it, read at its own rung (``settings_rung_reaches``). The role
+        # is in-memory only; it never reaches ``set_rls_context`` (the
+        # ``is_pam`` branch passes ``guild_role=None``), so the ``guild_role``
+        # GUC and DB enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,
-            role=GuildRole.admin if break_glass else GuildRole.support,
+            role=GuildRole.support,
         )
         return GuildContext(
-            guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
+            guild=guild,
+            membership=synthetic,
+            grant=grant,
+            settings_level=(
+                SettingsLevel(settings_grant.access_level) if settings_grant else None
+            ),
         )
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
-    # deliberately never consults it (PAM/break-glass behave exactly as against
-    # an active guild, so suspending a guild can never lock operators out).
-    # This resolver is the one layer where a grantee is still distinguishable
-    # from a member: at the DB layer break-glass is byte-identical to a real
-    # guild admin, so the status check cannot live in RLS. ``suspended`` fails
-    # closed with the generic access-denied code (the status is not disclosed
-    # to members); ``read_only`` keeps membership but routes the session into
-    # the SELECT-only guild role (see _apply_guild_session_context).
+    membership, guild, policy = gate
+    # Membership access respects the guild's lifecycle status.
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
-    await _enforce_guild_auth_policy(session, guild_id, satisfied)
+    _enforce_guild_api_access(guild)
+    await _enforce_guild_auth_policy(
+        session,
+        policy,
+        guild_id,
+        satisfied,
+        auth_context.session_mfa(),
+        auth_context.session_passkey(),
+    )
     return GuildContext(
         guild=guild,
         membership=membership,
@@ -728,6 +916,28 @@ async def get_guild_membership(
             satisfied=auth_context.satisfied_providers(),
         )
     except GuildAccessError as exc:
+        if exc.detail in (
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+        ):
+            # 401 for the same reason as the provider step-up below, and apart
+            # from it because what satisfies these is presented against the
+            # session already open rather than a sign-in page to visit. RFC
+            # 9470 all the same: the session authenticated, and what is missing
+            # is a factor. The detail says which of the two, so the dialog
+            # knows whether to ask for a code or run a ceremony.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=exc.detail,
+                headers={
+                    "WWW-Authenticate": STEP_UP_CHALLENGE,
+                    "X-Auth-Step-Up-Guild": (
+                        str(exc.step_up_guild_id)
+                        if exc.step_up_guild_id is not None
+                        else ""
+                    ),
+                },
+            ) from exc
         if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
             # 401, not 403: the session lacks an auth factor, not a permission.
             #
@@ -754,11 +964,40 @@ async def get_guild_membership(
         ) from exc
 
 
+def holds_guild_role(context: GuildContext, *roles: GuildRole) -> bool:
+    """Whether this request answers a guard asking for any of ``roles``.
+
+    Asking for ``admin`` asks for admin *or above*, so a superadmin satisfies
+    every guard an ordinary admin satisfies — the seat sits above ``admin``,
+    and this is the one place that has to know it for all of them.
+
+    A live settings grant answers at its own rung. It confers no content access
+    with it: the session is still routed as the grant's read/write level says.
+
+    The predicate behind :func:`require_guild_roles`, separate from it because
+    some endpoints ask the same question part-way through a handler rather than
+    at the door — and the two must never drift into different answers.
+    """
+    accepted = frozenset(roles)
+    if GuildRole.admin in accepted:
+        accepted |= GUILD_ADMIN_ROLES
+    if not accepted:
+        return True
+    if any(context.settings_rung_reaches(role) for role in accepted):
+        return True
+    return context.membership.role in accepted
+
+
 def require_guild_roles(*roles: GuildRole) -> Callable:
+    """Guard an endpoint on the caller's role in the guild named by the path.
+
+    See :func:`holds_guild_role`, which is what it asks.
+    """
+
     async def dependency(
         context: Annotated[GuildContext, Depends(get_guild_membership)],
     ) -> GuildContext:
-        if roles and context.membership.role not in roles:
+        if not holds_guild_role(context, *roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_PERMISSION_REQUIRED,
@@ -777,63 +1016,36 @@ async def _apply_guild_session_context(
     """Route ``session`` into ``guild_context``'s guild: set the RLS/session
     variables (and the request-scoped PAM/role contexts) for the user+guild,
     PAM-scoped when access is via a grant."""
-    # Which name this guild renders. A property of the guild, not of who is
-    # asking, so it is read once here and carried into every branch below —
-    # ``set_rls_context`` puts it on the session and on the request flag that
-    # one validator on the user schemas reads.
-    shows_names = bool(guild_context.guild.show_member_names)
-    if guild_context.break_glass:
-        # Break-glass (read_write grant + data.bypass): deliberately unlimited —
-        # the holder acts as a full guild admin for the grant's window. Route
-        # exactly like a real guild admin (current_guild_id + current_guild_role
-        # 'admin' + SET ROLE guild_<id>) so every guild-admin RLS/app-layer leg
-        # fires, including management ops. We intentionally DON'T set the PAM
-        # active-grant context: that would trip the grant-only management blocks
-        # (e.g. PROJECT_GRANT_CANNOT_MANAGE_MEMBERS) — break-glass has no limits.
-        # Still grant-gated: this path is only reached because a live grant exists.
+
+    if guild_context.is_settings_only:
         set_active_grant(None, None)
-        set_active_role(guild_context.guild_id, GuildRole.admin.value)
-        # Break-glass acts as a full guild admin, which already bypasses gate 4
-        # everywhere; the per-initiative "Full access" set is moot here.
+        set_active_role(None, None)
         set_override_sharing_initiatives(None)
-        # Break-glass overrides the guild lifecycle status by design.
         set_content_read_only_guild(None)
         await set_rls_context(
             session,
             user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            guild_role=GuildRole.admin.value,
+            settings_guild_id=guild_context.guild_id,
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
-            shows_member_names=shows_names,
+            satisfied_claims=auth_context.satisfied_claims(),
+            session_mfa=auth_context.session_mfa(),
         )
         return session
 
     if guild_context.is_pam:
-        # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
-        # Read grants get SELECT into this guild only; read_write also gets
-        # writes. guild_role is left unset so guild-role-gated paths don't treat
-        # the grantee as a member.
+        # Apply a content grant at its recorded access level.
         grant = guild_context.grant
         access_level = (
             grant.access_level if grant is not None else AccessLevel.read.value
         )
-        # Mirror the grant into the request-scoped PAM context so the app-layer
-        # resource access checks (require_*_access) honor it consistently with
-        # RLS — what the grantee can list, they can also open/edit per level.
         set_active_grant(guild_context.guild_id, access_level)
-        # No real membership — leave the role context clear so role-gated
-        # paths (initiative-scope guild-admin bypass) don't treat the grantee
-        # as a member.
+        # Grant access does not create membership.
         set_active_role(None, None)
         # A PAM grantee holds no initiative role, so no "Full access" override.
         set_override_sharing_initiatives(None)
-        # A scoped grant overrides the guild lifecycle status by design (its
-        # read/write level is enforced at the Postgres role layer instead).
         set_content_read_only_guild(None)
-        # Leave current_guild_id unset — the existing write policies treat a
-        # matching current_guild_id as proof of membership. Scope the grant via
-        # pam_guild_id instead.
+        # Keep membership and grant contexts distinct.
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -844,7 +1056,9 @@ async def _apply_guild_session_context(
             pam_write=(access_level == AccessLevel.read_write.value),
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
-            shows_member_names=shows_names,
+            satisfied_claims=auth_context.satisfied_claims(),
+            session_mfa=auth_context.session_mfa(),
+            session_passkey=auth_context.session_passkey(),
         )
         return session
 
@@ -859,15 +1073,14 @@ async def _apply_guild_session_context(
     set_content_read_only_guild(
         guild_context.guild_id if guild_context.content_read_only else None
     )
-    # No standing all-guild bypass: a guild admin sees the whole guild via the
-    # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
-    # never an ambient bypass. A ``data.bypass`` holder who isn't a member reaches
-    # this guild only through a break-glass PAM grant (the ``is_pam`` branch above).
+    # Apply the member's guild context.
     await set_rls_context(
         session,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role.value,
+        # The effective content role, which is where a superadmin reads
+        # as an admin — see ``models.platform.guild.content_role``.
+        guild_role=content_role(guild_context.role),
         # Recorded, not routed with: the guild role governs inside the schema.
         # It is what a later hop back out to ``public`` re-assumes.
         platform_role=current_user.role.value,
@@ -877,19 +1090,21 @@ async def _apply_guild_session_context(
         # denied by Postgres, not app code.
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
-        shows_member_names=shows_names,
+        satisfied_claims=auth_context.satisfied_claims(),
+        session_mfa=auth_context.session_mfa(),
+        session_passkey=auth_context.session_passkey(),
     )
-    # Precompute the initiatives where this member holds "Full access" so the
-    # sync DAC checks can apply the gate-4 override without an async query. Runs
-    # in the routed guild schema (after SET ROLE), so it sees this guild's roles.
+    # The initiatives where this member holds "Full access", for the sync DAC
+    # checks (gate 4, without an async query) and for the policies that read
+    # the same override. Runs in the routed guild schema (after SET ROLE), so
+    # it sees this guild's roles — and resolving it and recording it are the
+    # same statement, which is what keeps the context above written once.
     from app.services import rls as rls_service
 
-    override_ids = await rls_service.override_sharing_initiative_ids(
-        session, user_id=current_user.id
+    override_ids = await apply_override_initiatives(
+        session, rls_service.override_sharing_initiatives_select(current_user.id)
     )
-    set_override_sharing_initiatives(frozenset(override_ids))
-    # And in the database, where the policies read the same override.
-    await set_override_initiatives(session, tuple(override_ids))
+    set_override_sharing_initiatives(override_ids)
     return session
 
 
@@ -908,6 +1123,25 @@ async def get_guild_session(
     every transaction (see app.db.session), so post-commit queries need no
     manual re-apply.
     """
+    if guild_context.is_settings_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    return await _apply_guild_session_context(
+        session,
+        current_user,
+        guild_context,
+        satisfied=auth_context.satisfied_providers(),
+    )
+
+
+async def get_guild_settings_session(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> AsyncSession:
+    """Route a guild configuration request, including settings-only grants."""
     return await _apply_guild_session_context(
         session,
         current_user,
@@ -957,6 +1191,7 @@ async def establish_guild_access(
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
+SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 
 
 async def _include_deleted_flag(
@@ -1005,7 +1240,7 @@ async def get_user_session(
     to route. Guild-addressed work uses ``get_guild_session`` instead, which
     ``SET ROLE``s into the guild role.
 
-    No standing all-guild bypass: a platform admin's cross-user/guild
+    No standing all-guild bypass: a platform role's cross-user/guild
     reach on this path is authorized by the ``platform_<tier>`` RLS policies
     (Phase 2), and reaching a guild's *data* requires an explicit break-glass
     PAM grant (§7), never an ambient flag.
@@ -1060,13 +1295,22 @@ async def _authenticate_upload_query_token(
     """
     # 1. Scoped upload token (preferred for native media).
     try:
-        user_id, token_satisfied = verify_upload_token(token_param)
+        (
+            user_id,
+            token_satisfied,
+            token_claims,
+            token_mfa,
+            token_passkey,
+        ) = verify_upload_token(token_param)
     except UploadTokenError:
         pass
     else:
         # The scoped token copied its minting session's satisfied set — record
         # it so the guild auth-policy gate treats this request as that session.
         set_satisfied_providers(token_satisfied)
+        set_satisfied_claims(token_claims)
+        set_session_mfa(token_mfa)
+        set_session_passkey(token_passkey)
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).
@@ -1110,7 +1354,11 @@ async def get_upload_user(
     # Fail-closed default; the session-JWT and scoped-token branches record the
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
+    set_satisfied_claims(None)
+    set_session_mfa(False)
+    set_session_passkey(False)
     set_device_token_id(None)
+    set_api_key_credential(False)
 
     auth_header = request.headers.get("Authorization", "")
 
@@ -1155,6 +1403,7 @@ async def get_upload_user(
                 detail=AuthMessages.INACTIVE_USER,
             )
         _enforce_api_key_scope(request, api_key)
+        set_api_key_credential(True)
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as
@@ -1202,7 +1451,38 @@ async def get_upload_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
     set_satisfied_providers(frozenset(token_data.sat or ()))
+    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
+    # What the session proved about the person, read from its own ``amr`` as
+    # ``get_current_user`` reads it — a community asking for either answers a
+    # picture and a download the same way it answers a page.
+    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
+    set_session_passkey(carries_passkey(token_data.amr or ()))
     return user
 
 
 UploadUserDep = Annotated[User, Depends(get_upload_user)]
+
+
+async def require_direct_messages_enabled(session: UserSessionDep) -> None:
+    """Refuse every direct-message route when the deployment does not offer them.
+
+    Applied once, to the routers rather than to the endpoints, so the whole
+    surface answers the same way and a route added later is covered by having
+    been added to the router. It shares the caller's session: every endpoint
+    behind it takes ``UserSessionDep``, so FastAPI resolves that dependency once
+    and this costs a single indexed read rather than a second connection.
+
+    Nothing is deleted while it is off -- devices, keys, policies and accepted
+    channels all stay -- so the only thing switching it back on has to do is
+    stop refusing.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.direct_messages_enabled(session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DirectMessageMessages.DISABLED_FOR_PLATFORM,
+        )
+
+
+DirectMessagesEnabledDep = Depends(require_direct_messages_enabled)

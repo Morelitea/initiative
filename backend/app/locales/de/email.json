@@ -149,6 +149,8 @@
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "levelRead": "Lesezugriff",
     "levelReadWrite": "Lese- und Schreibzugriff",
+    "levelAdmin": "auf Community-Einstellungen (Admin)",
+    "levelSuperadmin": "auf Community-Einstellungen (Superadmin)",
     "requested": {
       "subject": "Zugriffsanfrage für {{guildName}}",
       "title": "Neue Zugriffsanfrage",
@@ -231,6 +233,46 @@
       "connections": "{{count}} Kontaktänderungen",
       "jobs": "{{count}} Exporte und Importe",
       "account": "{{count}} Kontohinweise"
+    }
+  },
+  "secondFactor": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",
+    "enabled": {
+      "subject": "Zwei-Faktor-Authentifizierung ist aktiv",
+      "title": "Zwei-Faktor-Authentifizierung ist aktiv",
+      "body": "Ab jetzt wird bei der Anmeldung mit deinem Passwort zusätzlich ein Code aus deiner Authenticator-App abgefragt. Bewahre deine Wiederherstellungscodes sicher auf – damit kommst du hinein, falls du die App verlierst.",
+      "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto aktiv. Bei der Anmeldung wird ein Code aus deiner Authenticator-App abgefragt."
+    },
+    "disabled": {
+      "subject": "Zwei-Faktor-Authentifizierung ist deaktiviert",
+      "title": "Zwei-Faktor-Authentifizierung ist deaktiviert",
+      "body": "Dein Konto fragt bei der Anmeldung keinen Code mehr ab, und deine bisherigen Wiederherstellungscodes wurden verworfen. Du wurdest überall sonst abgemeldet.",
+      "textBody": "Die Zwei-Faktor-Authentifizierung ist jetzt für dein Konto deaktiviert, und deine Wiederherstellungscodes wurden verworfen."
+    }
+  },
+  "passwordRemoved": {
+    "subject": "Dein Passwort wurde entfernt",
+    "title": "Dein Passwort wurde entfernt",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "Dein Konto hat kein Passwort mehr. Ab jetzt meldest du dich mit deinem Passkey oder über deinen Anmeldedienst an. Bewahre deine Wiederherstellungscodes gut auf – damit kannst du wieder ein Passwort festlegen, falls du eines brauchst.",
+    "fallbackText": "Falls du das nicht warst, lege mit einem deiner Wiederherstellungscodes sofort wieder ein Passwort fest und wende dich an die Betreiber dieser Seite.",
+    "textBody": "Dein Konto hat kein Passwort mehr. Du meldest dich jetzt mit deinem Passkey oder über deinen Anmeldedienst an."
+  },
+  "passkey": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",
+    "added": {
+      "subject": "Deinem Konto wurde ein Passkey hinzugefügt",
+      "title": "Deinem Konto wurde ein Passkey hinzugefügt",
+      "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich ab jetzt bei deinem Konto anmelden. Passkeys liegen auf dem Gerät oder im Passwortmanager, wo sie erstellt wurden – halte das Gerät also griffbereit.",
+      "textBody": "Deinem Konto wurde der Passkey {{passkey}} hinzugefügt. Du kannst dich damit ab jetzt anmelden."
+    },
+    "removed": {
+      "subject": "Von deinem Konto wurde ein Passkey entfernt",
+      "title": "Von deinem Konto wurde ein Passkey entfernt",
+      "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst.",
+      "textBody": "Der Passkey {{passkey}} wurde von deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
     }
   }
 }

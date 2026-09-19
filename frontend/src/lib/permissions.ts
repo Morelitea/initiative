@@ -52,9 +52,9 @@ const PLATFORM_SETTINGS_CAPABILITIES: Capability[] = [
   Capability.appsManage,
 ];
 
-/** Capabilities behind the **Admin dashboard** area (operational: platform
+/** Capabilities behind the **Operator dashboard** area (operational: platform
  * users + time-bound access grants). */
-const ADMIN_DASHBOARD_CAPABILITIES: Capability[] = [
+const OPERATOR_DASHBOARD_CAPABILITIES: Capability[] = [
   Capability.usersRead,
   Capability.usersAgeUnblock,
   Capability.usersManage,
@@ -72,18 +72,34 @@ export function canManagePlatformConfig(user: WithCapabilities): boolean {
   return hasAnyCapability(user, PLATFORM_SETTINGS_CAPABILITIES);
 }
 
-/** True iff the user can reach the operational Admin dashboard area. */
-export function canAccessAdminDashboard(user: WithCapabilities): boolean {
-  return hasAnyCapability(user, ADMIN_DASHBOARD_CAPABILITIES);
+/** True iff the user can reach the operational Operator dashboard area. */
+export function canAccessOperatorDashboard(user: WithCapabilities): boolean {
+  return hasAnyCapability(user, OPERATOR_DASHBOARD_CAPABILITIES);
 }
 
 /** True iff the user can access *either* platform area — used for coarse
  * gating (no-guild layout choice, route guards). */
 export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
-  return canManagePlatformConfig(user) || canAccessAdminDashboard(user);
+  return canManagePlatformConfig(user) || canAccessOperatorDashboard(user);
 }
 
 /** True when a server-computed per-resource permission level allows writing.
  * Reads `my_permission_level` — never derive this client-side. */
+/**
+ * Whether this request holds the community's top seat.
+ *
+ * The seat owns what a community is billed for, how people get into it, and
+ * what it hands to anyone outside it — so every affordance leading to the
+ * billing portal, the Authentication tab, AI or apps asks this, and an
+ * ordinary admin is not shown a button the server refuses.
+ *
+ * Two ways to hold it: the membership row, or a live settings grant at the
+ * superadmin rung, which is the seat lent to somebody for a window. Mirrors
+ * the backend's ``public.guild_superadmin``, which is what actually decides.
+ */
+export const holdsGuildSeat = (
+  guild: { role?: string | null; grantSettingsLevel?: string | null } | null | undefined
+): boolean => guild?.role === "superadmin" || guild?.grantSettingsLevel === "superadmin";
+
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";

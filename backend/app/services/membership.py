@@ -26,7 +26,7 @@ from typing import Collection, Iterable, Optional
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.models.tenant.initiative import InitiativeMember
 
 
@@ -49,25 +49,6 @@ def initiative_member_clause(
             InitiativeMember.user_id == user_id,
         )
     )
-
-
-def guild_member_clause(
-    user_id: int,
-    guild_id_col: ColumnElement[int] | int,
-    *,
-    role: Optional[GuildRole] = None,
-) -> ColumnElement[bool]:
-    """EXISTS predicate: ``user_id`` belongs to the referenced guild.
-
-    Pass ``role=GuildRole.admin`` to require a specific guild role.
-    """
-    conditions = [
-        GuildMembership.guild_id == guild_id_col,
-        GuildMembership.user_id == user_id,
-    ]
-    if role is not None:
-        conditions.append(GuildMembership.role == role)
-    return exists(select(1).where(*conditions))
 
 
 def initiative_scope_clause(
@@ -189,4 +170,4 @@ async def is_guild_admin(session: AsyncSession, guild_id: int, user_id: int) -> 
     """Whether the user is an admin of the guild. Shared table — works on any
     session."""
     role = (await guild_role_map(session, guild_id, (user_id,))).get(user_id)
-    return role == GuildRole.admin
+    return role in GUILD_ADMIN_ROLES

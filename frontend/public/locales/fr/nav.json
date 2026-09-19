@@ -76,12 +76,18 @@
   "allCounterGroups": "Tous les compteurs",
   "createCounterGroup": "Nouveau groupe de compteurs",
   "createExternally": "Créé dans {{name}}",
-  "adminDashboard": "Tableau de bord admin",
+  "operatorDashboard": "Tableau de bord opérateur",
   "pastAnnouncements": "Annonces passées",
   "requestsWaiting_one": "{{count}} en attente",
   "requestsWaiting_other": "{{count}} en attente",
   "posts": "Publications",
   "createPost": "Nouvelle publication",
   "galleries": "Galeries",
-  "createGallery": "Nouvelle galerie"
+  "createGallery": "Nouvelle galerie",
+  "moderation": "Modération",
+  "wikis": "Wikis",
+  "createWiki": "Nouveau wiki",
+  "sidebar": {
+    "resize": "Faites glisser pour redimensionner la barre latérale"
+  }
 }

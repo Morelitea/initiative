@@ -26,6 +26,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { RelationsSection } from "@/components/entities/RelationsSection";
 import { Markdown } from "@/components/Markdown";
+import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -50,7 +51,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -161,7 +161,6 @@ export const TaskEditPage = () => {
   const dateLocale = useDateLocale();
   const { isEnabled: aiEnabled } = useAIEnabled();
 
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
   // Lets the delete/move/duplicate flows navigate without tripping the
   // unsaved-changes guard.
   const bypassGuardRef = useRef(false);
@@ -234,7 +233,6 @@ export const TaskEditPage = () => {
 
   const updateTask = useUpdateTask({
     onSuccess: (updatedTask) => {
-      setIsEditingDescription(false);
       form.settle(formValueFromTask(updatedTask));
       toast.success(t("edit.taskUpdated"));
     },
@@ -304,7 +302,6 @@ export const TaskEditPage = () => {
   const generateDescription = useGenerateTaskDescription({
     onSuccess: (data) => {
       setDescription(data.description);
-      setIsEditingDescription(true);
       toast.success(t("edit.descriptionGenerated"));
     },
   });
@@ -448,12 +445,6 @@ export const TaskEditPage = () => {
     });
   };
 
-  useEffect(() => {
-    if (isReadOnly) {
-      setIsEditingDescription(false);
-    }
-  }, [isReadOnly]);
-
   // What the unsaved-changes guard asks: do the fields still say what the task
   // says? (Kept before the early returns so the guard hooks below run
   // unconditionally.)
@@ -567,58 +558,45 @@ export const TaskEditPage = () => {
   const formValue = form.values;
   const handleFormChange = (next: TaskFormValue) => form.set(next);
 
-  // The editor's richer description block (markdown preview + AI generate +
-  // edit/preview toggle), passed to TaskForm as its description slot.
+  // The editor's richer description block — the shared markdown composer, with
+  // the AI action sitting in its toolbar — passed to TaskForm as its slot.
   const descriptionSlot = (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label htmlFor="task-description">{t("edit.descriptionLabel")}</Label>
-        {!isReadOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() => setIsEditingDescription((prev) => !prev)}
-          >
-            {isEditingDescription ? t("edit.preview") : t("common:edit")}
-          </Button>
-        ) : null}
-        {!isReadOnly && aiEnabled ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() => generateDescription.mutate(parsedTaskId)}
-            disabled={generateDescription.isPending}
-          >
-            {generateDescription.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            {t("edit.aiGenerate")}
-          </Button>
-        ) : null}
-      </div>
-      {isEditingDescription && !isReadOnly ? (
-        <Textarea
-          id="task-description"
-          rows={6}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder={t("edit.descriptionPlaceholder")}
-          disabled={isReadOnly}
-        />
-      ) : description ? (
-        <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
-          <Markdown content={description} />
-        </div>
+      <Label htmlFor="task-description">{t("edit.descriptionLabel")}</Label>
+      {isReadOnly ? (
+        description ? (
+          <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
+            <Markdown content={description} />
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm italic">{t("edit.noDescriptionReadOnly")}</p>
+        )
       ) : (
-        <p className="text-muted-foreground text-sm italic">
-          {isReadOnly ? t("edit.noDescriptionReadOnly") : t("edit.noDescription")}
-        </p>
+        <MarkdownComposer
+          id="task-description"
+          value={description}
+          onChange={setDescription}
+          placeholder={t("edit.descriptionPlaceholder")}
+          actions={
+            aiEnabled ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => generateDescription.mutate(parsedTaskId)}
+                disabled={generateDescription.isPending}
+              >
+                {generateDescription.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                {t("edit.aiGenerate")}
+              </Button>
+            ) : null
+          }
+        />
       )}
     </div>
   );

@@ -14,14 +14,21 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import (
+    Guild,
+    GuildMembership,
+    GuildRole,
+)
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+from app.core.messages import AuthProviderMessages
+from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
@@ -35,15 +42,16 @@ from app.schemas.platform.settings import (
     EmailTestResponse,
     InterfaceSettingsResponse,
     InterfaceSettingsUpdate,
+    LoginMethodStatus,
+    LoginMethodsUpdate,
+    SessionLifetimeUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
-    OIDCClaimPathResponse,
-    OIDCClaimPathUpdate,
     OIDCMappingOptionsResponse,
     OIDCMappingsResponse,
     OIDCSettingsResponse,
-    OIDCSettingsUpdate,
+    PlatformAuthSettingsResponse,
     StorageBackfillStatusResponse,
     StorageSettingsResponse,
     StorageSettingsUpdate,
@@ -58,14 +66,23 @@ from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.schemas.platform.access_grant import BreakGlassCreate
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
-from app.core.messages import BillingMessages, GuildMessages, SettingsMessages
+from app.core.messages import (
+    BillingMessages,
+    GuildMessages,
+    InitiativeMessages,
+    SettingsMessages,
+)
 from app.core.security import (
     BillingSupportHandoffNotConfiguredError,
     create_billing_support_handoff_token,
 )
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
+from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
+from app.core.login_methods import LoginMethod
+from app.services.auth import session_lifetime
+from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
@@ -77,6 +94,9 @@ logger = logging.getLogger(__name__)
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+
+#: The guild roles a claim mapping may name, as the strings it stores them as.
+_MAPPABLE_GUILD_ROLES: frozenset[str] = claim_rules.MAPPABLE_GUILD_ROLES
 
 router = APIRouter()
 
@@ -93,10 +113,6 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
-def _mobile_redirect_uri() -> str:
-    return "initiative://oidc/callback"
-
-
 def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
@@ -111,16 +127,19 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
 
 
 def _platform_oidc_response(provider) -> OIDCSettingsResponse:
-    """Serialize the platform provider row (or its not-yet-created default)
-    into the settings wire format — unchanged from the app_settings era."""
+    """The redirect addresses that belong to the install rather than to any one
+    provider.
+
+    The provider fields are the platform row's, kept for readers that have not
+    moved to the registry; a provider is configured through
+    ``/settings/auth/providers``, which is the only place that writes one."""
     return OIDCSettingsResponse(
-        auth_scope=app_config.AUTH_SCOPE,
         enabled=provider.enabled if provider else False,
         issuer=provider.issuer if provider else None,
         client_id=provider.client_id if provider else None,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
-        mobile_redirect_uri=_mobile_redirect_uri(),
+        mobile_redirect_uri=MOBILE_CALLBACK_URI,
         provider_name=provider.display_name if provider else None,
         scopes=platform_provider_service.scopes_list(provider)
         if provider
@@ -133,32 +152,94 @@ async def get_oidc_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
-    """Platform OIDC config — read straight from the provider registry row
-    (its source of truth). System engine: ``auth_providers`` carries no
-    request-path grant; the capability gate stays ``config.manage``."""
+    """The install's redirect addresses. System engine: ``auth_providers``
+    carries no request-path grant; the capability gate stays
+    ``config.manage``."""
     provider = await platform_provider_service.get_platform_provider(session)
     return _platform_oidc_response(provider)
 
 
-@router.put("/auth", response_model=OIDCSettingsResponse)
-async def update_oidc_settings(
-    payload: OIDCSettingsUpdate,
+async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
+    """The permitted ways in, and what withdrawing one would cost.
+
+    The counts are computed on every read so the page can state the
+    consequence before the write instead of after a refusal — and so the figure
+    an operator acknowledges is one the page actually showed them.
+    """
+    row = await app_settings_service.get_app_settings(session)
+    permitted = auth_posture.methods_from_row(row)
+    return PlatformAuthSettingsResponse(
+        methods=[
+            LoginMethodStatus(
+                method=method,
+                enabled=method in permitted,
+                would_strand=await auth_posture.stranded_between(
+                    session, current=permitted, requested=permitted - {method}
+                ),
+            )
+            for method in LoginMethod
+        ],
+        guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        session_max_hours=row.session_max_hours,
+    )
+
+
+@router.get("/auth/platform", response_model=PlatformAuthSettingsResponse)
+async def get_platform_auth_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
-) -> OIDCSettingsResponse:
-    """Write the platform provider row directly (create-on-first-save).
-    ``client_secret`` keeps its write-only convention: omitted keeps the
-    stored secret, empty clears it, a value replaces it."""
-    provider = await platform_provider_service.upsert_platform_provider(
+) -> PlatformAuthSettingsResponse:
+    """Which ways in are permitted. System engine: the guard counts read
+    ``auth_providers`` and ``federated_identities``, neither of which carries a
+    request-path grant."""
+    return await _platform_auth_payload(session)
+
+
+@router.put("/auth/methods", response_model=PlatformAuthSettingsResponse)
+async def update_login_methods(
+    payload: LoginMethodsUpdate,
+    session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set which ways in this deployment permits — at least one.
+
+    Withdrawing one that is somebody's only way in is refused (409) with the
+    count in ``X-Affected-Count``, and proceeds only when the caller echoes
+    that exact number back in ``acknowledge_stranded``. Nobody is signed out
+    either way."""
+    await auth_posture.set_login_methods(
         session,
-        enabled=payload.enabled,
-        issuer=payload.issuer,
-        client_id=payload.client_id,
-        provider_name=payload.provider_name,
-        scopes=payload.scopes,
-        client_secret=payload.client_secret,
+        methods=payload.methods,
+        acknowledge_stranded=payload.acknowledge_stranded,
+        actor_user_id=admin.id,
     )
-    return _platform_oidc_response(provider)
+    return await _platform_auth_payload(session)
+
+
+@router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
+async def update_session_lifetime(
+    payload: SessionLifetimeUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set how long somebody may stay signed in before signing in again.
+
+    Separate from how long a session may be left alone, which the deployment's
+    own configuration holds. A session already open keeps the terms it was
+    opened under and takes the new figure at the next sign-in; a device token
+    is brought under the new figure now, measured from when it was issued, so
+    shortening the limit can end one on the spot.
+    """
+    row = await app_settings_service.get_app_settings(session)
+    row.session_max_hours = payload.session_max_hours
+    session.add(row)
+    await session.flush()
+    # A device token carries its deadline in its own expiry, so the new figure
+    # is written into the ones already issued rather than read back on every
+    # native request.
+    await session_lifetime.apply_to_device_tokens(session)
+    await session.commit()
+    return await _platform_auth_payload(session)
 
 
 @router.get("/interface", response_model=InterfaceSettingsResponse)
@@ -169,7 +250,6 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=app_config.AUTH_SCOPE,
     )
 
 
@@ -187,7 +267,6 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=app_config.AUTH_SCOPE,
     )
 
 
@@ -196,9 +275,9 @@ async def read_community_settings(
     session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> CommunitySettingsResponse:
-    """The three community-wide decisions, for the owner's settings page.
+    """The four community-wide decisions, for the owner's settings page.
 
-    The two switches are also on ``GET /config``, which is where every signed-in
+    Three of them are also on ``GET /config``, which is where every signed-in
     page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
     — the server applies it when an account is made — so it is served here,
     behind the capability that writes it, rather than added to everyone's boot
@@ -209,6 +288,7 @@ async def read_community_settings(
         community_directory_enabled=settings_obj.community_directory_enabled,
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
+        direct_messages_enabled=settings_obj.direct_messages_enabled,
     )
 
 
@@ -238,17 +318,25 @@ async def update_community_settings(
     guild. Turning it off is the owner asserting that every account on this
     deployment already belongs to an adult, which is why it is a deliberate
     write and not a side effect of the first — omitting it leaves it alone.
+
+    ``direct_messages_enabled`` is the fourth, and independent of the other
+    three: a deployment can run a directory without messaging, or messaging
+    without a directory. Off, My Messages is not offered and every
+    direct-message route refuses; nothing is deleted, so turning it back on
+    restores the channels people already had.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
         community_directory_enabled=payload.community_directory_enabled,
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
+        direct_messages_enabled=payload.direct_messages_enabled,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
+        direct_messages_enabled=settings_obj.direct_messages_enabled,
     )
 
 
@@ -465,7 +553,7 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     )
 
 
-# --- Guild storage limits (Admin dashboard → Guilds tab) ---
+# --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
@@ -473,7 +561,7 @@ async def list_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> list[PlatformGuildStorageRead]:
-    """List every guild with its storage cap, for the Admin dashboard Guilds tab.
+    """List every guild with its storage cap, for the Operator dashboard Guilds tab.
 
     Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
     (``guilds``, ``guild_administration``, ``guild_memberships``) — no
@@ -514,11 +602,12 @@ async def list_platform_guild_storage(
             max_users=administration.max_users if administration else None,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
-            guild_auth_enabled=(
-                administration.guild_auth_enabled if administration else False
-            ),
+            auth_options=sorted(administration.auth_options) if administration else [],
             banner_image_enabled=(
                 administration.banner_image_enabled if administration else True
+            ),
+            support_enabled=(
+                administration.support_enabled if administration else False
             ),
         )
         for g, administration in rows
@@ -554,8 +643,9 @@ async def update_platform_guild_storage(
             max_storage_bytes_provided="max_storage_bytes" in provided,
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
-            guild_auth_enabled=payload.guild_auth_enabled,
+            auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
+            support_enabled=payload.support_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(
@@ -576,7 +666,7 @@ async def update_platform_guild_storage(
         if str(exc) == GuildMessages.GUILD_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SettingsMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.GUILD_NOT_FOUND,
             ) from exc
         raise
     await session.commit()
@@ -591,7 +681,7 @@ async def update_platform_guild_storage(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
-        guild_auth_enabled=administration.guild_auth_enabled,
+        auth_options=sorted(administration.auth_options),
     )
 
 
@@ -624,7 +714,7 @@ async def create_platform_guild_billing_service_handoff(
     if exists is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=SettingsMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.GUILD_NOT_FOUND,
         )
 
     grant = await access_grants_service.get_live_grant(
@@ -638,9 +728,10 @@ async def create_platform_guild_billing_service_handoff(
             grant = await access_grants_service.break_glass(
                 session,
                 actor=admin,
+                # A visit to the portal, and nothing in the guild.
+                level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
                     guild_id=guild_id,
-                    access_level=AccessLevel.read,
                     reason=BILLING_PORTAL_GRANT_REASON,
                 ),
                 # Belonging to the guild says nothing about billing authority,
@@ -702,53 +793,20 @@ async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
     await set_rls_context(session, guild_id=guild_id)
 
 
-async def _reset_admin_session(session: AsyncSession) -> None:
-    """Return the admin session to its neutral public / login-role baseline.
+#: A rule's destination is resolved the same way whoever wrote it — the
+#: operator here, or the community on its own surface.
+_reset_admin_session = claim_rules.reset_to_admin_baseline
+_lookup_guild_initiative = claim_rules.lookup_guild_initiative
 
-    After routing into a guild schema the session has assumed that guild's role,
-    which has no write access to shared ``public`` config tables. Reset to the
-    admin login role (``SET ROLE none``, ``search_path public``) before
-    writing the mapping back to ``public``.
+
+async def _require_known_provider(session: AsyncSession, provider_id: int) -> None:
+    """A rule reads some provider's claims, so it has to name one that exists.
+
+    Which guild it grants in is the rule's own business: every provider is the
+    operator's, and a rule names whichever guild it places somebody in.
     """
-    await set_rls_context(session)
-
-
-async def _lookup_guild_initiative(
-    session: AsyncSession,
-    guild_id: int,
-    initiative_id: int,
-    initiative_role_id: int | None,
-) -> tuple[Initiative | None, InitiativeRoleModel | None]:
-    """Look up an initiative (and optional role) inside a guild's schema.
-
-    Routes the session into ``guild_<id>`` for the read, then resets it back to
-    the neutral admin baseline so callers can write the mapping to the shared
-    ``public.oidc_claim_mappings`` table as the admin login role (the
-    guild role has no write grant on config tables). ``populate_existing`` keeps
-    a colliding id from another guild already in the identity map from being
-    returned stale — ids are unique only within a schema.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-    try:
-        initiative = (
-            await session.exec(
-                select(Initiative)
-                .where(Initiative.id == initiative_id)
-                .execution_options(populate_existing=True)
-            )
-        ).one_or_none()
-        role: InitiativeRoleModel | None = None
-        if initiative_role_id is not None:
-            role = (
-                await session.exec(
-                    select(InitiativeRoleModel)
-                    .where(InitiativeRoleModel.id == initiative_role_id)
-                    .execution_options(populate_existing=True)
-                )
-            ).one_or_none()
-        return initiative, role
-    finally:
-        await _reset_admin_session(session)
+    if await session.get(AuthProvider, provider_id) is None:
+        raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
 
 
 async def _enrich_mapping(
@@ -758,6 +816,17 @@ async def _enrich_mapping(
     guild_name = None
     initiative_name = None
     initiative_role_name = None
+
+    # Which provider's claims this rule reads, by name — the editor lists rules
+    # from several and the value alone does not say whose it is.
+    provider_name = None
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.id == mapping.provider_id)
+        )
+    ).one_or_none()
+    if provider:
+        provider_name = provider.display_name
 
     guild = (
         await session.exec(select(Guild).where(Guild.id == mapping.guild_id))
@@ -781,6 +850,8 @@ async def _enrich_mapping(
 
     return OIDCClaimMappingRead(
         id=mapping.id,
+        provider_id=mapping.provider_id,
+        provider_name=provider_name,
         claim_value=mapping.claim_value,
         target_type=mapping.target_type.value
         if isinstance(mapping.target_type, OIDCMappingTargetType)
@@ -810,20 +881,6 @@ async def get_oidc_mappings(
     )
 
 
-@router.put("/oidc-mappings/claim-path")
-async def update_oidc_claim_path(
-    payload: OIDCClaimPathUpdate,
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCClaimPathResponse:
-    # The role-claim path lives on the platform provider row; setting it
-    # before the provider is configured creates a dormant skeleton row.
-    claim_path = await platform_provider_service.set_platform_claim_path(
-        session, payload.claim_path
-    )
-    return OIDCClaimPathResponse(claim_path=claim_path)
-
-
 @router.post(
     "/oidc-mappings",
     response_model=OIDCClaimMappingRead,
@@ -842,8 +899,9 @@ async def create_oidc_mapping(
             status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
         )
 
-    # Validate guild_role
-    if payload.guild_role not in ("admin", "member"):
+    # What a rule may hand out, from the one set that says so — a claim value
+    # grants an ordinary standing, never the seat that decides who may enter.
+    if payload.guild_role not in _MAPPABLE_GUILD_ROLES:
         raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
 
     # Validate guild exists
@@ -851,7 +909,9 @@ async def create_oidc_mapping(
         await session.exec(select(Guild).where(Guild.id == payload.guild_id))
     ).one_or_none()
     if not guild:
-        raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
+        raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
+
+    await _require_known_provider(session, payload.provider_id)
 
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
@@ -870,9 +930,7 @@ async def create_oidc_mapping(
             payload.initiative_role_id,
         )
         if not initiative:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
         # Defence-in-depth: the lookup already routed into guild_<payload.guild_id>,
         # so a found initiative's guild_id matches by construction. Retained to
         # catch a data-integrity anomaly (an initiative row whose stored guild_id
@@ -883,10 +941,11 @@ async def create_oidc_mapping(
             )
         if not role:
             raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
+                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
             )
 
     mapping = OIDCClaimMapping(
+        provider_id=payload.provider_id,
         claim_value=payload.claim_value.strip(),
         target_type=target_type,
         guild_id=payload.guild_id,
@@ -920,6 +979,8 @@ async def update_oidc_mapping(
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
     data = payload.model_dump(exclude_unset=True)
+    if "provider_id" in data and data["provider_id"] is not None:
+        mapping.provider_id = data["provider_id"]
     if "claim_value" in data and data["claim_value"] is not None:
         mapping.claim_value = data["claim_value"].strip()
     if "target_type" in data and data["target_type"] is not None:
@@ -934,12 +995,10 @@ async def update_oidc_mapping(
             await session.exec(select(Guild).where(Guild.id == data["guild_id"]))
         ).one_or_none()
         if not guild:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
         mapping.guild_id = data["guild_id"]
     if "guild_role" in data and data["guild_role"] is not None:
-        if data["guild_role"] not in ("admin", "member"):
+        if data["guild_role"] not in _MAPPABLE_GUILD_ROLES:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE
             )
@@ -949,7 +1008,10 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Full validation of the final state
+    # Full validation of the final state: the provider can move in the same
+    # request that moves everything else.
+    await _require_known_provider(session, mapping.provider_id)
+
     effective_target = mapping.target_type
     if isinstance(effective_target, str):
         effective_target = OIDCMappingTargetType(effective_target)
@@ -965,9 +1027,7 @@ async def update_oidc_mapping(
             mapping.initiative_role_id,
         )
         if not initiative:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
-            )
+            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
         # Defence-in-depth: structurally guaranteed now (the lookup routes into
         # guild_<mapping.guild_id>), kept to catch a stored guild_id that disagrees
         # with its schema rather than binding the mapping to a mismatched guild.
@@ -977,7 +1037,7 @@ async def update_oidc_mapping(
             )
         if not role:
             raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
+                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
             )
     else:
         # Guild-only mapping: clear initiative fields

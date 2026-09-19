@@ -10,6 +10,7 @@ import type {
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
 import { type MemberLike, MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
@@ -32,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
@@ -339,11 +339,12 @@ export const TaskForm = ({
   const descriptionField = descriptionSlot ?? (
     <div className="space-y-2">
       <Label htmlFor="task-description">{t("taskForm.descriptionLabel")}</Label>
-      <Textarea
+      <MarkdownComposer
         id="task-description"
         rows={3}
+        compact
         value={value.description}
-        onChange={(event) => set({ description: event.target.value })}
+        onChange={(description) => set({ description })}
         placeholder={t("taskForm.descriptionPlaceholder")}
         disabled={disabled}
       />

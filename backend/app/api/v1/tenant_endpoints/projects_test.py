@@ -185,7 +185,14 @@ async def test_search_project_members_returns_write_access_set(
         "status",
         "profile_decorations",
         "guild_role",
+        "is_guild_admin",
     }
+    # Asserted as a value, not only as a key: the schema defaults it to False,
+    # so a key-set check passes just as happily on an endpoint that never
+    # fills it in.
+    by_username = {item["username"]: item for item in body["items"]}
+    assert by_username[admin.user.username]["is_guild_admin"] is True
+    assert by_username["quill"]["is_guild_admin"] is False
 
     # The filter matches what the guild renders — the handle always.
     response = await client.get(
@@ -483,6 +490,50 @@ async def test_create_project(client: AsyncClient, acting_user):
     assert data["name"] == "New Project"
     assert data["description"] == "Project description"
     assert data["initiative"]["id"] == admin.initiative.id
+
+
+@pytest.mark.integration
+async def test_create_refuses_when_projects_are_switched_off(
+    client: AsyncClient, acting_user, session
+):
+    """Projects are a tool like any other now: an initiative that has turned
+    them off refuses to hold one, and says so rather than letting RLS drop the
+    row and answering as though it were never asked."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.projects_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    response = await client.post(
+        a.g("/projects/"),
+        headers=a.headers,
+        json={"name": "Nope", "initiative_id": a.initiative.id},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "PROJECTS_NOT_ENABLED"
+
+
+@pytest.mark.integration
+async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative(
+    client: AsyncClient, acting_user, session
+):
+    """The RLS leg admits a guild admin and a PAM reader so a maintenance sweep
+    can still reach the rows. A list is not where that exemption should surface:
+    otherwise the two readers with the most authority are the only ones shown
+    content that the detail route then refuses them."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    listed = await client.get(a.g("/projects/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert [p["id"] for p in listed.json()["items"]] == [a.project.id]
+
+    a.initiative.projects_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    listed = await client.get(a.g("/projects/"), headers=a.headers)
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
 
 
 @pytest.mark.integration

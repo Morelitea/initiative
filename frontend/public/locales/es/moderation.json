@@ -1,0 +1,94 @@
+{
+  "title": "Moderación",
+  "subtitle": "Lo que se ha denunciado aquí y qué se hizo al respecto.",
+  "open": "Abierta",
+  "tabs": {
+    "open": "Abiertas",
+    "settled": "Resueltas"
+  },
+  "empty": {
+    "open": "No se ha denunciado nada.",
+    "settled": "Todavía no se ha resuelto nada.",
+    "noFurther": "Nada más."
+  },
+  "reportedCount_one": "Denunciado por {{count}} persona",
+  "reportedCount_other": "Denunciado por {{count}} personas",
+  "targetUnavailable": "Esto ya no está aquí, o no es tuyo para verlo.",
+  "whatTheySaid": "Lo que dijeron",
+  "reviewElsewhere": "Abre el elemento denunciado para verlo en contexto y luego decide aquí.",
+  "notePlaceholder": "Qué encontraste y por qué decidiste esto (opcional)",
+  "settledAt": "Resuelta el {{when}}.",
+  "settledToast": "Denuncia resuelta.",
+  "settleError": "No se pudo resolver esa denuncia.",
+  "outcomes": {
+    "dismissed": "Descartar",
+    "content_removed": "Contenido eliminado",
+    "member_warned": "Miembro advertido",
+    "escalated": "Escalar"
+  },
+  "reasons": {
+    "spam": "Spam",
+    "harassment": "Acoso",
+    "hate": "Odio",
+    "violence": "Violencia",
+    "sexual_content": "Contenido sexual",
+    "self_harm": "Autolesión",
+    "illegal": "Ilegal",
+    "misinformation": "Desinformación",
+    "other": "Otro"
+  },
+  "targets": {
+    "comment": "Un comentario",
+    "post": "Una publicación",
+    "task": "Una tarea",
+    "document": "Un documento",
+    "project": "Un proyecto",
+    "queue": "Una cola",
+    "queue_item": "Un elemento",
+    "gallery": "Una galería",
+    "gallery_image": "Una imagen",
+    "calendar": "Un calendario",
+    "calendar_event": "Un evento",
+    "counter": "Un contador",
+    "counter_group": "Un grupo de contadores",
+    "dashboard": "Un panel"
+  },
+  "paging": {
+    "newer": "Más recientes",
+    "older": "Más antiguas",
+    "page": "Página {{page}}"
+  },
+  "report": {
+    "action": "Denunciar",
+    "title": "Denunciar esto",
+    "description": "Cuéntale a quien se ocupa de esto qué pasa. Verán lo que escribas.",
+    "reasonLabel": "¿Qué pasa?",
+    "reasonPlaceholder": "Elige un motivo",
+    "detailLabel": "¿Algo más?",
+    "detailPlaceholder": "Lo que quieras que sepan (opcional)",
+    "submit": "Enviar denuncia",
+    "thanks": "Gracias, alguien lo revisará.",
+    "error": "No se pudo enviar la denuncia."
+  },
+  "areas": {
+    "reports": "Denuncias",
+    "members": "Miembros",
+    "sharing": "Acceso"
+  },
+  "members": {
+    "description": "Quién está en esta iniciativa y qué puede hacer cada cual.",
+    "fullAccess": "Acceso total",
+    "noRole": "Sin rol"
+  },
+  "sharing": {
+    "description": "Hasta dónde llega el acceso a cada cosa. Ábrela para cambiarlo.",
+    "empty": "Aquí no se ha compartido nada con nadie en concreto.",
+    "everyone": "Todo el mundo aquí",
+    "viaDashboard": "A través de un panel",
+    "people_one": "{{count}} persona",
+    "people_other": "{{count}} personas",
+    "roles_one": "{{count}} rol",
+    "roles_other": "{{count}} roles"
+  },
+  "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
+}

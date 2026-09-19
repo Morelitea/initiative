@@ -9,6 +9,11 @@ auth-policy check and the ``app.satisfied_providers`` GUC behind
 ``public.guild_auth_satisfied()``, without the value being threaded through
 every helper between the validator and the sink (mirroring ``role_context``).
 
+Alongside it, what each of those providers asserted for the claims some
+community narrows it by — its token's ``satd`` claim — which the same gate
+gives to ``app.satisfied_claims``. The session carries the fact; the
+connection carries the rule, and the two meet in the gate.
+
 The value is either the frozenset of provider ids the session proved, or the
 ``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
 user-attributed system work sets explicitly. The default is the empty set —
@@ -43,6 +48,55 @@ def satisfied_provider_ids() -> frozenset[int]:
     return value if isinstance(value, frozenset) else frozenset()
 
 
+_satisfied_claims: contextvars.ContextVar[dict[str, dict[str, list[str]]]] = (
+    contextvars.ContextVar("auth_satisfied_claims", default={})
+)
+
+
+def set_satisfied_claims(value: dict[str, dict[str, list[str]]] | None) -> None:
+    """Record what each satisfied provider asserted, keyed by provider id."""
+    _satisfied_claims.set(value or {})
+
+
+def satisfied_claims() -> dict[str, dict[str, list[str]]]:
+    """Those assertions, for this request/task.
+
+    Empty for every credential that records nothing about how its owner signed
+    in — device tokens, API keys, delegation JWTs — which is the fail-closed
+    answer against a community that narrows the way in.
+    """
+    return _satisfied_claims.get()
+
+
+def claims_from_provider_auth(
+    record: dict | None,
+) -> dict[str, dict[str, list[str]]]:
+    """The narrowing assertions out of a ``satd``/``provider_auth`` record.
+
+    Shaped for the gate: ``{"12": {"hd": ["acme.com"]}}``. Anything that is
+    not that shape is dropped rather than coerced.
+    """
+    found: dict[str, dict[str, list[str]]] = {}
+    for provider_id, entry in (record or {}).items():
+        # A decoded token hands these over as models; the session row's own
+        # column hands them over as plain JSON.
+        claims = (
+            entry.get("claims")
+            if isinstance(entry, dict)
+            else getattr(entry, "claims", None)
+        )
+        if not isinstance(claims, dict):
+            continue
+        kept = {
+            str(name): [str(v) for v in values]
+            for name, values in claims.items()
+            if isinstance(values, (list, tuple)) and values
+        }
+        if kept:
+            found[str(provider_id)] = kept
+    return found
+
+
 #: The ``user_tokens`` row that authenticated this request, when the credential
 #: was a device token. It names one installed client, which is the only stable
 #: handle the server has on "this phone" — a push token rotates and a login
@@ -51,6 +105,59 @@ def satisfied_provider_ids() -> frozenset[int]:
 #: ``None`` for every other credential, including the web session: a browser
 #: has no device token and minting one to tidy the join would put a long-lived
 #: credential where it does not belong.
+#: Whether this request's credential recorded the account's second factor.
+#: Read from the session's own ``amr`` — the marker the sign-in wrote when a
+#: code was presented — and handed to the database so a community's rule is
+#: answered there as well as here.
+_session_mfa: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_session_mfa", default=False
+)
+
+
+def set_session_mfa(value: bool) -> None:
+    _session_mfa.set(bool(value))
+
+
+def session_mfa() -> bool:
+    return _session_mfa.get()
+
+
+#: Whether this request's credential was opened, or stepped up, with a passkey.
+#: Read from the session's own ``amr`` — the markers a WebAuthn assertion
+#: writes — and handed to the database so a community's rule is answered there
+#: as well as here. A community asking for a passkey is asking for one of
+#: those markers, which a code alone does not write.
+_session_passkey: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_session_passkey", default=False
+)
+
+
+def set_session_passkey(value: bool) -> None:
+    _session_passkey.set(bool(value))
+
+
+def session_passkey() -> bool:
+    return _session_passkey.get()
+
+
+#: Whether a personal API key is what authenticated this request. Recorded by
+#: the two validators that accept one, and read where a community's refusal of
+#: them is applied: the guild-access gate and the cross-guild aggregates.
+#: ``False`` for every other credential, which is the answer that reaches the
+#: guild.
+_api_key_credential: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "auth_api_key_credential", default=False
+)
+
+
+def set_api_key_credential(value: bool) -> None:
+    _api_key_credential.set(bool(value))
+
+
+def api_key_credential() -> bool:
+    return _api_key_credential.get()
+
+
 _device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "auth_device_token_id", default=None
 )

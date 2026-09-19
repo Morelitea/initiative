@@ -21,7 +21,6 @@ from app.core.messages import PropertyMessages
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
-from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import (
     CalendarEventPropertyValue,
@@ -121,7 +120,7 @@ async def _ensure_initiative_member(
     restrictive RLS policy's ``OR IS_ADMIN`` clause). The guild-admin check
     reads ``guild_context.role`` — already resolved from the shared
     ``guild_memberships`` table — so no extra query is needed. There is no
-    standing ``data.bypass`` bypass: a platform admin/owner reaches this guild
+    standing ``data.bypass`` bypass: an operator/owner reaches this guild
     only via a break-glass grant, and a grant — like the rest of the PAM model —
     confers scoped content read/write, never schema/definition management. So
     managing definitions stays membership/guild-admin-gated.
@@ -148,7 +147,7 @@ async def _ensure_initiative_member(
 
     # Guild-admin bypass: admins of the active guild may manage any
     # initiative in that guild. GuildContext already resolved the role.
-    if guild_context.role == GuildRole.admin:
+    if guild_context.is_admin:
         return
 
     # Direct initiative membership, resolved in the active guild's schema.

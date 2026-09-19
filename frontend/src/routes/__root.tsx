@@ -2,6 +2,7 @@ import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { Suspense } from "react";
 
+import { SecondFactorStepUpDialog } from "@/components/auth/SecondFactorStepUpDialog";
 import { StepUpDialog } from "@/components/auth/StepUpDialog";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
@@ -34,6 +35,7 @@ const RootComponent = () => {
         <Outlet />
       </Suspense>
       <StepUpDialog />
+      <SecondFactorStepUpDialog />
     </>
   );
 };

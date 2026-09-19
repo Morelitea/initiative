@@ -1,4 +1,4 @@
-import { useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Check,
   CheckCheck,
@@ -19,6 +19,7 @@ import { ConversationList } from "@/components/messages/ConversationList";
 import { HistoryAskNotice } from "@/components/messages/HistoryAskNotice";
 import { HistoryRequestPanel } from "@/components/messages/HistoryRequestPanel";
 import { MessageContent } from "@/components/messages/MessageContent";
+import { PeerKeyChangeNotice } from "@/components/messages/PeerKeyChangeNotice";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
 import { ReactionPicker } from "@/components/reactions/ReactionPicker";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -29,15 +30,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
-import { RecipientHasNoDeviceError } from "@/crypto/messaging";
+import { RecipientDevicesUnverifiedError, RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCanUseDirectMessages,
+  useDirectMessagesEnabled,
   useDmSettings,
   useMessageRequests,
 } from "@/hooks/useDirectMessages";
 import {
+  useAnswerInvitation,
   useCollectMessages,
   useConversations,
   useDmDevice,
@@ -48,6 +51,7 @@ import {
   useThread,
 } from "@/hooks/useMyMessages";
 import { useUserProfile } from "@/hooks/useUsers";
+import { groupName, isGroup, roster } from "@/lib/conversationName";
 import { formatDateTime } from "@/lib/formatDate";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -70,7 +74,7 @@ import { cn } from "@/lib/utils";
  * offer to ask for one instead.
  */
 export function MyMessagesPage() {
-  const { t } = useTranslation("messages");
+  const { t } = useTranslation(["messages", "nav"]);
   const device = useDmDevice();
   const conversations = useConversations();
   const requests = useMessageRequests();
@@ -81,23 +85,24 @@ export function MyMessagesPage() {
   const dmSettings = useDmSettings();
   const settingsLoaded = dmSettings.isSuccess;
   const canMessage = useCanUseDirectMessages();
+  // The deployment's own switch, read separately from `canMessage`: the two
+  // refusals have nothing to do with each other and only one of them is
+  // anything the reader can act on.
+  const dmEnabled = useDirectMessagesEnabled();
 
   // Who the URL asked for, resolved to a person. The profile is what a panel
   // for somebody with no channel has to draw, and the id is what everything
   // else here is keyed on.
-  const { with: withHandle } = useSearch({ strict: false }) as { with?: string };
+  const { with: withHandle, thread: withThread } = useSearch({ strict: false }) as {
+    with?: string;
+    thread?: string;
+  };
   const target = useUserProfile(withHandle);
 
   useCollectMessages(device.isSuccess);
 
   /** Everyone with an accepted channel, whether or not it has been opened. */
   const reachable = useMemo(() => requests.data?.accepted ?? [], [requests.data?.accepted]);
-  // The whole grant rather than a name: the thread draws a person, and
-  // a person is their picture and what they wear on it as much as their handle.
-  const personFor = useMemo(
-    () => new Map(reachable.map((grant) => [grant.user_id, grant])),
-    [reachable]
-  );
 
   /** What to call the other side of a conversation, wherever it is named. */
   const nameOf = (userId: number) => {
@@ -105,7 +110,28 @@ export function MyMessagesPage() {
     return person ? getUserHandle(person) : t("unknownAccount");
   };
 
-  const rows = conversations.data?.conversations ?? [];
+  const rows = useMemo(
+    () => conversations.data?.conversations ?? [],
+    [conversations.data?.conversations]
+  );
+
+  /**
+   * Everybody this page can name and draw, from both places a person is known.
+   *
+   * The whole record rather than a name: a person is their picture and what
+   * they wear on it as much as their handle.
+   *
+   * A conversation carries its own roster, which is the only source for
+   * somebody a group put you in touch with -- agreeing to a roster is the whole
+   * of the ask, so there need be no request between the two of you to look up.
+   * An accepted request is laid over it for the people who also sent one.
+   */
+  const personFor = useMemo(() => {
+    const people = new Map<number, Speaker>();
+    for (const row of rows) for (const member of roster(row)) people.set(member.user_id, member);
+    for (const grant of reachable) people.set(grant.user_id, grant);
+    return people;
+  }, [rows, reachable]);
 
   const targetId = target.data?.id;
   const channelOpen = targetId !== undefined && personFor.has(targetId);
@@ -120,9 +146,19 @@ export function MyMessagesPage() {
    * and the pane does not. Read from the URL, an unresolved handle simply has
    * no conversation yet, which is the truth and is what the panel below is for.
    */
-  const current =
-    targetId !== undefined ? (rows.find((row) => row.other_user_id === targetId) ?? null) : null;
-  const targetConversation = current;
+  // A thread named by id wins: it is the only way a group can be addressed,
+  // and it names a conversation that exists rather than a person one might be
+  // opened with. A handle still opens one that does not exist yet, which is
+  // what the effect below is for and what an id cannot do.
+  const namedThread = withThread ? rows.find((row) => row.id === withThread) : undefined;
+  // Pairs only. A group's `other_user_id` is the lowest id on its roster, so a
+  // handle would otherwise match a group that happens to contain that person
+  // and open it in place of the conversation with them.
+  const targetConversation =
+    targetId !== undefined
+      ? (rows.find((row) => !isGroup(row) && row.other_user_id === targetId) ?? null)
+      : null;
+  const current = namedThread ?? targetConversation;
 
   // Acting on the handle in the URL, once per handle: select their thread, or
   // open one where the channel is already there. A conversation is one per
@@ -153,6 +189,10 @@ export function MyMessagesPage() {
   );
 
   useEffect(() => {
+    // A named thread is what is on screen, so the handle is not acted on: it
+    // would open a conversation with somebody in the background, under a thread
+    // that is not theirs.
+    if (withThread) return;
     if (!withHandle || targetId === undefined || !conversationsLoaded) return;
     if (opened.current === withHandle) return;
     // Already there: nothing to open, and nothing to select -- the render
@@ -165,7 +205,34 @@ export function MyMessagesPage() {
       opened.current = withHandle;
       openWith(targetId, withHandle);
     }
-  }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, openWith]);
+  }, [
+    withThread,
+    withHandle,
+    targetId,
+    targetConversation,
+    channelOpen,
+    conversationsLoaded,
+    openWith,
+  ]);
+
+  // This deployment does not offer messaging. Checked before everything
+  // below, because none of it applies: there is no device to set up, no
+  // settings to have loaded, and nothing the reader could answer to change it.
+  // Somebody only gets here by address -- every way in is already gone -- so
+  // the page says where they are rather than looking broken.
+  if (!dmEnabled) {
+    return (
+      <div className="p-6">
+        <StatusMessage
+          icon={<ShieldCheck className="size-6" aria-hidden />}
+          title={t("platformDisabled")}
+          description={t("platformDisabledBody")}
+          backTo="/"
+          backLabel={t("nav:home")}
+        />
+      </div>
+    );
+  }
 
   // A runtime with no web workers cannot hold a ratchet at all, and saying so
   // is more use than the generic failure it would otherwise reach.
@@ -227,20 +294,29 @@ export function MyMessagesPage() {
       <HistoryRequestPanel />
 
       {/* The other side of the same comparison, on the device that asked. */}
+      <PeerKeyChangeNotice nameOf={nameOf} />
       <HistoryAskNotice />
 
       {/* Who there is to talk to lives in the sidebar, which drills into this
           route -- so the page is only ever the one conversation. That is what
           leaves a phone the whole width for it. */}
-      {current ? (
+      {current?.pending ? (
+        // Named on it, and has not answered. The thread is not drawn at all:
+        // there is nothing in it yet for this account, because nothing is
+        // delivered to somebody who has not agreed to be there.
+        <InvitationPanel key={current.id} conversationId={current.id} name={groupName(current)} />
+      ) : current ? (
         // Keyed on the conversation: a thread holds a half-typed message, and
         // the one you were writing to Alice must not follow you to Bob.
         <Thread
           key={current.id}
           conversationId={current.id}
           otherUserId={current.other_user_id}
-          name={nameOf(current.other_user_id)}
-          them={personFor.get(current.other_user_id)}
+          memberIds={current.member_ids?.length ? current.member_ids : [current.other_user_id]}
+          name={isGroup(current) ? groupName(current) : nameOf(current.other_user_id)}
+          // Everybody the thread might have to draw. One map for the page, so
+          // a person looks the same in the header, in a message and in a quote.
+          people={personFor}
         />
       ) : withHandle ? (
         // Somebody was asked for. Either their thread is on its way, or there
@@ -332,6 +408,12 @@ const clockTime = (at: string): string => {
 /** Whether the second message carries on the first one's run. */
 const continuesRun = (before: StoredMessage, after: StoredMessage) => {
   if (before.mine !== after.mine) return false;
+  // The same person, not merely the same side. On a pair those are the same
+  // question and both messages carry no author at all, so it is unchanged
+  // there; on a group two people answering one after the other are two runs,
+  // and folding them into one would put the second person's words under the
+  // first one's face.
+  if (before.author !== after.author) return false;
   const gap = new Date(after.at).getTime() - new Date(before.at).getTime();
   // An unreadable time groups by sender alone rather than breaking every run.
   return Number.isNaN(gap) || gap < RUN_GAP_MS;
@@ -407,20 +489,43 @@ const Speaking = ({
 function Thread({
   conversationId,
   otherUserId,
+  memberIds,
   name,
-  them,
+  people,
 }: {
   conversationId: string;
   otherUserId: number;
+  /**
+   * Everybody a message here is encrypted for. One entry for a pair; more once
+   * a group can be opened. Kept apart from `otherUserId`, which is who the
+   * thread is drawn as and is still one person until the list can draw a
+   * roster.
+   */
+  memberIds: number[];
   name: string;
-  /** The other side, for their picture. Absent while the grant is still loading. */
-  them: Speaker;
+  /** Everybody the page can name and draw, keyed by account. */
+  people: Map<number, Speaker>;
 }) {
   const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
   const thread = useThread(conversationId);
-  const send = useSendMessage(conversationId, otherUserId);
-  const actions = useMessageActions(conversationId, otherUserId);
+  /**
+   * The other side, where there is one side. A pair has exactly one, and that
+   * is what the header is named after.
+   */
+  const sole = memberIds.length === 1 ? people.get(memberIds[0]) : undefined;
+  /**
+   * Who said it.
+   *
+   * A message carries its author once a thread can hold more than two people.
+   * One stored before that does not, and neither does one on a pair, where
+   * "not mine" has only ever had one answer -- so a pair falls back to the one
+   * person on the other side and reads exactly as it always has.
+   */
+  const speakerOf = (message: StoredMessage): Speaker =>
+    message.mine ? me : message.author === undefined ? sole : people.get(message.author);
+  const send = useSendMessage(conversationId, memberIds);
+  const actions = useMessageActions(conversationId, memberIds);
   const [draft, setDraft] = useState("");
   /** The message being answered, and the one being rewritten. Never both. */
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -514,7 +619,7 @@ function Thread({
   const messages = thread.data ?? [];
   // An open thread is a read thread — including whatever arrives while it is
   // open, which is why the count is what re-runs it.
-  useMarkThreadRead(conversationId, messages.length, otherUserId);
+  useMarkThreadRead(conversationId, messages.length, memberIds);
   useEffect(() => {
     // The log's own scrollTop, not `scrollIntoView`. That asks the browser to
     // bring an element into view by scrolling *every* scrollport it sits in --
@@ -606,7 +711,7 @@ function Thread({
           everywhere else. `name` is the plain-text fallback for a person this
           device cannot resolve, and is what the failure notice below reads. */}
       <div className="shrink-0 border-b px-3 py-2 font-medium text-sm">
-        {them ? <UserHandle user={them} /> : name}
+        {sole ? <UserHandle user={sole} /> : name}
       </div>
       <div
         ref={log}
@@ -677,7 +782,7 @@ function Thread({
                       on one and across the message on the other -- and how far
                       depends on a clock format this cannot know. */}
                   <div className="relative flex w-12 shrink-0 justify-center">
-                    <Speaking who={message.mine ? me : them} hidden={!startsRun} />
+                    <Speaking who={speakerOf(message)} hidden={!startsRun} />
                     {startsRun ? (
                       <span
                         className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
@@ -706,9 +811,9 @@ function Thread({
                           className="flex w-full min-w-0 flex-col gap-0.5 rounded-md border-primary/60 border-s-2 bg-muted/40 px-2 py-1 text-start hover:bg-muted"
                         >
                           <span className="flex min-w-0 items-center gap-1">
-                            <Speaking who={answered.mine ? me : them} hidden={false} small />
+                            <Speaking who={speakerOf(answered)} hidden={false} small />
                             <span className="min-w-0 truncate font-medium text-primary text-xs">
-                              {getUserHandle(answered.mine ? me : them)}
+                              {getUserHandle(speakerOf(answered))}
                             </span>
                           </span>
                           {/* Two lines of it at most: a quote is there to say
@@ -1035,9 +1140,11 @@ function Thread({
       {send.isError ? (
         <div className="px-3 pb-3">
           <p className="text-destructive text-sm">
-            {send.error instanceof RecipientHasNoDeviceError
-              ? t("recipientHasNoDevice", { name })
-              : t("sendFailed")}
+            {send.error instanceof RecipientDevicesUnverifiedError
+              ? t("recipientDevicesUnverified", { name })
+              : send.error instanceof RecipientHasNoDeviceError
+                ? t("recipientHasNoDevice", { name })
+                : t("sendFailed")}
           </p>
         </div>
       ) : null}
@@ -1057,5 +1164,46 @@ function Thread({
         }}
       />
     </section>
+  );
+}
+
+/**
+ * A roster somebody has been named on, and has not answered.
+ *
+ * The whole roster is shown before the answer is given, because seeing who is
+ * on it is what makes accepting consent rather than notification. There is no
+ * thread underneath it: nothing is delivered to somebody who has not agreed to
+ * be there, so there is nothing yet to read.
+ */
+function InvitationPanel({ conversationId, name }: { conversationId: string; name: string }) {
+  const { t } = useTranslation(["messages", "common"]);
+  const navigate = useNavigate();
+  const { accept, decline } = useAnswerInvitation(conversationId);
+  const busy = accept.isPending || decline.isPending;
+
+  return (
+    <div className="mx-auto max-w-md space-y-4 py-10 text-center">
+      <h2 className="font-medium text-lg">{t("messages:invitation.heading")}</h2>
+      <p className="text-muted-foreground text-sm">{t("messages:invitation.who")}</p>
+      <p className="break-words font-medium text-sm">{name}</p>
+      <div className="flex justify-center gap-2">
+        <Button onClick={() => accept.mutate()} disabled={busy}>
+          {t("messages:invitation.join")}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() =>
+            decline.mutate(undefined, {
+              // Nothing left to draw once it is declined, so the page goes
+              // back to the list rather than sitting on a thread that is gone.
+              onSuccess: () => void navigate({ to: "/messages", search: {} }),
+            })
+          }
+        >
+          {t("messages:invitation.decline")}
+        </Button>
+      </div>
+    </div>
   );
 }

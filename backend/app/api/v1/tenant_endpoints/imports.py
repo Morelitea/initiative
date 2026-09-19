@@ -7,10 +7,10 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
-    SessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -29,6 +29,7 @@ from app.schemas.tenant.import_data import (
     ImportResult,
 )
 from app.core.messages import ImportMessages
+from app.core.tools import Tool
 from app.services.tenant import import_service
 from app.services import permissions as permissions_service
 from app.services.tenant import filter_presets as filter_presets_service
@@ -42,12 +43,17 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _validate_project_write_access(
-    session: SessionDep,
+    session: AsyncSession,
     project_id: int,
     user: User,
     guild_id: int,
 ) -> Project:
-    """Validate user has write access to a project using centralized DAC."""
+    """Validate user has write access to a project using centralized DAC.
+
+    Takes a plain session: this is a helper the handlers call, not a route
+    dependency, so it accepts whichever session its caller is already using
+    (the guild-routed one, in every case today).
+    """
     project_stmt = (
         select(Project)
         .join(Project.initiative)
@@ -66,7 +72,7 @@ async def _validate_project_write_access(
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ImportMessages.PROJECT_NOT_FOUND,
+            detail=Tool.project.not_found_code,
         )
 
     if project.archived_at is not None:
@@ -314,12 +320,10 @@ _LIST_LIMIT = 50
 
 def _require_writable(guild_context: GuildContext) -> None:
     """Imports are writes, always — no inline carve-out for read-only actors
-    (the inverse of the export engine's read-friendly inline path). A guild
-    in read_only lifecycle can't author rows; a regular PAM grantee must not
-    author content (break-glass acts as a full guild admin and may)."""
-    if guild_context.content_read_only or (
-        guild_context.is_pam and not guild_context.break_glass
-    ):
+    (the inverse of the export engine's read-friendly inline path). A guild in
+    read_only lifecycle can't author rows, and neither can a grantee: a grant
+    reaches existing content, whatever level it carries."""
+    if guild_context.content_read_only or guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
@@ -434,7 +438,6 @@ async def cancel_import_job(
 from fastapi import File, UploadFile  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.models.platform.guild import GuildRole  # noqa: E402
 from app.services.import_engine import backup as backup_service  # noqa: E402
 from app.services.import_engine.engine import (  # noqa: E402
     count_active_jobs_locked,
@@ -451,7 +454,7 @@ def _require_real_guild_admin(guild_context: GuildContext) -> None:
     only, and REAL membership at that: a break-glass grant synthesizes an
     admin role, but the worker re-checks actual membership at apply time, so
     a stand-in would only fail later. Reject it up front."""
-    if guild_context.grant is not None or guild_context.role != GuildRole.admin:
+    if guild_context.grant is not None or not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_ADMIN_REQUIRED,

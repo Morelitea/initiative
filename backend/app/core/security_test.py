@@ -29,7 +29,6 @@ from app.core.security import (
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
     UploadTokenError,
-    create_access_token,
     create_upload_token,
     decode_session_token,
     mint_access_token,
@@ -155,14 +154,39 @@ def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch)
 @pytest.mark.unit
 def test_upload_token_round_trips_to_user_id():
     """A freshly minted upload token verifies back to the user it names,
-    carrying its minting session's satisfied-provider set (empty by default)."""
+    carrying its minting session's auth standing (empty by default)."""
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == (123, frozenset())
+    assert verify_upload_token(token) == (123, frozenset(), {}, False, False)
 
-    satisfied_token, _ = create_upload_token(user_id=123, satisfied_providers=[5, 2])
-    assert verify_upload_token(satisfied_token) == (123, frozenset({2, 5}))
+    satisfied_token, _ = create_upload_token(
+        user_id=123,
+        satisfied_providers=[5, 2],
+        satisfied_claims={"5": {"hd": ["acme.com"]}},
+    )
+    assert verify_upload_token(satisfied_token) == (
+        123,
+        frozenset({2, 5}),
+        {"5": {"hd": ["acme.com"]}},
+        False,
+        False,
+    )
+
+
+@pytest.mark.unit
+def test_upload_token_carries_how_the_session_was_opened():
+    """A community can ask for a second factor or for a passkey, and the token
+    answers each on its own — a code presented after a password is not a key,
+    so the two markers travel separately."""
+    factor, _ = create_upload_token(user_id=7, session_mfa=True)
+    assert verify_upload_token(factor)[3:] == (True, False)
+
+    key, _ = create_upload_token(user_id=7, session_mfa=True, session_passkey=True)
+    assert verify_upload_token(key)[3:] == (True, True)
+
+    neither, _ = create_upload_token(user_id=7)
+    assert verify_upload_token(neither)[3:] == (False, False)
 
 
 @pytest.mark.unit
@@ -182,7 +206,13 @@ def test_upload_token_carries_scope_and_audience_but_no_ver():
 def test_verify_upload_token_rejects_session_jwt():
     """A normal session JWT (different shape, no uploads aud) must not pass
     upload-token verification."""
-    session_jwt = security.create_access_token(subject="7", token_version=1)
+    session_jwt, _ = mint_access_token(
+        subject="ucli_seven",
+        token_version=1,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
     with pytest.raises(UploadTokenError):
         verify_upload_token(session_jwt)
 
@@ -202,10 +232,22 @@ def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
     jwt_key = "j" * 48
     monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", jwt_key)
 
-    token = security.create_access_token(subject="7", token_version=1)
+    token, _ = mint_access_token(
+        subject="ucli_seven",
+        token_version=1,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
     # Verifies under the dedicated key...
-    payload = jwt.decode(token, jwt_key, algorithms=[security.JWT_ALGORITHM])
-    assert payload["sub"] == "7"
+    payload = jwt.decode(
+        token,
+        jwt_key,
+        algorithms=[security.JWT_ALGORITHM],
+        audience=AUTH_ACCESS_AUDIENCE,
+        issuer=AUTH_TOKEN_ISSUER,
+    )
+    assert payload["sub"] == "ucli_seven"
     # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
     with pytest.raises(jwt.InvalidSignatureError):
         jwt.decode(
@@ -336,14 +378,24 @@ def test_decode_session_token_accepts_new_access_token():
 
 
 @pytest.mark.unit
-def test_decode_session_token_accepts_legacy_token():
-    """The legacy session JWT (no aud/iss) must keep validating across the
-    cutover window."""
-    token = create_access_token(subject="7", token_version=2)
-    payload = decode_session_token(token)
-    assert payload["sub"] == "7"
-    assert payload["ver"] == 2
-    assert "aud" not in payload
+def test_decode_session_token_refuses_the_pre_session_shape():
+    """The JWT builds before 0.69.0 issued — signed by us, carrying ``sub`` and
+    ``ver``, and no ``aud``/``iss`` — is no longer a session credential.
+
+    Built here rather than minted, because nothing mints one any more. Its
+    holder is not stranded: the refresh cookie is a separate credential and
+    renewing it returns a token of the shape above."""
+    legacy = jwt.encode(
+        {
+            "sub": "7",
+            "ver": 2,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        },
+        settings.jwt_signing_key,
+        algorithm=JWT_ALGORITHM,
+    )
+    with pytest.raises(jwt.PyJWTError):
+        decode_session_token(legacy)
 
 
 @pytest.mark.unit
@@ -378,17 +430,6 @@ def test_decode_session_token_rejects_expired_new_token():
         amr=["pwd"],
         satisfied_providers=[],
         expires_in=timedelta(seconds=-1),
-    )
-    with pytest.raises(jwt.ExpiredSignatureError):
-        decode_session_token(token)
-
-
-@pytest.mark.unit
-def test_decode_session_token_rejects_expired_legacy_token():
-    """An expired LEGACY token also surfaces ``ExpiredSignatureError`` (via the
-    fallback decode), not a misleading audience error."""
-    token = create_access_token(
-        subject="7", token_version=0, expires_delta=timedelta(seconds=-1)
     )
     with pytest.raises(jwt.ExpiredSignatureError):
         decode_session_token(token)
@@ -619,3 +660,18 @@ def test_the_sign_in_dummy_bcrypt_cost_is_pinned_not_inherited() -> None:
     cost = int(text.split("$")[2])
 
     assert cost == security.SIGN_IN_BCRYPT_COST
+
+
+def test_has_usable_password_reads_the_hash_not_the_null():
+    """The definition of "no usable password": a value outside the schemes
+    ``verify_password`` checks, whatever it is."""
+    from app.core.security import get_password_hash, has_usable_password
+
+    assert has_usable_password(get_password_hash("something")) is True
+    # NULL, and the marker a 0152 downgrade writes, read the same.
+    assert has_usable_password(None) is False
+    assert has_usable_password("!") is False
+    assert has_usable_password("") is False
+    assert has_usable_password("not-a-hash") is False
+    # A legacy bcrypt hash is still one we can check.
+    assert has_usable_password("$2b$12$" + "x" * 53) is True

@@ -8,6 +8,7 @@ import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { UserHandle } from "@/components/UserHandle";
@@ -140,28 +141,33 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             </div>
           </div>
         ) : null}
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-lg leading-tight">
+        <div className="flex items-start gap-2">
+          {/* The headline takes whatever the controls leave, so the controls
+              stay together at the end of the row. Spacing them apart instead
+              would put the pin wherever the report button happened to be. */}
+          <CardTitle className="min-w-0 flex-1 text-lg leading-tight">
             <Link to={detailRoute} className="hover:underline">
               {post.name}
             </Link>
           </CardTitle>
-          {canPin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              disabled={setPin.isPending}
-              aria-label={post.is_pinned ? t("pin.unpin") : t("pin.pin")}
-              onClick={() => setPin.mutate({ pinned: !post.is_pinned })}
-            >
-              {post.is_pinned ? (
-                <PinOff className="h-4 w-4" aria-hidden />
-              ) : (
-                <Pin className="h-4 w-4" aria-hidden />
-              )}
-            </Button>
-          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {canPin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={setPin.isPending}
+                aria-label={post.is_pinned ? t("pin.unpin") : t("pin.pin")}
+                onClick={() => setPin.mutate({ pinned: !post.is_pinned })}
+              >
+                {post.is_pinned ? (
+                  <PinOff className="h-4 w-4" aria-hidden />
+                ) : (
+                  <Pin className="h-4 w-4" aria-hidden />
+                )}
+              </Button>
+            )}
+            <ReportButton targetType="post" targetId={post.id} authorId={post.created_by} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">

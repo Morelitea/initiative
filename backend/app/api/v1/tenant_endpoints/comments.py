@@ -14,6 +14,7 @@ from app.api.deps import (
 )
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
+from app.db.initiative_rls import COMMENT_PARENTS
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -92,12 +93,8 @@ async def recent_comments(
     # subquery over the parent table (which also drops trashed parents via the
     # session's soft-delete filter). Each clause is a no-op for a request that
     # reaches the whole guild, leaving only "attached to some parent".
-    legs = [
-        and_(
-            Comment.task_id.isnot(None),
-            Comment.task_id.in_(select(Task.id)),
-        )
-    ]
+    legs = []
+    reachable_by_tool = {}
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
         model = target.model
         fk = getattr(Comment, target.column)
@@ -118,7 +115,22 @@ async def recent_comments(
                     ),
                 )
             )
+        reachable_by_tool[tool] = parent_ids
         legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
+    # The extras — a thread on something that is not a tool. Each is reached
+    # through the tool that owns it, and takes that tool's switches only where
+    # its registry entry says they answer for it.
+    for column, extra in comments_service.EXTRA_COMMENT_TARGETS.items():
+        parent = COMMENT_PARENTS[column]
+        fk = getattr(Comment, column)
+        rows = select(extra.model.id)
+        if extra.anchor_switch:
+            rows = rows.where(
+                getattr(extra.model, parent.tool_fk).in_(
+                    reachable_by_tool[parent.governed_by]
+                )
+            )
+        legs.append(and_(fk.isnot(None), fk.in_(rows)))
     conditions.append(or_(*legs))
 
     stmt = (
@@ -147,6 +159,40 @@ async def recent_comments(
             )
             for proj in proj_result.all():
                 projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
+
+    # The extras' rows, and the tool row each belongs to — the feed shows the
+    # thread's own name and links at its real address, and the initiative is
+    # the tool's. The task is loaded above instead: its entry carries the
+    # project as well, which no other extra has.
+    extra_rows: dict[str, dict[int, object]] = {}
+    extra_anchors: dict[str, dict[int, object]] = {}
+    for column, extra in comments_service.EXTRA_COMMENT_TARGETS.items():
+        if column == "task_id":
+            continue
+        parent = COMMENT_PARENTS[column]
+        ids = {value for c in comments if (value := getattr(c, column)) is not None}
+        rows: dict[int, object] = {}
+        anchors: dict[int, object] = {}
+        if ids:
+            loaded = (
+                await session.exec(select(extra.model).where(extra.model.id.in_(ids)))
+            ).all()
+            rows = {row.id: row for row in loaded}
+            anchor_model = comments_service.TOOL_COMMENT_TARGETS[
+                parent.governed_by
+            ].model
+            anchor_ids = {getattr(row, parent.tool_fk) for row in loaded}
+            if anchor_ids:
+                anchors = {
+                    anchor.id: anchor
+                    for anchor in (
+                        await session.exec(
+                            select(anchor_model).where(anchor_model.id.in_(anchor_ids))
+                        )
+                    ).all()
+                }
+        extra_rows[column] = rows
+        extra_anchors[column] = anchors
 
     rows_by_tool: dict[Tool, dict] = {}
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
@@ -194,6 +240,28 @@ async def recent_comments(
                 entity_name=task.title if task else None,
                 initiative_id=project.initiative_id if project else None,
             )
+        elif hit := next(
+            (
+                (column, value)
+                for column in extra_rows
+                if (value := getattr(comment, column)) is not None
+            ),
+            None,
+        ):
+            column, value = hit
+            extra = comments_service.EXTRA_COMMENT_TARGETS[column]
+            row = extra_rows[column].get(value)
+            anchor = (
+                extra_anchors[column].get(getattr(row, COMMENT_PARENTS[column].tool_fk))
+                if row is not None
+                else None
+            )
+            fields.update(
+                entity_type=extra.kind,
+                entity_id=value,
+                entity_name=getattr(row, extra.title_field) if row else None,
+                initiative_id=anchor.initiative_id if anchor else None,
+            )
         else:
             for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
                 value = getattr(comment, target.column)
@@ -235,6 +303,8 @@ async def list_comments(
     dashboard_id: Optional[int] = Query(default=None, gt=0),
     post_id: Optional[int] = Query(default=None, gt=0),
     gallery_id: Optional[int] = Query(default=None, gt=0),
+    wiki_id: Optional[int] = Query(default=None, gt=0),
+    wiki_page_id: Optional[int] = Query(default=None, gt=0),
 ) -> List[CommentRead]:
     try:
         comments = await comments_service.list_comments(
@@ -250,6 +320,8 @@ async def list_comments(
             dashboard_id=dashboard_id,
             post_id=post_id,
             gallery_id=gallery_id,
+            wiki_id=wiki_id,
+            wiki_page_id=wiki_page_id,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(

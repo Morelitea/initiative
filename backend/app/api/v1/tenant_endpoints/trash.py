@@ -44,6 +44,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
@@ -89,6 +90,8 @@ ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "gallery_image": (GalleryImage, "title"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
+    "wiki": (Wiki, "name"),
+    "wiki_page": (WikiPage, "title"),
 }
 
 
@@ -318,7 +321,7 @@ async def restore_trash_entity(
 
     # Permission: regular users can only restore their own deletions.
     if (
-        guild_context.role != GuildRole.admin
+        not guild_context.is_admin
         and getattr(entity, "deleted_by", None) != current_user.id
     ):
         raise HTTPException(
@@ -370,7 +373,7 @@ async def purge_trash_entity(
     between the ``deleted_at`` check and the delete (which would otherwise
     permanently remove a just-restored live row).
     """
-    if guild_context.role != GuildRole.admin:
+    if not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=TrashMessages.PURGE_REQUIRES_ADMIN,

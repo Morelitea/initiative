@@ -22,28 +22,35 @@ service: no raise-with-uncommitted-writes).
 
 from __future__ import annotations
 
+import hashlib
+
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
+from sqlalchemy import false, or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
+from app.core.encryption import encrypt_token
+from app.core.login_methods import LoginMethod, methods_from_values
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
-from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +128,7 @@ async def resolve_oidc_identity(
     # existing account (an unverified match is refused outright).
     if email:
         normalized = email.lower().strip()
-        existing = await addresses.find_user_by_address(session, normalized)
+        existing = await addresses.account_holding(session, normalized)
         if existing is not None:
             if not email_verified:
                 logger.warning(
@@ -137,26 +144,15 @@ async def resolve_oidc_identity(
                 outcome=ResolutionOutcome.EMAIL_MATCH, user=existing
             )
 
-    # Unknown user: JIT-provision if the provider allows it. Operator-global
-    # providers additionally require open registration; guild-scoped providers
-    # additionally require the guild to have sign-in enabled (the operator
-    # toggle) — off means no NEW accounts onboard here, though existing linked
-    # identities (LINKED, above) are untouched (see docstring).
+    # Unknown user: JIT-provision if the provider allows it. A sign-in on the
+    # deployment additionally requires open registration. There is one
+    # sign-in, so there is one answer: a community does not decide whether
+    # somebody may hold an account here, only whether an arrival is one of its
+    # own. Existing linked identities (LINKED, above) are untouched either way.
     if not provider.allow_jit:
         return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
-    if provider.guild_id is None:
-        if not await _registration_open(session):
-            return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
-    else:
-        administration = (
-            await session.exec(
-                select(GuildAdministration).where(
-                    GuildAdministration.guild_id == provider.guild_id
-                )
-            )
-        ).one_or_none()
-        if administration is None or not administration.guild_auth_enabled:
-            return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
+    if not await _registration_open(session):
+        return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
     return await _provision(
         session,
         provider=provider,
@@ -225,12 +221,19 @@ async def has_federated_identity(session: AsyncSession, *, user_id: int) -> bool
     return row is not None
 
 
-async def sole_credential_user_count(session: AsyncSession, *, provider_id: int) -> int:
+async def sole_credential_user_count(
+    session: AsyncSession, *, provider_id: int, permitted: frozenset[LoginMethod]
+) -> int:
     """How many accounts hold this provider as their only credential.
 
-    An account counts when it has no usable password and every identity link it
-    holds belongs to this provider — the provider's links cascade with it, so
-    this account's last credential goes too.
+    An account counts when every identity link it holds belongs to this
+    provider — the provider's links cascade with it, so this account's last
+    credential goes too — and nothing else ``permitted`` names opens a session
+    for them.
+
+    ``permitted`` is what the deployment offers today: a credential is a way in
+    only while its method is in that set, so a password counts where passwords
+    are offered and a registered passkey where passkeys are.
 
     "No usable password" is read from the stored hash rather than from NULL
     alone: an account can carry a value no scheme verifies (the ``'!'`` marker
@@ -243,6 +246,10 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
     login — a disabled or half-configured row is not a way in, and neither is
     the platform row without its client secret.
     """
+    if LoginMethod.sso not in permitted:
+        # An identity link opens no session where single sign-on is not
+        # offered, so no account's way in rides on this provider.
+        return 0
     holds_this = select(FederatedIdentity.id).where(
         FederatedIdentity.user_id == User.id,
         FederatedIdentity.provider_id == provider_id,
@@ -256,7 +263,27 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             can_serve_login_clause(),
         )
     )
-    no_usable_password = or_(
+    conditions = [holds_this.exists(), ~holds_another.exists()]
+    if LoginMethod.password in permitted:
+        conditions.append(_no_usable_password_clause())
+    if LoginMethod.passkey in permitted:
+        conditions.append(~_holds_a_passkey_clause())
+    return (
+        await session.exec(select(func.count()).select_from(User).where(*conditions))
+    ).one()
+
+
+def _no_usable_password_clause():
+    """Accounts whose stored hash is not one any scheme verifies.
+
+    Reads the hash rather than NULL alone: an account can carry a value no
+    scheme verifies (the ``'!'`` marker a 0152 downgrade writes), and that is
+    not a password. What it cannot read is an account provisioned before 0152,
+    whose throwaway hash is a real argon2 value indistinguishable from a chosen
+    one — that account reads as having a password, which is the conservative
+    direction for the account, and it reaches itself through password reset.
+    """
+    return or_(
         User.hashed_password.is_(None),
         ~or_(
             *(
@@ -265,17 +292,172 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             )
         ),
     )
+
+
+def _holds_a_passkey_clause():
+    """Accounts holding at least one registered WebAuthn credential.
+
+    A passkey opens a session by itself, so an account holding one has a way in
+    that neither a password nor an identity provider accounts for.
+    """
+    return select(UserPasskey.id).where(UserPasskey.user_id == User.id).exists()
+
+
+def _holds_login_ready_identity_clause():
+    """Accounts holding an identity link some provider could answer a login for.
+
+    A disabled or half-configured row is not a way in, and neither is the
+    platform row without its client secret.
+    """
+    return (
+        select(FederatedIdentity.id)
+        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
+        .where(
+            FederatedIdentity.user_id == User.id,
+            can_serve_login_clause(),
+        )
+        .exists()
+    )
+
+
+#: What each way in is answered with, as a predicate on ``User``. The one
+#: place a method is paired with the credential that presents it: the counts
+#: below ask whether an account has any of them, :func:`ways_in` asks which.
+#: ``totp`` is absent — a second factor accompanies a sign-in rather than
+#: beginning one.
+_HELD_CLAUSES: dict[LoginMethod, Callable[[], Any]] = {
+    LoginMethod.password: lambda: ~_no_usable_password_clause(),
+    LoginMethod.sso: _holds_login_ready_identity_clause,
+    LoginMethod.passkey: _holds_a_passkey_clause,
+}
+
+
+def _can_sign_in_clause(permitted: frozenset[LoginMethod]):
+    """Accounts that can begin a session while ``permitted`` is what is offered.
+
+    A credential is a way in only while its method is in the set: a password
+    where passwords are offered, an identity link where single sign-on is, a
+    registered passkey where passkeys are.
+    """
+    ways_in = [
+        build() for method, build in _HELD_CLAUSES.items() if method in permitted
+    ]
+    if not ways_in:
+        return false()
+    return or_(*ways_in)
+
+
+async def stranded_between(
+    session: AsyncSession,
+    *,
+    current: frozenset[LoginMethod],
+    requested: frozenset[LoginMethod],
+) -> int:
+    """How many accounts can begin a session under ``current`` and not under
+    ``requested``.
+
+    One query over both sets rather than one per method, so an account holding
+    two credentials whose methods go together is counted for the pair — which
+    asking about each method on its own cannot do, since each of the two is a
+    way in while the other is still offered.
+    """
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
             .where(
-                no_usable_password,
-                holds_this.exists(),
-                ~holds_another.exists(),
+                _can_sign_in_clause(current),
+                ~_can_sign_in_clause(requested),
             )
         )
     ).one()
+
+
+async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:
+    """Which ways in this deployment permits.
+
+    Read from the settings row here rather than through ``auth_posture``, which
+    is the module that answers this everywhere else and reads this one. The
+    same resolution: a row holding nothing this version recognises falls back
+    to the default set.
+    """
+    row = (
+        await session.exec(
+            select(AppSetting.login_methods).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).first()
+    return methods_from_values(row)
+
+
+async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMethod]:
+    """Which methods could start a session for this account today.
+
+    Three questions asked together, because the answer to each depends on both
+    halves — what the account holds, and what the deployment permits. A
+    credential the deployment no longer accepts is not a way in, and a method
+    the deployment offers is not a way in for an account that holds nothing to
+    present.
+
+    ``totp`` is never a member: it accompanies a sign-in rather than beginning
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
+    keys, which are derived from a sign-in that already happened.
+
+    The same predicates the counts are built from, asked of one account: the
+    settings row is read once and the credentials in one query, so a caller
+    weighing a change reads one consistent posture rather than three.
+    """
+    permitted = await _permitted_methods(session)
+    candidates = [method for method in _HELD_CLAUSES if method in permitted]
+    if not candidates:
+        return frozenset()
+
+    held = [_HELD_CLAUSES[method]() for method in candidates]
+    row = (await session.exec(select(User.id, *held).where(User.id == user_id))).first()
+    if row is None:
+        return frozenset()
+    return frozenset(
+        method for method, answered in zip(candidates, row[1:]) if answered
+    )
+
+
+async def password_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only with a password.
+
+    What withdrawing the password would leave stranded on a deployment
+    offering ``permitted`` today. Nobody, where the password is not among them.
+    """
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.password}
+    )
+
+
+async def federated_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only through an identity provider.
+
+    Every provider counts. Withdrawing the method closes all of them at once,
+    so an account whose only way in is any one of them is one this has to
+    report.
+    """
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.sso}
+    )
+
+
+async def passkey_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only with a passkey.
+
+    Nobody, on a deployment that does not offer them — the method is not a way
+    in there, so withdrawing it takes nothing away.
+    """
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.passkey}
+    )
 
 
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
@@ -315,6 +497,25 @@ async def _registration_open(session: AsyncSession) -> bool:
     return user_count == 0
 
 
+def _address_lock_key(normalized: str) -> int:
+    """A stable 64-bit key naming one address, for ``pg_advisory_xact_lock``.
+
+    Not the stored hash: a lock key is an integer visible in ``pg_locks``, and
+    this one only has to be the same number for the same address on every
+    connection.
+    """
+    digest = hashlib.blake2b(normalized.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)
+
+
+class _AddressTaken(Exception):
+    """Another account already holds the asserted address, proven.
+
+    Raised inside the provisioning savepoint so the recovery below handles a
+    lost race the same way whether a constraint or a re-read found it.
+    """
+
+
 async def _provision(
     session: AsyncSession,
     *,
@@ -335,6 +536,17 @@ async def _provision(
         normalized = f"{subject}@oidc.local"
         verified = False
 
+    if email:
+        # One provisioning at a time per address, for as long as this
+        # transaction runs. Uniqueness covers proven rows, so two sign-ins
+        # asserting the same *unproven* address conflict over nothing and
+        # neither sees the other's uncommitted row; whichever waits here reads
+        # the other's account in the check below and is answered the way a
+        # sign-in that did not race is.
+        await session.exec(
+            select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
+        )
+
     # A random handle, not one built from the claims. The claims feed the
     # suggestions on the pick screen instead, so an account abandoned partway
     # through is left holding nothing that identifies its owner — and a
@@ -342,8 +554,6 @@ async def _provision(
     handle, discriminator = await username_service.allocate_from_seed(session)
 
     user = User(
-        email_hash=hash_email(normalized),
-        email_encrypted=encrypt_field(normalized, SALT_EMAIL),
         username=handle,
         discriminator=discriminator,
         # Assigned, not picked: its owner chooses one on their next sign-in.
@@ -357,7 +567,6 @@ async def _provision(
         role=UserRole.member,
         status=UserStatus.active,
         avatar_url=avatar_url,
-        email_verified=verified,
     )
     try:
         # User + identity are inserted inside ONE savepoint: flush assigns the
@@ -388,6 +597,16 @@ async def _provision(
             )
             session.add(identity)
             await session.flush()
+            # Asked again now the row is in: a login that committed between the
+            # caller's check and this insert is visible here, and an unproven
+            # claim collides with nothing, so there is no constraint to raise
+            # for it. A proven holder means this account is not the one the
+            # address belongs to, and the block below decides what to do about
+            # that — the same decision a login that did not race makes.
+            if email:
+                holder = await addresses.account_holding(session, email)
+                if holder is not None and holder.id != user.id:
+                    raise _AddressTaken
         # Outside the savepoint, and before the commit: a lost race raises out
         # of the block above and never reaches this, so there is no row for an
         # account that was discarded.
@@ -398,7 +617,7 @@ async def _provision(
         return IdentityResolution(
             outcome=ResolutionOutcome.PROVISIONED, user=user, identity=identity
         )
-    except IntegrityError:
+    except (IntegrityError, _AddressTaken):
         # Lost a JIT race with a concurrent login. A conflicting unique insert
         # blocks until the other transaction commits, so by the time we're here
         # the winner is committed and visible; the savepoint has already discarded
@@ -415,7 +634,7 @@ async def _provision(
                 return IdentityResolution(
                     outcome=ResolutionOutcome.LINKED, user=user, identity=winner
                 )
-        # (b) users.email_hash — a *different* subject with the same email (a
+        # (b) the address — a *different* subject with the same email (a
         #     second provider, or the IdP issuing a new subject) got there first.
         #     That is now an existing, unlinked account matched by email: the same
         #     EMAIL_MATCH / EMAIL_UNVERIFIED decision a non-raced login makes,
@@ -423,7 +642,7 @@ async def _provision(
         #     the synthetic {subject}@oidc.local address is subject-unique, so its
         #     only race is (a).
         if email:
-            matched = await addresses.find_user_by_address(session, email)
+            matched = await addresses.account_holding(session, email)
             if matched is not None:
                 outcome = (
                     ResolutionOutcome.EMAIL_MATCH

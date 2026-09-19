@@ -41,6 +41,24 @@ async def _set_policy(session, user, policy: DmPolicy) -> None:
     await session.commit()
 
 
+async def _connect(session, a, b) -> None:
+    """The mutual link a connection request earns, applied directly.
+
+    A ``private`` account is reachable only by one of these — a message grant
+    does not satisfy that policy, which is the whole point of it.
+    """
+    low, high = (a.id, b.id) if a.id < b.id else (b.id, a.id)
+    await session.exec(
+        text(
+            "INSERT INTO public.contact_grants "
+            "(user_id_low, user_id_high, kind, state, requested_by, created_at) "
+            "VALUES (:lo, :hi, 'connection', 'accepted', :by, now()) "
+            "ON CONFLICT DO NOTHING"
+        ).bindparams(lo=low, hi=high, by=a.id)
+    )
+    await session.commit()
+
+
 async def _open_channel(session, a, b) -> None:
     """The accepted message grant a request earns, applied directly."""
     low, high = (a.id, b.id) if a.id < b.id else (b.id, a.id)
@@ -269,6 +287,119 @@ async def test_asking_twice_returns_the_same_channel(client, session, acting_use
     assert first.json()["id"] == second.json()["id"]
 
 
+class TestLeavingReleasesTheRoster:
+    """A conversation down to one member gives its roster name back, so the two
+    of them can open a channel again."""
+
+    async def _channel(self, client, session, a, b) -> str:
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        await _open_channel(session, a.user, b.user)
+        opened = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+        assert opened.status_code == 201, opened.text
+        return opened.json()["id"]
+
+    async def test_the_one_who_stayed_can_open_a_fresh_channel(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{first}", headers=b.headers
+        )
+        assert left.status_code == 204, left.text
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] != first
+        # And it is a real channel: both of them are on it.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        assert again.json()["id"] in {c["id"] for c in listed.json()["conversations"]}
+
+    async def test_the_one_who_left_can_open_a_fresh_channel(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        await client.delete(f"/api/v1/me/dm/conversations/{first}", headers=b.headers)
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": a.user.id},
+            headers=b.headers,
+        )
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] != first
+
+    async def test_opening_again_is_still_refused_where_they_cannot_be_reached(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        first = await self._channel(client, session, a, b)
+        await client.delete(f"/api/v1/me/dm/conversations/{first}", headers=b.headers)
+        await _set_policy(session, b.user, DmPolicy.private)
+
+        again = await client.post(
+            "/api/v1/me/dm/conversations",
+            json={"user_id": b.user.id},
+            headers=a.headers,
+        )
+
+        assert again.status_code == 409
+        assert again.json()["detail"] == "DM_NOT_REACHABLE"
+
+
+async def test_two_requests_for_one_pair_both_get_the_channel(
+    client, session, acting_user, monkeypatch
+):
+    """Losing the insert race means the thread exists, which is what was asked
+    for -- so it is read back rather than returned as a constraint error."""
+    from app.services.platform import dm_transport as service
+
+    a = await acting_user()
+    b = await acting_user()
+    await _set_policy(session, a.user, DmPolicy.public)
+    await _set_policy(session, b.user, DmPolicy.public)
+    await _open_channel(session, a.user, b.user)
+    first = await client.post(
+        "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
+    )
+    assert first.status_code == 201, first.text
+
+    # The second request looks before the first has committed, so it finds
+    # nothing and goes on to insert against a key that is already taken.
+    real = service._conversation_with_roster
+    looks = {"n": 0}
+
+    async def blind_first_look(*args, **kwargs):
+        looks["n"] += 1
+        if looks["n"] == 1:
+            return None
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(service, "_conversation_with_roster", blind_first_look)
+
+    second = await client.post(
+        "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
+    )
+
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == first.json()["id"]
+
+
 async def test_a_third_account_cannot_see_the_conversation(
     client, session, acting_user
 ):
@@ -422,7 +553,8 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
     """The whole point of the ignore, on the wire.
 
     The send succeeds, the response is identical, and nothing lands in the
-    recipient's queue.
+    recipient's queue. Identical includes the count: it says what the sender
+    handed over, so it does not move when a copy is dropped.
     """
     a = await acting_user()
     b = await acting_user()
@@ -451,6 +583,10 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         headers=a.headers,
     )
     assert sent.status_code == 200, sent.text
+    # Two handed over, two accepted -- the same answer somebody who is not
+    # ignored gets, which is what makes the ignore invisible rather than
+    # merely quiet.
+    assert sent.json()["accepted"] == 2
 
     collected = await client.get(
         f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
@@ -461,6 +597,640 @@ async def test_an_ignored_sender_is_answered_the_same_and_reaches_nobody(
         f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
     )
     assert len(own.json()["items"]) == 1
+
+
+class TestProposingAGroup:
+    """A roster is proposed to everybody on it, and nobody is added."""
+
+    async def _reachable(self, session, actors):
+        for actor in actors:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(actors):
+            for second in actors[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+
+    async def _propose(self, client, actor, others):
+        return await client.post(
+            "/api/v1/me/dm/conversations/group",
+            json={"user_ids": [o.user.id for o in others]},
+            headers=actor.headers,
+        )
+
+    async def test_everybody_named_is_asked_and_nobody_is_added(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        made = await self._propose(client, a, [b, c])
+
+        assert made.status_code == 201, made.text
+        conversation_id = made.json()["id"]
+        # The one who proposed it has answered by proposing.
+        mine = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+        entry = next(
+            c for c in mine.json()["conversations"] if c["id"] == conversation_id
+        )
+        assert entry["kind"] == "group"
+        assert entry["pending"] is False
+        assert sorted(entry["member_ids"]) == sorted([b.user.id, c.user.id])
+        # The others have an invitation, not a membership.
+        theirs = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        waiting = next(
+            c for c in theirs.json()["conversations"] if c["id"] == conversation_id
+        )
+        assert waiting["pending"] is True
+
+    async def test_a_pending_invitee_receives_nothing(
+        self, client, session, acting_user
+    ):
+        """Named on a roster is not on the conversation."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        b_device = await _register(client, b, seed=60)
+        await _register(client, a, seed=1)
+        made = await self._propose(client, a, [b, c])
+        conversation_id = made.json()["id"]
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"early").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert collected.json()["items"] == []
+
+    async def test_answering_puts_them_on_it(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        b_device = await _register(client, b, seed=60)
+        await _register(client, a, seed=1)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+
+        answered = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+        assert answered.status_code == 204, answered.text
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"now you are on it").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert len(collected.json()["items"]) == 1
+
+    async def test_the_proposal_answers_with_the_roster_it_made(
+        self, client, session, acting_user
+    ):
+        """The same shape the list answers with, so a client can use it as-is."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        made = await self._propose(client, a, [b, c])
+
+        body = made.json()
+        assert body["kind"] == "group"
+        assert body["member_ids"] == sorted([b.user.id, c.user.id])
+        assert body["other_user_id"] == min(b.user.id, c.user.id)
+        assert body["pending"] is False
+        # And it matches what the list says about the same conversation.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+        entry = next(
+            row for row in listed.json()["conversations"] if row["id"] == body["id"]
+        )
+        assert entry["member_ids"] == body["member_ids"]
+        assert entry["kind"] == body["kind"]
+
+    async def test_the_list_names_who_is_on_a_thread(
+        self, client, session, acting_user
+    ):
+        """A group has no name, so it is named by its roster -- and drawn by it
+        too, which needs the picture as well as the handle.
+
+        Every account here is an ordinary member. ``users`` is own-row for the
+        request path below moderator, so a platform tier that can read the whole
+        table would pass this for a reason no ordinary account has.
+        """
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+
+        listed = await client.get("/api/v1/me/dm/conversations", headers=a.headers)
+
+        entry = next(
+            row
+            for row in listed.json()["conversations"]
+            if row["id"] == conversation_id
+        )
+        members = entry["members"]
+        assert [member["user_id"] for member in members] == sorted(
+            [b.user.id, c.user.id]
+        )
+        assert all(member["username"] for member in members)
+        # The picture and what is worn around it, so a roster draws a person the
+        # way every other list of people does.
+        assert all("avatar_url" in member for member in members)
+        assert all("profile_decorations" in member for member in members)
+        # In the same order as the ids, so the two can be read together.
+        assert entry["member_ids"] == sorted([b.user.id, c.user.id])
+
+    async def test_strangers_can_make_a_group_and_use_it(
+        self, client, session, acting_user
+    ):
+        """Nobody here has ever messaged anybody one-to-one.
+
+        Agreeing to a roster is the ask and the answer in one, so the group is
+        the accepted ask: no prior message request between any pair.
+        """
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        # Reachable, but with no grant between any pair.
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        a_device = await _register(client, a, seed=1)
+        b_device = await _register(client, b, seed=60)
+        await _register(client, c, seed=120)
+
+        made = await self._propose(client, a, [b, c])
+        assert made.status_code == 201, made.text
+        conversation_id = made.json()["id"]
+        for actor in (b, c):
+            answered = await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/accept",
+                headers=actor.headers,
+            )
+            assert answered.status_code == 204, answered.text
+
+        # Their keys are readable, which is what a first message needs.
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 200, directory.text
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"hello strangers").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        assert sent.status_code == 200, sent.text
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert len(collected.json()["items"]) == 1
+        assert a_device
+
+    async def test_an_unanswered_invitation_is_not_an_accepted_ask(
+        self, client, session, acting_user
+    ):
+        """Being named on a roster carries nothing until it is answered."""
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        await self._propose(client, a, [b, c])
+
+        # B has not answered, so A has no way to reach B's keys.
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 409
+        assert directory.json()["detail"] == "DM_NOT_REACHABLE"
+
+    async def test_leaving_an_accepted_group_revokes_transport_access(
+        self, client, session, acting_user
+    ):
+        """Leaving takes back what being on the roster gave.
+
+        The two halves are different answers on purpose. Reading somebody's
+        devices is a question about that account, and it is refused. A copy
+        addressed to a device that is no longer on the roster is dropped
+        instead: the send is for everybody still on it, and one name having
+        gone is not the rest of them going unheard.
+        """
+        a = await acting_user("member")
+        b = await acting_user("member")
+        c = await acting_user("member")
+        for actor in (a, b, c):
+            await _set_policy(session, actor.user, DmPolicy.public)
+        a_device = await _register(client, a, seed=1)
+        b_device = await _register(client, b, seed=60)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        for actor in (b, c):
+            answered = await client.post(
+                f"/api/v1/me/dm/conversations/{conversation_id}/accept",
+                headers=actor.headers,
+            )
+            assert answered.status_code == 204, answered.text
+
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{conversation_id}", headers=b.headers
+        )
+        assert left.status_code == 204, left.text
+
+        directory = await client.get(
+            f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+        )
+        assert directory.status_code == 409
+        assert directory.json()["detail"] == "DM_NOT_REACHABLE"
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"after leave").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+        # The conversation is still there and still has people on it, so the
+        # send is taken.
+        assert sent.status_code == 200, sent.text
+        # And nothing was written for the person who left.
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={b_device}", headers=b.headers
+        )
+        assert collected.json()["items"] == []
+        assert a_device
+
+    async def test_somebody_still_deciding_cannot_send(
+        self, client, session, acting_user
+    ):
+        """Seeing a conversation and being on it are different things."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        a_device = await _register(client, a, seed=1)
+        await _register(client, b, seed=60)
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        # B can see it -- that is how they decide.
+        listed = await client.get("/api/v1/me/dm/conversations", headers=b.headers)
+        assert conversation_id in {row["id"] for row in listed.json()["conversations"]}
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": a_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"before answering").decode(),
+                    }
+                ]
+            },
+            headers=b.headers,
+        )
+
+        assert sent.status_code == 404
+        assert sent.json()["detail"] == "DM_CONVERSATION_NOT_FOUND"
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={a_device}", headers=a.headers
+        )
+        assert collected.json()["items"] == []
+
+    async def test_answering_twice_is_refused(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+
+        again = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/accept", headers=b.headers
+        )
+
+        assert again.status_code == 404
+        assert again.json()["detail"] == "DM_NO_INVITATION"
+
+    async def test_a_roster_that_cannot_reach_itself_is_refused(
+        self, client, session, acting_user
+    ):
+        """B and C are strangers to each other, whatever A is to both."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        # C admits only the accounts it is connected to, and that is A alone.
+        await _set_policy(session, c.user, DmPolicy.private)
+        await _connect(session, a.user, c.user)
+
+        made = await self._propose(client, a, [b, c])
+
+        assert made.status_code == 409
+        assert made.json()["detail"] == "DM_ROSTER_NOT_REACHABLE"
+
+    async def test_the_check_names_the_pair_before_anybody_commits(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await _set_policy(session, a.user, DmPolicy.public)
+        await _set_policy(session, b.user, DmPolicy.public)
+        await _set_policy(session, c.user, DmPolicy.private)
+        await _connect(session, a.user, c.user)
+
+        checked = await client.post(
+            "/api/v1/me/dm/roster-check",
+            json={"user_ids": [b.user.id, c.user.id]},
+            headers=a.headers,
+        )
+
+        assert checked.status_code == 200, checked.text
+        assert checked.json()["unreachable_pair"] == sorted([b.user.id, c.user.id])
+        assert checked.json()["too_large"] is False
+
+    async def test_a_reachable_roster_checks_clean(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+
+        checked = await client.post(
+            "/api/v1/me/dm/roster-check",
+            json={"user_ids": [b.user.id, c.user.id]},
+            headers=a.headers,
+        )
+
+        assert checked.json()["unreachable_pair"] == []
+        assert checked.json()["max_members"] == 40
+
+    async def test_two_people_are_not_a_group(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        await self._reachable(session, [a, b])
+
+        made = await self._propose(client, a, [b])
+
+        assert made.status_code == 422, made.text
+
+    async def test_proposing_the_same_roster_asks_whoever_is_not_on_it(
+        self, client, session, acting_user
+    ):
+        """Somebody who declined may have changed their mind, or their settings."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        await self._reachable(session, [a, b, c])
+        conversation_id = (await self._propose(client, a, [b, c])).json()["id"]
+        # C declines, which is the ordinary leave.
+        left = await client.delete(
+            f"/api/v1/me/dm/conversations/{conversation_id}", headers=c.headers
+        )
+        assert left.status_code == 204, left.text
+
+        again = await self._propose(client, a, [b, c])
+
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] == conversation_id
+        theirs = await client.get("/api/v1/me/dm/conversations", headers=c.headers)
+        asked = next(
+            row
+            for row in theirs.json()["conversations"]
+            if row["id"] == conversation_id
+        )
+        assert asked["pending"] is True
+
+
+class TestAGroupSend:
+    """Three people on one conversation. Nothing can make one through the API
+    yet, so the roster is written directly — the send path is what is under
+    test, and it is already meant to carry any roster."""
+
+    async def _group(self, client, session, members):
+        from datetime import datetime, timezone
+
+        from app.models.platform.dm_conversation import (
+            DmConversation,
+            DmConversationKind,
+            DmConversationMember,
+            roster_key,
+        )
+
+        for actor in members:
+            await _set_policy(session, actor.user, DmPolicy.public)
+        for i, first in enumerate(members):
+            for second in members[i + 1 :]:
+                await _open_channel(session, first.user, second.user)
+
+        devices = {
+            actor.user.id: await _register(client, actor, seed=1 + 40 * i)
+            for i, actor in enumerate(members)
+        }
+        now = datetime.now(timezone.utc)
+        conversation = DmConversation(
+            kind=DmConversationKind.group,
+            roster_key=roster_key(actor.user.id for actor in members),
+        )
+        session.add(conversation)
+        await session.flush()
+        for actor in members:
+            session.add(
+                DmConversationMember(
+                    conversation_id=conversation.id,
+                    user_id=actor.user.id,
+                    accepted_at=now,
+                )
+            )
+        await session.commit()
+        return str(conversation.id), devices
+
+    async def _send_to(self, client, actor, conversation_id, device_ids):
+        return await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": device_id,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"for the group").decode(),
+                    }
+                    for device_id in device_ids
+                ]
+            },
+            headers=actor.headers,
+        )
+
+    async def _waiting(self, client, actor, device_id) -> int:
+        collected = await client.get(
+            f"/api/v1/me/dm/queue?device_id={device_id}", headers=actor.headers
+        )
+        return len(collected.json()["items"])
+
+    async def test_one_message_reaches_every_member(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["accepted"] == 2
+        assert sent.json()["queue_full_for"] == []
+        assert await self._waiting(client, b, devices[b.user.id]) == 1
+        assert await self._waiting(client, c, devices[c.user.id]) == 1
+
+    async def test_one_member_ignoring_does_not_stop_the_others(
+        self, client, session, acting_user
+    ):
+        """Delivery is asked per recipient, and the sender is answered the same."""
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+        session.add(UserIgnore(user_id=b.user.id, ignored_user_id=a.user.id))
+        await session.commit()
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        # Unmoved, so the ignore is invisible here exactly as it is for a pair.
+        assert sent.json()["accepted"] == 2
+        assert sent.json()["queue_full_for"] == []
+        assert await self._waiting(client, b, devices[b.user.id]) == 0
+        assert await self._waiting(client, c, devices[c.user.id]) == 1
+
+    async def test_a_device_nobody_on_the_roster_owns_is_dropped(
+        self, client, session, acting_user
+    ):
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        outsider = await acting_user()
+        conversation_id, devices = await self._group(client, session, [a, b, c])
+        await _set_policy(session, outsider.user, DmPolicy.public)
+        await _open_channel(session, a.user, outsider.user)
+        theirs = await _register(client, outsider, seed=200)
+
+        sent = await self._send_to(
+            client, a, conversation_id, [devices[b.user.id], theirs]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert await self._waiting(client, b, devices[b.user.id]) == 1
+        assert await self._waiting(client, outsider, theirs) == 0
+
+
+class TestAFullMailbox:
+    """The ceiling refuses a send it cannot keep. What differs with a roster is
+    that one full mailbox is not everybody's."""
+
+    async def _fill(self, session, user_id: int) -> None:
+        """Put this account over its ceiling, without moving a real message."""
+        from app.services.platform.dm_transport import QUEUE_CEILING_BYTES
+
+        await session.exec(
+            text(
+                "INSERT INTO public.dm_queue "
+                "(conversation_id, recipient_device_id, message_type, payload, created_at) "
+                "SELECT c.id, d.id, 1, repeat('x', :n)::bytea, now() "
+                "  FROM public.dm_devices d "
+                "  JOIN public.dm_conversation_members m ON m.user_id = d.user_id "
+                "  JOIN public.dm_conversations c ON c.id = m.conversation_id "
+                " WHERE d.user_id = :u LIMIT 1"
+            ).bindparams(n=QUEUE_CEILING_BYTES, u=user_id)
+        )
+        await session.commit()
+
+    async def test_a_pair_is_refused(self, client, session, acting_user):
+        a = await acting_user()
+        b = await acting_user()
+        conversation_id, _a_device, b_device = await _conversation_with_devices(
+            client, session, a, b
+        )
+        await self._fill(session, b.user.id)
+
+        sent = await client.post(
+            f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+            json={
+                "messages": [
+                    {
+                        "recipient_device_id": b_device,
+                        "message_type": 0,
+                        "payload": base64.b64encode(b"too much").decode(),
+                    }
+                ]
+            },
+            headers=a.headers,
+        )
+
+        assert sent.status_code == 507
+        assert sent.json()["detail"] == "DM_RECIPIENT_QUEUE_FULL"
+
+    async def test_a_group_delivers_to_the_rest_and_says_who_missed_it(
+        self, client, session, acting_user
+    ):
+        """One abandoned phone is not a reason the others hear nothing."""
+        group = TestAGroupSend()
+        a = await acting_user()
+        b = await acting_user()
+        c = await acting_user()
+        conversation_id, devices = await group._group(client, session, [a, b, c])
+        await self._fill(session, b.user.id)
+
+        sent = await group._send_to(
+            client, a, conversation_id, [devices[b.user.id], devices[c.user.id]]
+        )
+
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["queue_full_for"] == [b.user.id]
+        assert await group._waiting(client, c, devices[c.user.id]) == 1
 
 
 async def test_collecting_then_acknowledging_removes_the_row(

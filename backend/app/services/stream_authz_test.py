@@ -15,6 +15,7 @@ import pytest
 from fastapi import status
 
 from app.api.deps import GuildAccessError
+from app.core import auth_context
 from app.services import stream_authz
 from app.services.stream_authz import StreamAuthority
 from app.models.platform.user import UserStatus
@@ -129,6 +130,29 @@ async def test_leave_removes_socket_from_room(authority) -> None:
 # ── continuous re-authorization (every level) ────────────────────────────────
 
 
+class _FakeSession:
+    """The session ``_still_authorized`` opens, without a database behind it.
+
+    ``get`` answers with the account as it stands now, which is the point: the
+    socket carries the one it joined with.
+    """
+
+    def __init__(self, account_status: UserStatus = UserStatus.active) -> None:
+        self._account_status = account_status
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_a):
+        return False
+
+    async def exec(self, *_a, **_k):
+        return None
+
+    async def get(self, _model, _pk):
+        return SimpleNamespace(id=USER.id, status=self._account_status)
+
+
 def _patch_recheck(
     monkeypatch,
     *,
@@ -141,21 +165,6 @@ def _patch_recheck(
     ``authorize`` (the initiative + DAC gate) independently, and return the
     authorize closure to register."""
 
-    class _FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_a):
-            return False
-
-        async def exec(self, *_a, **_k):
-            return None
-
-        async def get(self, _model, _pk):
-            # The account as it stands now, which is the point: the socket
-            # carries the one it joined with.
-            return SimpleNamespace(id=USER.id, status=account_status)
-
     seen_satisfied: list = []
 
     async def fake_establish(_session, _user, _guild_id, satisfied_providers=None):
@@ -163,7 +172,9 @@ def _patch_recheck(
         if not establish_ok:
             raise GuildAccessError()
 
-    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
+    monkeypatch.setattr(
+        stream_authz, "AsyncSessionLocal", lambda: _FakeSession(account_status)
+    )
     monkeypatch.setattr(stream_authz, "establish_guild_access", fake_establish)
 
     async def authorize(_session, _user):
@@ -262,6 +273,56 @@ async def test_recheck_replays_join_time_satisfied_providers(
 
     assert seen == [frozenset({42})]
     assert ws.closed is None
+
+
+@pytest.mark.unit
+async def test_recheck_answers_for_the_session_that_opened_the_socket(
+    authority, monkeypatch
+) -> None:
+    """A community that asks for a passkey is answered against the socket's own
+    session. The re-check runs wherever the change came from — another
+    account's request, or the bounded loop — so the standing it reads is the
+    one captured at join, and what it found there is put back."""
+
+    async def gate_wanting_a_passkey(
+        _session, _user, _guild_id, satisfied_providers=None
+    ):
+        if not auth_context.session_passkey():
+            raise GuildAccessError()
+
+    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
+    monkeypatch.setattr(stream_authz, "establish_guild_access", gate_wanting_a_passkey)
+
+    with_a_key = FakeWebSocket()
+    auth_context.set_session_mfa(True)
+    auth_context.set_session_passkey(True)
+    await _join(
+        authority, with_a_key, guild_id=1, resource_type="document", resource_id=3
+    )
+
+    with_a_password = FakeWebSocket()
+    auth_context.set_session_mfa(False)
+    auth_context.set_session_passkey(False)
+    await _join(
+        authority, with_a_password, guild_id=1, resource_type="document", resource_id=4
+    )
+
+    # Re-checked from a context carrying neither: the passkey socket stays.
+    await authority.revoke_user(1, USER.id)
+    assert with_a_key.closed is None
+    assert with_a_password.closed == status.WS_1008_POLICY_VIOLATION
+    assert auth_context.session_mfa() is False
+    assert auth_context.session_passkey() is False
+
+    # And from one carrying both: the socket opened without a key still goes.
+    again = FakeWebSocket()
+    await _join(authority, again, guild_id=1, resource_type="document", resource_id=5)
+    auth_context.set_session_mfa(True)
+    auth_context.set_session_passkey(True)
+    await authority.revoke_user(1, USER.id)
+    assert again.closed == status.WS_1008_POLICY_VIOLATION
+    assert with_a_key.closed is None
+    assert auth_context.session_passkey() is True
 
 
 @pytest.mark.unit

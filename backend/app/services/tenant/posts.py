@@ -409,18 +409,16 @@ async def get_post_for_export(
     exporting is a formatted read."""
     from fastapi import HTTPException, status as http_status
 
-    from app.core.messages import PostMessages
-
     post = await get_post(session, post_id)
     if post is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=PostMessages.NOT_FOUND,
+            detail=Tool.post.not_found_code,
         )
     if post.initiative is not None and not post.initiative.posts_enabled:
         raise HTTPException(
             status_code=http_status.HTTP_403_FORBIDDEN,
-            detail=PostMessages.FEATURE_DISABLED,
+            detail=Tool.post.feature_disabled_code,
         )
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.post],
@@ -434,7 +432,7 @@ async def get_post_for_export(
     if permissions_service.hidden_from_reader(Tool.post, post, current_user.id):
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=PostMessages.NOT_FOUND,
+            detail=Tool.post.not_found_code,
         )
     await tags_service.annotate_tags(session, [post])
     return post

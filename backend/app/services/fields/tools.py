@@ -20,6 +20,7 @@ from app.models.tenant.document import Document
 from app.models.tenant.gallery import Gallery, GalleryImage
 from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.services.fields.derive import derive_fields
 from app.services.fields.spec import Dataset, Hop, Relation
 
@@ -82,6 +83,37 @@ def build_posts() -> Dataset:
 
 def build_galleries() -> Dataset:
     return Dataset(model=Gallery, tool=Tool.gallery, fields=derive_fields(Gallery))
+
+
+def build_wikis() -> Dataset:
+    return Dataset(model=Wiki, tool=Tool.wiki, fields=derive_fields(Wiki))
+
+
+def build_wiki_pages() -> Dataset:
+    """One page of a wiki. Its own dataset for the reason queue items and
+    gallery pictures have one: what somebody asks about a wiki — how many
+    pages are still drafts, what has not been touched since spring — is a
+    question about the pages, and the wiki is what they are grouped by.
+
+    A page's body and the Yjs state beside it are dropped: one is a structured
+    blob and the other is a room's working copy of it, and neither is a value a
+    comparison would mean anything against. So are the headings read out of the
+    body, which are a shape rather than a value.
+    """
+    return Dataset(
+        model=WikiPage,
+        tool=Tool.wiki,
+        name_override="wiki_pages",
+        fields=derive_fields(
+            WikiPage, internal=frozenset({"content", "yjs_state", "yjs_updated_at"})
+        ),
+        relations=(
+            Relation(
+                name="wiki",
+                hops=(Hop(dataset="wikis", left="wiki_id", right="id"),),
+            ),
+        ),
+    )
 
 
 def build_gallery_images() -> Dataset:

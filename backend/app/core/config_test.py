@@ -353,6 +353,20 @@ def test_csp_captcha_origins_only_when_configured():
     assert "https://*.hcaptcha.com" in _directive(on, "script-src")
 
 
+def test_csp_billing_origin_only_when_portal_configured():
+    """The landing page fetches the pricing catalog from the billing portal,
+    so its origin is allowed for fetch() only on a deployment that names one —
+    and only the origin, never the path it was configured with."""
+    assert "billing.example.com" not in _settings().content_security_policy
+
+    on = _settings(
+        BILLING_URL="https://billing.example.com/portal/"
+    ).content_security_policy
+    assert "https://billing.example.com" in _directive(on, "connect-src")
+    assert "/portal" not in _directive(on, "connect-src")
+    assert "billing.example.com" not in _directive(on, "script-src")
+
+
 def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     # Swagger's jsDelivr + Cloudflare beacon scripts are permitted ONLY on the
     # docs-scoped policy; the app-wide script-src stays 'self' (pentest MED-001).

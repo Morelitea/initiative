@@ -13,16 +13,23 @@ import { useTranslation } from "react-i18next";
 import {
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  renewSession,
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PasskeySignInResult, Token, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  clearRefreshToken,
+  readRefreshToken,
+  sessionFromResponse,
+  storeRefreshToken,
+} from "@/lib/nativeSession";
 import {
   isOfflineCacheEnabled,
   purgeOfflineCache,
@@ -37,6 +44,7 @@ import {
   readOfflineSession,
   saveOfflineSession,
 } from "@/lib/offlineSession";
+import { stepUpWithPasskey as presentPasskeyForStepUp } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
@@ -46,6 +54,19 @@ interface LoginPayload {
   email: string;
   password: string;
   deviceName?: string; // For mobile device token login
+}
+
+/** Answering a challenge: one of the two codes, never both. */
+interface SecondFactorPayload {
+  challenge: string;
+  code?: string;
+  recoveryCode?: string;
+}
+
+/** The factor presented against a session that is already open. */
+interface StepUpPayload {
+  code?: string;
+  recoveryCode?: string;
 }
 
 interface RegisterPayload {
@@ -79,6 +100,10 @@ interface AuthContextValue {
    */
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
+  applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
+  stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
+  stepUpWithPasskey: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -86,6 +111,35 @@ interface AuthContextValue {
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+/**
+ * The password was right and the account holds a second factor, so the sign-in
+ * is not finished.
+ *
+ * Thrown rather than returned so `login` keeps one contract — it resolves when
+ * you are signed in and throws when you are not — while still handing the page
+ * the one thing it needs to carry on with.
+ */
+export class SecondFactorRequiredError extends Error {
+  readonly challenge: string;
+
+  constructor(challenge: string) {
+    super("TOTP_REQUIRED");
+    this.name = "SecondFactorRequiredError";
+    this.challenge = challenge;
+  }
+}
+
+/** The shape of the 401 that carries a challenge, from either sign-in route. */
+const secondFactorChallenge = (error: unknown): string | null => {
+  const response = (
+    error as { response?: { status?: number; data?: { detail?: unknown; challenge?: unknown } } }
+  )?.response;
+  if (response?.status !== 401 || response.data?.detail !== "TOTP_REQUIRED") {
+    return null;
+  }
+  return typeof response.data.challenge === "string" ? response.data.challenge : null;
+};
 
 const TOKEN_STORAGE_KEY = "initiative-token";
 const DEVICE_TOKEN_KEY = "initiative-is-device-token";
@@ -203,20 +257,85 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [setUser]
   );
 
-  // Load token on mount for native only (web uses HttpOnly cookie — no localStorage read needed)
+  // Load the credential on mount for native only (web uses an HttpOnly cookie,
+  // so there is nothing here to read).
+  //
+  // A session is preferred over the device token wherever there is one, and a
+  // launch holding only a device token trades it for a session, once. Every
+  // failure here falls back to the device token rather than signing anybody
+  // out: the backend serves both, and the app that cannot renew today is the
+  // same app that worked yesterday.
   useEffect(() => {
     if (!isNative) return;
-    try {
-      const storedToken = getItem(TOKEN_STORAGE_KEY);
-      const isDevice = getItem(DEVICE_TOKEN_KEY) === "true";
-      if (storedToken) {
-        setTokenState(storedToken);
-        setIsDeviceToken(isDevice);
-        setAuthToken(storedToken, isDevice);
+    let cancelled = false;
+
+    const restore = async () => {
+      const deviceToken = getItem(TOKEN_STORAGE_KEY);
+      const hasDeviceToken = getItem(DEVICE_TOKEN_KEY) === "true" && !!deviceToken;
+
+      const carryOnWithDeviceToken = () => {
+        if (cancelled || !deviceToken) return;
+        setTokenState(deviceToken);
+        setIsDeviceToken(true);
+        setAuthToken(deviceToken, true);
+      };
+
+      const adopt = (accessToken: string, refreshToken: string) => {
+        storeRefreshToken(refreshToken);
+        if (cancelled) return;
+        setTokenState(accessToken);
+        setIsDeviceToken(false);
+        setAuthToken(accessToken, false);
+      };
+
+      if (readRefreshToken()) {
+        // The access token is short-lived and was never written down, so the
+        // launch begins by renewing rather than by being turned away once.
+        //
+        // Through the shared coordinator rather than posting here: a refresh
+        // token is spent by its first use, and two requests carrying the same
+        // one read as a replay and revoke the chain. Anything else renewing at
+        // the same moment — a mount run twice, a request that raced this —
+        // joins the attempt already in flight instead of starting a second.
+        const renewed = await renewSession();
+        if (renewed) {
+          if (!cancelled) {
+            setTokenState(renewed);
+            setIsDeviceToken(false);
+          }
+          return;
+        }
+        clearRefreshToken();
+        carryOnWithDeviceToken();
+        return;
       }
-    } catch (err) {
+
+      if (hasDeviceToken) {
+        // The way across, taken once: the token it trades keeps working, so a
+        // refusal here costs nothing but another attempt next launch.
+        try {
+          const exchanged = await apiClient.post<{
+            access_token: string;
+            refresh_token?: string;
+          }>("/auth/device-token/exchange", { device_token: deviceToken });
+          if (exchanged.data.refresh_token) {
+            adopt(exchanged.data.access_token, exchanged.data.refresh_token);
+            return;
+          }
+        } catch {
+          // An older deployment has no such endpoint, and a newer one may
+          // simply be away. Either way the device token is still good.
+        }
+        carryOnWithDeviceToken();
+      }
+    };
+
+    void restore().catch((err) => {
       console.error("Failed to load token", err);
-    }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -277,6 +396,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsDeviceToken(false);
           removeItem(TOKEN_STORAGE_KEY);
           removeItem(DEVICE_TOKEN_KEY);
+          clearRefreshToken();
           setAuthToken(null);
         }
       } finally {
@@ -301,17 +421,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // On mobile, use device token endpoint
       if (isNative) {
         const name = deviceName || "Mobile Device";
-        const response = await apiClient.post<{ device_token: string }>("/auth/device-token", {
+        const response = await apiClient.post<{
+          device_token: string;
+          access_token?: string | null;
+          refresh_token?: string | null;
+        }>("/auth/device-token", {
           email,
           password,
           device_name: name,
         });
         const newToken = response.data.device_token;
-        setAuthToken(newToken, true);
+        // Kept whichever credential is used: it is what the app falls back to
+        // if a renewal cannot be had, and what a deployment that is not yet
+        // updated answers with on its own.
         setItem(TOKEN_STORAGE_KEY, newToken);
         setItem(DEVICE_TOKEN_KEY, "true");
-        setTokenState(newToken);
-        setIsDeviceToken(true);
+        const session = sessionFromResponse(response.data);
+        if (session) {
+          storeRefreshToken(session.refreshToken);
+          setAuthToken(session.accessToken, false);
+          setTokenState(session.accessToken);
+          setIsDeviceToken(false);
+        } else {
+          setAuthToken(newToken, true);
+          setTokenState(newToken);
+          setIsDeviceToken(true);
+        }
         await refreshUser();
       } else {
         const params = new URLSearchParams();
@@ -330,14 +465,137 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(newToken, false);
         removeItem(TOKEN_STORAGE_KEY);
         removeItem(DEVICE_TOKEN_KEY);
+        clearRefreshToken();
         setTokenState(newToken);
         setIsDeviceToken(false);
         await refreshUser();
       }
       markJustSignedIn();
     } catch (error) {
+      const challenge = secondFactorChallenge(error);
+      if (challenge) {
+        throw new SecondFactorRequiredError(challenge);
+      }
       throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
+  };
+
+  /**
+   * Finish a sign-in that was waiting on the account's second factor.
+   *
+   * The session it returns is the same one `login` would have produced, so
+   * everything after it — storing the credential, loading the user, marking the
+   * sign-in — is what that path already does. Native is handed its refresh
+   * token in the body and keeps it; the browser reads one from a cookie.
+   */
+  const completeSecondFactor = async ({ challenge, code, recoveryCode }: SecondFactorPayload) => {
+    try {
+      const response = await apiClient.post<{
+        access_token: string;
+        refresh_token?: string | null;
+      }>("/auth/token/totp", {
+        challenge,
+        code: code ?? null,
+        recovery_code: recoveryCode ?? null,
+      });
+      const accessToken = response.data.access_token;
+      if (isNative) {
+        // No device token is minted for an account holding a factor — the
+        // rotating credential is what it gets.
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
+        if (response.data.refresh_token) {
+          storeRefreshToken(response.data.refresh_token);
+        }
+      } else {
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
+        clearRefreshToken();
+      }
+      setAuthToken(accessToken, false);
+      setTokenState(accessToken);
+      setIsDeviceToken(false);
+      await refreshUser();
+      markJustSignedIn();
+    } catch (error) {
+      throw new Error(getErrorMessage(error, "auth:login.defaultError"));
+    }
+  };
+
+  /**
+   * Adopt the session a passkey ceremony produced.
+   *
+   * The end of `completeSecondFactor`, for a sign-in that had no password leg:
+   * the server has already set the browser's refresh cookie and handed back the
+   * access token, so what is left is to stop holding anything older and read
+   * the account the token belongs to. Only a browser lands here — an app's
+   * ceremony runs in the system browser and comes back as a device token
+   * through the callback page.
+   */
+  const applyPasskeySignIn = useCallback(
+    async (result: PasskeySignInResult) => {
+      const accessToken = result.access_token;
+      if (!accessToken) {
+        throw new Error(t("login.passkeyFailed"));
+      }
+      removeItem(TOKEN_STORAGE_KEY);
+      removeItem(DEVICE_TOKEN_KEY);
+      clearRefreshToken();
+      setAuthToken(accessToken, false);
+      setTokenState(accessToken);
+      setIsDeviceToken(false);
+      await refreshUser();
+      markJustSignedIn();
+    },
+    [refreshUser, t]
+  );
+
+  /**
+   * Adopt the session a step-up produced.
+   *
+   * Both answers to a community's requirement end here. The server issues a
+   * new session carrying what was presented and retires the old one, so the
+   * credential this device holds is replaced the same way `completeSecondFactor`
+   * replaces it at the end of a sign-in — including on native, where a device
+   * token minted before the account had the factor would not carry it.
+   */
+  const adoptSteppedUpSession = async (token: Token) => {
+    removeItem(TOKEN_STORAGE_KEY);
+    removeItem(DEVICE_TOKEN_KEY);
+    if (isNative && token.refresh_token) {
+      storeRefreshToken(token.refresh_token);
+    } else if (!isNative) {
+      clearRefreshToken();
+    }
+    setAuthToken(token.access_token, false);
+    setTokenState(token.access_token);
+    setIsDeviceToken(false);
+    await refreshUser();
+  };
+
+  /**
+   * Add the account's second factor to the session already signed in.
+   *
+   * What `completeSecondFactor` does at the end of a sign-in, this does in the
+   * middle of a visit: a community asked for the factor, and the answer goes
+   * against the live session rather than a fresh one.
+   */
+  const stepUpWithFactor = async ({ code, recoveryCode }: StepUpPayload) => {
+    const response = await apiClient.post<Token>("/auth/step-up/totp", {
+      code: code ?? null,
+      recovery_code: recoveryCode ?? null,
+    });
+    await adoptSteppedUpSession(response.data);
+  };
+
+  /**
+   * The same move, answered with a passkey.
+   *
+   * The ceremony belongs to the browser, so it lives in `lib/passkeys`; what
+   * comes back is the same session the code step-up produces.
+   */
+  const stepUpWithPasskey = async () => {
+    await adoptSteppedUpSession(await presentPasskeyForStepUp());
   };
 
   const register = async ({
@@ -391,6 +649,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearUploadToken();
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
+    clearRefreshToken();
     queryClient.clear();
     // replaceIdentity already dropped the session snapshot; the cache that went
     // with it goes at the same time.
@@ -465,6 +724,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isDeviceToken,
     sessionUnverified,
     login,
+    completeSecondFactor,
+    applyPasskeySignIn,
+    stepUpWithFactor,
+    stepUpWithPasskey,
     register,
     completeOidcLogin,
     logout,

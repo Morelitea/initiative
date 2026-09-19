@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
@@ -195,7 +196,7 @@ async def get_document_for_export(
     if document is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=DocumentMessages.NOT_FOUND,
+            detail=Tool.document.not_found_code,
         )
     permissions_service.require_document_access(
         document,
@@ -462,4 +463,6 @@ async def unresolve_wikilinks_to_document(
     guild_id = routed_guild_id(session)
     if guild_id is not None:
         for doc_id in affected_doc_ids:
-            await collaboration_manager.invalidate_room_if_empty(guild_id, doc_id)
+            await collaboration_manager.invalidate_room_if_empty(
+                guild_id, SearchEntityType.document.value, doc_id
+            )

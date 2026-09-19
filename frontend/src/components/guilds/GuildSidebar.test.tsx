@@ -59,7 +59,7 @@ const entry = (overrides: Partial<GuildEntry> = {}): GuildEntry =>
 
 const setup = (guilds: GuildEntry[]) => {
   const switchGuild = vi.fn();
-  renderPage(
+  const { router } = renderPage(
     () => (
       <SidebarProvider>
         <GuildSidebar />
@@ -67,7 +67,7 @@ const setup = (guilds: GuildEntry[]) => {
     ),
     { guilds: { guilds, activeGuildId: guilds[0]?.id ?? null, switchGuild } }
   );
-  return { switchGuild };
+  return { router, switchGuild };
 };
 
 // The router mounts asynchronously, so the first query in each test waits.
@@ -152,6 +152,28 @@ describe("GuildSidebar reorder mode", () => {
   });
 });
 
+describe("GuildSidebar settings grants", () => {
+  it("lands a settings-only superadmin grant on its usable page", async () => {
+    const guilds = [
+      entry({ id: 1, name: "Alpha" }),
+      entry({
+        id: 8,
+        name: "Loaner",
+        accessType: "grant",
+        grantAccessLevel: null,
+        grantSettingsLevel: "superadmin",
+      }),
+    ];
+    const { router, switchGuild } = setup(guilds);
+    const { panel } = await openFlyout();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Switch to Loaner" }));
+
+    expect(switchGuild).toHaveBeenCalledWith(8);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings/security"));
+  });
+});
+
 /**
  * Creating a guild on a deployment that has a billing portal.
  *
@@ -161,7 +183,7 @@ describe("GuildSidebar reorder mode", () => {
  */
 describe("GuildSidebar community creation", () => {
   const createNamedGuild = async (createGuild: ReturnType<typeof vi.fn>) => {
-    renderPage(
+    const { router } = renderPage(
       () => (
         <SidebarProvider>
           <GuildSidebar />
@@ -174,6 +196,7 @@ describe("GuildSidebar community creation", () => {
       target: { value: "Beta" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create community" }));
+    return router;
   };
 
   beforeEach(() => {
@@ -209,6 +232,30 @@ describe("GuildSidebar community creation", () => {
     expect(openSpy).not.toHaveBeenCalled();
     expect(mintMock).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+
+  it("lands the creator in the community they just made", async () => {
+    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+
+    const router = await createNamedGuild(createGuild);
+
+    // A new community is empty, so being dropped anywhere but inside it leaves
+    // the creator hunting for the thing they just made.
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/42"));
+    // …and naming its first initiative is the next thing to do either way, so
+    // the wizard is the arrival rather than something to go and find.
+    expect(router.state.location.search).toMatchObject({ create: "true" });
+  });
+
+  it("keeps a failed create on its error instead of navigating away", async () => {
+    const createGuild = vi.fn().mockRejectedValue(new Error("nope"));
+
+    const router = await createNamedGuild(createGuild);
+
+    await waitFor(() => expect(createGuild).toHaveBeenCalled());
+    // The dialog owns the failure: leaving the page would throw away the
+    // message the creator needs in order to try again.
+    expect(router.state.location.pathname).toBe("/");
   });
 
   it("closes the reserved tab when creation fails", async () => {

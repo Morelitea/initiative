@@ -13,14 +13,21 @@
  */
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
+  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
+  checkRosterApiV1MeDmRosterCheckPost as checkRoster,
   createConversationApiV1MeDmConversationsPost as createConversation,
+  createGroupConversationApiV1MeDmConversationsGroupPost as createGroup,
+  leaveConversationApiV1MeDmConversationsConversationIdDelete as leaveConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
+  markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
+import { invalidate, q } from "@/api/query-keys";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
+  acknowledgePeerKeyChange,
   answerHistoryRequest,
   collect,
   dismissHistoryAskNotice,
@@ -29,14 +36,22 @@ import {
   historyRequestToAnswer,
   markRead,
   messageLog,
+  peerKeyChangesWaiting,
   registeredDevice,
   sendEdit,
   sendReaction,
   sendRemove,
   sendText,
   unreadIn,
+  wantThreadHistory,
 } from "@/crypto/messaging";
-import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
+import {
+  useDirectMessagesEnabled,
+  useDmSettings,
+  usePendingContactRequests,
+} from "@/hooks/useDirectMessages";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -57,12 +72,14 @@ export const messageKeys = {
   historyRequest: ["dm", "history-request"] as const,
   /** This device's own outstanding ask, and the code it is showing for it. */
   historyAsk: ["dm", "history-ask"] as const,
+  peerKeyChanges: ["dm", "peer-key-changes"] as const,
   /** The family a socket frame invalidates, which is everything read locally. */
   all: ["dm"] as const,
 };
 
 /** Register this browser's device, once, before anything else can work. */
 export function useDmDevice() {
+  const dmEnabled = useDirectMessagesEnabled();
   return useQuery({
     queryKey: messageKeys.device,
     queryFn: async () => {
@@ -75,6 +92,10 @@ export function useDmDevice() {
         throw error;
       }
     },
+    // A deployment with messaging switched off has nothing to register a
+    // device with, and registering one would be this browser publishing keys
+    // for a channel that does not exist.
+    enabled: dmEnabled,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
@@ -84,6 +105,7 @@ export function useConversations() {
   return useQuery({
     queryKey: messageKeys.conversations,
     queryFn: () => listConversations(),
+    enabled: useDirectMessagesEnabled(),
     staleTime: 30_000,
   });
 }
@@ -99,15 +121,20 @@ export function useThread(conversationId: string | undefined) {
   });
 }
 
-export function useSendMessage(conversationId: string, otherUserId: number) {
+export function useSendMessage(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ body, replyTo }: { body: string; replyTo?: string }) =>
-      sendText(conversationId, otherUserId, body, { replyTo }),
+      sendText(conversationId, memberIds, body, { replyTo }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: messageKeys.thread(conversationId),
       });
+    },
+    // Settled, not success: reading the directory happens before the send, so
+    // a send that fails afterwards can still have found something to say.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
     },
   });
 }
@@ -120,24 +147,25 @@ export function useSendMessage(conversationId: string, otherUserId: number) {
  * round trip. Refreshing the thread is what puts the answer on screen, since
  * the log is where a thread is read from.
  */
-export function useMessageActions(conversationId: string, otherUserId: number) {
+export function useMessageActions(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
   };
 
   const react = useMutation({
     mutationFn: ({ targetId, emoji, on }: { targetId: string; emoji: string; on: boolean }) =>
-      sendReaction(conversationId, otherUserId, targetId, emoji, on),
+      sendReaction(conversationId, memberIds, targetId, emoji, on),
     onSettled: refresh,
   });
   const edit = useMutation({
     mutationFn: ({ targetId, body }: { targetId: string; body: string }) =>
-      sendEdit(conversationId, otherUserId, targetId, body),
+      sendEdit(conversationId, memberIds, targetId, body),
     onSettled: refresh,
   });
   const remove = useMutation({
-    mutationFn: (targetId: string) => sendRemove(conversationId, otherUserId, targetId),
+    mutationFn: (targetId: string) => sendRemove(conversationId, memberIds, targetId),
     onSettled: refresh,
   });
 
@@ -167,6 +195,7 @@ export function useStartConversation() {
  */
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
+  const dmEnabled = useDirectMessagesEnabled();
   const receipts = useSendsReceipts();
 
   return useQuery({
@@ -187,13 +216,16 @@ export function useCollectMessages(enabled: boolean) {
       // just signed in elsewhere is not doing.
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyRequest });
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
+      // Same reason: a directory read during this collection can record a key
+      // change locally, and nothing else asks that query again.
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
         void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });
       }
       return touched;
     },
-    enabled,
+    enabled: enabled && dmEnabled,
     // A collection that fails leaves the queue intact; the next frame or the
     // next visit tries again.
     retry: false,
@@ -268,6 +300,31 @@ export function useHistoryAsk() {
 }
 
 /**
+ * Conversation partners whose device key changed under an existing thread.
+ *
+ * In the `["dm", …]` family so it is re-asked whenever anything in messages
+ * moves. The change is found while sending, so the send that found it is
+ * exactly the moment this needs to be asked again.
+ */
+export function usePeerKeyChanges() {
+  return useQuery({
+    queryKey: messageKeys.peerKeyChanges,
+    queryFn: () => peerKeyChangesWaiting(),
+    staleTime: 0,
+  });
+}
+
+export function useAcknowledgePeerKeyChange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (deviceId: string) => acknowledgePeerKeyChange(deviceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+    },
+  });
+}
+
+/**
  * Put the waiting notice away without answering the question.
  *
  * The ask stays outstanding — this is the banner going quiet, not the transfer
@@ -323,19 +380,53 @@ export function useUnreadMessages(conversationIds: string[]) {
   });
 }
 
-/** Mark a thread as looked at, whenever what is in it changes. */
+/**
+ * Mark a thread as looked at, whenever what is in it changes.
+ *
+ * Two readers to satisfy, and only one of them is here. The local marker is
+ * what the conversation list counts from, and the server's rolled-up bell line
+ * is a separate thing that only the account holder's own client can close —
+ * nothing else knows a message reached a screen. So the look is reported
+ * onwards, but only where it read something: an already-current thread has
+ * nothing to tell anybody.
+ *
+ * The report is best-effort — it affects a bell line, and a thread should not
+ * surface an error because one did not clear — but it is not fire-and-forget.
+ * The local marker has already advanced by the time it is sent, so a dropped
+ * request would leave a count nothing ever says again. A failure is remembered
+ * against its conversation and retried the next time the effect runs, which is
+ * the next message or the next time the thread is opened.
+ */
 export function useMarkThreadRead(
   conversationId: string,
   messageCount: number,
-  otherUserId: number
+  memberIds: number[]
 ) {
   const queryClient = useQueryClient();
   const receipts = useSendsReceipts();
+  const unreported = useRef<string | null>(null);
+  // The roster by its contents, not by the array it arrived in. A caller that
+  // builds one inline hands a new array every render, and this effect reads the
+  // local log and invalidates the unread queries -- work that belongs to the
+  // thread changing, not to the page re-rendering.
+  const roster = memberIds.join(",");
   useEffect(() => {
-    void markRead(conversationId, { otherUserId, receipts }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["dm", "unread"] })
-    );
-  }, [conversationId, messageCount, otherUserId, receipts, queryClient]);
+    // Rebuilt from the key rather than closed over, so the effect depends on
+    // the roster by value and nothing else.
+    const members = roster ? roster.split(",").map(Number) : [];
+    void markRead(conversationId, { memberIds: members, receipts })
+      .then(async (readCount) => {
+        if (readCount === 0 && unreported.current !== conversationId) return;
+        try {
+          await reportThreadRead(conversationId);
+          if (unreported.current === conversationId) unreported.current = null;
+          await invalidate(q.notifications());
+        } catch {
+          unreported.current = conversationId;
+        }
+      })
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["dm", "unread"] }));
+  }, [conversationId, messageCount, roster, receipts, queryClient]);
 }
 
 /**
@@ -353,4 +444,69 @@ export function useMarkThreadRead(
 export function useSendsReceipts(): boolean {
   const { data, isSuccess } = useDmSettings();
   return isSuccess && (data?.send_receipts ?? true);
+}
+
+/**
+ * Answering an invitation to a group.
+ *
+ * Yes and no are different writes but one decision, so they live together: a
+ * decline is the ordinary leave, because being asked and refusing and being on
+ * it and leaving both come to "not on it" — and both are answered by being
+ * asked again if anybody proposes that roster.
+ */
+export function useAnswerInvitation(conversationId: string) {
+  const queryClient = useQueryClient();
+  const settle = () => {
+    void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+  };
+  // An invitation goes stale -- somebody proposes the roster again, or it is
+  // answered on another device -- so both of these can be refused, and a button
+  // that quietly becomes pressable again reads as having been ignored.
+  const accept = useMutation({
+    mutationFn: () => acceptInvitation(conversationId),
+    onSuccess: () => {
+      // Nothing was kept for somebody who had not answered, so the thread up
+      // to this moment has to be asked for. Recorded here and sent by the next
+      // collection, which is also what retries it.
+      void wantThreadHistory(conversationId);
+      settle();
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "errors:DM_NO_INVITATION")),
+  });
+  const decline = useMutation({
+    mutationFn: () => leaveConversation(conversationId),
+    onSuccess: settle,
+    onError: (error) => toast.error(getErrorMessage(error, "errors:DM_CONVERSATION_NOT_FOUND")),
+  });
+  return { accept, decline };
+}
+
+/**
+ * Whether these people could be a group, asked while somebody is still
+ * choosing them.
+ *
+ * The proposal enforces the same rule; this is the question, so the answer
+ * arrives when a name can still be dropped rather than as a refusal after the
+ * roster is submitted. Quiet below three, which is a pair and has its own way
+ * in.
+ */
+export function useRosterCheck(userIds: number[]) {
+  const roster = [...userIds].sort((a, b) => a - b);
+  return useQuery({
+    queryKey: ["dm", "roster-check", roster],
+    queryFn: () => checkRoster({ user_ids: roster }),
+    enabled: roster.length >= 2,
+    staleTime: 0,
+  });
+}
+
+/** Propose a roster. Everybody on it is asked; nobody is added. */
+export function useStartGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userIds: number[]) => createGroup({ user_ids: userIds }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+    },
+  });
 }

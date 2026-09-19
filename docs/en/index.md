@@ -38,9 +38,9 @@ So click things. Open menus. Drag stuff about. The worst outcome available to yo
 
 Initiative is meant to help you, not to gradually become the tool with so many features that operating it is its own part-time job.
 
-So some things are left out on purpose. There are no group chats, for instance — because everything here already has **comments** on it, and they're searchable. The conversation about a thing sits on that thing, where the next person finds it without being told where to look.
+So some things are left out on purpose. The conversation about your work happens in **comments**, for instance — on the thing it's about, where the next person finds it without being told where to look, and searchable when they half-remember it six months later.
 
-Whereas a group chat is where somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
+Which is not where it ends up in a chat room. There, somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
 
 ## Two ways to run it
 

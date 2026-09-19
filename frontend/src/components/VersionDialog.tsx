@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChangelog } from "@/hooks/useSettings";
+import { CHANGELOG_URL } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
 /**
@@ -146,7 +147,7 @@ export const VersionDialog = ({
             <div className="shrink-0 border-t pt-3">
               <Button variant="outline" size="sm" className="w-full" asChild>
                 <a
-                  href="https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md"
+                  href={CHANGELOG_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2"

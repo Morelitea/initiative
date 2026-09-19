@@ -27,7 +27,6 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
-from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import Presence, UserRole, UserStatus
 from app.core.config import settings
 
@@ -47,8 +46,8 @@ from app.core.config import settings
 # * An address never reaches a guild. ``email`` is absent from every
 #   guild-scoped shape — roster, picker and member management alike — and kept
 #   in full only on ``UserRead``, which is served for your own account.
-# * An address is read back in full only by its owner. The platform admin
-#   reads use ``AdminUserRead``, which is ``UserRead`` with the address
+# * An address is read back in full only by its owner. Staff reads use
+#   ``AdminUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
 # * A real name is shown only where a guild has asked for it.
@@ -60,22 +59,6 @@ from app.core.config import settings
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
 # than one string because the client styles them differently.
-
-
-class GuildNameVisibility(SanitizedBaseModel):
-    """Drops ``full_name`` unless the request's guild renders real names.
-
-    One validator rather than a branch at each serializer: the flag is set with
-    the guild context (``app.core.role_context``), so nothing that builds one of
-    these shapes has to remember. A request outside any guild renders handles
-    too, which is the same default.
-    """
-
-    @model_validator(mode="after")
-    def _apply_guild_name_visibility(self):
-        if not guild_shows_member_names():
-            object.__setattr__(self, "full_name", None)
-        return self
 
 
 class UserBase(SanitizedBaseModel):
@@ -142,7 +125,7 @@ class UserIdentity(SanitizedBaseModel):
     status: UserStatus = UserStatus.active
 
 
-class UserPublic(UserIdentity, GuildNameVisibility):
+class UserPublic(UserIdentity):
     """A person, as everyone else sees them — the handle, and the name where
     the guild being read renders one."""
 
@@ -170,7 +153,7 @@ class UserGuildRead(UserIdentity):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserGuildMember(UserGuildRead, GuildNameVisibility):
+class UserGuildMember(UserGuildRead):
     """A member, for the guild's own member-management surface.
 
     :class:`UserGuildRead` plus the membership facts a guild admin manages —
@@ -180,11 +163,14 @@ class UserGuildMember(UserGuildRead, GuildNameVisibility):
     """
 
     full_name: Optional[str] = None
-    guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
+    guild_role: Optional[str] = None  # Set by the endpoint
+    #: Whether this member administers the guild — admin or above. The role is
+    #: here to be shown; this is here to be asked.
+    is_guild_admin: bool = False
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
-class UserSummary(UserIdentity, GuildNameVisibility):
+class UserSummary(UserIdentity):
     """Slim user projection for typeahead and picker surfaces.
 
     What it keeps is what it takes to *draw* a person and say where they stand
@@ -208,6 +194,9 @@ class UserSummary(UserIdentity, GuildNameVisibility):
     #: the caller asked outside a guild, which is why it is optional rather
     #: than defaulted to the quieter of the two.
     guild_role: Optional[str] = None
+    #: Whether this member administers the guild being read — admin or above.
+    #: The role is here to be shown; this is here to be asked.
+    is_guild_admin: bool = False
 
 
 class UserSummaryListResponse(SanitizedBaseModel):
@@ -528,7 +517,10 @@ class UserRead(UserBase):
     #: the SPA reads its own account; defaults false elsewhere.
     age_confirmation_required: bool = False
     status: UserStatus
-    email_verified: bool
+    #: Both resolved from ``user_emails`` by whoever builds this shape (see
+    #: ``services.platform.users.to_read``) — the ``users`` row carries neither.
+    email: Optional[EmailStr] = None
+    email_verified: bool = False
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
@@ -554,6 +546,11 @@ class UserRead(UserBase):
     # accounts have no usable password to type in. Populated by the self
     # endpoints (/users/me and PATCH /users/me); defaults False elsewhere.
     has_federated_identity: bool = False
+    # True when the account holds a password it can be asked for. Read from
+    # the stored hash rather than from the identity link above: an account can
+    # hold both, and one that gave its password up holds neither. Populated by
+    # the self endpoints; defaults False elsewhere.
+    has_password: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
@@ -576,9 +573,9 @@ class UserRead(UserBase):
 
 
 class AdminUserRead(UserRead):
-    """A platform admin's view of somebody else's account: the address masked.
+    """A staff view of somebody else's account: the address masked.
 
-    Everything a platform admin does to an account — reset its password, rename
+    Everything staff do to an account — reset its password, rename
     it, change its tier, suspend it, delete it — is addressed by id, and the
     roster is read and searched by handle, so none of it needs the address
     itself. What the mask leaves is enough to match a row against an address
@@ -590,11 +587,18 @@ class AdminUserRead(UserRead):
     masked form without opting in.
     """
 
+    #: ``validate_assignment`` so the mask below runs on assignment too, not
+    #: only on validation. The address is resolved from ``user_emails`` after
+    #: the shape is built, and an assignment that skipped the validator would
+    #: put the stored address on the wire.
+    model_config = ConfigDict(validate_assignment=True)
+
     #: Re-declared as a plain ``str``, widening ``UserBase.email``: a masked
     #: address is not a deliverable one, so typing it ``EmailStr`` would
     #: describe it wrongly in the OpenAPI schema and make this shape fail to
-    #: re-validate its own output.
-    email: str
+    #: re-validate its own output. Empty until the builder resolves it, for the
+    #: reason ``UserRead`` gives.
+    email: str = ""
 
     @field_validator("email", mode="after")
     @classmethod
@@ -667,7 +671,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     """Request from a user to deactivate or anonymize (soft-delete) their own account.
 
     `hard_delete` is intentionally not allowed from this self-service endpoint;
-    only platform admins can purge a row, and they do so via the admin endpoint.
+    only an operator can purge a row, and they do so via the admin endpoint.
     """
 
     action: Literal["deactivate", "soft_delete"]
@@ -682,7 +686,9 @@ class DeletionEligibilityResponse(SanitizedBaseModel):
 
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
-    last_admin_guilds: List[str] = Field(default_factory=list)
+    #: Communities this account holds the only superadmin seat of — the one
+    #: thing that blocks deletion, and what the dialog offers to delete.
+    sole_superadmin_guilds: List[str] = Field(default_factory=list)
 
 
 class AccountDeletionResponse(SanitizedBaseModel):

@@ -24,7 +24,7 @@ from sqlmodel import delete, select
 
 from app.core.config import API_V1_STR
 from app.core.image_headers import read_image_header
-from app.core.messages import UserMessages
+from app.core.messages import GuildMessages, UserMessages
 from app.models.platform.user_avatar import (
     AVATAR_ASPECT_TOLERANCE,
     AVATAR_CONTENT_TYPES,
@@ -99,7 +99,7 @@ def validate_avatar(data: bytes) -> ValidatedAvatar:
     if not data:
         raise AvatarRejected(UserMessages.AVATAR_INVALID_IMAGE)
     if len(data) > AVATAR_MAX_BYTES:
-        raise AvatarRejected(UserMessages.AVATAR_TOO_LARGE)
+        raise AvatarRejected(GuildMessages.IMAGE_TOO_LARGE)
 
     header = read_image_header(data)
     if header is None or header.content_type not in AVATAR_CONTENT_TYPES:
@@ -186,24 +186,3 @@ async def delete_avatar(
         user.avatar_url = None
         session.add(user)
     return bool(result.rowcount)
-
-
-async def resolve_avatar_urls(
-    session: AsyncSession, user_ids: list[int]
-) -> dict[int, str]:
-    """Map user id -> serving URL for those of ``user_ids`` that have a picture.
-
-    One query for the whole set: the callers are list payloads, where a lookup
-    per row would be the N+1 this change exists to avoid. ``data`` is left out
-    of the projection, so the bytes are never detoasted to build a URL.
-    """
-    if not user_ids:
-        return {}
-    rows = (
-        await session.exec(
-            select(UserAvatar.user_id, UserAvatar.sha256).where(
-                UserAvatar.user_id.in_(set(user_ids))
-            )
-        )
-    ).all()
-    return {user_id: avatar_url(user_id, digest) for user_id, digest in rows}

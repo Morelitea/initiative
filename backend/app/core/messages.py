@@ -48,6 +48,50 @@ class AuthMessages:
     #: than through a standing credential (an API key, a device token, an app
     #: acting on someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
+    #: The account holds no password to re-check, and the session is not fresh
+    #: enough to stand in for one.
+    RECENT_PROOF_REQUIRED = "RECENT_PROOF_REQUIRED"
+    #: The password was right and the account holds a second factor, so the
+    #: sign-in is not finished. Answered with the challenge to present it
+    #: against.
+    TOTP_REQUIRED = "TOTP_REQUIRED"
+    #: The code did not match. The challenge is still standing, so the client
+    #: asks again.
+    TOTP_INVALID = "TOTP_INVALID"
+    #: The challenge is not standing: never issued, already spent, expired, or
+    #: out of attempts. One code for all four, so the client learns only that
+    #: it has to begin again — the same shape as the refresh rejection above.
+    TOTP_CHALLENGE_INVALID = "TOTP_CHALLENGE_INVALID"
+    #: Enrolling over a factor the account has already proved.
+    TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
+    #: The deployment does not offer the authenticator app.
+    TOTP_NOT_PERMITTED = "TOTP_NOT_PERMITTED"
+    #: Confirming, disabling or re-issuing codes for a factor that is not there.
+    TOTP_NOT_ENROLLED = "TOTP_NOT_ENROLLED"
+    #: The recovery code did not match an unused one.
+    RECOVERY_CODE_INVALID = "RECOVERY_CODE_INVALID"
+    #: The account already holds as many passkeys as one may.
+    PASSKEY_LIMIT_REACHED = "PASSKEY_LIMIT_REACHED"
+    #: The registration ceremony did not verify, or its challenge is not
+    #: standing: never issued, spent, expired, or out of attempts. One code for
+    #: all of those.
+    PASSKEY_REGISTRATION_INVALID = "PASSKEY_REGISTRATION_INVALID"
+    #: No passkey by that id on this account.
+    PASSKEY_NOT_FOUND = "PASSKEY_NOT_FOUND"
+    #: Passkeys need a named host and https; this deployment's address has
+    #: neither.
+    PASSKEY_SITE_UNSUPPORTED = "PASSKEY_SITE_UNSUPPORTED"
+    #: The assertion did not verify, named a credential nobody registered, or
+    #: its challenge is not standing. One code for all of those.
+    PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
+    #: The deployment does not offer passkeys.
+    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
+    #: The password is the account's only way to start a session, so it stays.
+    PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
+    #: The passkey is the account's only way to start a session, so it stays.
+    PASSKEY_IS_LAST_METHOD = "PASSKEY_IS_LAST_METHOD"
+    #: Removing a password from an account that holds none.
+    PASSWORD_NOT_HELD = "PASSWORD_NOT_HELD"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"
@@ -71,11 +115,26 @@ class GuildMessages:
     # raises GUILD_ACCESS_DENIED.
     GUILD_ACCESS_DENIED = "GUILD_ACCESS_DENIED"
     GUILD_AUTH_STEP_UP_REQUIRED = "GUILD_AUTH_STEP_UP_REQUIRED"
+    #: The community asks that the session carried the account's second
+    #: factor, and this one did not. Answered apart from the provider step-up
+    #: because what satisfies it is a code rather than a sign-in page.
+    GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
+    #: The community asks that the session was opened, or stepped up, with a
+    #: passkey, and this one was not.
+    GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
+    #: The community declines personal API keys. Raised both when one is being
+    #: minted into the guild and when a request carrying one addresses it, so
+    #: the answer reads the same wherever it is met.
+    GUILD_API_KEYS_REFUSED = "GUILD_API_KEYS_REFUSED"
     GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
     GUILD_AUTH_POLICY_SELF_UNSATISFIED = "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    #: The community asked for a way in the deployment does not offer.
+    GUILD_AUTH_POLICY_METHOD_UNAVAILABLE = "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
     GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
+    #: The guild's sign-in configuration asks for the seat above admin.
+    GUILD_SUPERADMIN_REQUIRED = "GUILD_SUPERADMIN_REQUIRED"
     GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
     GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"
     # Naming another user as a new guild's admin is platform-staff only.
@@ -125,9 +184,10 @@ class GuildMessages:
     # guild-membership role, so it cannot be assigned via the role endpoints.
     GUILD_ROLE_NOT_ASSIGNABLE = "GUILD_ROLE_NOT_ASSIGNABLE"
     USER_NOT_FOUND_IN_GUILD = "USER_NOT_FOUND_IN_GUILD"
-    CANNOT_DEMOTE_LAST_ADMIN = "CANNOT_DEMOTE_LAST_ADMIN"
+    #: The guild requires a sign-in, and this is the last member who can
+    #: change or lift that requirement.
+    CANNOT_VACATE_LAST_SUPERADMIN = "CANNOT_VACATE_LAST_SUPERADMIN"
     NOT_GUILD_MEMBER = "NOT_GUILD_MEMBER"
-    CANNOT_LEAVE_LAST_ADMIN = "CANNOT_LEAVE_LAST_ADMIN"
     INVITE_NOT_FOUND = "INVITE_NOT_FOUND"
     INVITE_EXPIRED_OR_USED = "INVITE_EXPIRED_OR_USED"
     INVITE_EMAIL_MISMATCH = "INVITE_EMAIL_MISMATCH"
@@ -149,7 +209,6 @@ class InitiativeMessages:
     CANNOT_MODIFY_BUILTIN_PERMISSIONS = "INITIATIVE_CANNOT_MODIFY_BUILTIN_PERMISSIONS"
     CANNOT_CHANGE_BUILTIN_MANAGER = "INITIATIVE_CANNOT_CHANGE_BUILTIN_MANAGER"
     MUST_HAVE_MANAGER = "INITIATIVE_MUST_HAVE_MANAGER"
-    USER_NOT_IN_GUILD = "INITIATIVE_USER_NOT_IN_GUILD"
     MEMBER_ROLE_NOT_FOUND = "INITIATIVE_MEMBER_ROLE_NOT_FOUND"
     MEMBER_NOT_FOUND = "INITIATIVE_MEMBER_NOT_FOUND"
     MUST_HAVE_PM = "INITIATIVE_MUST_HAVE_PM"
@@ -201,32 +260,19 @@ class FilterPresetMessages:
 
 
 class ProjectMessages:
-    NOT_FOUND = "PROJECT_NOT_FOUND"
-    INITIATIVE_NOT_FOUND = "PROJECT_INITIATIVE_NOT_FOUND"
     IS_ARCHIVED = "PROJECT_IS_ARCHIVED"
-    OWNER_REQUIRED = "PROJECT_OWNER_REQUIRED"
-    NO_ACCESS = "PROJECT_NO_ACCESS"
-    WRITE_ACCESS_REQUIRED = "PROJECT_WRITE_ACCESS_REQUIRED"
     INVALID_TEMPLATE = "PROJECT_INVALID_TEMPLATE"
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
-    CREATE_PERMISSION_REQUIRED = "PROJECT_CREATE_PERMISSION_REQUIRED"
     PIN_PERMISSION_REQUIRED = "PROJECT_PIN_PERMISSION_REQUIRED"
     # Configuring the project itself (pinning, default view, filter
     # presets) — a project manager, the project owner, or a guild admin.
     ADMIN_REQUIRED = "PROJECT_ADMIN_REQUIRED"
-    DOCUMENT_NOT_FOUND = "PROJECT_DOCUMENT_NOT_FOUND"
     DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
-    CANNOT_ASSIGN_OWNER = "PROJECT_CANNOT_ASSIGN_OWNER"
     OWNER_HAS_FULL_ACCESS = "PROJECT_OWNER_HAS_FULL_ACCESS"
-    CANNOT_MODIFY_OWNER = "PROJECT_CANNOT_MODIFY_OWNER"
-    PERMISSION_NOT_FOUND = "PROJECT_PERMISSION_NOT_FOUND"
     CANNOT_REMOVE_OWNER = "PROJECT_CANNOT_REMOVE_OWNER"
-    CANNOT_ASSIGN_OWNER_TO_ROLE = "PROJECT_CANNOT_ASSIGN_OWNER_TO_ROLE"
     ROLE_WRONG_INITIATIVE = "PROJECT_ROLE_WRONG_INITIATIVE"
-    ROLE_PERMISSION_NOT_FOUND = "PROJECT_ROLE_PERMISSION_NOT_FOUND"
     # A PAM grant confers content read/write only, never access-control
     # management (adding/removing members or changing permission levels).
-    GRANT_CANNOT_MANAGE_MEMBERS = "PROJECT_GRANT_CANNOT_MANAGE_MEMBERS"
 
 
 class TaskMessages:
@@ -256,7 +302,6 @@ class TaskStatusMessages:
     CANNOT_REMOVE_LAST = "TASK_STATUS_CANNOT_REMOVE_LAST"
     FALLBACK_REQUIRED = "TASK_STATUS_FALLBACK_REQUIRED"
     FALLBACK_MUST_DIFFER = "TASK_STATUS_FALLBACK_MUST_DIFFER"
-    FALLBACK_CATEGORY_MISMATCH = "TASK_STATUS_FALLBACK_CATEGORY_MISMATCH"
 
 
 class OidcMessages:
@@ -286,12 +331,38 @@ class AddressMessages:
 
 class AuthProviderMessages:
     NOT_FOUND = "AUTH_PROVIDER_NOT_FOUND"
-    SLUG_RESERVED = "AUTH_PROVIDER_SLUG_RESERVED"
     SLUG_TAKEN = "AUTH_PROVIDER_SLUG_TAKEN"
     IN_USE = "AUTH_PROVIDER_IN_USE"
+    #: Nothing answered at the address, or what answered was not reachable.
+    DISCOVERY_UNREACHABLE = "AUTH_PROVIDER_DISCOVERY_UNREACHABLE"
+    #: Something answered, but it names a different issuer than the one asked
+    #: for — usually a copied URL that is one path segment out.
+    DISCOVERY_ISSUER_MISMATCH = "AUTH_PROVIDER_DISCOVERY_ISSUER_MISMATCH"
+    #: Something answered and is not an OpenID Connect discovery document.
+    DISCOVERY_INVALID = "AUTH_PROVIDER_DISCOVERY_INVALID"
+    #: The stored row has no issuer to check.
+    DISCOVERY_NO_ISSUER = "AUTH_PROVIDER_DISCOVERY_NO_ISSUER"
+    #: A community's connection, by an id that is not one of its own.
+    CONNECTION_NOT_FOUND = "AUTH_PROVIDER_CONNECTION_NOT_FOUND"
+    #: A community connects to a given provider once.
+    CONNECTION_EXISTS = "AUTH_PROVIDER_CONNECTION_EXISTS"
+    #: A narrowing is a claim and the values that admit somebody; either half
+    #: alone would look configured and let nobody in, or nobody out.
+    CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
+    #: Somebody arrived through a provider a community connects to, but the
+    #: claim it narrows on did not name them.
+    CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
+    #: A community's rule, by an id that is not one of its own.
+    RULE_NOT_FOUND = "AUTH_PROVIDER_RULE_NOT_FOUND"
+    #: A rule reads a provider's groups, so the community has to count that
+    #: provider as one of its own before it can say what its groups mean.
+    RULE_PROVIDER_NOT_CONNECTED = "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED"
+    #: One group lands in one place. A second rule for the same group and the
+    #: same destination would be two answers to one question.
+    RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
 
 
 class TagMessages:
@@ -323,27 +394,14 @@ class AttachmentMessages:
 
 
 class DocumentMessages:
-    NOT_FOUND = "DOCUMENT_NOT_FOUND"
-    GRANT_CANNOT_MANAGE_MEMBERS = "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS"
-    INITIATIVE_NOT_FOUND = "DOCUMENT_INITIATIVE_NOT_FOUND"
     INITIATIVE_MEMBERSHIP_REQUIRED = "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED"
-    PERMISSION_REQUIRED = "DOCUMENT_PERMISSION_REQUIRED"
-    MANAGER_REQUIRED = "DOCUMENT_MANAGER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "DOCUMENT_WRITE_ACCESS_REQUIRED"
-    OWNER_REQUIRED = "DOCUMENT_OWNER_REQUIRED"
-    NO_ACCESS = "DOCUMENT_NO_ACCESS"
     NAME_ALREADY_EXISTS = "DOCUMENT_NAME_ALREADY_EXISTS"
     TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
     LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    CANNOT_ASSIGN_OWNER = "DOCUMENT_CANNOT_ASSIGN_OWNER"
     USER_MUST_BE_MEMBER = "DOCUMENT_USER_MUST_BE_MEMBER"
-    CANNOT_MODIFY_OWNER = "DOCUMENT_CANNOT_MODIFY_OWNER"
-    PERMISSION_NOT_FOUND = "DOCUMENT_PERMISSION_NOT_FOUND"
     CANNOT_REMOVE_OWNER = "DOCUMENT_CANNOT_REMOVE_OWNER"
-    CANNOT_ASSIGN_OWNER_TO_ROLE = "DOCUMENT_CANNOT_ASSIGN_OWNER_TO_ROLE"
     ROLE_WRONG_INITIATIVE = "DOCUMENT_ROLE_WRONG_INITIATIVE"
-    ROLE_PERMISSION_NOT_FOUND = "DOCUMENT_ROLE_PERMISSION_NOT_FOUND"
     AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
     SPREADSHEET_INVALID_PAYLOAD = "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
@@ -364,8 +422,6 @@ class CommentMessages:
     PERMISSION_DENIED = "COMMENT_PERMISSION_DENIED"
     VALIDATION_ERROR = "COMMENT_VALIDATION_ERROR"
     PARENT_NOT_FOUND = "COMMENT_PARENT_NOT_FOUND"
-    TASK_NOT_FOUND = "COMMENT_TASK_NOT_FOUND"
-    DOCUMENT_NOT_FOUND = "COMMENT_DOCUMENT_NOT_FOUND"
     TARGET_NOT_FOUND = "COMMENT_TARGET_NOT_FOUND"
     PARENT_MISMATCH = "COMMENT_PARENT_MISMATCH"
     PROVIDE_ONE_ENTITY = "COMMENT_PROVIDE_ONE_ENTITY"
@@ -382,6 +438,15 @@ class SharingMessages:
     tool has one the day it exists. ``tools_test`` fails if a locale has not
     been given the wording for it.
     """
+
+    #: The grant flow's own refusals. Not per-tool: a grant is the same object
+    #: whatever it names, and these say what was wrong with the grant rather
+    #: than which tool it was pointed at.
+    CANNOT_ASSIGN_OWNER = "CANNOT_ASSIGN_OWNER"
+    CANNOT_MODIFY_OWNER = "CANNOT_MODIFY_OWNER"
+    CANNOT_ASSIGN_OWNER_TO_ROLE = "CANNOT_ASSIGN_OWNER_TO_ROLE"
+    PERMISSION_NOT_FOUND = "PERMISSION_NOT_FOUND"
+    ROLE_PERMISSION_NOT_FOUND = "ROLE_PERMISSION_NOT_FOUND"
 
     #: A grant naming a dashboard, sent to a resource's own sharing. That kind
     #: is made and taken back against the dashboard that publishes it, so this
@@ -441,13 +506,23 @@ class SettingsMessages:
     MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
     INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
-    GUILD_NOT_FOUND = "SETTINGS_GUILD_NOT_FOUND"
     INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
     INITIATIVE_ROLE_ID_REQUIRED = "SETTINGS_INITIATIVE_ROLE_ID_REQUIRED"
-    INITIATIVE_NOT_FOUND = "SETTINGS_INITIATIVE_NOT_FOUND"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
-    INITIATIVE_ROLE_NOT_FOUND = "SETTINGS_INITIATIVE_ROLE_NOT_FOUND"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
+    # The permitted sign-in methods.
+    #: A guild still requires a sign-in through a provider it connects to.
+    LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
+    #: Something is ticked, but nothing that can begin a session — an
+    #: authenticator code accompanies a sign-in rather than opening one.
+    LOGIN_METHODS_NO_PRIMARY = "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
+    LOGIN_METHODS_WOULD_STRAND = "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    #: The acknowledged number no longer matches what withdrawing would strand.
+    LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"
+    #: The method used to reach this endpoint is not one the platform permits.
+    LOGIN_METHOD_NOT_PERMITTED = "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+
     # Object storage
     STORAGE_S3_INCOMPLETE = "SETTINGS_STORAGE_S3_INCOMPLETE"
     STORAGE_TEST_FAILED = "SETTINGS_STORAGE_TEST_FAILED"
@@ -455,35 +530,55 @@ class SettingsMessages:
     STORAGE_BACKFILL_NOT_CONFIGURED = "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
 
 
+class ModerationMessages:
+    """Reporting something, and settling a report."""
+
+    REPORT_NOT_FOUND = "MODERATION_REPORT_NOT_FOUND"
+    REPORT_ALREADY_SETTLED = "MODERATION_REPORT_ALREADY_SETTLED"
+    UNKNOWN_TARGET_TYPE = "MODERATION_UNKNOWN_TARGET_TYPE"
+    CANNOT_REPORT_YOURSELF = "MODERATION_CANNOT_REPORT_YOURSELF"
+    NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
+    TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
+    NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
+
+
+class SupportMessages:
+    """Asking whoever runs this deployment for help."""
+
+    NOT_AVAILABLE = "SUPPORT_NOT_AVAILABLE"
+    NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
+
+
+class IntakeMessages:
+    """Binding a stream of operations work to a project."""
+
+    GUILD_NOT_ACTIVE = "INTAKE_GUILD_NOT_ACTIVE"
+    NO_OPERATIONS_GUILD = "INTAKE_NO_OPERATIONS_GUILD"
+    STATUS_NOT_IN_PROJECT = "INTAKE_STATUS_NOT_IN_PROJECT"
+    PROJECT_NOT_LIVE = "INTAKE_PROJECT_NOT_LIVE"
+    UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
+
+
 class AdminMessages:
-    USER_NOT_FOUND = "ADMIN_USER_NOT_FOUND"
     CANNOT_RESET_INACTIVE = "ADMIN_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "ADMIN_USER_ALREADY_ACTIVE"
-    CANNOT_REACTIVATE_ANONYMIZED = "ADMIN_CANNOT_REACTIVATE_ANONYMIZED"
     CANNOT_SUSPEND_SELF = "ADMIN_CANNOT_SUSPEND_SELF"
     CANNOT_SUSPEND_INACTIVE = "ADMIN_CANNOT_SUSPEND_INACTIVE"
     ALREADY_ANONYMIZED = "ADMIN_ALREADY_ANONYMIZED"
     CANNOT_CHANGE_ROLE_INACTIVE = "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
     CANNOT_CHANGE_OWN_ROLE = "ADMIN_CANNOT_CHANGE_OWN_ROLE"
-    CANNOT_DEMOTE_LAST_ADMIN = "ADMIN_CANNOT_DEMOTE_LAST_ADMIN"
     CANNOT_DEMOTE_LAST_OWNER = "ADMIN_CANNOT_DEMOTE_LAST_OWNER"
     CANNOT_ASSIGN_HIGHER_ROLE = "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE"
     USE_SELF_DELETION = "ADMIN_USE_SELF_DELETION"
-    CANNOT_DELETE_LAST_ADMIN = "ADMIN_CANNOT_DELETE_LAST_ADMIN"
     CANNOT_DELETE_LAST_OWNER = "ADMIN_CANNOT_DELETE_LAST_OWNER"
     CANNOT_DELETE_SELF = "ADMIN_CANNOT_DELETE_SELF"
     USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
-    GUILD_NOT_FOUND = "ADMIN_GUILD_NOT_FOUND"
     # Operator guild deletion is scoped to resolving a user-deletion blocker:
     # the guild must be one the named user is the SOLE admin of. Any other guild
     # is refused (operators reach a live guild only via a break-glass grant).
     GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
-    USER_NOT_IN_GUILD = "ADMIN_USER_NOT_IN_GUILD"
-    CANNOT_DEMOTE_LAST_GUILD_ADMIN = "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN"
-    INITIATIVE_NOT_FOUND = "ADMIN_INITIATIVE_NOT_FOUND"
     USER_NOT_IN_INITIATIVE = "ADMIN_USER_NOT_IN_INITIATIVE"
     CANNOT_DEMOTE_LAST_PM = "ADMIN_CANNOT_DEMOTE_LAST_PM"
-    ROLE_NOT_FOUND = "ADMIN_ROLE_NOT_FOUND"
 
 
 class AccessGrantMessages:
@@ -499,6 +594,11 @@ class AccessGrantMessages:
     # Break-glass (self-approved, data.bypass holders): a live grant for this
     # guild already exists, so there's nothing to self-issue.
     ALREADY_LIVE = "ACCESS_GRANT_ALREADY_LIVE"
+    # Break-glass carries the account's own second factor once any data.bypass
+    # holder has one. ENROLMENT_REQUIRED is the refusal for a holder who has
+    # not set one up, whose way on is their own Security page.
+    SECOND_FACTOR_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
+    SECOND_FACTOR_ENROLMENT_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
 
 
 class PasswordMessages:
@@ -507,7 +607,7 @@ class PasswordMessages:
 
 
 class UserMessages:
-    CANNOT_DELETE_LAST_ADMIN = "USER_CANNOT_DELETE_LAST_ADMIN"
+    CANNOT_DELETE_LAST_OWNER = "USER_CANNOT_DELETE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
     CANNOT_DELETE = "USER_CANNOT_DELETE"
@@ -536,17 +636,14 @@ class UserMessages:
     INVALID_TASK_COMPLETION_VISUAL_FEEDBACK = (
         "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK"
     )
-    EMAIL_ALREADY_REGISTERED = "USER_EMAIL_ALREADY_REGISTERED"
     PLATFORM_ROLE_WRONG_ENDPOINT = "USER_PLATFORM_ROLE_WRONG_ENDPOINT"
     STATUS_WRONG_ENDPOINT = "USER_STATUS_WRONG_ENDPOINT"
-    CANNOT_REMOVE_LAST_ADMIN = "USER_CANNOT_REMOVE_LAST_ADMIN"
+    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
     NOT_IN_GUILD = "USER_NOT_IN_GUILD"
-    AVATAR_NOT_FOUND = "USER_AVATAR_NOT_FOUND"
     AVATAR_INVALID_IMAGE = "USER_AVATAR_INVALID_IMAGE"
-    AVATAR_TOO_LARGE = "USER_AVATAR_TOO_LARGE"
     AVATAR_NOT_SQUARE = "USER_AVATAR_NOT_SQUARE"
     AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
     # A read payload's ``avatar_url`` is a path this API serves; writing one
@@ -562,7 +659,6 @@ class UserMessages:
 
 
 class ImportMessages:
-    PROJECT_NOT_FOUND = "IMPORT_PROJECT_NOT_FOUND"
     PROJECT_ARCHIVED = "IMPORT_PROJECT_ARCHIVED"
     NO_PERMISSION = "IMPORT_NO_PERMISSION"
     INSUFFICIENT_PERMISSION = "IMPORT_INSUFFICIENT_PERMISSION"
@@ -691,13 +787,6 @@ class AnnouncementMessages:
 
 
 class CalendarMessages:
-    NOT_FOUND = "CALENDAR_NOT_FOUND"
-    CREATE_PERMISSION_REQUIRED = "CALENDAR_CREATE_PERMISSION_REQUIRED"
-    FEATURE_DISABLED = "CALENDARS_NOT_ENABLED"
-    PERMISSION_REQUIRED = "CALENDAR_PERMISSION_REQUIRED"
-    OWNER_REQUIRED = "CALENDAR_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "CALENDAR_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS"
     # A guild calendar lives inside the calendar app, which is what reaches it
     # and what its removal takes with it. Without the app there is nowhere to
     # put one.
@@ -720,13 +809,6 @@ class CalendarEventMessages:
 
 
 class DashboardMessages:
-    NOT_FOUND = "DASHBOARD_NOT_FOUND"
-    CREATE_PERMISSION_REQUIRED = "DASHBOARD_CREATE_PERMISSION_REQUIRED"
-    FEATURE_DISABLED = "DASHBOARDS_NOT_ENABLED"
-    PERMISSION_REQUIRED = "DASHBOARD_PERMISSION_REQUIRED"
-    OWNER_REQUIRED = "DASHBOARD_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "DASHBOARD_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "DASHBOARD_GRANT_CANNOT_MANAGE_MEMBERS"
     # Definition / config validation (app.services.tenant.dashboard_definition).
     DEFINITION_INVALID = "DASHBOARD_DEFINITION_INVALID"
     DEFINITION_VERSION_UNSUPPORTED = "DASHBOARD_DEFINITION_VERSION_UNSUPPORTED"
@@ -758,13 +840,6 @@ class DashboardMessages:
 
 
 class PostMessages:
-    NOT_FOUND = "POST_NOT_FOUND"
-    CREATE_PERMISSION_REQUIRED = "POST_CREATE_PERMISSION_REQUIRED"
-    FEATURE_DISABLED = "POSTS_NOT_ENABLED"
-    PERMISSION_REQUIRED = "POST_PERMISSION_REQUIRED"
-    OWNER_REQUIRED = "POST_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "POST_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "POST_GRANT_CANNOT_MANAGE_MEMBERS"
     #: Pinning lifts a notice above everyone else's, so it is initiative
     #: management authority rather than write access on the post.
     PIN_MANAGER_REQUIRED = "POST_PIN_MANAGER_REQUIRED"
@@ -810,13 +885,6 @@ class PostMessages:
 
 
 class GalleryMessages:
-    NOT_FOUND = "GALLERY_NOT_FOUND"
-    CREATE_PERMISSION_REQUIRED = "GALLERY_CREATE_PERMISSION_REQUIRED"
-    FEATURE_DISABLED = "GALLERIES_NOT_ENABLED"
-    PERMISSION_REQUIRED = "GALLERY_PERMISSION_REQUIRED"
-    OWNER_REQUIRED = "GALLERY_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "GALLERY_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "GALLERY_GRANT_CANNOT_MANAGE_MEMBERS"
     IMAGE_NOT_FOUND = "GALLERY_IMAGE_NOT_FOUND"
     #: The bytes are not a raster image this app can show — or are an SVG,
     #: which is a document rather than a picture.
@@ -828,6 +896,19 @@ class GalleryMessages:
     VERSION_CONFLICT = "GALLERY_VERSION_CONFLICT"
     #: A cover has to be one of the gallery's own pictures.
     COVER_NOT_IN_GALLERY = "GALLERY_COVER_NOT_IN_GALLERY"
+
+
+class WikiMessages:
+    PAGE_NOT_FOUND = "WIKI_PAGE_NOT_FOUND"
+    #: A page cannot be its own parent.
+    PAGE_PARENT_ITSELF = "WIKI_PAGE_PARENT_ITSELF"
+    #: Filing a page under one of its own descendants would detach the branch
+    #: from the wiki.
+    PAGE_PARENT_DESCENDANT = "WIKI_PAGE_PARENT_DESCENDANT"
+    #: A home page has to be one of the wiki's own pages.
+    HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
+    #: So does the page new ones are copied from.
+    TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
 
 
 class MarketplaceMessages:
@@ -906,31 +987,17 @@ class MarketplaceRegistryMessages:
 
 
 class QueueMessages:
-    NOT_FOUND = "QUEUE_NOT_FOUND"
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
-    INITIATIVE_NOT_FOUND = "QUEUE_INITIATIVE_NOT_FOUND"
-    PERMISSION_REQUIRED = "QUEUE_PERMISSION_REQUIRED"
-    CREATE_PERMISSION_REQUIRED = "QUEUE_CREATE_PERMISSION_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "QUEUE_WRITE_ACCESS_REQUIRED"
-    OWNER_REQUIRED = "QUEUE_OWNER_REQUIRED"
     NOT_ACTIVE = "QUEUE_NOT_ACTIVE"
     ALREADY_ACTIVE = "QUEUE_ALREADY_ACTIVE"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
-    FEATURE_DISABLED = "QUEUES_NOT_ENABLED"
 
 
 class CounterMessages:
     NOT_FOUND = "COUNTER_NOT_FOUND"
-    GROUP_NOT_FOUND = "COUNTER_GROUP_NOT_FOUND"
-    GRANT_CANNOT_MANAGE = "COUNTER_GRANT_CANNOT_MANAGE"
     INITIATIVE_NOT_FOUND = "COUNTER_INITIATIVE_NOT_FOUND"
-    PERMISSION_REQUIRED = "COUNTER_PERMISSION_REQUIRED"
-    CREATE_PERMISSION_REQUIRED = "COUNTER_CREATE_PERMISSION_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "COUNTER_WRITE_ACCESS_REQUIRED"
-    OWNER_REQUIRED = "COUNTER_OWNER_REQUIRED"
-    FEATURE_DISABLED = "COUNTERS_NOT_ENABLED"
     VIEW_MODE_REQUIRES_BOUNDS = "COUNTER_VIEW_MODE_REQUIRES_BOUNDS"
     MIN_GREATER_THAN_MAX = "COUNTER_MIN_GREATER_THAN_MAX"
     STEP_MUST_BE_POSITIVE = "COUNTER_STEP_MUST_BE_POSITIVE"
@@ -1263,6 +1330,10 @@ class DirectMessageMessages:
     CANNOT_IGNORE_SELF = "DM_CANNOT_IGNORE_SELF"
     #: A community named in a toggle write that this account is not in.
     NOT_A_MEMBER = "DM_NOT_A_MEMBER"
+    #: This deployment does not offer direct messages. A platform owner's
+    #: setting, so it is the same answer for everybody and nothing the caller
+    #: can do about it.
+    DISABLED_FOR_PLATFORM = "DM_DISABLED_FOR_PLATFORM"
 
 
 class DirectMessageTransportMessages:
@@ -1288,6 +1359,15 @@ class DirectMessageTransportMessages:
     #: The recipient is holding more undelivered ciphertext than they may.
     #: Refused at the door rather than accepted and dropped later.
     RECIPIENT_QUEUE_FULL = "DM_RECIPIENT_QUEUE_FULL"
+    #: Somebody on the proposed roster cannot reach somebody else on it. Which
+    #: pair is answered by the roster check, not by this refusal.
+    ROSTER_NOT_REACHABLE = "DM_ROSTER_NOT_REACHABLE"
+    #: More accounts than one conversation may carry.
+    ROSTER_TOO_LARGE = "DM_ROSTER_TOO_LARGE"
+    #: Fewer than three, which is a pair and has its own way in.
+    ROSTER_TOO_SMALL = "DM_ROSTER_TOO_SMALL"
+    #: Answering an invitation that is not there, or is already answered.
+    NO_INVITATION = "DM_NO_INVITATION"
 
 
 class ContactGrantMessages:
@@ -1305,7 +1385,4 @@ class ContactGrantMessages:
 class ContactMessages:
     """My Contacts — the starred list on the personal page."""
 
-    #: No account with that id that this reader may be shown. Suspended and
-    #: anonymized accounts answer the same way.
-    USER_NOT_FOUND = "CONTACT_USER_NOT_FOUND"
     CANNOT_FAVORITE_SELF = "CONTACT_CANNOT_FAVORITE_SELF"

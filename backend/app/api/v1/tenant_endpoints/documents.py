@@ -214,8 +214,8 @@ async def _get_document_or_404(
             document_id,
             user_id,
             guild_id,
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     return document
 
@@ -263,7 +263,7 @@ async def _require_initiative_access(
         if not has_perm:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.PERMISSION_REQUIRED,
+                detail=Tool.document.role_permission_code,
             )
         return
 
@@ -277,7 +277,7 @@ async def _require_initiative_access(
         if not is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.MANAGER_REQUIRED,
+                detail=InitiativeMessages.MANAGER_REQUIRED,
             )
 
 
@@ -380,6 +380,11 @@ def _build_visible_docs_filters(
     """
     conditions = [
         Initiative.guild_id == guild_id,
+        # An initiative that has switched documents off has none to list. See
+        # the note on the projects equivalent: the RLS leg deliberately admits
+        # a guild admin and a PAM reader, and a list is not where that
+        # exemption should surface.
+        Initiative.documents_enabled.is_(True),
         permissions_service.listing_scope_clause(
             Tool.document,
             Document.id,
@@ -854,6 +859,7 @@ async def create_document(
         initiative_id=document_in.initiative_id,
         guild_id=guild_context.guild_id,
     )
+    resource_access.require_tool_enabled(Tool.document, initiative)
     await _require_initiative_access(
         session,
         initiative_id=initiative.id,
@@ -959,6 +965,7 @@ async def upload_document_file(
         initiative_id=initiative_id,
         guild_id=guild_context.guild_id,
     )
+    resource_access.require_tool_enabled(Tool.document, initiative)
     await _require_initiative_access(
         session,
         initiative_id=initiative.id,
@@ -1438,7 +1445,7 @@ async def update_document(
     # on an interval and at teardown. Everything else in the patch (the name,
     # the featured image) is unrelated to that and still applies.
     if "content" in update_data and collaboration_manager.has_active_collaborators(
-        guild_context.guild_id, document.id
+        guild_context.guild_id, SearchEntityType.document.value, document.id
     ):
         # An editor inside the session reports its content to the room over its
         # own socket, which is what ties a rendering to the state it was made
@@ -1504,7 +1511,7 @@ async def update_document(
         # collaborators their in-memory state wins until they disconnect.
         if content_updated:
             await collaboration_manager.invalidate_room_if_empty(
-                guild_context.guild_id, document.id
+                guild_context.guild_id, SearchEntityType.document.value, document.id
             )
     hydrated = await _get_document_or_404(
         session,
@@ -1600,6 +1607,7 @@ async def copy_document(
         guild_id=guild_context.guild_id,
     )
     # Also require create_documents permission in target initiative
+    resource_access.require_tool_enabled(Tool.document, target_initiative)
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,
@@ -1949,12 +1957,12 @@ async def download_document_file(
             document_id,
             int(current_user.id),
             int(guild_id),
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     if document.document_type != DocumentType.file or document.file_url is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
     # ``guild_role`` feeds the initiative-scope gate's guild-admin leg — the
@@ -2002,12 +2010,12 @@ async def download_document_file_version(
             document_id,
             int(current_user.id),
             int(guild_id),
-            not_found=DocumentMessages.NOT_FOUND,
-            denied=DocumentMessages.NO_ACCESS,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
         )
     if document.document_type != DocumentType.file:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
     _require_document_access(

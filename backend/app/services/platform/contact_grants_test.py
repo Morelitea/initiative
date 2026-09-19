@@ -172,7 +172,7 @@ async def test_leaving_the_community_revokes_an_open_channel(session):
 
     await _drop_membership(session, guild_id=guild.id, user_id=b.id)
 
-    assert await _grant(session, a, b, ContactGrantKind.message) is None
+    assert not await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
 
 async def test_a_connection_carries_the_channel_through_leaving(session):
@@ -189,7 +189,7 @@ async def test_a_connection_carries_the_channel_through_leaving(session):
 
     await _drop_membership(session, guild_id=guild.id, user_id=b.id)
 
-    assert await _grant(session, a, b, ContactGrantKind.message) is not None
+    assert await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
 
 async def test_removing_a_connection_re_tests_rather_than_deletes(session):
@@ -211,7 +211,7 @@ async def test_removing_a_connection_re_tests_rather_than_deletes(session):
     await contact_grants_service.remove(
         session, actor_id=a.id, other_id=b.id, kind=ContactGrantKind.connection
     )
-    assert await _grant(session, a, b, ContactGrantKind.message) is not None
+    assert await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
     c = await create_user(session)
     d = await create_user(session)
@@ -224,7 +224,7 @@ async def test_removing_a_connection_re_tests_rather_than_deletes(session):
     await contact_grants_service.remove(
         session, actor_id=c.id, other_id=d.id, kind=ContactGrantKind.connection
     )
-    assert await _grant(session, c, d, ContactGrantKind.message) is None
+    assert not await _grant_exists_fresh(c, d, ContactGrantKind.message)
 
 
 async def test_going_private_revokes_a_community_channel(session):
@@ -252,7 +252,7 @@ async def test_going_private_revokes_a_community_channel(session):
     )
 
     assert dropped == 1
-    assert await _grant(session, a, b, ContactGrantKind.message) is None
+    assert not await _grant_exists_fresh(a, b, ContactGrantKind.message)
 
 
 async def _open_channel_between_co_members(session):

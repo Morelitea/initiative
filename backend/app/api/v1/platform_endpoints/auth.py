@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import logging
+from dataclasses import replace
 from typing import Any, Annotated
 from urllib.parse import urlencode
 
@@ -26,12 +27,13 @@ from app.core import auth_context
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
-    encrypt_field,
-    hash_email,
-    SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
-from app.core.messages import AuthMessages, GuildMessages, OidcMessages
+from app.core.login_methods import LoginMethod
+from app.core.messages import (
+    AuthMessages,
+    OidcMessages,
+)
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
 from app.core.usernames import UsernameError
@@ -55,17 +57,25 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_refresh_cookie,
     set_session_cookie,
 )
+from app.api.v1.platform_endpoints.session_opening import (
+    MOBILE_CALLBACK_URI,
+    open_session,
+    record_sign_in_failure,
+    require_login_method,
+)
 from app.core.audit_events import AuditEventType
-from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
+from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
+    DeviceTokenExchangeRequest,
     DeviceTokenResponse,
+    RefreshRequest,
     LoginProviderEntry,
     LoginProvidersResponse,
     PasswordResetRequest,
@@ -79,15 +89,22 @@ from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
 from app.services.auth import addresses
+from app.services.auth import (
+    guild_provider_connections as guild_connections,
+)
+from app.services.auth import challenges as challenge_service
+from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     read_assurance,
+    read_narrowing,
     record_for_provider,
     session_amr,
 )
 from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
+from app.services.platform import users as users_service
 from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
@@ -103,6 +120,7 @@ from app.services.auth.oidc.provider import (
     OidcProvider,
 )
 from app.services.auth import provider_registry
+from app.services.auth.provider_registry import provider_callback_url
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     get_platform_provider,
@@ -110,6 +128,7 @@ from app.services.auth.platform_provider import (
 )
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import auth_posture
 from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
 from app.services.platform import user_tokens
@@ -179,7 +198,11 @@ async def register_user(
     user_in: UserCreate,
     session: AdminSessionDep,
     invite_code: str | None = Query(default=None),
-) -> User:
+) -> UserRead:
+    # Registering here mints a password account, so it is the password method's
+    # own door. A deployment that does not permit passwords onboards through an
+    # identity provider instead, which provisions on first sign-in.
+    await require_login_method(session, LoginMethod.password)
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -192,7 +215,7 @@ async def register_user(
         normalized_email = user_in.email.lower().strip()
         # Address-aware: the address is taken if it reaches ANY account, not
         # only if it is the one that account was created with.
-        if await addresses.find_user_by_address(session, normalized_email):
+        if await addresses.account_holding(session, normalized_email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
@@ -255,9 +278,10 @@ async def register_user(
         # column default ``"UTC"`` applies.
         normalized_timezone = normalize_timezone(user_in.timezone)
 
+        # Confirmed on the spot when there is no mail to confirm it with, and
+        # for the account that bootstraps the deployment.
+        address_confirmed = is_first_user or not smtp_configured
         user_kwargs: dict[str, Any] = dict(
-            email_hash=hash_email(normalized_email),
-            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.
             username="",
@@ -268,7 +292,6 @@ async def register_user(
             password_set_at=datetime.now(timezone.utc),
             role=user_role,
             status=UserStatus.active,
-            email_verified=is_first_user or not smtp_configured,
         )
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
@@ -290,7 +313,7 @@ async def register_user(
             user_id=user.id,
             email=normalized_email,
             source=addresses.SOURCE_SIGNUP,
-            verified=user.email_verified,
+            verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
@@ -385,7 +408,7 @@ async def register_user(
     await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
-    if smtp_configured and not user.email_verified:
+    if smtp_configured and not address_confirmed:
         try:
             token = await user_tokens.create_token(
                 session,
@@ -400,7 +423,7 @@ async def register_user(
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
-    return user
+    return await users_service.to_self_read(user)
 
 
 @router.get("/bootstrap")
@@ -413,32 +436,6 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     }
 
 
-async def _record_sign_in_failure(
-    admin_session: AsyncSession, user: User | None, *, reason: str
-) -> None:
-    """Write down a refused sign-in and commit it.
-
-    The account is the **target**, when one resolved, and there is no actor: the
-    request that made the attempt is unauthenticated. An unknown address still
-    records the refusal but retains no submitted identity.
-
-    Its own commit because the request is about to raise, and ``audit_events``
-    is reached on the system engine — the request-path role holds nothing on
-    that table.
-    """
-    target_user_id = user.id if user is not None else None
-    await audit_service.record(
-        admin_session,
-        event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
-        actor_user_id=None,
-        target_user_id=target_user_id,
-        target_type="user" if target_user_id is not None else None,
-        target_id=target_user_id,
-        detail={"method": "password", "reason": reason},
-    )
-    await admin_session.commit()
-
-
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -447,11 +444,20 @@ async def login_access_token(
     session: SessionDep,
     admin_session: AdminSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Token:
+) -> Token | JSONResponse:
+    await require_login_method(session, LoginMethod.password)
     normalized_email = form_data.username.lower().strip()
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # An address its holder has not confirmed admits nobody, but it is worth
+    # saying so: resolved here only so the refusal below can name the reason.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Unconditional, and deliberately not folded into the `or` below: that
     # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
@@ -462,7 +468,9 @@ async def login_access_token(
         # against addresses nobody holds is the shape worth seeing, and the
         # record keeps no identity when there was none to keep. The volume is
         # bounded by the rate limit above.
-        await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="bad_password"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -470,12 +478,16 @@ async def login_access_token(
 
     # These are failed sign-ins even though the password itself matched.
     if user.status != UserStatus.active:
-        await _record_sign_in_failure(admin_session, user, reason="inactive")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="inactive"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
-        await _record_sign_in_failure(admin_session, user, reason="email_unverified")
+    if unconfirmed is not None:
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="email_unverified"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -490,57 +502,144 @@ async def login_access_token(
     # telling an address in use from one nobody has signed in with.
     await addresses.note_sign_in(admin_session, email=normalized_email)
 
-    # The login model end-to-end (history/auth-detailed-design.md §3): the
-    # server-side session is load-bearing — the access token carries sid/amr/sat
-    # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
-    # session (the SPA renews silently). Session writes run on the system engine
-    # (auth_sessions is app_admin-only).
-    #
-    # A sign-in *is* the session. If it cannot be written the request says so
-    # rather than handing back a lesser credential — ``auth_sessions`` shares a
-    # database with everything the next request would need anyway.
-    #
-    # ``user`` is attached to ``admin_session``, so the rollback below expires
-    # its attributes; the plain values are captured up front.
+    # ``user`` is attached to ``admin_session``, so a rollback inside the
+    # helper expires its attributes; the plain values are captured up front.
     user_id, token_version = user.id, user.token_version
-    try:
-        issued = await session_service.create_session(
+
+    # The password is right, and for an account holding a proved factor that
+    # is not the whole sign-in. Answered with a challenge to present the code
+    # against rather than with a session.
+    if await auth_posture.login_method_allowed(
+        session, LoginMethod.totp
+    ) and await totp_service.is_enrolled(admin_session, user_id=user_id):
+        issued = await challenge_service.create(
             admin_session,
             user_id=user_id,
-            amr=["pwd"],
-            satisfied_providers=[],
-            user_agent=request.headers.get("user-agent"),
-            ip=get_inet_client_ip(request),
+            purpose=challenge_service.ChallengePurpose.sign_in,
         )
+        await admin_session.commit()
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "detail": AuthMessages.TOTP_REQUIRED,
+                "challenge": issued.value,
+            },
+        )
+
+    return await open_session(
+        request,
+        response,
+        admin_session,
+        user_id=user_id,
+        token_version=token_version,
+        amr=["pwd"],
+        audit_detail={"method": "password"},
+    )
+
+
+@router.post("/token/totp", response_model=Token)
+@limiter.limit("10/15minutes")
+async def answer_second_factor(
+    request: Request,
+    response: Response,
+    admin_session: AdminSessionDep,
+    payload: SecondFactorChallengeAnswer,
+) -> Token:
+    """The second leg of a password sign-in: the challenge, and the code.
+
+    A recovery code is accepted here too — it is what the account holds when
+    the authenticator is out of reach, and the set exists to be used this way.
+    Which one answered is recorded, and told apart in ``amr``.
+    """
+    challenge = await challenge_service.claim_attempt(
+        admin_session,
+        value=payload.challenge,
+        purposes=(
+            challenge_service.ChallengePurpose.sign_in,
+            challenge_service.ChallengePurpose.sign_in_native,
+        ),
+    )
+    if challenge is None:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_CHALLENGE_INVALID,
+        )
+
+    user_id = challenge.user_id
+    # Before the factor is read, not after: a code presented to an account that
+    # cannot sign in anyway should not be spent on finding that out.
+    user = await admin_session.get(User, user_id)
+    if user is None or user.status != UserStatus.active:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+
+    if payload.recovery_code:
+        accepted = await totp_service.consume_recovery_code(
+            admin_session, user_id=user_id, code=payload.recovery_code
+        )
+        method, factor_amr = "recovery_code", ["mfa"]
+        refusal = AuthMessages.RECOVERY_CODE_INVALID
+    else:
+        accepted = await totp_service.verify_code(
+            admin_session, user_id=user_id, code=payload.code or ""
+        )
+        method, factor_amr = "totp", ["otp", "mfa"]
+        refusal = AuthMessages.TOTP_INVALID
+
+    if not accepted:
+        # The attempt is already counted against the challenge, which stands
+        # until it runs out; this records the refusal and lets them try again.
         await audit_service.record(
             admin_session,
-            event_type=AuditEventType.AUTH_SIGNED_IN,
-            actor_user_id=user_id,
-            detail={"method": "password"},
+            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+            actor_user_id=None,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+            detail={"method": method},
         )
-        # The name the token will carry, minted in the same transaction as the
-        # session it belongs to.
-        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
         await admin_session.commit()
-    except Exception as exc:
-        await admin_session.rollback()
-        logger.exception("Could not open a session for user %s", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    access_token, access_max_age = mint_access_token(
-        subject=subject,
-        token_version=token_version,
-        session_id=issued.session.id,
-        amr=issued.session.amr,
-        satisfied_providers=issued.session.satisfied_providers,
-        provider_auth=issued.session.provider_auth,
+    if not await challenge_service.consume(admin_session, challenge):
+        # Spent between the claim and here, so the session it bought is not
+        # this request's to open a second time.
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.TOTP_CHALLENGE_INVALID,
+        )
+
+    if method == "recovery_code":
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
+            actor_user_id=user_id,
+            detail={
+                "remaining": await totp_service.remaining_recovery_codes(
+                    admin_session, user_id=user_id
+                )
+            },
+        )
+
+    return await open_session(
+        request,
+        response,
+        admin_session,
+        user_id=user_id,
+        token_version=user.token_version,
+        amr=["pwd", *factor_amr],
+        audit_detail={"method": "password", "second_factor": method},
+        # The app keeps its refresh token; a browser reads one from a cookie it
+        # never sees. Which of the two asked is on the challenge, not on the
+        # request, so the client is not the one saying.
+        return_refresh_token=(
+            challenge.purpose == challenge_service.ChallengePurpose.sign_in_native.value
+        ),
     )
-    set_session_cookie(response, access_token, max_age=access_max_age)
-    set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
 
 
 @router.post("/refresh", response_model=Token)
@@ -549,6 +648,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     admin_session: AdminSessionDep,
+    payload: RefreshRequest | None = None,
 ) -> Token | JSONResponse:
     """Rotate the refresh cookie → a fresh short-lived access token + new refresh.
 
@@ -559,7 +659,14 @@ async def refresh_access_token(
     was detected. Runs on the system engine: validation is a pre-auth lookup by
     refresh-token hash.
     """
+    # Cookie first, so the browser is unchanged. A native client has no cookie
+    # to send — its refresh token lives in the platform's secure storage — so it
+    # presents one in the body and gets the rotated one back the same way.
     raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    presented_in_body = False
+    if not raw and payload is not None and payload.refresh_token:
+        raw = payload.refresh_token
+        presented_in_body = True
     if not raw:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -626,7 +733,10 @@ async def refresh_access_token(
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
-    return Token(access_token=access_token)
+    return Token(
+        access_token=access_token,
+        refresh_token=issued.refresh_token if presented_in_body else None,
+    )
 
 
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
@@ -733,6 +843,9 @@ async def issue_upload_token(
         satisfied_providers=sorted(satisfied)
         if isinstance(satisfied, frozenset)
         else (),
+        satisfied_claims=auth_context.satisfied_claims(),
+        session_mfa=auth_context.session_mfa(),
+        session_passkey=auth_context.session_passkey(),
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
@@ -744,20 +857,29 @@ async def create_device_token(
     session: SessionDep,
     admin_session: AdminSessionDep,
     payload: DeviceTokenRequest,
-) -> DeviceTokenResponse:
+) -> DeviceTokenResponse | JSONResponse:
     """
     Create a long-lived device token for mobile app authentication.
     Device tokens do not expire and can be used instead of JWT tokens.
     """
     normalized_email = payload.email.lower().strip()
     user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Same reason as the token route.
+    unconfirmed = (
+        await addresses.account_awaiting_confirmation(admin_session, normalized_email)
+        if user is None
+        else None
+    )
+    user = user or unconfirmed
     # Same reason as the token route: paid before the branch, never inside it.
     password_matches = verify_sign_in_password(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
         # Recorded either way, like the token route.
-        await _record_sign_in_failure(admin_session, user, reason="bad_password")
+        await record_sign_in_failure(
+            admin_session, user, method="password", reason="bad_password"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -767,7 +889,7 @@ async def create_device_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
-    if not user.email_verified:
+    if unconfirmed is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
@@ -778,12 +900,166 @@ async def create_device_token(
             admin_session, user=user, password=payload.password
         )
 
-    device_token = await user_tokens.create_device_token(
-        session,
-        user_id=user.id,
-        device_name=payload.device_name.strip(),
+    device_name = payload.device_name.strip()
+
+    # The same rule the browser sign-in follows: a proved factor is part of
+    # signing in, on every path that takes a password. Answered with a
+    # challenge, which the app presents the code against at /auth/token/totp.
+    #
+    # What comes back from there is a session rather than a device token. That
+    # is the intended direction — an account holding a factor moves onto the
+    # rotating credential rather than the ninety-day one — and it is why the
+    # challenge records which sign-in opened it.
+    if await auth_posture.login_method_allowed(
+        session, LoginMethod.totp
+    ) and await totp_service.is_enrolled(admin_session, user_id=user.id):
+        issued_challenge = await challenge_service.create(
+            admin_session,
+            user_id=user.id,
+            purpose=challenge_service.ChallengePurpose.sign_in_native,
+        )
+        await admin_session.commit()
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "detail": AuthMessages.TOTP_REQUIRED,
+                "challenge": issued_challenge.value,
+            },
+        )
+
+    # Both credentials on one transaction, so a failure takes both. Minted on
+    # the system engine rather than the request one for that reason alone: a
+    # device token committed on its own would outlive the response it was for,
+    # and each retry would leave another live one in the account's device list.
+    #
+    # The session carries ``pwd`` because that is what was presented here —
+    # which is what the device token itself cannot say, and why a device-token
+    # session satisfies no policy.
+    #
+    # A session that cannot be opened is a 503, not a quiet fall back to the
+    # device token alone: D2a settled that a sign-in hands back the credential
+    # it means to, or says it could not.
+    user_id, token_version = user.id, user.token_version
+    try:
+        device_token = await user_tokens.create_device_token(
+            admin_session,
+            user_id=user_id,
+            device_name=device_name,
+            commit=False,
+        )
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+            actor_user_id=user_id,
+            detail={"method": "password", "device_name": device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, access_max_age = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
     )
-    return DeviceTokenResponse(device_token=device_token)
+    return DeviceTokenResponse(
+        device_token=device_token,
+        access_token=access_token,
+        refresh_token=issued.refresh_token,
+        expires_in=access_max_age,
+    )
+
+
+@router.post("/device-token/exchange", response_model=Token)
+@limiter.limit("20/15minutes")
+async def exchange_device_token(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    payload: DeviceTokenExchangeRequest,
+) -> Token:
+    """Trade a device token for a session of the ordinary kind.
+
+    How an installed client moves across without asking anybody to sign in
+    again: it presents the token it already holds and is handed an access token
+    and a refresh token. The device token is left alone — it keeps working
+    until the client stops sending it, and the build that stops is the one that
+    decides when.
+
+    The session carries **no** factors. A device token does not record what was
+    presented when it was minted, and a session that claimed otherwise would be
+    asserting assurance nobody established — so this satisfies no guild
+    sign-in requirement, exactly as the device token itself does not.
+    """
+    record = await user_tokens.get_device_token(session, token=payload.device_token)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = await admin_session.get(User, record.user_id)
+    if user is None or user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id, token_version = user.id, user.token_version
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=[],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=get_inet_client_ip(request),
+            device_name=record.device_name,
+        )
+        await audit_service.record(
+            admin_session,
+            event_type=AuditEventType.AUTH_DEVICE_TOKEN_EXCHANGED,
+            actor_user_id=user_id,
+            detail={"device_name": record.device_name},
+        )
+        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
+        await admin_session.commit()
+    except Exception as exc:
+        await admin_session.rollback()
+        logger.exception("Could not open a session for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
+        ) from exc
+
+    access_token, _ = mint_access_token(
+        subject=subject,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+        provider_auth=issued.session.provider_auth,
+    )
+    return Token(access_token=access_token, refresh_token=issued.refresh_token)
 
 
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
@@ -821,25 +1097,12 @@ async def revoke_device_token(
         )
 
 
-def _provider_redirect_uri(provider_slug: str, guild_id: int | None = None) -> str:
-    """Per-provider callback URL. For the platform slug this is the same
-    ``/auth/oidc/callback`` operators registered at their IdP before the
-    routes were generalized — the slug is literally ``oidc``. Guild-scoped
-    providers get a guild-addressed callback (their slug is only unique
-    within the guild)."""
-    base = settings.APP_URL.rstrip("/")
-    if guild_id is not None:
-        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{provider_slug}/callback"
-    return f"{base}{API_V1_STR}/auth/{provider_slug}/callback"
-
-
 def _provider_state_key(row: AuthProvider) -> str:
-    """The identity a login-flow state binds to. Operator-global rows keep the
-    bare slug (states minted before guild providers stay valid); guild rows
-    are namespaced so a state begun with one guild's provider can't complete
-    against another guild's provider of the same slug."""
-    if row.guild_id is not None:
-        return f"g{row.guild_id}:{row.slug}"
+    """The identity a login-flow state binds to.
+
+    One sign-in, so one key: the provider's slug. A community is not a party
+    to the flow — it applies what it said about the provider afterwards.
+    """
     return row.slug
 
 
@@ -859,13 +1122,14 @@ async def _active_platform_provider(
     admin_session: AsyncSession,
 ) -> AuthProvider | None:
     """The platform provider row when its login is actually offerable —
-    platform posture, enabled, issuer + client id, AND a stored client secret
-    (the platform flow has always required one; PKCE-only stays a guild-provider
-    affordance). In guild scope the platform provider is dormant (kept, not
-    deleted) and must not authenticate anyone — enforced here, server-side,
-    not just hidden in the UI. Returns None when any condition fails."""
-    if settings.AUTH_SCOPE != AuthScope.platform:
-        return None
+    enabled, issuer + client id, AND a stored client secret (the platform flow
+    has always required one; PKCE-only stays a guild-provider affordance).
+
+    Offered in both postures. An operator-global provider is never
+    authoritative for a guild — a guild policy may only name a provider of its
+    own (``set_guild_auth_policy`` refuses any other), so signing in through
+    one satisfies no guild's requirement. Returns None when any condition
+    fails."""
     row = await get_platform_provider(admin_session)
     if row is None or not is_login_ready(row):
         return None
@@ -879,17 +1143,17 @@ async def _resolve_login_provider(
 ) -> AuthProvider:
     """The enabled operator-global provider row for one login slug, or 404.
 
-    The scope gate comes first: in guild posture every operator-global provider
-    is dormant and must not authenticate anyone — enforced server-side, not
-    just hidden in the UI. Every slug — the platform ``oidc`` slug included —
-    resolves to its registry row directly (the row is the source of truth; the
-    old reconcile-from-settings shim is gone). A malformed slug is treated like
-    an unknown one (no registry row can carry it)."""
+    Resolves in both postures: an operator-global provider authenticates a
+    person into their account and speaks for no guild (see
+    ``_active_platform_provider``). Every slug — the platform ``oidc`` slug
+    included — resolves to its registry row directly (the row is the source of
+    truth; the old reconcile-from-settings shim is gone). A malformed slug is
+    treated like an unknown one (no registry row can carry it)."""
     if not is_valid_provider_slug(provider_slug):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    if settings.AUTH_SCOPE != AuthScope.platform:
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -903,42 +1167,7 @@ async def _resolve_login_provider(
         return row
     row = (
         await admin_session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == provider_slug,
-                AuthProvider.guild_id.is_(None),
-            )
-        )
-    ).one_or_none()
-    if row is None or not is_login_ready(row):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    return row
-
-
-async def _resolve_guild_login_provider(
-    admin_session: AsyncSession,
-    guild_id: int,
-    provider_slug: str,
-) -> AuthProvider:
-    """The login-ready guild-scoped provider row for one (guild, slug), or
-    404. Guild providers serve logins only under per-guild auth posture —
-    the mirror image of ``_resolve_login_provider``'s operator-global gate.
-    An unknown guild, slug, or config-incomplete row all look identical."""
-    if not is_valid_provider_slug(provider_slug):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    if settings.AUTH_SCOPE != AuthScope.guild:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
-        )
-    row = (
-        await admin_session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == provider_slug,
-                AuthProvider.guild_id == guild_id,
-            )
+            select(AuthProvider).where(AuthProvider.slug == provider_slug)
         )
     ).one_or_none()
     if row is None or not is_login_ready(row):
@@ -967,7 +1196,7 @@ async def _build_row_oidc_provider(
         OidcClientConfig(
             issuer=row.issuer,
             client_id=row.client_id,
-            redirect_uri=_provider_redirect_uri(row.slug, row.guild_id),
+            redirect_uri=provider_callback_url(row.slug),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
             provider_slug=_provider_state_key(row),
@@ -978,11 +1207,13 @@ async def _build_row_oidc_provider(
 
 
 def _login_entry(row: AuthProvider) -> LoginProviderEntry:
-    login_url = (
-        f"{API_V1_STR}/auth/g/{row.guild_id}/{row.slug}/login"
-        if row.guild_id is not None
-        else f"{API_V1_STR}/auth/{row.slug}/login"
-    )
+    """One way in, as the sign-in page needs it.
+
+    One address per provider, whichever page offers it: a community's page
+    lists the ways in that count as its own, and they are the deployment's
+    ways in.
+    """
+    login_url = f"{API_V1_STR}/auth/{row.slug}/login"
     return LoginProviderEntry(
         id=row.id,
         slug=row.slug,
@@ -1000,14 +1231,14 @@ async def list_login_providers(
 ) -> LoginProvidersResponse:
     """The sign-in providers the login page offers — non-secret metadata only.
 
-    Empty in guild posture (operator-global providers are dormant there) and
-    on instances with no SSO configured. Strictly read-only: the platform
-    entry, like every other, is its registry row (the source of truth) — no
-    write path is reachable from here. Registry rows are read on the system
-    engine (``auth_providers`` carries no request-path grant)."""
-    if settings.AUTH_SCOPE != AuthScope.platform:
+    Listed in both postures — an operator-global provider signs a person into
+    their account and is authoritative for no guild — and empty on instances
+    with no SSO configured. Strictly read-only: the platform entry, like every
+    other, is its registry row (the source of truth) — no write path is
+    reachable from here. Registry rows are read on the system engine
+    (``auth_providers`` carries no request-path grant)."""
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
-
     entries: list[LoginProviderEntry] = []
     platform_row = await _active_platform_provider(admin_session)
     if platform_row is not None:
@@ -1027,7 +1258,6 @@ async def list_login_providers(
         await admin_session.exec(
             select(AuthProvider)
             .where(
-                AuthProvider.guild_id.is_(None),
                 AuthProvider.slug != PLATFORM_OIDC_SLUG,
                 AuthProvider.enabled.is_(True),
                 AuthProvider.kind == "oidc",
@@ -1051,8 +1281,7 @@ async def _begin_provider_login(
     device_name: str,
     next_path: str,
 ) -> RedirectResponse:
-    """Begin the relying-party flow for a resolved provider row — shared by
-    the operator-global and guild-addressed login routes.
+    """Begin the relying-party flow for a resolved provider row.
 
     ``next_path`` is an optional SPA path to return to after the web callback
     (e.g. the guild page a step-up started from). Only a validated relative
@@ -1090,47 +1319,24 @@ async def _begin_provider_login(
 async def list_guild_login_providers(
     session: SessionDep, admin_session: AdminSessionDep, guild_id: int
 ) -> LoginProvidersResponse:
-    """One guild's sign-in providers — non-secret metadata only, with
-    guild-addressed login URLs and the guild's display name for its login
-    page. Empty (and nameless) outside per-guild auth posture and for a
-    guild with no login-ready providers; an unknown guild id is
-    indistinguishable from an empty registry."""
-    if settings.AUTH_SCOPE != AuthScope.guild:
+    """The ways in this community counts as its own — non-secret metadata
+    only, plus its display name for its sign-in page.
+
+    A community does not authenticate anybody: these are the deployment's own
+    providers, and the buttons lead to the deployment's sign-in. What the
+    community has said about them is applied when somebody reaches it. Empty
+    (and nameless) where it connects to nothing and where single sign-on is
+    not permitted; an unknown guild id is indistinguishable from an empty
+    list."""
+    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.sso):
         return LoginProvidersResponse(providers=[])
-    rows = (
-        await admin_session.exec(
-            select(AuthProvider)
-            .where(AuthProvider.guild_id == guild_id)
-            .order_by(AuthProvider.display_name)
-        )
-    ).all()
+    rows = await guild_connections.connected_providers(admin_session, guild_id=guild_id)
     entries = [_login_entry(row) for row in rows if is_login_ready(row)]
     guild_name = None
     if entries:
         guild = await admin_session.get(Guild, guild_id)
         guild_name = guild.name if guild else None
     return LoginProvidersResponse(providers=entries, guild_name=guild_name)
-
-
-@router.get("/g/{guild_id}/{provider_slug}/login")
-@limiter.limit("20/minute")
-async def guild_provider_login(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    guild_id: int,
-    provider_slug: str,
-    next_path: str = Query(default="", alias="next"),
-) -> RedirectResponse:
-    """Begin the relying-party flow for one of a guild's own providers.
-    Web only for now — native guild step-up arrives with native session
-    tokens, so there is no ``mobile`` variant of this route."""
-    provider_row = await _resolve_guild_login_provider(
-        admin_session, guild_id, provider_slug
-    )
-    return await _begin_provider_login(
-        admin_session, provider_row, mobile=False, device_name="", next_path=next_path
-    )
 
 
 @router.get("/{provider_slug}/login")
@@ -1157,15 +1363,11 @@ async def provider_login(
     )
 
 
-def _mobile_redirect_uri() -> str:
-    return "initiative://oidc/callback"
-
-
 def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     """Redirect to app/frontend with error instead of returning JSON."""
     params = {"error": error}
     if is_mobile:
-        url = f"{_mobile_redirect_uri()}?{urlencode(params)}"
+        url = f"{MOBILE_CALLBACK_URI}?{urlencode(params)}"
     else:
         url = f"{_frontend_redirect_uri()}?{urlencode(params)}"
     return RedirectResponse(url)
@@ -1191,13 +1393,12 @@ async def _complete_provider_login(
     code: str | None,
     state: str | None,
 ):
-    """Complete the relying-party flow for a resolved provider row — shared
-    by the operator-global and guild-addressed callback routes. Guild rows
-    differ in three ways: a successful sign-in also admits the user to the
-    provider's guild (JIT-provisioning unknown users when the provider allows
-    it, always as plain member, capacity-enforced), the operator claim-to-role
-    sync doesn't run, and mobile flows can't reach here (the guild login route
-    doesn't offer one)."""
+    """Complete the relying-party flow for a resolved provider.
+
+    One sign-in for the whole deployment. What each community makes of it —
+    whether this arrival counts as one of its own, and whether it joins them
+    to it — is applied from its connections once the identity is settled.
+    """
     # Best-effort mobile flag so even early failures land on the right surface
     # (app vs. web); ``complete()`` re-validates the state authoritatively.
     is_mobile: bool | None = None
@@ -1234,6 +1435,10 @@ async def _complete_provider_login(
                 "OIDC userinfo sub does not match id_token sub; ignoring userinfo"
             )
             userinfo = None
+
+    # Does the community this route belongs to recognise who just arrived?
+    # Asked of the verified id_token and before any account or membership is
+    # touched, because a no here means this person is not theirs.
 
     email_claim = claims.get("email")
     email = (
@@ -1293,7 +1498,6 @@ async def _complete_provider_login(
             admin_session,
             event_type=AuditEventType.AUTH_IDENTITY_LINKED,
             actor_user_id=user.id,
-            guild_id=provider_row.guild_id,
             target_type="auth_provider",
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
@@ -1320,8 +1524,6 @@ async def _complete_provider_login(
         )
 
     # Profile refresh from the verified claims.
-    if email_verified and not user.email_verified:
-        user.email_verified = True
     if full_name and user.full_name != full_name:
         user.full_name = full_name
     if avatar_url and user.avatar_url != avatar_url:
@@ -1343,44 +1545,24 @@ async def _complete_provider_login(
     await admin_session.commit()
     await admin_session.refresh(user)
 
-    if provider_row.guild_id is not None:
-        # The guild's own IdP is its configured identity source, so a
-        # successful authentication doubles as admission: get-or-create the
-        # membership, always as plain member (roles are assigned in the app),
-        # honoring the guild's member capacity.
-        #
-        # ``resolve_oidc_identity`` has already committed a JIT-provisioned
-        # user, so plain values are captured up front — the rollback below
-        # expires the ORM object.
-        onboarding_user_id = user.id
-        was_provisioned = resolution.outcome is ResolutionOutcome.PROVISIONED
-        try:
-            await guilds_service.ensure_membership(
-                admin_session,
-                guild_id=provider_row.guild_id,
-                user_id=onboarding_user_id,
-            )
-            await admin_session.commit()
-        except guilds_service.GuildCapacityError:
-            await admin_session.rollback()
-            # A user provisioned by THIS sign-in belongs to no other guild, so
-            # a full guild would strand a usable-nowhere account. Undo it (the
-            # federated-identity link and its secret cascade). An account that
-            # already existed keeps whatever access it had.
-            if was_provisioned:
-                await _discard_provisioned_user(
-                    admin_session, user_id=onboarding_user_id
-                )
-            return _error_redirect(is_mobile, GuildMessages.GUILD_USER_LIMIT_REACHED)
-        await admin_session.refresh(user)
+    # What each community makes of this arrival. A connection can say that
+    # people it counts as its own join on sight, which is how somebody reaches
+    # a community they have never been invited to.
+    await guild_connections.join_on_arrival(
+        admin_session,
+        provider_id=provider_row.id,
+        user_id=user.id,
+        claims=dict(claims or {}),
+    )
+    # It commits per community and rolls back the ones at capacity, either of
+    # which leaves this copy of the account stale.
+    await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
-    # Operator-global providers only: the mapping registry is platform-level
-    # configuration; per-guild claim mappings are their own later feature.
+    # There is one sign-in, so this runs for it: a rule grants where it names,
+    # and a community only holds rules for providers it connects to.
     try:
-        claim_path = (
-            provider_row.role_claim_path if provider_row.guild_id is None else None
-        )
+        claim_path = provider_row.role_claim_path
         if claim_path:
             claim_values = extract_claim_values(
                 userinfo or {}, completion.claims, claim_path
@@ -1389,6 +1571,7 @@ async def _complete_provider_login(
                 sync_result = await sync_oidc_assignments(
                     sync_session,
                     user_id=user.id,
+                    provider_id=provider_row.id,
                     claim_values=claim_values,
                 )
                 logger.info(
@@ -1405,13 +1588,33 @@ async def _complete_provider_login(
         logger.exception("OIDC claim sync failed for user %s", user.id)
 
     if is_mobile:
+        device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
             session,
             user_id=user.id,
-            device_name=completion.device_name or "Mobile Device",
+            device_name=device_name,
         )
+        # No session alongside this one: it answers with a redirect, and a
+        # refresh token does not belong in a URL. ``POST /auth/device-token/
+        # exchange`` is where this client trades the token for one.
+        #
+        # The record is best-effort here, unlike the password route. This
+        # branch has already authenticated somebody against their IdP, and the
+        # rule it works under — stated a few lines down for the session — is
+        # that a store that is briefly unavailable does not fail an SSO login.
+        try:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
+                actor_user_id=user.id,
+                detail={"method": "oidc", "device_name": device_name},
+            )
+            await admin_session.commit()
+        except Exception:
+            await admin_session.rollback()
+            logger.exception("Could not record device-token issue for user %s", user.id)
         redirect_params = {"token": device_token, "token_type": "device_token"}
-        redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
+        redirect_url = f"{MOBILE_CALLBACK_URI}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
     # The new login model, mirroring the password path (§3): the session is
     # load-bearing — the access token carries sid/amr/sat (the inputs the
@@ -1427,7 +1630,6 @@ async def _complete_provider_login(
     # path never touches the ORM object again.
     user_id, token_version = user.id, user.token_version
     provider_id, provider_slug = provider_row.id, provider_row.slug
-    provider_guild_id = provider_row.guild_id
     # Return the browser to where the login started (a step-up hands the
     # guild page it interrupted): the login route stored a validated SPA
     # path in the short-lived cookie; re-validate before echoing it, and
@@ -1448,6 +1650,17 @@ async def _complete_provider_login(
     # entry is replaced by what it just asserted, and every other provider's
     # account of its own event is left as it was.
     assurance = read_assurance(completion.claims)
+    # What this provider asserted for the claims some community narrows it by.
+    # A fact about the authentication, kept beside the rest, so the rule about
+    # which values count is read fresh when somebody reaches a community.
+    narrowing = await guild_connections.narrowed_by(
+        admin_session, provider_id=provider_id
+    )
+    if narrowing:
+        assurance = replace(
+            assurance,
+            claims=read_narrowing(completion.claims, userinfo, narrowing),
+        )
     amr = session_amr(provider_slug, assurance)
     satisfied = [provider_id]
     provider_auth = record_for_provider(
@@ -1481,7 +1694,7 @@ async def _complete_provider_login(
             admin_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
             actor_user_id=user_id,
-            guild_id=provider_guild_id,
+            guild_id=None,
             detail={
                 "method": "oidc",
                 "provider": provider_slug,
@@ -1525,27 +1738,6 @@ async def _complete_provider_login(
     return oidc_response
 
 
-@router.get("/g/{guild_id}/{provider_slug}/callback")
-@limiter.limit("20/minute")
-async def guild_provider_callback(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    guild_id: int,
-    provider_slug: str,
-    code: str | None = Query(default=None),
-    state: str | None = Query(default=None),
-):
-    """Complete the relying-party flow for one of a guild's own providers —
-    the guild-addressed URL registered at the guild's IdP."""
-    provider_row = await _resolve_guild_login_provider(
-        admin_session, guild_id, provider_slug
-    )
-    return await _complete_provider_login(
-        request, session, admin_session, provider_row, code, state
-    )
-
-
 @router.get("/{provider_slug}/callback")
 @limiter.limit("20/minute")
 async def provider_callback(
@@ -1572,7 +1764,7 @@ async def resend_verification_email(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
-    if current_user.email_verified:
+    if await addresses.has_proven_address(session, user_id=current_user.id):
         return VerificationSendResponse(status="already_verified")
     try:
         token = await user_tokens.create_token(
@@ -1642,10 +1834,6 @@ async def confirm_verification(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-    if not user.email_verified:
-        user.email_verified = True
-        user.updated_at = datetime.now(timezone.utc)
-        admin_session.add(user)
     await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
@@ -1662,8 +1850,11 @@ async def request_password_reset(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
+    await require_login_method(session, LoginMethod.password)
     normalized_email = payload.email.lower().strip()
-    user = await addresses.find_user_by_address(admin_session, normalized_email)
+    # Held, not necessarily confirmed: an account that never confirmed the
+    # address it signed up with is exactly the one a reset has to reach.
+    user = await addresses.account_holding(admin_session, normalized_email)
     if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:
@@ -1694,6 +1885,7 @@ async def reset_password(
     session: SessionDep,
     admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
+    await require_login_method(session, LoginMethod.password)
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
     await enforce_password_policy(payload.password)
@@ -1716,14 +1908,7 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    # Device tokens are revoked and committed on the request path first: they
-    # live on a table the system engine holds no UPDATE on, so the two halves
-    # cannot share a transaction, and this is the order that fails safely — a
-    # failure after this point signs the account out everywhere and leaves the
-    # old password standing, rather than changing the password while a device
-    # token survives it.
-    await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
-    await session.commit()
+    await user_tokens.revoke_device_tokens_first(session, user_id=user.id)
 
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
@@ -1743,8 +1928,6 @@ async def reset_password(
     await user_tokens.revoke_user_sessions(
         session, user=user, admin_session=admin_session
     )
-    if not user.email_verified:
-        user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
     admin_session.add(user)
     await session.commit()

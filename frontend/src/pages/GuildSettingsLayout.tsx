@@ -6,26 +6,30 @@ import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
+import { holdsGuildSeat } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  // The seat above admin, which holds this community's sign-in and its
+  // integrations — held outright, or lent for a window by a settings grant.
+  const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
+  const isSuperadmin = holdsGuildSeat(activeGuild);
+  // Where the community has a sign-in of its own to configure, that is. Most
+  // never do: the operator grants each half of the surface separately, and
+  // with neither there is nothing on the tab to show anybody. A grantee's
+  // entry carries no options — the page reads the real ones and shows nothing
+  // where there are none.
+  const authOptions = activeGuild?.auth_options ?? [];
+  const configuresItsOwnSignIn =
+    isSuperadmin &&
+    (onTheGrantedSeat || authOptions.includes("providers") || authOptions.includes("restrictions"));
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
-  // The Authentication tab exists only when the platform has opted into
-  // per-guild auth (non-secret posture info from the public interface settings)
-  // AND an operator has enabled sign-in for this specific guild. Disabling the
-  // guild toggle hides the config surface without touching existing providers
-  // or member logins (guild_auth_enabled is admin-only on GuildRead).
-  const interfaceSettings = useInterfaceSettings();
-  const guildAuthEnabled =
-    interfaceSettings.data?.auth_scope === "guild" && activeGuild?.guild_auth_enabled === true;
-
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
 
@@ -38,21 +42,18 @@ export const GuildSettingsLayout = () => {
         path: urlGuildId ? guildPath(urlGuildId, "/settings") : "/settings",
       },
       {
-        value: "ai",
-        label: t("guildLayout.tabs.ai"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/ai") : "/settings/ai",
-      },
-      {
         value: "users",
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      ...(guildAuthEnabled
+      ...(configuresItsOwnSignIn
         ? [
             {
-              value: "auth",
-              label: t("guildLayout.tabs.auth"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+              // Everything on this tab is the superadmin's to set, so the
+              // tab is theirs too — an ordinary admin has nothing to do on it.
+              value: "security",
+              label: t("guildLayout.tabs.security"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/security") : "/settings/security",
             },
           ]
         : []),
@@ -61,11 +62,20 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.initiatives"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
       },
-      {
-        value: "apps",
-        label: t("guildLayout.tabs.apps"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/apps") : "/settings/apps",
-      },
+      // What the community hands to somebody outside it — an AI provider, an
+      // app — is the seat's to decide, the way its sign-in is. An ordinary
+      // admin runs the community; these say who else gets to see it.
+      ...(isSuperadmin
+        ? [
+            {
+              value: "integrations",
+              label: t("guildLayout.tabs.integrations"),
+              path: urlGuildId
+                ? guildPath(urlGuildId, "/settings/integrations")
+                : "/settings/integrations",
+            },
+          ]
+        : []),
       {
         value: "trash",
         label: t("guildLayout.tabs.trash"),
@@ -85,18 +95,21 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, guildAuthEnabled]);
+  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin]);
 
-  const canViewSettings = isGuildAdmin;
+  const canViewSettings = isGuildAdmin || isSuperadmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
-  // them (AI, users, initiatives, apps, trash, auth) would only render
+  // them (users, initiatives, integrations, trash, security) would only render
   // errors. Keep the surfaces that stay functional: the general tab (identity,
   // usage, plan) and the danger zone (deletion / data ownership).
   const isSuspended = activeGuild?.status === "suspended";
   const workingTabs = isSuspended
     ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
     : guildSettingsTabs;
-  const availableTabs = isGuildAdmin ? workingTabs : [];
+  const seatOnly = new Set(["security", "integrations"]);
+  const availableTabs = isGuildAdmin
+    ? workingTabs
+    : workingTabs.filter((tab) => seatOnly.has(tab.value));
 
   if (!canViewSettings) {
     return (

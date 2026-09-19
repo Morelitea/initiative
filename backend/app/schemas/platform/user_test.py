@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from app.schemas.platform import user as user_schemas
 from app.schemas.platform.user import (
-    GuildNameVisibility,
     ProfileDecorations,
     UserGuildMember,
     UserGuildRead,
@@ -68,24 +67,46 @@ def test_the_guild_read_of_an_account_carries_no_name() -> None:
     for absent in ("full_name", "email", "role"):
         assert absent not in UserGuildRead.model_fields
 
-    assert not issubclass(UserGuildRead, GuildNameVisibility)
-
 
 @pytest.mark.unit
 def test_the_shape_everything_is_built_from_has_no_name() -> None:
     """``UserIdentity`` is the half every user shape shares, and the name is
     deliberately not in it — a shape adds one only by saying so."""
     assert "full_name" not in UserIdentity.model_fields
-    assert not issubclass(UserIdentity, GuildNameVisibility)
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("schema", [UserPublic, UserGuildMember, UserSummary])
-def test_a_guild_shape_that_shows_a_name_is_governed_by_the_setting(schema) -> None:
-    """Declaring ``full_name`` and inheriting ``GuildNameVisibility`` travel
-    together, so a name is never rendered outside a guild that asked for one."""
+def test_a_guild_shape_declares_the_name_it_may_render(schema) -> None:
     assert "full_name" in schema.model_fields
-    assert issubclass(schema, GuildNameVisibility)
+
+
+@pytest.mark.unit
+def test_no_guild_content_reads_a_person_from_the_users_table() -> None:
+    """Why none of those shapes needs a rule of its own about names.
+
+    Guild content reaches a person through ``guild_member_profiles``, which
+    carries ``full_name`` only where that guild renders real names. A
+    relationship pointing at ``users`` instead would arrive with the name
+    whatever the guild said, and would need somebody to remember to drop it —
+    which is the arrangement this replaced.
+    """
+    import pathlib as _pathlib
+    import re as _re
+
+    models = _pathlib.Path(__file__).resolve().parents[1] / "models" / "tenant"
+    offenders = []
+    for path in models.glob("*.py"):
+        for match in _re.finditer(
+            r'^\s*(\w+):\s*(?:Optional\[|List\[)?"User"\]?\s*=\s*Relationship',
+            path.read_text(),
+            _re.M,
+        ):
+            offenders.append(f"{path.name}: {match.group(1)}")
+    assert not offenders, (
+        "guild content reaching a person off the users table rather than the "
+        f"guild projection: {offenders}"
+    )
 
 
 @pytest.mark.unit

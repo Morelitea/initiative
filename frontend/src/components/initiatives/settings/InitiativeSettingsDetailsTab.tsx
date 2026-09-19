@@ -2,13 +2,8 @@ import { Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  InitiativeJoinPolicy,
-  InitiativeRoleRead,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
-import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
-import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
+import type { InitiativeRoleRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -26,14 +21,6 @@ interface InitiativeSettingsDetailsTabProps {
   /** Master-switch value per toggleable tool. */
   toolSwitches: Partial<Record<Tool, boolean>>;
   onToggleTool: (tool: Tool, value: boolean) => void;
-  /** How guild members may join this initiative. */
-  joinPolicy: InitiativeJoinPolicy;
-  onChangeJoinPolicy: (value: InitiativeJoinPolicy) => void;
-  /** Whether every new guild member is enrolled here on arrival. */
-  autoJoin: boolean;
-  onChangeAutoJoin: (next: boolean) => void;
-  /** Auto-join is the guild admin's to set, even among initiative managers. */
-  canManageAutoJoin: boolean;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -54,11 +41,6 @@ export const InitiativeSettingsDetailsTab = ({
   setColor,
   toolSwitches,
   onToggleTool,
-  joinPolicy,
-  onChangeJoinPolicy,
-  autoJoin,
-  onChangeAutoJoin,
-  canManageAutoJoin,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -127,19 +109,9 @@ export const InitiativeSettingsDetailsTab = ({
           </form>
         </CardContent>
       </Card>
-      {/* Both sections below save on change, like the tool switches — they are
-          single settings, not fields of the details form above. */}
-      <JoinPolicySection
-        value={joinPolicy}
-        onChange={onChangeJoinPolicy}
-        canManage={canManageMembers}
-        isSaving={isSaving}
-        autoJoin={autoJoin}
-        // Absent for a manager who is not a guild admin: the server refuses the
-        // field from them, so the control is not offered rather than shown inert.
-        onChangeAutoJoin={canManageAutoJoin ? onChangeAutoJoin : undefined}
-      />
-      <AdvancedToolsSection
+      {/* Saves on change, unlike the details form above: each switch is a
+          single setting, not a field waiting on a Save button. */}
+      <ToolsSection
         layout="card"
         canManage={canManageMembers}
         isSaving={isSaving}

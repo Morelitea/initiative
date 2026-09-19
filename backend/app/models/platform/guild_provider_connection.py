@@ -1,0 +1,127 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlmodel import Field, SQLModel
+
+
+class GuildProviderConnection(SQLModel, table=True):
+    """A community signing its members in through one of the platform's
+    providers, optionally narrowed to its own tenant.
+
+    The division of labour: **the operator holds providers, a community
+    connects to one.** An operator says this deployment can sign people in
+    with Google; a community says its members come in through that, and only
+    its own workspace. A community holds no issuer, no client id and no
+    secret — so it names no address the deployment will fetch, and there is no
+    provider configuration for it to get wrong on behalf of its members.
+
+    A community bringing its own identity provider is the same shape: the
+    operator registers it when they onboard them, and the community connects
+    to it. Every row in ``auth_providers`` is the operator's.
+
+    A connection says two things at once, because a community says both in
+    one breath: which arrivals count as its own (``claim``/``claim_values``),
+    and whether they join on arrival (``auto_join``).
+
+    Lives in ``public`` beside the registry it points into. Written on the
+    system engine; the request path reads it, scoped by policy to the reader's
+    own community, because the guild-access gate consults the narrowing on
+    every request rather than trusting an answer worked out at sign-in.
+    """
+
+    __tablename__ = "guild_provider_connections"
+    __table_args__ = (
+        # A community connects to a given provider once. Two different
+        # narrowings of the same provider would be two answers to one
+        # question.
+        UniqueConstraint(
+            "guild_id", "provider_id", name="uq_guild_provider_connections_pair"
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    guild_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("guilds.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    #: RESTRICT, for the reason the sign-in requirement uses it: withdrawing a
+    #: provider a community signs in through has to surface the conflict, not
+    #: quietly change who can get in.
+    provider_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+
+    #: Which verified claim decides whether somebody arriving through this
+    #: provider belongs to this community — ``hd`` for a Google Workspace
+    #: domain, ``tid`` for an Entra tenant. NULL together with
+    #: ``claim_values`` is an unnarrowed connection, which is right where the
+    #: provider is already the community's own: their identity provider admits
+    #: only their people, so there is nothing left to narrow.
+    claim: str | None = Field(default=None, sa_column=Column(String(64), nullable=True))
+    #: The values that admit somebody. Any one of them is enough.
+    claim_values: list[str] | None = Field(
+        default=None, sa_column=Column(ARRAY(String(256)), nullable=True)
+    )
+
+    #: Off keeps the connection and its narrowing while taking the button off
+    #: the community's sign-in page.
+    enabled: bool = Field(
+        sa_column=Column(Boolean, nullable=False, server_default=text("true"))
+    )
+
+    #: Whether arriving through this connection joins somebody to the
+    #: community. A community that admits its own people and still wants to
+    #: choose who joins leaves it off.
+    auto_join: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            onupdate=lambda: datetime.now(timezone.utc),
+        ),
+    )
+
+    def admits(self, claims: dict) -> bool:
+        """Whether a verified id_token belongs to this community.
+
+        An unnarrowed connection admits anybody the provider vouched for. A
+        narrowed one reads the claim it names and asks whether the value is
+        one of its own — the same dot-path reader the group rules use, so a
+        nested claim works here too.
+        """
+        if not self.claim or not self.claim_values:
+            return True
+        # Imported here: the sync service imports models, not the other way.
+        from app.services.oidc_sync import extract_claim_values
+
+        found = extract_claim_values(claims, None, self.claim)
+        return any(value.strip().lower() in found for value in self.claim_values)
