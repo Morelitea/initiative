@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-09-18
+
 ### Added
 
 - **Setting up a community's sign-in walks you through it** — connecting a provider was one flat form: pick, type a claim, type some values, tick a box, with nothing saying how they related and the card for *requiring* a sign-in sitting above the one for *connecting* it. A community with nothing connected now leads with **Set up sign-in**, which asks four questions in the order they actually depend on each other: which way in, whose people count, where they land, and — only once there's something to require — whether to insist on it. A provider the deployment has already answered for shows as answered, with "use this" rather than a blank form.
