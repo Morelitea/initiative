@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A settings-only support grant now opens the settings it names** — it was recorded and approved correctly but the guild-scoped settings route still looked for content access first and refused it. Configuration access now follows the settings grant without opening the community's documents, and removing an AI connection also clears every member key and preference that referred to it.
 - **A platform role change is written to the audit log** — suspending somebody, renaming them and taking down their picture were all recorded; moving somebody up or down the platform ladder was not, which made it the one change to an account that left no trace. It now records who moved it and between which two rungs, filed as operator work rather than moderation.
 - **An unavailable sign-in method explains itself** — asking a community to require a method the deployment has switched off showed an internal error code. It now says what is unavailable in every supported language.
 - **A community's name no longer runs under its member count** — on a community with no banner artwork, a long enough name at a narrow enough width wrapped underneath the counts floating in the corner. The counts now sit in their own row and the name starts below them.

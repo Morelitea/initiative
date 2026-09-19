@@ -217,16 +217,14 @@ async def break_glass_access(
     """
     await _check_second_factor(session, actor=current_user, payload=payload)
     try:
-        # Superseding, not stacking: whatever the caller already holds here is
-        # revoked and replaced by the pair. Breaking glass has to work when
-        # somebody already had a lesser grant open, which is when it is most
-        # likely to be reached for.
+        replaced = await service.reconcile_break_glass_pair(
+            session, actor=current_user, payload=payload
+        )
         grant = await service.break_glass(
             session,
             actor=current_user,
             payload=payload,
             level=AccessLevel.read_write.value,
-            supersede=True,
         )
         settings_grant = await service.break_glass(
             session,
@@ -234,8 +232,22 @@ async def break_glass_access(
             payload=payload,
             purpose=AccessGrantPurpose.settings,
             level=SettingsLevel.superadmin.value,
-            supersede=True,
         )
+        for prior in replaced:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+                actor_user_id=current_user.id,
+                guild_id=prior.guild_id,
+                target_type="access_grant",
+                target_id=prior.id,
+                detail={
+                    "purpose": prior.purpose,
+                    "level": prior.access_level,
+                    "decision": prior.status,
+                    "replacement": "break_glass",
+                },
+            )
         # One line per grant, each naming its purpose and its rung, so the log
         # says what was taken and not merely that glass was broken.
         for issued in (grant, settings_grant):

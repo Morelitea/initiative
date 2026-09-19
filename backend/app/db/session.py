@@ -213,6 +213,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_guild_id = params.get("pam_guild_id")
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
+    settings_guild_id = params.get("settings_guild_id")
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
     query = bool(params.get("query"))
@@ -253,9 +254,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # guild's role. The login role has no standing access to any guild schema
     # (fail-closed) — it must SET ROLE into the per-guild role. int() makes
     # the schema/role name injection-safe. Route for a full guild context, or
-    # for an ACTIVE PAM grant (read or write); a grant with neither flag
-    # routes nowhere, so the grantee sees nothing. Lazy import avoids a
-    # circular import — schema_provisioning imports this module.
+    # for an ACTIVE PAM grant (read or write), or for a settings-only grant.
+    # Lazy import avoids a circular import — schema_provisioning imports this
+    # module.
     from app.db.schema_provisioning import (
         guild_query_role_name,
         guild_readonly_role_name,
@@ -266,9 +267,11 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     )
 
     pam_active = pam_read or pam_write
-    route_guild = (
-        guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
-    )
+    route_guild = guild_id
+    if route_guild is None and pam_active:
+        route_guild = pam_guild_id
+    if route_guild is None:
+        route_guild = settings_guild_id
     if system_guild_id is not None:
         # Trusted system maintenance keeps the login role (app_admin, whose
         # narrowly enumerated guild-table grants are provisioned separately)
@@ -293,10 +296,14 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - scoped read_write grant (no membership, pam_write): the restricted
         #   guild_<id>_support role — content DML but no writes to the structural
         #   / permission tables (the ``support`` identity).
-        # - otherwise (real membership, break-glass): the full guild_<id> role.
+        # - settings-only grant: the restricted support role, with no content
+        #   PAM flags.
+        # - otherwise (real membership): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
-        if query:
+        if settings_guild_id is not None:
+            name_fn = guild_support_role_name
+        elif query:
             # A query runs as the query role whatever else the request is:
             # a member's, a read-only member's, or a grantee's.
             name_fn = guild_query_role_name
@@ -401,6 +408,7 @@ async def set_rls_context(
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
+    settings_guild_id: Optional[int] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -486,6 +494,7 @@ async def set_rls_context(
         pam_guild_id=pam_guild_id,
         pam_read=pam_read,
         pam_write=pam_write,
+        settings_guild_id=settings_guild_id,
         platform_role=platform_role,
         read_only=read_only,
         query=query,
@@ -536,6 +545,7 @@ async def set_rls_context(
         "pam_guild_id": pam_guild_id,
         "pam_read": pam_read,
         "pam_write": pam_write,
+        "settings_guild_id": settings_guild_id,
         "platform_role": platform_role,
         "read_only": read_only,
         "query": query,

@@ -16,6 +16,7 @@ from app.db.request_context import (
     GuildScoped,
     PamGrantee,
     Platform,
+    SettingsGrantee,
     SystemGuild,
     Unattributed,
     classify,
@@ -92,6 +93,22 @@ def test_a_grant_still_does_not_say_how_a_guild_is_routed():
     for kwargs in ({"guild_role": "admin"}, {"read_only": True}):
         with pytest.raises(ContextShapeError):
             classify(user_id=7, pam_guild_id=3, pam_read=True, **kwargs)
+
+
+def test_a_settings_grant_is_its_own_guild_route():
+    shape = classify(user_id=7, settings_guild_id=3)
+    assert isinstance(shape, SettingsGrantee)
+    assert shape.settings_guild_id == 3
+
+
+def test_a_settings_grant_cannot_carry_content_authority():
+    for kwargs in (
+        {"guild_id": 3, "guild_role": "admin"},
+        {"pam_guild_id": 3, "pam_read": True},
+        {"scope_initiative_id": 11},
+    ):
+        with pytest.raises(ContextShapeError):
+            classify(user_id=7, settings_guild_id=3, **kwargs)
 
 
 def test_a_stored_role_does_not_reach_the_guc():

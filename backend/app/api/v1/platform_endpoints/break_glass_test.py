@@ -310,6 +310,44 @@ async def test_breaking_glass_again_supersedes_rather_than_stacking(
     assert sum(1 for g in grants if g["status"] == "revoked") == 2
 
 
+@pytest.mark.integration
+async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(session, role=UserRole.owner)
+    operator = await create_user(session, role=UserRole.operator)
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(operator)
+
+    requested = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
+        json={
+            "guild_id": guild.id,
+            "access_level": "read",
+            "reason": "ordinary content work",
+        },
+    )
+    assert requested.status_code == 201, requested.text
+
+    issued = await client.post(
+        "/api/v1/access-grants/break-glass",
+        headers=headers,
+        json={"guild_id": guild.id, "reason": "urgent content repair"},
+    )
+    assert issued.status_code == 201, issued.text
+
+    listed = await client.get("/api/v1/access-grants/?mine=true", headers=headers)
+    grants = listed.json()
+    prior = next(grant for grant in grants if grant["id"] == requested.json()["id"])
+    assert prior["status"] == "denied"
+    assert {
+        (grant["purpose"], grant["access_level"])
+        for grant in grants
+        if grant["is_live"]
+    } == {("content", "read_write"), ("settings", "superadmin")}
+
+
 # ---------------------------------------------------------------------------
 # The second factor (D9)
 #
