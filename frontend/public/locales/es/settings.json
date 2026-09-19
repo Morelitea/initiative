@@ -1462,8 +1462,8 @@
     "removePassword": "Quitar tu contraseña",
     "removePasswordFromBrowser": "Renuncia a tu contraseña desde un navegador con la sesión iniciada en este sitio.",
     "removePasswordTitle": "Quitar tu contraseña",
-    "removePasswordBody": "A partir de ahora entrarás con tu clave de acceso, y se cerrará tu sesión en los demás dispositivos. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Si tu cuenta aún no tiene códigos de recuperación, se te mostrará un juego: guárdalo.",
-    "removePasswordCodes": "Guárdalos en un lugar seguro. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Cada código sirve una vez y no volverás a verlos.",
+    "removePasswordBody": "A partir de ahora entrarás con tu clave de acceso, y se cerrará tu sesión en los demás dispositivos. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Si te quedan menos de tres códigos, se te mostrará un juego nuevo: guárdalo.",
+    "removePasswordCodes": "Guárdalos en un lugar seguro. Si algún día pierdes tu clave de acceso, un código de recuperación es lo que te permite establecer una contraseña nueva. Cada código sirve una vez y no volverás a verlos. Los códigos que tuvieras antes han dejado de servir.",
     "passwordRemoved": "Se ha quitado tu contraseña.",
     "removePasswordError": "No se ha podido quitar tu contraseña."
   },

@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
+import {
+  AUTH_FACTOR_REQUIRED_EVENT,
+  type FactorChallengeDetail,
+  type GuildFactorKind,
+} from "@/api/client";
 import { ConnectSignInWizard } from "@/components/auth/ConnectSignInWizard";
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
 import { GuildClaimRulesSection } from "@/components/auth/GuildClaimRulesSection";
@@ -55,7 +59,7 @@ const ANY_PROVIDER = "any";
  * it; a provider is answered by signing in again, a factor of the account's
  * own by presenting it here.
  */
-type Unmet = { kind: "provider"; slug: string } | { kind: FactorChallengeDetail["kind"] };
+type Unmet = { kind: "provider"; slug: string } | { kind: GuildFactorKind };
 
 /** The two lines each factor needs: what to do, and the button that does it. */
 const FACTOR_COPY = {
@@ -363,7 +367,7 @@ export const SettingsGuildSecurityPage = () => {
 
   // The same dialog every refused request opens, asked for here so a factor
   // is presented without leaving the page the requirement is being written on.
-  const presentFactor = (kind: FactorChallengeDetail["kind"]) => {
+  const presentFactor = (kind: GuildFactorKind) => {
     window.dispatchEvent(
       new CustomEvent<FactorChallengeDetail>(AUTH_FACTOR_REQUIRED_EVENT, {
         detail: { guildId, kind },

@@ -679,6 +679,7 @@
   "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: una contraseña, el inicio de sesión único o una clave de acceso. Un código de autenticación las acompaña, no las sustituye.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Esta comunidad pide un código de tu aplicación de autenticación. Introduce uno para continuar.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Esta comunidad pide una clave de acceso. Presenta una para continuar.",
+  "RECENT_PROOF_REQUIRED": "Este cambio necesita antes un inicio de sesión reciente.",
   "ACCESS_GRANT_SECOND_FACTOR_REQUIRED": "Introduce tu código de autenticación para usar el acceso de emergencia.",
   "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED": "El acceso de emergencia necesita una aplicación de autenticación y esta cuenta no tiene ninguna. Configúrala primero en Seguridad.",
   "AUTH_PROVIDER_DISCOVERY_UNREACHABLE": "Nada respondió en esa dirección",

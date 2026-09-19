@@ -1462,8 +1462,8 @@
     "removePassword": "Remove your password",
     "removePasswordFromBrowser": "Give your password up from a browser signed in to this site.",
     "removePasswordTitle": "Remove your password",
-    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If your account has no recovery codes yet, you will be shown a set — save them.",
-    "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again.",
+    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If you hold fewer than three codes, you'll be shown a fresh set — save them.",
+    "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again. Any codes you held before have stopped working.",
     "passwordRemoved": "Your password has been removed.",
     "removePasswordError": "Could not remove your password."
   },

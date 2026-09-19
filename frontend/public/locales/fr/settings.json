@@ -1462,8 +1462,8 @@
     "removePassword": "Supprimer votre mot de passe",
     "removePasswordFromBrowser": "Abandonnez votre mot de passe depuis un navigateur connecté à ce site.",
     "removePasswordTitle": "Supprimer votre mot de passe",
-    "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Si votre compte n'a pas encore de codes de secours, un jeu vous sera présenté : conservez-le.",
-    "removePasswordCodes": "Conservez-les en lieu sûr. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Chaque code sert une fois, et ils ne vous seront plus montrés.",
+    "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. S'il vous en reste moins de trois, un nouveau jeu vous sera présenté : conservez-le.",
+    "removePasswordCodes": "Conservez-les en lieu sûr. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Chaque code sert une fois, et ils ne vous seront plus montrés. Les codes que vous déteniez auparavant ne fonctionnent plus.",
     "passwordRemoved": "Votre mot de passe a été supprimé.",
     "removePasswordError": "Impossible de supprimer votre mot de passe."
   },
