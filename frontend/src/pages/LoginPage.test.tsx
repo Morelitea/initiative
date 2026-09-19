@@ -56,7 +56,46 @@ const signIn = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: /sign in/i }));
 };
 
-const renderLogin = () => renderPage(LoginPage, { initialRoute: "/login" });
+const renderLogin = (search?: Record<string, string>) =>
+  renderPage(LoginPage, { initialRoute: "/login", routerSearch: search });
+
+const corp = {
+  id: 1,
+  slug: "corp",
+  display_name: "Corp",
+  kind: "oidc",
+  login_url: "/api/v1/auth/corp/login",
+  icon: null,
+  button_style: null,
+};
+
+/** The page leaves for the provider by assigning the address, which jsdom will
+ *  not follow. Stand a writable one in its place so the departure can be read
+ *  back — the real `origin` and all, since that is what a path is judged
+ *  against. */
+const watchWhereItLeavesFor = () => {
+  const original = window.location;
+  const stand = { ...original, origin: original.origin, href: original.href };
+  Object.defineProperty(window, "location", { value: stand, configurable: true, writable: true });
+  return {
+    left: () => stand.href,
+    restore: () =>
+      Object.defineProperty(window, "location", {
+        value: original,
+        configurable: true,
+        writable: true,
+      }),
+  };
+};
+
+/** The bootstrap probe and the provider list share one client. */
+const offering = (providers: unknown[]) => {
+  mocks.get.mockImplementation((url: string) =>
+    Promise.resolve(
+      url === "/auth/providers" ? { data: { providers } } : { data: { has_users: true } }
+    )
+  );
+};
 
 describe("LoginPage second factor", () => {
   beforeEach(() => {
@@ -145,5 +184,72 @@ describe("LoginPage second factor", () => {
 
     await waitFor(() => expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument());
     expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Where signing in leaves you.
+ *
+ * Somebody who asked for a page and was sent here to sign in should land on
+ * the page they asked for — the app sends a phone to a browser for a passkey
+ * and that is the whole point of the trip. Only somewhere in this app,
+ * though: anything else is dropped for the front page.
+ */
+describe("LoginPage return path", () => {
+  beforeEach(() => {
+    mocks.login.mockReset().mockResolvedValue(undefined);
+    mocks.completeSecondFactor.mockReset();
+    mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+  });
+
+  it("finishes the trip they were on", async () => {
+    const user = userEvent.setup();
+    const { router } = renderLogin({ next: "/profile/security" });
+
+    await signIn(user);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/profile/security"));
+  });
+
+  it("keeps a destination outside this app out of it", async () => {
+    const user = userEvent.setup();
+    const { router } = renderLogin({ next: "//evil.test/take-me" });
+
+    await signIn(user);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
+  it("carries the same trip into a provider's sign-in", async () => {
+    // An account that signs in through SSO only is the case the passkey trip
+    // depends on: the app hands the browser the provider, and the provider's
+    // callback is what lands somewhere.
+    const user = userEvent.setup();
+    offering([corp]);
+    const departure = watchWhereItLeavesFor();
+    try {
+      renderLogin({ next: "/profile/security" });
+
+      await user.click(await screen.findByRole("button", { name: /continue with corp/i }));
+
+      expect(departure.left()).toBe("/api/v1/auth/corp/login?next=%2Fprofile%2Fsecurity");
+    } finally {
+      departure.restore();
+    }
+  });
+
+  it("leaves for the provider bare when the trip was not one of ours", async () => {
+    const user = userEvent.setup();
+    offering([corp]);
+    const departure = watchWhereItLeavesFor();
+    try {
+      renderLogin({ next: "//evil.test/take-me" });
+
+      await user.click(await screen.findByRole("button", { name: /continue with corp/i }));
+
+      expect(departure.left()).toBe("/api/v1/auth/corp/login");
+    } finally {
+      departure.restore();
+    }
   });
 });

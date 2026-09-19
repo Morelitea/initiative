@@ -250,5 +250,21 @@
       "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos.",
       "textBody": "La verificación en dos pasos ya está desactivada en tu cuenta y tus códigos de recuperación se han descartado."
     }
+  },
+  "passkey": {
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "added": {
+      "subject": "Se ha añadido una clave de acceso a tu cuenta",
+      "title": "Se ha añadido una clave de acceso a tu cuenta",
+      "body": "Ya puedes iniciar sesión en tu cuenta con la clave de acceso <strong>{{passkey}}</strong>. Las claves de acceso viven en el dispositivo o el gestor de contraseñas donde se crearon, así que ten a mano el que usaste.",
+      "textBody": "Se ha añadido a tu cuenta la clave de acceso {{passkey}} y ya puede usarse para iniciar sesión."
+    },
+    "removed": {
+      "subject": "Se ha eliminado una clave de acceso de tu cuenta",
+      "title": "Se ha eliminado una clave de acceso de tu cuenta",
+      "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba.",
+      "textBody": "La clave de acceso {{passkey}} se ha eliminado de tu cuenta y ya no sirve para iniciar sesión."
+    }
   }
 }

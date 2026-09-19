@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -54,6 +54,9 @@ class ChallengePurpose(str, Enum):
     #: different things: a browser reads its refresh token from a cookie, and
     #: the app is given it to keep.
     sign_in_native = "sign_in_native"
+    #: A passkey registration is under way. The value is the WebAuthn challenge
+    #: itself, so the finish route reads it back out of the signed client data.
+    passkey_register = "passkey_register"
 
 
 @dataclass(frozen=True)
@@ -77,10 +80,20 @@ def _hash(value: str) -> bytes:
 
 
 async def create(
-    session: AsyncSession, *, user_id: int, purpose: ChallengePurpose
+    session: AsyncSession,
+    *,
+    user_id: int,
+    purpose: ChallengePurpose,
+    value: str | None = None,
 ) -> IssuedChallenge:
-    """Open a challenge for one account. The caller commits."""
-    value = secrets.token_urlsafe(_CHALLENGE_BYTES)
+    """Open a challenge for one account. The caller commits.
+
+    ``value`` lets a caller that already holds the value name it — a WebAuthn
+    ceremony mints its own challenge and the browser signs it, so the row
+    stands for that value rather than for a second one. Without it the value is
+    minted here. Either way only the digest is kept.
+    """
+    value = value or secrets.token_urlsafe(_CHALLENGE_BYTES)
     challenge = AuthChallenge(
         challenge_hash=_hash(value),
         user_id=user_id,
@@ -164,8 +177,18 @@ async def revoke_for_user(session: AsyncSession, *, user_id: int) -> int:
 
 
 async def purge_expired(session: AsyncSession) -> int:
-    """Clear out challenges nothing can use again. The caller commits."""
+    """Clear out challenges nothing can use again. The caller commits.
+
+    Two kinds qualify: one whose time has run out, and one already spent. A
+    challenge answers once, so a spent row has nothing left to say and is not
+    kept until it also expires.
+    """
     result = await session.exec(
-        delete(AuthChallenge).where(AuthChallenge.expires_at <= _now())
+        delete(AuthChallenge).where(
+            or_(
+                AuthChallenge.expires_at <= _now(),
+                AuthChallenge.consumed_at.is_not(None),
+            )
+        )
     )
     return int(result.rowcount or 0)
