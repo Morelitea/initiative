@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
+import { returnPath } from "@/lib/returnPath";
 
 import { RegisterPage } from "./RegisterPage";
 
@@ -89,8 +90,13 @@ export const LoginPage = () => {
       const mobileLoginUrl = `${baseUrl}${provider.login_url}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
       await Browser.open({ url: mobileLoginUrl });
     } else {
-      // On web, redirect directly
-      window.location.href = provider.login_url;
+      // On web, redirect directly — carrying where they were headed, so an
+      // account that only signs in through a provider finishes the trip it
+      // started. The server reads `next` back on its callback.
+      const next = returnPath(searchParams.next);
+      window.location.href = next
+        ? `${provider.login_url}?next=${encodeURIComponent(next)}`
+        : provider.login_url;
     }
   };
 
@@ -110,8 +116,7 @@ export const LoginPage = () => {
   const goWhereTheySignedInFor = () => {
     // The page they were headed for before they were asked to sign in, if it
     // is a path in this app. An invite still wins: it is why they are here.
-    const next = searchParams.next;
-    const returnTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+    const returnTo = returnPath(searchParams.next) ?? "/";
     if (inviteCodeParam) {
       router.navigate({
         to: "/invite/$code",

@@ -1582,6 +1582,7 @@
     "siteMismatch": "No se puede crear una clave de acceso en esta dirección: no coincide con la dirección para la que está configurado este sitio. Quien gestiona el sitio puede corregirlo.",
     "browserError": "Tu navegador no ha podido crear la clave de acceso. Inténtalo de nuevo.",
     "unsupported": "Este navegador no puede crear claves de acceso. Abre esta página en un navegador actualizado.",
+    "siteUnsupported": "Las claves de acceso necesitan que este sitio tenga un nombre de dominio propio y https. Quien gestiona el sitio puede solucionarlo.",
     "limitReached": "Esta cuenta tiene todas las claves de acceso que puede tener ({{limit}}). Quita una para añadir otra.",
     "addFromBrowser": "Las claves de acceso se añaden desde un navegador con la sesión iniciada en este sitio. «Añadir una clave de acceso» abre uno.",
     "error": "No ha funcionado. Inténtalo de nuevo."

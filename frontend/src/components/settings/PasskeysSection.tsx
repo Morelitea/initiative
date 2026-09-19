@@ -39,6 +39,7 @@ import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { hasReservedSigil } from "@/lib/mentions";
 import { queryClient } from "@/lib/queryClient";
 
 /** Where this very section lives, for the app to send a phone to a browser. */
@@ -116,8 +117,16 @@ export const PasskeysSection = () => {
   const passwordRequired = list.data?.password_required ?? true;
   const limit = list.data?.limit ?? 0;
   const atLimit = limit > 0 && passkeys.length >= limit;
-  // On a phone the ceremony happens in the system browser, so what this webview
-  // can do says nothing about whether a passkey can be added.
+  // Whether the deployment itself can carry a passkey. Two answers, and either
+  // one settles it: the server knows the address it is configured under, and
+  // the page knows whether it is in a secure context — served over plain http
+  // at anything but localhost, it is not, and no credential API exists to ask.
+  //
+  // On a phone the ceremony happens in the system browser, so this webview's
+  // own context says nothing; only the server's half speaks for it. The same
+  // goes for what this browser can do, below.
+  const siteUnsupported =
+    list.data?.site_supported === false || (!isNativePlatform && !window.isSecureContext);
   const unsupported = !isNativePlatform && !browserSupportsWebAuthn();
 
   const closeAdd = () => {
@@ -206,7 +215,17 @@ export const PasskeysSection = () => {
 
   const submitAdd = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    begin.mutate({ data: { current_password: password || null } });
+    const trimmed = name.trim();
+    // The server holds names to the same rule and refuses this one before the
+    // browser is asked for anything, so say it here rather than making a
+    // credential nothing will accept. Same sentence either way.
+    if (hasReservedSigil(trimmed)) {
+      setError(t("errors:RESERVED_SIGIL_IN_NAME"));
+      return;
+    }
+    // The name travels with both halves: the server needs it to refuse early,
+    // and again to store what the browser sends back.
+    begin.mutate({ data: { current_password: password || null, name: trimmed } });
   };
 
   const submitRename = (event: FormEvent<HTMLFormElement>) => {
@@ -226,13 +245,17 @@ export const PasskeysSection = () => {
 
   // A full set is the first thing to say, on a phone as much as anywhere:
   // sending somebody to a browser to be told there is no room would be rude.
+  // Then what the deployment itself can carry, which no browser can put right,
+  // and only after that what this particular browser can do.
   const addNote = atLimit
     ? t("passkeys.limitReached", { limit })
-    : unsupported
-      ? t("passkeys.unsupported")
-      : isNativePlatform
-        ? t("passkeys.addFromBrowser")
-        : null;
+    : siteUnsupported
+      ? t("passkeys.siteUnsupported")
+      : unsupported
+        ? t("passkeys.unsupported")
+        : isNativePlatform
+          ? t("passkeys.addFromBrowser")
+          : null;
 
   return (
     <div className="space-y-4">
@@ -308,7 +331,11 @@ export const PasskeysSection = () => {
 
           {addNote ? <p className="text-muted-foreground text-sm">{addNote}</p> : null}
 
-          <Button type="button" onClick={openAdd} disabled={atLimit || unsupported}>
+          <Button
+            type="button"
+            onClick={openAdd}
+            disabled={atLimit || siteUnsupported || unsupported}
+          >
             {t("passkeys.add")}
           </Button>
         </div>

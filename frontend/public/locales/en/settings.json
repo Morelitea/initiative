@@ -1582,6 +1582,7 @@
     "siteMismatch": "A passkey can't be made at this address — it doesn't match the address this site is set up under. Whoever runs the site can put that right.",
     "browserError": "Your browser couldn't make the passkey. Try again.",
     "unsupported": "This browser can't make a passkey. Open this page in an up-to-date browser instead.",
+    "siteUnsupported": "Passkeys need this site to have a proper domain name and https. Whoever runs it can put that right.",
     "limitReached": "This account holds as many passkeys as it can ({{limit}}). Remove one to add another.",
     "addFromBrowser": "A passkey is added from a browser signed in to this site. Add opens one for you.",
     "error": "That didn't work. Try again."

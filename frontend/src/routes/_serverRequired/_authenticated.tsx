@@ -53,6 +53,7 @@ import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
+import { returnPath } from "@/lib/returnPath";
 import { cn } from "@/lib/utils";
 
 /**
@@ -84,9 +85,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
       // started rather than landing them at the front page: the app sends a
       // phone to a browser for a passkey, and that browser signs in first.
       // Somewhere in this app only — a path, never another site.
-      const next = location.href;
-      const carry =
-        next !== "/" && next.startsWith("/") && !next.startsWith("//") ? { next } : undefined;
+      const next = returnPath(location.href);
+      const carry = next && next !== "/" ? { next } : undefined;
       throw redirect({ to: redirectTo, search: carry });
     }
   },

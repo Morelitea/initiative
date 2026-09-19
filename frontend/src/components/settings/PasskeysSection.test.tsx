@@ -91,13 +91,14 @@ const passkey = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const held = (passkeys: ReturnType<typeof passkey>[], rest: Record<string, unknown> = {}) => ({
-  data: { passkeys, password_required: true, limit: 10, ...rest },
+  data: { passkeys, password_required: true, limit: 10, site_supported: true, ...rest },
   isLoading: false,
   isError: false,
 });
 
 describe("PasskeysSection", () => {
   beforeEach(() => {
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
     for (const mock of Object.values(mocks)) mock.mockReset();
     mocks.browserSupportsWebAuthn.mockReturnValue(true);
     mocks.startRegistration.mockResolvedValue({ id: "credential-id", type: "public-key" });
@@ -133,7 +134,9 @@ describe("PasskeysSection", () => {
     await user.type(screen.getByLabelText(/current password/i), "a-password");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
-    expect(mocks.begin).toHaveBeenCalledWith({ data: { current_password: "a-password" } });
+    expect(mocks.begin).toHaveBeenCalledWith({
+      data: { current_password: "a-password", name: "Phone" },
+    });
     await waitFor(() =>
       expect(mocks.startRegistration).toHaveBeenCalledWith({
         optionsJSON: { challenge: "a-challenge" },
@@ -244,6 +247,43 @@ describe("PasskeysSection", () => {
 
     expect(screen.getByRole("button", { name: /add a passkey/i })).toBeDisabled();
     expect(screen.getByText(/can't make a passkey/i)).toBeInTheDocument();
+  });
+
+  it("blames the deployment, not the browser, where the page cannot hold a credential", () => {
+    // A deployment served over plain http offers no credential API at all, so
+    // the browser looks incapable when the address is what is wrong.
+    Object.defineProperty(window, "isSecureContext", { value: false, configurable: true });
+    mocks.browserSupportsWebAuthn.mockReturnValue(false);
+    renderWithProviders(<PasskeysSection />);
+
+    expect(screen.getByRole("button", { name: /add a passkey/i })).toBeDisabled();
+    expect(screen.getByText(/proper domain name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can't make a passkey/i)).not.toBeInTheDocument();
+  });
+
+  it("takes the server's word for what the address it is configured under can carry", () => {
+    mocks.list.mockReturnValue(held([passkey()], { site_supported: false }));
+    renderWithProviders(<PasskeysSection />);
+
+    expect(screen.getByRole("button", { name: /add a passkey/i })).toBeDisabled();
+    expect(screen.getByText(/proper domain name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can't make a passkey/i)).not.toBeInTheDocument();
+  });
+
+  it("says a name is spoken for before asking the browser for anything", async () => {
+    // The server holds names to the same rule, so a name it will refuse is
+    // worth saying here rather than after a credential exists.
+    const user = userEvent.setup();
+    renderWithProviders(<PasskeysSection />);
+
+    await user.click(screen.getByRole("button", { name: /add a passkey/i }));
+    await user.type(await screen.findByLabelText(/^name$/i), "#1 laptop");
+    await user.type(screen.getByLabelText(/current password/i), "a-password");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByText(/contain # or @/i)).toBeInTheDocument();
+    expect(mocks.begin).not.toHaveBeenCalled();
+    expect(mocks.startRegistration).not.toHaveBeenCalled();
   });
 
   it("sends a phone to the system browser instead of running the ceremony", async () => {
