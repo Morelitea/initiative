@@ -15,7 +15,10 @@ from sqlmodel import select
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.tenant.task import Task, TaskStatusCategory
+from app.db.soft_delete_filter import select_including_deleted
+from app.services.tenant import archive as archive_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant.soft_delete import soft_delete_entity
 from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_guild,
@@ -743,3 +746,166 @@ async def test_a_legacy_projects_entry_column_is_its_backlog_not_its_blocked(
         session, a.project.id
     )
     assert default_status.name == "Backlog"
+
+
+# ---------------------------------------------------------------------------
+# A column is retired or recategorised as a whole: the archived and trashed
+# tasks in it follow the live ones, rather than pinning it in place.
+# ---------------------------------------------------------------------------
+
+
+async def _seed_column_with_frozen_tasks(session: AsyncSession, a):
+    """A Blocked column holding a live, an archived and a trashed task."""
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    blocked = await create_task_status(
+        session, a.project, name="Blocked", category=TaskStatusCategory.todo, position=9
+    )
+    live = await create_task(
+        session, a.project, title="Live", task_status_id=blocked.id
+    )
+    archived = await create_task(
+        session, a.project, title="Archived", task_status_id=blocked.id
+    )
+    trashed = await create_task(
+        session, a.project, title="Trashed", task_status_id=blocked.id
+    )
+    await archive_service.archive_entity(session, archived)
+    await soft_delete_entity(
+        session, trashed, deleted_by_user_id=a.user.id, retention_days=30
+    )
+    await session.commit()
+    return statuses, blocked, live, archived, trashed
+
+
+async def _tasks_by_title(session: AsyncSession, project_id: int) -> dict[str, Task]:
+    session.expunge_all()
+    rows = await session.exec(
+        select_including_deleted(Task).where(Task.project_id == project_id)
+    )
+    return {task.title: task for task in rows}
+
+
+@pytest.mark.integration
+async def test_delete_moves_archived_and_trashed_tasks_with_the_live_ones(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses, blocked, *_ = await _seed_column_with_frozen_tasks(session, a)
+    in_progress = next(
+        s for s in statuses if s.category == TaskStatusCategory.in_progress
+    )
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={"fallback_status_id": in_progress.id},
+    )
+
+    assert response.status_code == 204, response.text
+    tasks = await _tasks_by_title(session, a.project.id)
+    assert {t.task_status_id for t in tasks.values()} == {in_progress.id}
+    assert tasks["Archived"].archived_at is not None
+    assert tasks["Trashed"].deleted_at is not None
+    assert tasks["Live"].archived_at is None and tasks["Live"].deleted_at is None
+
+
+@pytest.mark.integration
+async def test_delete_retires_a_column_holding_only_trashed_tasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The trash filter hides them from a count, but not from the foreign key."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    default_status = next(s for s in statuses if s.is_default)
+    blocked = await create_task_status(
+        session, a.project, name="Blocked", category=TaskStatusCategory.todo, position=9
+    )
+    trashed = await create_task(
+        session, a.project, title="Trashed", task_status_id=blocked.id
+    )
+    await soft_delete_entity(
+        session, trashed, deleted_by_user_id=a.user.id, retention_days=30
+    )
+    await session.commit()
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={},
+    )
+
+    assert response.status_code == 204, response.text
+    tasks = await _tasks_by_title(session, a.project.id)
+    assert tasks["Trashed"].task_status_id == default_status.id
+    assert tasks["Trashed"].deleted_at is not None
+
+
+@pytest.mark.integration
+async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A finished recurring task moved into Done is not started over."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
+    await session.commit()
+    done = next(s for s in statuses if s.category == TaskStatusCategory.done)
+    blocked = await create_task_status(
+        session, a.project, name="Blocked", category=TaskStatusCategory.todo, position=9
+    )
+    archived = await create_task(
+        session,
+        a.project,
+        title="Archived weekly",
+        task_status_id=blocked.id,
+        due_date=datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc),
+        recurrence={"frequency": "weekly", "interval": 1, "ends": "never"},
+        recurrence_strategy="fixed",
+    )
+    await archive_service.archive_entity(session, archived)
+    await session.commit()
+
+    response = await client.request(
+        "DELETE",
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={"fallback_status_id": done.id},
+    )
+
+    assert response.status_code == 204, response.text
+    tasks = await _tasks_by_title(session, a.project.id)
+    assert list(tasks) == ["Archived weekly"]
+    moved = tasks["Archived weekly"]
+    assert moved.task_status_id == done.id
+    assert moved.completed_at is not None
+    assert moved.archived_at is not None
+    assert moved.recurrence is not None
+
+
+@pytest.mark.integration
+async def test_patch_category_realigns_archived_and_trashed_tasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    _statuses, blocked, *_ = await _seed_column_with_frozen_tasks(session, a)
+
+    response = await client.patch(
+        a.g(f"/projects/{a.project.id}/task-statuses/{blocked.id}"),
+        headers=a.headers,
+        json={"category": "done"},
+    )
+
+    assert response.status_code == 200, response.text
+    tasks = await _tasks_by_title(session, a.project.id)
+    assert all(t.completed_at is not None for t in tasks.values())
+    assert tasks["Archived"].archived_at is not None
+    assert tasks["Trashed"].deleted_at is not None
