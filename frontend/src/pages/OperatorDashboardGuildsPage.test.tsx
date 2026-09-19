@@ -23,7 +23,7 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
-    auth_options: ["restrictions"],
+    auth_options: ["providers", "restrictions"],
     banner_image_enabled: true,
     support_enabled: false,
   },
@@ -36,7 +36,7 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
-    auth_options: ["restrictions", "providers", "require_sign_in"],
+    auth_options: ["providers"],
     banner_image_enabled: true,
     support_enabled: true,
   },
@@ -54,9 +54,6 @@ const guildsData = [
     support_enabled: false,
   },
 ];
-
-// The guild-auth toggle column only renders under per-guild posture; flip this
-// before a render to exercise both cases.
 
 // The billing column only renders when a portal is configured; flip this to
 // exercise the self-hosted case (no portal, no column).
@@ -296,61 +293,74 @@ describe("OperatorDashboardGuildsPage", () => {
     });
   });
 
-  describe("per-community sign-in options", () => {
-    const option = (name: string) => screen.getByLabelText(name);
+  describe("per-community sign-in grants", () => {
+    const grant = (name: string) => screen.getByLabelText(name);
 
-    it("shows which options the community holds", async () => {
+    it("shows which grants the community holds", async () => {
       const user = userEvent.setup();
       renderPage();
 
       await openSheet(user, "Open Community");
-      expect(option("Its own sign-in providers")).toBeChecked();
-      expect(option("Requiring a sign-in")).toBeChecked();
+      expect(grant("Its own sign-in")).toBeChecked();
+      expect(grant("Its own security standard")).not.toBeChecked();
     });
 
-    it("offers nothing under the master until the master is granted", async () => {
+    it("offers both to a community holding neither", async () => {
       const user = userEvent.setup();
       renderPage();
 
       await openSheet(user, "Full Community");
-      expect(option("Configuring its own sign-in")).not.toBeChecked();
-      // The two beneath it mean nothing without it, so they are not on offer.
-      expect(option("Its own sign-in providers")).toBeDisabled();
-      expect(option("Requiring a sign-in")).toBeDisabled();
+      expect(grant("Its own sign-in")).not.toBeChecked();
+      expect(grant("Its own security standard")).not.toBeChecked();
+      // Neither waits on the other.
+      expect(grant("Its own sign-in")).toBeEnabled();
+      expect(grant("Its own security standard")).toBeEnabled();
 
-      await user.click(option("Configuring its own sign-in"));
+      await user.click(grant("Its own sign-in"));
+      expect(mutate).toHaveBeenCalledWith({
+        guildId: 9,
+        data: { auth_options: ["providers"] },
+      });
+    });
+
+    it("grants the security standard on its own", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await openSheet(user, "Full Community");
+      await user.click(grant("Its own security standard"));
+
       expect(mutate).toHaveBeenCalledWith({
         guildId: 9,
         data: { auth_options: ["restrictions"] },
       });
     });
 
-    it("grants one option without the other", async () => {
+    it("adds the security standard to a community that already signs people in", async () => {
       const user = userEvent.setup();
       renderPage();
 
       await openSheet(user, "Open Community");
-      expect(option("Requiring a sign-in")).toBeChecked();
+      await user.click(grant("Its own security standard"));
 
-      await user.click(option("Requiring a sign-in"));
       expect(mutate).toHaveBeenCalledWith({
         guildId: 8,
-        data: { auth_options: ["restrictions", "providers"] },
+        data: { auth_options: ["providers", "restrictions"] },
       });
     });
 
-    it("withdrawing the master leaves what is stored underneath it", async () => {
+    it("withdraws one grant and leaves the other in place", async () => {
       const user = userEvent.setup();
       renderPage();
 
-      await openSheet(user, "Open Community");
-      await user.click(option("Configuring its own sign-in"));
+      await openSheet(user, "Capped Community");
+      expect(grant("Its own sign-in")).toBeChecked();
+      expect(grant("Its own security standard")).toBeChecked();
 
-      // The ticks stay on the row; they simply stop counting for anything,
-      // and come back if the master is granted again.
+      await user.click(grant("Its own security standard"));
       expect(mutate).toHaveBeenCalledWith({
-        guildId: 8,
-        data: { auth_options: ["providers", "require_sign_in"] },
+        guildId: 7,
+        data: { auth_options: ["providers"] },
       });
     });
   });

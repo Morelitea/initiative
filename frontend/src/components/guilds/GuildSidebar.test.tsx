@@ -170,7 +170,7 @@ describe("GuildSidebar settings grants", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Switch to Loaner" }));
 
     expect(switchGuild).toHaveBeenCalledWith(8);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings/auth"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings/security"));
   });
 });
 

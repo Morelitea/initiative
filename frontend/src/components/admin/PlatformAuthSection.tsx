@@ -10,16 +10,10 @@ import { useTranslation } from "react-i18next";
 
 import type { LoginMethod, LoginMethodStatus } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsSection } from "@/components/settings/SettingsSection";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  usePlatformAuthSettings,
-  useUpdateLoginMethods,
-  useUpdateSessionLifetime,
-} from "@/hooks/useSettings";
+import { usePlatformAuthSettings, useUpdateLoginMethods } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -36,7 +30,8 @@ const withdrawalCost = (methods: LoginMethodStatus[], next: LoginMethod[]) =>
  * owner included, and the deployment goes on permitting whatever it already
  * permits. Set this to `true` to put the section back — the checkboxes it
  * renders, the mutation behind them and the endpoint they call are all
- * untouched, and so are their tests, which are skipped alongside it.
+ * untouched, and so are their tests, which are skipped alongside it. While it
+ * is off this section renders nothing at all.
  */
 const SHOW_LOGIN_METHODS: boolean = false;
 
@@ -51,10 +46,9 @@ export const PlatformAuthSection = () => {
   });
   if (query.isLoading || !query.data) return null;
 
-  const { methods, guilds_requiring_sign_in, session_max_hours } = query.data;
+  const { methods, guilds_requiring_sign_in } = query.data;
 
-  // With the ways in held back, how long a session lasts is all this section has.
-  if (!SHOW_LOGIN_METHODS) return <SessionLifetimeSection hours={session_max_hours ?? null} />;
+  if (!SHOW_LOGIN_METHODS) return null;
 
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
@@ -129,8 +123,6 @@ export const PlatformAuthSection = () => {
         </div>
       </SettingsSection>
 
-      <SessionLifetimeSection hours={session_max_hours ?? null} />
-
       <ConfirmDialog
         open={pendingMethods !== null}
         onOpenChange={(open) => !open && setPendingMethods(null)}
@@ -145,55 +137,5 @@ export const PlatformAuthSection = () => {
         }}
       />
     </>
-  );
-};
-
-/**
- * How long somebody may stay signed in before signing in again.
- *
- * A different question from how long a session may be left alone, which the
- * deployment's configuration holds: this one nothing pushes forward. Blank
- * asks for no limit, which is where a self-hosted deployment starts.
- */
-const SessionLifetimeSection = ({ hours }: { hours: number | null }) => {
-  const { t } = useTranslation(["settings", "common"]);
-  const [value, setValue] = useState(hours === null ? "" : String(hours));
-  const update = useUpdateSessionLifetime({
-    onSuccess: () => toast.success(t("auth.sessionLifetime.saved")),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:auth.sessionLifetime.error")),
-  });
-
-  const trimmed = value.trim();
-  const parsed = trimmed === "" ? null : Number.parseInt(trimmed, 10);
-  const valid = parsed === null || (Number.isFinite(parsed) && parsed >= 1);
-  const changed = (hours === null ? "" : String(hours)) !== trimmed;
-
-  return (
-    <SettingsSection
-      title={t("auth.sessionLifetime.title")}
-      description={t("auth.sessionLifetime.description")}
-    >
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="session-max-hours">{t("auth.sessionLifetime.label")}</Label>
-          <Input
-            id="session-max-hours"
-            type="number"
-            min={1}
-            className="w-40"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder={t("auth.sessionLifetime.placeholder")}
-          />
-        </div>
-        <Button
-          disabled={!valid || !changed || update.isPending}
-          onClick={() => update.mutate({ session_max_hours: parsed })}
-        >
-          {update.isPending ? t("common:submitting") : t("common:save")}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-xs">{t("auth.sessionLifetime.hint")}</p>
-    </SettingsSection>
   );
 };

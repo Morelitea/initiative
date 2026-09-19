@@ -122,9 +122,8 @@ async def test_list_guilds_administration_fields_are_admin_only(
         max_storage_bytes=5_000_000,
         max_users=25,
         tier_name="Bespoke Plan",
-        # A tick underneath the master counts for nothing until the master
-        # itself is granted, so this grants all three.
-        auth_options=["restrictions", "providers", "require_sign_in"],
+        # Both switches, so every administration field has a value to show.
+        auth_options=["restrictions", "providers"],
     )
 
     async def entry(headers: dict[str, str]) -> dict:
@@ -149,11 +148,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
     assert admin_row["max_users"] == 25
     assert admin_row["tier_name"] == "Bespoke Plan"
     assert admin_row["retention_days"] == 90
-    assert admin_row["auth_options"] == [
-        "providers",
-        "require_sign_in",
-        "restrictions",
-    ]
+    assert admin_row["auth_options"] == ["providers", "restrictions"]
 
 
 @pytest.mark.integration

@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, status
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
+    SettingsRLSSessionDep,
     get_current_active_user,
     get_guild_membership,
     require_guild_roles,
@@ -54,7 +55,7 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 # --- Guild connections (guild admin — guild config mode) ---------------------
 @router.get("/ai/connections", response_model=list[AIConnectionResponse])
 async def list_guild_connections(
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> list[AIConnectionResponse]:
     return await ai_settings_service.list_guild_connections(session)
@@ -63,7 +64,7 @@ async def list_guild_connections(
 @router.post("/ai/connections", response_model=AIConnectionResponse)
 async def create_guild_connection(
     payload: AIConnectionCreate,
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     ctx: GuildSeatContext,
     user: CurrentUser,
 ) -> AIConnectionResponse:
@@ -76,7 +77,7 @@ async def create_guild_connection(
 async def update_guild_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_guild_connection(
@@ -89,7 +90,7 @@ async def update_guild_connection(
 )
 async def delete_guild_connection(
     connection_id: int,
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> None:
     await ai_settings_service.delete_guild_connection(session, connection_id)
@@ -100,7 +101,7 @@ async def delete_guild_connection(
 )
 async def test_guild_connection(
     connection_id: int,
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> AIConnectionTestResponse:
     return await ai_settings_service.test_guild_connection(session, connection_id)
@@ -109,7 +110,7 @@ async def test_guild_connection(
 @router.post("/ai/connections/{connection_id}/models", response_model=AIModelsResponse)
 async def fetch_guild_connection_models(
     connection_id: int,
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
 ) -> AIModelsResponse:
     return await ai_settings_service.fetch_guild_connection_models(

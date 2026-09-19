@@ -33,14 +33,13 @@
     },
     "tabs": {
       "guild": "Community",
-      "ai": "AI",
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
       "data": "Data",
       "dangerZone": "Danger zone",
-      "auth": "Authentication",
-      "apps": "Apps"
+      "security": "Security",
+      "integrations": "Integrations"
     }
   },
   "profile": {
@@ -858,16 +857,16 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Configure authentication, branding, email, the community directory, AI, community storage, and app services for the entire platform.",
+    "subtitle": "Sign-in, security, branding, email, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
       "community": "Community",
-      "ai": "AI",
       "storage": "Storage",
       "intake": "Intake",
-      "appServices": "App services"
+      "security": "Security",
+      "integrations": "Integrations"
     }
   },
   "appServices": {
@@ -1011,7 +1010,6 @@
       "openLabel": "Manage settings for {{name}}",
       "description": "Settings only you can change. This community's own admins see them and cannot edit them.",
       "limits": "Limits",
-      "signIn": "Sign-in",
       "features": "Features",
       "usersHelp": "How many people may belong. Leave blank for no limit.",
       "storageHelp": "How much they may store, in gigabytes. Leave blank for no limit.",
@@ -1021,20 +1019,17 @@
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
       "authOption": {
         "restrictions": {
-          "label": "Configuring its own sign-in",
-          "help": "Gives this community the Authentication tab: personal API keys, a twelve-hour session limit, and whatever is ticked below. Off for most communities — without it they never see the tab."
+          "label": "Its own security standard",
+          "help": "Its admins can refuse personal API keys and hold members to a twelve-hour session. For communities answering to an auditor; most never need it."
         },
         "providers": {
-          "label": "Its own sign-in providers",
-          "help": "Let their admins connect an identity provider and onboard new accounts through it."
-        },
-        "require_sign_in": {
-          "label": "Requiring a sign-in",
-          "help": "Let their admins insist members arrive through one of those providers. A separate grant — a community can offer its provider without insisting on it."
+          "label": "Its own sign-in",
+          "help": "Its admins say which of this deployment's sign-in providers count as theirs, where the people arriving on them land — including as an admin of their community — and whether members must arrive that way."
         }
       },
       "usersLabel": "Members",
-      "storageLabel": "Storage limit"
+      "storageLabel": "Storage limit",
+      "decidesForItself": "What it decides for itself"
     },
     "unlimited": "No limit"
   },
@@ -1115,7 +1110,7 @@
       "requiredLabel": "Require single sign-on",
       "requiredHelp": "Members can only access this community after signing in with the selected provider.",
       "providerPlaceholder": "Choose a provider…",
-      "noProviders": "No providers are configured yet. Add one under Identity providers below, then require it here.",
+      "noProviders": "Connect a provider under Who gets in first.",
       "saved": "Sign-in requirement saved",
       "error": "Could not save the sign-in requirement",
       "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
@@ -1135,13 +1130,11 @@
       "error": "Could not save API access"
     },
     "sessionLimit": {
-      "title": "Session limit",
-      "description": "How often this community's members sign in again.",
-      "allowLabel": "Twelve-hour session limit",
-      "onHelp": "Members of this community sign in again every twelve hours, whatever the deployment's own limit says. For communities held to a compliance standard.",
-      "offHelp": "Members stay signed in for as long as the deployment allows.",
+      "title": "Session length",
+      "allowLabel": "Sign in again every twelve hours",
       "saved": "Session limit saved",
-      "error": "Could not save the session limit"
+      "error": "Could not save the session limit",
+      "help": "For communities that have been asked to cap how long people stay signed in. It applies to your members everywhere, not only here."
     },
     "connections": {
       "title": "Which sign-ins are yours",
@@ -1211,6 +1204,40 @@
       "removeError": "Could not remove that rule",
       "removeTitle": "Remove this rule?",
       "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
+    },
+    "sections": {
+      "whoGetsIn": "Who gets in",
+      "onWhatTerms": "On what terms"
+    },
+    "emptyState": {
+      "title": "Nothing connected yet",
+      "body": "Say which of this deployment's sign-in providers count as yours, and where the people arriving on them land.",
+      "button": "Set up sign-in"
+    },
+    "wizard": {
+      "steps": {
+        "provider": {
+          "title": "Which way in",
+          "prompt": "Pick the provider your members already sign in with."
+        },
+        "narrowing": {
+          "title": "Whose people",
+          "prompt": "Say which accounts on it count as yours, or skip this where it already holds only your people."
+        },
+        "landing": {
+          "title": "Where they land",
+          "prompt": "What happens when one of them arrives."
+        },
+        "insist": {
+          "title": "Do we insist",
+          "prompt": "Whether this becomes the only way in."
+        }
+      },
+      "skip": "Skip this",
+      "ruleTitle": "A first group",
+      "ruleHelp": "Optional. Name a group your provider reports and where its people land. You can add more later.",
+      "requireLabel": "Require members to arrive through this provider",
+      "requireHelp": "Members sign in through it and nothing else. You can change this later."
     }
   },
   "authProviders": {
@@ -1535,5 +1562,9 @@
     "claimLabel": "Which claim decides",
     "valuesLabel": "Values that count",
     "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
+  },
+  "platformSecurity": {
+    "title": "Security",
+    "description": "How long anybody may stay signed in before signing in again."
   }
 }

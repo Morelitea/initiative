@@ -63,6 +63,16 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _lock_user_guild_grants(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> None:
+    """Serialize grant changes for one user and guild until transaction end."""
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
+        params={"uid": int(user_id), "gid": int(guild_id)},
+    )
+
+
 # Per-role maximum grant duration (least privilege). Each is clamped to the
 # absolute ceiling. Keep in sync with the frontend mirror in
 # SettingsAccessGrantsPage.
@@ -220,14 +230,12 @@ async def request_grants(
 ) -> list[AccessGrant]:
     """Create the pending grants ``payload`` asks for, as one act.
 
-    A body may name content, settings, or both. Each becomes its own row, so
-    an approver decides about them separately and what was exercised stays
-    separable — but they are asked for together, so this checks every one
-    before creating any and tells the approvers only once everything has
-    passed. A conflict on the second ask leaves no trace of the first, which
-    a per-ask loop could not promise: the row rolls back with the transaction
-    and the email does not.
+    Validate every purpose first, create one row per purpose, and notify each
+    approver once after the complete request is established.
     """
+    await _lock_user_guild_grants(
+        session, user_id=requester.id, guild_id=payload.guild_id
+    )
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
@@ -241,9 +249,7 @@ async def request_grants(
 
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
-    # Every ask is checked before any row is created. Rejecting a second open
-    # request for the same guild is per purpose, so an unrelated authority for
-    # the same guild neither blocks a request nor satisfies one.
+    # Validate the complete request before creating any row.
     for purpose, _level in asks:
         existing = await session.exec(
             select(AccessGrant).where(
@@ -277,7 +283,6 @@ async def request_grants(
         created.append(grant)
     await session.flush()
 
-    # Last, and only once everything above has held.
     requester_name = display_name(requester)
     for approver in await _approvers(session):
         for grant in created:
@@ -294,9 +299,6 @@ async def request_grants(
                     "access_level": grant.access_level,
                 },
             )
-        # One message per approver, whatever was asked for: two arriving for
-        # one errand is noise, and the in-app notifications above are what
-        # link to each row.
         await _push_and_email(
             session,
             recipient=approver,
@@ -351,17 +353,13 @@ async def break_glass(
     allow_member: bool = False,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
     level: str,
-    supersede: bool = False,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
-    The break-glass path repurposes ``data.bypass``: instead of a standing
-    all-guild bypass, an admin/owner self-approves a scoped, expiring PAM grant
-    in one step (capability is gated at the endpoint). The result is a recorded
-    ``access_grants`` row — requester == approver == ``actor`` — with a captured
-    reason, so emergency reach is always audited and never ambient. Read-only by
-    default; ``read_write`` is a deliberate escalation. Short window, capped
-    server-side; re-issue to extend.
+    The capability-gated endpoint lets an operator self-approve a scoped,
+    expiring PAM grant in one step. The result is an ``access_grants`` row with
+    requester and approver both set to ``actor`` and the supplied reason kept
+    for the audit trail. The window is capped server-side.
 
     ``purpose`` scopes what the grant authorises and ``level`` says how far it
     reaches within that purpose — the two vocabularies are different, which is
@@ -369,10 +367,6 @@ async def break_glass(
     ``allow_member`` goes with a non-content purpose, which membership does not
     already confer.
 
-    ``supersede`` replaces whatever the actor already holds for this purpose
-    rather than refusing. An emergency is the wrong moment to be told that a
-    lesser grant is in the way — and the grant it replaces is revoked rather
-    than deleted, so the log keeps both.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -391,10 +385,7 @@ async def break_glass(
     # makes a second concurrent request wait, then see the first's grant and hit
     # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
     # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
-        params={"uid": int(actor.id), "gid": int(payload.guild_id)},
-    )
+    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
 
     # Don't stack grants: a still-live grant already confers the access, and a
     # pending request would conflict. Re-trigger only after the current one ends.
@@ -410,18 +401,10 @@ async def break_glass(
     )
     now = _now()
     for grant in existing.all():
-        if supersede:
-            grant.status = AccessGrantStatus.revoked.value
-            grant.revoked_by_id = actor.id
-            grant.revoked_at = now
-            session.add(grant)
-            continue
         if grant.status == AccessGrantStatus.pending.value:
             raise AccessGrantError("OVERLAPPING_GRANT")
         if grant.is_live(now=now):
             raise AccessGrantError("ALREADY_LIVE")
-    if supersede:
-        await session.flush()
 
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(
@@ -460,6 +443,49 @@ async def break_glass(
         levels=[grant.access_level],
     )
     return grant
+
+
+async def reconcile_break_glass_pair(
+    session: AsyncSession,
+    *,
+    actor: User,
+    payload: BreakGlassCreate,
+) -> list[AccessGrant]:
+    """Close open grants replaced by the fixed break-glass pair."""
+    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    result = await session.exec(
+        select(AccessGrant).where(
+            AccessGrant.user_id == actor.id,
+            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.purpose.in_(
+                [AccessGrantPurpose.content.value, AccessGrantPurpose.settings.value]
+            ),
+            AccessGrant.status.in_(
+                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+            ),
+        )
+    )
+    now = _now()
+    replaced: list[AccessGrant] = []
+    for grant in result.all():
+        if grant.status == AccessGrantStatus.pending.value:
+            grant.status = AccessGrantStatus.denied.value
+            grant.approved_by_id = actor.id
+            grant.decided_at = now
+            grant.updated_at = now
+            session.add(grant)
+            replaced.append(grant)
+            continue
+        if not grant.is_live(now=now):
+            continue
+        grant.status = AccessGrantStatus.revoked.value
+        grant.revoked_by_id = actor.id
+        grant.revoked_at = now
+        grant.updated_at = now
+        session.add(grant)
+        replaced.append(grant)
+    await session.flush()
+    return replaced
 
 
 async def get_grant(session: AsyncSession, grant_id: int) -> Optional[AccessGrant]:

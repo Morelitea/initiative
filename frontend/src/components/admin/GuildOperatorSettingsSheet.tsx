@@ -21,7 +21,6 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -198,32 +197,34 @@ export const GuildOperatorSettingsSheet = ({
             />
           </Section>
 
-          <Section title={t("guilds.sheet.signIn")}>
-            {(
-              [
-                ["restrictions", 0],
-                ["providers", 1],
-                ["require_sign_in", 2],
-              ] as const
-            ).map(([option, indent]) => (
-              <SettingRow
-                key={option}
-                indent={indent}
-                label={t(`guilds.sheet.authOption.${option}.label`)}
-                help={t(`guilds.sheet.authOption.${option}.help`)}
-                htmlFor={`guild-auth-${option}`}
-                control={
-                  <Checkbox
-                    id={`guild-auth-${option}`}
-                    checked={options.includes(option)}
-                    onCheckedChange={(checked) => toggleOption(option, Boolean(checked))}
-                    // The two beneath the master mean nothing without it, so
-                    // they are not on offer until it is ticked.
-                    disabled={update.isPending || (indent > 0 && !options.includes("restrictions"))}
-                  />
-                }
-              />
-            ))}
+          {/* Two separate grants. Either one can be given on its own. */}
+          <Section title={t("guilds.sheet.decidesForItself")}>
+            <SettingRow
+              label={t("guilds.sheet.authOption.providers.label")}
+              help={t("guilds.sheet.authOption.providers.help")}
+              htmlFor="guild-auth-providers"
+              control={
+                <Switch
+                  id="guild-auth-providers"
+                  checked={options.includes("providers")}
+                  onCheckedChange={(checked) => toggleOption("providers", Boolean(checked))}
+                  disabled={update.isPending}
+                />
+              }
+            />
+            <SettingRow
+              label={t("guilds.sheet.authOption.restrictions.label")}
+              help={t("guilds.sheet.authOption.restrictions.help")}
+              htmlFor="guild-auth-restrictions"
+              control={
+                <Switch
+                  id="guild-auth-restrictions"
+                  checked={options.includes("restrictions")}
+                  onCheckedChange={(checked) => toggleOption("restrictions", Boolean(checked))}
+                  disabled={update.isPending}
+                />
+              }
+            />
           </Section>
 
           <Section title={t("guilds.sheet.features")}>

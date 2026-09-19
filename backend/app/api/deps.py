@@ -503,16 +503,9 @@ def require_capability(capability: Capability) -> Callable:
 class GuildContext:
     guild: Guild
     membership: GuildMembership
-    # Set when access is via a time-bound PAM grant rather than real
-    # membership. The ``membership`` is then a synthesized member-role stand-in
-    # so ``.role`` stays valid for endpoint guards, while RLS context is driven
-    # off the grant (scoped pam_read/pam_write, not the all-guild bypass).
+    # The live content grant used when the caller is not a member.
     grant: Optional[AccessGrant] = None
-    # The rung a live *settings* grant confers, or ``None``. Orthogonal to
-    # ``grant``: a settings grant says what of the community's configuration
-    # this request may work, and nothing about its content. ``role`` stays
-    # ``support`` and the RLS context stays PAM-scoped either way, so holding
-    # this reads nobody's documents.
+    # The live settings rung, independent of content access.
     settings_level: Optional[SettingsLevel] = None
     # True when the guild is in ``read_only`` status and access is via real
     # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
@@ -521,13 +514,7 @@ class GuildContext:
     content_read_only: bool = False
 
     def settings_rung_reaches(self, role: GuildRole) -> bool:
-        """Whether a live settings grant answers a guard asking for ``role``.
-
-        ``superadmin`` answers both rungs, ``admin`` answers only its own — the
-        guild's own ladder, read off the grant instead of a roster. Anything
-        that is not a settings rung (``member``, ``support``) is not something
-        a settings grant confers, so it answers no.
-        """
+        """Whether the settings grant includes ``role``'s authority."""
         if self.settings_level is None:
             return False
         if self.settings_level is SettingsLevel.superadmin:
@@ -553,7 +540,11 @@ class GuildContext:
 
     @property
     def is_pam(self) -> bool:
-        return self.grant is not None
+        return self.grant is not None or self.settings_level is not None
+
+    @property
+    def is_settings_only(self) -> bool:
+        return self.grant is None and self.settings_level is not None
 
 
 class GuildAccessError(Exception):
@@ -768,11 +759,7 @@ async def _load_guild_context(
     if current_user.status == UserStatus.suspended:
         raise GuildAccessError()
 
-    # Set minimal RLS context before querying guild_memberships (RLS-protected).
-    # Full guild context is set later by get_guild_session / RLSSessionDep.
-    # No standing bypass: a user reads their own membership row via the own-row
-    # policy leg; a non-member ``data.bypass`` holder finds nothing here and must
-    # break-glass into a PAM grant (below) to reach the guild — never ambiently.
+    # Establish the caller context before loading their membership.
     await set_rls_context(
         session,
         user_id=current_user.id,
@@ -780,36 +767,28 @@ async def _load_guild_context(
 
     gate = await _read_membership_gate(session, guild_id, current_user.id)
     if gate is None:
-        # No standing membership — fall back to a live PAM grant for this
-        # guild. The grantee can read (and write, if read_write) within the
-        # grant's window; RLS scopes it to this one guild via the pam flags
-        # set in get_guild_session. A synthesized member-role membership keeps
-        # ``GuildContext.role`` valid for endpoint guards without conferring
-        # any guild privilege on its own.
+        # Resolve live grants when the caller has no membership.
         grant = await access_grants_service.get_live_grant(
             session, user_id=current_user.id, guild_id=guild_id
-        )
-        if grant is None:
-            raise GuildAccessError()
-        # What the grant says, and nothing about who holds it: an operator's
-        # self-issued grant and a support request approved by somebody else
-        # reach the guild identically, at the level the grant records.
-        is_read_write = grant.access_level == AccessLevel.read_write.value
-        # Apply the pam context now so the grantee can actually read the guild
-        # row (and below, get_guild_session re-applies the full context). The
-        # guilds table has an additive pam_read policy keyed on pam_guild_id.
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            pam_guild_id=guild_id,
-            pam_read=True,
-            pam_write=is_read_write,
         )
         settings_grant = await access_grants_service.get_live_grant(
             session,
             user_id=current_user.id,
             guild_id=guild_id,
             purpose=AccessGrantPurpose.settings,
+        )
+        if grant is None and settings_grant is None:
+            raise GuildAccessError()
+        is_read_write = (
+            grant is not None and grant.access_level == AccessLevel.read_write.value
+        )
+        # Establish the grant context before loading guild metadata.
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            pam_guild_id=guild_id,
+            pam_read=True,
+            pam_write=is_read_write,
         )
         guild, policy = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
@@ -844,15 +823,7 @@ async def _load_guild_context(
             ),
         )
     membership, guild, policy = gate
-    # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
-    # deliberately never consults it, so suspending a guild never locks out the
-    # support access that might be needed to sort it out.
-    # This resolver is the one layer where a grantee is still distinguishable
-    # from a member: at the DB layer break-glass is byte-identical to a real
-    # guild admin, so the status check cannot live in RLS. ``suspended`` fails
-    # closed with the generic access-denied code (the status is not disclosed
-    # to members); ``read_only`` keeps membership but routes the session into
-    # the SELECT-only guild role (see _apply_guild_session_context).
+    # Membership access respects the guild's lifecycle status.
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
@@ -1020,31 +991,35 @@ async def _apply_guild_session_context(
     variables (and the request-scoped PAM/role contexts) for the user+guild,
     PAM-scoped when access is via a grant."""
 
+    if guild_context.is_settings_only:
+        set_active_grant(None, None)
+        set_active_role(None, None)
+        set_override_sharing_initiatives(None)
+        set_content_read_only_guild(None)
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            settings_guild_id=guild_context.guild_id,
+            platform_role=current_user.role.value,
+            satisfied_providers=_satp_param(satisfied),
+            satisfied_claims=auth_context.satisfied_claims(),
+            session_mfa=auth_context.session_mfa(),
+        )
+        return session
+
     if guild_context.is_pam:
-        # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
-        # Read grants get SELECT into this guild only; read_write also gets
-        # writes. guild_role is left unset so guild-role-gated paths don't treat
-        # the grantee as a member.
+        # Apply a content grant at its recorded access level.
         grant = guild_context.grant
         access_level = (
             grant.access_level if grant is not None else AccessLevel.read.value
         )
-        # Mirror the grant into the request-scoped PAM context so the app-layer
-        # resource access checks (require_*_access) honor it consistently with
-        # RLS — what the grantee can list, they can also open/edit per level.
         set_active_grant(guild_context.guild_id, access_level)
-        # No real membership — leave the role context clear so role-gated
-        # paths (initiative-scope guild-admin bypass) don't treat the grantee
-        # as a member.
+        # Grant access does not create membership.
         set_active_role(None, None)
         # A PAM grantee holds no initiative role, so no "Full access" override.
         set_override_sharing_initiatives(None)
-        # A scoped grant overrides the guild lifecycle status by design (its
-        # read/write level is enforced at the Postgres role layer instead).
         set_content_read_only_guild(None)
-        # Leave current_guild_id unset — the existing write policies treat a
-        # matching current_guild_id as proof of membership. Scope the grant via
-        # pam_guild_id instead.
+        # Keep membership and grant contexts distinct.
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -1071,10 +1046,7 @@ async def _apply_guild_session_context(
     set_content_read_only_guild(
         guild_context.guild_id if guild_context.content_read_only else None
     )
-    # No standing all-guild bypass: a guild admin sees the whole guild via the
-    # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
-    # never an ambient bypass. A ``data.bypass`` holder who isn't a member reaches
-    # this guild only through a break-glass PAM grant (the ``is_pam`` branch above).
+    # Apply the member's guild context.
     await set_rls_context(
         session,
         user_id=current_user.id,
@@ -1123,6 +1095,25 @@ async def get_guild_session(
     every transaction (see app.db.session), so post-commit queries need no
     manual re-apply.
     """
+    if guild_context.is_settings_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    return await _apply_guild_session_context(
+        session,
+        current_user,
+        guild_context,
+        satisfied=auth_context.satisfied_providers(),
+    )
+
+
+async def get_guild_settings_session(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> AsyncSession:
+    """Route a guild configuration request, including settings-only grants."""
     return await _apply_guild_session_context(
         session,
         current_user,
@@ -1172,6 +1163,7 @@ async def establish_guild_access(
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
+SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 
 
 async def _include_deleted_flag(

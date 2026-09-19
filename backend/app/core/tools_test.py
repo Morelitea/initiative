@@ -403,3 +403,35 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     assert not unflagged, (
         f"adapter exists but tool not in BULK_EXPORT_TOOLS: {unflagged}"
     )
+
+
+def test_importers_cover_exactly_the_portable_tools():
+    """Export and import are ONE capability — a tool's JSON envelope
+    round-trips through both — so the importer registry answers to the same set
+    the export side writes, keyed by the same derived discriminator.
+
+    A tool with an export adapter and no importer emits an envelope the
+    envelope endpoint refuses as an unknown type and a backup restore skips.
+    The frontend derives its import affordance from the same set
+    (``toolForEnvelopeType``), so it offers whatever is listed here.
+    """
+    from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_envelope_type
+    from app.services.import_engine.importers import IMPORTERS
+
+    derived = {tool_envelope_type(tool) for tool in BULK_EXPORT_TOOLS}
+    assert tool_envelope_type(Tool.counter_group) == "initiative-counter-group"
+    assert set(IMPORTERS) == derived, (
+        f"missing importers for {sorted(derived - set(IMPORTERS))}; "
+        f"unregistered importer types {sorted(set(IMPORTERS) - derived)}"
+    )
+    # Keyed by its own declared attribute, so the registry dict and the class
+    # cannot disagree about which type an importer answers to.
+    for envelope_type, importer in IMPORTERS.items():
+        assert importer.envelope_type == envelope_type
+    # A non-portable tool must not quietly grow one either.
+    unflagged = {
+        tool_envelope_type(t) for t in Tool if t not in BULK_EXPORT_TOOLS
+    } & set(IMPORTERS)
+    assert not unflagged, (
+        f"importer exists but tool not in BULK_EXPORT_TOOLS: {sorted(unflagged)}"
+    )

@@ -7,8 +7,10 @@ theirs, and the tree as a ``parent`` slug on each page.
 The tree crosses as **slugs, not ids**. Ids mean nothing in the guild a backup
 is restored into, and a page's slug is the name its own siblings know it by —
 so a restored wiki rebuilds the same shape without having to preserve a single
-primary key. Pages are written out in reading order, which means a page's
-parent is always already named by the time the page that needs it arrives.
+primary key. Pages are written out in the order the navigation draws them,
+which is siblings by position rather than a walk down each branch, so a
+child can be written before its parent; the importer resolves every parent
+slug in a second pass once all the pages exist.
 
 What the envelope deliberately drops is the sharing and the home page's id.
 Sharing is a fact about who is in *this* community. The home page crosses as a
@@ -107,15 +109,22 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "description": wiki.description,
         "home_page": home.slug if home is not None else None,
         "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
-        "pages": [_page_envelope(page) for page in pages],
+        "pages": [_page_envelope(page, by_id) for page in pages],
     }
 
 
-def _page_envelope(page: WikiPage) -> dict[str, Any]:
+def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]:
+    parent = by_id.get(page.parent_page_id) if page.parent_page_id else None
     return {
         "title": page.title,
         "slug": page.slug,
+        # What this page is filed under, named the way its siblings name it.
+        # None means it sits at the top of the wiki.
+        "parent": parent.slug if parent is not None else None,
         "position": page.position,
+        # A draft restores as a draft: it is a page somebody has not shown
+        # anyone yet, and a restore is not the moment to publish it for them.
+        "is_draft": page.is_draft,
         "content": page.content or {},
         "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
     }

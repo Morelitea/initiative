@@ -105,7 +105,6 @@ describe("SettingsAccessGrantsPage", () => {
     await user.type(screen.getByLabelText(/community id/i), "7");
     await user.type(screen.getByLabelText(/reason/i), "nothing in particular");
 
-    // An empty body would reach the server as a plain content read.
     expect(screen.getByRole("button", { name: /request access/i })).toBeDisabled();
     expect(
       screen.getByText(/choose content access, settings access, or both/i)

@@ -66,19 +66,18 @@ A community never sees an issuer, a client ID or a secret, and never types an ad
 
 A community bringing its own identity provider is the same shape with you doing the registering: add their Okta on this page when you onboard them, and connect it to them.
 
-**The three ticks** in **Settings → Platform → Guilds → Manage → Sign-in** are yours to grant, per community. The first one turns the others on.
+**Two switches** in **Settings → Platform → Guilds → Manage → What it decides for itself** are yours to grant, per community. Neither needs the other, and most communities get neither.
 
-| Option | What it lets their admins do |
+| Switch | What it lets their admins do |
 |---|---|
-| **Configuring its own sign-in** | Gives the community an Authentication page at all — and with it, personal API keys and a twelve-hour session limit. Off to start with, which is the right answer for most communities: they never see the page. |
-| **Its own sign-in providers** | Connect to the providers you've registered, say which accounts on one count as theirs, and copy a member sign-in link that drops people straight into the community. |
-| **Requiring a sign-in** | Insist members reach the community through one of those connections. |
+| **Its own sign-in** | Connect to the providers you've registered, say which accounts on one count as theirs and where those people land — as a member or an admin, and in an initiative if they like — and insist members arrive that way. Also gives them the member sign-in link that drops people straight into the community. |
+| **Its own security standard** | Refuse personal API keys, and hold members to a twelve-hour session. For a community answering to an auditor. |
 
-The last two are separate on purpose. A community can offer a sign-in as a convenience without forcing anyone through it.
+A community that wants single sign-on doesn't get the compliance knobs thrown in, and one that wants the knobs doesn't have to take a sign-in it never asked for.
 
-Withdrawing an option closes the page it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+On their side it's one tab, **Settings → Security**, and with nothing connected yet it leads with **Set up sign-in** — four questions in the order they depend on each other: which way in, whose accounts count, where those people land, and only then whether to insist on it. A provider you've answered for at the deployment level shows up already answered.
 
-Withdrawing the first takes the page away entirely; withdrawing either of the others closes the part it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
+Withdrawing a switch closes the part of their **Security** tab it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
 Everybody still has exactly one account however they signed in.
 

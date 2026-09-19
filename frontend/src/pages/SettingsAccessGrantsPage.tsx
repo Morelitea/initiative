@@ -324,9 +324,7 @@ const RequestSection = () => {
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.cancelError")),
   });
 
-  // Neither axis is not a request. An empty body would reach the server as a
-  // plain content read — asking for something nobody chose — so the form does
-  // not let it be sent.
+  // A request must name at least one authority.
   const asksForSomething = level !== "none" || settingsLevel !== "none";
 
   const submit = (e: React.FormEvent) => {

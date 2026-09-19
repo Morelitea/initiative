@@ -1995,6 +1995,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
         # On, and holding nothing: a tool the initiative has is in the backup
         # whether or not anybody has written in it yet.
         "wiki": "included",
+        "gallery": "included",
     }
 
     # Every manifest entry is in the archive, and vice versa (minus manifest).

@@ -101,7 +101,7 @@ Promoting somebody also lifts the **initiative roles they already hold** — eve
 
 Running a community and holding the keys to it turn out to be different jobs. Your most reliable organiser is the person you want as admin. They are not necessarily the person you want changing how everybody signs in.
 
-So the top seat is its own rung, and it's narrow on purpose: the [Authentication tab](#community-settings-admins), and nothing else an admin couldn't already do. An ordinary admin doesn't see that tab at all. (On a hosted server it also holds the billing screen, when there is one to hold — a self-hosted install has no such thing.)
+So the top seat is its own rung, and it's narrow on purpose: the [Security and Integrations tabs](#community-settings-admins), and nothing else an admin couldn't already do. An ordinary admin doesn't see that tab at all. (On a hosted server it also holds the billing screen, when there is one to hold — a self-hosted install has no such thing.)
 
 **Only a superadmin passes the seat on.** An admin can't appoint one and can't demote one, which also means nobody can quietly take it from you.
 
@@ -123,11 +123,10 @@ Open **Community settings** from the sidebar or the rail:
 | Tab | What's in it |
 |---|---|
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
-| **AI** | Optional AI settings — see [AI features](../account/ai-features.md). |
 | **Users** | Members, roles, invite links. |
-| **Authentication** | Single sign-on for this community, whether personal API keys reach it, and whether members sign in again every twelve hours. Only where your server has granted the community its own sign-in to configure — most never see this tab. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Apps** | Installed apps — see [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
+| **Security** | Who gets in — single sign-on for this community and where its people land — and on what terms: whether personal API keys reach it, and whether members sign in again every twelve hours. Each half appears only where your server has granted it; most communities never see this tab. |
+| **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, and re-download a finished export. |
 | **Danger zone** | The stuff you can't undo. |

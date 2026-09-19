@@ -1,16 +1,25 @@
 """A grant for a community's settings, and nothing inside it."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
+from app.models.tenant.ai_member_key import GuildAIMemberKey
+from app.models.tenant.ai_member_pref import GuildAIMemberPref
+from app.services.platform import access_grants as access_grants_service
 from app.testing.factories import (
     create_guild,
+    create_guild_membership,
     create_initiative,
     create_user,
     get_auth_headers,
 )
+from app.testing.schema_harness import route_session_to_guild
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -64,6 +73,103 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     assert content.status_code in (403, 404), content.text
 
 
+async def test_a_settings_only_superadmin_grant_reaches_ai_configuration(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
+    )
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/settings/ai/connections",
+        headers=get_auth_headers(support),
+    )
+
+    assert response.status_code == 200, response.text
+
+
+async def test_settings_grantee_deletion_purges_every_members_reference(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(session, role=UserRole.owner)
+    member = await create_user(session)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    mode = await client.put(
+        "/api/v1/settings/ai/platform/mode",
+        headers=get_auth_headers(owner),
+        json={"mode": "guild"},
+    )
+    assert mode.status_code == 200, mode.text
+
+    created = await client.post(
+        f"/api/v1/g/{guild.id}/settings/ai/connections",
+        headers=get_auth_headers(owner),
+        json={"label": "Team", "provider": "openai"},
+    )
+    assert created.status_code == 200, created.text
+    connection_id = created.json()["id"]
+
+    member_headers = get_auth_headers(member)
+    key = await client.put(
+        f"/api/v1/g/{guild.id}/settings/ai/me/key",
+        headers=member_headers,
+        json={
+            "scope": "guild",
+            "connection_id": connection_id,
+            "api_key": "sk-member",
+        },
+    )
+    assert key.status_code == 200, key.text
+    pref = await client.put(
+        f"/api/v1/g/{guild.id}/settings/ai/me/pref",
+        headers=member_headers,
+        json={
+            "scope": "guild",
+            "connection_id": connection_id,
+            "enabled": True,
+        },
+    )
+    assert pref.status_code == 200, pref.text
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
+    )
+    deleted = await client.delete(
+        f"/api/v1/g/{guild.id}/settings/ai/connections/{connection_id}",
+        headers=get_auth_headers(support),
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    await route_session_to_guild(session, guild.id)
+    keys = (
+        await session.exec(
+            select(GuildAIMemberKey).where(
+                GuildAIMemberKey.connection_id == connection_id
+            )
+        )
+    ).all()
+    prefs = (
+        await session.exec(
+            select(GuildAIMemberPref).where(
+                GuildAIMemberPref.connection_id == connection_id
+            )
+        )
+    ).all()
+    assert keys == []
+    assert prefs == []
+
+
 async def test_the_superadmin_grantee_reads_the_auth_controls(
     client: AsyncClient, session: AsyncSession
 ):
@@ -87,7 +193,7 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
 
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "auth_options": ["providers", "require_sign_in", "restrictions"],
+        "auth_options": ["providers", "restrictions"],
         "allow_api_keys": False,
         "enforce_compliance_session": True,
     }
@@ -224,3 +330,39 @@ def test_every_level_has_its_own_label():
         assert len(set(rendered.values())) == len(rendered), f"{locale}: {rendered}"
         for level, text in rendered.items():
             assert not text.startswith("accessGrant."), f"{locale}/{level} unresolved"
+
+
+async def test_a_combined_conflict_sends_no_external_notification(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(support)
+
+    existing = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
+        json={
+            "guild_id": guild.id,
+            "settings_level": "admin",
+            "reason": "already pending",
+        },
+    )
+    assert existing.status_code == 201, existing.text
+
+    send = AsyncMock()
+    monkeypatch.setattr(access_grants_service, "_push_and_email", send)
+    response = await client.post(
+        "/api/v1/access-grants/",
+        headers=headers,
+        json={
+            "guild_id": guild.id,
+            "access_level": "read",
+            "settings_level": "superadmin",
+            "reason": "combined request",
+        },
+    )
+
+    assert response.status_code == 409, response.text
+    send.assert_not_awaited()

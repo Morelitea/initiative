@@ -3970,9 +3970,8 @@ export interface GuildAppUpdate {
 export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
 
 export const GuildAuthOption = {
-  restrictions: "restrictions",
   providers: "providers",
-  require_sign_in: "require_sign_in",
+  restrictions: "restrictions",
 } as const;
 
 export type GuildAuthPolicyReadPolicy =

@@ -1,23 +1,37 @@
-"""What an operator may let one guild do about its own sign-in.
+"""What an operator may let one guild decide for itself.
 
 Operator-only, per guild: a guild's own admins read these and can write none of
 them. They sit in ``guild_administration`` with the caps and the other
 entitlements, not on the guild row.
 
-``restrictions`` is the master, and it is what most guilds never hold: without
-it a guild has no Authentication surface at all — no providers it counts as
-its own, no sign-in requirement, no refusing personal API keys, no session standard. Nobody
-running a book club is asked to think about any of it.
+**Two switches, and neither implies the other.** They were three in a ladder
+once, which read them as degrees of one thing. They are two unrelated things
+that happened to share a tab:
 
-The two beneath it are deliberately separate. Connecting a provider is a guild
-saying "you may come in this way"; requiring one is a guild saying "you may
-come in *only* this way", which binds every member. An operator can grant the
-first without the second — a guild that offers its IdP alongside a password is
-a different arrangement from one that insists on it.
+``providers``
+    Which of the deployment's providers this community counts as its own, what
+    the groups on them mean — including placing somebody as an **admin** of the
+    community — and whether members must arrive that way.
+
+``restrictions``
+    The restrictions a community puts on itself: refusing personal API keys,
+    and holding members to a shorter session than the deployment asks for.
+
+Most guilds hold neither. A team bringing an identity provider holds the first;
+a community answering to an auditor holds both. Nobody gets the second as a
+side effect of wanting the first, which is what the old master arrangement did
+— ``restrictions`` granted the tab, and the tab carried the API-key and
+session cards whether or not anybody meant them.
+
+``require_sign_in`` is gone. Insisting on a provider used to be a grant of its
+own, on the reasoning that offering a way in is smaller than mandating one.
+That predates community-written group rules: a community holding ``providers``
+already decides who is in it and at what rank, which makes the requirement the
+smaller of the two powers. Migration 0313 folded it into ``providers`` and
+rebuilt the Postgres type without it.
 
 A new kind of auth (SAML, SCIM, a passkey policy) joins this enum, a Postgres
-``ALTER TYPE ... ADD VALUE``, and the gate that reads it — underneath the
-master, like the two that are here.
+``ALTER TYPE ... ADD VALUE``, and the gate that reads it.
 """
 
 from enum import Enum
@@ -25,17 +39,15 @@ from typing import Iterable, Optional
 
 
 class GuildAuthOption(str, Enum):
-    #: May configure its own sign-in at all. The master: everything below hangs
-    #: off it, and so does every auth surface that has no option of its own.
-    restrictions = "restrictions"
-    #: May say which of the deployment's providers it counts as its own.
+    #: May say which of the deployment's providers it counts as its own, where
+    #: the people on them land, and whether members must arrive that way.
     providers = "providers"
-    #: May require that members reach the guild through one of them.
-    require_sign_in = "require_sign_in"
+    #: May refuse personal API keys and shorten the session limit.
+    restrictions = "restrictions"
 
 
-#: Mirrors the Postgres enum type created in migration 0285 and extended in
-#: 0301. A value added to one has to be added to the other.
+#: Mirrors the Postgres enum type created in migration 0285, extended in 0301
+#: and rebuilt in 0313. A value added to one has to be added to the other.
 GUILD_AUTH_OPTION_VALUES: tuple[str, ...] = tuple(o.value for o in GuildAuthOption)
 
 #: What a guild gets when nobody has granted it anything — the default a fresh
@@ -48,12 +60,8 @@ def effective_options(
 ) -> frozenset[GuildAuthOption]:
     """What a guild holds, from what is stored against it.
 
-    A tick underneath the master counts for nothing until the master itself is
-    granted, so this is where the nesting is applied — once, for every gate and
-    for the community's own settings page alike, rather than at each of them.
-
-    Unknown values are dropped: the column is an enum, so this is the read of a
-    label this build does not know yet.
+    Nothing nests any more, so this only drops the unknown: a label this build
+    does not know yet, from a column that is an enum.
     """
     resolved = set()
     for value in stored or ():
@@ -61,6 +69,4 @@ def effective_options(
             resolved.add(GuildAuthOption(value))
         except ValueError:
             continue
-    if GuildAuthOption.restrictions not in resolved:
-        return frozenset()
     return frozenset(resolved)

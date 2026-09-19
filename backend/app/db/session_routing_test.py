@@ -26,6 +26,7 @@ def _params(**overrides):
         "pam_guild_id": None,
         "pam_read": False,
         "pam_write": False,
+        "settings_guild_id": None,
         "platform_role": None,
         "read_only": False,
     }
@@ -75,6 +76,16 @@ def test_pam_write_grant_routes_to_support_role():
     assert bind["role"] == guild_support_role_name(3)
 
 
+def test_settings_grant_routes_without_content_grant_flags():
+    bind = _render_context_bind_params(_params(settings_guild_id=3))
+    assert bind["role"] == guild_support_role_name(3)
+    assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
+    assert bind["gid"] == ""
+    assert bind["pgid"] == ""
+    assert bind["pr"] == "false"
+    assert bind["pw"] == "false"
+
+
 def test_member_and_break_glass_keep_full_role():
     """A real member / break-glass (guild_id set) keeps the full role — only a
     scoped grant (guild_id unset) is downgraded to _ro / _support."""
@@ -112,6 +123,7 @@ class TestSearchPathNamesEverySchema:
             {"guild_id": 3, "guild_role": "admin", "read_only": True},
             {"pam_guild_id": 4, "pam_read": True},
             {"pam_guild_id": 4, "pam_write": True},
+            {"settings_guild_id": 4},
             {"platform_role": "owner"},
             {"billing_guild_id": 5},
             {},
@@ -121,6 +133,7 @@ class TestSearchPathNamesEverySchema:
             "read-only-admin",
             "pam-read",
             "pam-write",
+            "settings",
             "platform",
             "billing",
             "unrouted",
