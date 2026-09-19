@@ -1,3 +1,4 @@
+import logging
 import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -873,6 +874,22 @@ class Settings(BaseSettings):
     # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True
+
+    # How much the application says about itself on stderr: one of the
+    # standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+    # The audit stream on stdout is not governed by this; it always emits.
+    LOG_LEVEL: str = "INFO"
+
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def _validate_log_level(cls, value: str) -> str:
+        level = value.strip().upper()
+        if level == "NOTSET" or level not in logging.getLevelNamesMapping():
+            raise ValueError(
+                "LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL; "
+                f"got {value!r}"
+            )
+        return level
 
     # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
     # default; enable per-environment via env / .env. Tools ride the real auth +

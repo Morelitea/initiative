@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from sqlalchemy import inspect as sa_inspect
 from sqlmodel import select
 
+from app.core.audit_events import AuditEventType
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.calendar import Calendar
@@ -44,6 +45,7 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import Wiki, WikiPage
+from app.services import audit as audit_service
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -82,10 +84,28 @@ _PURGE_TOP_DOWN = (
 )
 
 
-async def _run_purge_pass(session, *, now: datetime) -> None:
+def _entity_type(model: type) -> str:
+    """The trash-can name for a model — ``CounterGroup`` → ``counter_group``."""
+    name = model.__name__
+    parts: list[str] = []
+    for index, char in enumerate(name):
+        if char.isupper() and index:
+            parts.append("_")
+        parts.append(char.lower())
+    return "".join(parts)
+
+
+async def _run_purge_pass(
+    session, *, now: datetime, guild_id: int | None = None
+) -> None:
     """Inner loop: walks _PURGE_TOP_DOWN once on the supplied session.
     Caller commits. Factored out so tests can drive it with their own
-    session against the test DB."""
+    session against the test DB.
+
+    With ``guild_id``, a pass that purged anything records it once, with the
+    count per entity type. The session is routed into the guild with no
+    account behind it, so the record carries no actor."""
+    purged: dict[str, int] = {}
     for model in _PURGE_TOP_DOWN:
         stmt = (
             select_including_deleted(model)
@@ -104,6 +124,17 @@ async def _run_purge_pass(session, *, now: datetime) -> None:
             if sa_inspect(row).deleted:
                 continue
             await hard_purge_entity(session, row)
+            entity_type = _entity_type(model)
+            purged[entity_type] = purged.get(entity_type, 0) + 1
+
+    if guild_id is not None and purged:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.TRASH_PURGED,
+            actor_user_id=None,
+            guild_id=guild_id,
+            detail={"via": "sweep", "counts": purged},
+        )
 
 
 async def _purge_all_guilds(session, *, now: datetime) -> None:
@@ -135,7 +166,7 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-        await _run_purge_pass(session, now=now)
+        await _run_purge_pass(session, now=now, guild_id=guild_id)
         await session.commit()
 
 

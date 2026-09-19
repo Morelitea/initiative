@@ -11,9 +11,7 @@ import {
   exportPlatformUsersCsvApiV1AdminUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   getListAllUsersApiV1AdminUsersGetQueryKey,
-  getListAuditEventsApiV1AdminAuditEventsGetQueryKey,
   listAllUsersApiV1AdminUsersGet,
-  listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
   removeUserAvatarApiV1AdminUsersUserIdAvatarDelete,
   setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
@@ -26,10 +24,8 @@ import type {
   AdminDeletionEligibilityResponse,
   AdminUserDeleteRequest,
   AdminUserRead,
-  AuditEventListResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
-  ListAuditEventsApiV1AdminAuditEventsGetParams,
   UserRole,
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -50,18 +46,6 @@ export const usePlatformUsers = (options?: QueryOpts<AdminUserRead[]>) => {
   return useQuery<AdminUserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     queryFn: () => listAllUsersApiV1AdminUsersGet(),
-    ...options,
-  });
-};
-
-/** One page of the audit board (``audit.read`` — support and above). */
-export const usePlatformAuditEvents = (
-  params: ListAuditEventsApiV1AdminAuditEventsGetParams,
-  options?: QueryOpts<AuditEventListResponse>
-) => {
-  return useQuery<AuditEventListResponse>({
-    queryKey: getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params),
-    queryFn: () => listAuditEventsApiV1AdminAuditEventsGet(params),
     ...options,
   });
 };

@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
@@ -27,6 +28,7 @@ from app.models.platform.guild import (
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
+from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.platform import billing_ping
 
@@ -204,7 +206,17 @@ async def ensure_membership(
     role: GuildRole = GuildRole.member,
     force_role: bool = False,
     oidc_provider_id: int | None = None,
+    actor_user_id: int | None = None,
+    via: str = "direct",
+    invite_id: int | None = None,
 ) -> GuildMembership:
+    """Put ``user_id`` in ``guild_id``, or return the membership they hold.
+
+    ``actor_user_id`` is who brought them in; it defaults to the person joining,
+    which is what every self-service path is. ``via`` names the way in — the
+    value rides the record — and ``invite_id`` says which standing offer was
+    redeemed, where one was.
+    """
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
@@ -237,6 +249,23 @@ async def ensure_membership(
         oidc_provider_id=oidc_provider_id,
     )
     session.add(membership)
+    await session.flush()
+    detail: dict[str, object] = {"role": role.value, "via": via}
+    if invite_id is not None:
+        detail["invite_id"] = invite_id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_ADDED,
+        actor_user_id=actor_user_id if actor_user_id is not None else user_id,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail=detail,
+    )
+    # Written out here, where the caller's own context still applies. The
+    # enrolment below borrows the session for the guild's schema, and a record
+    # left pending would be carried into that excursion instead.
     await session.flush()
     # Belonging somewhere new can change what this account is asked for — a
     # listed community asks its members their age — and the person may have
@@ -608,6 +637,7 @@ async def create_guild(
     description: str | None = None,
     creator: User | None = None,
     owner: User | None = None,
+    actor_user_id: int | None = None,
 ) -> Guild:
     """Create a guild's *shared* rows only — the guild row (public) and its
     admin membership (public). The guild-scoped seed rows (settings + default
@@ -616,7 +646,9 @@ async def create_guild(
 
     ``creator`` is who performed the creation and is recorded as such;
     ``owner`` is who gets the membership, defaulting to the creator. The row
-    therefore says both who made the guild and who it is for.
+    therefore says both who made the guild and who it is for. ``actor_user_id``
+    is who the record names as having done it, defaulting to whoever the guild
+    is for.
 
     That membership is ``superadmin``, the top of the guild ladder: whoever
     starts a community holds all of it, sign-in and billing included, and has
@@ -635,12 +667,26 @@ async def create_guild(
     )
     await _persist_new_guild(session, guild)
     first = owner or creator
+    owner_id = first.id if first else None
+    actor = actor_user_id if actor_user_id is not None else owner_id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_CREATED,
+        actor_user_id=actor,
+        target_user_id=owner_id,
+        guild_id=guild.id,
+        target_type="guild",
+        target_id=guild.id,
+        detail={"owner_is_actor": actor == owner_id},
+    )
     if first:
         await ensure_membership(
             session,
             guild_id=guild.id,
             user_id=first.id,
             role=GuildRole.superadmin,
+            actor_user_id=actor,
+            via="created",
         )
     return guild
 
@@ -992,7 +1038,10 @@ async def create_guild_invite(
     expires_at: datetime | None = None,
     max_uses: int | None = 1,
     invitee_email: str | None = None,
+    actor_user_id: int | None = None,
 ) -> GuildInvite:
+    """Mint an invite. ``actor_user_id`` names who for the record; without one
+    the invite is minted unrecorded."""
     # A full guild mints no new invites: every seat is taken, so any code handed
     # out now could only fail at redemption. Raises ``GuildCapacityError``.
     await _assert_member_capacity(session, guild_id=guild_id, claiming_seat=False)
@@ -1017,12 +1066,41 @@ async def create_guild_invite(
     )
     session.add(invite)
     await session.flush()
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_INVITE_CREATED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_invite",
+            target_id=invite.id,
+            detail=_invite_detail(invite),
+        )
     return invite
 
 
+def _invite_detail(invite: GuildInvite) -> dict[str, object]:
+    """What an invite record carries: its terms, and whether it names somebody.
+
+    The code and the address it may be bound to are the invite itself, so
+    neither is here — ``addressed`` says only that one is set.
+    """
+    return {
+        "max_uses": invite.max_uses,
+        "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
+        "addressed": invite.invitee_email_encrypted is not None,
+    }
+
+
 async def delete_guild_invite(
-    session: AsyncSession, *, guild_id: int, invite_id: int
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    invite_id: int,
+    actor_user_id: int | None = None,
 ) -> None:
+    """Withdraw an invite. ``actor_user_id`` names who for the record; without
+    one the withdrawal is unrecorded."""
     stmt = select(GuildInvite).where(
         GuildInvite.id == invite_id,
         GuildInvite.guild_id == guild_id,
@@ -1030,11 +1108,33 @@ async def delete_guild_invite(
     result = await session.exec(stmt)
     invite = result.one_or_none()
     if invite:
+        if actor_user_id is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.GUILD_INVITE_REVOKED,
+                actor_user_id=actor_user_id,
+                guild_id=guild_id,
+                target_type="guild_invite",
+                target_id=invite.id,
+                detail=_invite_detail(invite),
+            )
         await session.delete(invite)
 
 
-async def delete_guild(session: AsyncSession, guild: Guild) -> None:
+async def delete_guild(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    actor_user_id: int | None = None,
+    via: str = "admin",
+    target_user_id: int | None = None,
+) -> None:
     """Delete a guild's shared rows.
+
+    ``actor_user_id`` names who for the record, ``via`` which surface they did
+    it from, and ``target_user_id`` the account the deletion was on behalf of
+    where there is one. Without an actor the deletion is unrecorded — the
+    compensating delete of a guild whose setup failed is that case.
 
     Under schema-per-guild the guild's content lives in its schema and is removed
     separately by ``deprovision_guild`` (``DROP SCHEMA … CASCADE``). Here we only
@@ -1065,8 +1165,20 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     the three call sites, so deleting a guild announces itself however it is
     reached.
     """
-    await _signal_members_present(session, guild_id=guild.id, action="membership")
-    await session.exec(delete(Guild).where(Guild.id == guild.id))
+    guild_id = guild.id
+    await _signal_members_present(session, guild_id=guild_id, action="membership")
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_DELETED,
+            actor_user_id=actor_user_id,
+            target_user_id=target_user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"via": via},
+        )
+    await session.exec(delete(Guild).where(Guild.id == guild_id))
 
 
 async def get_invite_by_code(session: AsyncSession, *, code: str) -> GuildInvite | None:
@@ -1120,6 +1232,8 @@ async def redeem_invite_for_user(
         guild_id=invite.guild_id,
         user_id=user.id,
         role=GuildRole.member,
+        via="invite",
+        invite_id=invite.id,
     )
     invite.uses += 1
     session.add(invite)
@@ -1456,6 +1570,7 @@ async def join_community_guild(
         guild_id=guild_id,
         user_id=user.id,
         role=GuildRole.member,
+        via="community",
     )
     return guild
 
@@ -1606,6 +1721,17 @@ async def remove_user_from_guild(
     from app.services.tenant import app_delegations as app_delegations_service
     from app.services.tenant import initiatives as initiatives_service
 
+    # Read before the delete below takes the row: the record says which standing
+    # the person held when they left.
+    previous_role = (
+        await session.exec(
+            select(GuildMembership.role).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+        )
+    ).one_or_none()
+
     # Remove from all initiatives in this guild
     await initiatives_service.remove_user_from_guild_initiatives(
         session,
@@ -1630,6 +1756,19 @@ async def remove_user_from_guild(
     # which pings only on a genuine insert (a no-op remove of a non-member
     # must not nudge billing).
     if result.rowcount:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            actor_user_id=user_id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={
+                "role": previous_role.value if previous_role else None,
+                "via": "left",
+            },
+        )
         # Same reason as the insert side: what is asked of this account can
         # change with where it belongs, and leaving is not always their doing.
         account_stream.queue_account_signal(session, user_id, "membership")

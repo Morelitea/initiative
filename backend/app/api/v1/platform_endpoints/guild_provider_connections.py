@@ -133,7 +133,7 @@ async def create_guild_provider_connection(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await connections.create_connection(
-        admin_session, payload, guild_id=guild_id
+        admin_session, payload, guild_id=guild_id, actor_user_id=current_user.id
     )
 
 
@@ -155,7 +155,11 @@ async def update_guild_provider_connection(
     if payload.enabled is False:
         await guilds_service.lock_guild_seats(session, guild_id)
     return await connections.update_connection(
-        admin_session, connection_id, payload, guild_id=guild_id
+        admin_session,
+        connection_id,
+        payload,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
     )
 
 
@@ -182,7 +186,9 @@ async def delete_guild_provider_connection(
     # the other checks, so a provider cannot become required while its
     # connection is being removed through the separate system session.
     await guilds_service.lock_guild_seats(session, guild_id)
-    await connections.delete_connection(admin_session, connection_id, guild_id=guild_id)
+    await connections.delete_connection(
+        admin_session, connection_id, guild_id=guild_id, actor_user_id=current_user.id
+    )
 
 
 @router.get("/{guild_id}/auth/rules", response_model=GuildClaimRulesResponse)
@@ -218,7 +224,10 @@ async def create_guild_claim_rule(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await claim_rules.create_rule(
-        admin_session, guild_id=guild_id, payload=payload
+        admin_session,
+        guild_id=guild_id,
+        payload=payload,
+        actor_user_id=current_user.id,
     )
 
 
@@ -235,7 +244,11 @@ async def update_guild_claim_rule(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await claim_rules.update_rule(
-        admin_session, guild_id=guild_id, rule_id=rule_id, payload=payload
+        admin_session,
+        guild_id=guild_id,
+        rule_id=rule_id,
+        payload=payload,
+        actor_user_id=current_user.id,
     )
 
 
@@ -255,4 +268,9 @@ async def delete_guild_claim_rule(
     await _require_connection_admin(
         session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
-    await claim_rules.delete_rule(admin_session, guild_id=guild_id, rule_id=rule_id)
+    await claim_rules.delete_rule(
+        admin_session,
+        guild_id=guild_id,
+        rule_id=rule_id,
+        actor_user_id=current_user.id,
+    )

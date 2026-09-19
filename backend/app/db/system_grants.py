@@ -224,10 +224,6 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # itself is written by the request path under its own role; what the system
     # engine does here is the one thing that crosses every account at once.
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Append-only. The system engine writes the record and the board reads it;
-    # UPDATE and DELETE are granted to nobody at all, here included, because a
-    # record that could be rewritten afterwards would not be one.
-    "audit_events": frozenset({"SELECT", "INSERT"}),
     # the system engine delivers push itself (background digests, PAM notices),
     # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
     # DELETE prunes tokens FCM reports as unregistered
@@ -267,9 +263,6 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Written and read on the system engine only — the request path never
-    # touches the log, in either direction.
-    "audit_events": None,
     # Minted on the system engine, behind the surfaces that hand a reference to
     # an outside party. SELECT covers the table and one policy admits the rows:
     # ``purpose = 'client'``, the sector an account's own access token names it

@@ -5,6 +5,8 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import UserRole
+from app.core.audit_events import AuditEventType
+from app.testing.audit import emitted
 from app.testing import (
     create_guild_provider_connection,
     create_auth_provider,
@@ -584,25 +586,18 @@ async def test_lowering_it_asks_nothing_of_anybody(
     assert lowered.json()["second_factor_requirement"] == "nobody"
 
 
-async def test_the_change_is_recorded(client: AsyncClient, session: AsyncSession):
-    from sqlmodel import select
-
-    from app.models.platform.audit_event import AuditEvent
-
+async def test_the_change_is_recorded(
+    client: AsyncClient, session: AsyncSession, capfd
+):
     owner, headers = await _owner(session)
     await _enrol(session, owner)
+    capfd.readouterr()
     await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
 
-    rows = (
-        await session.exec(
-            select(AuditEvent).where(
-                AuditEvent.event_type == "platform.second_factor_requirement_changed"
-            )
-        )
-    ).all()
+    rows = emitted(capfd, AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED)
 
     assert len(rows) == 1
-    assert rows[0].envelope["detail"] == {"from": "nobody", "to": "everyone"}
+    assert rows[0]["detail"] == {"from": "nobody", "to": "everyone"}
 
 
 async def test_the_requirement_needs_the_config_capability(

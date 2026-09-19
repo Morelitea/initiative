@@ -15,8 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.main import app
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.platform.user import User, UserRole, UserStatus
-from app.testing import create_guild, create_guild_membership, create_user
+from app.models.platform.user import UserRole, UserStatus
+from app.testing import create_guild, create_guild_membership, create_user, emitted
 from app.testing.factories import get_auth_headers
 
 pytestmark = pytest.mark.integration
@@ -29,16 +29,8 @@ async def _notification_types(session: AsyncSession, user_id: int) -> set[str]:
     return {row.type for row in rows}
 
 
-async def _audit_entries(
-    client: AsyncClient, reader: User, subject_id: int
-) -> list[dict]:
-    response = await client.get(
-        "/api/v1/admin/audit-events",
-        headers=get_auth_headers(reader),
-        params={"target_user_id": subject_id},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()["items"]
+def _audit_entries(capfd, subject_id: int) -> list[dict]:
+    return [row for row in emitted(capfd) if row["target_user_id"] == subject_id]
 
 
 class TestRenaming:
@@ -95,21 +87,23 @@ class TestRenaming:
         assert claim.status_code == 409
 
     async def test_the_person_is_told_and_the_change_is_recorded(
-        self, client: AsyncClient, session: AsyncSession
+        self, client: AsyncClient, session: AsyncSession, capfd
     ):
         moderator = await create_user(session, role=UserRole.moderator)
         subject = await create_user(session, username="before", discriminator=7)
+        subject_id = subject.id
+        capfd.readouterr()
 
         await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/admin/users/{subject_id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "after"},
         )
 
+        entry = _audit_entries(capfd, subject_id)[0]
         assert NotificationType.username_changed.value in await _notification_types(
-            session, subject.id
+            session, subject_id
         )
-        entry = (await _audit_entries(client, moderator, subject.id))[0]
         assert entry["event_type"] == "user.username_changed"
         # The handle they lost is what they will look for; the one they have is
         # already on screen.
@@ -258,16 +252,16 @@ class TestSuspension:
         )
 
     async def test_both_directions_are_recorded(
-        self, client, session, moderator_and_member
+        self, client, session, moderator_and_member, capfd
     ):
         moderator, member, _guild = moderator_and_member
+        member_id = member.id
+        capfd.readouterr()
 
         await self._suspend(client, moderator, member, reason="Terms of use")
         await self._suspend(client, moderator, member, suspended=False)
 
-        kinds = [
-            e["event_type"] for e in await _audit_entries(client, moderator, member.id)
-        ]
+        kinds = [e["event_type"] for e in _audit_entries(capfd, member_id)]
         assert set(kinds) == {"user.suspended", "user.unsuspended"}
 
     async def test_a_moderator_cannot_suspend_themselves(
@@ -431,19 +425,22 @@ class TestPlatformRole:
     """
 
     async def test_a_role_change_is_recorded(
-        self, client: AsyncClient, session: AsyncSession
+        self, client: AsyncClient, session: AsyncSession, capfd
     ):
         operator = await create_user(session, role=UserRole.operator)
+        operator_id = operator.id
         subject = await create_user(session)
+        subject_id = subject.id
+        capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/platform-role",
+            f"/api/v1/admin/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "support"},
         )
         assert response.status_code == 200, response.text
 
-        entries = await _audit_entries(client, operator, subject.id)
+        entries = _audit_entries(capfd, subject_id)
         assert [entry["event_type"] for entry in entries] == [
             "user.platform_role_changed"
         ]
@@ -451,23 +448,25 @@ class TestPlatformRole:
         # The two rungs it moved between, so the log reads without the reader
         # having to reconstruct the account's history.
         assert entry["detail"] == {"from": "member", "to": "support"}
-        assert entry["actor"]["id"] == operator.id
+        assert entry["actor_user_id"] == operator_id
         # Operator work, not moderation.
         assert entry["category"] == "platform"
 
     async def test_a_refused_change_records_nothing(
-        self, client: AsyncClient, session: AsyncSession
+        self, client: AsyncClient, session: AsyncSession, capfd
     ):
         """The write and its record share a transaction, so a refusal leaves
         neither."""
         operator = await create_user(session, role=UserRole.operator)
         subject = await create_user(session)
+        subject_id = subject.id
+        capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/platform-role",
+            f"/api/v1/admin/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "owner"},
         )
 
         assert response.status_code == 403
-        assert await _audit_entries(client, operator, subject.id) == []
+        assert _audit_entries(capfd, subject_id) == []

@@ -717,7 +717,7 @@
     },
     "roleDescriptions": {
       "member": "Accès standard à ses propres communautés. Aucun privilège au niveau de la plateforme.",
-      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, communautés, audit) et peut demander un accès temporaire à une communauté.",
+      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, communautés) et peut demander un accès temporaire à une communauté.",
       "moderator": "Tout ce que peut faire le support, plus la gestion des utilisateurs (suspendre/réactiver) et la modération du contenu.",
       "operator": "Gère les utilisateurs, les communautés et les rôles sur toute la plateforme, avec accès aux données inter-communautés et approuve les demandes d'accès.",
       "owner": "Contrôle total, y compris la configuration de toute la plateforme (authentification, personnalisation, email, IA). Le seul rôle pouvant gérer la configuration."
@@ -1000,7 +1000,6 @@
       "users": "Utilisateurs",
       "access": "Accès",
       "guilds": "Communautés",
-      "audit": "Audit",
       "announcements": "Annonces"
     }
   },
@@ -1453,29 +1452,6 @@
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
     "directMessagesDisabledToast": "Les messages privés sont désactivés."
-  },
-  "audit": {
-    "title": "Audit",
-    "description": "Ce qui a été fait aux comptes, par qui et quand. Les entrées sont conservées même après la suppression des comptes qu'elles nomment.",
-    "whenColumn": "Quand",
-    "actionColumn": "Action",
-    "actorColumn": "Effectué par",
-    "subjectColumn": "Concerne",
-    "subjectFilterPlaceholder": "Filtrer par ID de compte",
-    "departedAccount": "Compte n° {{id}} (supprimé)",
-    "empty": "Rien n'a encore été enregistré.",
-    "pageOf": "Page {{page}} sur {{total}} entrées",
-    "actions": {
-      "user.avatar_removed": "Photo de profil supprimée",
-      "auth.signed_in": "Connexion",
-      "auth.sign_in_failed": "Connexion refusée",
-      "auth.signed_out": "Déconnexion",
-      "auth.password_changed": "Mot de passe modifié",
-      "auth.passkey_registered": "Clé d'accès ajoutée",
-      "auth.passkey_removed": "Clé d'accès supprimée",
-      "auth.identity_linked": "Authentification unique liée",
-      "auth.refresh_reuse_detected": "Jeton de session réutilisé rejeté"
-    }
   },
   "account": {
     "identityTitle": "Comment vous vous connectez",

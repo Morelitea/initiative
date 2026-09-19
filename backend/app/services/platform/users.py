@@ -8,6 +8,7 @@ from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
 from app.core.encryption import hash_email
@@ -16,6 +17,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
@@ -244,12 +246,17 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
-async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
+async def _drop_user_memberships(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> User:
     """Remove the user from every guild and initiative they belong to,
     handing owned documents off to PMs along the way. Returns the loaded
     ``User`` row but does NOT commit — the caller is responsible for
     issuing exactly one commit so its own status / PII writes land in
     the same transaction as the membership cleanup.
+
+    ``actor_user_id`` is who closed the account — the person themselves, or an
+    operator doing it for them — and is what each departure record names.
 
     Splitting the membership work out of ``deactivate_user`` lets
     ``soft_delete_user`` perform PII erasure atomically: a failure
@@ -318,20 +325,35 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
         )
     ).all()
     for membership in memberships:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            actor_user_id=actor_user_id,
+            target_user_id=user_id,
+            guild_id=membership.guild_id,
+            target_type="guild",
+            target_id=membership.guild_id,
+            detail={"role": membership.role.value, "via": "account_closed"},
+        )
         await session.delete(membership)
 
     return (await session.exec(select(User).where(User.id == user_id))).one()
 
 
-async def deactivate_user(session: AsyncSession, user_id: int) -> None:
+async def deactivate_user(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Reversibly deactivate a user account.
 
     Sets ``status = deactivated``, drops the user from every guild and
     initiative they belong to, and bumps ``token_version`` so any
     outstanding JWTs stop authenticating. PII (name, email, avatar) is
     left intact so the user can be reactivated by an admin later.
+
+    ``actor_user_id`` is who asked for it — the account holder, or somebody
+    acting on the account.
     """
-    user = await _drop_user_memberships(session, user_id)
+    user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
     # Owned documents are handed off to other initiative PMs inside
     # ``_drop_user_memberships`` above, before the InitiativeMember
     # rows are dropped.
@@ -339,6 +361,15 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     user.token_version += 1
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DEACTIVATED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
     await session.commit()
     await _dispatch_queued_revocations(session)
 
@@ -385,7 +416,9 @@ async def _scrub_invites_addressed_to(
             session.add(invite)
 
 
-async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
+async def soft_delete_user(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Soft-delete (anonymize) a user account.
 
     Drops memberships like ``deactivate_user``, then strips every PII
@@ -404,6 +437,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     All of this happens inside a single transaction with one commit at
     the end, so a "right to be forgotten" request never ends up in a
     half-applied state — either every change lands or none do.
+
+    ``actor_user_id`` is who asked for it — the account holder, or somebody
+    acting on the account.
 
     This is irreversible — there is no undo.
     """
@@ -434,7 +470,7 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     session.expunge_all()
     await set_rls_context(session)
 
-    user = await _drop_user_memberships(session, user_id)
+    user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
 
     # Captured before ``replace_all`` below overwrites them — it is how a guild
     # invite bound to one of this person's addresses is found.
@@ -514,6 +550,16 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # ``app_admin`` context as the auth-artifact deletes above.
     if original_email_hashes:
         await _scrub_invites_addressed_to(session, email_hashes=original_email_hashes)
+
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_ANONYMIZED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
 
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
@@ -622,6 +668,8 @@ async def is_last_capability_holder(
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,
+    *,
+    actor_user_id: int | None = None,
 ) -> None:
     """
     Permanently delete a user account.
@@ -636,6 +684,7 @@ async def hard_delete_user(
     Args:
         session: Database session
         user_id: ID of user to delete
+        actor_user_id: Who asked for it, for the record
     """
     from app.services.tenant import initiatives as initiatives_service
     from app.services.tenant.mention_parser import anonymize_user_mentions
@@ -768,6 +817,19 @@ async def hard_delete_user(
         await _scrub_invites_addressed_to(session, email_hashes=held)
 
     await session.delete(user)
+
+    # Recorded in phase 2, on the reset context: the record outlives the row it
+    # names, so it is written where every other shared-table write of this
+    # delete is written.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
 
     await session.commit()
     # After the commit: the row is gone, so what outside parties were given to

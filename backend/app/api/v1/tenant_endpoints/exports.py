@@ -22,11 +22,13 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import ExportJobRead
+from app.services import audit as audit_service
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
@@ -464,6 +466,23 @@ async def export_initiative(
     except ExportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
+    job_id = None if isinstance(result, InlineExport) else result.id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.INITIATIVE_EXPORTED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="export_job" if job_id is not None else "initiative",
+        target_id=job_id if job_id is not None else initiative_id,
+        detail={
+            "mode": mode,
+            "include_uploads": include_uploads,
+            "initiative_id": initiative_id,
+            "job_id": job_id,
+        },
+    )
+    await session.commit()
+
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
@@ -513,6 +532,22 @@ async def export_guild(
         )
     except ExportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    job_id = None if isinstance(result, InlineExport) else result.id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_EXPORTED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="export_job" if job_id is not None else "guild",
+        target_id=job_id if job_id is not None else guild_context.guild_id,
+        detail={
+            "mode": mode,
+            "include_uploads": include_uploads,
+            "job_id": job_id,
+        },
+    )
+    await session.commit()
 
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)

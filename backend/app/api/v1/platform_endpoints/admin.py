@@ -1,9 +1,8 @@
 import logging
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, List, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
-from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
@@ -11,22 +10,15 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse, UserPublic
-from app.schemas.platform.audit import (
-    AuditActor,
-    AuditEventListResponse,
-    AuditEventRead,
-)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
@@ -72,7 +64,6 @@ router = APIRouter()
 # ladder (member → support → moderator → admin → owner) maps cleanly onto
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
-AuditReadDep = Annotated[User, Depends(require_capability(Capability.AUDIT_READ))]
 UsersAgeUnblockDep = Annotated[
     User, Depends(require_capability(Capability.USERS_AGE_UNBLOCK))
 ]
@@ -126,7 +117,7 @@ _PLATFORM_CSV_HEADERS = [
 @router.get("/users/export.csv")
 async def export_platform_users_csv(
     session: UserSessionDep,
-    _current_user: UsersReadDep,
+    current_user: UsersReadDep,
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
@@ -179,6 +170,16 @@ async def export_platform_users_csv(
     else:
         datestamp = datetime.now(timezone.utc).date().isoformat()
         filename = f"platform-users-{datestamp}.csv"
+
+    # Nothing changed, so the endpoint has no commit of its own to ride: the
+    # record is the whole write.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_USERS_EXPORTED,
+        actor_user_id=current_user.id,
+        detail={"count": len(users), "subset": bool(user_id)},
+    )
+    await session.commit()
 
     return Response(
         content=csv_bytes,
@@ -361,89 +362,6 @@ async def remove_user_avatar(
 
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/audit-events", response_model=AuditEventListResponse)
-async def list_audit_events(
-    session: AdminSessionDep,
-    _current_user: AuditReadDep,
-    event_type: Annotated[list[str] | None, Query()] = None,
-    actor_user_id: Optional[int] = Query(default=None),
-    target_user_id: Optional[int] = Query(default=None),
-    occurred_after: Optional[datetime] = Query(default=None),
-    occurred_before: Optional[datetime] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
-) -> AuditEventListResponse:
-    """The audit board: what was done, by whom, to whom, most recent first.
-
-    Gated on ``audit.read`` (support and above). Runs on the system engine
-    because nothing else can read the table — the log is not part of the
-    request path's world in either direction.
-    """
-    base = select(AuditEvent)
-    if event_type:
-        base = base.where(AuditEvent.event_type.in_(event_type))
-    if actor_user_id is not None:
-        base = base.where(AuditEvent.actor_user_id == actor_user_id)
-    if target_user_id is not None:
-        base = base.where(AuditEvent.target_user_id == target_user_id)
-    if occurred_after is not None:
-        base = base.where(AuditEvent.occurred_at >= occurred_after)
-    if occurred_before is not None:
-        base = base.where(AuditEvent.occurred_at <= occurred_before)
-
-    count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
-    events, total_count, actual_page = await paginated_query(
-        session, data_stmt, count_stmt, page=page, page_size=page_size
-    )
-
-    # The rows hold ids, so a name is looked up now rather than stored then.
-    # An account that has since been erased simply resolves to nothing, and the
-    # record of what was done to it stays intact.
-    wanted = {
-        event.actor_user_id for event in events if event.actor_user_id is not None
-    } | {event.target_user_id for event in events if event.target_user_id is not None}
-    handles: dict[int, User] = {}
-    if wanted:
-        rows = await session.exec(select(User).where(User.id.in_(wanted)))
-        handles = {user.id: user for user in rows.all() if user.id is not None}
-
-    def _actor(user_id: Optional[int]) -> Optional[AuditActor]:
-        if user_id is None:
-            return None
-        user = handles.get(user_id)
-        return AuditActor(
-            id=user_id,
-            username=user.username if user else None,
-            discriminator=user.discriminator if user else None,
-        )
-
-    return AuditEventListResponse(
-        items=[
-            AuditEventRead(
-                id=event.id,
-                event_uuid=str(event.event_uuid),
-                event_type=event.event_type,
-                category=str(event.envelope.get("category", "")),
-                tier=event.tier,
-                occurred_at=event.occurred_at,
-                actor=_actor(event.actor_user_id),
-                target_user=_actor(event.target_user_id),
-                guild_id=event.guild_id,
-                target_type=event.target_type,
-                target_id=event.target_id,
-                detail=event.envelope.get("detail") or {},
-            )
-            for event in events
-        ],
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
-    )
 
 
 @router.patch("/users/{user_id}/username", response_model=AdminUserRead)
@@ -863,7 +781,9 @@ async def delete_user(
         )
 
     if payload.action == "deactivate":
-        await users_service.deactivate_user(session, user_id)
+        await users_service.deactivate_user(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
@@ -871,7 +791,9 @@ async def delete_user(
         )
 
     if payload.action == "soft_delete":
-        await users_service.soft_delete_user(session, user_id)
+        await users_service.soft_delete_user(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
@@ -881,7 +803,9 @@ async def delete_user(
     # hard_delete: ownership is released as the memberships go, and the
     # authorship columns are re-pointed at the system user because the row they
     # named is about to stop existing.
-    await users_service.hard_delete_user(session, user_id)
+    await users_service.hard_delete_user(
+        session, user_id, actor_user_id=current_user.id
+    )
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
@@ -946,7 +870,13 @@ async def admin_delete_guild(
     # the schema is orphaned: every initiative/project/document/task for the
     # guild stays on disk, reachable by id if the schema name is ever reused.
     # Mirrors the member-facing DELETE /guilds/{id} endpoint.
-    await guilds_service.delete_guild(session, guild)
+    await guilds_service.delete_guild(
+        session,
+        guild,
+        actor_user_id=_current_user.id,
+        via="operator",
+        target_user_id=blocked_user_id,
+    )
     await session.commit()
     # See delete_guild: these live on another connection, so they go after the
     # commit that made the deletion real.
@@ -1088,10 +1018,25 @@ async def admin_update_guild_member_role(
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=_current_user.id,
             target_user_id=user_id,
+            guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
+    elif previous_role != payload.role:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
+            actor_user_id=_current_user.id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
+    # Written out here, where this request's own context still applies: the
+    # reconciliation below borrows the session for the guild's schema.
+    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

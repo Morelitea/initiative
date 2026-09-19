@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
 from app.core.config import API_V1_STR, settings as app_config
 from app.core.messages import AuthProviderMessages
@@ -32,10 +33,27 @@ from app.schemas.platform.settings import (
     AuthProviderCreate,
     AuthProviderUpdate,
 )
+from app.services import audit as audit_service
 from app.services.auth import identity as identity_service
 from app.services.platform import auth_posture
 
 logger = logging.getLogger(__name__)
+
+#: The provider columns a record names when one of them moves. The secret is
+#: not among them — it lives in the companion row and is reported as a
+#: boolean beside the diff.
+AUDITED_FIELDS: tuple[str, ...] = (
+    "display_name",
+    "kind",
+    "enabled",
+    "issuer",
+    "client_id",
+    "scopes",
+    "role_claim_path",
+    "allow_jit",
+    "icon",
+    "button_style",
+)
 
 
 def provider_callback_url(slug: str) -> str:
@@ -128,9 +146,15 @@ async def list_providers(session: AsyncSession) -> list[AuthProviderAdminRead]:
 
 
 async def create_provider(
-    session: AsyncSession, provider_in: AuthProviderCreate
+    session: AsyncSession,
+    provider_in: AuthProviderCreate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AuthProviderAdminRead:
-    """Create a provider. Slugs are unique across the registry (409)."""
+    """Create a provider. Slugs are unique across the registry (409).
+
+    ``actor_user_id`` is who made it, for the record staged beside the insert.
+    """
     existing = (
         await session.exec(
             select(AuthProvider.id).where(AuthProvider.slug == provider_in.slug)
@@ -157,6 +181,19 @@ async def create_provider(
             detail=AuthProviderMessages.SLUG_TAKEN,
         ) from exc
     await set_provider_secret(session, row.id, provider_in.client_secret)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_PROVIDER_CREATED,
+        actor_user_id=actor_user_id,
+        target_type="auth_provider",
+        target_id=row.id,
+        detail={
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_FIELDS)
+            ),
+            "secret_set": bool(provider_in.client_secret),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     logger.info("auth provider %s (%s) created", row.slug, row.id)
@@ -164,10 +201,17 @@ async def create_provider(
 
 
 async def update_provider(
-    session: AsyncSession, provider_id: int, provider_in: AuthProviderUpdate
+    session: AsyncSession,
+    provider_id: int,
+    provider_in: AuthProviderUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AuthProviderAdminRead:
     row = await editable_provider(session, provider_id)
     update_data = provider_in.model_dump(exclude_unset=True)
+    before = audit_service.snapshot(row, AUDITED_FIELDS)
+    # Absent leaves the stored secret alone; present replaces or clears it.
+    secret_changed = "client_secret" in update_data
 
     # Write-only secret: absent = keep, empty = clear, value = replace.
     if "client_secret" in update_data:
@@ -176,6 +220,18 @@ async def update_provider(
     for field_name, value in update_data.items():
         setattr(row, field_name, value)
     session.add(row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if changed["changed"] or secret_changed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_PROVIDER_UPDATED,
+            actor_user_id=actor_user_id,
+            target_type="auth_provider",
+            target_id=row.id,
+            detail={**changed, "secret_changed": secret_changed},
+        )
     await session.commit()
     await session.refresh(row)
     return admin_read(row, secret_set=await secret_is_set(session, row.id))
@@ -207,7 +263,9 @@ async def _release_initiative_memberships(
     await db_session.set_rls_context(session)
 
 
-async def delete_provider(session: AsyncSession, provider_id: int) -> None:
+async def delete_provider(
+    session: AsyncSession, provider_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Delete a provider. Its linked identities (and their stored refresh
     tokens) go with it via cascade — users who signed in through it keep their
     accounts and any other sign-in methods.
@@ -249,10 +307,19 @@ async def delete_provider(session: AsyncSession, provider_id: int) -> None:
     # unmanaged, which is what it is: no provider answers for it.
     await _release_initiative_memberships(session, provider_id=row.id)
 
+    kind = row.kind
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
         await session.delete(secret)
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_PROVIDER_DELETED,
+        actor_user_id=actor_user_id,
+        target_type="auth_provider",
+        target_id=provider_id,
+        detail={"kind": kind},
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

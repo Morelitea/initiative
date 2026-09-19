@@ -271,8 +271,8 @@ async def _record_device_token_use(*, user_id: int) -> None:
     """Note that a device token was presented, at the throttle above.
 
     Once per device per day rather than once per request, which is what makes
-    it readable as adoption. On its own system-engine session: the request path
-    holds nothing on ``audit_events`` in either direction.
+    it readable as adoption. On a session of its own, since the throttle runs
+    with none open.
 
     A record that cannot be written is logged and passed over. Presenting a
     credential that is still good is not the moment to refuse service.

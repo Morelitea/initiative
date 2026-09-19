@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
@@ -15,6 +15,7 @@ from app.api.deps import (
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
+from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
@@ -87,6 +88,7 @@ from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
+from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
 
@@ -94,6 +96,56 @@ logger = logging.getLogger(__name__)
 
 # Reason stamped on a grant self-issued by the Guilds tab's billing button.
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
+
+# Which columns of the settings singleton this page moves itself; the other
+# areas are recorded by the service that writes them. A value rides along in
+# the record only where its type rules out a secret.
+_SESSION_LIFETIME_FIELDS: tuple[str, ...] = ("session_max_hours",)
+
+#: What the operator's caps and entitlements for one community consist of.
+_GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
+    "max_storage_bytes",
+    "max_users",
+    "auth_options",
+    "banner_image_enabled",
+    "support_enabled",
+)
+
+#: What a claim rule places somebody by, for the record.
+_CLAIM_RULE_FIELDS: tuple[str, ...] = (
+    "provider_id",
+    "claim_value",
+    "target_type",
+    "guild_role",
+    "initiative_id",
+    "initiative_role_id",
+)
+
+
+async def _record_settings_change(
+    session: AsyncSession,
+    *,
+    actor_user_id: int,
+    area: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    extras: dict[str, Any] | None = None,
+) -> None:
+    """Record one area of the deployment's settings row, if it moved.
+
+    For the areas this module writes itself; staged for the caller's commit.
+    """
+    changed = audit_service.changed_fields(before, after)
+    if not changed["changed"] and not any((extras or {}).values()):
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        detail={"area": area, **changed, **(extras or {})},
+    )
+    await session.commit()
+
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
@@ -258,7 +310,7 @@ async def update_second_factor_requirement(
 async def update_session_lifetime(
     payload: SessionLifetimeUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set how long somebody may stay signed in before signing in again.
 
@@ -269,6 +321,7 @@ async def update_session_lifetime(
     shortening the limit can end one on the spot.
     """
     row = await app_settings_service.get_app_settings(session)
+    before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
     row.session_max_hours = payload.session_max_hours
     session.add(row)
     await session.flush()
@@ -276,6 +329,16 @@ async def update_session_lifetime(
     # is written into the ones already issued rather than read back on every
     # native request.
     await session_lifetime.apply_to_device_tokens(session)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+            actor_user_id=admin.id,
+            detail={"area": "session_lifetime", **changed},
+        )
     await session.commit()
     return await _platform_auth_payload(session)
 
@@ -295,12 +358,13 @@ async def get_interface_settings(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_colors(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
+        actor_user_id=admin.id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
@@ -334,7 +398,7 @@ async def read_community_settings(
 async def update_community_settings(
     payload: CommunitySettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """Turn the community directory on or off for the whole deployment.
 
@@ -369,6 +433,7 @@ async def update_community_settings(
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
         direct_messages_enabled=payload.direct_messages_enabled,
+        actor_user_id=admin.id,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
@@ -391,7 +456,7 @@ async def get_email_settings(
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
@@ -406,6 +471,7 @@ async def update_email_settings(
         password_provided=password_provided,
         from_address=payload.from_address,
         test_recipient=payload.test_recipient,
+        actor_user_id=admin.id,
     )
     return _email_settings_payload(updated)
 
@@ -473,7 +539,7 @@ async def get_storage_settings(
 async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     secret_provided = "s3_secret_access_key" in data
@@ -489,6 +555,7 @@ async def update_storage_settings(
         s3_use_path_style=payload.s3_use_path_style,
         s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
+        actor_user_id=admin.id,
     )
     return _storage_settings_payload(updated)
 
@@ -657,7 +724,7 @@ async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
     session: AdminSessionDep,
-    _admin: GuildsManageDep,
+    admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
@@ -673,7 +740,14 @@ async def update_platform_guild_storage(
     Lowering a cap below current usage just blocks further uploads / new joins.
     """
     provided = payload.model_fields_set
+    before: dict[str, Any] = {}
+    status_before: str | None = None
+    status_after: str | None = None
     try:
+        before = audit_service.snapshot(
+            await guilds_service.get_administration(session, guild_id=guild_id),
+            _GUILD_ADMINISTRATION_FIELDS,
+        )
         guild = await guilds_service.update_guild(
             session,
             guild_id=guild_id,
@@ -691,8 +765,9 @@ async def update_platform_guild_storage(
                 guild_id,
                 guild.status,
                 payload.status.value,
-                _admin.id,
+                admin.id,
             )
+            status_before, status_after = guild.status, payload.status.value
             guild = await guilds_service.set_guild_status(
                 session, guild_id=guild_id, status=payload.status
             )
@@ -707,9 +782,32 @@ async def update_platform_guild_storage(
                 detail=GuildMessages.GUILD_NOT_FOUND,
             ) from exc
         raise
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(administration, _GUILD_ADMINISTRATION_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+            actor_user_id=admin.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"area": "administration", **changed},
+        )
+    if status_after is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_STATUS_CHANGED,
+            actor_user_id=admin.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": status_before, "to": status_after},
+        )
     await session.commit()
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
         id=guild.id,
         name=guild.name,
@@ -927,7 +1025,7 @@ async def get_oidc_mappings(
 async def create_oidc_mapping(
     payload: OIDCClaimMappingCreate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> OIDCClaimMappingRead:
     # Validate target_type
     try:
@@ -996,6 +1094,21 @@ async def create_oidc_mapping(
         else None,
     )
     session.add(mapping)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_CREATED,
+        actor_user_id=admin.id,
+        guild_id=mapping.guild_id,
+        target_type="claim_rule",
+        target_id=mapping.id,
+        detail={
+            "via": "operator",
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
+            ),
+        },
+    )
     await session.commit()
     await session.refresh(mapping)
     return await _enrich_mapping(session, mapping)
@@ -1006,7 +1119,7 @@ async def update_oidc_mapping(
     mapping_id: int,
     payload: OIDCClaimMappingUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> OIDCClaimMappingRead:
     mapping = (
         await session.exec(
@@ -1016,6 +1129,7 @@ async def update_oidc_mapping(
     if not mapping:
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
+    before = audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
     data = payload.model_dump(exclude_unset=True)
     if "provider_id" in data and data["provider_id"] is not None:
         mapping.provider_id = data["provider_id"]
@@ -1084,6 +1198,19 @@ async def update_oidc_mapping(
 
     mapping.updated_at = datetime.now(timezone.utc)
     session.add(mapping)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.CLAIM_RULE_UPDATED,
+            actor_user_id=admin.id,
+            guild_id=mapping.guild_id,
+            target_type="claim_rule",
+            target_id=mapping.id,
+            detail={"via": "operator", **changed},
+        )
     await session.commit()
     await session.refresh(mapping)
     return await _enrich_mapping(session, mapping)
@@ -1093,7 +1220,7 @@ async def update_oidc_mapping(
 async def delete_oidc_mapping(
     mapping_id: int,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> None:
     mapping = (
         await session.exec(
@@ -1102,7 +1229,17 @@ async def delete_oidc_mapping(
     ).one_or_none()
     if not mapping:
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
+    guild_id = mapping.guild_id
     await session.delete(mapping)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_DELETED,
+        actor_user_id=admin.id,
+        guild_id=guild_id,
+        target_type="claim_rule",
+        target_id=mapping_id,
+        detail={"via": "operator"},
+    )
     await session.commit()
 
 

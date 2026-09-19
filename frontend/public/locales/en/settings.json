@@ -720,7 +720,7 @@
     },
     "roleDescriptions": {
       "member": "Standard access to their own communities. No platform-wide privileges.",
-      "support": "Read-only platform visibility (users, communities, audit) and can request time-bound access to a community.",
+      "support": "Read-only platform visibility (users, communities) and can request time-bound access to a community.",
       "moderator": "Everything Support can do, plus user management (suspend/reactivate) and content moderation.",
       "operator": "Manages users, communities, and roles platform-wide, with cross-community data access and approves access requests.",
       "owner": "Full control, including app-wide configuration (auth, branding, email, AI). The only role that can manage configuration."
@@ -1069,8 +1069,7 @@
       "users": "Users",
       "access": "Access",
       "guilds": "Communities",
-      "announcements": "Announcements",
-      "audit": "Audit"
+      "announcements": "Announcements"
     }
   },
   "storage": {
@@ -1453,29 +1452,6 @@
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
     "directMessagesDisabledToast": "Direct messages are off."
-  },
-  "audit": {
-    "title": "Audit",
-    "description": "What was done to accounts, by whom, and when. Entries are kept after the accounts they name are gone.",
-    "whenColumn": "When",
-    "actionColumn": "Action",
-    "actorColumn": "Done by",
-    "subjectColumn": "Done to",
-    "subjectFilterPlaceholder": "Filter by account ID",
-    "departedAccount": "Account #{{id}} (deleted)",
-    "empty": "Nothing has been recorded yet.",
-    "pageOf": "Page {{page}} of {{total}} entries",
-    "actions": {
-      "user.avatar_removed": "Profile picture removed",
-      "auth.signed_in": "Signed in",
-      "auth.sign_in_failed": "Sign-in refused",
-      "auth.signed_out": "Signed out",
-      "auth.password_changed": "Password changed",
-      "auth.passkey_registered": "Passkey added",
-      "auth.passkey_removed": "Passkey removed",
-      "auth.identity_linked": "Single sign-on linked",
-      "auth.refresh_reuse_detected": "Reused session token rejected"
-    }
   },
   "account": {
     "identityTitle": "How you sign in",

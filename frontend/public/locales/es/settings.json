@@ -717,7 +717,7 @@
     },
     "roleDescriptions": {
       "member": "Acceso estándar a sus propias comunidades. Sin privilegios a nivel de plataforma.",
-      "support": "Visibilidad de solo lectura de la plataforma (usuarios, comunidades, auditoría) y puede solicitar acceso temporal a una comunidad.",
+      "support": "Visibilidad de solo lectura de la plataforma (usuarios, comunidades) y puede solicitar acceso temporal a una comunidad.",
       "moderator": "Todo lo que puede hacer Soporte, además de gestión de usuarios (suspender/reactivar) y moderación de contenido.",
       "operator": "Gestiona usuarios, comunidades y roles en toda la plataforma, con acceso a datos entre comunidades y aprueba solicitudes de acceso.",
       "owner": "Control total, incluida la configuración de toda la plataforma (autenticación, personalización, email, IA). El único rol que puede gestionar la configuración."
@@ -1000,7 +1000,6 @@
       "users": "Usuarios",
       "access": "Acceso",
       "guilds": "Comunidades",
-      "audit": "Auditoría",
       "announcements": "Anuncios"
     }
   },
@@ -1453,29 +1452,6 @@
     "directMessagesOffConfirm": "Desactivar los mensajes directos",
     "directMessagesEnabledToast": "Los mensajes directos están activados.",
     "directMessagesDisabledToast": "Los mensajes directos están desactivados."
-  },
-  "audit": {
-    "title": "Auditoría",
-    "description": "Qué se hizo a las cuentas, quién lo hizo y cuándo. Las entradas se conservan aunque las cuentas que nombran ya no existan.",
-    "whenColumn": "Cuándo",
-    "actionColumn": "Acción",
-    "actorColumn": "Realizado por",
-    "subjectColumn": "Afecta a",
-    "subjectFilterPlaceholder": "Filtrar por ID de cuenta",
-    "departedAccount": "Cuenta n.º {{id}} (eliminada)",
-    "empty": "Todavía no se ha registrado nada.",
-    "pageOf": "Página {{page}} de {{total}} entradas",
-    "actions": {
-      "user.avatar_removed": "Foto de perfil eliminada",
-      "auth.signed_in": "Sesión iniciada",
-      "auth.sign_in_failed": "Inicio de sesión rechazado",
-      "auth.signed_out": "Sesión cerrada",
-      "auth.password_changed": "Contraseña cambiada",
-      "auth.passkey_registered": "Clave de acceso añadida",
-      "auth.passkey_removed": "Clave de acceso eliminada",
-      "auth.identity_linked": "Inicio de sesión único vinculado",
-      "auth.refresh_reuse_detected": "Token de sesión reutilizado rechazado"
-    }
   },
   "account": {
     "identityTitle": "Cómo inicias sesión",

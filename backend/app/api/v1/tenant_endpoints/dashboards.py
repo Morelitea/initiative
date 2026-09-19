@@ -31,6 +31,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import (
     DashboardMessages,
     InitiativeMessages,
@@ -65,6 +66,7 @@ from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db import session as db_session
 from app.db.session import rls_context_params
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
+from app.services import audit as audit_service
 from app.services import query as query_service
 from app.services import permissions as permissions_service
 from app.services.marketplace import catalog as catalog_service
@@ -508,6 +510,7 @@ async def create_dashboard(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=dashboard_in.grants,
+        actor_user_id=current_user.id,
     )
 
     if dashboard_in.tag_ids:
@@ -816,6 +819,39 @@ async def run_widget_query(
 # ---------------------------------------------------------------------------
 
 
+async def _record_published_change(
+    session: Any,
+    *,
+    dashboard_id: int,
+    guild_id: int,
+    initiative_id: int | None,
+    actor_user_id: int,
+    kind: Tool,
+    resource_id: int,
+    to_level: str | None,
+) -> None:
+    """Record one resource joining or leaving what a dashboard publishes.
+
+    The same event a share carries, with the dashboard as the grantee: the
+    level a reader holds on that resource through it moved between ``read``
+    and nothing.
+    """
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.SHARING_GRANT_CHANGED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type=kind.value,
+        target_id=resource_id,
+        detail={
+            "initiative_id": initiative_id,
+            "grantee": {"kind": "dashboard", "id": dashboard_id},
+            "from": None if to_level else "read",
+            "to": to_level,
+        },
+    )
+
+
 @router.put("/{dashboard_id}/published", response_model=DashboardRead)
 async def set_published_view(
     dashboard_id: int,
@@ -881,6 +917,16 @@ async def set_published_view(
     for key, grant in held.items():
         if key not in wanted:
             await session.delete(grant)
+            await _record_published_change(
+                session,
+                dashboard_id=dashboard_id,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+                actor_user_id=current_user.id,
+                kind=key[0],
+                resource_id=key[1],
+                to_level=None,
+            )
     for kind, resource_id in wanted:
         if (kind, resource_id) in held:
             continue
@@ -893,6 +939,16 @@ async def set_published_view(
                 initiative_id=dashboard.initiative_id,
                 created_by=current_user.id,
             )
+        )
+        await _record_published_change(
+            session,
+            dashboard_id=dashboard_id,
+            guild_id=dashboard.guild_id,
+            initiative_id=dashboard.initiative_id,
+            actor_user_id=current_user.id,
+            kind=kind,
+            resource_id=resource_id,
+            to_level="read",
         )
     await session.commit()
 
@@ -949,7 +1005,18 @@ async def revoke_published_view(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.dashboard.no_access_code,
         )
+    guild_id, initiative_id = grant.guild_id, grant.initiative_id
     await session.delete(grant)
+    await _record_published_change(
+        session,
+        dashboard_id=dashboard_id,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        actor_user_id=current_user.id,
+        kind=kind,
+        resource_id=resource_id,
+        to_level=None,
+    )
     await session.commit()
 
 

@@ -8,8 +8,10 @@ from typing import Optional, Sequence, Tuple
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user import User, UserStatus
+from app.services import audit as audit_service
 
 API_KEY_PREFIX = "ppk_"
 API_KEY_DISPLAY_PREFIX_LENGTH = 12
@@ -56,9 +58,44 @@ async def create_api_key(
         guild_id=guild_id,
     )
     session.add(api_key)
+    # Flushed first so the record can name the key it describes.
+    await session.flush()
+    await _record_key_event(
+        session, AuditEventType.API_KEY_CREATED, user_id=user.id, api_key=api_key
+    )
     await session.commit()
     await session.refresh(api_key)
     return secret, api_key
+
+
+async def _record_key_event(
+    session: AsyncSession,
+    event_type: AuditEventType,
+    *,
+    user_id: int,
+    api_key: UserApiKey,
+) -> None:
+    """Record one key's arrival or departure.
+
+    A key is the account's own credential, so it is both actor and subject. The
+    record carries the key's scope — never its name, its prefix or its hash.
+    """
+    await audit_service.record(
+        session,
+        event_type=event_type,
+        actor_user_id=user_id,
+        target_user_id=user_id,
+        guild_id=api_key.guild_id,
+        target_type="user_api_key",
+        target_id=api_key.id,
+        detail={
+            "read_only": api_key.read_only,
+            "expires_at": (
+                api_key.expires_at.isoformat() if api_key.expires_at else None
+            ),
+            "guild_bound": api_key.guild_id is not None,
+        },
+    )
 
 
 async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) -> bool:
@@ -70,6 +107,9 @@ async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) 
     if not api_key:
         return False
 
+    await _record_key_event(
+        session, AuditEventType.API_KEY_DELETED, user_id=user.id, api_key=api_key
+    )
     await session.delete(api_key)
     await session.commit()
     return True

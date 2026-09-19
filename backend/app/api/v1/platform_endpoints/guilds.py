@@ -266,6 +266,43 @@ async def _ensure_guild_superadmin(
     return membership
 
 
+#: The guild fields a community's own admins edit, snapshotted either side of a
+#: PATCH so the record names which of them moved.
+_GUILD_PROFILE_FIELDS = (
+    "name",
+    "description",
+    "banner",
+    "is_community",
+    "categories",
+    "has_adult_content",
+    "show_member_names",
+)
+
+
+async def _record_guild_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    actor_user_id: int,
+    area: str,
+    before: dict[str, object],
+    after: dict[str, object],
+) -> None:
+    """Record one area of a guild's settings, when that area moved."""
+    changes = audit_service.changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"area": area, **changes},
+    )
+
+
 async def _set_guild_admin_rls(
     session: AsyncSession,
     *,
@@ -551,6 +588,7 @@ async def create_guild(
         description=guild_in.description,
         creator=current_user,
         owner=owner,
+        actor_user_id=current_user.id,
     )
     await session.commit()
     if owner.id != current_user.id:
@@ -584,7 +622,9 @@ async def create_guild(
         stale = await guilds_service.get_guild(session, guild_id=guild.id)
         if stale:
             stale_id = stale.id
-            await guilds_service.delete_guild(session, stale)
+            await guilds_service.delete_guild(
+                session, stale, actor_user_id=current_user.id, via="provision_failed"
+            )
             await session.commit()
             await app_refs.forget_guild(guild_id=stale_id)
         raise HTTPException(
@@ -651,6 +691,17 @@ async def update_guild(
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_provided = "banner" in updates.model_fields_set
+    # The state this PATCH is measured against. Read before the write, since the
+    # service edits the row in place.
+    before_profile = audit_service.snapshot(
+        await guilds_service.get_guild(session, guild_id=guild_id),
+        _GUILD_PROFILE_FIELDS,
+    )
+    retention_before = (
+        await guilds_service.get_guild_retention_days(session, guild_id)
+        if retention_days_provided
+        else None
+    )
     try:
         guild = await guilds_service.update_guild(
             session,
@@ -688,6 +739,27 @@ async def update_guild(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    await _record_guild_settings_change(
+        session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="profile",
+        before=before_profile,
+        after=audit_service.snapshot(guild, _GUILD_PROFILE_FIELDS),
+    )
+    if retention_days_provided:
+        await _record_guild_settings_change(
+            session,
+            guild_id=guild_id,
+            actor_user_id=current_user.id,
+            area="retention",
+            before={"retention_days": retention_before},
+            after={
+                "retention_days": await guilds_service.get_guild_retention_days(
+                    session, guild_id
+                )
+            },
+        )
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
@@ -1146,6 +1218,20 @@ async def set_guild_auth_policy(
     if payload.policy == "open":
         policy_row = await session.get(GuildAuthPolicy, guild_id)
         if policy_row is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
+                actor_user_id=current_user.id,
+                guild_id=guild_id,
+                target_type="guild",
+                target_id=guild_id,
+                detail={
+                    "from": policy_row.policy,
+                    "to": "open",
+                    "provider_id": None,
+                    "require_methods": [],
+                },
+            )
             await session.delete(policy_row)
             await session.commit()
         return GuildAuthPolicyRead(
@@ -1248,6 +1334,16 @@ async def set_guild_auth_policy(
             )
 
     policy_row = await session.get(GuildAuthPolicy, guild_id)
+    # No row is "open", so a guild that had none is moving from there.
+    was = (
+        ("open", None, [])
+        if policy_row is None
+        else (
+            policy_row.policy,
+            policy_row.provider_id,
+            list(policy_row.require_methods or ()),
+        )
+    )
     if policy_row is None:
         policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
     policy_row.policy = "required"
@@ -1255,6 +1351,21 @@ async def set_guild_auth_policy(
     policy_row.provider_slug = provider.slug if provider else None
     policy_row.require_methods = require_methods
     session.add(policy_row)
+    if was != ("required", policy_row.provider_id, require_methods):
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
+            actor_user_id=current_user.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={
+                "from": was[0],
+                "to": "required",
+                "provider_id": policy_row.provider_id,
+                "require_methods": require_methods,
+            },
+        )
     await session.commit()
     return _auth_policy_read(
         policy_row,
@@ -1292,8 +1403,17 @@ async def set_guild_api_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
+    before = {"allow_api_keys": guild.allow_api_keys}
     guild.allow_api_keys = payload.allow_api_keys
     admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="api_access",
+        before=before,
+        after={"allow_api_keys": guild.allow_api_keys},
+    )
     await admin_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
 
@@ -1329,8 +1449,17 @@ async def set_guild_session_limit(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
     changed = guild.enforce_compliance_session != payload.enforce_compliance_session
+    before = {"enforce_compliance_session": guild.enforce_compliance_session}
     guild.enforce_compliance_session = payload.enforce_compliance_session
     admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="session_limit",
+        before=before,
+        after={"enforce_compliance_session": guild.enforce_compliance_session},
+    )
     if changed:
         # Written before the sweep below, which reads the standard back off the
         # guild row to find whose phones it applies to.
@@ -1396,7 +1525,9 @@ async def delete_guild(
     # lives in the schema, which holds no FKs back to public.guilds, so the
     # row delete isn't blocked by it. Runs as the assumed guild role, so the
     # public.guilds guild_delete RLS policy (current_guild_id) matches.
-    await guilds_service.delete_guild(session, guild)
+    await guilds_service.delete_guild(
+        session, guild, actor_user_id=current_user.id, via="admin"
+    )
     await session.commit()
     # See delete_guild: these live on another connection, so they go after the
     # commit that made the deletion real.
@@ -1447,6 +1578,7 @@ async def create_guild_invite(
             expires_at=invite_in.expires_at,
             max_uses=invite_in.max_uses,
             invitee_email=invite_in.invitee_email,
+            actor_user_id=current_user.id,
         )
     except guilds_service.GuildCapacityError as exc:
         raise HTTPException(
@@ -1474,7 +1606,10 @@ async def delete_guild_invite(
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     await guilds_service.delete_guild_invite(
-        session, guild_id=guild_id, invite_id=invite_id
+        session,
+        guild_id=guild_id,
+        invite_id=invite_id,
+        actor_user_id=current_user.id,
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1620,10 +1755,25 @@ async def update_guild_membership(
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=current_user.id,
             target_user_id=user_id,
+            guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
+    elif previous_role != payload.role:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
+    # Written out here, where this request's own context still applies: the
+    # reconciliation below borrows the session for the guild's schema.
+    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

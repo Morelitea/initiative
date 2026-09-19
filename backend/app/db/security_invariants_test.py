@@ -43,7 +43,6 @@ _RLS_SHARED_TABLES = {
     "announcement_images",
     "announcement_reads",
     "announcements",
-    "audit_events",
     "app_service_nonces",
     "app_service_registrations",
     "app_settings",

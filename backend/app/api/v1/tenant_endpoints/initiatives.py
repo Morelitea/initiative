@@ -14,6 +14,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import (
     AuthMessages,
     GuildMessages,
@@ -59,6 +60,7 @@ from app.schemas.platform.user import (
     UserSummaryListResponse,
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
+from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
@@ -79,6 +81,42 @@ def _reaches_whole_guild(guild_context: GuildContext) -> bool:
     """Whether this request reads every initiative in the guild without holding
     a membership row: a guild admin, or a live PAM / break-glass grantee."""
     return guild_context.is_pam or rls_service.is_guild_admin(guild_context.role)
+
+
+async def _record_membership(
+    session: SessionDep,
+    *,
+    event_type: AuditEventType,
+    actor_user_id: int,
+    member_user_id: int,
+    initiative_id: int,
+    guild_id: int,
+    detail: dict,
+) -> None:
+    """One membership record: whose membership, in which initiative, and what
+    the change was. Staged beside the write it describes."""
+    await audit_service.record(
+        session,
+        event_type=event_type,
+        actor_user_id=actor_user_id,
+        target_user_id=member_user_id,
+        guild_id=guild_id,
+        target_type="initiative",
+        target_id=initiative_id,
+        detail=detail,
+    )
+
+
+#: What a record of a role edit reports on beyond its permissions.
+_ROLE_AUDIT_FIELDS = ("display_name", "is_manager")
+
+
+def _role_permissions(role: InitiativeRoleModel) -> dict[str, bool]:
+    """A role's permission toggles, by key."""
+    return {
+        getattr(p.permission_key, "value", p.permission_key): p.enabled
+        for p in role.permissions
+    }
 
 
 async def _get_initiative_or_404(
@@ -768,6 +806,19 @@ async def create_initiative(
             guild_id=guild_id,
         )
     )
+    await _record_membership(
+        session,
+        event_type=AuditEventType.INITIATIVE_MEMBER_ADDED,
+        actor_user_id=current_user.id,
+        member_user_id=current_user.id,
+        initiative_id=initiative.id,
+        guild_id=guild_id,
+        detail={
+            "role_id": creator_role.id,
+            "role": creator_role.name,
+            "via": "created",
+        },
+    )
     await session.commit()
     initiative = await _get_initiative_or_404(initiative.id, session, guild_id)
     return serialize_initiative(initiative)
@@ -874,6 +925,15 @@ async def delete_initiative(
         deleted_by_user_id=current_user.id,
         retention_days=retention_days,
     )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.INITIATIVE_DELETED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="initiative",
+        target_id=initiative_id,
+        detail={"via": "trash", "retention_days": retention_days},
+    )
     await session.commit()
 
 
@@ -955,6 +1015,20 @@ async def create_initiative_role(
         is_manager=role_in.is_manager,
         permissions=role_in.permissions,
     )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.INITIATIVE_ROLE_CREATED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type="initiative_role",
+        target_id=role.id,
+        detail={
+            "initiative_id": initiative_id,
+            "name": role.name,
+            "is_manager": role.is_manager,
+            "permissions": _role_permissions(role),
+        },
+    )
     await session.commit()
     return serialize_role(role, member_count=0)
 
@@ -995,6 +1069,9 @@ async def update_initiative_role(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.CANNOT_MODIFY_BUILTIN_PERMISSIONS,
         )
+
+    before = audit_service.snapshot(role, _ROLE_AUDIT_FIELDS)
+    before_permissions = _role_permissions(role)
 
     # Update display name if provided
     if role_in.display_name is not None:
@@ -1045,6 +1122,31 @@ async def update_initiative_role(
             session, role=role, permissions=role_in.permissions
         )
 
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(role, _ROLE_AUDIT_FIELDS)
+    )
+    after_permissions = _role_permissions(role)
+    permissions_changed = {
+        key: {"from": before_permissions.get(key), "to": after_permissions[key]}
+        for key in after_permissions
+        if before_permissions.get(key) != after_permissions[key]
+    }
+    if changed["changed"] or permissions_changed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.INITIATIVE_ROLE_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="initiative_role",
+            target_id=role.id,
+            detail={
+                "initiative_id": initiative_id,
+                "name": role.name,
+                **changed,
+                "permissions_changed": permissions_changed,
+            },
+        )
+
     await session.commit()
     member_count = await initiatives_service.count_role_members(
         session, role_id=role.id
@@ -1079,8 +1181,18 @@ async def delete_initiative_role(
             detail=InitiativeMessages.ROLE_NOT_FOUND,
         )
 
+    role_name = role.name
     try:
         await initiatives_service.delete_role(session, role=role)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.INITIATIVE_ROLE_DELETED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="initiative_role",
+            target_id=role_id,
+            detail={"initiative_id": initiative_id, "name": role_name},
+        )
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -1424,8 +1536,23 @@ async def add_initiative_member(
                 await _ensure_remaining_manager(
                     session, initiative, exclude_user_ids={membership.user_id}
                 )
+            from_role_id = membership.role_id
             membership.role_id = role_id
             session.add(membership)
+            await _record_membership(
+                session,
+                event_type=AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED,
+                actor_user_id=current_user.id,
+                member_user_id=payload.user_id,
+                initiative_id=initiative_id,
+                guild_id=initiative.guild_id,
+                detail={
+                    "from_role_id": from_role_id,
+                    "from": old_role.name if old_role else None,
+                    "to_role_id": role_id,
+                    "to": resolved_role.name,
+                },
+            )
     else:
         membership = InitiativeMember(
             initiative_id=initiative_id,
@@ -1435,6 +1562,19 @@ async def add_initiative_member(
         )
         session.add(membership)
         created = True
+        await _record_membership(
+            session,
+            event_type=AuditEventType.INITIATIVE_MEMBER_ADDED,
+            actor_user_id=current_user.id,
+            member_user_id=payload.user_id,
+            initiative_id=initiative_id,
+            guild_id=initiative.guild_id,
+            detail={
+                "role_id": role_id,
+                "role": resolved_role.name,
+                "via": "admin",
+            },
+        )
 
     await session.commit()
     # Re-fetch initiative with updated memberships
@@ -1483,12 +1623,22 @@ async def remove_initiative_member(
     membership = result.one_or_none()
 
     if membership:
+        role_name = membership.role_ref.name if membership.role_ref else None
         # Removing a member is never blocked by them being the initiative's last
         # manager — the initiative is simply left without one until an admin
         # appoints another. (Demoting the last manager still is blocked; that
         # edits a live membership rather than ending it.)
         await session.delete(membership)
         await session.flush()
+        await _record_membership(
+            session,
+            event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,
+            actor_user_id=current_user.id,
+            member_user_id=user_id,
+            initiative_id=initiative_id,
+            guild_id=guild_context.guild_id,
+            detail={"role": role_name, "via": "admin"},
+        )
 
         project_ids_result = await session.exec(
             select(Project.id).where(Project.initiative_id == initiative_id)
@@ -1619,8 +1769,24 @@ async def update_initiative_member(
             await _ensure_remaining_manager(
                 session, initiative, exclude_user_ids={user_id}
             )
+        from_role_id = membership.role_id
+        from_role_name = membership.role_ref.name if membership.role_ref else None
         membership.role_id = payload.role_id
         session.add(membership)
+        await _record_membership(
+            session,
+            event_type=AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED,
+            actor_user_id=current_user.id,
+            member_user_id=user_id,
+            initiative_id=initiative_id,
+            guild_id=guild_context.guild_id,
+            detail={
+                "from_role_id": from_role_id,
+                "from": from_role_name,
+                "to_role_id": payload.role_id,
+                "to": new_role.name,
+            },
+        )
         await session.commit()
         # Role change may reduce content access — re-check this user's live
         # content streams immediately (initiative-level access change).

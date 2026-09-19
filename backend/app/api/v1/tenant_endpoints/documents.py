@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
@@ -105,7 +106,9 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
+from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import spreadsheet_import
 from app.services.tenant.collaboration import collaboration_manager
 
@@ -924,6 +927,7 @@ async def create_document(
         initiative_id=document.initiative_id,
         owner_id=current_user.id,
         grants=document_in.grants,
+        actor_user_id=current_user.id,
     )
 
     # What the new body points at becomes `references` edges.
@@ -1762,6 +1766,28 @@ async def generate_summary(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.AI_NATIVE_ONLY,
         )
+
+    # Written down before the request goes out, since the disclosure does not
+    # wait on the reply: which document, which connection, which provider, and
+    # none of the text. A configuration that sends nothing records nothing.
+    resolved = await resolve_ai_settings(session, current_user, guild_context.guild_id)
+    if resolved.enabled and resolved.provider is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AI_REQUEST_SENT,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="document",
+            target_id=document.id,
+            detail={
+                "purpose": "summary",
+                "initiative_id": document.initiative_id,
+                "scope": resolved.scope.value if resolved.scope else None,
+                "connection_id": resolved.connection_id,
+                "provider": resolved.provider.value,
+            },
+        )
+        await session.commit()
 
     try:
         summary = await generate_document_summary(

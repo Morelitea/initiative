@@ -47,7 +47,9 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document
 from app.api import resource_access
 from app.core.user_display import handle_of
+from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
+from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.platform import users as users_service
@@ -309,8 +311,18 @@ async def _get_project_permission(
 
 
 async def _ensure_user_in_initiative(
-    initiative_id: int, user_id: int, session: SessionDep
+    initiative_id: int,
+    user_id: int,
+    session: SessionDep,
+    *,
+    actor_user_id: int | None = None,
+    guild_id: int | None = None,
 ) -> None:
+    """Give ``user_id`` a membership row in the initiative if they have none.
+
+    A membership this writes is recorded against ``actor_user_id``, the account
+    making the request. Left unset, nothing is recorded.
+    """
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
         InitiativeMember.user_id == user_id,
@@ -336,6 +348,21 @@ async def _ensure_user_in_initiative(
             )
         )
         await session.flush()
+        if actor_user_id is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.INITIATIVE_MEMBER_ADDED,
+                actor_user_id=actor_user_id,
+                target_user_id=user_id,
+                guild_id=guild_id,
+                target_type="initiative",
+                target_id=initiative_id,
+                detail={
+                    "role_id": member_role.id,
+                    "role": member_role.name,
+                    "via": "project_owner",
+                },
+            )
 
 
 def _ensure_not_archived(project: Project) -> None:
@@ -1235,7 +1262,13 @@ async def create_project(
     await resource_access.require_create(
         session, Tool.project, initiative, current_user, guild_context
     )
-    await _ensure_user_in_initiative(initiative_id, owner_id, session)
+    await _ensure_user_in_initiative(
+        initiative_id,
+        owner_id,
+        session,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
     project = Project(
         name=project_in.name,
         icon=icon_value,
@@ -1275,6 +1308,7 @@ async def create_project(
         initiative_id=project.initiative_id,
         owner_id=owner_id,
         grants=project_in.grants,
+        actor_user_id=current_user.id,
     )
 
     await session.flush()
@@ -1381,7 +1415,13 @@ async def duplicate_project(
     initiative_id = source_project.initiative_id
     if initiative_id is not None:
         await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
-        await _ensure_user_in_initiative(initiative_id, owner_id, session)
+        await _ensure_user_in_initiative(
+            initiative_id,
+            owner_id,
+            session,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
 
     new_name = (
         duplicate_in.name.strip()

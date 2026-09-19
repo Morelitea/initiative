@@ -504,7 +504,6 @@ async def finish_passkey_sign_in(
             refused_for,
             method="passkey",
             reason=outcome.reason,
-            watch=outcome.reason not in ("unknown", "wrong_rp"),
         )
         raise _sign_in_invalid()
 

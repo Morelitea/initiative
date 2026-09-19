@@ -11,6 +11,7 @@ guild's ``guild_<id>`` schema before touching the database (see
 """
 
 from app.testing.actor import Actor, make_actor
+from app.testing.audit import emitted
 from app.testing.app_channel import (
     APP_CHANNEL_SECRET,
     channel_headers,
@@ -87,6 +88,7 @@ __all__ = [
     "create_tool_entity",
     "Actor",
     "make_actor",
+    "emitted",
     "create_app_delegation",
     "create_app_service_registration",
     "create_auth_provider",

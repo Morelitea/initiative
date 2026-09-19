@@ -316,6 +316,19 @@ async def register_user(
             verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        # Staged beside the account, before either branch below commits it, so
+        # a registration that fails leaves no record of one.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_CREATED,
+            actor_user_id=user.id,
+            target_user_id=user.id,
+            detail={
+                "via": "registration",
+                "first_user": is_first_user,
+                "invited": bool(normalized_invite),
+            },
+        )
 
         if normalized_invite:
             try:

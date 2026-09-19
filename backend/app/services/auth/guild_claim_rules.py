@@ -23,6 +23,7 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.messages import AuthProviderMessages, SettingsMessages
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
@@ -39,6 +40,7 @@ from app.schemas.platform.settings import (
     GuildClaimRulesResponse,
     GuildClaimRuleUpdate,
 )
+from app.services import audit as audit_service
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,16 @@ logger = logging.getLogger(__name__)
 #: grants an ordinary standing, never the seat that decides who may enter.
 MAPPABLE_GUILD_ROLES: frozenset[str] = frozenset(
     role.value for role in GUILD_ASSIGNABLE_ROLES
+)
+
+#: What a rule places somebody by, for the record.
+AUDITED_FIELDS: tuple[str, ...] = (
+    "provider_id",
+    "claim_value",
+    "target_type",
+    "guild_role",
+    "initiative_id",
+    "initiative_role_id",
 )
 
 
@@ -270,7 +282,11 @@ async def list_rules(
 
 
 async def create_rule(
-    session: AsyncSession, *, guild_id: int, payload: GuildClaimRuleCreate
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    payload: GuildClaimRuleCreate,
+    actor_user_id: int | None = None,
 ) -> GuildClaimRuleRead:
     provider = await _connected_provider(
         session, guild_id=guild_id, provider_id=payload.provider_id
@@ -300,6 +316,21 @@ async def create_rule(
         initiative_role_id=payload.initiative_role_id,
     )
     session.add(row)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_CREATED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="claim_rule",
+        target_id=row.id,
+        detail={
+            "via": "guild",
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_FIELDS)
+            ),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     return await _rule_read(session, row, providers={provider.id: provider})
@@ -311,11 +342,13 @@ async def update_rule(
     guild_id: int,
     rule_id: int,
     payload: GuildClaimRuleUpdate,
+    actor_user_id: int | None = None,
 ) -> GuildClaimRuleRead:
     row = await _editable_rule(session, rule_id, guild_id=guild_id)
     provider = await _connected_provider(
         session, guild_id=guild_id, provider_id=row.provider_id
     )
+    before = audit_service.snapshot(row, AUDITED_FIELDS)
     data = payload.model_dump(exclude_unset=True)
 
     if "guild_role" in data and data["guild_role"] is not None:
@@ -343,12 +376,31 @@ async def update_rule(
         excluding=row.id,
     )
     session.add(row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.CLAIM_RULE_UPDATED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="claim_rule",
+            target_id=row.id,
+            detail={"via": "guild", **changed},
+        )
     await session.commit()
     await session.refresh(row)
     return await _rule_read(session, row, providers={provider.id: provider})
 
 
-async def delete_rule(session: AsyncSession, *, guild_id: int, rule_id: int) -> None:
+async def delete_rule(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    rule_id: int,
+    actor_user_id: int | None = None,
+) -> None:
     """Stop placing the people carrying one group.
 
     The memberships it already granted stay. A rule is how somebody arrives,
@@ -357,4 +409,13 @@ async def delete_rule(session: AsyncSession, *, guild_id: int, rule_id: int) -> 
     """
     row = await _editable_rule(session, rule_id, guild_id=guild_id)
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_DELETED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="claim_rule",
+        target_id=rule_id,
+        detail={"via": "guild"},
+    )
     await session.commit()
