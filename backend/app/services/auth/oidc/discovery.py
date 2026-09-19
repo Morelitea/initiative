@@ -176,7 +176,8 @@ def _parse_metadata(document: Any, *, expected_issuer: str) -> OidcMetadata:
         userinfo_endpoint = userinfo
 
     return OidcMetadata(
-        issuer=expected_issuer,
+        # The provider's own spelling, not the normalized one.
+        issuer=doc_issuer.strip(),
         authorization_endpoint=endpoints["authorization_endpoint"],
         token_endpoint=endpoints["token_endpoint"],
         jwks_uri=endpoints["jwks_uri"],
