@@ -1,21 +1,47 @@
 /**
- * The second-factor step on the sign-in card.
+ * The sign-in card's two steps beyond a password: the second factor, and the
+ * passkey.
  *
- * The password leg is answered elsewhere; what is worth pinning here is what
- * the card does with a challenge — that it stops asking for a password, that
- * the two kinds of code are sent as the kinds they are, that a refused code
- * leaves the person able to try again, and that starting over really does.
+ * For the factor, what is worth pinning is what the card does with a challenge
+ * — that it stops asking for a password, that the two kinds of code are sent
+ * as the kinds they are, that a refused code leaves the person able to try
+ * again, and that starting over really does.
+ *
+ * For the passkey it is the joins: that the button is there only where both
+ * the deployment and the browser offer one, that a press stands down whatever
+ * prompt was already waiting, and that the two ways the ceremony can end —
+ * a session for this browser, a way back to an app — each go where they go.
+ * The prompt that waits in the browser's own autofill is started by the page
+ * rather than the person, so what it does when it ends empty-handed — keep to
+ * itself, and take one fresh turn when its challenge has lapsed — is pinned
+ * here too.
  */
+import { Browser } from "@capacitor/browser";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AxiosError, AxiosHeaders } from "axios";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
 
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   completeSecondFactor: vi.fn(),
+  applyPasskeySignIn: vi.fn(),
   get: vi.fn(),
+  signInWithPasskey: vi.fn(),
+  cancelPendingPasskeyPrompt: vi.fn(),
+  browserOffersPasskeys: vi.fn(() => true),
+  browserOffersPasskeyAutofill: vi.fn(() => Promise.resolve(false)),
+  /** The real mapping, so the card is asserted on the copy it would show. */
+  describePasskeyPromptError: vi.fn((error: unknown) => {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "AbortError") return null;
+    return name === "NotAllowedError" ? "auth:login.passkeyCancelled" : "auth:login.passkeyFailed";
+  }),
+  /** Read on every render, so a test can say what the deployment offers. */
+  config: { passwordLoginEnabled: true, passkeyLoginEnabled: true },
+  server: { isNativePlatform: false },
 }));
 
 vi.mock("@/api/client", async (importOriginal) => ({
@@ -25,13 +51,17 @@ vi.mock("@/api/client", async (importOriginal) => ({
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useAuth")>()),
-  useAuth: () => ({ login: mocks.login, completeSecondFactor: mocks.completeSecondFactor }),
+  useAuth: () => ({
+    login: mocks.login,
+    completeSecondFactor: mocks.completeSecondFactor,
+    applyPasskeySignIn: mocks.applyPasskeySignIn,
+  }),
 }));
 
 vi.mock("@/hooks/useServer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useServer")>()),
   useServer: () => ({
-    isNativePlatform: false,
+    isNativePlatform: mocks.server.isNativePlatform,
     isServerConfigured: true,
     getServerHostname: () => "example.com",
     getServerOrigin: () => "https://example.com",
@@ -42,7 +72,17 @@ vi.mock("@/hooks/useServer", async (importOriginal) => ({
 
 vi.mock("@/hooks/useAppConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useAppConfig")>()),
-  useAppConfig: () => ({ passwordLoginEnabled: true }),
+  useAppConfig: () => mocks.config,
+}));
+
+// Every conversation with the browser's credential API goes through this one
+// module, so the whole ceremony is one mock.
+vi.mock("@/lib/passkeys", () => ({
+  browserOffersPasskeys: () => mocks.browserOffersPasskeys(),
+  browserOffersPasskeyAutofill: () => mocks.browserOffersPasskeyAutofill(),
+  signInWithPasskey: (options?: unknown) => mocks.signInWithPasskey(options),
+  cancelPendingPasskeyPrompt: () => mocks.cancelPendingPasskeyPrompt(),
+  describePasskeyPromptError: (error: unknown) => mocks.describePasskeyPromptError(error),
 }));
 
 import { SecondFactorRequiredError } from "@/hooks/useAuth";
@@ -53,10 +93,11 @@ const signIn = async (user: ReturnType<typeof userEvent.setup>) => {
   // The router resolves the route before anything renders.
   await user.type(await screen.findByLabelText(/email/i), "someone@example.com");
   await user.type(screen.getByLabelText(/password/i), "a-password");
-  await user.click(screen.getByRole("button", { name: /sign in/i }));
+  // Anchored: the passkey button beside it also starts with "Sign in with".
+  await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 };
 
-const renderLogin = (search?: Record<string, string>) =>
+const renderLogin = (search?: Record<string, unknown>) =>
   renderPage(LoginPage, { initialRoute: "/login", routerSearch: search });
 
 const corp = {
@@ -97,14 +138,54 @@ const offering = (providers: unknown[]) => {
   );
 };
 
+const passkeyButton = () => screen.findByRole("button", { name: /sign in with a passkey/i });
+
+/** The server's answer when the challenge a prompt was started on has since
+ *  lapsed — the browser's own prompt stands as long as the tab does. */
+const lapsedChallenge = (): AxiosError => {
+  const error = new AxiosError("request failed", "ERR_BAD_REQUEST");
+  error.response = {
+    status: 400,
+    statusText: "",
+    data: { detail: "PASSKEY_SIGN_IN_INVALID" },
+    headers: new AxiosHeaders(),
+    config: { headers: new AxiosHeaders() },
+  };
+  return error;
+};
+
+/** A prompt the person put down, or that timed out on its own. */
+const refusedPrompt = (): Error => {
+  const error = new Error("The operation either timed out or was not allowed.");
+  error.name = "NotAllowedError";
+  return error;
+};
+
+/** A prompt the page itself stood down — for the button's, or with the page. */
+const abortedPrompt = (): Error => {
+  const error = new Error("This operation was aborted.");
+  error.name = "AbortError";
+  return error;
+};
+
+const resetLoginMocks = () => {
+  mocks.login.mockReset();
+  mocks.completeSecondFactor.mockReset().mockResolvedValue(undefined);
+  mocks.applyPasskeySignIn.mockReset().mockResolvedValue(undefined);
+  mocks.signInWithPasskey.mockReset();
+  mocks.cancelPendingPasskeyPrompt.mockReset();
+  mocks.browserOffersPasskeys.mockReset().mockReturnValue(true);
+  mocks.browserOffersPasskeyAutofill.mockReset().mockResolvedValue(false);
+  mocks.config = { passwordLoginEnabled: true, passkeyLoginEnabled: true };
+  mocks.server = { isNativePlatform: false };
+  vi.mocked(Browser.open).mockClear();
+  // The bootstrap probe and the provider list both go through apiClient.get.
+  // has_users false would send the page to first-run registration instead.
+  mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+};
+
 describe("LoginPage second factor", () => {
-  beforeEach(() => {
-    mocks.login.mockReset();
-    mocks.completeSecondFactor.mockReset().mockResolvedValue(undefined);
-    // The bootstrap probe and the provider list both go through apiClient.get.
-    // has_users false would send the page to first-run registration instead.
-    mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
-  });
+  beforeEach(resetLoginMocks);
 
   it("asks for the code once the password is accepted", async () => {
     const user = userEvent.setup();
@@ -197,9 +278,8 @@ describe("LoginPage second factor", () => {
  */
 describe("LoginPage return path", () => {
   beforeEach(() => {
-    mocks.login.mockReset().mockResolvedValue(undefined);
-    mocks.completeSecondFactor.mockReset();
-    mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
+    resetLoginMocks();
+    mocks.login.mockResolvedValue(undefined);
   });
 
   it("finishes the trip they were on", async () => {
@@ -251,5 +331,216 @@ describe("LoginPage return path", () => {
     } finally {
       departure.restore();
     }
+  });
+});
+
+describe("LoginPage passkey", () => {
+  let consoleDebug: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    resetLoginMocks();
+    // The quiet prompt's refusals go here rather than to the card.
+    consoleDebug = vi.spyOn(console, "debug").mockImplementation(() => {});
+  });
+
+  afterEach(() => consoleDebug.mockRestore());
+
+  it("offers one where the deployment and the browser both do", async () => {
+    renderLogin();
+
+    expect(await passkeyButton()).toBeEnabled();
+  });
+
+  it("offers none where the deployment has withdrawn them", async () => {
+    mocks.config = { passwordLoginEnabled: true, passkeyLoginEnabled: false };
+    renderLogin();
+
+    await screen.findByLabelText(/email/i);
+    expect(screen.queryByRole("button", { name: /passkey/i })).not.toBeInTheDocument();
+  });
+
+  it("offers none where this browser cannot present one", async () => {
+    mocks.browserOffersPasskeys.mockReturnValue(false);
+    renderLogin();
+
+    await screen.findByLabelText(/email/i);
+    expect(screen.queryByRole("button", { name: /passkey/i })).not.toBeInTheDocument();
+  });
+
+  it("stands the waiting prompt down, signs in, and goes on", async () => {
+    const user = userEvent.setup();
+    const session = { access_token: "fresh-token", token_type: "bearer" };
+    mocks.signInWithPasskey.mockResolvedValue(session);
+    const { router } = renderLogin();
+
+    await user.click(await passkeyButton());
+
+    expect(mocks.cancelPendingPasskeyPrompt).toHaveBeenCalled();
+    expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: false });
+    await waitFor(() => expect(mocks.applyPasskeySignIn).toHaveBeenCalledWith(session));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
+  it("says so when the prompt produces nothing", async () => {
+    const user = userEvent.setup();
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    expect(await screen.findByText(/you cancelled/i)).toBeInTheDocument();
+    expect(mocks.applyPasskeySignIn).not.toHaveBeenCalled();
+  });
+
+  it("waits in the browser's autofill from the moment the page opens", async () => {
+    const session = { access_token: "fresh-token", token_type: "bearer" };
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockResolvedValue(session);
+    renderLogin();
+
+    await waitFor(() =>
+      expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
+    );
+    await waitFor(() => expect(mocks.applyPasskeySignIn).toHaveBeenCalledWith(session));
+  });
+
+  it("says nothing on the card when the quiet prompt ends without one", async () => {
+    // Nobody pressed anything to start it, so there is nothing to report.
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
+    renderLogin();
+
+    await waitFor(() =>
+      expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
+    );
+    await screen.findByLabelText(/email/i);
+    expect(screen.queryByText(/you cancelled/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/didn't work/i)).not.toBeInTheDocument();
+  });
+
+  it("writes nothing down for a quiet prompt it stood down itself", async () => {
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(abortedPrompt());
+    renderLogin();
+
+    await waitFor(() =>
+      expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(consoleDebug).not.toHaveBeenCalledWith(
+      expect.stringContaining("Passkey autofill"),
+      expect.anything()
+    );
+  });
+
+  it("waits in no autofill where there is no address field to wait in", async () => {
+    mocks.config = { passwordLoginEnabled: false, passkeyLoginEnabled: true };
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    renderLogin();
+
+    expect(await passkeyButton()).toBeEnabled();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+    expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("takes one fresh turn in autofill when the challenge it waited on has lapsed", async () => {
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(lapsedChallenge());
+    renderLogin();
+
+    await waitFor(() => expect(mocks.signInWithPasskey).toHaveBeenCalledTimes(2));
+    expect(mocks.signInWithPasskey).toHaveBeenNthCalledWith(2, { conditional: true });
+
+    // And the second refusal ends it: one fresh turn, not a page that keeps
+    // asking, and still nothing on the card.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(mocks.signInWithPasskey).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/didn't work/i)).not.toBeInTheDocument();
+  });
+
+  it("lets the browser offer a passkey beside the saved addresses", async () => {
+    renderLogin();
+
+    expect(await screen.findByLabelText(/email/i)).toHaveAttribute(
+      "autocomplete",
+      "username webauthn"
+    );
+  });
+
+  it("sends a phone to a browser rather than prompting in the app", async () => {
+    // A passkey belongs to the deployment's domain, and the browser is what
+    // decides which domain it is in.
+    const user = userEvent.setup();
+    mocks.server = { isNativePlatform: true };
+    renderLogin();
+
+    await user.click(await passkeyButton());
+
+    expect(Browser.open).toHaveBeenCalledWith({
+      url: "https://example.com/login?passkey=1&mobile=true&device_name=Test%20Device",
+    });
+    expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+});
+
+describe("LoginPage passkey relay", () => {
+  const relaySearch = { passkey: 1, mobile: true, device_name: "Pixel" };
+  const originalLocation = Object.getOwnPropertyDescriptor(window, "location");
+  let assign: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    resetLoginMocks();
+    assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { href: window.location.href, origin: window.location.origin, assign },
+    });
+  });
+
+  afterEach(() => {
+    if (originalLocation) Object.defineProperty(window, "location", originalLocation);
+  });
+
+  it("asks for one press and nothing else", async () => {
+    renderLogin(relaySearch);
+
+    expect(
+      await screen.findByRole("button", { name: /continue with a passkey/i })
+    ).toBeInTheDocument();
+    // Not the sign-in card: this browser was opened for one thing.
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+    // And nothing starts on its own — the prompt wants a press behind it.
+    expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
+  });
+
+  it("hands the app the way back", async () => {
+    const user = userEvent.setup();
+    mocks.signInWithPasskey.mockResolvedValue({
+      token_type: "bearer",
+      redirect_to: "initiative://oidc/callback?token=abc&token_type=device_token",
+    });
+    renderLogin(relaySearch);
+
+    await user.click(await screen.findByRole("button", { name: /continue with a passkey/i }));
+
+    expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ mobile: true, deviceName: "Pixel" });
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        "initiative://oidc/callback?token=abc&token_type=device_token"
+      )
+    );
+    expect(await screen.findByText(/go back to the app/i)).toBeInTheDocument();
+  });
+
+  it("keeps the button when the ceremony is refused", async () => {
+    const user = userEvent.setup();
+    mocks.signInWithPasskey.mockRejectedValue(refusedPrompt());
+    renderLogin(relaySearch);
+
+    await user.click(await screen.findByRole("button", { name: /continue with a passkey/i }));
+
+    expect(await screen.findByText(/you cancelled/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /continue with a passkey/i })).toBeEnabled();
+    expect(assign).not.toHaveBeenCalled();
   });
 });

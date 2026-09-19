@@ -5,23 +5,39 @@
  * choice and state what it costs — never decide it.
  */
 
+import { isAxiosError } from "axios";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { LoginMethod, LoginMethodStatus } from "@/api/generated/initiativeAPI.schemas";
+import type { LoginMethod } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { usePlatformAuthSettings, useUpdateLoginMethods } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 
-/** The methods a pending change would withdraw, and who that strands. */
-const withdrawalCost = (methods: LoginMethodStatus[], next: LoginMethod[]) =>
-  methods
-    .filter((m) => m.enabled && !next.includes(m.method))
-    .reduce((total, m) => total + m.would_strand, 0);
+/** The two refusals that come with a number to acknowledge. */
+const ACKNOWLEDGEABLE = new Set([
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND",
+  "SETTINGS_LOGIN_METHODS_STALE_ACK",
+]);
+
+/**
+ * How many accounts a refused write would leave without a way in, as the
+ * server counted them — null when it refused for some other reason.
+ *
+ * The figure comes back on the refusal itself, in `X-Affected-Count`. It is
+ * taken over the whole change rather than a method at a time, so an account
+ * holding two of the credentials being withdrawn is counted once.
+ */
+const strandedByServer = (error: unknown): number | null => {
+  if (!isAxiosError(error)) return null;
+  if (!ACKNOWLEDGEABLE.has(getErrorCode(error) ?? "")) return null;
+  const counted = Number(error.response?.headers?.["x-affected-count"]);
+  return Number.isInteger(counted) && counted > 0 ? counted : null;
+};
 
 /**
  * Whether the ways in are offered on this page at all.
@@ -38,11 +54,22 @@ const SHOW_LOGIN_METHODS: boolean = false;
 export const PlatformAuthSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
-  const [pendingMethods, setPendingMethods] = useState<LoginMethod[] | null>(null);
+  // The change the server has asked to have acknowledged, with its number.
+  const [pending, setPending] = useState<{ methods: LoginMethod[]; stranded: number } | null>(null);
 
   const updateMethods = useUpdateLoginMethods({
     onSuccess: () => toast.success(t("auth.methods.saved")),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:auth.methods.saveError")),
+    onError: (err, variables) => {
+      // A refusal that names a number is the server asking for it back, so it
+      // is the one the dialog shows and the one the next write sends.
+      const stranded = strandedByServer(err);
+      if (stranded !== null) {
+        setPending({ methods: variables.methods, stranded });
+        return;
+      }
+      setPending(null);
+      toast.error(getErrorMessage(err, "settings:auth.methods.saveError"));
+    },
   });
   if (query.isLoading || !query.data) return null;
 
@@ -53,24 +80,19 @@ export const PlatformAuthSection = () => {
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
 
+  /**
+   * Send the change. The first attempt acknowledges nothing: a change that
+   * would leave somebody without a way in comes back refused, carrying the
+   * count, and it is that count the confirmed write sends.
+   */
   const applyMethods = (next: LoginMethod[], acknowledge?: number) =>
     updateMethods.mutate({
       methods: next,
       ...(acknowledge === undefined ? {} : { acknowledge_stranded: acknowledge }),
     });
 
-  const toggleMethod = (method: LoginMethod, checked: boolean) => {
-    const next = checked ? [...enabled, method] : enabled.filter((m) => m !== method);
-    // Withdrawing something somebody signs in with is confirmed against the
-    // number it affects; adding one, and withdrawing one nobody uses, is not.
-    if (withdrawalCost(methods, next) > 0) {
-      setPendingMethods(next);
-      return;
-    }
-    applyMethods(next);
-  };
-
-  const pendingStrandCount = pendingMethods === null ? 0 : withdrawalCost(methods, pendingMethods);
+  const toggleMethod = (method: LoginMethod, checked: boolean) =>
+    applyMethods(checked ? [...enabled, method] : enabled.filter((m) => m !== method));
 
   return (
     <>
@@ -124,16 +146,15 @@ export const PlatformAuthSection = () => {
       </SettingsSection>
 
       <ConfirmDialog
-        open={pendingMethods !== null}
-        onOpenChange={(open) => !open && setPendingMethods(null)}
+        open={pending !== null}
+        onOpenChange={(open) => !open && setPending(null)}
         title={t("auth.methods.confirmTitle")}
-        description={t("auth.methods.confirmBody", { count: pendingStrandCount })}
+        description={t("auth.methods.confirmBody", { count: pending?.stranded ?? 0 })}
         confirmLabel={t("auth.methods.confirmAction")}
         destructive
         isLoading={updateMethods.isPending}
         onConfirm={() => {
-          if (pendingMethods) applyMethods(pendingMethods, pendingStrandCount);
-          setPendingMethods(null);
+          if (pending) applyMethods(pending.methods, pending.stranded);
         }}
       />
     </>

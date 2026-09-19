@@ -657,8 +657,13 @@ class TestMigrationsAgainstDatabase:
 
         One boolean cannot hold two options, and the flag stands for both. A
         guild earns it by holding ``providers``.
+
+        Staged at the revision under test rather than at the head, like the
+        case above: ``require_sign_in`` is a label 0313 took back out of the
+        type, so the fixture below can only be written while the database is
+        at a revision that still has it.
         """
-        _run_alembic("upgrade", "head")
+        _run_alembic("upgrade", "20260916_0285")
 
         # Fabricating rows these tables would not otherwise take, the same
         # lift-and-restore ``_SEED_SQL`` uses. Restored before the downgrade
@@ -1396,3 +1401,50 @@ class TestTwoSwitchesNotThreeTicks:
             "ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY;"
         )
         assert self._options(6) == []
+
+
+_PRE_PASSKEYS_OFFERED = "20260918_0314"
+_PASSKEYS_OFFERED = "20260918_0315"
+
+_PASSKEY_AND_FACTOR_SEED_SQL = """
+ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY;
+
+INSERT INTO public.app_settings (id, login_methods)
+VALUES (1, ARRAY['passkey', 'totp']::login_method[]);
+
+ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY;
+"""
+
+
+@pytest.mark.database
+@pytest.mark.slow
+class TestEveryDeploymentOffersPasskeys:
+    """Revision 0315 rolled back over a deployment that permits a passkey and
+    the second factor, and no password or sso."""
+
+    def _login_methods(self) -> list[str]:
+        """The row as stored. The table FORCEs row-level security, which binds
+        this connection too, so the read lifts it the way the seed does."""
+        _execute_sql("ALTER TABLE public.app_settings NO FORCE ROW LEVEL SECURITY")
+        try:
+            return list(
+                _fetchval(
+                    "SELECT login_methods::text[] FROM public.app_settings WHERE id = 1"
+                )
+            )
+        finally:
+            _execute_sql("ALTER TABLE public.app_settings FORCE ROW LEVEL SECURITY")
+
+    def test_the_downgrade_lands_a_passkey_only_deployment_on_the_default_set(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """Taking the value back leaves this row with the second factor alone,
+        which the narrower CHECK the downgrade puts back does not accept, so
+        the row lands on the set the downgraded version defaults to."""
+        _run_alembic("upgrade", _PASSKEYS_OFFERED)
+        _execute_sql(_PASSKEY_AND_FACTOR_SEED_SQL)
+
+        _run_alembic("downgrade", _PRE_PASSKEYS_OFFERED)
+        assert _current_alembic_revision() == _PRE_PASSKEYS_OFFERED
+
+        assert self._login_methods() == ["password", "sso", "totp"]

@@ -57,6 +57,10 @@ class ChallengePurpose(str, Enum):
     #: A passkey registration is under way. The value is the WebAuthn challenge
     #: itself, so the finish route reads it back out of the signed client data.
     passkey_register = "passkey_register"
+    #: A passkey sign-in is under way. Like the one above, the value is the
+    #: WebAuthn challenge; unlike it, the row names no account — the assertion
+    #: that answers is what says whose credential it is.
+    passkey_sign_in = "passkey_sign_in"
 
 
 @dataclass(frozen=True)
@@ -82,16 +86,20 @@ def _hash(value: str) -> bytes:
 async def create(
     session: AsyncSession,
     *,
-    user_id: int,
+    user_id: int | None,
     purpose: ChallengePurpose,
     value: str | None = None,
 ) -> IssuedChallenge:
-    """Open a challenge for one account. The caller commits.
+    """Open a challenge, for one account or for none. The caller commits.
 
     ``value`` lets a caller that already holds the value name it — a WebAuthn
     ceremony mints its own challenge and the browser signs it, so the row
-    stands for that value rather than for a second one. Without it the value is
+    stands for that value rather than for a second one. Given no value, one is
     minted here. Either way only the digest is kept.
+
+    ``user_id`` is ``None`` for a ceremony that starts before anybody is named:
+    a passkey sign-in offers what the authenticator holds for this domain, and
+    the account arrives with the assertion.
     """
     value = value or secrets.token_urlsafe(_CHALLENGE_BYTES)
     challenge = AuthChallenge(

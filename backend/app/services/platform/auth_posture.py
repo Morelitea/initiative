@@ -99,17 +99,26 @@ async def guilds_requiring_method(session: AsyncSession, method: LoginMethod) ->
     ).one()
 
 
-async def stranded_by_withdrawing(session: AsyncSession, method: LoginMethod) -> int:
-    """How many accounts could sign in today and could not without ``method``."""
-    if method is LoginMethod.password:
-        return await identity_service.password_only_user_count(session)
-    if method is LoginMethod.sso:
-        return await identity_service.federated_only_user_count(session)
-    # A second factor is nobody's only way in — it cannot open a session by
-    # itself, so withdrawing it leaves every account able to sign in exactly as
-    # it did. What it does do is stop the factor being asked for, which the
-    # surface says plainly rather than counting here.
-    return 0
+async def stranded_between(
+    session: AsyncSession,
+    *,
+    current: frozenset[LoginMethod],
+    requested: frozenset[LoginMethod],
+) -> int:
+    """How many accounts can sign in under ``current`` and could not under
+    ``requested``.
+
+    Both sets in one question, so an account holding two credentials is
+    counted for the pair of methods going together as well as for either alone.
+
+    ``totp`` never moves this figure: a second factor accompanies a sign-in
+    rather than beginning one, so withdrawing it leaves every account able to
+    sign in exactly as it did. What it does do is stop the factor being asked
+    for, which the surface says plainly.
+    """
+    return await identity_service.stranded_between(
+        session, current=current, requested=requested
+    )
 
 
 async def set_login_methods(
@@ -126,13 +135,14 @@ async def set_login_methods(
     Two refusals, both 409. Withdrawing single sign-on while a guild requires
     one names the guilds instead: a requirement is enforced from its policy row
     and stands on its own, so it is lifted first and the withdrawal then goes
-    through. And withdrawing a method that is somebody's only way in is
-    refused with the count — unless the caller acknowledges exactly that
-    number, which is how an SSO-only deployment is reachable at all: some
-    account almost always still holds a password, and a permanent refusal would
-    make the posture unbuildable rather than safe. The acknowledged figure must
-    match what the server computes now, so it cannot be sent blind or replayed
-    after the number has moved.
+    through. And a write that leaves somebody with no way in is refused with
+    the count — unless the caller acknowledges exactly that number, which is how
+    an SSO-only deployment is reachable at all: some account almost always still
+    holds a password, and a permanent refusal would make the posture unbuildable
+    rather than safe. The figure is taken over the whole write rather than one
+    method at a time, so an account holding two of the credentials being
+    withdrawn is counted. The acknowledged number must match what the server
+    computes now, so it cannot be sent blind or sent again once it has moved.
 
     Withdrawing a method signs nobody out. Sessions already open live to their
     own expiry, and device tokens and API keys are untouched — they are
@@ -178,9 +188,9 @@ async def set_login_methods(
                 headers={"X-Affected-Count": str(requiring)},
             )
 
-    total_stranded = 0
-    for method in sorted(withdrawn, key=lambda m: m.value):
-        total_stranded += await stranded_by_withdrawing(session, method)
+    total_stranded = await stranded_between(
+        session, current=current, requested=requested
+    )
 
     if total_stranded:
         if acknowledge_stranded is None:

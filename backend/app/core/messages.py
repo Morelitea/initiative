@@ -78,6 +78,11 @@ class AuthMessages:
     #: Passkeys need a named host and https; this deployment's address has
     #: neither.
     PASSKEY_SITE_UNSUPPORTED = "PASSKEY_SITE_UNSUPPORTED"
+    #: The assertion did not verify, named a credential nobody registered, or
+    #: its challenge is not standing. One code for all of those.
+    PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
+    #: The deployment does not offer passkeys.
+    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"

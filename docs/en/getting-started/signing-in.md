@@ -20,6 +20,10 @@ You land on your home screen. Initiative keeps you signed in on that device, so 
 
 If your work or school set this up, there's a button saying something like **Continue with Single Sign-On**. Click it, log in the way you already do everywhere else, done. No extra Initiative password to forget.
 
+## Passkeys
+
+If you've [added a passkey](../account/passkeys.md), press **Sign in with a passkey** — or click into the email box, where most browsers offer it above the addresses they remember. Unlock it the way you unlock the device, and you're in. Nothing typed.
+
 ## Forgotten your password?
 
 Happens to everybody. Roughly monthly. There is no shame here.
@@ -39,7 +43,7 @@ The app needs one extra step the first time, because it has to be told *which* I
 
 1. Open the app. You'll get a **Connect to Server** screen.
 2. Type in your group's Initiative address — the same one you use in a browser.
-3. Sign in with your email and password, or single sign-on.
+3. Sign in with your email and password, single sign-on, or a passkey — that last one opens your browser for a moment and hands you back.
 
 After that it remembers, and stays signed in.
 

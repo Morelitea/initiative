@@ -77,5 +77,10 @@ export const useAppConfig = () => {
      *  listing is already empty when it does not, so this is for copy that has
      *  to explain the absence rather than for hiding buttons. */
     ssoLoginEnabled: query.data?.login_methods?.includes("sso") ?? true,
+    /** Whether this deployment permits signing in with a passkey. False until
+     *  the config loads, and the other way round from the password form: a
+     *  button that turns up a moment late reads better than one that was there
+     *  and then vanished, and the browser has its own say besides. */
+    passkeyLoginEnabled: query.data?.login_methods?.includes("passkey") ?? false,
   };
 };

@@ -17,7 +17,7 @@ import {
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PasskeySignInResult, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -100,6 +100,7 @@ interface AuthContextValue {
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
+  applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
@@ -520,6 +521,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /**
+   * Adopt the session a passkey ceremony produced.
+   *
+   * The end of `completeSecondFactor`, for a sign-in that had no password leg:
+   * the server has already set the browser's refresh cookie and handed back the
+   * access token, so what is left is to stop holding anything older and read
+   * the account the token belongs to. Only a browser lands here — an app's
+   * ceremony runs in the system browser and comes back as a device token
+   * through the callback page.
+   */
+  const applyPasskeySignIn = useCallback(
+    async (result: PasskeySignInResult) => {
+      const accessToken = result.access_token;
+      if (!accessToken) {
+        throw new Error(t("login.passkeyFailed"));
+      }
+      removeItem(TOKEN_STORAGE_KEY);
+      removeItem(DEVICE_TOKEN_KEY);
+      clearRefreshToken();
+      setAuthToken(accessToken, false);
+      setTokenState(accessToken);
+      setIsDeviceToken(false);
+      await refreshUser();
+      markJustSignedIn();
+    },
+    [refreshUser, t]
+  );
+
+  /**
    * Add the account's second factor to the session already signed in.
    *
    * What `completeSecondFactor` does at the end of a sign-in, this does in the
@@ -678,6 +707,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     sessionUnverified,
     login,
     completeSecondFactor,
+    applyPasskeySignIn,
     stepUpWithFactor,
     register,
     completeOidcLogin,

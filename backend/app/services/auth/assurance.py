@@ -38,6 +38,12 @@ PROVIDER_AMR_PREFIX = "oidc:"
 #: tell a live authenticator from the set kept for losing it.
 SECOND_FACTOR_AMR = "mfa"
 
+#: What a session records for the kind of passkey that answered. RFC 8176
+#: registers both: ``hwk`` for a key held by hardware — a security key, a TPM,
+#: a Secure Enclave — and ``swk`` for one a password manager syncs between the
+#: person's devices. Which it is comes off the credential's own backed-up flag.
+PASSKEY_AMR_VALUES: tuple[str, ...] = ("hwk", "swk")
+
 #: Marks a session as having completed one community's own single sign-on.
 #: Written when the provider is that community's rather than the deployment's,
 #: so a rule reading "any of ours" can be answered from the session alone.
@@ -126,6 +132,22 @@ def read_assurance(claims: Mapping[str, Any]) -> ProviderAssurance:
         amr=_read_amr(claims.get("amr")),
         acr=_read_acr(claims.get("acr")),
     )
+
+
+def passkey_amr(*, backed_up: bool) -> list[str]:
+    """The ``amr`` a passkey sign-in contributes.
+
+    Two values. Which kind of key answered, and :data:`SECOND_FACTOR_AMR`:
+    every ceremony here requires user verification, so an assertion proves both
+    something the person has and something they are — which is what RFC 8176
+    means by a multi-factor cryptographic authenticator.
+    """
+    return ["swk" if backed_up else "hwk", SECOND_FACTOR_AMR]
+
+
+def carries_passkey(amr: Iterable[str]) -> bool:
+    """Whether this session was opened, or stepped up, with a passkey."""
+    return any(value in PASSKEY_AMR_VALUES for value in amr)
 
 
 def session_amr(

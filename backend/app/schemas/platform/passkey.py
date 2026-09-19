@@ -44,6 +44,10 @@ class PasskeyList(SanitizedBaseModel):
     limit: int
     #: Whether this deployment's address can carry a passkey at all.
     site_supported: bool = True
+    #: Whether this deployment offers passkeys at all. Withdrawn, the ones an
+    #: account holds are left alone and simply stop being a way in, so the
+    #: surface stops offering to add one rather than pretending they are gone.
+    offered: bool = True
 
 
 class PasskeyRegisterStart(SanitizedBaseModel):
@@ -78,3 +82,37 @@ class PasskeyRemove(SanitizedBaseModel):
     """Removing a way in asks for the password, where there is one."""
 
     current_password: Optional[str] = None
+
+
+class PasskeySignInStart(SanitizedBaseModel):
+    """Beginning a sign-in. No account is named: the authenticator offers what
+    it holds for this domain, and the assertion names the credential."""
+
+
+class PasskeyAuthenticationOptions(SanitizedBaseModel):
+    """What the browser's credential API is handed, as the library renders it."""
+
+    #: ``PublicKeyCredentialRequestOptionsJSON`` — passed to the browser as is.
+    options: dict[str, Any]
+
+
+class PasskeySignInFinish(SanitizedBaseModel):
+    """The browser's answer."""
+
+    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
+    credential: dict[str, Any]
+    #: As on begin. The device name is what the app's device list shows.
+    mobile: bool = False
+    device_name: str = Field(default="", max_length=255)
+
+
+class PasskeySignInResult(SanitizedBaseModel):
+    """A session for a browser, or a way back to the app for a phone."""
+
+    #: The session's access token, for a browser sign-in. The refresh token is
+    #: set as a cookie the page never reads.
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    #: For a mobile sign-in: the app's own callback address carrying the
+    #: device token, which the relay page navigates to.
+    redirect_to: Optional[str] = None

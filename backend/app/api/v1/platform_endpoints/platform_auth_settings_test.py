@@ -26,6 +26,27 @@ async def _owner(session: AsyncSession):
     return owner, get_auth_headers(owner)
 
 
+async def _store_passkey(session: AsyncSession, user, *, credential_id: bytes) -> None:
+    """Give the account a registered credential — a way in of its own."""
+    from app.services.auth import passkeys as passkey_service
+
+    await passkey_service.store(
+        session,
+        user_id=user.id,
+        registered=passkey_service.RegisteredCredential(
+            credential_id=credential_id,
+            public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid=None,
+            user_verified=True,
+            backed_up=False,
+            transports=["internal"],
+        ),
+        name="Key",
+    )
+    await session.commit()
+
+
 async def test_read_reports_every_method_and_its_cost(
     client: AsyncClient, session: AsyncSession
 ):
@@ -39,6 +60,7 @@ async def test_read_reports_every_method_and_its_cost(
         "password",
         "sso",
         "totp",
+        "passkey",
     }
     assert all(m["enabled"] for m in got.json()["methods"])
     assert got.json()["guilds_requiring_sign_in"] == 0
@@ -339,3 +361,95 @@ async def test_withdrawing_the_authenticator_strands_nobody(
         "password",
         "sso",
     }
+
+
+async def test_withdrawing_passkeys_reports_who_it_strands(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account holding a credential and nothing else is one the method is
+    holding up, so it is reported with the count like the others."""
+    _, headers = await _owner(session)
+    holder = await create_user(session, hashed_password=None)
+    await _store_passkey(session, holder, credential_id=b"stranded-credential")
+
+    keep_the_rest = {"methods": ["password", "sso", "totp"]}
+    refused = await client.put(METHODS_URL, headers=headers, json=keep_the_rest)
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    assert refused.headers["X-Affected-Count"] == "1"
+
+    accepted = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={**keep_the_rest, "acknowledge_stranded": 1},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert {m["method"] for m in accepted.json()["methods"] if m["enabled"]} == {
+        "password",
+        "sso",
+        "totp",
+    }
+
+
+async def test_passkeys_alone_can_begin_a_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment may offer them and nothing else: a passkey opens a session
+    by itself, which is what the rule asks for."""
+    _, headers = await _owner(session)
+
+    # The owner holds a password, so the withdrawal is acknowledged first.
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["passkey"]}
+    )
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={
+            "methods": ["passkey"],
+            "acknowledge_stranded": int(refused.headers["X-Affected-Count"]),
+        },
+    )
+    assert put.status_code == 200, put.text
+    assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"passkey"}
+
+
+async def test_withdrawing_two_ways_in_at_once_counts_them_together(
+    client: AsyncClient, session: AsyncSession
+):
+    """An account holding a password and a credential is stranded by the two
+    going together and by neither alone, so the figure it is refused with is
+    taken over the whole write rather than one method at a time."""
+    _, headers = await _owner(session)
+    holder = await create_user(session)
+    await _store_passkey(session, holder, credential_id=b"two-ways-in")
+
+    read = await client.get(READ_URL, headers=headers)
+    per_method = {m["method"]: m["would_strand"] for m in read.json()["methods"]}
+    # Either one alone leaves them the other.
+    assert per_method["passkey"] == 0
+
+    refused = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    counted = int(refused.headers["X-Affected-Count"])
+    assert counted == per_method["password"] + 1
+
+    stale = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["sso"], "acknowledge_stranded": per_method["password"]},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "SETTINGS_LOGIN_METHODS_STALE_ACK"
+
+    accepted = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["sso"], "acknowledge_stranded": counted},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert {m["method"] for m in accepted.json()["methods"] if m["enabled"]} == {"sso"}

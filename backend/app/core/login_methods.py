@@ -26,10 +26,14 @@ class LoginMethod(str, Enum):
     #: above it cannot open a session by itself — it accompanies one that has
     #: already been proved, which is why :data:`PRIMARY_LOGIN_METHODS` exists.
     totp = "totp"
+    #: A WebAuthn credential held by a device or a password manager, answering
+    #: a prompt instead of a typed password. Opens a session by itself, and is
+    #: bound to this deployment's own domain.
+    passkey = "passkey"
 
 
-#: Mirrors the Postgres enum type created in migration 0284. A value added to
-#: one has to be added to the other.
+#: Mirrors the Postgres enum type created in migration 0284, extended in 0291
+#: and 0314. A value added to one has to be added to the other.
 LOGIN_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in LoginMethod)
 
 #: The methods that can start a session on their own.
@@ -41,6 +45,7 @@ LOGIN_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in LoginMethod)
 PRIMARY_LOGIN_METHODS: tuple[LoginMethod, ...] = (
     LoginMethod.password,
     LoginMethod.sso,
+    LoginMethod.passkey,
 )
 
 #: What a deployment that has never chosen permits: everything it could.
@@ -49,4 +54,5 @@ DEFAULT_LOGIN_METHODS: tuple[LoginMethod, ...] = (
     LoginMethod.password,
     LoginMethod.sso,
     LoginMethod.totp,
+    LoginMethod.passkey,
 )

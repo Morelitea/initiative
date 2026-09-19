@@ -264,7 +264,9 @@ async def test_a_credential_nobody_registered_does_not_answer(session, monkeypat
         credential={"rawId": "bm90LWEtY3JlZGVudGlhbA"},
         expected_challenge=b"challenge",
     )
-    assert result is None
+    assert result.reason == "unknown"
+    # Nothing to name an account with.
+    assert result.passkey is None
 
 
 @pytest.mark.integration
@@ -286,7 +288,10 @@ async def test_a_credential_from_another_domain_does_not_answer(session, monkeyp
     result = await passkeys.finish_authentication(
         session, credential={"rawId": raw_id}, expected_challenge=b"challenge"
     )
-    assert result is None
+    assert result.reason == "wrong_rp"
+    # The row is handed back, so the caller can write the refusal down against
+    # the account whose credential it is.
+    assert result.passkey.user_id == user.id
 
 
 @pytest.mark.integration
@@ -321,9 +326,10 @@ async def test_the_counter_row_stays_locked_until_the_update_commits(
     credential = {"rawId": "Y3JlZGVudGlhbC1vbmU"}
 
     async with maker() as first, maker() as second:
-        assert await passkeys.finish_authentication(
+        answered = await passkeys.finish_authentication(
             first, credential=credential, expected_challenge=b"challenge"
         )
+        assert isinstance(answered, passkeys.Assertion)
         waiting = asyncio.create_task(
             passkeys.finish_authentication(
                 second, credential=credential, expected_challenge=b"challenge"
@@ -333,7 +339,8 @@ async def test_the_counter_row_stays_locked_until_the_update_commits(
         assert not waiting.done()
 
         await first.commit()
-        assert await asyncio.wait_for(waiting, timeout=1)
+        answered_again = await asyncio.wait_for(waiting, timeout=1)
+        assert isinstance(answered_again, passkeys.Assertion)
         await second.commit()
 
     assert seen_counts == [10, 11]
@@ -345,12 +352,37 @@ async def test_a_malformed_credential_id_does_not_raise(session, monkeypatch):
 
     monkeypatch.setattr(settings, "APP_URL", "https://bad.example.org")
 
-    assert (
-        await passkeys.finish_authentication(
-            session, credential={}, expected_challenge=b"challenge"
-        )
-        is None
+    result = await passkeys.finish_authentication(
+        session, credential={}, expected_challenge=b"challenge"
     )
+    assert result.reason == "unknown"
+    assert result.passkey is None
+
+
+@pytest.mark.integration
+async def test_an_assertion_that_does_not_verify_names_its_credential(
+    session, monkeypatch
+):
+    """The refusal the caller writes down is about an account, even though
+    what it answers the client with says nothing about one."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://unverified.example.org")
+    user = await create_user(session, email="pk-unverified@example.com")
+    await passkeys.store(session, user_id=user.id, registered=_registered(), name="Key")
+
+    def refuse(**kwargs):
+        raise ValueError("signature")
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", refuse)
+
+    result = await passkeys.finish_authentication(
+        session,
+        credential={"rawId": "Y3JlZGVudGlhbC1vbmU"},
+        expected_challenge=b"challenge",
+    )
+    assert result.reason == "invalid"
+    assert result.passkey.user_id == user.id
 
 
 # ---------------------------------------------------------------------------
@@ -385,3 +417,80 @@ async def test_a_passkey_belongs_to_one_account(session, monkeypatch):
 
     kept = await session.get(UserPasskey, row.id)
     assert kept is not None and kept.name == "Renamed"
+
+
+# ---------------------------------------------------------------------------
+# User verification
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_both_ceremonies_ask_for_the_person(session, monkeypatch):
+    """A PIN, a fingerprint or a face, not merely the device — at registration
+    and at every sign-in, so an assertion stands for both."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv.example.org")
+    user = await create_user(session, email="pk-uv-options@example.com")
+
+    registration = await passkeys.begin_registration(
+        session, user_id=user.id, account_name="a@example.com", display_name="A"
+    )
+    assert (
+        registration.options["authenticatorSelection"]["userVerification"] == "required"
+    )
+
+    authentication = await passkeys.begin_authentication(session)
+    assert authentication.options["userVerification"] == "required"
+
+
+def test_the_registration_check_insists_on_it(monkeypatch):
+    """Asking is one half; the finished ceremony is checked against what was
+    asked for."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv-reg.example.org")
+    seen: dict = {}
+
+    def verify(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            credential_id=b"credential-one",
+            credential_public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid=None,
+            user_verified=True,
+            credential_backed_up=False,
+        )
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_registration_response", verify)
+    passkeys.finish_registration(
+        credential={"response": {"transports": []}}, expected_challenge=b"challenge"
+    )
+    assert seen["require_user_verification"] is True
+
+
+@pytest.mark.integration
+async def test_the_assertion_check_insists_on_it(session, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "https://uv-auth.example.org")
+    user = await create_user(session, email="pk-uv-assert@example.com")
+    await passkeys.store(session, user_id=user.id, registered=_registered(), name="Key")
+
+    seen: dict = {}
+
+    def verify(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            new_sign_count=1, credential_backed_up=False, user_verified=True
+        )
+
+    monkeypatch.setattr(passkeys.webauthn, "verify_authentication_response", verify)
+    result = await passkeys.finish_authentication(
+        session,
+        credential={"rawId": "Y3JlZGVudGlhbC1vbmU"},
+        expected_challenge=b"challenge",
+    )
+    assert isinstance(result, passkeys.Assertion)
+    assert seen["require_user_verification"] is True

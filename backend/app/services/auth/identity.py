@@ -30,18 +30,20 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
+from sqlalchemy import false, or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import encrypt_token
+from app.core.login_methods import LoginMethod
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
 from app.services.auth.platform_provider import can_serve_login_clause
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
@@ -215,12 +217,19 @@ async def has_federated_identity(session: AsyncSession, *, user_id: int) -> bool
     return row is not None
 
 
-async def sole_credential_user_count(session: AsyncSession, *, provider_id: int) -> int:
+async def sole_credential_user_count(
+    session: AsyncSession, *, provider_id: int, permitted: frozenset[LoginMethod]
+) -> int:
     """How many accounts hold this provider as their only credential.
 
-    An account counts when it has no usable password and every identity link it
-    holds belongs to this provider — the provider's links cascade with it, so
-    this account's last credential goes too.
+    An account counts when every identity link it holds belongs to this
+    provider — the provider's links cascade with it, so this account's last
+    credential goes too — and nothing else ``permitted`` names opens a session
+    for them.
+
+    ``permitted`` is what the deployment offers today: a credential is a way in
+    only while its method is in that set, so a password counts where passwords
+    are offered and a registered passkey where passkeys are.
 
     "No usable password" is read from the stored hash rather than from NULL
     alone: an account can carry a value no scheme verifies (the ``'!'`` marker
@@ -233,6 +242,10 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
     login — a disabled or half-configured row is not a way in, and neither is
     the platform row without its client secret.
     """
+    if LoginMethod.sso not in permitted:
+        # An identity link opens no session where single sign-on is not
+        # offered, so no account's way in rides on this provider.
+        return 0
     holds_this = select(FederatedIdentity.id).where(
         FederatedIdentity.user_id == User.id,
         FederatedIdentity.provider_id == provider_id,
@@ -246,16 +259,13 @@ async def sole_credential_user_count(session: AsyncSession, *, provider_id: int)
             can_serve_login_clause(),
         )
     )
+    conditions = [holds_this.exists(), ~holds_another.exists()]
+    if LoginMethod.password in permitted:
+        conditions.append(_no_usable_password_clause())
+    if LoginMethod.passkey in permitted:
+        conditions.append(~_holds_a_passkey_clause())
     return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(
-                _no_usable_password_clause(),
-                holds_this.exists(),
-                ~holds_another.exists(),
-            )
-        )
+        await session.exec(select(func.count()).select_from(User).where(*conditions))
     ).one()
 
 
@@ -280,60 +290,116 @@ def _no_usable_password_clause():
     )
 
 
-async def password_only_user_count(session: AsyncSession) -> int:
-    """How many accounts can sign in today only with a password.
+def _holds_a_passkey_clause():
+    """Accounts holding at least one registered WebAuthn credential.
 
-    What withdrawing the password method would strand: an account with a usable
-    password and no identity link any provider could answer for.
+    A passkey opens a session by itself, so an account holding one has a way in
+    that neither a password nor an identity provider accounts for.
     """
-    holds_any_identity = (
+    return select(UserPasskey.id).where(UserPasskey.user_id == User.id).exists()
+
+
+def _holds_login_ready_identity_clause():
+    """Accounts holding an identity link some provider could answer a login for.
+
+    A disabled or half-configured row is not a way in, and neither is the
+    platform row without its client secret.
+    """
+    return (
         select(FederatedIdentity.id)
         .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
         .where(
             FederatedIdentity.user_id == User.id,
             can_serve_login_clause(),
         )
+        .exists()
     )
+
+
+def _can_sign_in_clause(permitted: frozenset[LoginMethod]):
+    """Accounts that can begin a session while ``permitted`` is what is offered.
+
+    A credential is a way in only while its method is in the set: a password
+    where passwords are offered, an identity link where single sign-on is, a
+    registered passkey where passkeys are. A second factor accompanies a
+    sign-in rather than beginning one, so it is none of these.
+    """
+    ways_in = []
+    if LoginMethod.password in permitted:
+        ways_in.append(~_no_usable_password_clause())
+    if LoginMethod.sso in permitted:
+        ways_in.append(_holds_login_ready_identity_clause())
+    if LoginMethod.passkey in permitted:
+        ways_in.append(_holds_a_passkey_clause())
+    if not ways_in:
+        return false()
+    return or_(*ways_in)
+
+
+async def stranded_between(
+    session: AsyncSession,
+    *,
+    current: frozenset[LoginMethod],
+    requested: frozenset[LoginMethod],
+) -> int:
+    """How many accounts can begin a session under ``current`` and not under
+    ``requested``.
+
+    One query over both sets rather than one per method, so an account holding
+    two credentials whose methods go together is counted for the pair — which
+    asking about each method on its own cannot do, since each of the two is a
+    way in while the other is still offered.
+    """
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
             .where(
-                ~_no_usable_password_clause(),
-                ~holds_any_identity.exists(),
+                _can_sign_in_clause(current),
+                ~_can_sign_in_clause(requested),
             )
         )
     ).one()
 
 
-async def federated_only_user_count(session: AsyncSession) -> int:
-    """How many accounts can sign in today only through an identity provider.
+async def password_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only with a password.
 
-    What withdrawing the SSO method would strand: no usable password, and a
-    login-ready identity that is currently their way in.
+    What withdrawing the password would leave stranded on a deployment
+    offering ``permitted`` today. Nobody, where the password is not among them.
+    """
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.password}
+    )
+
+
+async def federated_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only through an identity provider.
 
     Every provider counts. Withdrawing the method closes all of them at once,
     so an account whose only way in is any one of them is one this has to
     report.
     """
-    holds_any_identity = (
-        select(FederatedIdentity.id)
-        .join(AuthProvider, AuthProvider.id == FederatedIdentity.provider_id)
-        .where(
-            FederatedIdentity.user_id == User.id,
-            can_serve_login_clause(),
-        )
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.sso}
     )
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(
-                _no_usable_password_clause(),
-                holds_any_identity.exists(),
-            )
-        )
-    ).one()
+
+
+async def passkey_only_user_count(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> int:
+    """How many accounts can begin a session only with a passkey.
+
+    Nobody, on a deployment that does not offer them — the method is not a way
+    in there, so withdrawing it takes nothing away.
+    """
+    return await stranded_between(
+        session, current=permitted, requested=permitted - {LoginMethod.passkey}
+    )
 
 
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:

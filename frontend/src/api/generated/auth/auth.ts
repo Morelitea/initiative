@@ -30,6 +30,7 @@ import type {
   DeviceTokenResponse,
   HTTPValidationError,
   LoginProvidersResponse,
+  PasskeyAuthenticationOptions,
   PasskeyList,
   PasskeyRead,
   PasskeyRegisterFinish,
@@ -37,6 +38,9 @@ import type {
   PasskeyRegistrationOptions,
   PasskeyRemove,
   PasskeyRename,
+  PasskeySignInFinish,
+  PasskeySignInResult,
+  PasskeySignInStart,
   PasswordResetRequest,
   PasswordResetSubmit,
   ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
@@ -3508,6 +3512,199 @@ export const useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost = <
 > => {
   return useMutation(
     getRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Options for signing in with a passkey. Nobody is named yet: the
+ * authenticator offers what it holds for this site, and the assertion that
+ * comes back says which credential answered.
+ * @summary Begin Passkey Sign In
+ */
+export const beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost = (
+  passkeySignInStart: BodyType<PasskeySignInStart>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PasskeyAuthenticationOptions>(
+    {
+      url: `/api/v1/auth/passkeys/authenticate/begin`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passkeySignInStart,
+      signal,
+    },
+    options
+  );
+};
+
+export const getBeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>,
+    TError,
+    { data: BodyType<PasskeySignInStart> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>,
+  TError,
+  { data: BodyType<PasskeySignInStart> },
+  TContext
+> => {
+  const mutationKey = ["beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>,
+    { data: BodyType<PasskeySignInStart> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>
+>;
+export type BeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPostMutationBody =
+  BodyType<PasskeySignInStart>;
+export type BeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Begin Passkey Sign In
+ */
+export const useBeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>,
+      TError,
+      { data: BodyType<PasskeySignInStart> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof beginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPost>>,
+  TError,
+  { data: BodyType<PasskeySignInStart> },
+  TContext
+> => {
+  return useMutation(
+    getBeginPasskeySignInApiV1AuthPasskeysAuthenticateBeginPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Open the session a passkey earned — or, for a phone signing in through
+ * its browser, hand back the address the app is waiting at.
+ *
+ * Every ceremony verifies the person as well as the device, so an assertion
+ * is a multi-factor authentication on its own and no code is asked for after
+ * it. What answered is recorded in the session's ``amr``.
+ * @summary Finish Passkey Sign In
+ */
+export const finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost = (
+  passkeySignInFinish: BodyType<PasskeySignInFinish>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PasskeySignInResult>(
+    {
+      url: `/api/v1/auth/passkeys/authenticate/finish`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passkeySignInFinish,
+      signal,
+    },
+    options
+  );
+};
+
+export const getFinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>,
+    TError,
+    { data: BodyType<PasskeySignInFinish> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>,
+  TError,
+  { data: BodyType<PasskeySignInFinish> },
+  TContext
+> => {
+  const mutationKey = ["finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>,
+    { data: BodyType<PasskeySignInFinish> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>
+>;
+export type FinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationBody =
+  BodyType<PasskeySignInFinish>;
+export type FinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Finish Passkey Sign In
+ */
+export const useFinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>,
+      TError,
+      { data: BodyType<PasskeySignInFinish> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof finishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPost>>,
+  TError,
+  { data: BodyType<PasskeySignInFinish> },
+  TContext
+> => {
+  return useMutation(
+    getFinishPasskeySignInApiV1AuthPasskeysAuthenticateFinishPostMutationOptions(options),
     queryClient
   );
 };

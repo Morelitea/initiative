@@ -4,9 +4,13 @@ The ceremony is the library's; what lives here is everything around it — which
 relying party this deployment is, what a credential row holds, and the rules
 about when one may be made or used.
 
-Two things are deliberately *not* here. Nothing in this module opens a session:
-it reports what a ceremony proved and the caller decides what that is worth.
-And no route calls it yet — enrolment is the change after this one.
+One thing is deliberately *not* here: nothing in this module opens a session.
+It reports what a ceremony proved and the caller decides what that is worth.
+
+Every ceremony requires user verification, registration and sign-in alike, so
+a credential this deployment holds proves the person as well as the device.
+``user_verified`` stays on the row because it records what the ceremony
+reported rather than what was asked for.
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ import ipaddress
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import webauthn
@@ -193,10 +197,12 @@ async def begin_registration(
             # from a typed address — which is the whole shape of the sign-in
             # this is for.
             resident_key=ResidentKeyRequirement.PREFERRED,
-            # Asked for, not insisted on: a key that only proves the device is
-            # still a way in, and the row records which kind it was so a rule
-            # can tell them apart later.
-            user_verification=UserVerificationRequirement.PREFERRED,
+            # Required: a credential registered here proves the person — a
+            # PIN, a fingerprint, a face — as well as the device, which is
+            # what makes signing in with one a multi-factor authentication and
+            # why no code is asked for afterwards. The row still records what
+            # the ceremony reported.
+            user_verification=UserVerificationRequirement.REQUIRED,
         ),
         exclude_credentials=[
             PublicKeyCredentialDescriptor(id=row.credential_id) for row in existing
@@ -216,6 +222,7 @@ def finish_registration(
         expected_challenge=expected_challenge,
         expected_rp_id=relying_party_id(),
         expected_origin=expected_origin(),
+        require_user_verification=True,
     )
     response = credential.get("response")
     return RegisteredCredential(
@@ -308,7 +315,9 @@ async def begin_authentication(
         rp_id=relying_party_id(),
         timeout=CEREMONY_TIMEOUT_MS,
         allow_credentials=allow or None,
-        user_verification=UserVerificationRequirement.PREFERRED,
+        # Required, as at registration: the assertion proves the person as
+        # well as the device, so the session it opens is a multi-factor one.
+        user_verification=UserVerificationRequirement.REQUIRED,
     )
     return Ceremony(
         options=_options_to_dict(options), challenge=bytes(options.challenge)
@@ -333,34 +342,51 @@ class Assertion:
     user_verified: bool
 
 
+@dataclass(frozen=True)
+class AssertionRefusal:
+    """Why an assertion proved nothing, and the credential it named.
+
+    ``unknown`` is a credential id this deployment holds no row for,
+    ``wrong_rp`` one registered while it answered to another domain, and
+    ``invalid`` one whose signature did not check out. ``passkey`` is the row
+    the id named where there is one, so the caller can write the refusal down
+    against the account it belongs to. What the caller answers the client with
+    is the same for all three.
+    """
+
+    reason: Literal["unknown", "wrong_rp", "invalid"]
+    passkey: UserPasskey | None = None
+
+
 async def finish_authentication(
     session: AsyncSession, *, credential: dict[str, Any], expected_challenge: bytes
-) -> Assertion | None:
+) -> Assertion | AssertionRefusal:
     """Check an assertion and record that the credential was used.
 
-    ``None`` when the credential is unknown, was made for another domain, or
-    does not verify — one answer for all three, because the caller's refusal is
-    the same either way.
+    An :class:`AssertionRefusal` where nothing was proved, carrying which of
+    the three it was and the credential the id named. An assertion that did not
+    verify the person is one of the ones that does not verify: user
+    verification is required here.
     """
     raw_id = credential.get("rawId") or credential.get("id")
     if not raw_id:
-        return None
+        return AssertionRefusal(reason="unknown")
     try:
         credential_id = webauthn.base64url_to_bytes(raw_id)
     except Exception:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     row = await find_by_credential_id(
         session, credential_id=credential_id, for_update=True
     )
     if row is None:
-        return None
+        return AssertionRefusal(reason="unknown")
 
     rp_id = relying_party_id()
     if row.rp_id != rp_id:
         # Registered when this deployment answered to another name. It cannot
         # verify here, and saying so is better than a failed signature.
-        return None
+        return AssertionRefusal(reason="wrong_rp", passkey=row)
 
     try:
         verified = webauthn.verify_authentication_response(
@@ -370,9 +396,10 @@ async def finish_authentication(
             expected_origin=expected_origin(),
             credential_public_key=row.public_key,
             credential_current_sign_count=row.sign_count,
+            require_user_verification=True,
         )
     except Exception:
-        return None
+        return AssertionRefusal(reason="invalid", passkey=row)
 
     row.sign_count = int(verified.new_sign_count)
     row.last_used_at = _now()

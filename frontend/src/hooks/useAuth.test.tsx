@@ -14,6 +14,7 @@ import { buildUser } from "@/__tests__/factories";
 
 const get = vi.fn();
 const post = vi.fn();
+const setAuthToken = vi.fn();
 
 vi.mock("@/api/client", () => ({
   apiClient: {
@@ -25,7 +26,7 @@ vi.mock("@/api/client", () => ({
   AUTH_STEP_UP_EVENT: "initiative:auth:step-up",
   setApiBaseUrl: vi.fn(),
   setHasActiveSession: vi.fn(),
-  setAuthToken: vi.fn(),
+  setAuthToken: (...args: unknown[]) => setAuthToken(...args),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
 }));
@@ -317,5 +318,41 @@ describe("useAuth second factor", () => {
       code: null,
       recovery_code: "abcde-fghij",
     });
+  });
+});
+
+describe("useAuth passkey sign-in", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset().mockResolvedValue({ data: {} });
+    setAuthToken.mockReset();
+  });
+
+  it("takes the session the ceremony produced and reads the account", async () => {
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Nobody yet" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Nobody yet"));
+
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    await act(async () => {
+      await auth.applyPasskeySignIn({ access_token: "fresh-token", token_type: "bearer" });
+    });
+
+    expect(setAuthToken).toHaveBeenCalledWith("fresh-token", false);
+    expect(auth.token).toBe("fresh-token");
+    expect(auth.isDeviceToken).toBe(false);
+    expect(auth.user?.full_name).toBe("Signed in");
+  });
+
+  it("refuses an answer with no session in it", async () => {
+    // The mobile shape: the ceremony was run on behalf of an app, and what
+    // comes back is a way home rather than a session for this browser.
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+
+    await expect(
+      auth.applyPasskeySignIn({ token_type: "bearer", redirect_to: "initiative://oidc/callback" })
+    ).rejects.toThrow();
   });
 });

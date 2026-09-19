@@ -66,8 +66,8 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(
             ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
             nullable=False,
-            # Matches what migration 0292 sets on the column.
-            server_default="{password,sso,totp}",
+            # Matches what migration 0315 sets on the column.
+            server_default="{password,sso,totp,passkey}",
         ),
     )
 
