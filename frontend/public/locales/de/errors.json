@@ -705,5 +705,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Die Vorlage muss eine Seite dieses Wikis sein",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Diese Regel gehört nicht zu euch",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Verbindet diesen Anbieter mit eurer Community, bevor ihr festlegt, was seine Gruppen bedeuten",
-  "AUTH_PROVIDER_RULE_EXISTS": "Diese Gruppe landet dort bereits"
+  "AUTH_PROVIDER_RULE_EXISTS": "Diese Gruppe landet dort bereits",
+  "PASSWORD_IS_LAST_METHOD": "Dein Passwort ist der einzige Zugang zu diesem Konto. Füge zuerst einen Passkey hinzu.",
+  "PASSKEY_IS_LAST_METHOD": "Dieser Passkey ist der einzige Zugang zu diesem Konto. Lege zuerst ein Passwort fest oder füge einen weiteren Passkey hinzu.",
+  "PASSWORD_NOT_HELD": "Dieses Konto hat kein Passwort."
 }

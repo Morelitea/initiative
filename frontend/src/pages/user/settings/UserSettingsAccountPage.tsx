@@ -3,10 +3,25 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
+import {
+  getListPasskeysApiV1AuthPasskeysGetQueryKey,
+  getReadSecondFactorApiV1AuthTotpGetQueryKey,
+  useListPasskeysApiV1AuthPasskeysGet,
+  useRemovePasswordApiV1AuthPasswordRemovePost,
+} from "@/api/generated/auth/auth";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { AddressManager } from "@/components/settings/AddressManager";
+import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
@@ -14,6 +29,7 @@ import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { queryClient } from "@/lib/queryClient";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { getUserHandle } from "@/lib/userDisplay";
 
@@ -34,7 +50,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // Pull in ``auth`` and ``errors`` so the password-policy hint and the
   // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
   // namespaces mid-submit.
-  const { t } = useTranslation(["settings", "auth", "errors"]);
+  const { t } = useTranslation(["settings", "auth", "errors", "common"]);
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -43,6 +59,11 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // you need to see which clock the time is in.
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [error, setError] = useState<string | null>(null);
+
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removeCurrentPassword, setRemoveCurrentPassword] = useState("");
+  const [removeCodes, setRemoveCodes] = useState<string[] | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   useEffect(() => {
     setTimezone(user.timezone ?? "UTC");
@@ -73,6 +94,52 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
     },
   });
 
+  // What else the account could sign in with. Giving up the password is only
+  // on offer where a passkey stands ready to take over.
+  const passkeys = useListPasskeysApiV1AuthPasskeysGet();
+  const canRemovePassword =
+    user.has_password &&
+    (passkeys.data?.offered ?? false) &&
+    (passkeys.data?.passkeys?.length ?? 0) > 0;
+
+  const closeRemove = () => {
+    setRemoveOpen(false);
+    // The codes are readable here and nowhere the page can reach again.
+    setRemoveCurrentPassword("");
+    setRemoveCodes(null);
+    setRemoveError(null);
+  };
+
+  const removePassword = useRemovePasswordApiV1AuthPasswordRemovePost({
+    mutation: {
+      onSuccess: async (data) => {
+        setRemoveError(null);
+        setRemoveCurrentPassword("");
+        // This device is carried over on fresh cookies; the in-memory bearer
+        // that was minted with the old ones is not the one to send.
+        if (!Capacitor.isNativePlatform()) {
+          setAuthToken(null);
+        }
+        await refreshUser();
+        void queryClient.invalidateQueries({
+          queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey(),
+        });
+        // A set arrives only where the account held none. Shown once, here.
+        if (data.codes.length > 0) {
+          setRemoveCodes(data.codes);
+          return;
+        }
+        toast.success(t("account.passwordRemoved"));
+        closeRemove();
+      },
+      onError: (err) =>
+        setRemoveError(getErrorMessage(err, "settings:account.removePasswordError")),
+    },
+  });
+
   return (
     <div className="space-y-6">
       {/* Outside the form below, and before it: the address is what the field
@@ -90,7 +157,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             setError(t("profile.passwordsMismatch"));
             return;
           }
-          if (password && !user.has_federated_identity && !currentPassword) {
+          if (password && user.has_password && !currentPassword) {
             setError(t("profile.currentPasswordRequired"));
             return;
           }
@@ -110,9 +177,9 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           }
           if (password) {
             payload.password = password;
-            // Re-auth: the backend requires the current password to set a
-            // new one (skipped for SSO-only accounts with no local password).
-            if (!user.has_federated_identity) {
+            // Re-auth: changing a password asks for the one being replaced.
+            // An account that holds none is setting a first one.
+            if (user.has_password) {
               payload.current_password = currentPassword;
             }
           }
@@ -157,8 +224,12 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
         </SettingsSection>
 
         <SettingsSection
-          title={t("account.passwordTitle")}
-          description={t("account.passwordDescription")}
+          title={user.has_password ? t("account.passwordTitle") : t("account.setPasswordTitle")}
+          description={
+            user.has_password
+              ? t("account.passwordDescription")
+              : t("account.setPasswordDescription")
+          }
           footer={
             <>
               <Button type="submit" disabled={updateAccount.isPending}>
@@ -182,7 +253,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             </>
           }
         >
-          {!user.has_federated_identity ? (
+          {user.has_password ? (
             <div className="space-y-2">
               <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
               <Input
@@ -230,8 +301,78 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           </div>
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
+
+          {canRemovePassword ? (
+            <div className="space-y-2 border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  setRemoveError(null);
+                  setRemoveCurrentPassword("");
+                  setRemoveCodes(null);
+                  setRemoveOpen(true);
+                }}
+              >
+                {t("account.removePassword")}
+              </Button>
+            </div>
+          ) : null}
         </SettingsSection>
       </form>
+
+      <Dialog
+        open={removeOpen}
+        onOpenChange={(open) => (open ? setRemoveOpen(true) : closeRemove())}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("account.removePasswordTitle")}</DialogTitle>
+            <DialogDescription>{t("account.removePasswordBody")}</DialogDescription>
+          </DialogHeader>
+          {removeCodes ? (
+            <RecoveryCodesPanel
+              codes={removeCodes}
+              note={t("account.removePasswordCodes")}
+              onDone={closeRemove}
+            />
+          ) : (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                removePassword.mutate({ data: { current_password: removeCurrentPassword } });
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="remove-current-password">{t("profile.currentPasswordLabel")}</Label>
+                <Input
+                  id="remove-current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={removeCurrentPassword}
+                  onChange={(event) => setRemoveCurrentPassword(event.target.value)}
+                  required
+                />
+              </div>
+              {removeError ? <p className="text-destructive text-sm">{removeError}</p> : null}
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={closeRemove}>
+                  {t("common:cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={removePassword.isPending || !removeCurrentPassword}
+                >
+                  {t("account.removePassword")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

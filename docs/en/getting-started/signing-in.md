@@ -35,6 +35,8 @@ Happens to everybody. Roughly monthly. There is no shame here.
 
 Nothing arriving? Check spam first — it's usually spam. Reset links also go stale after a while, so if yours has been sitting in your inbox since Tuesday, just ask for another.
 
+No password to forget, because you sign in with a [passkey](../account/passkeys.md) and the passkey has gone with the phone? **Use a recovery code** on the same screen sets you a new password with one of the ten you were given.
+
 ## The mobile app
 
 Haven't got it yet? [Installing the app](install-the-app.md) covers both the Android app and the home-screen version for everything else.

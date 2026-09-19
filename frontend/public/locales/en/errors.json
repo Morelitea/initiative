@@ -705,5 +705,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "The template has to be one of this wiki’s own pages",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connect that provider to your community before saying what its groups mean",
-  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there"
+  "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there",
+  "PASSWORD_IS_LAST_METHOD": "Your password is the only way into this account. Add a passkey first.",
+  "PASSKEY_IS_LAST_METHOD": "This passkey is the only way into this account. Set a password or add another passkey first.",
+  "PASSWORD_NOT_HELD": "This account doesn't have a password."
 }

@@ -1456,7 +1456,15 @@
     "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
-    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
+    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
+    "setPasswordTitle": "Set a password",
+    "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
+    "removePassword": "Remove your password",
+    "removePasswordTitle": "Remove your password",
+    "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your account has no recovery codes yet, you will be shown a set — save them, because they are how you set a password again.",
+    "removePasswordCodes": "Save these somewhere safe. With no password, they are how you set one again if your passkey is gone. Each code works once, and you won't be shown these again.",
+    "passwordRemoved": "Your password has been removed.",
+    "removePasswordError": "Could not remove your password."
   },
   "privacy": {
     "title": "Privacy",
@@ -1555,7 +1563,8 @@
     "codePlaceholder": "123456",
     "statusError": "Couldn't check whether two-factor is on. Reload the page to try again.",
     "copyUnavailable": "Couldn't copy — write the codes down instead.",
-    "notOffered": "This deployment does not offer the authenticator app."
+    "notOffered": "This deployment does not offer the authenticator app.",
+    "passwordlessCodes": "Your account signs in without a password. These codes are how you set one again if you lose your passkey."
   },
   "passkeys": {
     "title": "Passkeys",

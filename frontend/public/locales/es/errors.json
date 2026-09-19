@@ -705,5 +705,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "La plantilla debe ser una página de este wiki",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Esa regla no es vuestra",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Conectad ese proveedor a vuestra comunidad antes de decir qué significan sus grupos",
-  "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí"
+  "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí",
+  "PASSWORD_IS_LAST_METHOD": "Tu contraseña es la única forma de entrar en esta cuenta. Añade antes una clave de acceso.",
+  "PASSKEY_IS_LAST_METHOD": "Esta clave de acceso es la única forma de entrar en esta cuenta. Establece antes una contraseña o añade otra clave de acceso.",
+  "PASSWORD_NOT_HELD": "Esta cuenta no tiene contraseña."
 }

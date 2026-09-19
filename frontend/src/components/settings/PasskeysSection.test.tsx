@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   finish: vi.fn(),
   rename: vi.fn(),
   remove: vi.fn(),
+  /** What the server answers a removal with — nothing, or a refusal. */
+  removeRefusal: vi.fn(),
   startRegistration: vi.fn(),
   browserSupportsWebAuthn: vi.fn(() => true),
 }));
@@ -66,10 +68,15 @@ vi.mock("@/api/generated/auth/auth", () => ({
     isPending: false,
   }),
   useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost: (options?: {
-    mutation?: { onSuccess?: () => void };
+    mutation?: { onSuccess?: () => void; onError?: (err: unknown) => void };
   }) => ({
     mutate: (vars: unknown) => {
       mocks.remove(vars);
+      const refusal = mocks.removeRefusal();
+      if (refusal) {
+        options?.mutation?.onError?.(refusal);
+        return;
+      }
       options?.mutation?.onSuccess?.();
     },
     isPending: false,
@@ -218,6 +225,23 @@ describe("PasskeysSection", () => {
         data: { current_password: "a-password" },
       })
     );
+  });
+
+  it("says so when the passkey is the account's only way in", async () => {
+    // The server refuses, and the line it names is the one to read — the
+    // generic "couldn't do that" would leave nothing to act on.
+    const user = userEvent.setup();
+    mocks.removeRefusal.mockReturnValue({
+      response: { status: 409, data: { detail: "PASSKEY_IS_LAST_METHOD" } },
+    });
+    renderWithProviders(<PasskeysSection />);
+
+    await user.click(screen.getByRole("button", { name: /remove/i }));
+    await user.type(await screen.findByLabelText(/current password/i), "a-password");
+    await user.click(screen.getAllByRole("button", { name: /remove/i }).at(-1) as HTMLElement);
+
+    expect(await screen.findByText(/only way into this account/i)).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("sends a new name on its own", async () => {

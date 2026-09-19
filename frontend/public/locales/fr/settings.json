@@ -1456,7 +1456,15 @@
     "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
-    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
+    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo.",
+    "setPasswordTitle": "Définir un mot de passe",
+    "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",
+    "removePassword": "Supprimer votre mot de passe",
+    "removePasswordTitle": "Supprimer votre mot de passe",
+    "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre compte n'a pas encore de codes de secours, un jeu vous sera présenté : conservez-le, c'est avec lui que vous redéfinirez un mot de passe.",
+    "removePasswordCodes": "Conservez-les en lieu sûr. Sans mot de passe, ils sont le moyen d'en redéfinir un si votre clé d'accès disparaît. Chaque code sert une fois, et ils ne vous seront plus montrés.",
+    "passwordRemoved": "Votre mot de passe a été supprimé.",
+    "removePasswordError": "Impossible de supprimer votre mot de passe."
   },
   "privacy": {
     "title": "Confidentialité",
@@ -1555,7 +1563,8 @@
     "codePlaceholder": "123456",
     "statusError": "Impossible de vérifier si la double authentification est activée. Rechargez la page.",
     "copyUnavailable": "Copie impossible — notez les codes à la main.",
-    "notOffered": "Cette installation ne propose pas l'application d'authentification."
+    "notOffered": "Cette installation ne propose pas l'application d'authentification.",
+    "passwordlessCodes": "Votre compte se connecte sans mot de passe. Ces codes vous permettent d'en redéfinir un si vous perdez votre clé d'accès."
   },
   "passkeys": {
     "title": "Clés d'accès",

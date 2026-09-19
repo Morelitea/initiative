@@ -1456,7 +1456,15 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
+    "setPasswordTitle": "Passwort festlegen",
+    "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
+    "removePassword": "Passwort entfernen",
+    "removePasswordTitle": "Passwort entfernen",
+    "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Falls dein Konto noch keine Wiederherstellungscodes hat, bekommst du einen Satz angezeigt – bewahre ihn auf, denn damit legst du wieder ein Passwort fest.",
+    "removePasswordCodes": "Bewahre diese Codes sicher auf. Ohne Passwort legst du damit wieder eines fest, falls dein Passkey weg ist. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal.",
+    "passwordRemoved": "Dein Passwort wurde entfernt.",
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
   },
   "privacy": {
     "title": "Privatsphäre",
@@ -1555,7 +1563,8 @@
     "codePlaceholder": "123456",
     "statusError": "Es ließ sich nicht prüfen, ob die Zwei-Faktor-Authentifizierung aktiv ist. Lade die Seite neu.",
     "copyUnavailable": "Kopieren nicht möglich – schreibe die Codes stattdessen auf.",
-    "notOffered": "Diese Installation bietet die Authenticator-App nicht an."
+    "notOffered": "Diese Installation bietet die Authenticator-App nicht an.",
+    "passwordlessCodes": "Dein Konto meldet sich ohne Passwort an. Mit diesen Codes legst du wieder eines fest, falls du deinen Passkey verlierst."
   },
   "passkeys": {
     "title": "Passkeys",

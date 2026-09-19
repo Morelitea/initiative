@@ -9,6 +9,7 @@ import {
   useReadSecondFactorApiV1AuthTotpGet,
   useRegenerateRecoveryCodesApiV1AuthRecoveryCodesRegeneratePost,
 } from "@/api/generated/auth/auth";
+import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,10 +41,13 @@ type Errand = "enrol" | "regenerate";
  * Two-factor authentication, on the account's own security page.
  *
  * Three things happen here and each asks for the password again, because each
- * changes how the account is signed into. An account provisioned through an
- * identity provider has no password to re-check; the server is what decides
- * that, and `has_federated_identity` is the hint the form uses so it does not
- * insist on a field nobody can fill.
+ * changes how the account is signed into. An account that holds no password —
+ * provisioned through an identity provider, or signing in with a passkey — has
+ * none to re-check, and the server is what says so.
+ *
+ * An account with no password keeps a set of recovery codes whether or not it
+ * is enrolled here: with nothing to reset, they are how it sets a password
+ * again. So the codes have a home on this section for both.
  */
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
@@ -111,9 +115,16 @@ export const TwoFactorSection = () => {
         setCodes(data.codes);
         commit("codes");
         setError(null);
+        // Opened here rather than on the click, for the account that is asked
+        // for no password: there is no step to show until the codes arrive.
+        setEnrolOpen(true);
         void refreshStatus();
       },
-      onError: (err) => setError(getErrorMessage(err, "settings:twoFactor.regenerateError")),
+      onError: (err) => {
+        const message = getErrorMessage(err, "settings:twoFactor.regenerateError");
+        setError(message);
+        if (!enrolOpen) toast.error(message);
+      },
     },
   });
 
@@ -155,20 +166,6 @@ export const TwoFactorSection = () => {
     });
   };
 
-  const copyCodes = () => {
-    if (!codes) return;
-    // These are shown once. A copy that quietly did not happen would leave
-    // somebody thinking they had them.
-    if (!navigator?.clipboard) {
-      toast.error(t("twoFactor.copyUnavailable"));
-      return;
-    }
-    void navigator.clipboard
-      .writeText(codes.join("\n"))
-      .then(() => toast.success(t("twoFactor.codesCopied")))
-      .catch(() => toast.error(t("twoFactor.copyUnavailable")));
-  };
-
   const enrolled = status.data?.enrolled ?? false;
   // Asked for only where there is one to give. The server is what knows:
   // an account can hold a federated identity and a password both.
@@ -178,9 +175,43 @@ export const TwoFactorSection = () => {
   // offering a setup the server would refuse.
   const offered = status.data?.offered ?? true;
   const remaining = status.data?.recovery_codes_remaining ?? 0;
+  // An account with no password at all. Its recovery codes are how it sets
+  // one again, so they are worth showing whether or not it is enrolled here.
+  const passwordless = status.data?.passwordless ?? false;
 
+  // Re-issuing skips the authenticator app, and skips the password too where
+  // there is none to re-check.
+  const regenerateSteps: EnrolStep[] = passwordRequired ? ["password", "codes"] : ["codes"];
   const walked: EnrolStep[] =
-    errand === "regenerate" ? ["password", "codes"] : ["password", "scan", "codes"];
+    errand === "regenerate" ? regenerateSteps : ["password", "scan", "codes"];
+
+  const startRegenerate = () => {
+    setErrand("regenerate");
+    setPassword("");
+    setError(null);
+    reset();
+    setCodes(null);
+    if (!passwordRequired) {
+      // Nothing to re-check, so nothing to ask: the dialog opens on the codes
+      // once they are here.
+      regenerate.mutate({ data: { current_password: null } });
+      return;
+    }
+    setEnrolOpen(true);
+  };
+
+  // The same two lines wherever the set is reported — enrolled, or passwordless
+  // and not.
+  const codesLeftLine = (
+    <p className={remaining <= LOW_ON_CODES ? "text-destructive text-sm" : "text-sm"}>
+      {t("twoFactor.codesLeft", { count: remaining })}
+    </p>
+  );
+  const newCodesButton = (
+    <Button variant="outline" onClick={startRegenerate} disabled={regenerate.isPending}>
+      {t("twoFactor.regenerate")}
+    </Button>
+  );
 
   return (
     <div className="space-y-4">
@@ -207,23 +238,9 @@ export const TwoFactorSection = () => {
               ? t("twoFactor.lastUsed", { date: formatDateTime(status.data.last_used_at) })
               : t("twoFactor.neverUsed")}
           </p>
-          <p className={remaining <= LOW_ON_CODES ? "text-destructive text-sm" : "text-sm"}>
-            {t("twoFactor.codesLeft", { count: remaining })}
-          </p>
+          {codesLeftLine}
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setErrand("regenerate");
-                setPassword("");
-                setError(null);
-                reset();
-                setCodes(null);
-                setEnrolOpen(true);
-              }}
-            >
-              {t("twoFactor.regenerate")}
-            </Button>
+            {newCodesButton}
             <Button
               variant="destructive"
               onClick={() => {
@@ -250,6 +267,13 @@ export const TwoFactorSection = () => {
             >
               {t("twoFactor.setUp")}
             </Button>
+          ) : null}
+          {passwordless ? (
+            <div className="space-y-3 border-t pt-3">
+              <p className="text-muted-foreground text-sm">{t("twoFactor.passwordlessCodes")}</p>
+              {codesLeftLine}
+              {newCodesButton}
+            </div>
           ) : null}
         </div>
       )}
@@ -334,22 +358,11 @@ export const TwoFactorSection = () => {
         ) : null}
 
         {step === "codes" && codes ? (
-          <div className="space-y-4">
-            <ul className="grid grid-cols-2 gap-1 rounded bg-muted p-3 font-mono text-sm">
-              {codes.map((recoveryCode) => (
-                <li key={recoveryCode}>{recoveryCode}</li>
-              ))}
-            </ul>
-            <p className="text-muted-foreground text-sm">{t("twoFactor.codesWarning")}</p>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={copyCodes} type="button">
-                {t("twoFactor.copyCodes")}
-              </Button>
-              <Button onClick={closeEnrol} type="button">
-                {t("twoFactor.done")}
-              </Button>
-            </DialogFooter>
-          </div>
+          <RecoveryCodesPanel
+            codes={codes}
+            note={t("twoFactor.codesWarning")}
+            onDone={closeEnrol}
+          />
         ) : null}
       </WizardDialog>
 

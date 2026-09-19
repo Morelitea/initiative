@@ -705,5 +705,8 @@
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Le modèle doit être une page de ce wiki",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Cette règle n'est pas la vôtre",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connectez ce fournisseur à votre communauté avant de dire ce que ses groupes signifient",
-  "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là"
+  "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là",
+  "PASSWORD_IS_LAST_METHOD": "Votre mot de passe est le seul accès à ce compte. Ajoutez d'abord une clé d'accès.",
+  "PASSKEY_IS_LAST_METHOD": "Cette clé d'accès est le seul accès à ce compte. Définissez d'abord un mot de passe ou ajoutez une autre clé d'accès.",
+  "PASSWORD_NOT_HELD": "Ce compte n'a pas de mot de passe."
 }

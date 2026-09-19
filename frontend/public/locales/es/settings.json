@@ -1456,7 +1456,15 @@
     "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
-    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador."
+    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador.",
+    "setPasswordTitle": "Establecer una contraseña",
+    "setPasswordDescription": "Tu cuenta inicia sesión sin contraseña. Establece una aquí para tener otra forma de entrar.",
+    "removePassword": "Quitar tu contraseña",
+    "removePasswordTitle": "Quitar tu contraseña",
+    "removePasswordBody": "A partir de ahora entrarás con tu clave de acceso, y se cerrará tu sesión en los demás dispositivos. Si tu cuenta aún no tiene códigos de recuperación, se te mostrará un juego: guárdalo, porque es con lo que volverás a establecer una contraseña.",
+    "removePasswordCodes": "Guárdalos en un lugar seguro. Sin contraseña, son la forma de volver a establecer una si pierdes tu clave de acceso. Cada código sirve una vez y no volverás a verlos.",
+    "passwordRemoved": "Se ha quitado tu contraseña.",
+    "removePasswordError": "No se ha podido quitar tu contraseña."
   },
   "privacy": {
     "title": "Privacidad",
@@ -1555,7 +1563,8 @@
     "codePlaceholder": "123456",
     "statusError": "No se ha podido comprobar si la verificación en dos pasos está activada. Recarga la página.",
     "copyUnavailable": "No se ha podido copiar: anota los códigos a mano.",
-    "notOffered": "Esta instalación no ofrece la aplicación de autenticación."
+    "notOffered": "Esta instalación no ofrece la aplicación de autenticación.",
+    "passwordlessCodes": "Tu cuenta inicia sesión sin contraseña. Con estos códigos vuelves a establecer una si pierdes tu clave de acceso."
   },
   "passkeys": {
     "title": "Claves de acceso",
