@@ -23,6 +23,13 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
     A paid hosted version is coming for people who'd rather not run a server, which is a completely reasonable thing to not want to do. See [Self-host or let us host it](self-host-or-hosted.md).
 
+??? question "Is all of it open source?"
+    The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
+
+    So are the [app kit](https://github.com/Morelitea/initiative-app-kit) and the [GitHub app](https://github.com/Morelitea/initiative-github), under MIT, if you fancy building an app of your own.
+
+    The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
+
 ??? question "Can I add tools that aren't built in?"
     Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/apps-and-marketplace.md).
 
