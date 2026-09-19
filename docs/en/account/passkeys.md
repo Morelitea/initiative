@@ -6,8 +6,6 @@ icon: lucide/fingerprint
 
 A passkey is a sign-in with nothing to type. Your phone, your laptop or your password manager holds a key; the site asks it a question; you prove it's you with the fingerprint, face or PIN you already unlock the device with; done. No password, no code from an app, nothing to remember and nothing to spell wrong at eleven at night.
 
-The part worth knowing: a passkey made for your Initiative only ever answers *your* Initiative. A site that merely looks like it gets nothing, however convincing the logo.
-
 ## Adding one
 
 1. **User settings → Security → Passkeys → Add a passkey**.
@@ -34,6 +32,6 @@ Not sure which one was the lost phone? The list says when each was last used. Th
 ??? techspec "The details"
     WebAuthn, through the reference libraries on both sides. Credentials are made as discoverable, so a sign-in can start from the key rather than from a typed address, and every ceremony requires user verification: a passkey that cannot prove the person as well as the device is not one this site will register or accept.
 
-    The relying party is the host of the deployment's own address, and the origin must match it exactly. Each credential records the host it was made under, so a deployment that moves to a new address refuses its old passkeys with a plain reason rather than a signature that does not verify. A sign-in through a passkey is recorded as a multi-factor cryptographic authenticator — `hwk` for a device-bound key, `swk` for a synced one, and `mfa` — which is what a community requiring a second factor reads.
+    The relying party is the host of the deployment's own address, and the origin must match it exactly. Each credential records the host it was made under, so a deployment that moves to a new address refuses its old passkeys and records a plain reason in the audit log rather than a signature that does not verify. A sign-in through a passkey is recorded as a multi-factor cryptographic authenticator — `hwk` for a device-bound key, `swk` for a synced one, and `mfa` — which is what a community requiring a second factor reads.
 
     Public keys only are stored, alongside the authenticator's counter, which must never go backwards. No attestation is requested or kept.

@@ -161,6 +161,13 @@ const refusedPrompt = (): Error => {
   return error;
 };
 
+/** A prompt the page itself stood down — for the button's, or with the page. */
+const abortedPrompt = (): Error => {
+  const error = new Error("This operation was aborted.");
+  error.name = "AbortError";
+  return error;
+};
+
 const resetLoginMocks = () => {
   mocks.login.mockReset();
   mocks.completeSecondFactor.mockReset().mockResolvedValue(undefined);
@@ -409,6 +416,21 @@ describe("LoginPage passkey", () => {
     await screen.findByLabelText(/email/i);
     expect(screen.queryByText(/you cancelled/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/didn't work/i)).not.toBeInTheDocument();
+  });
+
+  it("writes nothing down for a quiet prompt it stood down itself", async () => {
+    mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
+    mocks.signInWithPasskey.mockRejectedValue(abortedPrompt());
+    renderLogin();
+
+    await waitFor(() =>
+      expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ conditional: true })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(consoleDebug).not.toHaveBeenCalledWith(
+      expect.stringContaining("Passkey autofill"),
+      expect.anything()
+    );
   });
 
   it("waits in no autofill where there is no address field to wait in", async () => {

@@ -54,9 +54,12 @@ export const signInWithPasskey = async ({
   mobile = false,
   deviceName,
 }: PasskeySignInOptions = {}): Promise<PasskeySignInResult> => {
+  // Nothing to say at the start: the options are the same whoever asked and
+  // whatever they are asking for. Where the answer goes — a session for this
+  // browser, or a way back to the app that sent it — is settled at the finish.
   const begun = await apiClient.post<PasskeyAuthenticationOptions>(
     "/auth/passkeys/authenticate/begin",
-    { mobile }
+    {}
   );
   // The server renders the options the way the credential API wants them, and
   // the browser's answer goes back as it came; the generated schema carries

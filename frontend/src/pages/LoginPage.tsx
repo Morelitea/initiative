@@ -252,7 +252,11 @@ export const LoginPage = () => {
       try {
         await adoptPasskeySession(await signInWithPasskey({ conditional: true }));
       } catch (err) {
-        console.debug("Passkey autofill ceremony ended without a session", err);
+        // A ceremony this page put down itself — stood aside for the button's
+        // prompt, or gone with the page — is not worth a line.
+        if (!(err instanceof Error && err.name === "AbortError")) {
+          console.debug("Passkey autofill ceremony ended without a session", err);
+        }
         if (autofillRestartedRef.current) return;
         if (getErrorCode(err) !== "PASSKEY_SIGN_IN_INVALID") return;
         autofillRestartedRef.current = true;
