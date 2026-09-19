@@ -44,8 +44,9 @@ MAX_PASSKEYS_PER_USER = 20
 
 MAX_NAME_LENGTH = 64
 
-#: Hosts a browser counts as secure over plain http, so a deployment on one is
-#: an ordinary development setup rather than an address passkeys cannot use.
+#: The ways of naming the machine itself. A browser treats all three as a
+#: secure context, so a deployment addressed by one is an ordinary development
+#: setup rather than an address passkeys cannot use.
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
@@ -99,17 +100,23 @@ def relying_party_name() -> str:
 def site_refusal() -> str | None:
     """Why this deployment's address cannot carry passkeys, or ``None``.
 
-    A credential is bound to a named host reached over https. ``"ip_host"``
-    says ``APP_URL`` names an address rather than a domain; ``"insecure_origin"``
-    says it is plain http somewhere other than the machine itself. Both are
-    properties of the deployment's address, so they are answered before a
-    ceremony is begun rather than by the browser afterwards.
+    A credential is bound to a named host reached over https. ``"no_host"``
+    says ``APP_URL`` names no host at all; ``"ip_host"`` says it names an
+    address rather than a domain; ``"insecure_origin"`` says it is plain http
+    somewhere other than the machine itself. All three are properties of the
+    deployment's address, so they are answered before a ceremony is begun
+    rather than by the browser afterwards — and a caller that has one of them
+    never reaches :func:`relying_party_id`, which has no answer to give.
     """
     from app.core.config import settings
 
     parts = urlsplit(settings.APP_URL.strip())
     host = parts.hostname
     if not host:
+        return "no_host"
+    # The machine itself is a development address, however it is spelled, so
+    # loopback is settled before the address-rather-than-domain rule.
+    if host.lower() in _LOCAL_HOSTS:
         return None
     try:
         ipaddress.ip_address(host)
@@ -117,7 +124,7 @@ def site_refusal() -> str | None:
         pass
     else:
         return "ip_host"
-    if parts.scheme.lower() == "http" and host.lower() not in _LOCAL_HOSTS:
+    if parts.scheme.lower() == "http":
         return "insecure_origin"
     return None
 

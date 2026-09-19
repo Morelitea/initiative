@@ -5486,6 +5486,7 @@ export interface PasskeyList {
   passkeys?: PasskeyRead[];
   password_required?: boolean;
   limit: number;
+  site_supported?: boolean;
 }
 
 export type PasskeyRegisterFinishCredential = { [key: string]: unknown };
@@ -5503,10 +5504,16 @@ export interface PasskeyRegisterFinish {
 }
 
 /**
- * Beginning a registration. The password is re-checked here, as it is for a
- * password change; an account with no usable password sends nothing.
+ * Beginning a registration. The name is settled here, before the browser
+ * makes anything; the password is re-checked as it is for a password change,
+ * and an account with no usable password sends nothing.
  */
 export interface PasskeyRegisterStart {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name: string;
   current_password?: string | null;
 }
 

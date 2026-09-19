@@ -20,6 +20,7 @@ from webauthn.helpers import bytes_to_base64url
 from app.core.audit_events import AuditEventType
 from app.core.security import get_password_hash
 from app.models.platform.audit_event import AuditEvent
+from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
@@ -94,10 +95,12 @@ async def _account(session: AsyncSession, email: str) -> User:
     )
 
 
-async def _begin(client: AsyncClient, user: User) -> str:
+async def _begin(client: AsyncClient, user: User, *, name: str = "Laptop") -> str:
     """Begin a registration and hand back the challenge the options carry."""
     response = await client.post(
-        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": PASSWORD, "name": name},
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 200, response.text
     return response.json()["options"]["challenge"]
@@ -110,7 +113,7 @@ async def _register(
     name: str = "Laptop",
     credential_id: str = "credential-one",
 ) -> dict:
-    challenge = await _begin(client, user)
+    challenge = await _begin(client, user, name=name)
     response = await client.post(
         FINISH,
         json={
@@ -157,6 +160,22 @@ async def test_an_account_with_none_is_told_what_it_would_take(
     assert body["passkeys"] == []
     assert body["password_required"] is True
     assert body["limit"] == passkey_service.MAX_PASSKEYS_PER_USER
+    assert body["site_supported"] is True
+
+
+async def test_the_list_says_when_this_address_cannot_carry_one(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The deployment's own address decides this, so the server answers it
+    rather than leaving the browser to."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_URL", "http://intranet.local")
+    user = await _account(session, "pk-unsupported@example.com")
+
+    response = await client.get("/api/v1/auth/passkeys", headers=get_auth_headers(user))
+    assert response.status_code == 200, response.text
+    assert response.json()["site_supported"] is False
 
 
 async def test_an_account_with_no_password_is_not_asked_for_one(
@@ -196,7 +215,9 @@ async def test_beginning_asks_for_the_password(
     client: AsyncClient, session: AsyncSession
 ):
     user = await _account(session, "pk-nopw@example.com")
-    response = await client.post(BEGIN, json={}, headers=get_auth_headers(user))
+    response = await client.post(
+        BEGIN, json={"name": "Laptop"}, headers=get_auth_headers(user)
+    )
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_CURRENT_PASSWORD_REQUIRED"
 
@@ -206,10 +227,59 @@ async def test_beginning_refuses_the_wrong_password(
 ):
     user = await _account(session, "pk-wrongpw@example.com")
     response = await client.post(
-        BEGIN, json={"current_password": "not-it"}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": "not-it", "name": "Laptop"},
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+
+
+async def test_a_name_this_deployment_will_not_keep_is_refused_here(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same name rule the finish route holds, applied before a ceremony is
+    begun — so nothing is issued for a name that will not be stored."""
+    user = await _account(session, "pk-sigil@example.com")
+    user_id = user.id
+
+    response = await client.post(
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop #1"},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 422, response.text
+    assert "RESERVED_SIGIL_IN_NAME" in response.text
+
+    session.expire_all()
+    challenges = (
+        await session.exec(
+            select(AuthChallenge).where(AuthChallenge.user_id == user_id)
+        )
+    ).all()
+    assert challenges == []
+
+
+async def test_a_plain_name_begins_a_ceremony(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await _account(session, "pk-plainname@example.com")
+    user_id = user.id
+
+    response = await client.post(
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop"},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 200, response.text
+
+    session.expire_all()
+    challenges = (
+        await session.exec(
+            select(AuthChallenge).where(AuthChallenge.user_id == user_id)
+        )
+    ).all()
+    assert len(challenges) == 1
 
 
 async def test_the_options_name_this_deployment(
@@ -219,7 +289,9 @@ async def test_the_options_name_this_deployment(
 
     user = await _account(session, "pk-options@example.com")
     response = await client.post(
-        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop"},
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 200, response.text
     options = response.json()["options"]
@@ -239,7 +311,9 @@ async def test_a_deployment_on_plain_http_cannot_begin_one(
     user = await _account(session, "pk-http@example.com")
 
     response = await client.post(
-        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop"},
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
@@ -252,7 +326,9 @@ async def test_an_account_at_the_limit_cannot_begin_another(
     await _seed(session, user, passkey_service.MAX_PASSKEYS_PER_USER)
 
     response = await client.post(
-        BEGIN, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
+        BEGIN,
+        json={"current_password": PASSWORD, "name": "Laptop"},
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "PASSKEY_LIMIT_REACHED"
@@ -600,7 +676,7 @@ async def test_a_standing_credential_cannot_register_one(
 
     response = await client.post(
         BEGIN,
-        json={"current_password": PASSWORD},
+        json={"current_password": PASSWORD, "name": "Laptop"},
         headers={"Authorization": f"Bearer {secret}"},
     )
     assert response.status_code == 403

@@ -165,11 +165,10 @@ async def lifespan(app: FastAPI):
             "APP_URL (%s) is %s, so passkey registration will be refused; "
             "serve this deployment from a domain name over https to offer it.",
             settings.APP_URL,
-            (
-                "an address rather than a domain name"
-                if site_refusal == "ip_host"
-                else "plain http"
-            ),
+            {
+                "ip_host": "an address rather than a domain name",
+                "no_host": "not a whole URL, so it names no host",
+            }.get(site_refusal, "plain http"),
         )
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;

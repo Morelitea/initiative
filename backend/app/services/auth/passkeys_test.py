@@ -75,12 +75,15 @@ def test_the_origin_keeps_ipv6_brackets(monkeypatch):
         ("https://192.168.1.10", "ip_host"),
         ("http://intranet.local", "insecure_origin"),
         ("http://localhost:5173", None),
+        ("http://127.0.0.1:5173", None),
+        ("https://[::1]:8443", None),
+        ("", "no_host"),
     ],
 )
 def test_which_addresses_can_carry_a_credential(monkeypatch, app_url, refusal):
     """A passkey is bound to a named host reached over https. The deployment's
-    own address decides whether there is one to bind to, and development on the
-    machine itself is the exception the browser already makes."""
+    own address decides whether there is one to bind to, and the machine itself
+    is the exception the browser already makes — however it is spelled."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "APP_URL", app_url)

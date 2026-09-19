@@ -42,12 +42,16 @@ class PasskeyList(SanitizedBaseModel):
     password_required: bool = True
     #: The most passkeys one account may hold.
     limit: int
+    #: Whether this deployment's address can carry a passkey at all.
+    site_supported: bool = True
 
 
 class PasskeyRegisterStart(SanitizedBaseModel):
-    """Beginning a registration. The password is re-checked here, as it is for a
-    password change; an account with no usable password sends nothing."""
+    """Beginning a registration. The name is settled here, before the browser
+    makes anything; the password is re-checked as it is for a password change,
+    and an account with no usable password sends nothing."""
 
+    name: TitleStr = Field(min_length=1, max_length=NAME_MAX_LENGTH)
     current_password: Optional[str] = None
 
 

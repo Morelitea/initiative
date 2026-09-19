@@ -3135,6 +3135,10 @@ export function useListPasskeysApiV1AuthPasskeysGet<
  *
  * The challenge inside them stands for a few minutes and is spent when the
  * credential comes back. Beginning again issues another.
+ *
+ * The name arrives here as well as on the finish route, so a name this
+ * deployment will not keep is answered before the browser makes anything.
+ * The one stored is the one finish carries.
  * @summary Begin Passkey Registration
  */
 export const beginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost = (

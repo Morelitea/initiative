@@ -116,6 +116,7 @@ async def list_passkeys(
         passkeys=[_read(row) for row in rows],
         password_required=has_usable_password(current_user.hashed_password),
         limit=passkey_service.MAX_PASSKEYS_PER_USER,
+        site_supported=passkey_service.site_refusal() is None,
     )
 
 
@@ -132,6 +133,10 @@ async def begin_passkey_registration(
 
     The challenge inside them stands for a few minutes and is spent when the
     credential comes back. Beginning again issues another.
+
+    The name arrives here as well as on the finish route, so a name this
+    deployment will not keep is answered before the browser makes anything.
+    The one stored is the one finish carries.
     """
     if passkey_service.site_refusal() is not None:
         raise _site_unsupported()
