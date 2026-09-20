@@ -1,6 +1,7 @@
-"""Shared importer plumbing: version gating, envelope parsing, and by-name
-property-value attachment for envelopes that carry values without their
-definitions (documents, calendar events)."""
+"""Shared importer plumbing: version gating, envelope parsing, the owner
+grant every importer writes for what it creates, and by-name property-value
+attachment for envelopes that carry values without their definitions
+(documents, calendar events)."""
 
 from __future__ import annotations
 
@@ -10,7 +11,11 @@ from pydantic import BaseModel, ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
+from app.core.tools import Tool
+from app.models.platform.user import User
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import PropertyDefinition, PropertyType
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import (
     CURRENT_SCHEMA_VERSION,
     MIN_SUPPORTED_IMPORT_VERSION,
@@ -34,6 +39,36 @@ def parse_envelope(model: Type[BaseModel], envelope: dict[str, Any]) -> BaseMode
     if not (MIN_SUPPORTED_IMPORT_VERSION <= version <= CURRENT_SCHEMA_VERSION):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SCHEMA_VERSION_UNSUPPORTED)
     return validated
+
+
+async def grant_ownership(
+    session: AsyncSession,
+    *,
+    tool: Tool,
+    entity_id: int,
+    target_initiative: Initiative,
+    importer: User,
+) -> None:
+    """Make the importer the owner of what it just created. Sharing does not
+    cross in any envelope — who may read a thing is a fact about the community
+    it was written in — so every importer writes this one row and no other.
+
+    The flush is part of it: the sharing has to be in the database before the
+    content it governs, and a flush orders its statements by table rather than
+    by the order things were added.
+    """
+    session.add(
+        ResourceGrant(
+            resource_type=tool.value,
+            resource_id=entity_id,
+            user_id=importer.id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
+            guild_id=target_initiative.guild_id,
+            initiative_id=target_initiative.id,
+        )
+    )
+    await session.flush()
 
 
 def _options_for_value(pv: EnvelopePropertyValue) -> list[dict] | None:

@@ -23,78 +23,51 @@ RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.wiki import Wiki, WikiPage
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+)
+from app.services.export.contract import RenderItem
+
+#: What one wiki contributes to a batch: its row and its pages.
+Loaded = tuple[Wiki, list[WikiPage]]
 
 
-class WikiAdapter:
-    source = "wiki"
-    template_id = "data-table"  # protocol requirement; json never renders one
-    formats = frozenset({"json"})
+class WikiAdapter(ToolExportAdapter):
+    tool = Tool.wiki
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        # One row per page: a wiki's size is what is written in it, not the
-        # single row naming it.
-        return sum(
-            len(pages) or 1
-            for _wiki, pages in await self._wikis(session, user, guild_id, params)
-        )
-
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        loaded = await self._wikis(session, user, guild_id, params)
-        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(build_wiki_item(wiki, pages, now) for wiki, pages in loaded),
-        )
-
-    async def _wikis(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> list[tuple[Wiki, list[WikiPage]]]:
-        from app.services.export.adapters._common import selection_ids
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, wiki_id: int, /
+    ) -> Loaded:
         from app.services.tenant.wikis import get_wiki_for_export
 
-        return [
-            await get_wiki_for_export(session, user, guild_id, wiki_id=wiki_id)
-            for wiki_id in selection_ids(
-                params, single_key="wiki_id", multi_key="wiki_ids"
-            )
-        ]
+        return await get_wiki_for_export(session, user, guild_id, wiki_id=wiki_id)
+
+    def rows(self, loaded: Loaded, /) -> int:
+        # One row per page: a wiki's size is what is written in it, not the
+        # single row naming it.
+        _wiki, pages = loaded
+        return len(pages) or 1
+
+    def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
+        wiki, pages = loaded
+        return build_wiki_item(wiki, pages, ctx.now)
 
 
 def build_wiki_item(wiki: Wiki, pages: list[WikiPage], now: datetime) -> RenderItem:
-    date = now.strftime("%Y-%m-%d")
-    stem = safe_filename_component(wiki.name).lower()
     # The envelope is importable machine data — stays canonical, never
     # localized (translating field keys breaks import).
     return RenderItem(
-        key=f"{stem}-{date}.initiative-wiki",
+        key=envelope_key(Tool.wiki, wiki.name, now.strftime("%Y-%m-%d")),
         data=_envelope(wiki, pages),
     )
 

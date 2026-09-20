@@ -27,71 +27,41 @@ RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.post import Post
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+)
+from app.services.export.contract import RenderItem
 
 
-class PostAdapter:
-    source = "post"
-    template_id = "data-table"  # protocol requirement; json never renders one
-    formats = frozenset({"json"})
+class PostAdapter(ToolExportAdapter):
+    tool = Tool.post
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        return len(await self._posts(session, user, guild_id, params))
-
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        posts = await self._posts(session, user, guild_id, params)
-        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(build_post_item(post, format, now) for post in posts),
-        )
-
-    async def _posts(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> list[Post]:
-        from app.services.export.adapters._common import selection_ids
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, post_id: int, /
+    ) -> Post:
         from app.services.tenant.posts import get_post_for_export
 
-        return [
-            await get_post_for_export(session, user, guild_id, post_id=pid)
-            for pid in selection_ids(params, single_key="post_id", multi_key="post_ids")
-        ]
+        return await get_post_for_export(session, user, guild_id, post_id=post_id)
+
+    def item(self, post: Post, ctx: BuildContext, /) -> RenderItem:
+        return build_post_item(post, ctx.format, ctx.now)
 
 
 def build_post_item(post: Post, format: str, now: datetime) -> RenderItem:
-    date = now.strftime("%Y-%m-%d")
-    stem = safe_filename_component(post.name).lower()
     # The envelope is importable machine data — stays canonical, never
     # localized (translating field keys breaks import).
     return RenderItem(
-        key=f"{stem}-{date}.initiative-post",
+        key=envelope_key(Tool.post, post.name, now.strftime("%Y-%m-%d")),
         data=_envelope(post),
     )
 

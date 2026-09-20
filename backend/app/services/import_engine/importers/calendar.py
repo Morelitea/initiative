@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
@@ -26,7 +27,6 @@ from app.models.tenant.calendar_event import (
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.property import CalendarEventPropertyValue
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import (
     CalendarEnvelope,
     EventEnvelopeItem,
@@ -40,6 +40,7 @@ from app.services.import_engine.common import (
 )
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.importers._base import (
+    grant_ownership,
     parse_envelope,
     resolve_property_values,
 )
@@ -92,22 +93,13 @@ class CalendarImporter:
         session.add(calendar)
         await session.flush()
 
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                user_id=importer.id,
-                role_id=None,
-                level=ResourceAccessLevel.owner,
-                guild_id=guild_id,
-                initiative_id=target_initiative.id,
-            )
+        await grant_ownership(
+            session,
+            tool=Tool.calendar,
+            entity_id=calendar.id,
+            target_initiative=target_initiative,
+            importer=importer,
         )
-
-        # The sharing has to be in the database before the content it governs:
-        # a flush orders its statements by table, not by the order things were
-        # added.
-        await session.flush()
 
         created = 0
         failed = 0
