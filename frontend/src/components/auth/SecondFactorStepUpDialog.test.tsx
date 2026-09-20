@@ -80,22 +80,9 @@ describe("SecondFactorStepUpDialog", () => {
     });
   });
 
-  it("reads a code the way an authenticator shows it", async () => {
-    statusIs(true);
-    const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
-    await mount({ auth: { stepUpWithFactor } });
-
-    fireChallenge();
-    await screen.findByRole("dialog");
-
-    // An authenticator app displays "123 456", and that is what gets pasted.
-    await userEvent.type(screen.getByLabelText(/authentication code/i), "123 456");
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
-
-    await waitFor(() => {
-      expect(stepUpWithFactor).toHaveBeenCalledWith({ code: "123456" });
-    });
-  });
+  // An authenticator app displays "123 456", and that is what gets pasted.
+  // Reading it as the six digits it is proved in
+  // `src/lib/secondFactorAnswer.test.ts`.
 
   it("takes a recovery code instead", async () => {
     statusIs(true);
@@ -204,18 +191,17 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
     expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
   });
 
-  it("adds the passkey to the session already open", async () => {
+  // What the presented passkey does to the session — the token it produces
+  // becoming this browser's, and the account being read back under it — is the
+  // hook's, proved in `src/hooks/useAuth.test.tsx`.
+  it("closes on a presented passkey rather than making them reload", async () => {
     passkeysAre([{ id: "pk-1", name: "Laptop" }]);
-    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
-    await mount({ auth: { stepUpWithPasskey } });
+    await mount({ auth: { stepUpWithPasskey: vi.fn().mockResolvedValue(undefined) } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
     await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
 
-    await waitFor(() => {
-      expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
-    });
     // The page behind it carries on rather than needing a reload.
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -366,15 +352,12 @@ describe("when the deployment is the one asking", () => {
     // has to present it.
     statusIs(false);
     passkeysAre([{ id: "p1", name: "Laptop" }]);
-    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
-    await mount({ auth: { stepUpWithPasskey } });
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
     fireChallenge({ guildId: null, platform: true });
     await screen.findByRole("dialog");
 
-    await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
-
-    expect(stepUpWithPasskey).toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
   });
 
   it("holds off while the person is on the page that answers it", async () => {

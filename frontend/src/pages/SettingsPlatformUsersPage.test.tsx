@@ -55,25 +55,30 @@ const openSheet = async (index = 1) => {
   return screen.findByRole("dialog");
 };
 
+/** One lever in the sheet, whether it is labelled or captioned. */
+const lever = (sheet: HTMLElement, name: string) =>
+  within(sheet).queryByLabelText(name) ?? within(sheet).queryByText(name);
+
 describe("SettingsPlatformUsersPage", () => {
   beforeEach(() => {
     state.roster = [];
   });
 
-  it("shows the address exactly as the server masked it", async () => {
-    renderRoster(masked());
+  it("shows each account as the server sent it: masked address, handle, and no name", async () => {
+    const rows = masked();
+    rows[1].full_name = "Wilhelmina Fitzgerald";
+    renderRoster(rows);
 
     expect(await screen.findByText("o***r@e***m")).toBeInTheDocument();
     expect(screen.getByText("u***1@e***m")).toBeInTheDocument();
     // Nothing on the page reassembles a real address from what arrived.
     expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
-  });
-
-  it("identifies a row by handle, which is what the filter box searches", async () => {
-    renderRoster(masked());
-
-    expect(await screen.findByText("owner")).toBeInTheDocument();
+    // A row is identified by handle, which is what the filter box searches.
+    expect(screen.getByText("owner")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/filter by handle/i)).toBeInTheDocument();
+    // The name somebody filled in is theirs, and an operator needs none of it.
+    expect(screen.queryByText("Wilhelmina Fitzgerald")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Name/ })).not.toBeInTheDocument();
   });
 
   it("matches a whole handle pasted in, not just the name part", async () => {
@@ -89,16 +94,6 @@ describe("SettingsPlatformUsersPage", () => {
 
     expect(screen.getByText("o***r@e***m")).toBeInTheDocument();
     expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
-  });
-
-  it("never shows the name the account filled in", async () => {
-    const rows = masked();
-    rows[1].full_name = "Wilhelmina Fitzgerald";
-    renderRoster(rows);
-
-    await screen.findByText("u***1@e***m");
-    expect(screen.queryByText("Wilhelmina Fitzgerald")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Name/ })).not.toBeInTheDocument();
   });
 
   it("offers a sort control on every identifying column, and only those", async () => {
@@ -136,31 +131,41 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     state.roster = [];
   });
 
-  it("offers an owner every lever, because an owner holds every capability", async () => {
+  // ``content.moderate`` and ``users.manage`` are moderator-tier, but
+  // ``roles.assign`` starts at operator — so each lever is drawn only for a
+  // viewer whose capability would carry it, and only where the account has
+  // something for it to act on.
+  it.each([
+    [
+      "an owner every lever, because an owner holds every capability",
+      "owner",
+      true,
+      ["Username", "Profile picture", "Suspended", "Role"],
+      [],
+    ],
+    [
+      "a moderator everything but the ladder, which they cannot assign",
+      "moderator",
+      true,
+      ["Username", "Suspended"],
+      ["Role"],
+    ],
+    [
+      "nothing to take the picture down with where there is no picture",
+      "owner",
+      false,
+      ["Username"],
+      ["Profile picture"],
+    ],
+  ])("offers %s", async (_label, role, hasAvatar, shown, hidden) => {
     const rows = masked();
-    rows[1].avatar_url = "/api/v1/users/2/avatar/abc";
-    renderRoster(rows);
+    if (hasAvatar) rows[1].avatar_url = "/api/v1/users/2/avatar/abc";
+    renderRoster(rows, buildUser({ role }));
 
     const sheet = await openSheet();
 
-    expect(within(sheet).getByLabelText("Username")).toBeInTheDocument();
-    expect(within(sheet).getByText("Profile picture")).toBeInTheDocument();
-    expect(within(sheet).getByLabelText("Suspended")).toBeInTheDocument();
-    expect(within(sheet).getByLabelText("Role")).toBeInTheDocument();
-  });
-
-  it("withholds the ladder from a moderator, who cannot assign roles", async () => {
-    const rows = masked();
-    rows[1].avatar_url = "/api/v1/users/2/avatar/abc";
-    renderRoster(rows, buildUser({ role: "moderator" }));
-
-    const sheet = await openSheet();
-
-    // ``content.moderate`` and ``users.manage`` are moderator-tier...
-    expect(within(sheet).getByLabelText("Username")).toBeInTheDocument();
-    expect(within(sheet).getByLabelText("Suspended")).toBeInTheDocument();
-    // ...but ``roles.assign`` starts at operator.
-    expect(within(sheet).queryByLabelText("Role")).not.toBeInTheDocument();
+    for (const name of shown) expect(lever(sheet, name)).toBeInTheDocument();
+    for (const name of hidden) expect(lever(sheet, name)).not.toBeInTheDocument();
   });
 
   it("offers support no way in at all, holding none of the three", async () => {
@@ -170,15 +175,5 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     // writes to an account, so there is nothing to open.
     await screen.findByText("o***r@e***m");
     expect(screen.queryByRole("button", { name: /manage account/i })).not.toBeInTheDocument();
-  });
-
-  it("leaves the picture out when there is no picture to take down", async () => {
-    // Default roster: avatar_url is null.
-    renderRoster(masked());
-
-    const sheet = await openSheet();
-
-    expect(within(sheet).getByLabelText("Username")).toBeInTheDocument();
-    expect(within(sheet).queryByText("Profile picture")).not.toBeInTheDocument();
   });
 });

@@ -18,6 +18,8 @@ import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 const ME_TASKS = "/api/v1/me/tasks";
 
+const EMPTY = "Nothing needs your attention right now. Pin a task to keep it here.";
+
 /** The pin query is the one addressing tasks by id; everything else is the rules. */
 const isPinRequest = (conditions: unknown) =>
   Array.isArray(conditions) &&
@@ -30,6 +32,22 @@ type Payloads = {
 };
 
 const captured: URLSearchParams[] = [];
+
+/** The status a finished task carries; the same one on every fixture here. */
+const DONE = {
+  id: 9,
+  project_id: 1,
+  name: "Done",
+  category: "done" as const,
+  position: 3,
+  is_default: false,
+};
+
+/** The filter the section asked for, once it has asked at all. */
+async function firstQuery() {
+  await waitFor(() => expect(captured.length).toBeGreaterThan(0));
+  return JSON.parse(captured[0].get("conditions") ?? "[]");
+}
 
 function mockMyTasks({ rules, pins }: Payloads) {
   server.use(
@@ -87,14 +105,7 @@ describe("FocusSummary", () => {
           id: 3,
           title: "Ship the migration",
           completed_at: "2026-08-10T08:00:00Z",
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          task_status: DONE,
         }),
       ]),
     });
@@ -118,8 +129,7 @@ describe("FocusSummary", () => {
       horizons: { urgent: FOCUS_HORIZON_ANY, high: FOCUS_HORIZON_ANY, medium: 2, low: 0 },
     });
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
 
     expect(conditions).toHaveLength(1);
     expect(conditions[0].logic).toBe("or");
@@ -184,8 +194,7 @@ describe("FocusSummary", () => {
     mockMyTasks({});
     renderFocus();
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
 
     const openValues = conditions[0].conditions
       .flatMap((leg: { conditions: { field: string; value: unknown }[] }) => leg.conditions)
@@ -228,8 +237,7 @@ describe("FocusSummary", () => {
     mockMyTasks({});
     renderFocus();
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
 
     // How many groups deep the payload goes; leaves do not count. The API's
     // _MAX_GROUP_DEPTH of 3 permits two group levels and rejects the whole
@@ -250,8 +258,7 @@ describe("FocusSummary", () => {
     mockMyTasks({});
     renderFocus({ horizons: { urgent: 0, high: 0, medium: 0, low: 0 } });
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
 
     // One shared window means one pair of legs, not one pair per priority.
     const [dueLeg, startLeg, doneLeg] = conditions[0].conditions;
@@ -272,8 +279,7 @@ describe("FocusSummary", () => {
     mockMyTasks({});
     renderFocus({}, { open: true, dueWithinDays: 7, includeHighPriority: true, pins: [] });
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
     const [dueLeg, startLeg, alwaysLeg] = conditions[0].conditions;
 
     expect(dueLeg.conditions[1].value).toEqual(["medium", "low"]);
@@ -344,14 +350,6 @@ describe("FocusSummary", () => {
   it("holds the day's total steady as work gets completed", async () => {
     // Completing something re-labels a task already on the list; it must never
     // pull another one in and grow the denominator underneath the user.
-    const done = {
-      id: 9,
-      project_id: 1,
-      name: "Done",
-      category: "done" as const,
-      position: 3,
-      is_default: false,
-    };
     mockMyTasks({
       rules: buildTaskListResponse([
         buildTask({ id: 1, title: "One", due_date: "2026-08-10T09:00:00Z" }),
@@ -361,7 +359,7 @@ describe("FocusSummary", () => {
           title: "Three",
           due_date: "2026-08-12T09:00:00Z",
           completed_at: new Date().toISOString(),
-          task_status: done,
+          task_status: DONE,
         }),
       ]),
     });
@@ -440,14 +438,7 @@ describe("FocusSummary", () => {
           id: 3,
           title: "Ship the migration",
           completed_at: "2026-08-10T08:00:00Z",
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          task_status: DONE,
         }),
       ]),
     });
@@ -466,8 +457,7 @@ describe("FocusSummary", () => {
     mockMyTasks({});
     renderFocus();
 
-    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const conditions = await firstQuery();
     const doneLeg = conditions[0].conditions.at(-1);
     const since = new Date(
       doneLeg.conditions.find((c: { field: string }) => c.field === "completed_at").value
@@ -478,11 +468,15 @@ describe("FocusSummary", () => {
     expect(since.getTime()).toBe(midnight.getTime());
   });
 
-  it("drops a pinned task that was finished on an earlier day", async () => {
-    // The pin query carries no date filter, so yesterday's finished work would
-    // otherwise sit in "completed today" indefinitely.
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+  // The pin query carries no date filter, so yesterday's finished work would
+  // otherwise sit in "completed today" indefinitely.
+  it.each([
+    ["drops a pinned task that was finished on an earlier day", false],
+    ["keeps a pinned task that was finished today", true],
+  ])("%s", async (_label, today) => {
+    const finishedAt = new Date();
+    if (!today) finishedAt.setDate(finishedAt.getDate() - 1);
+    const title = today ? "Finished today" : "Finished yesterday";
 
     mockMyTasks({
       rules: buildTaskListResponse([]),
@@ -490,62 +484,28 @@ describe("FocusSummary", () => {
         buildTask({
           id: 55,
           guild_id: 1,
-          title: "Finished yesterday",
-          completed_at: yesterday.toISOString(),
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          title,
+          completed_at: finishedAt.toISOString(),
+          task_status: DONE,
         }),
       ]),
     });
 
     renderFocus({ pins: [{ guild_id: 1, task_id: 55 }] });
 
-    expect(
-      await screen.findByText("Nothing needs your attention right now. Pin a task to keep it here.")
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Finished yesterday")).not.toBeInTheDocument();
-  });
-
-  it("keeps a pinned task that was finished today", async () => {
-    mockMyTasks({
-      rules: buildTaskListResponse([]),
-      pins: buildTaskListResponse([
-        buildTask({
-          id: 56,
-          guild_id: 1,
-          title: "Finished today",
-          completed_at: new Date().toISOString(),
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
-        }),
-      ]),
-    });
-
-    renderFocus({ pins: [{ guild_id: 1, task_id: 56 }] });
-
-    const done = await screen.findByText("Finished today");
-    expect(done).toHaveClass("line-through");
-    expect(screen.getByText("1 of 1 done")).toBeInTheDocument();
+    if (today) {
+      expect(await screen.findByText(title)).toHaveClass("line-through");
+      expect(screen.getByText("1 of 1 done")).toBeInTheDocument();
+    } else {
+      expect(await screen.findByText(EMPTY)).toBeInTheDocument();
+      expect(screen.queryByText(title)).not.toBeInTheDocument();
+    }
   });
 
   it("invites the user to pin something when there is nothing to show", async () => {
     mockMyTasks({});
     renderFocus();
 
-    expect(
-      await screen.findByText("Nothing needs your attention right now. Pin a task to keep it here.")
-    ).toBeInTheDocument();
+    expect(await screen.findByText(EMPTY)).toBeInTheDocument();
   });
 });

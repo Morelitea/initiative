@@ -54,11 +54,16 @@ async function enterSelectionMode(user: ReturnType<typeof userEvent.setup>) {
   return () => screen.getAllByRole("checkbox", { name: "Select row" });
 }
 
+/** Render a harness in selection mode, ready to be clicked. */
+async function selecting(harness: React.ReactElement) {
+  const user = userEvent.setup();
+  render(harness);
+  return { user, getCheckboxes: await enterSelectionMode(user) };
+}
+
 describe("DataTable row selection", () => {
   it("shift+clicking selects the inclusive range in displayed order", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const getCheckboxes = await enterSelectionMode(user);
+    const { user, getCheckboxes } = await selecting(<Harness />);
 
     // Anchor on row 2 (Bravo)...
     await user.click(getCheckboxes()[1]);
@@ -73,9 +78,7 @@ describe("DataTable row selection", () => {
   });
 
   it("shift+click after select-all does not range from a stale anchor", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const getCheckboxes = await enterSelectionMode(user);
+    const { user, getCheckboxes } = await selecting(<Harness />);
 
     // Establish an anchor on row 1, then select-all + deselect-all. Select-all
     // clears the anchor, leaving an empty selection and no anchor.
@@ -96,9 +99,7 @@ describe("DataTable row selection", () => {
   });
 
   it("keeps selection consistent across filtering (filter out, select more, clear)", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const getCheckboxes = await enterSelectionMode(user);
+    const { user, getCheckboxes } = await selecting(<Harness />);
 
     // Select Alpha + Bravo.
     await user.click(getCheckboxes()[0]);
@@ -127,37 +128,25 @@ describe("DataTable row selection", () => {
     expect(reported()).toBe("1,2,5");
   });
 
-  it("shows a filter-aware count when selected rows are hidden by the filter", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const getCheckboxes = await enterSelectionMode(user);
+  // Alpha + Bravo are selected and then filtered out of sight. Even where the
+  // filter leaves more rows than are selected — 2 selected, 3 matching — the
+  // plain "2 of 3 selected" would be misleading, because neither of the two is
+  // among the three. So the filtered variant is what both cases show.
+  it.each([
+    ["hidden by a filter that leaves one row", "Echo", "2 selected (1 match filter)"],
+    [
+      "hidden by a filter that leaves more rows than are selected",
+      "e",
+      "2 selected (3 match filter)",
+    ],
+  ])("shows a filter-aware count for rows %s", async (_label, filterText, count) => {
+    const { user, getCheckboxes } = await selecting(<Harness />);
 
     await user.click(getCheckboxes()[0]);
     await user.click(getCheckboxes()[1]);
+    await user.type(screen.getByPlaceholderText("Filter..."), filterText);
 
-    const filter = screen.getByPlaceholderText("Filter...");
-    await user.type(filter, "Echo");
-
-    // 2 selected, both hidden, 1 row matches the filter → filtered-variant message.
-    expect(screen.getByText("2 selected (1 match filter)")).toBeInTheDocument();
-  });
-
-  it("uses the filter-aware count even when selected <= filtered total", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-    const getCheckboxes = await enterSelectionMode(user);
-
-    // Select Alpha + Bravo (2 selected).
-    await user.click(getCheckboxes()[0]);
-    await user.click(getCheckboxes()[1]);
-
-    // Filter to show Charlie/Delta/Echo (3 visible) — none of them are selected.
-    // selected (2) <= filteredTotal (3), but both selected rows are hidden, so the
-    // plain "2 of 3 selected" would be misleading. Expect the filtered variant.
-    const filter = screen.getByPlaceholderText("Filter...");
-    await user.type(filter, "e");
-
-    expect(screen.getByText("2 selected (3 match filter)")).toBeInTheDocument();
+    expect(screen.getByText(count)).toBeInTheDocument();
     expect(screen.queryByText("2 of 3 row(s) selected")).not.toBeInTheDocument();
   });
 });
@@ -241,9 +230,7 @@ describe("DataTable grouping", () => {
   });
 
   it("re-reports the selection when the data is re-shaped under it", async () => {
-    const user = userEvent.setup();
-    render(<GroupedHarness />);
-    const getCheckboxes = await enterSelectionMode(user);
+    const { user, getCheckboxes } = await selecting(<GroupedHarness />);
 
     // Rows read Ungrouped (Charlie), bug (Alpha, Bravo), urgent (Alpha) — pick
     // Alpha's row in the "bug" group.
@@ -257,9 +244,7 @@ describe("DataTable grouping", () => {
   });
 
   it("does not bring a selection back when the original row keys return", async () => {
-    const user = userEvent.setup();
-    render(<GroupedHarness />);
-    const getCheckboxes = await enterSelectionMode(user);
+    const { user, getCheckboxes } = await selecting(<GroupedHarness />);
 
     await user.click(getCheckboxes()[1]);
     const reshape = screen.getByRole("button", { name: "Reshape" });
@@ -301,20 +286,24 @@ const bodyRows = () => screen.getAllByRole("row").slice(1);
 const firstBodyRowText = () => bodyRows()[0].textContent;
 
 describe("DataTable pagination", () => {
-  it("renders every row when pagination is off", () => {
-    // Guards the row-model wiring: the table must not silently slice a caller
-    // that never asked to paginate down to a single page.
-    render(<DataTable columns={columns} data={manyRows} />);
-    expect(bodyRows()).toHaveLength(25);
-    expect(screen.getByText("Row 25")).toBeInTheDocument();
+  // Guards the row-model wiring: the table must not silently slice a caller
+  // that never asked to paginate down to a single page.
+  it.each([
+    ["renders every row when pagination is off", false, 25],
+    ["slices to one page when pagination is on", true, 20],
+  ])("%s", (_label, enablePagination, shown) => {
+    render(<DataTable columns={columns} data={manyRows} enablePagination={enablePagination} />);
+
+    expect(bodyRows()).toHaveLength(shown);
+    expect(screen.getByText("Row 01")).toBeInTheDocument();
+    // Row 25 is on the first page only where nothing was sliced away.
+    expect(screen.queryByText("Row 25") !== null).toBe(!enablePagination);
   });
 
-  it("slices to a page and moves between pages", async () => {
+  it("moves between pages", async () => {
     const user = userEvent.setup();
     render(<DataTable columns={columns} data={manyRows} enablePagination />);
 
-    expect(bodyRows()).toHaveLength(20);
-    expect(screen.getByText("Row 01")).toBeInTheDocument();
     expect(screen.queryByText("Row 21")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -392,25 +381,28 @@ describe("DataTable virtualization", () => {
   // jsdom gives every element a zero height, so the virtualizer windows down to
   // no rows at all — which rows render can only be checked in a real browser.
   // These cover the parts that don't depend on layout.
-  it("drops the pagination controls, which the scroll container replaces", () => {
+  it.each([
+    ["drops the pagination controls, which the scroll container replaces", true],
+    ["keeps the pagination controls when virtualization is off", false],
+  ])("%s", (_label, enableVirtualization) => {
     render(
       <DataTable
         columns={columns}
         data={manyRows}
         enablePagination
-        enableVirtualization
+        enableVirtualization={enableVirtualization}
         virtualRowHeight={48}
       />
     );
 
-    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Rows per page:")).not.toBeInTheDocument();
+    const next = screen.queryByRole("button", { name: "Next" });
+    if (enableVirtualization) {
+      expect(next).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Rows per page:")).not.toBeInTheDocument();
+    } else {
+      expect(next).toBeInTheDocument();
+    }
     expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
-  });
-
-  it("keeps the pagination controls when virtualization is off", () => {
-    render(<DataTable columns={columns} data={manyRows} enablePagination />);
-    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
   });
 });
 
@@ -423,10 +415,13 @@ describe("DataTable grouping callback", () => {
     Element.prototype.scrollIntoView ??= () => {};
   });
 
-  it("reports a grouping picked from the toolbar to the caller", async () => {
-    // Consumers re-shape their rows in response to this callback — the project
-    // task table fans a task out into one row per tag — so a grouping the
-    // caller never hears about leaves it grouping over data it never rebuilt.
+  // Consumers re-shape their rows in response to this callback — the project
+  // task table fans a task out into one row per tag — so a grouping the caller
+  // never hears about leaves it grouping over data it never rebuilt.
+  it.each([
+    ["reports a grouping picked from the toolbar to the caller", undefined, "Group", ["group"]],
+    ["reports clearing the grouping back to None", { grouping: ["group"] }, "None", []],
+  ])("%s", async (_label, initialState, option, reported) => {
     const user = userEvent.setup();
     const seen: string[][] = [];
     render(
@@ -436,32 +431,14 @@ describe("DataTable grouping callback", () => {
         getRowId={fannedRowId}
         enableFilterInput
         groupingOptions={[{ id: "group", label: "Group" }]}
+        initialState={initialState}
         onGroupingChange={(next) => seen.push(next)}
       />
     );
 
     await user.click(screen.getByRole("combobox", { name: "Group by" }));
-    await user.click(screen.getByRole("option", { name: "Group" }));
-    expect(seen).toEqual([["group"]]);
-  });
+    await user.click(screen.getByRole("option", { name: option }));
 
-  it("reports clearing the grouping back to None", async () => {
-    const user = userEvent.setup();
-    const seen: string[][] = [];
-    render(
-      <DataTable
-        columns={fannedColumns}
-        data={fannedRows}
-        getRowId={fannedRowId}
-        enableFilterInput
-        groupingOptions={[{ id: "group", label: "Group" }]}
-        initialState={{ grouping: ["group"] }}
-        onGroupingChange={(next) => seen.push(next)}
-      />
-    );
-
-    await user.click(screen.getByRole("combobox", { name: "Group by" }));
-    await user.click(screen.getByRole("option", { name: "None" }));
-    expect(seen).toEqual([[]]);
+    expect(seen).toEqual([reported]);
   });
 });

@@ -72,6 +72,9 @@ const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, 
   ...overrides,
 });
 
+/** What the page says instead of a grid. Exactly one is ever true at a time. */
+const VERDICTS = ["No community directory here", "Directory unavailable", "No communities yet"];
+
 beforeEach(() => {
   vi.clearAllMocks();
   config.communityDirectory = true;
@@ -114,29 +117,44 @@ describe("CommunitiesPage", () => {
     expect(directoryFor).toHaveBeenCalledWith(expect.anything(), { enabled: false });
   });
 
-  it("reads a refusal as the off state, not a failed load", async () => {
-    // A tab that was open when the owner switched the directory off still has
-    // it cached as on: it asks, and the answer settles it.
-    directoryFor.mockReturnValue(
-      directoryResult([], {
+  // A tab that was open when the owner switched the directory off still has it
+  // cached as on: it asks, and the answer settles it. The three verdicts are
+  // separate findings, so exactly one of them is ever on screen.
+  it.each([
+    [
+      "reads a refusal as the off state, not a failed load",
+      {
         isError: true,
         error: {
           isAxiosError: true,
           response: { status: 403, data: { detail: "COMMUNITY_DIRECTORY_DISABLED" } },
         },
-      })
-    );
+      },
+      "No community directory here",
+    ],
+    [
+      "still reports a directory that failed to load",
+      { isError: true, error: new Error("boom") },
+      "Directory unavailable",
+    ],
+    [
+      "distinguishes an unreachable directory from an empty one",
+      { data: undefined, isError: true },
+      "Directory unavailable",
+    ],
+    [
+      "says nobody has listed a guild when the directory is genuinely empty",
+      {},
+      "No communities yet",
+    ],
+  ])("%s", async (_label, answer, verdict) => {
+    directoryFor.mockReturnValue(directoryResult([], answer));
     renderDirectory();
 
-    expect(await screen.findByText("No community directory here")).toBeInTheDocument();
-    expect(screen.queryByText("Directory unavailable")).not.toBeInTheDocument();
-  });
-
-  it("still reports a directory that failed to load", async () => {
-    directoryFor.mockReturnValue(directoryResult([], { isError: true, error: new Error("boom") }));
-    renderDirectory();
-
-    expect(await screen.findByText("Directory unavailable")).toBeInTheDocument();
+    expect(await screen.findByText(verdict)).toBeInTheDocument();
+    for (const other of VERDICTS.filter((text) => text !== verdict)) {
+      expect(screen.queryByText(other)).not.toBeInTheDocument();
+    }
   });
 
   it("shows a card per community", async () => {
@@ -164,42 +182,38 @@ describe("CommunitiesPage", () => {
     expect(banner).toHaveAttribute("alt", "");
   });
 
-  it("uses the banner colour on a card whose guild set one instead", async () => {
-    directoryFor.mockReturnValue(
-      directoryResult([community({ banner: buildBanner({ color: "#2a9d8f" }) })])
-    );
+  // A card with no artwork still has a banner: whatever colour its guild set,
+  // or the one it wears by default.
+  it.each([
+    ["the colour its guild set instead", buildBanner({ color: "#2a9d8f" }), "rgb(42, 157, 143)"],
+    ["the colour its guild wears by default", buildBanner(), "rgb(37, 99, 235)"],
+  ])("gives a card with no artwork %s", async (_label, banner, colour) => {
+    directoryFor.mockReturnValue(directoryResult([community({ banner })]));
 
     const { container } = renderDirectory();
 
     await screen.findByText("Riverside Players");
-    expect(container.querySelector('[style*="rgb(42, 157, 143)"]')).not.toBeNull();
-  });
-
-  it("gives a card with no artwork the colour its guild wears", async () => {
-    directoryFor.mockReturnValue(directoryResult([community()]));
-
-    const { container } = renderDirectory();
-
-    await screen.findByText("Riverside Players");
-    // The page's own hero artwork is the only image on the page...
+    expect(container.querySelector(`[style*="${colour}"]`)).not.toBeNull();
+    // The page's own hero artwork is the only image on the page.
     expect(container.querySelectorAll("img")).toHaveLength(1);
-    // ...but the card still has a banner.
-    expect(container.querySelector('[style*="rgb(37, 99, 235)"]')).not.toBeNull();
   });
 
-  it("says who is there now beside how many there are", async () => {
-    directoryFor.mockReturnValue(directoryResult([community({ online_count: 3 })]));
-    renderDirectory();
-
-    expect(await screen.findByText("3 online")).toBeInTheDocument();
-    expect(screen.getByText("12 members")).toBeInTheDocument();
-  });
-
-  it("says nothing about presence in a guild nobody is in", async () => {
+  // "0 online" reads as a verdict on the guild rather than on the moment, so a
+  // guild nobody is in says nothing about presence at all.
+  it.each([
+    ["says who is there now beside how many there are", 3, "3 online"],
+    ["says nothing about presence in a guild nobody is in", 0, null],
+  ])("%s", async (_label, online_count, online) => {
+    directoryFor.mockReturnValue(directoryResult([community({ online_count })]));
     renderDirectory();
 
     await screen.findByText("Riverside Players");
-    expect(screen.queryByText("0 online")).not.toBeInTheDocument();
+    expect(screen.getByText("12 members")).toBeInTheDocument();
+    if (online) {
+      expect(screen.getByText(online)).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText("0 online")).not.toBeInTheDocument();
+    }
   });
 
   it("asks for everything until a category is picked", async () => {
@@ -214,14 +228,14 @@ describe("CommunitiesPage", () => {
 
   // The filters are the sidebar's, and the address is what carries them here,
   // so what this page owes is that it asks for what the address says.
-  it("narrows the request to the category in the address", async () => {
-    renderDirectory({ category: "ttrpg" });
+  it.each([
+    ["category", { category: "ttrpg" }],
+    ["search", { q: "dice" }],
+  ])("narrows the request to the %s in the address", async (_label, search) => {
+    renderDirectory(search);
 
     await screen.findByText("Riverside Players");
-    expect(directoryFor).toHaveBeenCalledWith(
-      expect.objectContaining({ category: "ttrpg" }),
-      expect.anything()
-    );
+    expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining(search), expect.anything());
   });
 
   // Below `lg` the sidebar that normally holds the search is off-canvas, so the
@@ -237,16 +251,6 @@ describe("CommunitiesPage", () => {
         expect.objectContaining({ q: "dice" }),
         expect.anything()
       )
-    );
-  });
-
-  it("narrows the request to the search in the address", async () => {
-    renderDirectory({ q: "dice" });
-
-    await screen.findByText("Riverside Players");
-    expect(directoryFor).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "dice" }),
-      expect.anything()
     );
   });
 
@@ -319,21 +323,6 @@ describe("CommunitiesPage", () => {
 
     expect(await screen.findByRole("button", { name: "Open" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
-  });
-
-  it("distinguishes an unreachable directory from an empty one", async () => {
-    directoryFor.mockReturnValue(directoryResult([], { data: undefined, isError: true }));
-    renderDirectory();
-
-    expect(await screen.findByText("Directory unavailable")).toBeInTheDocument();
-    expect(screen.queryByText("No communities yet")).not.toBeInTheDocument();
-  });
-
-  it("says nobody has listed a guild when the directory is genuinely empty", async () => {
-    directoryFor.mockReturnValue(directoryResult([]));
-    renderDirectory();
-
-    expect(await screen.findByText("No communities yet")).toBeInTheDocument();
   });
 
   it("fetches the next page rather than asking for a bigger one", async () => {

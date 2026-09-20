@@ -3,9 +3,10 @@
  * passkey.
  *
  * For the factor, what is worth pinning is what the card does with a challenge
- * — that it stops asking for a password, that the two kinds of code are sent
- * as the kinds they are, that a refused code leaves the person able to try
- * again, and that starting over really does.
+ * — that it stops asking for a password, that a refused code leaves the person
+ * able to try again, and that starting over really does. Which request each
+ * kind of code becomes is the hook's, and is pinned in
+ * `src/hooks/useAuth.test.tsx`.
  *
  * For the passkey it is the joins: that the button is there only where both
  * the deployment and the browser offer one, that a press stands down whatever
@@ -199,25 +200,7 @@ describe("LoginPage second factor", () => {
     expect(screen.queryByLabelText(/^password$/i)).not.toBeInTheDocument();
   });
 
-  it("sends the code against the challenge it was given", async () => {
-    const user = userEvent.setup();
-    mocks.login.mockRejectedValue(new SecondFactorRequiredError("a-challenge"));
-    renderLogin();
-    await signIn(user);
-    await screen.findByLabelText(/authentication code/i);
-
-    await user.type(screen.getByLabelText(/authentication code/i), "123456");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
-
-    await waitFor(() =>
-      expect(mocks.completeSecondFactor).toHaveBeenCalledWith({
-        challenge: "a-challenge",
-        code: "123456",
-      })
-    );
-  });
-
-  it("sends a recovery code as a recovery code", async () => {
+  it("swaps the code field for the recovery one on asking", async () => {
     const user = userEvent.setup();
     mocks.login.mockRejectedValue(new SecondFactorRequiredError("a-challenge"));
     renderLogin();
@@ -225,15 +208,9 @@ describe("LoginPage second factor", () => {
     await screen.findByLabelText(/authentication code/i);
 
     await user.click(screen.getByRole("button", { name: /use a recovery code/i }));
-    await user.type(screen.getByLabelText(/recovery code/i), "abcde-fghij");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
 
-    await waitFor(() =>
-      expect(mocks.completeSecondFactor).toHaveBeenCalledWith({
-        challenge: "a-challenge",
-        recoveryCode: "abcde-fghij",
-      })
-    );
+    expect(await screen.findByLabelText(/recovery code/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
   });
 
   it("lets them try again after a refused code", async () => {

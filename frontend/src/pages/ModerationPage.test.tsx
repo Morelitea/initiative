@@ -60,6 +60,18 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
   };
 });
 
+/** One thing the community has shared, as the Sharing tab reads it. */
+const shared = (overrides: Record<string, unknown> = {}) => ({
+  resource_type: "project",
+  resource_id: 4,
+  name: "Spring Play",
+  all_initiative_members: false,
+  user_grant_count: 1,
+  role_grant_count: 0,
+  via_dashboard: false,
+  ...overrides,
+});
+
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
 
 import { ModerationPage } from "./ModerationPage";
@@ -72,6 +84,13 @@ const render = () =>
     initialRoute: "/c/$guildId/i/$initiativeId/moderation",
     routeParams: { guildId: "3", initiativeId: "7" },
   });
+
+/** Render and open the Sharing tab, which is where the second shape lives. */
+const openSharing = async () => {
+  render();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+};
 
 describe("ModerationPage", () => {
   beforeEach(() => {
@@ -87,7 +106,7 @@ describe("ModerationPage", () => {
     expect(await screen.findByText("Nothing has been reported.")).toBeInTheDocument();
   });
 
-  it("shows how many people reported, and never who", async () => {
+  it("shows what was reported and how many reported it, and never who", async () => {
     state.items = [report({ reporter_count: 3, details: ["Abusive.", "Not on."] })];
     render();
 
@@ -96,6 +115,13 @@ describe("ModerationPage", () => {
     expect(screen.getByText("Not on.")).toBeInTheDocument();
     // Nothing in the payload names a reporter, and nothing on the page does.
     expect(screen.queryByText(/reporter_id/i)).not.toBeInTheDocument();
+    // The card shows the thing itself, and sends a moderator to it in context
+    // rather than pretending this page is where it is read.
+    const card = screen.getByRole("region", { name: "A comment" });
+    expect(within(card).getByText("Say that again and see.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Open the reported item to look at it in context, then decide here.")
+    ).toBeInTheDocument();
   });
 
   it("offers every outcome, and each one closes the report", async () => {
@@ -146,51 +172,34 @@ describe("ModerationPage", () => {
     expect(within(card).queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument();
   });
 
-  it("sends a moderator to the thing itself rather than acting here", async () => {
-    state.items = [report()];
-    render();
-    expect(
-      await screen.findByText("Open the reported item to look at it in context, then decide here.")
-    ).toBeInTheDocument();
-  });
-
-  it("shows what was reported, not only that something was", async () => {
-    state.items = [report({ target_excerpt: "Say that again and see." })];
-    render();
-
-    const card = await screen.findByRole("region", { name: "A comment" });
-    expect(within(card).getByText("Say that again and see.")).toBeInTheDocument();
-  });
-
-  it("links a comment to the task it was said on, not to its project", async () => {
-    // A comment has no page of its own; it is read where it was written. The
-    // project is only what the task is *shared* as part of, and landing there
-    // leaves a moderator hunting for the comment they were sent to read.
-    state.items = [report()];
-    render();
-
-    const link = await screen.findByRole("link", { name: "A comment" });
-    expect(link).toHaveAttribute("href", expect.stringContaining("/projects/12/tasks/88"));
-  });
-
-  it("links a comment on a document to that document", async () => {
-    state.items = [
-      report({
-        target_link: { entity_type: "document", entity_id: 5, tool: "document", tool_id: 5 },
-      }),
-    ];
+  // A comment has no page of its own; it is read where it was written. The
+  // project is only what the task is *shared* as part of, and landing there
+  // leaves a moderator hunting for the comment they were sent to read.
+  it.each([
+    [
+      "a comment, to the task it was said on rather than to its project",
+      {},
+      "A comment",
+      "/projects/12/tasks/88",
+    ],
+    [
+      "a comment on a document, to that document",
+      { target_link: { entity_type: "document", entity_id: 5, tool: "document", tool_id: 5 } },
+      "A comment",
+      "/documents/5",
+    ],
+    [
+      "a reported task, to the task itself",
+      { target_type: "task", target_id: 88 },
+      "A task",
+      "/projects/12/tasks/88",
+    ],
+  ])("links %s", async (_label, overrides, name, href) => {
+    state.items = [report(overrides)];
     render();
 
-    const link = await screen.findByRole("link", { name: "A comment" });
-    expect(link).toHaveAttribute("href", expect.stringContaining("/documents/5"));
-  });
-
-  it("links a reported task to the task itself", async () => {
-    state.items = [report({ target_type: "task", target_id: 88 })];
-    render();
-
-    const link = await screen.findByRole("link", { name: "A task" });
-    expect(link).toHaveAttribute("href", expect.stringContaining("/projects/12/tasks/88"));
+    const link = await screen.findByRole("link", { name });
+    expect(link).toHaveAttribute("href", expect.stringContaining(href));
   });
 
   it("says so, and links nowhere, once the reported thing is gone", async () => {
@@ -224,7 +233,7 @@ describe("ModerationPage", () => {
     expect(screen.queryByRole("button", { name: "Older" })).not.toBeInTheDocument();
   });
 
-  it("leaves a way back from a page that came back empty", async () => {
+  it("leaves a way back from a page that came back empty, and claims nothing by it", async () => {
     // A count that divides exactly by the page size lands here, and without
     // the way back the only exits are switching tab or reloading.
     state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
@@ -237,17 +246,7 @@ describe("ModerationPage", () => {
 
     expect(await screen.findByText("Nothing further.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Newer" })).toBeEnabled();
-  });
-
-  it("an empty later page does not claim nothing was ever reported", async () => {
-    state.items = Array.from({ length: 50 }, (_, i) => report({ id: i + 1 }));
-    render();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("button", { name: "Older" }));
-    state.items = [];
-    await user.click(screen.getByRole("button", { name: "Older" }));
-
+    // Running off the end of the list is not proof that nothing was reported.
     expect(screen.queryByText("Nothing has been reported.")).not.toBeInTheDocument();
   });
 
@@ -260,20 +259,9 @@ describe("ModerationPage", () => {
 
   it("shows how widely each thing is reached, and links to it", async () => {
     state.sharing = [
-      {
-        resource_type: "project",
-        resource_id: 4,
-        name: "Spring Play",
-        all_initiative_members: true,
-        user_grant_count: 2,
-        role_grant_count: 1,
-        via_dashboard: false,
-      },
+      shared({ all_initiative_members: true, user_grant_count: 2, role_grant_count: 1 }),
     ];
-    render();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    await openSharing();
 
     expect(await screen.findByText("Everyone here")).toBeInTheDocument();
     expect(screen.getByText(/2 people/)).toBeInTheDocument();
@@ -285,21 +273,8 @@ describe("ModerationPage", () => {
   });
 
   it("offers no way to change sharing from here", async () => {
-    state.sharing = [
-      {
-        resource_type: "project",
-        resource_id: 4,
-        name: "Spring Play",
-        all_initiative_members: false,
-        user_grant_count: 1,
-        role_grant_count: 0,
-        via_dashboard: false,
-      },
-    ];
-    render();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    state.sharing = [shared()];
+    await openSharing();
     await screen.findByText("Spring Play");
     // Changing it goes through the resource's own control, which is the one
     // editor for it.
@@ -307,21 +282,8 @@ describe("ModerationPage", () => {
   });
 
   it("counts one person as a person, not as people", async () => {
-    state.sharing = [
-      {
-        resource_type: "project",
-        resource_id: 4,
-        name: "Spring Play",
-        all_initiative_members: false,
-        user_grant_count: 1,
-        role_grant_count: 1,
-        via_dashboard: false,
-      },
-    ];
-    render();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
+    state.sharing = [shared({ role_grant_count: 1 })];
+    await openSharing();
     await screen.findByText("Spring Play");
     expect(screen.queryByText(/1 people/)).not.toBeInTheDocument();
     expect(screen.queryByText(/1 roles/)).not.toBeInTheDocument();
@@ -331,10 +293,8 @@ describe("ModerationPage", () => {
     // "Nothing is shared" reads as a finding, so it has to be one somebody
     // actually got an answer to.
     state.sharingFailed = true;
-    render();
-    const user = userEvent.setup();
+    await openSharing();
 
-    await user.click(await screen.findByRole("tab", { name: "Sharing" }));
     expect(await screen.findByText("Could not load that. Try again.")).toBeInTheDocument();
     expect(
       screen.queryByText("Nothing here has been shared with anybody in particular.")

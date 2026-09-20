@@ -105,6 +105,26 @@ const render = () =>
 
 const requirementRadio = () => screen.getByLabelText(/require single sign-on/i);
 
+/** Render the page, ready to be clicked. */
+const mounted = () => {
+  const user = userEvent.setup();
+  render();
+  return user;
+};
+
+/** A rule already saved on the community, with only what a case varies named. */
+const savedPolicy = (overrides: Partial<typeof policy>) => {
+  policy = {
+    policy: "required",
+    provider_id: null,
+    provider_slug: null,
+    provider_display_name: null,
+    require_methods: [],
+    factor_required_by_platform: false,
+    ...overrides,
+  };
+};
+
 /** The provider picker lists the same names the registry below does, so
  * choose from the open listbox rather than from the page. */
 const chooseOption = async (user: ReturnType<typeof userEvent.setup>, name: string | RegExp) => {
@@ -206,48 +226,55 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("choosing what the community requires", () => {
-    it("saves 'any of ours' as a rule that names no provider", async () => {
-      const user = userEvent.setup();
-      render();
+    // One rule, expressed by ticking what it asks for. `require_methods` is
+    // sent rather than omitted: switching to a named provider is also how a
+    // method requirement is cleared, so the empty list is the instruction.
+    it.each([
+      [
+        "'any of ours' as a rule that names no provider",
+        "Any of our sign-in providers",
+        [],
+        { require_methods: ["sso"] },
+      ],
+      [
+        "a named provider as a rule that names no method",
+        "Contractors",
+        [],
+        { provider_id: 12, require_methods: [] },
+      ],
+      [
+        "a second factor alongside a named provider",
+        "Contractors",
+        [/second factor/i],
+        { provider_id: 12, require_methods: ["totp"] },
+      ],
+      [
+        "a passkey alongside the code",
+        "Contractors",
+        [/second factor/i, /require a passkey/i],
+        { provider_id: 12, require_methods: ["totp", "passkey"] },
+      ],
+      [
+        "a passkey on its own",
+        null,
+        [/require a passkey/i],
+        { provider_id: null, require_methods: ["passkey"] },
+      ],
+    ])("saves %s", async (_label, provider, ticks, sent) => {
+      const user = mounted();
 
       await user.click(requirementRadio());
-      await chooseOption(user, "Any of our sign-in providers");
+      if (provider) await chooseOption(user, provider);
+      for (const tick of ticks) await user.click(screen.getByLabelText(tick));
       await user.click(screen.getByRole("button", { name: /save/i }));
 
       expect(savePolicy).toHaveBeenCalledTimes(1);
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        require_methods: ["sso"],
-      });
-    });
-
-    it("saves a named provider as a rule that names no method", async () => {
-      const user = userEvent.setup();
-      render();
-
-      await user.click(requirementRadio());
-      await chooseOption(user, "Contractors");
-      await user.click(screen.getByRole("button", { name: /save/i }));
-
-      // Sent rather than omitted: switching to a named provider is also how a
-      // method requirement is cleared, so the empty list is the instruction.
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        provider_id: 12,
-        require_methods: [],
-      });
+      expect(savePolicy.mock.calls[0][0]).toEqual({ policy: "required", ...sent });
     });
 
     it("switches back from 'any of ours' to a named provider", async () => {
-      policy = {
-        policy: "required",
-        provider_id: null,
-        provider_slug: null,
-        provider_display_name: null,
-        require_methods: ["sso"],
-      };
-      const user = userEvent.setup();
-      render();
+      savedPolicy({ require_methods: ["sso"] });
+      const user = mounted();
 
       await chooseOption(user, "Corp SSO");
       await user.click(screen.getByRole("button", { name: /save/i }));
@@ -260,13 +287,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("has nothing to save until something changes", () => {
-      policy = {
-        policy: "required",
-        provider_id: null,
-        provider_slug: null,
-        provider_display_name: null,
-        require_methods: ["sso"],
-      };
+      savedPolicy({ require_methods: ["sso"] });
       render();
 
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
@@ -309,28 +330,11 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("asking for a second factor", () => {
-    it("asks for it alongside a named provider", async () => {
-      const user = userEvent.setup();
-      render();
-
-      await user.click(requirementRadio());
-      await chooseOption(user, "Contractors");
-      await user.click(screen.getByLabelText(/second factor/i));
-      await user.click(screen.getByRole("button", { name: /save/i }));
-
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        provider_id: 12,
-        require_methods: ["totp"],
-      });
-    });
-
     it("is not offered where the deployment already asks everybody", async () => {
       // Its own box has nothing to add, so the page says so instead of
       // offering a tick that would change nothing.
       policy = { ...policy, factor_required_by_platform: true };
-      const user = userEvent.setup();
-      render();
+      const user = mounted();
 
       await user.click(requirementRadio());
 
@@ -340,49 +344,11 @@ describe("SettingsGuildSecurityPage", () => {
       expect(screen.getByLabelText(/require a passkey/i)).toBeInTheDocument();
     });
 
-    it("asks for a passkey alongside the code", async () => {
-      const user = userEvent.setup();
-      render();
-
-      await user.click(requirementRadio());
-      await chooseOption(user, "Contractors");
-      await user.click(screen.getByLabelText(/second factor/i));
-      await user.click(screen.getByLabelText(/require a passkey/i));
-      await user.click(screen.getByRole("button", { name: /save/i }));
-
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        provider_id: 12,
-        require_methods: ["totp", "passkey"],
-      });
-    });
-
-    it("asks for a passkey on its own", async () => {
-      const user = userEvent.setup();
-      render();
-
-      await user.click(requirementRadio());
-      await user.click(screen.getByLabelText(/require a passkey/i));
-      await user.click(screen.getByRole("button", { name: /save/i }));
-
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        provider_id: null,
-        require_methods: ["passkey"],
-      });
-    });
-
     it("reads a factor-only rule as one, not as 'any of ours'", async () => {
       // require_methods is no longer a yes/no: a rule can name the factor and
       // no provider, which is not the same as asking for the community's own
       // single sign-on.
-      policy = {
-        policy: "required",
-        provider_id: null,
-        provider_slug: null,
-        provider_display_name: null,
-        require_methods: ["totp"],
-      };
+      savedPolicy({ require_methods: ["totp"] });
       render();
 
       expect(await screen.findByLabelText(/second factor/i)).toBeChecked();
@@ -421,8 +387,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("offers the named provider's sign-in", async () => {
-      const user = userEvent.setup();
-      render();
+      const user = mounted();
 
       await user.click(requirementRadio());
       await chooseOption(user, "Contractors");
@@ -435,47 +400,42 @@ describe("SettingsGuildSecurityPage", () => {
       expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
     });
 
-    it("asks for a code where the rule wants one", async () => {
-      const user = userEvent.setup();
-      render();
+    // What the rule wanted is what the page asks the global dialog for, and
+    // the unsaved choice survives the asking either way.
+    it.each([
+      [
+        "a code",
+        /second factor/i,
+        "totp",
+        /enter a code from your authenticator app first/i,
+        /^enter a code$/i,
+      ],
+      [
+        "the passkey",
+        /require a passkey/i,
+        "passkey",
+        /present your passkey first/i,
+        /^present passkey$/i,
+      ],
+    ])("asks for %s where the rule wants one", async (_label, tick, unmet, says, offers) => {
+      const user = mounted();
 
       await user.click(requirementRadio());
-      await chooseOption(user, "Contractors");
-      await user.click(screen.getByLabelText(/second factor/i));
+      await user.click(screen.getByLabelText(tick));
       await user.click(screen.getByRole("button", { name: /save/i }));
-      refuse("totp");
+      refuse(unmet);
 
-      expect(
-        screen.getByText(/enter a code from your authenticator app first/i)
-      ).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: /^enter a code$/i }));
+      expect(screen.getByText(says)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: offers }));
 
-      expect(asked).toEqual([{ guildId: 4, kind: "totp" }]);
-      expect(screen.getByLabelText(/second factor/i)).toBeChecked();
-      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
-    });
-
-    it("asks for the passkey where the rule wants one", async () => {
-      const user = userEvent.setup();
-      render();
-
-      await user.click(requirementRadio());
-      await user.click(screen.getByLabelText(/require a passkey/i));
-      await user.click(screen.getByRole("button", { name: /save/i }));
-      refuse("passkey");
-
-      expect(screen.getByText(/present your passkey first/i)).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: /^present passkey$/i }));
-
-      expect(asked).toEqual([{ guildId: 4, kind: "passkey" }]);
-      expect(screen.getByLabelText(/require a passkey/i)).toBeChecked();
+      expect(asked).toEqual([{ guildId: 4, kind: unmet }]);
+      expect(screen.getByLabelText(tick)).toBeChecked();
       expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
     });
 
     it("still says something when the server names nothing", async () => {
       // An older server answers the same refusal with no header on it.
-      const user = userEvent.setup();
-      render();
+      const user = mounted();
 
       await user.click(requirementRadio());
       await user.click(screen.getByLabelText(/require a passkey/i));
@@ -491,92 +451,93 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("what each grant brings with it", () => {
-    it("renders nothing where the operator has granted neither", () => {
-      authOptions = [];
+    const API_KEYS = { label: /allow personal api keys/i };
+    const SESSION = { label: /sign in again every twelve hours/i };
+    const REQUIREMENT = { label: /require single sign-on/i };
+    const SIGN_IN_LINK = { text: /member sign-in link/i };
+    const WHO_GETS_IN = { text: "Who gets in" };
+    const ON_WHAT_TERMS = { text: "On what terms" };
+
+    /** A thing on the page, however it is named there. */
+    const find = (q: { label: RegExp } | { text: string | RegExp }) =>
+      "label" in q ? screen.queryByLabelText(q.label) : screen.queryByText(q.text);
+
+    // Each grant is one half of the page, and neither brings the other with it.
+    it.each([
+      ["neither, so nothing at all", [], [], [API_KEYS, SESSION, REQUIREMENT, SIGN_IN_LINK]],
+      ["only the terms half", ["restrictions"], [API_KEYS, SESSION], [WHO_GETS_IN, REQUIREMENT]],
+      [
+        "only the sign-in half",
+        ["providers"],
+        [REQUIREMENT, SIGN_IN_LINK],
+        [ON_WHAT_TERMS, API_KEYS],
+      ],
+    ])("shows %s where that is what the operator granted", (_label, granted, shown, hidden) => {
+      authOptions = granted;
       const { container } = render();
 
-      expect(container).toBeEmptyDOMElement();
-    });
-
-    it("shows only the terms half where that is all that is granted", () => {
-      authOptions = ["restrictions"];
-      render();
-
-      expect(screen.getByLabelText(/allow personal api keys/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/sign in again every twelve hours/i)).toBeInTheDocument();
-      expect(screen.queryByText("Who gets in")).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/require single sign-on/i)).not.toBeInTheDocument();
-    });
-
-    it("shows only the sign-in half where that is all that is granted", () => {
-      authOptions = ["providers"];
-      render();
-
-      expect(requirementRadio()).toBeInTheDocument();
-      expect(screen.getByText(/member sign-in link/i)).toBeInTheDocument();
-      expect(screen.queryByText("On what terms")).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
+      if (shown.length === 0) expect(container).toBeEmptyDOMElement();
+      for (const q of shown) expect(find(q)).toBeInTheDocument();
+      for (const q of hidden) expect(find(q)).not.toBeInTheDocument();
     });
   });
 
-  describe("declining personal API keys", () => {
-    const apiSwitch = () => screen.getByLabelText(/allow personal api keys/i);
-
+  // Both switches are the seat's, and both save the moment they are flipped —
+  // there is no button to press after.
+  describe.each([
+    {
+      what: "declining personal API keys",
+      control: () => screen.queryByLabelText(/allow personal api keys/i),
+      startsOn: true,
+      stored: (value: boolean) => {
+        allowApiKeys = value;
+      },
+      save: saveApiAccess,
+      sends: { allow_api_keys: false },
+      explains: /no key can be created for this community/i,
+    },
+    {
+      what: "how often members sign in again",
+      control: () => screen.queryByLabelText(/sign in again every twelve hours/i),
+      startsOn: false,
+      stored: (value: boolean) => {
+        sessionLimit = value;
+      },
+      save: saveSessionLimit,
+      sends: { enforce_compliance_session: true },
+      explains: /cap how long people stay signed in/i,
+    },
+  ])("$what", ({ control, startsOn, stored, save, sends, explains }) => {
     it("saves as it is switched, with no button to press", async () => {
-      const user = userEvent.setup();
-      render();
+      const user = mounted();
 
-      expect(apiSwitch()).toBeChecked();
-      await user.click(apiSwitch());
+      if (startsOn) expect(control()).toBeChecked();
+      else expect(control()).not.toBeChecked();
+      await user.click(control() as HTMLElement);
 
-      expect(saveApiAccess).toHaveBeenCalledTimes(1);
-      expect(saveApiAccess.mock.calls[0][0]).toEqual({ allow_api_keys: false });
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(save.mock.calls[0][0]).toEqual(sends);
     });
 
-    it("shows what a community that declines them has chosen", () => {
-      allowApiKeys = false;
+    it("shows what the community chose, and says in one line what it means", () => {
+      stored(!startsOn);
       render();
 
-      expect(apiSwitch()).not.toBeChecked();
-      expect(screen.getByText(/no key can be created for this community/i)).toBeInTheDocument();
-    });
-
-    it("is not on offer to an ordinary admin, like the rest of the page", () => {
-      guildRole = "admin";
-      render();
-
-      expect(screen.queryByLabelText(/allow personal api keys/i)).not.toBeInTheDocument();
-    });
-  });
-
-  describe("how often members sign in again", () => {
-    const limitSwitch = () => screen.getByLabelText(/sign in again every twelve hours/i);
-
-    it("saves as it is switched, with no button to press", async () => {
-      const user = userEvent.setup();
-      render();
-
-      expect(limitSwitch()).not.toBeChecked();
-      await user.click(limitSwitch());
-
-      expect(saveSessionLimit).toHaveBeenCalledTimes(1);
-      expect(saveSessionLimit.mock.calls[0][0]).toEqual({ enforce_compliance_session: true });
-    });
-
-    it("says what it is for in one line either way", () => {
-      sessionLimit = true;
-      render();
-
-      expect(limitSwitch()).toBeChecked();
-      expect(screen.getByText(/cap how long people stay signed in/i)).toBeInTheDocument();
+      if (startsOn) expect(control()).not.toBeChecked();
+      else expect(control()).toBeChecked();
+      expect(screen.getByText(explains)).toBeInTheDocument();
     });
 
     it("is the seat's, not an ordinary admin's", () => {
       guildRole = "admin";
       render();
 
-      expect(screen.queryByLabelText(/sign in again every twelve hours/i)).not.toBeInTheDocument();
+      expect(control()).not.toBeInTheDocument();
     });
+  });
+
+  describe("how often members sign in again, across communities", () => {
+    const limitSwitch = () => screen.getByLabelText(/sign in again every twelve hours/i);
 
     it("does not carry a pending choice or failure into another community", async () => {
       const user = userEvent.setup();
