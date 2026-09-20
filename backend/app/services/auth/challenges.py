@@ -69,6 +69,11 @@ class ChallengePurpose(str, Enum):
     #: the step-up's: what it answers for is the request that spends it, not
     #: the session, so one may not be taken for the other.
     break_glass = "break_glass"
+    #: A passkey is being registered for an account that does not exist yet.
+    #: The row names nobody — there is nobody to name — and what it stands for
+    #: is that the gates a registration has to pass were passed before the
+    #: browser was sent to an authenticator.
+    passkey_sign_up = "passkey_sign_up"
 
 
 @dataclass(frozen=True)

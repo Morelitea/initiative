@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import logging
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Annotated
 from urllib.parse import urlencode
 
@@ -85,18 +85,29 @@ from app.schemas.platform.auth import (
     VerificationConfirmRequest,
     VerificationSendResponse,
 )
+from app.schemas.platform.passkey import (
+    PasskeyRegistrationOptions,
+    PasskeySignUpFinish,
+    PasskeySignUpResult,
+    PasskeySignUpStart,
+)
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services import audit as audit_service
+import webauthn
+from webauthn.helpers import bytes_to_base64url
+
 from app.services.auth import addresses
 from app.services.auth import (
     guild_provider_connections as guild_connections,
 )
 from app.services.auth import challenges as challenge_service
+from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
+    passkey_amr,
     read_assurance,
     read_narrowing,
     record_for_provider,
@@ -192,6 +203,39 @@ def _refresh_rejected(detail: str) -> JSONResponse:
     return response
 
 
+@dataclass(frozen=True)
+class RegistrationDetails:
+    """What somebody says about themselves when they register.
+
+    The same set whichever door they came through, so the one registration
+    body below reads them from here rather than from a schema belonging to one
+    of them.
+    """
+
+    email: str
+    username: str
+    full_name: str | None = None
+    timezone: str | None = None
+    captcha_token: str | None = None
+
+
+@dataclass(frozen=True)
+class PasskeyToKeep:
+    """A verified credential, waiting for the account it belongs to."""
+
+    registered: passkey_service.RegisteredCredential
+    name: str
+
+
+@dataclass(frozen=True)
+class RegisteredAccount:
+    """A new account and, where it holds no password, the codes that are its
+    way back to one."""
+
+    user: User
+    codes: list[str]
+
+
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/15minutes")
 async def register_user(
@@ -202,8 +246,122 @@ async def register_user(
 ) -> UserRead:
     # Registering here mints a password account, so it is the password method's
     # own door. A deployment that does not permit passwords onboards through an
-    # identity provider instead, which provisions on first sign-in.
+    # identity provider, or through the passkey door below.
     await require_login_method(session, LoginMethod.password)
+    # Enforce password policy (NIST 800-63B: length + HIBP breach check) before
+    # we hash. Raises 422 PASSWORD_TOO_SHORT / PASSWORD_BREACHED on failure.
+    await enforce_password_policy(user_in.password)
+    registered = await _register_account(
+        request,
+        session,
+        details=RegistrationDetails(
+            email=user_in.email,
+            username=user_in.username,
+            full_name=user_in.full_name,
+            timezone=user_in.timezone,
+            captcha_token=user_in.captcha_token,
+        ),
+        invite_code=invite_code,
+        hashed_password=get_password_hash(user_in.password),
+    )
+    return await users_service.to_self_read(registered.user)
+
+
+async def _registration_gate(
+    request: Request,
+    session: AsyncSession,
+    *,
+    email: str,
+    invite: str | None,
+    captcha_token: str | None,
+    check_captcha: bool = True,
+) -> bool:
+    """Whether this address may register here at all, and whether it is first.
+
+    Asked before an account is made and, for the passkey door, before the
+    browser is sent to an authenticator — a refusal that arrives after the
+    ceremony has already cost somebody's key a resident credential.
+    """
+    # Address-aware: the address is taken if it reaches ANY account, not
+    # only if it is the one that account was created with.
+    if await addresses.account_holding(session, email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
+        )
+
+    user_count_result = await session.exec(select(func.count(User.id)))
+    user_count = user_count_result.one()
+    is_first_user = user_count == 0
+
+    # Block registration if:
+    # - Public registration disabled OR guild creation disabled
+    # - AND no invite code provided
+    # - AND not the first user (bootstrap always allowed)
+    if (
+        (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
+        and not invite
+        and not is_first_user
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
+        )
+
+    # Captcha gate (no-op when ``CAPTCHA_PROVIDER`` isn't configured;
+    # see ``app.services.captcha``). Skipped on the bootstrap
+    # first-user path because there's no bot economics on a fresh
+    # deployment with zero users — and operators shouldn't be
+    # locked out by a captcha they haven't fully wired up yet.
+    # ``get_real_client_ip`` returns whatever the ASGI server resolved.
+    # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
+    # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
+    # captcha provider sees the client address rather than the proxy's.
+    # A deployment that starts uvicorn some other way has to pass those
+    # flags itself, or this is the proxy's address.
+    #
+    # ``check_captcha`` is false only where a door took the token already and
+    # a token is spent by being checked. The passkey door's finish is that
+    # case: it can only be reached with a challenge its begin issued, and the
+    # begin is where the token was taken.
+    if not is_first_user and check_captcha:
+        from app.core.rate_limit import get_real_client_ip
+        from app.services import captcha as captcha_service
+
+        await captcha_service.verify_or_raise(
+            captcha_token,
+            remote_ip=get_real_client_ip(request),
+        )
+    return is_first_user
+
+
+async def _register_account(
+    request: Request,
+    session: AsyncSession,
+    *,
+    details: RegistrationDetails,
+    invite_code: str | None,
+    hashed_password: str | None,
+    passkey: PasskeyToKeep | None = None,
+    check_captcha: bool = True,
+) -> RegisteredAccount:
+    """Everything registering does, including settling how the account gets in.
+
+    One body for both doors — the password one above and the passkey one below
+    — because what a registration *is* does not depend on what it hands the
+    account to come back with: the same address rules, the same invite and
+    captcha gates, the same handle, the same workspace seeded and the same
+    verification letter.
+
+    What differs is the way in, and it is settled *here* rather than by the
+    caller afterwards: the guild this account gets is provisioned in the middle
+    of this, which commits, so a credential written after the fact could fail
+    and leave an account nobody can sign in to. Written in the same breath as
+    the account, it is covered by the same undo.
+
+    The caller has already refused a method this deployment does not permit and
+    taken whatever its own door asks for.
+    """
     normalized_invite = (invite_code or "").strip() or None
 
     smtp_configured = False
@@ -213,57 +371,15 @@ async def register_user(
             app_settings.smtp_host and app_settings.smtp_from_address
         )
 
-        normalized_email = user_in.email.lower().strip()
-        # Address-aware: the address is taken if it reaches ANY account, not
-        # only if it is the one that account was created with.
-        if await addresses.account_holding(session, normalized_email):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
-            )
-
-        user_count_result = await session.exec(select(func.count(User.id)))
-        user_count = user_count_result.one()
-        is_first_user = user_count == 0
-
-        # Block registration if:
-        # - Public registration disabled OR guild creation disabled
-        # - AND no invite code provided
-        # - AND not the first user (bootstrap always allowed)
-        if (
-            (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
-            and not normalized_invite
-            and not is_first_user
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
-            )
-
-        # Captcha gate (no-op when ``CAPTCHA_PROVIDER`` isn't configured;
-        # see ``app.services.captcha``). Skipped on the bootstrap
-        # first-user path because there's no bot economics on a fresh
-        # deployment with zero users — and operators shouldn't be
-        # locked out by a captcha they haven't fully wired up yet.
-        # ``get_real_client_ip`` returns whatever the ASGI server resolved.
-        # ``start.sh`` passes ``--proxy-headers --forwarded-allow-ips`` when
-        # ``BEHIND_PROXY`` is true, so behind nginx / ALB / Cloudflare the
-        # captcha provider sees the client address rather than the proxy's.
-        # A deployment that starts uvicorn some other way has to pass those
-        # flags itself, or this is the proxy's address.
-        if not is_first_user:
-            from app.core.rate_limit import get_real_client_ip
-            from app.services import captcha as captcha_service
-
-            await captcha_service.verify_or_raise(
-                user_in.captcha_token,
-                remote_ip=get_real_client_ip(request),
-            )
-
-        # Enforce password policy (NIST 800-63B: length + HIBP breach
-        # check) before we hash. Raises 422 PASSWORD_TOO_SHORT /
-        # PASSWORD_BREACHED on failure.
-        await enforce_password_policy(user_in.password)
+        normalized_email = details.email.lower().strip()
+        is_first_user = await _registration_gate(
+            request,
+            session,
+            email=normalized_email,
+            invite=normalized_invite,
+            captcha_token=details.captcha_token,
+            check_captcha=check_captcha,
+        )
 
         if normalized_invite:
             user_role = UserRole.member
@@ -277,7 +393,7 @@ async def register_user(
         # ``None`` when the field is omitted or blank, in which case
         # we simply don't pass ``timezone`` to the model and the
         # column default ``"UTC"`` applies.
-        normalized_timezone = normalize_timezone(user_in.timezone)
+        normalized_timezone = normalize_timezone(details.timezone)
 
         # Confirmed on the spot when there is no mail to confirm it with, and
         # for the account that bootstraps the deployment.
@@ -288,9 +404,11 @@ async def register_user(
             username="",
             discriminator=0,
             username_chosen=True,
-            full_name=user_in.full_name,
-            hashed_password=get_password_hash(user_in.password),
-            password_set_at=datetime.now(timezone.utc),
+            full_name=details.full_name,
+            hashed_password=hashed_password,
+            password_set_at=(
+                datetime.now(timezone.utc) if hashed_password is not None else None
+            ),
             role=user_role,
             status=UserStatus.active,
         )
@@ -302,7 +420,7 @@ async def register_user(
         # never meets the pick screen.
         try:
             await username_service.insert_with_handle(
-                session, user=user, name=user_in.username
+                session, user=user, name=details.username
             )
         except UsernameError as exc:
             raise HTTPException(
@@ -317,6 +435,25 @@ async def register_user(
             verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        # The way in. A password is on the row already; a key is a row of its
+        # own, and the set of codes beside it is how an account holding no
+        # password gets one — the same rule as giving a password up, applied
+        # from the start.
+        codes: list[str] = []
+        if passkey is not None:
+            await passkey_service.store(
+                session,
+                user_id=user.id,
+                registered=passkey.registered,
+                name=passkey.name,
+            )
+        if hashed_password is None:
+            codes = await totp_service.issue_recovery_codes(session, user_id=user.id)
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.AUTH_RECOVERY_CODES_ISSUED,
+                actor_user_id=user.id,
+            )
         # The form said, above the button they just pressed, that creating an
         # account agrees to this deployment's terms and privacy policy. On a
         # deployment that has none — every self-hosted one — this does nothing.
@@ -441,7 +578,161 @@ async def register_user(
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
-    return await users_service.to_self_read(user)
+    return RegisteredAccount(user=user, codes=codes)
+
+
+_SIGN_UP_PURPOSES = (challenge_service.ChallengePurpose.passkey_sign_up,)
+
+
+async def _passkey_sign_up_allowed(session: AsyncSession) -> None:
+    """Refuse the door before it is opened.
+
+    Two things: the deployment permits passkeys at all, and its address can
+    carry one — a plain-http or IP-literal address cannot, and saying so is
+    better than a ceremony the browser will refuse.
+    """
+    await require_login_method(session, LoginMethod.passkey)
+    if passkey_service.site_refusal() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_SITE_UNSUPPORTED,
+        )
+
+
+@router.post("/register/passkey/begin", response_model=PasskeyRegistrationOptions)
+@limiter.limit("5/15minutes")
+async def begin_passkey_sign_up(
+    request: Request,
+    payload: PasskeySignUpStart,
+    session: AdminSessionDep,
+    invite_code: str | None = Query(default=None),
+) -> PasskeyRegistrationOptions:
+    """Options for making the credential a new account will sign in with.
+
+    Everything a registration is refused for is asked here, before the browser
+    is sent to an authenticator: a ceremony that ends in a refusal has already
+    cost somebody's key a resident credential it cannot take back.
+
+    No account exists yet, so the ceremony is told a handle of its own rather
+    than an account id. Nothing reads it back — a credential is found by its
+    own id — and it is what the authenticator files this deployment's entry
+    under.
+    """
+    await _passkey_sign_up_allowed(session)
+    await _registration_gate(
+        request,
+        session,
+        email=payload.email.lower().strip(),
+        invite=(invite_code or "").strip() or None,
+        captcha_token=payload.captcha_token,
+    )
+
+    ceremony = passkey_service.begin_sign_up(
+        account_name=payload.email.lower().strip(),
+        display_name=(payload.full_name or payload.username).strip(),
+    )
+    await challenge_service.create(
+        session,
+        user_id=None,
+        purpose=challenge_service.ChallengePurpose.passkey_sign_up,
+        value=bytes_to_base64url(ceremony.challenge),
+    )
+    await session.commit()
+    return PasskeyRegistrationOptions(options=ceremony.options)
+
+
+@router.post(
+    "/register/passkey/finish",
+    response_model=PasskeySignUpResult,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("5/15minutes")
+async def finish_passkey_sign_up(
+    request: Request,
+    response: Response,
+    payload: PasskeySignUpFinish,
+    session: AdminSessionDep,
+    invite_code: str | None = Query(default=None),
+) -> PasskeySignUpResult:
+    """Make the account, keep the credential, and sign it in.
+
+    The gates are asked again here — the details are said again rather than
+    kept between the calls — except the captcha, which the begin above took
+    and which a token is spent by.
+
+    The account is signed in on the spot. The ceremony verified the person as
+    well as the device, which is what a sign-in with this key will prove, so
+    asking for it twice in a row would say nothing new. Its recovery set comes
+    back with it: there is no password to reset, so the codes are how this
+    account gets one later, and they are shown once.
+    """
+    await _passkey_sign_up_allowed(session)
+
+    value = passkey_service.challenge_in(payload.credential)
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
+        )
+    challenge = await challenge_service.claim_attempt(
+        session, value=value, purposes=_SIGN_UP_PURPOSES
+    )
+    if challenge is None or challenge.user_id is not None:
+        # The attempt is counted whether or not the answer was any good, so
+        # the commit comes before the refusal.
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
+        )
+    try:
+        registered = passkey_service.finish_registration(
+            credential=payload.credential,
+            expected_challenge=webauthn.base64url_to_bytes(value),
+        )
+    except Exception as exc:
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
+        ) from exc
+
+    if not await challenge_service.consume(session, challenge):
+        # Spent between the claim and here, so the account it would buy is not
+        # this request's to make a second time.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_REGISTRATION_INVALID,
+        )
+
+    account = await _register_account(
+        request,
+        session,
+        details=RegistrationDetails(
+            email=payload.email,
+            username=payload.username,
+            full_name=payload.full_name,
+            timezone=payload.timezone,
+            captcha_token=payload.captcha_token,
+        ),
+        invite_code=invite_code,
+        hashed_password=None,
+        passkey=PasskeyToKeep(registered=registered, name=payload.name),
+        check_captcha=False,
+    )
+
+    user_id, token_version = account.user.id, account.user.token_version
+    token = await open_session(
+        request,
+        response,
+        session,
+        user_id=user_id,
+        token_version=token_version,
+        amr=passkey_amr(backed_up=registered.backed_up),
+        audit_detail={"method": "passkey", "during": "registration"},
+    )
+    return PasskeySignUpResult(access_token=token.access_token, codes=account.codes)
 
 
 @router.get("/bootstrap")

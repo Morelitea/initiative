@@ -78,14 +78,18 @@ from app.testing.factories import (
 from app.testing.passkeys import (
     assertion_for,
     create_passkey,
+    registration_for,
     stub_assertion,
+    stub_registration,
 )
 from app.testing.schema_harness import route_session_to_guild
 
 __all__ = [
     "assertion_for",
     "create_passkey",
+    "registration_for",
     "stub_assertion",
+    "stub_registration",
     "APP_CHANNEL_SECRET",
     "channel_headers",
     "encode_body",

@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams,
   BodyLoginAccessTokenApiV1AuthTokenPost,
   BootstrapStatusApiV1AuthBootstrapGet200,
   CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams,
@@ -28,6 +29,7 @@ import type {
   DeviceTokenInfo,
   DeviceTokenRequest,
   DeviceTokenResponse,
+  FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams,
   HTTPValidationError,
   LoginProvidersResponse,
   PasskeyAuthenticationOptions,
@@ -41,6 +43,9 @@ import type {
   PasskeySignInFinish,
   PasskeySignInResult,
   PasskeySignInStart,
+  PasskeySignUpFinish,
+  PasskeySignUpResult,
+  PasskeySignUpStart,
   PasskeyStepUpFinish,
   PasswordRecover,
   PasswordRemove,
@@ -176,6 +181,245 @@ export const useRegisterUserApiV1AuthRegisterPost = <
   TContext
 > => {
   return useMutation(getRegisterUserApiV1AuthRegisterPostMutationOptions(options), queryClient);
+};
+/**
+ * Options for making the credential a new account will sign in with.
+ *
+ * Everything a registration is refused for is asked here, before the browser
+ * is sent to an authenticator: a ceremony that ends in a refusal has already
+ * cost somebody's key a resident credential it cannot take back.
+ *
+ * No account exists yet, so the ceremony is told a handle of its own rather
+ * than an account id. Nothing reads it back — a credential is found by its
+ * own id — and it is what the authenticator files this deployment's entry
+ * under.
+ * @summary Begin Passkey Sign Up
+ */
+export const beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost = (
+  passkeySignUpStart: BodyType<PasskeySignUpStart>,
+  params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PasskeyRegistrationOptions>(
+    {
+      url: `/api/v1/auth/register/passkey/begin`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passkeySignUpStart,
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getBeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>,
+    TError,
+    {
+      data: BodyType<PasskeySignUpStart>;
+      params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>,
+  TError,
+  {
+    data: BodyType<PasskeySignUpStart>;
+    params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams;
+  },
+  TContext
+> => {
+  const mutationKey = ["beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>,
+    {
+      data: BodyType<PasskeySignUpStart>;
+      params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams;
+    }
+  > = (props) => {
+    const { data, params } = props ?? {};
+
+    return beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost(data, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>
+>;
+export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostMutationBody =
+  BodyType<PasskeySignUpStart>;
+export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Begin Passkey Sign Up
+ */
+export const useBeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>,
+      TError,
+      {
+        data: BodyType<PasskeySignUpStart>;
+        params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof beginPasskeySignUpApiV1AuthRegisterPasskeyBeginPost>>,
+  TError,
+  {
+    data: BodyType<PasskeySignUpStart>;
+    params?: BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams;
+  },
+  TContext
+> => {
+  return useMutation(
+    getBeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Make the account, keep the credential, and sign it in.
+ *
+ * The gates are asked again here — the details are said again rather than
+ * kept between the calls — except the captcha, which the begin above took
+ * and which a token is spent by.
+ *
+ * The account is signed in on the spot. The ceremony verified the person as
+ * well as the device, which is what a sign-in with this key will prove, so
+ * asking for it twice in a row would say nothing new. Its recovery set comes
+ * back with it: there is no password to reset, so the codes are how this
+ * account gets one later, and they are shown once.
+ * @summary Finish Passkey Sign Up
+ */
+export const finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost = (
+  passkeySignUpFinish: BodyType<PasskeySignUpFinish>,
+  params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PasskeySignUpResult>(
+    {
+      url: `/api/v1/auth/register/passkey/finish`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: passkeySignUpFinish,
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getFinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>,
+    TError,
+    {
+      data: BodyType<PasskeySignUpFinish>;
+      params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>,
+  TError,
+  {
+    data: BodyType<PasskeySignUpFinish>;
+    params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams;
+  },
+  TContext
+> => {
+  const mutationKey = ["finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>,
+    {
+      data: BodyType<PasskeySignUpFinish>;
+      params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams;
+    }
+  > = (props) => {
+    const { data, params } = props ?? {};
+
+    return finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost(data, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>
+>;
+export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostMutationBody =
+  BodyType<PasskeySignUpFinish>;
+export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Finish Passkey Sign Up
+ */
+export const useFinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>,
+      TError,
+      {
+        data: BodyType<PasskeySignUpFinish>;
+        params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof finishPasskeySignUpApiV1AuthRegisterPasskeyFinishPost>>,
+  TError,
+  {
+    data: BodyType<PasskeySignUpFinish>;
+    params?: FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams;
+  },
+  TContext
+> => {
+  return useMutation(
+    getFinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * @summary Bootstrap Status
@@ -1055,10 +1299,13 @@ export const useCreateDeviceTokenApiV1AuthDeviceTokenPost = <
  * until the client stops sending it, and the build that stops is the one that
  * decides when.
  *
- * The session carries **no** factors. A device token does not record what was
- * presented when it was minted, and a session that claimed otherwise would be
- * asserting assurance nobody established — so this satisfies no guild
- * sign-in requirement, exactly as the device token itself does not.
+ * The session carries what the sign-in that minted the token recorded, and
+ * only across the handoff: the relay sign-ins hand the app a token instead of
+ * a session, so the first exchange inside the window is the rest of that
+ * sign-in. After it — a later launch, a chain that lapsed — the app is
+ * resuming on a string it has been keeping, and the session it gets records
+ * nothing, which satisfies no community's sign-in requirement. See
+ * ``user_tokens.claim_handoff_amr``.
  * @summary Exchange Device Token
  */
 export const exchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = (

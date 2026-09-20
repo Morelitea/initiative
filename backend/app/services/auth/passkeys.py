@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -208,6 +209,33 @@ async def begin_registration(
         exclude_credentials=[
             PublicKeyCredentialDescriptor(id=row.credential_id) for row in existing
         ],
+    )
+    return Ceremony(
+        options=_options_to_dict(options), challenge=bytes(options.challenge)
+    )
+
+
+def begin_sign_up(*, account_name: str, display_name: str) -> Ceremony:
+    """Options for the credential a brand-new account will sign in with.
+
+    The same ceremony as :func:`begin_registration`, for the one case where
+    there is no account yet: nothing to exclude, because the account holds
+    nothing, and a handle drawn here rather than an account id. Nothing ever
+    reads the handle back — a credential is found by its own id — so what it
+    has to be is unique and not somebody's address, which is what the
+    authenticator would otherwise file this deployment's entry under twice.
+    """
+    options = webauthn.generate_registration_options(
+        rp_id=relying_party_id(),
+        rp_name=relying_party_name(),
+        user_id=secrets.token_bytes(32),
+        user_name=account_name,
+        user_display_name=display_name,
+        timeout=CEREMONY_TIMEOUT_MS,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
     )
     return Ceremony(
         options=_options_to_dict(options), challenge=bytes(options.challenge)

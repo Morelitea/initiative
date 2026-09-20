@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
 
@@ -87,6 +87,50 @@ class PasskeyRemove(SanitizedBaseModel):
 class PasskeySignInStart(SanitizedBaseModel):
     """Beginning a sign-in. No account is named: the authenticator offers what
     it holds for this domain, and the assertion names the credential."""
+
+
+class PasskeySignUpStart(SanitizedBaseModel):
+    """Registering an account whose way in is a key rather than a password.
+
+    The same things a password registration says about itself, minus the
+    password. A deployment that has withdrawn passwords has no other door of
+    its own; before this, it could only take a registration through an
+    identity provider.
+    """
+
+    email: EmailStr
+    # The name part of the handle. The number behind it is drawn server-side —
+    # it is never anyone's to choose.
+    username: str = Field(max_length=64)
+    full_name: Optional[TitleStr] = None
+    timezone: Optional[str] = Field(default=None, max_length=64)
+    captcha_token: Optional[str] = Field(default=None, max_length=4096)
+
+
+class PasskeySignUpFinish(PasskeySignUpStart):
+    """The browser's answer, with the same details it began with.
+
+    Said again rather than kept: nothing about the account exists between the
+    two calls, and everything here is checked again before one is made.
+    """
+
+    #: ``RegistrationResponseJSON`` — the credential as the browser returned it.
+    credential: dict[str, Any]
+    #: What to call the credential in the account's own list.
+    name: TitleStr = Field(default="Passkey", min_length=1, max_length=NAME_MAX_LENGTH)
+
+
+class PasskeySignUpResult(SanitizedBaseModel):
+    """The account, signed in, and the codes that are now its way back.
+
+    An account with no password cannot be sent a reset, so the recovery set is
+    issued here and shown once — on a deployment with no mail configured,
+    which is the self-hosted case, it is the only way back.
+    """
+
+    access_token: str
+    token_type: str = "bearer"
+    codes: list[str] = Field(default_factory=list)
 
 
 class PasskeyAuthenticationOptions(SanitizedBaseModel):

@@ -52,6 +52,56 @@ def assertion_for(
     }
 
 
+def registration_for(
+    challenge: str,
+    *,
+    credential_id: str = "credential-one",
+    origin: str = TEST_ORIGIN,
+) -> dict[str, Any]:
+    """What the browser hands back for a registration, with the challenge
+    inside the client data it signed."""
+    raw_id = bytes_to_base64url(credential_id.encode())
+    client_data = json.dumps(
+        {"type": "webauthn.create", "challenge": challenge, "origin": origin}
+    ).encode()
+    return {
+        "id": raw_id,
+        "rawId": raw_id,
+        "type": "public-key",
+        "response": {
+            "clientDataJSON": bytes_to_base64url(client_data),
+            "attestationObject": bytes_to_base64url(b"attestation"),
+            "transports": ["internal", "hybrid"],
+        },
+    }
+
+
+def stub_registration(monkeypatch, *, backed_up: bool = True) -> None:
+    """Stand in for the library's registration check.
+
+    It answers with what a real ceremony reports, keyed off the credential id
+    the request carried so two registrations are two credentials.
+    """
+
+    def verify(**kwargs):
+        credential = kwargs["credential"]
+        assert kwargs["expected_rp_id"] == passkey_service.relying_party_id()
+        assert kwargs["expected_origin"] == passkey_service.expected_origin()
+        raw_id = credential.get("rawId") or credential.get("id") or ""
+        return SimpleNamespace(
+            credential_id=passkey_service.webauthn.base64url_to_bytes(raw_id),
+            credential_public_key=b"public-key-bytes",
+            sign_count=0,
+            aaguid="00000000-0000-0000-0000-000000000000",
+            user_verified=True,
+            credential_backed_up=backed_up,
+        )
+
+    monkeypatch.setattr(
+        passkey_service.webauthn, "verify_registration_response", verify
+    )
+
+
 def stub_assertion(monkeypatch, *, backed_up: bool = False) -> None:
     """Stand in for the library's assertion check, reporting what a verified
     ceremony reports."""
