@@ -383,6 +383,10 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: ``None`` asks for no limit, which is the default. A community held to
     #: the compliance standard overrides it downwards for its own members.
     session_max_hours: Optional[int] = None
+    #: How long a session may be left alone before it lapses, in minutes.
+    #: ``None`` leaves the deployment's configured refresh window. A community
+    #: held to the compliance standard narrows it further for its members.
+    session_idle_minutes: Optional[int] = None
     #: Who this deployment asks to hold a second factor.
     second_factor_requirement: SecondFactorRequirement = SecondFactorRequirement.nobody
     #: What each level would ask for, as things stand.
@@ -399,6 +403,10 @@ class SessionLifetimeUpdate(SanitizedBaseModel):
     """
 
     session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
+    #: The idle window, in minutes. ``None`` asks for no limit of its own and
+    #: leaves ``AUTH_REFRESH_TTL_DAYS``. Floored at a minute — anything less
+    #: ends a session while somebody is still reading the page.
+    session_idle_minutes: Optional[int] = Field(default=None, ge=1, le=525600)
 
 
 class SecondFactorRequirementUpdate(SanitizedBaseModel):

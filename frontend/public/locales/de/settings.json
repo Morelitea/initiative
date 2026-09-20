@@ -633,7 +633,10 @@
       "placeholder": "Kein Limit",
       "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
       "saved": "Sitzungslimit gespeichert.",
-      "error": "Das Sitzungslimit konnte nicht gespeichert werden."
+      "error": "Das Sitzungslimit konnte nicht gespeichert werden.",
+      "idleLabel": "Leerlauf (Minuten)",
+      "idlePlaceholder": "Kein Limit",
+      "idleHint": "Wie lange eine Sitzung unberührt bleiben darf, bevor sie endet. Leer lassen, um das beim Deployment gesetzte Fenster zu behalten. Die App zu benutzen zählt als Berührung, die Zeit läuft also erst, wenn jemand aufhört. Eine Community, die dem Compliance-Standard folgt, verkürzt es für ihre Mitglieder weiter."
     },
     "secondFactorRequirement": {
       "title": "Zwei-Faktor-Authentifizierung",

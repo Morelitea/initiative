@@ -384,3 +384,56 @@ def test_an_access_token_does_not_outlive_the_session_it_names():
 
     exact = SimpleNamespace(expires_at=_AT + standard)
     assert access_ttl_for(exact, now=_AT) is None
+
+
+@pytest.mark.integration
+async def test_the_deployment_can_set_its_own_idle_window(session):
+    """A figure here narrows the window every session is opened with."""
+    user = await create_user(session, email="sl-idle-platform@example.com")
+    row = await app_settings_service.get_app_settings(session)
+    row.session_idle_minutes = 45
+    session.add(row)
+    await session.flush()
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+
+    assert issued.session.expires_at == _AT + timedelta(minutes=45)
+
+
+@pytest.mark.integration
+async def test_the_stricter_idle_window_wins(session):
+    """The deployment's figure and a community's standard both narrow it, and
+    the answer is whichever is shorter — in either direction."""
+    row = await app_settings_service.get_app_settings(session)
+    guild = await create_guild(session)
+    await _hold_to_the_standard(session, guild)
+
+    lenient = await create_user(session, email="sl-idle-lenient@example.com")
+    await create_guild_membership(
+        session, user=lenient, guild=guild, role=GuildRole.member
+    )
+    # Deployment is looser than the standard, so the standard binds.
+    row.session_idle_minutes = 60
+    session.add(row)
+    await session.flush()
+    issued = await session_service.create_session(
+        session, user_id=lenient.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+    assert issued.session.expires_at == _AT + timedelta(
+        minutes=session_lifetime.COMPLIANCE_IDLE_MINUTES
+    )
+
+    # Deployment is stricter than the standard, so the deployment binds.
+    strict = await create_user(session, email="sl-idle-strict@example.com")
+    await create_guild_membership(
+        session, user=strict, guild=guild, role=GuildRole.member
+    )
+    row.session_idle_minutes = 5
+    session.add(row)
+    await session.flush()
+    issued = await session_service.create_session(
+        session, user_id=strict.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+    assert issued.session.expires_at == _AT + timedelta(minutes=5)

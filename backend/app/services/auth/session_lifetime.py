@@ -105,18 +105,20 @@ async def resolve_max_hours(session: AsyncSession, *, user_id: int) -> int | Non
 async def resolve_idle_minutes(session: AsyncSession, *, user_id: int) -> int | None:
     """How long this account's session may sit untouched, in minutes.
 
-    ``None`` where nothing narrows it, which is every account outside a
-    community held to the compliance standard: the ordinary idle window is
-    ``AUTH_REFRESH_TTL_DAYS``, and this returns a number only when something
-    asks for less.
+    Two things can narrow it and the stricter wins: the deployment's own
+    figure, and the standard a community holds its members to. ``None`` where
+    neither speaks, which leaves ``AUTH_REFRESH_TTL_DAYS`` — where this
+    question was answered before either existed.
 
-    The same single-standard rule the absolute bound follows — one answer
-    rather than a number per community, so belonging to two of them is not a
-    comparison.
+    The community's half is a single standard rather than a figure each, so
+    belonging to two of them is not a comparison. The deployment's half is a
+    figure, because a deployment is only ever one.
     """
-    if not await _belongs_to_a_compliance_guild(session, user_id=user_id):
-        return None
-    return COMPLIANCE_IDLE_MINUTES
+    row = await app_settings_service.get_app_settings(session)
+    windows = [row.session_idle_minutes] if row.session_idle_minutes else []
+    if await _belongs_to_a_compliance_guild(session, user_id=user_id):
+        windows.append(COMPLIANCE_IDLE_MINUTES)
+    return min(windows) if windows else None
 
 
 async def idle_window(session: AsyncSession, *, user_id: int) -> timedelta | None:

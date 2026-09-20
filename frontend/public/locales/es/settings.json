@@ -633,7 +633,10 @@
       "placeholder": "Sin límite",
       "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones web ya abiertas mantienen sus condiciones originales; los teléfonos pasan a un límite más corto de inmediato.",
       "saved": "Límite de sesión guardado.",
-      "error": "No hemos podido guardar el límite de sesión."
+      "error": "No hemos podido guardar el límite de sesión.",
+      "idleLabel": "Minutos de inactividad",
+      "idlePlaceholder": "Sin límite",
+      "idleHint": "Cuánto puede estar una sesión sin tocarse antes de terminar. Déjalo en blanco para conservar la ventana fijada al desplegar el servidor. Usar la aplicación cuenta como tocarla, así que solo corre cuando alguien para. Una comunidad sujeta al estándar de cumplimiento lo acorta aún más para sus miembros."
     },
     "secondFactorRequirement": {
       "title": "Autenticación en dos pasos",

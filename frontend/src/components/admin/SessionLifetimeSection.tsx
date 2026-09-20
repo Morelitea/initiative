@@ -24,12 +24,24 @@ export const SessionLifetimeSection = () => {
 
   // The field starts from the stored figure, so the form is mounted once that
   // figure is known rather than reset underneath whoever is typing.
-  return <SessionLifetimeForm hours={query.data.session_max_hours ?? null} />;
+  return (
+    <SessionLifetimeForm
+      hours={query.data.session_max_hours ?? null}
+      idleMinutes={query.data.session_idle_minutes ?? null}
+    />
+  );
 };
 
-const SessionLifetimeForm = ({ hours }: { hours: number | null }) => {
+const SessionLifetimeForm = ({
+  hours,
+  idleMinutes,
+}: {
+  hours: number | null;
+  idleMinutes: number | null;
+}) => {
   const { t } = useTranslation(["settings", "common"]);
   const [value, setValue] = useState(hours === null ? "" : String(hours));
+  const [idle, setIdle] = useState(idleMinutes === null ? "" : String(idleMinutes));
   const update = useUpdateSessionLifetime({
     onSuccess: () => toast.success(t("auth.sessionLifetime.saved")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:auth.sessionLifetime.error")),
@@ -37,8 +49,16 @@ const SessionLifetimeForm = ({ hours }: { hours: number | null }) => {
 
   const trimmed = value.trim();
   const parsed = trimmed === "" ? null : Number.parseInt(trimmed, 10);
-  const valid = parsed === null || (Number.isFinite(parsed) && parsed >= 1);
-  const changed = (hours === null ? "" : String(hours)) !== trimmed;
+  const trimmedIdle = idle.trim();
+  const parsedIdle = trimmedIdle === "" ? null : Number.parseInt(trimmedIdle, 10);
+  const valid =
+    (parsed === null || (Number.isFinite(parsed) && parsed >= 1)) &&
+    (parsedIdle === null || (Number.isFinite(parsedIdle) && parsedIdle >= 1));
+  // Saved together, because they are two halves of one answer and the server
+  // takes them in one write.
+  const changed =
+    (hours === null ? "" : String(hours)) !== trimmed ||
+    (idleMinutes === null ? "" : String(idleMinutes)) !== trimmedIdle;
 
   return (
     <SettingsSection
@@ -58,14 +78,32 @@ const SessionLifetimeForm = ({ hours }: { hours: number | null }) => {
             placeholder={t("auth.sessionLifetime.placeholder")}
           />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="session-idle-minutes">{t("auth.sessionLifetime.idleLabel")}</Label>
+          <Input
+            id="session-idle-minutes"
+            type="number"
+            min={1}
+            className="w-40"
+            value={idle}
+            onChange={(event) => setIdle(event.target.value)}
+            placeholder={t("auth.sessionLifetime.idlePlaceholder")}
+          />
+        </div>
         <Button
           disabled={!valid || !changed || update.isPending}
-          onClick={() => update.mutate({ session_max_hours: parsed })}
+          onClick={() =>
+            update.mutate({
+              session_max_hours: parsed,
+              session_idle_minutes: parsedIdle,
+            })
+          }
         >
           {update.isPending ? t("common:submitting") : t("common:save")}
         </Button>
       </div>
       <p className="text-muted-foreground text-xs">{t("auth.sessionLifetime.hint")}</p>
+      <p className="text-muted-foreground text-xs">{t("auth.sessionLifetime.idleHint")}</p>
     </SettingsSection>
   );
 };
