@@ -1315,6 +1315,10 @@
       "authentik": "El slug de la aplicación, no el nombre del proveedor: el issuer sigue a la aplicación.",
       "authelia": "Pega el secreto de cliente en texto plano, no el hash que pusiste en el YAML.",
       "pocketId": "Solo passkeys, así que vuestros inicios de sesión heredan passkeys sin hacer nada más.",
+      "gitlab": "Tu propio GitLab o gitlab.com: en ambos casos la dirección es la raíz de la instancia. Crea una aplicación en los ajustes de usuario o de administración, con la URL de retorno de abajo.",
+      "gitea": "También Forgejo y Codeberg. Crea una aplicación OAuth2 en los ajustes y elige groups como reclamación de grupos para ordenar a la gente por sus equipos.",
+      "discord": "Funciona, pero Discord no lo documenta, así que podría cambiar sin avisar. Conviene saberlo antes de dejarlo como única forma de entrar.",
+      "salesforce": "Los sandboxes y las organizaciones con My Domain entran cada uno por su propia dirección, así que usa la que use tu gente en lugar del host de acceso genérico.",
       "custom": "Cualquier proveedor que hable OpenID Connect. Pega su dirección de issuer; una URL .well-known también funciona."
     }
   },

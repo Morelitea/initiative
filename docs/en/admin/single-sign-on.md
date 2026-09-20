@@ -134,6 +134,52 @@ Any standards-compliant OIDC provider works, and the wizard already knows each o
 
     The wizard asks for your **Address** and your **Realm** and builds the issuer from both. For group sorting, add a groups or roles mapper and pick `groups` or `realm_access.roles` as the **Groups claim**.
 
+=== "GitLab"
+
+    Your own GitLab or gitlab.com — the address is the instance root either way.
+
+    1. **User settings → Applications** (or **Admin → Applications**, for one that serves everybody), name it "Initiative".
+    2. **Redirect URI** is the callback URL the wizard is showing you.
+    3. Tick the `openid`, `profile` and `email` scopes, save, and copy the **Application ID** and **Secret** back in.
+
+    For group sorting, pick `groups` as the **Groups claim**.
+
+=== "Gitea / Forgejo"
+
+    Also Codeberg, and anything else running either of them.
+
+    1. **Settings → Applications → Create OAuth2 application**, name it "Initiative".
+    2. **Redirect URI** is the callback URL the wizard is showing you.
+    3. Copy the **Client ID** and **Client Secret** back in — the secret is shown once.
+
+    The wizard asks for your instance **Address**. For group sorting, pick `groups` as the **Groups claim** and people arrive sorted by their teams.
+
+=== "Discord"
+
+    Handy if your group already lives there.
+
+    1. In the **Developer Portal**, **New Application**, then **OAuth2**.
+    2. Add the callback URL the wizard is showing you as a **Redirect**.
+    3. Copy the **Client ID** and **Client Secret** back in.
+
+    Worth knowing before you lean on it: Discord does not document this, so it could change without warning. Keep another way in alongside it.
+
+=== "Salesforce"
+
+    1. **Setup → App Manager → New Connected App**, tick **Enable OAuth Settings**.
+    2. **Callback URL** is the one the wizard is showing you; add the `openid`, `email` and `profile` scopes.
+    3. Copy the **Consumer Key** and **Consumer Secret** back in.
+
+    The wizard asks for your **Address**, and which one matters: a sandbox is `test.salesforce.com`, and an org with My Domain signs in at its own. Use the address your people actually use, not the generic one.
+
+=== "JumpCloud"
+
+    1. **SSO Applications → Add New Application → Custom OIDC App**.
+    2. **Redirect URI** is the callback URL the wizard is showing you.
+    3. Copy the **Client ID** and **Client Secret** back in, and attach the user groups who should get in.
+
+    Nothing to fill in on the address — JumpCloud is the same for everybody.
+
 === "Google, Entra, Okta, Auth0"
 
     Same shape: register an app, add the callback URL the wizard is showing you, copy the credentials back.

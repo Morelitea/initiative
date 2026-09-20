@@ -11,9 +11,9 @@
  * `src/assets` — the same reason they are preferred here over copying the same
  * paths into local SVGs, where they would drift and need maintaining.
  *
- * Three presets have no mark, because simple-icons carries none: Microsoft
- * Entra ID, Zitadel and Pocket ID. They fall back to the generic key, which
- * reads as the provider's name beside it. To give one a mark, add its SVG to
+ * Some presets have no mark, because simple-icons carries none: Microsoft
+ * Entra ID, Zitadel, Pocket ID, Salesforce and JumpCloud. They fall back to
+ * the generic key, which reads as the provider's name beside it. To give one a mark, add its SVG to
  * `src/assets/idp/` and a `<key>: YourMark` entry here.
  */
 
@@ -21,6 +21,9 @@ import {
   SiAuth0,
   SiAuthelia,
   SiAuthentik,
+  SiDiscord,
+  SiGitea,
+  SiGitlab,
   SiGoogle,
   SiKeycloak,
   SiOkta,
@@ -41,6 +44,11 @@ export const PROVIDER_ICONS: Record<string, ProviderMarkIcon> = {
   keycloak: SiKeycloak,
   authentik: SiAuthentik,
   authelia: SiAuthelia,
+  gitlab: SiGitlab,
+  // Forgejo has a mark of its own, but the preset is one entry covering both
+  // and Gitea's is the one people recognise on it.
+  gitea: SiGitea,
+  discord: SiDiscord,
   // The generic mark for the standard itself, which is what "any OIDC
   // provider" is choosing.
   custom: SiOpenid,

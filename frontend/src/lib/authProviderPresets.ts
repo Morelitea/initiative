@@ -18,7 +18,16 @@
 export type BlankLabelKey = "tenant" | "oktaHost" | "auth0Host" | "host" | "realm" | "application";
 
 /** Likewise for `settings:authProviders.presetHints`. */
-export type PresetHintKey = "keycloak" | "authentik" | "authelia" | "pocketId" | "custom";
+export type PresetHintKey =
+  | "keycloak"
+  | "authentik"
+  | "authelia"
+  | "pocketId"
+  | "gitlab"
+  | "gitea"
+  | "discord"
+  | "salesforce"
+  | "custom";
 
 /** A blank in an issuer template, asked for as its own field. */
 export interface PresetBlank {
@@ -85,6 +94,39 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     blanks: [{ name: "host", labelKey: "auth0Host", example: "your-tenant.eu.auth0.com" }],
   },
   {
+    key: "gitlab",
+    name: "GitLab",
+    slug: "gitlab",
+    template: "https://{host}",
+    blanks: [{ name: "host", labelKey: "host", example: "gitlab.com" }],
+    hintKey: "gitlab",
+  },
+  {
+    key: "discord",
+    name: "Discord",
+    slug: "discord",
+    template: "https://discord.com",
+    blanks: [],
+    hintKey: "discord",
+  },
+  {
+    key: "salesforce",
+    name: "Salesforce",
+    slug: "salesforce",
+    template: "https://{host}",
+    blanks: [{ name: "host", labelKey: "host", example: "login.salesforce.com" }],
+    hintKey: "salesforce",
+  },
+  {
+    key: "jumpcloud",
+    name: "JumpCloud",
+    slug: "jumpcloud",
+    // The trailing slash is part of the issuer JumpCloud publishes, and the
+    // address has to match it exactly.
+    template: "https://oauth.id.jumpcloud.com/",
+    blanks: [],
+  },
+  {
     key: "keycloak",
     name: "Keycloak",
     slug: "keycloak",
@@ -121,6 +163,14 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "host", example: "id.example.com" }],
     hintKey: "pocketId",
+  },
+  {
+    key: "gitea",
+    name: "Gitea / Forgejo",
+    slug: "gitea",
+    template: "https://{host}",
+    blanks: [{ name: "host", labelKey: "host", example: "codeberg.org" }],
+    hintKey: "gitea",
   },
   {
     key: "zitadel",
