@@ -27,6 +27,7 @@ pytestmark = pytest.mark.database
 SIGNATURES = {
     "guild_auth_satisfied": "()",
     "platform_factor_satisfied": "()",
+    "session_amr": "()",
     "guild_connection_admits": "(int,int[],jsonb,int)",
     "guild_connection_satisfied": "(int,int)",
     "initiative_access": "(int,int,bool)",

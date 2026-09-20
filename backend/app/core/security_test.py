@@ -158,7 +158,7 @@ def test_upload_token_round_trips_to_user_id():
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == (123, frozenset(), {}, False, False)
+    assert verify_upload_token(token) == (123, frozenset(), {}, frozenset())
 
     satisfied_token, _ = create_upload_token(
         user_id=123,
@@ -169,24 +169,23 @@ def test_upload_token_round_trips_to_user_id():
         123,
         frozenset({2, 5}),
         {"5": {"hd": ["acme.com"]}},
-        False,
-        False,
+        frozenset(),
     )
 
 
 @pytest.mark.unit
 def test_upload_token_carries_how_the_session_was_opened():
     """A community can ask for a second factor or for a passkey, and the token
-    answers each on its own — a code presented after a password is not a key,
-    so the two markers travel separately."""
-    factor, _ = create_upload_token(user_id=7, session_mfa=True)
-    assert verify_upload_token(factor)[3:] == (True, False)
+    carries the markers that answer each — a code presented after a password
+    is not a key, so a rule asking for one is not answered by the other."""
+    factor, _ = create_upload_token(user_id=7, session_amr={"mfa"})
+    assert verify_upload_token(factor)[3] == frozenset({"mfa"})
 
-    key, _ = create_upload_token(user_id=7, session_mfa=True, session_passkey=True)
-    assert verify_upload_token(key)[3:] == (True, True)
+    key, _ = create_upload_token(user_id=7, session_amr={"mfa", "hwk"})
+    assert verify_upload_token(key)[3] == frozenset({"mfa", "hwk"})
 
     neither, _ = create_upload_token(user_id=7)
-    assert verify_upload_token(neither)[3:] == (False, False)
+    assert verify_upload_token(neither)[3] == frozenset()
 
 
 @pytest.mark.unit

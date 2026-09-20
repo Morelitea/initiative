@@ -27,6 +27,7 @@ from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User
 from app.models.tenant.project import Project
+from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -718,8 +719,7 @@ async def _database_admits(
     user_id: int,
     satisfied: list[int],
     asserted: dict | None = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    markers: frozenset[str] = frozenset(),
 ) -> bool:
     """What ``public.guild_auth_satisfied()`` says, given the GUCs a request
     with this standing would have set.
@@ -734,8 +734,7 @@ async def _database_admits(
                 "set_config('app.current_guild_id', :gid, true), "
                 "set_config('app.satisfied_providers', :satp, true), "
                 "set_config('app.satisfied_claims', :satc, true), "
-                "set_config('app.session_mfa', :mfa, true), "
-                "set_config('app.session_passkey', :pk, true), "
+                "set_config('app.session_amr', :amr, true), "
                 "public.guild_auth_satisfied() AS verdict"
             ),
             params={
@@ -743,8 +742,7 @@ async def _database_admits(
                 "gid": str(guild_id),
                 "satp": ",".join(str(p) for p in satisfied),
                 "satc": json.dumps(asserted or {}),
-                "mfa": "true" if session_mfa else "false",
-                "pk": "true" if session_passkey else "false",
+                "amr": ",".join(sorted(markers)),
             },
         )
     ).one()
@@ -757,8 +755,7 @@ async def _app_admits(
     guild_id: int,
     satisfied,
     asserted: dict | None = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    markers: frozenset[str] = frozenset(),
 ) -> bool:
     """What the gate in ``deps.py`` says, given the same standing."""
     set_satisfied_providers(frozenset(satisfied))
@@ -769,8 +766,7 @@ async def _app_admits(
             policy,
             guild_id,
             frozenset(satisfied),
-            session_mfa,
-            session_passkey,
+            markers,
         )
     except GuildAccessError:
         return False
@@ -802,7 +798,7 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
     provider_id = int(provider.id)
     other_provider_id = provider_id + 1000
 
-    async def db_admits(**proved: bool) -> bool:
+    async def db_admits(**proved) -> bool:
         """The database's verdict on a session that satisfied no provider and
         proved this much about itself."""
         return await _database_admits(
@@ -851,20 +847,25 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
             {str(other_provider_id): {"hd": ["acme.com"]}},
         ),
     ]
-    # Each of those against what a session can have proved about itself: the
-    # account's second factor, a passkey, both, neither. A rule asking for one
-    # of them is answered by nothing else on this list, and the two are asked
-    # for separately — an assertion records the factor as well as the key.
+    # Each of those against what a session can have recorded about itself. A
+    # rule asking for one marker is answered by nothing else on this list.
+    # Both kinds of key appear, because the passkey leg takes either and a leg
+    # naming only one of them would still pass a matrix that never showed it
+    # the other. The key-without-a-factor row is not a session this codebase
+    # opens — every ceremony verifies the person, so an assertion records
+    # ``mfa`` too — and it is here to hold the two legs apart: it is the only
+    # standing that answers a passkey rule and not a factor rule.
     proofs = [
-        (", with a factor", True, False),
-        (", with a passkey", False, True),
-        (", with a factor and a passkey", True, True),
-        ("", False, False),
+        (", with a factor", frozenset({SECOND_FACTOR_AMR})),
+        (", with a device-bound key", frozenset({"hwk", SECOND_FACTOR_AMR})),
+        (", with a synced key", frozenset({"swk", SECOND_FACTOR_AMR})),
+        (", with a key and no factor", frozenset({"hwk"})),
+        ("", frozenset()),
     ]
-    standings: list[tuple[str, list[int], dict, bool, bool]] = [
-        (f"{name}{suffix}", sat, asserted, mfa, passkey)
+    standings: list[tuple[str, list[int], dict, frozenset[str]]] = [
+        (f"{name}{suffix}", sat, asserted, markers)
         for name, sat, asserted in bare
-        for suffix, mfa, passkey in proofs
+        for suffix, markers in proofs
     ]
 
     for rule_name, fields in rules:
@@ -877,9 +878,9 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
         await session.commit()
         await session.refresh(stored)
 
-        for standing, satisfied, asserted, mfa, passkey in standings:
+        for standing, satisfied, asserted, markers in standings:
             in_app = await _app_admits(
-                session, stored, guild_id, satisfied, asserted, mfa, passkey
+                session, stored, guild_id, satisfied, asserted, markers
             )
             in_db = await _database_admits(
                 session,
@@ -887,8 +888,7 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
                 user_id=user_id,
                 satisfied=satisfied,
                 asserted=asserted,
-                session_mfa=mfa,
-                session_passkey=passkey,
+                markers=markers,
             )
             assert in_app == in_db, (
                 f"rule {rule_name!r} against a session showing {standing!r}: "
@@ -909,12 +909,12 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
     session.add(asking_for_a_key)
     await session.commit()
     await session.refresh(asking_for_a_key)
-    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, False, True)
-    assert await db_admits(session_passkey=True)
-    assert not await _app_admits(
-        session, asking_for_a_key, guild_id, [], None, True, False
-    )
-    assert not await db_admits(session_mfa=True)
+    a_key = frozenset({"hwk", SECOND_FACTOR_AMR})
+    a_code = frozenset({SECOND_FACTOR_AMR})
+    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, a_key)
+    assert await db_admits(markers=a_key)
+    assert not await _app_admits(session, asking_for_a_key, guild_id, [], None, a_code)
+    assert not await db_admits(markers=a_code)
 
     # The matrix would pass if both layers refused everything, so pin the two
     # ends of it: an open community admits a bare session, and a rule refuses one.

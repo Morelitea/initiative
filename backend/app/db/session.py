@@ -182,8 +182,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.satisfied_claims', :satc, true), "
-    "set_config('app.session_mfa', :mfa, true), "
-    "set_config('app.session_passkey', :pk, true), "
+    "set_config('app.session_amr', :amr, true), "
     "set_config('app.platform_role', :prole, true), "
     "set_config('app.platform_factor', :pfac, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
@@ -242,10 +241,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "satc": "",
-            # No session at all on this path, so it answers for none of the
-            # things a session records about how somebody signed in.
-            "mfa": "false",
-            "pk": "false",
+            # No session at all on this path, so it recorded nothing about
+            # how anybody signed in.
+            "amr": "",
             # No account either, so no rung and no standing under the
             # deployment's own rule.
             "prole": "",
@@ -339,12 +337,12 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     claims = params.get("satisfied_claims") or {}
     satc = json.dumps(claims, separators=(",", ":"), sort_keys=True) if claims else ""
 
-    # Whether the credential recorded the account's own second factor. A plain
-    # string, because the policy leg compares it as one.
-    mfa = "true" if params.get("session_mfa") else "false"
-    # And whether a passkey is what opened it, in the same form and read by the
-    # leg beside it.
-    pk = "true" if params.get("session_passkey") else "false"
+    # Which of the markers a community can ask about the credential recorded,
+    # comma-joined the way the satisfied-provider set above is. The vocabulary
+    # is closed (``POLICY_AMR_MARKERS``), so the delimiter cannot appear inside
+    # a value; sorted so one session always writes one string. Empty when the
+    # credential recorded none, which every leg reads as unanswered.
+    amr = ",".join(sorted(params.get("session_amr") or ()))
     # And whether the account answers the deployment's own second-factor rule:
     # a factor it holds, or one this session presented. Read beside the rung
     # the rule is scoped by, which every routed request already carries.
@@ -355,8 +353,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
-        "mfa": mfa,
-        "pk": pk,
+        "amr": amr,
         "prole": platform_role or "",
         "pfac": pfac,
         "pr": "true" if pam_read else "false",
@@ -423,8 +420,7 @@ async def set_rls_context(
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     satisfied_claims: Optional[dict] = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    session_amr: frozenset[str] | None = None,
     platform_factor: Optional[bool] = None,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
@@ -528,8 +524,7 @@ async def set_rls_context(
         query=query,
         satisfied_providers=satisfied_providers,
         satisfied_claims=satisfied_claims,
-        session_mfa=session_mfa,
-        session_passkey=session_passkey,
+        session_amr=session_amr,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
@@ -590,8 +585,7 @@ async def set_rls_context(
         "query": query,
         "satisfied_providers": satisfied_providers,
         "satisfied_claims": satisfied_claims,
-        "session_mfa": session_mfa,
-        "session_passkey": session_passkey,
+        "session_amr": session_amr,
         "platform_factor": platform_factor,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,

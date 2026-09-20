@@ -187,8 +187,7 @@ async def gather_across_guilds(
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
                 satisfied_claims=auth_context.satisfied_claims(),
-                session_mfa=auth_context.session_mfa(),
-                session_passkey=auth_context.session_passkey(),
+                session_amr=auth_context.session_amr(),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.

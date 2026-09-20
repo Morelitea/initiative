@@ -781,7 +781,7 @@ async def test_upload_token_copies_session_satisfied_providers(
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat, asserted, _mfa, _pk = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, asserted, _amr = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
     # And what those providers asserted, so a community narrowing one reads
     # this token the way it reads that session.
@@ -792,9 +792,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat, asserted, _mfa, _pk = verify_upload_token(
-        unsatisfied.json()["upload_token"]
-    )
+    _, sat, asserted, _amr = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
     assert asserted == {}
 

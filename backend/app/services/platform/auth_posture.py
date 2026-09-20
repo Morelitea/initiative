@@ -371,8 +371,9 @@ async def answers_the_rule(session: AsyncSession, *, user: User) -> bool:
     the answer before there is a rule to have gated anything.
     """
     from app.core import auth_context
+    from app.services.auth.assurance import SECOND_FACTOR_AMR
 
-    if auth_context.session_mfa():
+    if SECOND_FACTOR_AMR in auth_context.session_amr():
         return True
     return await holds_second_factor(session, user_id=user.id)
 

@@ -151,6 +151,33 @@ $function$
 """
 
 
+#: What this session recorded about how it was opened, as an array.
+#:
+#: ``app.session_amr`` holds the markers narrowed to the closed vocabulary in
+#: ``app.services.auth.assurance`` — ``mfa`` where a code was presented,
+#: ``hwk``/``swk`` where a key answered — comma-joined and sorted. One reader
+#: rather than the parse repeated in each leg, and one place for the COALESCE:
+#: ``string_to_array`` of an unset setting is NULL, and the empty array is what
+#: the legs below are written against, so an absent setting reads as a session
+#: that recorded nothing.
+SESSION_AMR = """\
+CREATE OR REPLACE FUNCTION public.session_amr()
+ RETURNS text[]
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT COALESCE(
+        string_to_array(
+            NULLIF(current_setting('app.session_amr', true), ''),
+            ','
+        ),
+        ARRAY[]::text[]
+    )
+$function$
+
+"""
+
+
 #: Gate 0, first half: the deployment's own second-factor rule.
 #:
 #: The level is read from the settings row rather than from a GUC — what the
@@ -224,18 +251,15 @@ AS $function$
                   -- presented and the request carries that here.
                   OR (
                       'totp' = ANY(p.require_methods)
-                      AND COALESCE(
-                            current_setting('app.session_mfa', true), 'false'
-                          ) <> 'true'
+                      AND NOT ('mfa' = ANY(public.session_amr()))
                   )
                   -- Or a passkey, where the community asks for one. Its own
                   -- leg rather than the factor's: an assertion records the
                   -- second factor too, so the two are asked for separately.
+                  -- Either kind of key answers, which is what the overlap says.
                   OR (
                       'passkey' = ANY(p.require_methods)
-                      AND COALESCE(
-                            current_setting('app.session_passkey', true), 'false'
-                          ) <> 'true'
+                      AND NOT (public.session_amr() && ARRAY['hwk', 'swk'])
                   )
                   -- Or any of its own, whichever provider served it. Named
                   -- rather than counted, so a list holding some other method
@@ -453,13 +477,15 @@ $function$
 
 #: Name -> definition, in dependency order: ``guild_connection_satisfied``
 #: calls ``guild_connection_admits``, ``guild_auth_satisfied`` calls
-#: ``guild_connection_satisfied`` and ``platform_factor_satisfied``, and
+#: ``guild_connection_satisfied``, ``session_amr`` and
+#: ``platform_factor_satisfied``, and
 #: ``initiative_access`` and ``initiative_full_access`` call
 #: ``guild_auth_satisfied``. Applied in this order, a fresh database never
 #: sees a dangling call.
 AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_connection_admits", GUILD_CONNECTION_ADMITS),
     ("guild_connection_satisfied", GUILD_CONNECTION_SATISFIED),
+    ("session_amr", SESSION_AMR),
     ("platform_factor_satisfied", PLATFORM_FACTOR_SATISFIED),
     ("guild_auth_satisfied", GUILD_AUTH_SATISFIED),
     ("initiative_access", INITIATIVE_ACCESS),

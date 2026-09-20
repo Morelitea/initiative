@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 import bcrypt
 import jwt
@@ -328,8 +328,7 @@ def create_upload_token(
     user_id: int,
     satisfied_providers: Sequence[int] = (),
     satisfied_claims: dict | None = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    session_amr: Iterable[str] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -351,13 +350,10 @@ def create_upload_token(
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
         "satc": dict(satisfied_claims or {}),
-        # Copied from the minting session like the two above: an upload in a
-        # community that asks for a second factor is made by somebody who
-        # presented one.
-        "mfa": bool(session_mfa),
-        # And the same for a community that asks for a passkey: the token
-        # carries the standing of the session that asked for it.
-        "pk": bool(session_passkey),
+        # Copied from the minting session like the two above, so a community
+        # that asks how somebody signed in gets the same answer from an upload
+        # as from the session that asked for it.
+        "amr": sorted(session_amr),
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -367,10 +363,10 @@ def create_upload_token(
 
 def verify_upload_token(
     token: str,
-) -> tuple[int, frozenset[int], dict, bool, bool]:
+) -> tuple[int, frozenset[int], dict, frozenset[str]]:
     """Verify a scoped upload token; return the user id, its satisfied set,
-    what those providers asserted, whether the minting session recorded the
-    account's second factor, and whether a passkey opened it.
+    what those providers asserted, and the markers the minting session
+    recorded about how it was opened.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -407,8 +403,9 @@ def verify_upload_token(
         user_id,
         satisfied,
         dict(claims or {}),
-        bool(payload.get("mfa")),
-        bool(payload.get("pk")),
+        # Narrowed again by the caller against the closed vocabulary: what a
+        # token says about itself is not what decides which markers count.
+        frozenset(str(v) for v in payload.get("amr") or ()),
     )
 
 

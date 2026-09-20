@@ -150,6 +150,30 @@ def carries_passkey(amr: Iterable[str]) -> bool:
     return any(value in PASSKEY_AMR_VALUES for value in amr)
 
 
+#: The whole of what a community's sign-in rule can ask about. A session's
+#: ``amr`` says more than this — which provider it came through, that a
+#: password was typed, whatever the IdP chose to name — and none of the rest is
+#: a question anybody can put to it, so none of the rest travels to the gate.
+#:
+#: Closed on purpose. These markers travel onward as one delimited value, and
+#: this list is the whole of what may appear in it. The rest of an ``amr`` is
+#: the identity provider's own vocabulary and stops here: a marker counts
+#: because this module named it.
+POLICY_AMR_MARKERS: frozenset[str] = frozenset({SECOND_FACTOR_AMR, *PASSKEY_AMR_VALUES})
+
+
+def policy_markers(amr: Iterable[str] | None) -> frozenset[str]:
+    """The part of ``amr`` a community's sign-in rule is written against.
+
+    One reading for every credential validator, so what reaches the gate and
+    what reaches the database are the same set rather than two derivations of
+    it. A third requirable method is a value in
+    :data:`POLICY_AMR_MARKERS` and a leg that reads it, not another flag
+    threaded from the validator to the sink.
+    """
+    return frozenset(value for value in (amr or ()) if value in POLICY_AMR_MARKERS)
+
+
 def session_amr(
     provider_slug: str,
     assurance: ProviderAssurance,
