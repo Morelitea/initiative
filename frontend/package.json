@@ -166,7 +166,7 @@
     "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
-    "lint-staged": "^17.3.0",
+    "lint-staged": "^17.5.1",
     "msw": "^2.15.0",
     "orval": "^8.23.0",
     "tailwindcss-animate": "^1.0.7",
