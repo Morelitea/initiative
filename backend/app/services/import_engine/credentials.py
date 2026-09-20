@@ -97,7 +97,7 @@ async def store(
         session.add(row)
         await session.commit()
         await session.refresh(row)
-        return row.id
+        return row.id  # ty: ignore[invalid-return-type] — committed row, id is set
 
 
 async def load(credential_id: int, *, guild_id: int) -> LoadedCredential | None:
