@@ -11,6 +11,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Document, Page, pdfjs } from "react-pdf";
@@ -37,14 +38,19 @@ import { cn } from "@/lib/utils";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-// Self-host the PDF.js worker as a same-origin Vite asset rather than loading it
+// Self-host the PDF.js worker as a same-origin app asset rather than loading it
 // from a CDN. A cross-origin worker URL forces pdf.js to import() it from inside a
 // blob worker, which the app's `script-src 'self'` CSP (pentest MED-001) blocks;
 // bundling it keeps the worker same-origin (no CSP relaxation), guarantees the
-// version matches pdfjs-dist, and works offline in the native app.
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+// version matches pdfjs-dist, and works offline in the native app. Both URLs are
+// built by the pdfjs plugin in vite.config.ts.
+pdfjs.GlobalWorkerOptions.workerSrc = __PDFJS_WORKER_URL__;
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+// pdf.js decodes JBIG2, CCITT fax and JPEG 2000 images in WebAssembly, and only
+// looks for those modules if it is told where they live. Scanned and faxed PDFs
+// are where they turn up. Defined once at module scope: react-pdf reloads the
+// document whenever this object's identity changes.
+const PDF_OPTIONS = { wasmUrl: __PDFJS_WASM_URL__ };
 
 // Accepted file types for uploading a new version (mirrors CreateDocumentDialog).
 const VERSION_UPLOAD_ACCEPT =
@@ -132,7 +138,15 @@ export const FileDocumentViewer = ({
   const [scale, setScale] = useState(1.0);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [baseWidth, setBaseWidth] = useState<number | null>(null);
+  // Intrinsic width (PDF units) of the widest page in the document. Every page
+  // renders at one shared scale derived from it, so a document that mixes single
+  // pages with spreads keeps their relative widths instead of stretching each
+  // page to fill the viewer.
+  const [maxPageWidth, setMaxPageWidth] = useState<number | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  // The document the measurement below belongs to, so a version switched mid-flight
+  // doesn't get the previous file's scale.
+  const measuredPdfRef = useRef<PDFDocumentProxy | null>(null);
 
   // Image viewer state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -246,9 +260,33 @@ export const FileDocumentViewer = ({
     );
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
+  const onDocumentLoadSuccess = async (pdf: PDFDocumentProxy) => {
+    measuredPdfRef.current = pdf;
+    setNumPages(pdf.numPages);
+    setMaxPageWidth(null);
     setPdfError(null);
+
+    // Read each page's viewport (page dictionaries only — no rendering) to find
+    // the widest one. `getViewport` already accounts for page rotation.
+    const widths = await Promise.all(
+      Array.from({ length: pdf.numPages }, (_, index) =>
+        pdf
+          .getPage(index + 1)
+          .then((page) => page.getViewport({ scale: 1 }).width)
+          // One unreadable page shouldn't decide the scale for the rest.
+          .catch(() => 0)
+      )
+    );
+
+    // A newer version finished loading while we were measuring.
+    if (measuredPdfRef.current !== pdf) return;
+
+    const widest = Math.max(...widths);
+    if (widest > 0) {
+      setMaxPageWidth(widest);
+    } else {
+      setPdfError(t("viewer.pdfError"));
+    }
   };
 
   const onDocumentLoadError = (error: Error) => {
@@ -258,6 +296,12 @@ export const FileDocumentViewer = ({
 
   const zoomIn = () => setScale((prev) => Math.min(2.5, prev + 0.25));
   const zoomOut = () => setScale((prev) => Math.max(0.5, prev - 0.25));
+
+  // One scale for the whole document: fit the widest page to the viewer (minus the
+  // container padding), then apply the user's zoom on top. Null until the pages
+  // have been measured.
+  const pageScale =
+    baseWidth !== null && maxPageWidth !== null ? ((baseWidth - 32) * scale) / maxPageWidth : null;
 
   if (!resolvedUrl || !inlineUrl) {
     return (
@@ -447,6 +491,12 @@ export const FileDocumentViewer = ({
               ) : baseWidth ? (
                 <Document
                   file={inlineUrl}
+                  options={PDF_OPTIONS}
+                  // react-pdf 11 suspends while loading and throws failures to the
+                  // nearest Error Boundary by default. The viewer handles both
+                  // itself — the spinner below and the download fallback above —
+                  // so neither escapes into the surrounding page.
+                  suspense={false}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}
                   loading={
@@ -456,19 +506,25 @@ export const FileDocumentViewer = ({
                   }
                 >
                   <div className="flex flex-col items-center gap-4">
-                    {Array.from({ length: numPages || 0 }, (_, index) => (
-                      <Page
-                        // biome-ignore lint/suspicious/noArrayIndexKey: Page numbers are stable and 1-based, so using index as key is fine.
-                        key={index + 1}
-                        pageNumber={index + 1}
-                        width={(baseWidth - 32) * scale}
-                        loading={
-                          <div className="flex items-center justify-center p-8">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                          </div>
-                        }
-                      />
-                    ))}
+                    {pageScale === null ? (
+                      <div className="flex items-center justify-center p-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      Array.from({ length: numPages || 0 }, (_, index) => (
+                        <Page
+                          // biome-ignore lint/suspicious/noArrayIndexKey: Page numbers are stable and 1-based, so using index as key is fine.
+                          key={index + 1}
+                          pageNumber={index + 1}
+                          scale={pageScale}
+                          loading={
+                            <div className="flex items-center justify-center p-8">
+                              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                          }
+                        />
+                      ))
+                    )}
                   </div>
                 </Document>
               ) : (

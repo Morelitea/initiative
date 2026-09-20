@@ -591,15 +591,21 @@ async def insufficient_privilege_handler(
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
-# The two WebAssembly workers — the dashboard widget sandbox and the direct
-# message ratchet — and only they, are served with a policy that admits
-# WebAssembly. Vite emits worker bundles into `assets/workers/` with a content
-# hash (see `worker.rolldownOptions` in frontend/vite.config.ts), so the match is
-# by directory + stem; the literals are pinned by tests on both sides.
+# The three WebAssembly workers — the dashboard widget sandbox, the direct
+# message ratchet and the PDF viewer's pdf.js worker — and only they, are served
+# with a policy that admits WebAssembly. Vite emits worker bundles into
+# `assets/workers/` with a content hash (see `worker.rolldownOptions` in
+# frontend/vite.config.ts) and the pdfjs plugin there puts pdf.js beside them
+# under its version, so the match is by directory + stem; the literals are
+# pinned by tests on both sides.
 _WASM_WORKER_ASSET_PREFIXES = (
     "assets/workers/sandbox.worker-",
     "assets/workers/ratchet.worker-",
+    "assets/workers/pdf.worker-",
 )
+# The first two are bundled by Vite as classic `.js`; pdf.js ships an ES module
+# and is emitted under its own name.
+_WASM_WORKER_ASSET_SUFFIXES = (".js", ".mjs")
 _WASM_WORKER_CSP = settings.wasm_worker_content_security_policy
 
 
@@ -609,7 +615,7 @@ def _is_wasm_worker_asset(path: str) -> bool:
     The hash varies per build, so the tail is open — but only as far as the one
     filename: anything nested below that name is an ordinary asset.
     """
-    if not path.endswith(".js"):
+    if not path.endswith(_WASM_WORKER_ASSET_SUFFIXES):
         return False
     return any(
         path.startswith(prefix) and "/" not in path[len(prefix) :]
