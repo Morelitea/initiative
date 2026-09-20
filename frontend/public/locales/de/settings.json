@@ -1080,7 +1080,9 @@
     "billing": {
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
-      "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
+      "openError": "Das Abrechnungsportal konnte nicht geöffnet werden.",
+      "operatorLabel": "Abrechnungsvorgänge für {{name}}",
+      "operations": "Vorgänge"
     },
     "sheet": {
       "open": "Verwalten",

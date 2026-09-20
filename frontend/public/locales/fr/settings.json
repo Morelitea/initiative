@@ -1080,7 +1080,9 @@
     "billing": {
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
-      "openError": "Impossible d'ouvrir le portail de facturation."
+      "openError": "Impossible d'ouvrir le portail de facturation.",
+      "operatorLabel": "Opérations de facturation pour {{name}}",
+      "operations": "Opérations"
     },
     "sheet": {
       "open": "Gérer",

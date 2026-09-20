@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
@@ -829,6 +829,7 @@ async def create_platform_guild_billing_service_handoff(
     guild_id: int,
     session: AdminSessionDep,
     admin: GuildsManageDep,
+    console: Literal["support", "operator"] = "support",
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
@@ -892,6 +893,7 @@ async def create_platform_guild_billing_service_handoff(
                 if grant.approved_by_id is not None
                 else None
             ),
+            console=console,
         )
     except BillingSupportHandoffNotConfiguredError as exc:
         raise HTTPException(

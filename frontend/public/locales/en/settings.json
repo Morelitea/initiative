@@ -1070,7 +1070,9 @@
     "billing": {
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
-      "openError": "Could not open the billing portal."
+      "openError": "Could not open the billing portal.",
+      "operatorLabel": "Billing operations for {{name}}",
+      "operations": "Operations"
     },
     "sheet": {
       "open": "Manage",

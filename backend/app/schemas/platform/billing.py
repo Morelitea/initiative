@@ -19,7 +19,7 @@ from app.schemas.base import SanitizedBaseModel
 
 
 _ACTOR_REQUIRED_SOURCES = frozenset(
-    {BillingSource.support_manual, BillingSource.admin_manual}
+    {BillingSource.support_manual, BillingSource.operator_manual}
 )
 
 

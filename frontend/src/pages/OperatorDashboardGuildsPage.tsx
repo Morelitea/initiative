@@ -33,7 +33,9 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const { billing } = useAppConfig();
   const [opening, setOpening] = useState(false);
 
-  const open = async () => {
+  // Which console a link opens is decided by the key that signs the handoff,
+  // so the console is named on the way out and never asserted by the browser.
+  const open = async (console: "support" | "operator") => {
     if (!billing) return;
     setOpening(true);
     const tab = window.open("about:blank", "_blank");
@@ -41,15 +43,16 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     try {
       const { handoff_token } =
         await createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
-          guild.id
+          guild.id,
+          { params: { console } }
         );
       const lang = i18n.resolvedLanguage ?? i18n.language;
       // The token rides in the fragment, which never leaves the browser. The
       // console reads the guild off the exchanged session, so the URL does not
       // name one — only the language carries over.
-      const url = `${billing.url}/support?lang=${encodeURIComponent(
+      const url = `${billing.url}/${console}?lang=${encodeURIComponent(
         lang
-      )}#support_handoff=${encodeURIComponent(handoff_token)}`;
+      )}#${console}_handoff=${encodeURIComponent(handoff_token)}`;
       if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
@@ -61,15 +64,26 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   };
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={open}
-      disabled={opening}
-      aria-label={t("guilds.billing.openLabel", { name: guild.name })}
-    >
-      {guild.tier_name ?? t("guilds.billing.noPlan")}
-    </Button>
+    <div className="flex items-center gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => open("support")}
+        disabled={opening}
+        aria-label={t("guilds.billing.openLabel", { name: guild.name })}
+      >
+        {guild.tier_name ?? t("guilds.billing.noPlan")}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => open("operator")}
+        disabled={opening}
+        aria-label={t("guilds.billing.operatorLabel", { name: guild.name })}
+      >
+        {t("guilds.billing.operations")}
+      </Button>
+    </div>
   );
 };
 

@@ -786,6 +786,8 @@ class Settings(BaseSettings):
     # pair can be rotated without downtime.
     BILLING_SUPPORT_HANDOFF_SECRET: str | None = None
     BILLING_SUPPORT_HANDOFF_KID: str | None = None
+    BILLING_OPERATOR_HANDOFF_SECRET: str | None = None
+    BILLING_OPERATOR_HANDOFF_KID: str | None = None
 
     # --- Marketplace registry (optional; default OFF) ---------------------
     # A registry is not a service: it is a signed JSON index plus the manifest

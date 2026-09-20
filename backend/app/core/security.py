@@ -516,6 +516,15 @@ def app_platform_audience(public_id: str) -> str:
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
 
+BILLING_SUPPORT_CONSOLE = "support"
+BILLING_OPERATOR_CONSOLE = "operator"
+BILLING_CONSOLES = (BILLING_SUPPORT_CONSOLE, BILLING_OPERATOR_CONSOLE)
+
+_BILLING_CONSOLE_AUDIENCES = {
+    BILLING_SUPPORT_CONSOLE: BILLING_SUPPORT_HANDOFF_AUDIENCE,
+    BILLING_OPERATOR_CONSOLE: "initiative:billing-operator",
+}
+
 # Lifetime of a billing-support handoff, and the ceiling the receiver accepts.
 BILLING_SUPPORT_HANDOFF_LIFETIME = timedelta(seconds=60)
 BILLING_SUPPORT_HANDOFF_MAX_LIFETIME = timedelta(seconds=300)
@@ -526,11 +535,24 @@ class BillingSupportHandoffNotConfiguredError(RuntimeError):
     signing material is absent. Fails closed — the caller returns 503."""
 
 
-def billing_support_handoff_enabled() -> bool:
-    """True when this deployment can mint billing-support handoffs."""
-    return bool(
-        settings.BILLING_SUPPORT_HANDOFF_SECRET and settings.BILLING_SUPPORT_HANDOFF_KID
+def _billing_console_key(console: str) -> tuple[str | None, str | None]:
+    if console == BILLING_OPERATOR_CONSOLE:
+        return (
+            settings.BILLING_OPERATOR_HANDOFF_SECRET,
+            settings.BILLING_OPERATOR_HANDOFF_KID,
+        )
+    return (
+        settings.BILLING_SUPPORT_HANDOFF_SECRET,
+        settings.BILLING_SUPPORT_HANDOFF_KID,
     )
+
+
+def billing_support_handoff_enabled(
+    console: str = BILLING_SUPPORT_CONSOLE,
+) -> bool:
+    """True when this deployment can mint handoffs into ``console``."""
+    secret, kid = _billing_console_key(console)
+    return bool(secret and kid)
 
 
 def create_billing_support_handoff_token(
@@ -540,6 +562,7 @@ def create_billing_support_handoff_token(
     guild_ref: str,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
+    console: str = BILLING_SUPPORT_CONSOLE,
 ) -> tuple[str, int]:
     """Mint the billing-support handoff token.
 
@@ -550,17 +573,21 @@ def create_billing_support_handoff_token(
     operator's, which is what a pairwise pseudonymous identifier is for
     (OpenID Connect Core §8.1).
     """
-    if not billing_support_handoff_enabled():
+    if console not in BILLING_CONSOLES:
         raise BillingSupportHandoffNotConfiguredError(
-            "BILLING_SUPPORT_HANDOFF_SECRET and _KID are required to mint "
-            "billing-support handoffs"
+            f"unknown billing console {console!r}"
+        )
+    secret, kid = _billing_console_key(console)
+    if not (secret and kid):
+        raise BillingSupportHandoffNotConfiguredError(
+            f"the billing {console} console's handoff secret and kid are not configured"
         )
     lifetime = min(expires_in, BILLING_SUPPORT_HANDOFF_MAX_LIFETIME)
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
         "sub": user_ref,
-        "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        "aud": _BILLING_CONSOLE_AUDIENCES[console],
         "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
@@ -570,12 +597,7 @@ def create_billing_support_handoff_token(
     }
     if approver_ref is not None:
         payload["approver"] = approver_ref
-    token = jwt.encode(
-        payload,
-        settings.BILLING_SUPPORT_HANDOFF_SECRET,
-        algorithm="HS256",
-        headers={"kid": settings.BILLING_SUPPORT_HANDOFF_KID},
-    )
+    token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})
     return token, int(lifetime.total_seconds())
 
 

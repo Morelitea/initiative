@@ -1269,7 +1269,7 @@ requires-dist = [
     { name = "typst", specifier = ">=0.15.0" },
     { name = "tzdata", specifier = ">=2026.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.53" },
-    { name = "webauthn", specifier = ">=2.5.0,<3" },
+    { name = "webauthn", specifier = ">=2.5.0,<4" },
 ]
 
 [package.metadata.requires-dev]
