@@ -6778,6 +6778,7 @@ export interface RelatedEnd {
   updated_at: string | null;
   tool: Tool | null;
   tool_id: number | null;
+  tool_title: string | null;
   image_urls: string[];
   icon: string | null;
   color: string | null;
@@ -6980,6 +6981,8 @@ export interface SearchSuggestion {
   tool?: Tool | null;
   tool_id?: number | null;
   can_write?: boolean;
+  tool_title?: string | null;
+  initiative_name?: string | null;
 }
 
 /**

@@ -18,12 +18,14 @@ from typing import Optional, Sequence
 from sqlalchemy import Select, false, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.search_index import entity_types
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
 
@@ -370,6 +372,61 @@ async def search(
     )
 
 
+#: The columns a picker row is built from, before it is told where it lives.
+def _suggestion_columns(user_id: int) -> tuple:
+    return (
+        SearchEntry.entity_type,
+        SearchEntry.entity_id,
+        SearchEntry.initiative_id,
+        SearchEntry.dac_tool.label("tool"),
+        SearchEntry.dac_id.label("tool_id"),
+        SearchEntry.title,
+        writable_column(user_id),
+    )
+
+
+def _with_context(rows: Select) -> Select:
+    """The same rows, each told what it lives in.
+
+    A title on its own identifies nothing: six projects run from one template
+    hold six tasks called "Do a thing", and a picker offering all six offers a
+    choice nobody can make. So every row carries the name of the thing it is
+    addressed inside and the initiative it sits in.
+
+    The container is looked up in the index itself — the row governing a task
+    IS its project's row — so nothing here has to learn a second time which
+    table holds which parent. It is left-joined, and skipped for a row that
+    governs itself: a project does not live in a project.
+
+    Wrapped around a finished, ordered, limited query rather than joined into
+    it, because the container is only ever read for the handful of rows
+    somebody is shown — probing for it before the LIMIT would pay for every
+    candidate the ranking threw away.
+    """
+    inner = rows.subquery()
+    container = aliased(SearchEntry, name="container")
+    return (
+        select(
+            *inner.c,
+            container.title.label("tool_title"),
+            Initiative.name.label("initiative_name"),
+        )
+        .select_from(inner)
+        .join(
+            container,
+            (container.entity_type == inner.c.tool)
+            & (container.entity_id == inner.c.tool_id)
+            & (container.chunk_ix == 0)
+            & ~(
+                (container.entity_type == inner.c.entity_type)
+                & (container.entity_id == inner.c.entity_id)
+            ),
+            isouter=True,
+        )
+        .join(Initiative, Initiative.id == inner.c.initiative_id, isouter=True)
+    )
+
+
 async def suggest(
     session: AsyncSession,
     *,
@@ -401,25 +458,32 @@ async def suggest(
         & search_scope_clause(user_id, guild_id=guild_id)
     )
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
+    ranked = (
+        select(
+            *_suggestion_columns(user_id),
+            rank.label("rank"),
+            SearchEntry.updated_at,
+        )
+        .where(clause, SearchEntry.chunk_ix == 0)
+        .order_by(
+            rank.desc(),
+            SearchEntry.updated_at.desc(),
+            SearchEntry.entity_type,
+            SearchEntry.entity_id,
+        )
+        .limit(limit)
+    )
+    described = _with_context(ranked)
     rows = (
         await session.exec(
-            select(
-                SearchEntry.entity_type,
-                SearchEntry.entity_id,
-                SearchEntry.initiative_id,
-                SearchEntry.dac_tool.label("tool"),
-                SearchEntry.dac_id.label("tool_id"),
-                SearchEntry.title,
-                writable_column(user_id),
+            # Re-stated outside the wrap: a subquery's ordering is not something
+            # the query around it inherits.
+            described.order_by(
+                described.selected_columns.rank.desc(),
+                described.selected_columns.updated_at.desc(),
+                described.selected_columns.entity_type,
+                described.selected_columns.entity_id,
             )
-            .where(clause, SearchEntry.chunk_ix == 0)
-            .order_by(
-                rank.desc(),
-                SearchEntry.updated_at.desc(),
-                SearchEntry.entity_type,
-                SearchEntry.entity_id,
-            )
-            .limit(limit)
         )
     ).all()
     return [SearchSuggestion.model_validate(r, from_attributes=True) for r in rows]
@@ -446,25 +510,25 @@ async def recent(
     """
     limit = max(1, min(limit, SUGGEST_LIMIT))
     clause = filters.clause() & search_scope_clause(user_id, guild_id=guild_id)
+    newest = (
+        select(*_suggestion_columns(user_id), SearchEntry.updated_at)
+        # One row per thing: the index holds a row per body chunk as well.
+        .where(clause, SearchEntry.chunk_ix == 0)
+        .order_by(
+            SearchEntry.updated_at.desc(),
+            SearchEntry.entity_type,
+            SearchEntry.entity_id,
+        )
+        .limit(limit)
+    )
+    described = _with_context(newest)
     rows = (
         await session.exec(
-            select(
-                SearchEntry.entity_type,
-                SearchEntry.entity_id,
-                SearchEntry.initiative_id,
-                SearchEntry.dac_tool.label("tool"),
-                SearchEntry.dac_id.label("tool_id"),
-                SearchEntry.title,
-                writable_column(user_id),
+            described.order_by(
+                described.selected_columns.updated_at.desc(),
+                described.selected_columns.entity_type,
+                described.selected_columns.entity_id,
             )
-            # One row per thing: the index holds a row per body chunk as well.
-            .where(clause, SearchEntry.chunk_ix == 0)
-            .order_by(
-                SearchEntry.updated_at.desc(),
-                SearchEntry.entity_type,
-                SearchEntry.entity_id,
-            )
-            .limit(limit)
         )
     ).all()
     return [SearchSuggestion.model_validate(r, from_attributes=True) for r in rows]

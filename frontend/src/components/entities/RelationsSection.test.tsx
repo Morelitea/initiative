@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildSearchSuggestion } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -76,6 +77,7 @@ const row = (
     updated_at: null,
     tool: Tool.project,
     tool_id: 1,
+    tool_title: null,
     image_urls: [],
     icon: null,
     color: null,
@@ -94,6 +96,7 @@ const tagEnd = {
   updated_at: null,
   tool: null,
   tool_id: null,
+  tool_title: null,
   image_urls: [],
   icon: null,
   color: "#ff0000",
@@ -296,6 +299,63 @@ describe("RelationsSection", () => {
     await user.click(screen.getByRole("checkbox", { name: "Show tags" }));
     expect(await screen.findByRole("region", { name: /2 things/ })).toBeInTheDocument();
     expect(screen.getByText("Tagged")).toBeInTheDocument();
+  });
+
+  it("says which project a link is in, when its name does not", async () => {
+    // Six projects run from one template hold six tasks called "Do a thing".
+    // The card has to say which, or it says nothing at all.
+    renderSection([
+      {
+        ...row("attached", "outbound", "Do a thing"),
+        other: { ...row("attached", "outbound", "Do a thing").other, tool_title: "Harvest" },
+      },
+    ]);
+
+    const section = (await screen.findByRole("heading", { name: "Attached" })).closest(
+      "section"
+    ) as HTMLElement;
+    expect(within(section).getByText(/Harvest/)).toBeInTheDocument();
+  });
+
+  it("says where each thing the picker offers lives", async () => {
+    const user = userEvent.setup();
+    server.use(
+      guildHttp.get("/search/recent", () =>
+        HttpResponse.json([
+          buildSearchSuggestion({
+            entity_type: SearchEntityType.task,
+            entity_id: 11,
+            title: "Do a thing",
+            tool: Tool.project,
+            tool_id: 1,
+            tool_title: "Harvest",
+            initiative_id: 3,
+            initiative_name: "Farmhands",
+          }),
+          buildSearchSuggestion({
+            entity_type: SearchEntityType.task,
+            entity_id: 12,
+            title: "Do a thing",
+            tool: Tool.project,
+            tool_id: 2,
+            tool_title: "Winterhold",
+            initiative_id: 3,
+            initiative_name: "Farmhands",
+          }),
+        ])
+      )
+    );
+    renderSection([]);
+
+    await user.click(await screen.findByRole("button", { name: "Add relation" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: "Thing" }));
+
+    expect(await screen.findByText("Harvest")).toBeInTheDocument();
+    expect(screen.getByText("Winterhold")).toBeInTheDocument();
+    // The picker is already confined to one initiative, so naming it on every
+    // row would be the same word twice over.
+    expect(screen.queryByText(/Farmhands/)).not.toBeInTheDocument();
   });
 
   it("offers no way in at all to a reader who may not edit", async () => {

@@ -45,7 +45,12 @@ const serializeItem = (value: {
 const attachmentsOf = (rows: RelationshipRead[]): LinkedRef[] =>
   rows
     .filter((row) => row.relationship_type === RelationshipType.attached)
-    .map((row) => ({ type: row.other.type, id: row.other.id, title: row.other.title }));
+    .map((row) => ({
+      type: row.other.type,
+      id: row.other.id,
+      title: row.other.title,
+      toolTitle: row.other.tool_title,
+    }));
 
 interface UseQueueItemFormArgs {
   /** Whether the owning dialog is open (gates the picker typeaheads + reset). */
