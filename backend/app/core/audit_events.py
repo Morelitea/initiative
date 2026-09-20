@@ -51,6 +51,9 @@ class AuditEventType(str, Enum):
     #: is different afterwards rather than merely different in value.
     AUTH_PASSWORD_REMOVED = "auth.password_removed"
     AUTH_IDENTITY_LINKED = "auth.identity_linked"
+    #: An address was proved for the first time, and the credentials the
+    #: account held while it was unproven were retired with it.
+    AUTH_CREDENTIALS_RETIRED = "auth.credentials_retired"
     AUTH_REFRESH_REUSE_DETECTED = "auth.refresh_reuse_detected"
     #: The account's own second factor. ``failed`` is a refused code against a
     #: standing challenge, so it is the shape a run of guesses makes.
@@ -277,6 +280,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_PASSWORD_REMOVED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_CREDENTIALS_RETIRED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_IDENTITY_LINKED: AuditEventMeta(

@@ -324,5 +324,14 @@
       "jobs": "Exportaciones e importaciones",
       "account": "Tu cuenta"
     }
+  },
+  "signInCode": {
+    "subject": "Tu código de acceso de Initiative",
+    "title": "Tu código de acceso",
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "body": "Escribe este código en la página que te lo ha pedido:",
+    "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
+    "fallbackText": "Si no has pedido iniciar sesión, puedes ignorar este correo.",
+    "textBody": "Tu código de acceso de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
   }
 }

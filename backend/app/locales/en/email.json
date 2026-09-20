@@ -324,5 +324,14 @@
       "jobs": "Exports and imports",
       "account": "Your account"
     }
+  },
+  "signInCode": {
+    "subject": "Your Initiative sign-in code",
+    "title": "Your sign-in code",
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "body": "Type this code into the page that asked for it:",
+    "expiry": "The code works for {{minutes}} minutes and can be used once.",
+    "fallbackText": "If you didn't ask to sign in, you can ignore this email.",
+    "textBody": "Your Initiative sign-in code is {{code}}. It works for {{minutes}} minutes and can be used once."
   }
 }

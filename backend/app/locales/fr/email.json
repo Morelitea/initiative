@@ -324,5 +324,14 @@
       "jobs": "Exports et imports",
       "account": "Votre compte"
     }
+  },
+  "signInCode": {
+    "subject": "Votre code de connexion Initiative",
+    "title": "Votre code de connexion",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body": "Saisissez ce code sur la page qui vous l'a demandé :",
+    "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
+    "fallbackText": "Si vous n'avez pas demandé à vous connecter, vous pouvez ignorer cet e-mail.",
+    "textBody": "Votre code de connexion Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
   }
 }
