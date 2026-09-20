@@ -67,3 +67,55 @@ def test_dedupe_name_handles_extensionless_names():
     taken = {"data", "data (2)"}
     assert _dedupe_name("data", taken) == "data (3)"
     assert _dedupe_name("fresh", taken) == "fresh"
+
+
+# ---------------------------------------------------------------------------
+# The streaming seam: aggregate exports assemble one artifact at a time
+# ---------------------------------------------------------------------------
+
+
+def _request(*keys: str):
+    from app.services.export.contract import RenderItem, RenderRequest
+
+    return RenderRequest(
+        guild_id=1,
+        template_id="data-table",
+        format="zip",
+        batch=tuple(RenderItem(key=k, data={}) for k in keys),
+    )
+
+
+async def test_render_artifacts_uses_a_backends_own_stream(monkeypatch):
+    """A backend that streams is asked to stream — that is what keeps peak
+    memory at one artifact rather than the whole batch."""
+    from app.services.export import engine
+
+    eager_calls = []
+
+    class Streaming:
+        async def render_stream(self, req):
+            for item in req.batch:
+                yield _artifact(item.key, item.key.encode())
+
+        async def render(self, req):  # pragma: no cover - must not be reached
+            eager_calls.append(req)
+            return []
+
+    monkeypatch.setattr(engine, "get_backend", lambda: Streaming())
+    produced = [a.key async for a in engine.render_artifacts(_request("a", "b"))]
+    assert produced == ["a", "b"]
+    assert eager_calls == []
+
+
+async def test_render_artifacts_falls_back_to_an_eager_backend(monkeypatch):
+    """A second RenderBackend implementation stays a drop-in: without a
+    streaming path, the batch renders eagerly and yields the same artifacts."""
+    from app.services.export import engine
+
+    class Eager:
+        async def render(self, req):
+            return [_artifact(item.key, item.key.encode()) for item in req.batch]
+
+    monkeypatch.setattr(engine, "get_backend", lambda: Eager())
+    produced = [a.key async for a in engine.render_artifacts(_request("a", "b"))]
+    assert produced == ["a", "b"]

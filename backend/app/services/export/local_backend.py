@@ -68,15 +68,32 @@ def resolve_template(template_id: str) -> Path:
 
 
 class LocalRenderBackend:
+    async def render_stream(self, req: RenderRequest):
+        """Yield each artifact as it is produced, so a caller writing them
+        somewhere (a zip on disk) never holds the whole batch.
+
+        Same work as ``render``, one executor hop per item instead of one for
+        the batch: for an aggregate export that is what keeps peak memory at
+        one artifact rather than the sum of a community's uploads.
+        """
+        self._validate_templates(req)
+        loop = asyncio.get_running_loop()
+        for item in req.batch:
+            yield await loop.run_in_executor(None, _render_item, req, item)
+
     async def render(self, req: RenderRequest) -> list[RenderedArtifact]:
+        self._validate_templates(req)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._render_sync, req)
+
+    @staticmethod
+    def _validate_templates(req: RenderRequest) -> None:
         # Validate every referenced template BEFORE the executor hop, so a bad
         # id fails fast. Items may override the request's format/template (the
         # aggregate sources mix formats in one batch).
         for item in req.batch:
             if (item.format or req.format) == "pdf":
                 resolve_template(item.template_id or req.template_id)
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._render_sync, req)
 
     @staticmethod
     def _render_sync(req: RenderRequest) -> list[RenderedArtifact]:

@@ -100,6 +100,18 @@ class StorageBackend(Protocol):
         self, key: str, data: bytes, *, content_type: str | None = None
     ) -> None: ...
 
+    def write_file(
+        self, key: str, path: "Path", *, content_type: str | None = None
+    ) -> None:
+        """Store what is already on disk, without reading it into memory first.
+
+        The caller owns ``path`` and deletes it afterwards. This exists for
+        artifacts assembled on disk because they are too big to hold — a whole
+        community's export — so an implementation that just reads the file and
+        calls ``write`` would defeat the point.
+        """
+        ...
+
     def delete(self, key: str) -> bool: ...
 
     def copy(self, src_key: str, dst_key: str) -> bool: ...
@@ -159,6 +171,18 @@ class LocalFilesystemStorage:
         if target is None:
             raise ValueError(f"Invalid storage key: {key!r}")
         target.write_bytes(data)
+
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        import shutil
+
+        target = self._safe_path(key)
+        if target is None:
+            raise ValueError(f"Invalid storage key: {key!r}")
+        # copyfile, not move: the source may be on a different filesystem
+        # (a temp dir), and it streams rather than loading the file.
+        shutil.copyfile(path, target)
 
     def delete(self, key: str) -> bool:
         target = self._safe_path(key)
@@ -295,6 +319,18 @@ class S3Storage:
             Bucket=self._bucket, Key=self._object_key(key), Body=data, **extra
         )
 
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        extra = self._sse_params()
+        if content_type:
+            extra["ContentType"] = content_type
+        # upload_file chunks large objects into a multipart upload itself, so
+        # the body never has to fit in memory.
+        self._client.upload_file(
+            str(path), self._bucket, self._object_key(key), ExtraArgs=extra or None
+        )
+
     def delete(self, key: str) -> bool:
         object_key = self._object_key(key)
         # head first so the bool return matches local semantics (missing -> False);
@@ -407,6 +443,11 @@ class DualReadStorage:
 
     def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
         self._primary.write(key, data, content_type=content_type)
+
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        self._primary.write_file(key, path, content_type=content_type)
 
     def delete(self, key: str) -> bool:
         # Remove from both stores so a deleted blob can't reappear via fallback.

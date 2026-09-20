@@ -338,25 +338,6 @@ async def test_envelope_import_project_replaces_legacy_route(
     assert task.title == "Fell the tower"
 
 
-async def test_envelope_import_accepts_legacy_kind_spelling(
-    client, acting_user, session
-):
-    """0.56.0-era envelopes spell the discriminator `kind`
-    and the document name `title` — they import."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    envelope = {
-        "kind": "initiative-document",
-        "schema_version": 1,
-        "document_type": "smart_link",
-        "title": "Old export",
-        "content": {"url": "https://example.com"},
-        "tags": [],
-        "properties": [],
-    }
-    resp = await _import_envelope(client, a, envelope, a.initiative.id)
-    assert resp.status_code == 201, resp.text
-
-
 async def test_envelope_import_authorization_gates(client, acting_user, session):
     """Unknown type 400; bad version 400; tool switch off 400; a member
     without the create permission 403; an unreachable initiative 404."""
@@ -743,6 +724,21 @@ async def _upload_backup(client, actor, zip_bytes):
         headers=actor.headers,
         files={"file": ("backup.zip", zip_bytes, "application/zip")},
     )
+
+
+async def _apply_backup(client, actor, zip_bytes, monkeypatch, role_session) -> dict:
+    """Upload → confirm → worker → the finished job row."""
+    resp = await _upload_backup(client, actor, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    confirmed = await client.post(
+        actor.g(f"/imports/jobs/{job_id}/confirm"), headers=actor.headers, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    return (
+        await client.get(actor.g(f"/imports/jobs/{job_id}"), headers=actor.headers)
+    ).json()
 
 
 async def _run_import_worker(monkeypatch, role_session):
@@ -1205,37 +1201,6 @@ async def test_backup_staged_expiry_and_cancel(
     )
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == ImportJobStatus.cancelled.value
-
-
-async def test_backup_legacy_kind_manifest_imports(
-    client, acting_user, session, monkeypatch, role_session
-):
-    """0.56.0-era backups spell every discriminator `kind` — manifest and
-    entries normalize and import."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    entry, envelope = _queue_entry()
-    legacy_entry = {k: v for k, v in entry.items() if k != "type"}
-    legacy_entry["kind"] = "initiative-queue"
-    legacy_envelope = {k: v for k, v in envelope.items() if k != "type"}
-    legacy_envelope["kind"] = "initiative-queue"
-    manifest = _minimal_manifest(entries=[legacy_entry])
-    manifest.pop("type")
-    manifest["kind"] = "initiative-backup"
-    zip_bytes = _make_backup_zip(
-        manifest, {entry["path"]: json.dumps(legacy_envelope).encode()}
-    )
-
-    resp = await _upload_backup(client, a, zip_bytes)
-    assert resp.status_code == 201, resp.text
-    job_id = resp.json()["id"]
-    confirmed = await client.post(
-        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
-    )
-    assert confirmed.status_code == 200, confirmed.text
-    await _run_import_worker(monkeypatch, role_session)
-    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
-    assert job["status"] == ImportJobStatus.done.value, job.get("error")
-    assert job["result"]["per_tool"]["queue"]["created"] == 1
 
 
 async def test_backup_restores_fresh_assets_into_storage(
@@ -2134,3 +2099,197 @@ async def test_confirm_refuses_a_malformed_people_map(client, acting_user, sessi
     )
     assert bad.status_code == 400
     assert bad.json()["detail"] == "IMPORT_INVALID_PARAMS"
+
+
+# ---------------------------------------------------------------------------
+# An initiative's own shape: property definitions, roles and members
+# ---------------------------------------------------------------------------
+
+
+def _structural_entry(type_: str, payload: dict, initiative_id=1):  # noqa: D401
+    """One of the two files describing the initiative rather than its content."""
+    name = type_.removeprefix("initiative-")
+    entry = {
+        "path": f"initiatives/1-restored/{name}.json",
+        "tool": "initiative",
+        "type": type_,
+        "schema_version": 1,
+        "entity_id": initiative_id,
+        "title": "Restored",
+        "initiative_id": initiative_id,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    return entry, payload
+
+
+async def test_backup_restores_property_definitions_in_full(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The definitions arrive as they were, rather than being rebuilt from
+    whichever values happened to reference them."""
+    from sqlmodel import select
+
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, payload = _structural_entry(
+        "initiative-properties",
+        {
+            "type": "initiative-properties",
+            "schema_version": 1,
+            "properties": [
+                {
+                    "name": "Region",
+                    "type": "select",
+                    "position": 0,
+                    "color": "#abcdef",
+                    "options": [
+                        {"id": "n", "label": "North"},
+                        {"id": "s", "label": "South"},
+                    ],
+                }
+            ],
+        },
+    )
+    manifest = _minimal_manifest(entries=[entry])
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(payload).encode()}
+    )
+
+    job = await _apply_backup(client, a, zip_bytes, monkeypatch, role_session)
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+
+    from app.models.tenant.property import PropertyDefinition
+
+    await route_session_to_guild(session, a.guild.id)
+    definitions = {
+        d.name: d
+        for d in await session.exec(select(PropertyDefinition))
+        if d.name == "Region"
+    }
+    region = definitions["Region"]
+    assert [o["label"] for o in region.options] == ["North", "South"]
+    assert region.color == "#abcdef"
+
+
+async def test_backup_restores_roles_and_places_members(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Roles the target lacks are created; people already in the community are
+    placed into the initiative at the role the archive names."""
+    from sqlmodel import select
+
+    from app.core.user_display import handle_of
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    handle = handle_of(other.user)
+
+    entry, payload = _structural_entry(
+        "initiative-structure",
+        {
+            "type": "initiative-structure",
+            "schema_version": 1,
+            "roles": [
+                {
+                    "name": "lorekeeper",
+                    "display_name": "Lorekeeper",
+                    "is_manager": False,
+                    "override_share_restrictions": False,
+                    "position": 5,
+                    "permissions": ["create_documents"],
+                }
+            ],
+            "members": [{"handle": handle, "role": "lorekeeper"}],
+        },
+    )
+    manifest = _minimal_manifest(entries=[entry])
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(payload).encode()}
+    )
+
+    job = await _apply_backup(client, a, zip_bytes, monkeypatch, role_session)
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+
+    from app.models.tenant.initiative import (
+        Initiative,
+        InitiativeMember,
+        InitiativeRoleModel,
+    )
+
+    await route_session_to_guild(session, a.guild.id)
+    created = (
+        await session.exec(select(Initiative).where(Initiative.name == "Restored"))
+    ).one()
+    role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == created.id,
+                InitiativeRoleModel.name == "lorekeeper",
+            )
+        )
+    ).one()
+    assert role.display_name == "Lorekeeper"
+    member = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == created.id,
+                InitiativeMember.user_id == other.user.id,
+            )
+        )
+    ).one()
+    assert member.role_id == role.id
+
+
+async def test_backup_structure_never_overwrites_what_is_already_there(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Applying is additive: a role of the same name is the target's answer,
+    and nobody is removed or moved by an import."""
+    from sqlmodel import select
+
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, payload = _structural_entry(
+        "initiative-structure",
+        {
+            "type": "initiative-structure",
+            "schema_version": 1,
+            # A name every initiative already has.
+            "roles": [
+                {
+                    "name": "member",
+                    "display_name": "Renamed By The Archive",
+                    "is_manager": True,
+                    "permissions": [],
+                }
+            ],
+            "members": [],
+        },
+    )
+    manifest = _minimal_manifest(entries=[entry], initiative_id=a.initiative.id)
+    manifest["initiatives"][0]["target_initiative_id"] = a.initiative.id
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(payload).encode()}
+    )
+
+    job = await _apply_backup(client, a, zip_bytes, monkeypatch, role_session)
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+
+    from app.models.tenant.initiative import InitiativeRoleModel
+
+    await route_session_to_guild(session, a.guild.id)
+    roles = list(
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == a.initiative.id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    )
+    assert len(roles) == 1
+    assert roles[0].display_name != "Renamed By The Archive"

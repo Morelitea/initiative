@@ -90,10 +90,11 @@ export const TOGGLEABLE_TOOLS = TOOLS;
  * `NON_EXPORTABLE_TOOLS`. Export and import are ONE capability (a tool's JSON
  * envelope round-trips through both), so this set governs each.
  */
-export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
-  // Export/import ships with the marketplace, which owns the definition
-  // envelope format.
-  Tool.dashboard,
+export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
+  // Empty, and that is the point: every tool has an export source. What used
+  // to sit here (Tool.dashboard) is now handled where it belongs — an entity
+  // built on an app this build does not ship is filtered by provenance on the
+  // server, which is a property of the ROW, not of the tool.
 ]);
 
 /** Tools with an export-engine source (single + bulk selection export), and

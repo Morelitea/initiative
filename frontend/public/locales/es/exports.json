@@ -108,7 +108,8 @@
       "initiative": "Iniciativa",
       "guild": "Comunidad",
       "gallery": "Galería",
-      "counter-group": "Grupo de contadores"
+      "counter-group": "Grupo de contadores",
+      "dashboard": "Panel"
     },
     "download": "Descargar",
     "empty": "Aún no hay exportaciones.",

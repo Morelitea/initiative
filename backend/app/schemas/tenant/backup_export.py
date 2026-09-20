@@ -15,7 +15,7 @@ the exporter under sharing rules are simply absent everywhere.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from app.schemas.base import SanitizedBaseModel
 
@@ -47,7 +47,9 @@ class ManifestEntry(SanitizedBaseModel):
     schema_version: Optional[int] = None  # None for foreign formats
     entity_id: int
     title: str
-    initiative_id: int
+    # Absent for a guild-level entry — a thing the community owns directly
+    # rather than through one of its initiatives.
+    initiative_id: Optional[int] = None
     # Metadata for entries whose file format can't carry it itself
     # (file entries are raw blobs; envelopes carry their own tags/properties).
     tags: list[str] = []
@@ -92,7 +94,9 @@ class ManifestSkipped(SanitizedBaseModel):
     tool: str
     entity_id: int
     title: str
-    initiative_id: int
+    # Absent for a guild-level entry — a thing the community owns directly
+    # rather than through one of its initiatives.
+    initiative_id: Optional[int] = None
     reason: str  # "uploads_excluded" | ...
 
 
@@ -110,6 +114,36 @@ class ManifestInitiative(SanitizedBaseModel):
     target_initiative_id: Optional[int] = None
 
 
+class ManifestGuildSection(SanitizedBaseModel):
+    """One guild-level file in the archive — what the community owns directly
+    rather than through an initiative.
+
+    Listed here for the same reason ``entries`` is: the import plan reads the
+    manifest and nothing else, so it must be able to see that a roster or a
+    tag vocabulary is present without opening every file. ``count`` is how
+    many records the file holds, which is what makes the section worth
+    reporting in a plan ("42 members, 17 tags").
+    """
+
+    key: str  # "settings" | "tags" | "members" | "apps"
+    path: str
+    count: int = 0
+
+
+class ManifestGuild(SanitizedBaseModel):
+    """The community the archive came from.
+
+    A model rather than a loose dict because a backup that cannot say what
+    the community was called, how it was configured, or who was in it is not
+    a backup of the community — only of the work done inside it.
+    """
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_community: bool = False
+
+
 class BackupManifest(SanitizedBaseModel):
     type: str  # "initiative-backup" | "guild-backup"
     schema_version: int = BACKUP_SCHEMA_VERSION
@@ -117,9 +151,11 @@ class BackupManifest(SanitizedBaseModel):
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
-    guild: dict[str, Any]
+    guild: ManifestGuild
     include_uploads: bool
     initiatives: list[ManifestInitiative]
+    # Guild-level files: what the community owns outside its initiatives.
+    guild_sections: list[ManifestGuildSection] = []
     entries: list[ManifestEntry]
     assets: list[ManifestAsset]
     skipped: list[ManifestSkipped]

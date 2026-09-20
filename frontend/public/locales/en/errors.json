@@ -298,6 +298,7 @@
   "EXPORT_JOB_NOT_FOUND": "Export not found.",
   "EXPORT_NOT_READY": "This export isn't ready to download yet.",
   "EXPORT_ADMIN_REQUIRED": "Only community admins can export the whole community.",
+  "EXPORT_THIRD_PARTY_APP": "Dashboards built on an installed app can't be exported. Install that app where you need it instead.",
   "AI_INVALID_BASE_URL": "Base URL is not allowed. Use a public hostname.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama can only be configured at the platform level.",
   "fallback": "Something went wrong. Please try again.",

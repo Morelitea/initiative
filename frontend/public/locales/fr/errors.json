@@ -284,6 +284,7 @@
   "EXPORT_JOB_NOT_FOUND": "Export introuvable.",
   "EXPORT_NOT_READY": "Cet export n’est pas encore prêt à être téléchargé.",
   "EXPORT_ADMIN_REQUIRED": "Seuls les administrateurs de communauté peuvent exporter toute la communauté.",
+  "EXPORT_THIRD_PARTY_APP": "Les tableaux de bord créés à partir d'une application installée ne peuvent pas être exportés. Installez plutôt cette application là où vous en avez besoin.",
   "AI_INVALID_BASE_URL": "L'URL de base n'est pas autorisée. Utilisez un nom d'hôte public.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama ne peut être configuré qu'au niveau de la plateforme.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer.",

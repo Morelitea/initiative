@@ -295,6 +295,49 @@ async def export_counter_group(
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
+@router.get("/dashboard", response_model=None)
+async def export_dashboard(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    dashboard_id: Optional[int] = Query(default=None),
+    dashboard_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per dashboard, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a dashboard as an importable envelope: its presentation spec and
+    canvas config. A dashboard owns no child content — the data it displays
+    belongs to the tools it points at — so there is no report format. Read
+    access suffices. A dashboard built on an app this build does not ship
+    cannot be exported; install that app where you want it instead. Small
+    selections return the file inline; large ones return ``202`` with a queued
+    job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="dashboard",
+            format=format,
+            params={
+                "dashboard_id": dashboard_id,
+                "dashboard_ids": dashboard_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/calendar", response_model=None)
 async def export_calendars(
     session: RLSSessionDep,
