@@ -35,10 +35,22 @@ branch_labels = None
 depends_on = None
 
 
-#: The base roles every request-path role inherits public access from. Schema
-#: default privileges hand a new table full DML to both, so the narrowing below
-#: is an explicit REVOKE rather than an omission.
-_BASE_ROLES = ("app_guild_base", "platform_base")
+def _platform_base() -> str:
+    """The platform floor, under the name the ladder actually carries.
+
+    Read at apply time, not at import: the prefix is a setting, and the
+    migrations test swaps it around the chain it runs.
+    """
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+
+
+def _base_roles() -> tuple[str, str]:
+    """The base roles every request-path role inherits public access from.
+
+    Schema default privileges hand a new table full DML to both, so the
+    narrowing below is an explicit REVOKE rather than an omission.
+    """
+    return ("app_guild_base", _platform_base())
 
 
 def upgrade() -> None:
@@ -87,7 +99,7 @@ def upgrade() -> None:
 
     # The request path appends a row for its recipient and never looks at one
     # again, so INSERT is the whole of what it holds.
-    for role in _BASE_ROLES:
+    for role in _base_roles():
         op.execute(f'REVOKE ALL ON TABLE public.email_outbox FROM "{role}"')
         op.execute(f'GRANT INSERT ON TABLE public.email_outbox TO "{role}"')
         op.execute(
@@ -110,7 +122,7 @@ def upgrade() -> None:
     # ``users`` column but ``role`` (migration 0144), and a column-scoped grant
     # names its columns — so a new one joins it explicitly or the floors drift
     # from the rule. This stamp is written on the system engine either way.
-    for role in (f"{settings.PLATFORM_ROLE_PREFIX}platform_base", "app_user"):
+    for role in (_platform_base(), "app_user"):
         op.execute(f'GRANT UPDATE (last_active_at) ON TABLE public.users TO "{role}"')
 
     # --- one clock ----------------------------------------------------------
