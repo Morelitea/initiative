@@ -955,3 +955,39 @@ async def acting_user(session):
     from app.testing.actor import make_actor
 
     return functools.partial(make_actor, session)
+
+
+@pytest.fixture
+def rate_limit_of_one_per_minute(client, monkeypatch):
+    """Turn the global default rate limit on, at a rate a second request breaks.
+
+    The suite runs with the limiter off, so anything asserting throttling has to
+    switch it back on. It takes ``client`` rather than being requested beside it
+    because that fixture disables the limiter during its own setup: requested the
+    other way round, this is set up first and then quietly undone.
+    """
+    from slowapi.wrappers import LimitGroup
+
+    from app.core.rate_limit import get_real_client_ip
+
+    monkeypatch.setattr(limiter, "enabled", True)
+    monkeypatch.setattr(
+        limiter,
+        "_default_limits",
+        [
+            LimitGroup(
+                limit_provider="1/minute",
+                key_function=get_real_client_ip,
+                scope=None,
+                per_method=False,
+                methods=None,
+                error_message=None,
+                exempt_when=None,
+                cost=1,
+                override_defaults=False,
+            )
+        ],
+    )
+    limiter.reset()
+    yield
+    limiter.reset()

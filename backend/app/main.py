@@ -15,7 +15,8 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_limits
+from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,7 +26,6 @@ from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.api.v1.platform_endpoints import health
 from app.core.messages import CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
@@ -435,24 +435,71 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
 
-#: The liveness and readiness probes, which a cluster calls on a fixed
-#: interval and must never be answered with a 429.
-_UNLIMITED_PATHS = frozenset(f"{API_V1_STR}{path}" for path in health.PROBE_PATHS)
+#: Stands in for a request that lands on a mounted sub-app. A mount has no
+#: endpoint to read a marker off, which is a different answer from "no route
+#: matched" and gets different treatment below.
+_MOUNTED = object()
+
+
+def _route_endpoint(request: Request) -> object | None:
+    """The endpoint the router will run for this request.
+
+    Starlette dispatches to the FIRST route that fully matches, so this stops
+    there rather than reading on.
+    """
+    for route in request.app.routes:
+        match, _ = route.matches(request.scope)
+        if match == Match.FULL:
+            endpoint = getattr(route, "endpoint", None)
+            return _MOUNTED if endpoint is None else endpoint
+    return None
 
 
 class _DefaultRateLimit(SlowAPIMiddleware):
-    """The global default, minus the probe endpoints.
+    """The global default limit, applied against the route that will run.
 
-    Matched by path rather than by ``@limiter.exempt``: the middleware finds a
-    request's handler by keeping the LAST route that matches, which in this app
-    is always the SPA catch-all, so a marker on the handler itself is never the
-    one it reads.
+    Upstream picks a request's handler by scanning every route and keeping the
+    LAST one that matches. This app registers 600-odd routes and ends with a
+    catch-all serving the SPA, which matches everything — so upstream resolves
+    every request to ``serve_spa``, and three things follow from that:
+
+    * ``@limiter.exempt`` is never seen, because the name it registers is not
+      the name the middleware looks up.
+    * A route's own ``@limiter.limit`` never displaces the default, so one
+      set deliberately ABOVE the default is silently held down to it.
+    * Every request pays a full scan of all 600 routes — ~430µs, measured.
+
+    Resolving the way the router itself does settles all three, so this
+    replaces ``dispatch`` rather than wrapping it: delegating upward would run
+    the scan it is here to avoid.
     """
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        if request.url.path in _UNLIMITED_PATHS:
+        request_limiter = request.app.state.limiter
+        if not request_limiter.enabled:
             return await call_next(request)
-        return await super().dispatch(request, call_next)
+
+        endpoint = _route_endpoint(request)
+        if endpoint is _MOUNTED:
+            # Nothing to read a marker off, so a mount is limited like any
+            # undecorated route — by the URL it was asked for.
+            handler = None
+        elif _should_exempt(request_limiter, endpoint):
+            return await call_next(request)
+        else:
+            handler = endpoint
+
+        error_response, inject_headers = sync_check_limits(
+            request_limiter, request, handler, request.app
+        )
+        if error_response is not None:
+            return error_response
+        response = await call_next(request)
+        if inject_headers:
+            response = request_limiter._inject_headers(
+                response, request.state.view_rate_limit
+            )
+        return response
 
 
 app.add_middleware(_DefaultRateLimit)

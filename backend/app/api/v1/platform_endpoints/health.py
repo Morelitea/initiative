@@ -19,9 +19,9 @@ fleet at once, and a fleet that removes every pod from rotation over one of
 them has turned a partial outage into a total one. They show up in the body as
 ``degraded`` so an operator reading the probe sees what a dashboard would.
 
-Both routes are unauthenticated, and neither counts against the global rate
-limit — a probe answered with a 429 reports a failure the process does not
-have. ``PROBE_PATHS`` is what ``app.main`` skips them by.
+Both routes are unauthenticated, and both are exempt from the global rate
+limit: a probe answered with a 429 reports a failure the process does not
+have.
 """
 
 from __future__ import annotations
@@ -40,13 +40,6 @@ from app.core.rate_limit import limiter
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-HEALTHZ_PATH = "/healthz"
-READYZ_PATH = "/readyz"
-
-#: Where these two answer, under whatever prefix the router is mounted on.
-#: ``app.main`` reads it to keep them out of the default rate limit.
-PROBE_PATHS = (HEALTHZ_PATH, READYZ_PATH)
 
 #: How long any one check may take. Bounded well under the probe's own
 #: ``timeoutSeconds`` so a hung dependency is reported as a failed check
@@ -115,12 +108,14 @@ async def _run(name: str, check: Callable[[], Awaitable[None]]) -> str:
     return "ok"
 
 
-@router.get(HEALTHZ_PATH, include_in_schema=False)
+@router.get("/healthz", include_in_schema=False)
+@limiter.exempt
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get(READYZ_PATH, include_in_schema=False)
+@router.get("/readyz", include_in_schema=False)
+@limiter.exempt
 async def readyz(response: Response) -> dict[str, object]:
     names = list(CHECKS)
     results = await asyncio.gather(*(_run(name, CHECKS[name]) for name in names))

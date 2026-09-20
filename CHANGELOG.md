@@ -44,6 +44,7 @@ below them are held here until the grant is offered, rather than announced in
 
 ### Fixed
 
+- **Pictures and files could stop loading on a shared network** — serving community images and uploaded files is allowed a far higher request rate than the rest of the app, and that allowance was being passed over in favour of the general one. Several people behind a single address opening the same picture could use it up and watch it break until the minute rolled over. Each route is now held to the rate it was given.
 - **A status can be deleted while archived or trashed tasks sit in it** — deleting a column holding an archived task was refused with a message saying the *status* was archived, a column whose only tasks were in the trash failed outright, and changing a column's category tripped over the same thing. The archived and trashed tasks now move with the live ones, and keep their archived or trashed state where they land.
 
 ## [0.70.1] - 2026-09-19
