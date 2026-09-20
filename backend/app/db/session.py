@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import Select, Text, cast, event, func, literal_column, text
 from sqlalchemy import select as sa_select
@@ -858,6 +859,23 @@ def _get_alembic_config() -> Config:
 
 def _database_name(url: str) -> str:
     return urlparse(url.replace("+asyncpg", "")).path.lstrip("/") or "?"
+
+
+def migration_chain() -> tuple[frozenset[str], str | None]:
+    """Every revision this image ships, and the newest of them.
+
+    Read from the files in the image, without touching the database: it is what
+    a stamped database is checked against before alembic is asked to upgrade it
+    (see ``check_pre_baseline_db``). ``(frozenset(), None)`` if the chain cannot
+    be read, so a caller diagnosing a database treats it as unknown rather than
+    as empty.
+    """
+    try:
+        chain = ScriptDirectory.from_config(_get_alembic_config())
+        revisions = frozenset(step.revision for step in chain.walk_revisions())
+        return revisions, chain.get_current_head()
+    except Exception:
+        return frozenset(), None
 
 
 async def run_migrations() -> None:

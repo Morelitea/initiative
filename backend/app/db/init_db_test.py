@@ -63,3 +63,39 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
         )
         guilds_after = len((await check.exec(select(Guild))).all())
         assert guilds_after == guilds_before, "the primary guild must be removed too"
+
+
+@pytest.mark.unit
+def test_stamp_this_image_lacks_is_refused_with_instructions():
+    """A database stamped ahead of the image stops the boot with a message.
+
+    The message is the whole point: it names the revision the database is at,
+    the newest one this image has, and the way back, in place of alembic's
+    "Can't locate revision identified by ..." raised from inside the lifespan.
+    """
+    revisions, head = init_db.migration_chain()
+    assert head is not None and head in revisions
+
+    with pytest.raises(SystemExit) as refused:
+        init_db._require_image_knows([head, "20991231_9999"])
+
+    said = str(refused.value)
+    assert "20991231_9999" in said
+    assert head in said
+    # The one the image does have is not reported as ahead of it.
+    assert said.count(head) == 1
+
+
+@pytest.mark.unit
+def test_stamp_this_image_has_passes():
+    """The ordinary upgrade — every stamped revision is in the chain."""
+    revisions, head = init_db.migration_chain()
+    assert init_db._require_image_knows([head]) is None
+    assert init_db._require_image_knows(sorted(revisions)[:5]) is None
+
+
+@pytest.mark.unit
+def test_unreadable_chain_is_left_to_alembic(monkeypatch):
+    """Nothing to compare against is not evidence the database is ahead."""
+    monkeypatch.setattr(init_db, "migration_chain", lambda: (frozenset(), None))
+    assert init_db._require_image_knows(["20991231_9999"]) is None
