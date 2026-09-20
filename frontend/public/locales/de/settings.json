@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
       "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
       "totp": {
-        "label": "Authenticator-App",
-        "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
+        "label": "Zwei-Faktor-Authentifizierung aktivieren",
+        "help": "Lass Leute ihr Konto mit einem Code aus einer Authenticator-App schützen. Einschalten tut das jede Person für sich; hier geht es darum, ob der Server es überhaupt anbietet."
       },
       "passkey": {
         "label": "Passkey",
@@ -659,6 +659,12 @@
       "present": "Code eingeben",
       "saved": "Gespeichert. Betroffene werden bei ihrer nächsten Anfrage gefragt.",
       "error": "Das konnte nicht gespeichert werden."
+    },
+    "factorMethods": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Was dieser Server als zweiten Faktor anbietet. Ob ihn jemand haben muss, ist die nächste Einstellung.",
+      "saved": "Zwei-Faktor-Authentifizierung aktualisiert.",
+      "saveError": "Zwei-Faktor-Authentifizierung konnte nicht geändert werden."
     }
   },
   "platformUsers": {
@@ -1418,8 +1424,8 @@
     "title": "Community-Verzeichnis",
     "description": "Erlaube Communitys, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
     "toggleLabel": "Community-Verzeichnis betreiben",
-    "helpText": "Solange dies aktiv ist, können Community-Administratoren ihre Community in den Community-Einstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Communitys aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Community kann sich eintragen.",
-    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Communitys bleiben bestehen. Wird es wieder aktiviert, sind dieselben Communitys erneut gelistet.",
+    "helpText": "Eine öffentliche Liste der Communitys auf diesem Server, für Leute, die in keine eingeladen wurden. Ohne sie führt der einzige Weg hinein über eine Einladung von jemandem, der schon dabei ist. Mit ihr kann eine Community sich auffindbar machen, und alle mit einem Konto können stöbern und um Aufnahme bitten – „Einer Community beitreten“ erscheint dann neben ihren eigenen. Auf diesem Server zu sein listet eine Community nie automatisch; jede entscheidet das in ihren eigenen Einstellungen.",
+    "reversibleNote": "Wenn du das ausschaltest, schließt das Verzeichnis. Es nimmt niemanden von der Liste: Communitys, die sich eingetragen haben, bleiben eingetragen und erscheinen sofort wieder, sobald du es erneut einschaltest.",
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",

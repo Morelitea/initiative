@@ -339,6 +339,12 @@ class LoginMethodStatus(SanitizedBaseModel):
 
     method: LoginMethod
     enabled: bool
+    #: Whether this method can begin a session on its own. False for a second
+    #: factor, which accompanies a sign-in rather than opening one — the one
+    #: distinction that decides where the surface asks about it, so it is
+    #: derived from ``PRIMARY_LOGIN_METHODS`` here rather than listed again
+    #: in the frontend.
+    primary: bool
     #: Accounts that can sign in today and could not if this method were
     #: withdrawn. Computed for every method, withdrawn or not, so the settings
     #: page can warn before the write rather than after a refusal — and so the
