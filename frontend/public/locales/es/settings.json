@@ -1186,8 +1186,8 @@
       "providerLabel": "Proveedor",
       "providerPlaceholder": "Elige uno",
       "claimLabel": "Qué cuentas cuentan como vuestras",
-      "claimHelp": "Un proveedor como Google responde por cualquiera con una cuenta, así que di cuáles de sus cuentas son vuestras: un dominio de Workspace, o un tenant. Déjalo en blanco si el proveedor ya es solo vuestra gente.",
-      "claimPlaceholder": "En blanco para cualquiera por quien responda",
+      "claimHelp": "Aquí las comunidades están separadas, así que indica qué cuentas de este proveedor son tuyas: un dominio de Google Workspace, un inquilino de Entra, un grupo. Solo esas personas cuentan como de tu comunidad.",
+      "claimPlaceholder": "Elige qué identifica a tu gente",
       "claimValuesLabel": "Valores válidos",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Añadirles a esta comunidad",
@@ -1197,10 +1197,13 @@
         "hd": "Dominio de Google Workspace",
         "tid": "Tenant de Microsoft Entra",
         "groups": "Pertenencia a un grupo",
-        "domain": "Dominio"
+        "domain": "Dominio",
+        "other": "Otra reclamación…"
       },
       "inherited": "De la instalación",
-      "makeItOurs": "Hacerla nuestra"
+      "makeItOurs": "Hacerla nuestra",
+      "claimNameLabel": "Nombre de la reclamación",
+      "claimNamePlaceholder": "p. ej. org, realm"
     },
     "rules": {
       "title": "Dónde llega vuestra gente",
@@ -1252,7 +1255,7 @@
         },
         "narrowing": {
           "title": "Qué personas",
-          "prompt": "Indique qué cuentas de ese proveedor son suyas, u omita este paso si ya solo alberga a su gente."
+          "prompt": "Indica qué cuentas suyas cuentan como tuyas."
         },
         "landing": {
           "title": "Dónde aterrizan",

@@ -1186,8 +1186,8 @@
       "providerLabel": "Anbieter",
       "providerPlaceholder": "Einen auswählen",
       "claimLabel": "Wessen Konten als eure gelten",
-      "claimHelp": "Ein Anbieter wie Google bürgt für jeden mit einem Konto — sag also, welche seiner Konten euch gehören: eine Workspace-Domain oder ein Tenant. Lass es leer, wenn der Anbieter schon nur eure Leute umfasst.",
-      "claimPlaceholder": "Leer lassen für alle, für die er bürgt",
+      "claimHelp": "Communitys sind hier getrennt, also gib an, welche Konten bei diesem Anbieter deine sind – eine Google-Workspace-Domain, ein Entra-Mandant, eine Gruppe. Nur diese Leute zählen als deine Community.",
+      "claimPlaceholder": "Wähle, was deine Leute kennzeichnet",
       "claimValuesLabel": "Gültige Werte",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Sie dieser Community hinzufügen",
@@ -1197,10 +1197,13 @@
         "hd": "Google-Workspace-Domain",
         "tid": "Microsoft-Entra-Mandant",
         "groups": "Gruppenmitgliedschaft",
-        "domain": "Domain"
+        "domain": "Domain",
+        "other": "Ein anderer Claim …"
       },
       "inherited": "Von der Installation",
-      "makeItOurs": "Zu unserer machen"
+      "makeItOurs": "Zu unserer machen",
+      "claimNameLabel": "Claim-Name",
+      "claimNamePlaceholder": "z. B. org, realm"
     },
     "rules": {
       "title": "Wo eure Leute landen",
@@ -1252,7 +1255,7 @@
         },
         "narrowing": {
           "title": "Wessen Leute",
-          "prompt": "Geben Sie an, welche Konten dort zu Ihnen gehören, oder überspringen Sie dies, wenn der Anbieter ohnehin nur Ihre Leute führt."
+          "prompt": "Gib an, welche Konten darauf als deine zählen."
         },
         "landing": {
           "title": "Wo sie landen",

@@ -13,7 +13,7 @@
  * none: it already only holds their people.
  */
 
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,27 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   useConnectableProviders,
-  useConnectProvider,
   useDisconnectProvider,
   useGuildProviderConnections,
   useUpdateProviderConnection,
@@ -54,23 +36,23 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
-/** Which claim narrows which provider. Each one spells "our tenant"
- *  differently, and only the provider knows which word it uses. */
-const NARROWING_CLAIMS = ["hd", "tid", "groups", "domain"] as const;
-
-export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
+export const GuildAuthProvidersSection = ({
+  guildId,
+  onConnect,
+}: {
+  guildId: number;
+  /** Opens the setup wizard. Connecting a provider is a guided flow with
+   *  four questions in it, and this card used to carry a second, shorter
+   *  version of the first two — two ways to do one thing, and two places to
+   *  keep the narrowing honest. There is one now, and this asks for it. */
+  onConnect: (providerId?: number) => void;
+}) => {
   const { t } = useTranslation("settings");
   const connectionsQuery = useGuildProviderConnections(guildId);
   const availableQuery = useConnectableProviders(guildId);
-  const connect = useConnectProvider(guildId);
   const updateConnection = useUpdateProviderConnection(guildId);
   const disconnect = useDisconnectProvider(guildId);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [providerId, setProviderId] = useState("");
-  const [claim, setClaim] = useState("");
-  const [claimValues, setClaimValues] = useState("");
-  const [autoJoin, setAutoJoin] = useState(false);
   const [removing, setRemoving] = useState<GuildProviderConnectionRead | null>(null);
 
   const connections = connectionsQuery.data ?? [];
@@ -86,50 +68,12 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
     (row: ConnectableProviderRead) => !connectedIds.has(row.id)
   );
 
-  /** Take over an inherited arrangement: the same dialog, filled in with
-   *  what the deployment answered, so the community starts from that rather
-   *  than from a blank form. Saving writes a connection of its own, which
-   *  shadows the default from then on. */
-  const adopt = (row: GuildProviderConnectionRead) => {
-    setProviderId(String(row.provider_id));
-    setClaim(row.claim ?? "");
-    setClaimValues(row.claim_values.join(", "));
-    setAutoJoin(false);
-    setDialogOpen(true);
-  };
-
-  const closeDialog = () => {
-    setDialogOpen(false);
-    setProviderId("");
-    setClaim("");
-    setClaimValues("");
-    setAutoJoin(false);
-  };
-
-  const submit = () => {
-    const values = claimValues
-      .split(/[\s,]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-    connect.mutate(
-      {
-        provider_id: Number(providerId),
-        auto_join: autoJoin,
-        // Both halves or neither — the server clears a half-written one, so
-        // send it the way it will store it.
-        claim: claim && values.length > 0 ? claim : null,
-        claim_values: claim && values.length > 0 ? values : null,
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("guildAuth.connections.connected"));
-          closeDialog();
-        },
-        onError: (error) =>
-          toast.error(getErrorMessage(error, "settings:guildAuth.connections.connectError")),
-      }
-    );
-  };
+  /** Take over an arrangement the deployment answered for. The wizard opens
+   *  on that provider and seeds itself from the inherited row, so the
+   *  community starts from what is already in force rather than a blank
+   *  form; saving writes a connection of its own, which shadows the default
+   *  from then on. */
+  const adopt = (row: GuildProviderConnectionRead) => onConnect(row.provider_id);
 
   return (
     <Card className="shadow-sm">
@@ -138,7 +82,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
           <CardTitle>{t("guildAuth.connections.title")}</CardTitle>
           <CardDescription>{t("guildAuth.connections.description")}</CardDescription>
         </div>
-        <Button type="button" onClick={() => setDialogOpen(true)} disabled={choosable.length === 0}>
+        <Button type="button" onClick={() => onConnect()} disabled={choosable.length === 0}>
           <Plus className="h-4 w-4" />
           {t("guildAuth.connections.connect")}
         </Button>
@@ -232,93 +176,6 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
           </ul>
         )}
       </CardContent>
-
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("guildAuth.connections.dialogTitle")}</DialogTitle>
-            <DialogDescription>{t("guildAuth.connections.dialogDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="connection-provider">
-                {t("guildAuth.connections.providerLabel")}
-              </Label>
-              <Select value={providerId} onValueChange={setProviderId}>
-                <SelectTrigger id="connection-provider">
-                  <SelectValue placeholder={t("guildAuth.connections.providerPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {choosable.map((row) => (
-                    <SelectItem key={row.id} value={String(row.id)}>
-                      {row.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-start justify-between gap-3 rounded-md border p-3">
-              <div className="space-y-1">
-                <Label htmlFor="connection-auto-join">
-                  {t("guildAuth.connections.autoJoinLabel")}
-                </Label>
-                <p className="text-muted-foreground text-xs">
-                  {t("guildAuth.connections.autoJoinHelp")}
-                </p>
-              </div>
-              <Switch
-                id="connection-auto-join"
-                checked={autoJoin}
-                onCheckedChange={(checked) => setAutoJoin(Boolean(checked))}
-              />
-            </div>
-
-            <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-              <Label htmlFor="connection-claim">{t("guildAuth.connections.claimLabel")}</Label>
-              <p className="text-muted-foreground text-xs">
-                {t("guildAuth.connections.claimHelp")}
-              </p>
-              <Select value={claim} onValueChange={setClaim}>
-                <SelectTrigger id="connection-claim">
-                  <SelectValue placeholder={t("guildAuth.connections.claimPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {NARROWING_CLAIMS.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {t(`guildAuth.connections.claimOptions.${name}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                aria-label={t("guildAuth.connections.claimValuesLabel")}
-                placeholder={t("guildAuth.connections.claimValuesPlaceholder")}
-                value={claimValues}
-                onChange={(event) => setClaimValues(event.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeDialog}>
-              {t("authProviders.cancel")}
-            </Button>
-            <Button type="button" onClick={submit} disabled={!providerId || connect.isPending}>
-              {connect.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("authProviders.saving")}
-                </>
-              ) : (
-                t("guildAuth.connections.connect")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={removing !== null}

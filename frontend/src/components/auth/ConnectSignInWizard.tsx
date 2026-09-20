@@ -19,7 +19,7 @@
  */
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -55,6 +55,11 @@ import { getErrorMessage } from "@/lib/errorMessage";
  *  differently, and only the provider knows which word it uses. */
 const NARROWING_CLAIMS = ["hd", "tid", "groups", "domain"] as const;
 
+/** The server takes any claim name (``guild_provider_connections.claim`` is a
+ *  64-character string), so the four above are shortcuts rather than the whole
+ *  vocabulary, and this is how somebody reaches the rest. */
+const OTHER_CLAIM = "__other__";
+
 type Step = "provider" | "narrowing" | "landing" | "insist";
 
 /** Comma- or space-separated, the way a list of domains gets typed. */
@@ -70,6 +75,10 @@ export interface ConnectSignInWizardProps {
   onOpenChange: (open: boolean) => void;
   /** Whether this reader may also make the provider the way in. */
   canRequire: boolean;
+  /** Open on this provider rather than on the picker — taking over an
+   *  arrangement the deployment answered for, where the provider is already
+   *  decided and only the narrowing is the community's to write. */
+  startOn?: number | null;
 }
 
 export const ConnectSignInWizard = ({
@@ -77,6 +86,7 @@ export const ConnectSignInWizard = ({
   open,
   onOpenChange,
   canRequire,
+  startOn = null,
 }: ConnectSignInWizardProps) => {
   const { t } = useTranslation(["settings", "common"]);
   const { step, go, back, canGoBack, reset } = useWizard<Step>("provider");
@@ -87,8 +97,15 @@ export const ConnectSignInWizard = ({
   const createRule = useCreateClaimRule(guildId);
   const updatePolicy = useUpdateGuildAuthPolicy(guildId);
 
-  const [providerId, setProviderId] = useState<number | null>(null);
+  const [providerId, setProviderId] = useState<number | null>(startOn);
+  // The wizard stays mounted between openings, so a provider chosen for it
+  // has to land each time it opens rather than only on the first mount.
+  useEffect(() => {
+    if (open && startOn !== null) setProviderId(startOn);
+  }, [open, startOn]);
   const [claim, setClaim] = useState("");
+  // Whether the claim is being typed rather than picked from the shortcuts.
+  const [customClaim, setCustomClaim] = useState(false);
   const [claimValues, setClaimValues] = useState("");
   const [autoJoin, setAutoJoin] = useState(false);
   const [ruleGroup, setRuleGroup] = useState("");
@@ -119,12 +136,16 @@ export const ConnectSignInWizard = ({
   const narrowed = claim !== "" && values.length > 0;
   // Both halves or neither: a claim with nothing to match on, or values with
   // no claim to match them against, is half an answer.
-  const narrowingReady = narrowed || (claim === "" && values.length === 0);
+  // A connection says who on the provider counts as this community's own.
+  // There is no longer an "everybody" to fall back to, so both halves are
+  // needed before the wizard goes on — the server refuses the other shape.
+  const narrowingReady = narrowed;
 
   const closeWizard = () => {
     onOpenChange(false);
     reset();
     setProviderId(null);
+    setCustomClaim(false);
     setClaim("");
     setClaimValues("");
     setAutoJoin(false);
@@ -142,12 +163,6 @@ export const ConnectSignInWizard = ({
     setClaim(inherited?.claim ?? "");
     setClaimValues(inherited?.claim_values.join(", ") ?? "");
     go("narrowing");
-  };
-
-  const skipNarrowing = () => {
-    setClaim("");
-    setClaimValues("");
-    go("landing");
   };
 
   const finish = async () => {
@@ -256,7 +271,13 @@ export const ConnectSignInWizard = ({
             <p className="text-muted-foreground text-xs">
               {t("settings:guildAuth.connections.claimHelp")}
             </p>
-            <Select value={claim} onValueChange={setClaim}>
+            <Select
+              value={customClaim ? OTHER_CLAIM : claim}
+              onValueChange={(choice) => {
+                setCustomClaim(choice === OTHER_CLAIM);
+                setClaim(choice === OTHER_CLAIM ? "" : choice);
+              }}
+            >
               <SelectTrigger id="wizard-claim">
                 <SelectValue placeholder={t("settings:guildAuth.connections.claimPlaceholder")} />
               </SelectTrigger>
@@ -266,20 +287,32 @@ export const ConnectSignInWizard = ({
                     {t(`settings:guildAuth.connections.claimOptions.${name}`)}
                   </SelectItem>
                 ))}
+                <SelectItem value={OTHER_CLAIM}>
+                  {t("settings:guildAuth.connections.claimOptions.other")}
+                </SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              aria-label={t("settings:guildAuth.connections.claimValuesLabel")}
-              placeholder={t("settings:guildAuth.connections.claimValuesPlaceholder")}
-              value={claimValues}
-              onChange={(event) => setClaimValues(event.target.value)}
-            />
+            {customClaim && (
+              <Input
+                aria-label={t("settings:guildAuth.connections.claimNameLabel")}
+                placeholder={t("settings:guildAuth.connections.claimNamePlaceholder")}
+                value={claim}
+                onChange={(event) => setClaim(event.target.value)}
+              />
+            )}
+            {/* Values only matter once a claim is being read; asking for them
+                beside "anyone" would be asking which of nobody counts. */}
+            {(customClaim || claim !== "") && (
+              <Input
+                aria-label={t("settings:guildAuth.connections.claimValuesLabel")}
+                placeholder={t("settings:guildAuth.connections.claimValuesPlaceholder")}
+                value={claimValues}
+                onChange={(event) => setClaimValues(event.target.value)}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={skipNarrowing}>
-              {t("settings:guildAuth.wizard.skip")}
-            </Button>
             <Button
               className="flex-1"
               type="button"

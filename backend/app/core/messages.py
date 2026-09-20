@@ -377,6 +377,8 @@ class AuthProviderMessages:
     #: A narrowing is a claim and the values that admit somebody; either half
     #: alone would look configured and let nobody in, or nobody out.
     CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
+    #: An enabled connection that does not say who on the provider counts.
+    CONNECTION_NEEDS_NARROWING = "CONNECTION_NEEDS_NARROWING"
     #: Somebody arrived through a provider a community connects to, but the
     #: claim it narrows on did not name them.
     CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"

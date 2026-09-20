@@ -74,9 +74,11 @@ class GuildProviderConnection(SQLModel, table=True):
     #: Which verified claim decides whether somebody arriving through this
     #: provider belongs to this community — ``hd`` for a Google Workspace
     #: domain, ``tid`` for an Entra tenant. NULL together with
-    #: ``claim_values`` is an unnarrowed connection, which is right where the
-    #: provider is already the community's own: their identity provider admits
-    #: only their people, so there is nothing left to narrow.
+    #: ``claim_values`` admits nobody. A community says who on a provider
+    #: counts as its own; saying nothing is not a way of saying everybody.
+    #: An enabled connection is refused without both, and a disabled one may
+    #: hold neither — that is how a community declines the deployment's
+    #: default, and it admits nobody by being disabled.
     claim: str | None = Field(default=None, sa_column=Column(String(64), nullable=True))
     #: The values that admit somebody. Any one of them is enough.
     claim_values: list[str] | None = Field(
@@ -113,13 +115,17 @@ class GuildProviderConnection(SQLModel, table=True):
     def admits(self, claims: dict) -> bool:
         """Whether a verified id_token belongs to this community.
 
-        An unnarrowed connection admits anybody the provider vouched for. A
-        narrowed one reads the claim it names and asks whether the value is
-        one of its own — the same dot-path reader the group rules use, so a
-        nested claim works here too.
+        A connection names a claim and the values that count, or it admits
+        nobody: an arrangement that has not said who belongs is not read as
+        everybody. A narrowed one reads the claim it names and asks whether
+        the value is one of its own — the same dot-path reader the group rules
+        use, so a nested claim works here too.
+
+        Mirrors ``public.guild_connection_admits``; the two are one rule and
+        a change to either belongs in both.
         """
         if not self.claim or not self.claim_values:
-            return True
+            return False
         # Imported here: the sync service imports models, not the other way.
         from app.services.oidc_sync import extract_claim_values
 

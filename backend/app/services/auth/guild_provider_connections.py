@@ -248,6 +248,26 @@ async def _connectable_provider(
     return row
 
 
+def require_narrowing(*, enabled: bool, claim: str | None, values: list | None) -> None:
+    """An enabled connection says who on the provider counts as this
+    community's own.
+
+    Communities here are separate tenants, so a provider vouching for somebody
+    is not the same as that person belonging to one of them. A connection that
+    named nobody used to count everybody the provider did, which for a
+    provider open to the world is the world.
+
+    A **disabled** connection may name nobody: that is how a community
+    declines the deployment's answer for a provider, and it admits nobody by
+    being off.
+    """
+    if enabled and not (claim and values):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=AuthProviderMessages.CONNECTION_NEEDS_NARROWING,
+        )
+
+
 def clean_claim(
     claim: str | None, claim_values: list[str] | None
 ) -> tuple[str | None, list[str] | None]:
@@ -282,6 +302,7 @@ async def create_connection(
         session, payload.provider_id, guild_id=guild_id
     )
     claim, claim_values = clean_claim(payload.claim, payload.claim_values)
+    require_narrowing(enabled=payload.enabled, claim=claim, values=claim_values)
     row = GuildProviderConnection(
         guild_id=guild_id,
         provider_id=provider.id,
@@ -353,6 +374,10 @@ async def update_connection(
         row.enabled = data["enabled"]
     if "auto_join" in data and data["auto_join"] is not None:
         row.auto_join = data["auto_join"]
+    # Asked of the row as it now stands, so neither half can be removed on its
+    # own: clearing the narrowing of an enabled connection is refused, and so
+    # is enabling one that has none.
+    require_narrowing(enabled=row.enabled, claim=row.claim, values=row.claim_values)
     session.add(row)
     changed = audit_service.changed_fields(
         before, audit_service.snapshot(row, AUDITED_FIELDS)
