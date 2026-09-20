@@ -9,6 +9,7 @@ from sqlalchemy import delete as sql_delete
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.security import get_password_hash
+from app.core.version import get_version
 from app.db.schema_provisioning import (
     deprovision_guild,
     ensure_shared_table_grants,
@@ -16,7 +17,12 @@ from app.db.schema_provisioning import (
     verify_effective_shared_grants,
     verify_engine_identities,
 )
-from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
+from app.db.session import (
+    AdminSessionLocal,
+    migration_chain,
+    run_migrations,
+    set_rls_context,
+)
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
 from app.services import audit as audit_service
@@ -115,6 +121,43 @@ def _is_dated_revision(revision: str) -> bool:
     )
 
 
+def _require_image_knows(stamped: list[str]) -> None:
+    """Exit with instructions if this image lacks a revision the database is
+    stamped at — the mirror of the pre-baseline case below, and the same
+    cryptic alembic failure ("can't locate revision") if nothing catches it.
+
+    A database gets ahead of its image whenever the container comes back on an
+    older one than last upgraded it: a pull that did not replace the tag it was
+    meant to, a deliberate roll-back, or a half-finished rebuild whose leftover
+    container is the one still being started.
+    """
+    revisions, head = migration_chain()
+    if not revisions:
+        return  # Chain unreadable; let alembic surface whatever is wrong with it
+    ahead = [revision for revision in stamped if revision not in revisions]
+    if not ahead:
+        return
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"This image is older than the database.\n\n"
+        f"  database stamped at:   {', '.join(sorted(ahead))}\n"
+        f"  newest migration here: {head or '?'}\n"
+        f"  this image:            {get_version()}\n\n"
+        f"Migrations only run forward, so this version cannot serve this\n"
+        f"database. Start the release that last upgraded it — or any newer\n"
+        f"one — and the app comes up where it left off.\n\n"
+        f"If it keeps coming back on the old image after you pull a new one,\n"
+        f"look for a container the upgrade left behind and started instead:\n"
+        f"compose renames the one it is replacing to <12 hex characters>_<name>\n"
+        f"and leaves it there when the rebuild does not finish. Remove it and\n"
+        f"bring the project up again.\n\n"
+        f"Running this version deliberately means restoring the database\n"
+        f"backup taken before that upgrade; there is no downgrade path.\n"
+        f"{'=' * 70}"
+    )
+
+
 async def check_pre_baseline_db() -> None:
     """Exit with upgrade instructions if the database predates the v0.53.5
     baseline squash — its revision id no longer exists in this chain, so
@@ -142,11 +185,15 @@ async def check_pre_baseline_db() -> None:
         if not has_table:
             return  # Fresh database
 
-        revision = await conn.fetchval(
-            "SELECT version_num FROM alembic_version LIMIT 1"
-        )
-        if revision is None:
+        # Every row, not just one: a database left on a branch carries a stamp
+        # per head, and a single image has to be able to run all of them.
+        stamped = [
+            row["version_num"]
+            for row in await conn.fetch("SELECT version_num FROM alembic_version")
+        ]
+        if not stamped:
             return  # Fresh database (empty alembic_version)
+        revision = stamped[0]
 
         if revision == BASELINE_REVISION:
             # Stamped at the baseline, but roles may be missing on a database
@@ -164,7 +211,11 @@ async def check_pre_baseline_db() -> None:
             return
 
         if _is_dated_revision(revision) and revision > BASELINE_REVISION:
-            return  # post-squash revision (e.g. 20260701_0126) — normal upgrade
+            # Post-squash, so alembic can run it — as long as this image is the
+            # one that has it. Say so when it isn't, for the same reason the
+            # pre-baseline message below exists.
+            _require_image_knows(stamped)
+            return  # normal upgrade
 
         raise SystemExit(
             f"\n{'=' * 70}\n"
