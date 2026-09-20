@@ -27,6 +27,7 @@ export type PresetHintKey =
   | "gitea"
   | "discord"
   | "salesforce"
+  | "dex"
   | "custom";
 
 /** A blank in an issuer template, asked for as its own field. */
@@ -163,6 +164,17 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "host", example: "id.example.com" }],
     hintKey: "pocketId",
+  },
+  {
+    key: "dex",
+    name: "Dex",
+    slug: "dex",
+    // Dex is mounted under a path far more often than at a root, and `/dex`
+    // is the convention its own examples use. Whatever the deployment set as
+    // its `issuer` is the answer, which is what the hint says.
+    template: "https://{host}/dex",
+    blanks: [{ name: "host", labelKey: "host", example: "auth.example.com" }],
+    hintKey: "dex",
   },
   {
     key: "gitea",

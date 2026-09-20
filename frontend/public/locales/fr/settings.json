@@ -1339,6 +1339,7 @@
       "gitea": "Également Forgejo et Codeberg. Créez une application OAuth2 dans les paramètres et choisissez groups comme revendication de groupes pour répartir les gens selon leurs équipes.",
       "discord": "Fonctionne, mais Discord ne le documente pas : cela peut changer sans prévenir. À savoir avant d'en faire le seul moyen d'accès.",
       "salesforce": "Les sandboxes et les organisations My Domain se connectent chacune à leur propre adresse ; utilisez celle dont vos équipes se servent plutôt que l'hôte de connexion générique.",
+      "dex": "L'adresse se termine par ce que votre configuration Dex indique comme issuer — /dex par convention. Elle doit correspondre exactement.",
       "custom": "Tout fournisseur qui parle OpenID Connect. Collez son adresse d’issuer — une URL .well-known fonctionne aussi."
     }
   },

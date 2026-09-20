@@ -1339,6 +1339,7 @@
       "gitea": "También Forgejo y Codeberg. Crea una aplicación OAuth2 en los ajustes y elige groups como reclamación de grupos para ordenar a la gente por sus equipos.",
       "discord": "Funciona, pero Discord no lo documenta, así que podría cambiar sin avisar. Conviene saberlo antes de dejarlo como única forma de entrar.",
       "salesforce": "Los sandboxes y las organizaciones con My Domain entran cada uno por su propia dirección, así que usa la que use tu gente en lugar del host de acceso genérico.",
+      "dex": "La dirección termina con lo que tu configuración de Dex indique como issuer: /dex por convención. Tiene que coincidir exactamente.",
       "custom": "Cualquier proveedor que hable OpenID Connect. Pega su dirección de issuer; una URL .well-known también funciona."
     }
   },

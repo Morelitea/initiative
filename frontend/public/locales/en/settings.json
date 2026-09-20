@@ -1339,6 +1339,7 @@
       "gitea": "Also Forgejo and Codeberg. Add an OAuth2 application in settings, and pick groups as the Groups claim to sort people by their teams.",
       "discord": "Works, but Discord doesn't document it, so it could change without warning. Worth knowing before you make it the only way in.",
       "salesforce": "Sandboxes and My Domain orgs each sign in at their own address, so use the one your people actually use rather than the generic login host.",
+      "dex": "The address ends with whatever your Dex config sets as its issuer — /dex by convention. It has to match that exactly.",
       "custom": "Any provider that speaks OpenID Connect. Paste its issuer address — a .well-known URL works too."
     }
   },

@@ -1339,6 +1339,7 @@
       "gitea": "Auch Forgejo und Codeberg. Lege in den Einstellungen eine OAuth2-Anwendung an und wähle groups als Gruppen-Claim, um Leute nach ihren Teams einzuordnen.",
       "discord": "Funktioniert, ist von Discord aber nicht dokumentiert und kann sich ohne Vorwarnung ändern. Gut zu wissen, bevor es der einzige Zugangsweg wird.",
       "salesforce": "Sandboxes und My-Domain-Organisationen melden sich jeweils unter ihrer eigenen Adresse an. Nimm die, die deine Leute tatsächlich nutzen, statt des allgemeinen Login-Hosts.",
+      "dex": "Die Adresse endet mit dem, was in deiner Dex-Konfiguration als issuer steht — üblicherweise /dex. Sie muss exakt damit übereinstimmen.",
       "custom": "Jeder Anbieter, der OpenID Connect spricht. Füge dessen Issuer-Adresse ein — eine .well-known-URL funktioniert auch."
     }
   },
