@@ -17,11 +17,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
+from app.core.notification_categories import NotificationCategory
 from app.models.platform.access_grant import AccessGrant
+from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
+from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
 from app.testing import set_notification_prefs
 from app.testing.factories import create_initiative
@@ -116,6 +119,14 @@ async def _notifications_for(
     return list(result.all())
 
 
+async def _pending_mail_for(session: AsyncSession, user_id: int) -> int:
+    """How much notification mail is waiting for this account."""
+    result = await session.exec(
+        select(EmailOutboxItem).where(EmailOutboxItem.user_id == user_id)
+    )
+    return len(list(result.all()))
+
+
 async def _requestable(session: AsyncSession, actor, **overrides):
     """A `request`-policy initiative managed by ``actor``."""
     return await create_initiative(
@@ -152,33 +163,36 @@ async def _knocked_on(
 
 
 def _capture_join_request_emails(monkeypatch) -> list[dict]:
-    """Record every join-request email instead of reaching SMTP."""
+    """Record every join-request email as it is written to the outbox.
+
+    Notification mail is a row the worker drains rather than a send inside the
+    request, so what a test reads is the composed message the notifier handed
+    over — subject and body, not the arguments that built them.
+    """
     sent: list[dict] = []
 
-    async def _fake_email(
+    async def _fake_enqueue(
         _session,
         recipient,
         *,
-        event,
-        initiative_name,
-        link,
-        requester=None,
-        message=None,
+        category,
+        pieces,
+        guild_id=None,
+        **_rest,
     ):
         sent.append(
             {
                 "recipient_id": recipient.id,
-                "event": event,
-                "initiative_name": initiative_name,
-                "link": link,
-                "requester": requester,
-                "message": message,
+                "category": category,
+                "guild_id": guild_id,
+                "subject": pieces.subject,
+                "body": pieces.body,
+                "link": pieces.link,
             }
         )
+        return True
 
-    monkeypatch.setattr(
-        email_service, "send_initiative_join_request_email", _fake_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _fake_enqueue)
     return sent
 
 
@@ -2060,10 +2074,13 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert notes[0].data["target_path"] == f"/i/{initiative.id}/settings/members"
 
     assert [m["recipient_id"] for m in sent] == [manager.user.id]
-    assert sent[0]["event"] == "requested"
-    assert sent[0]["initiative_name"] == "Knockable"
-    assert sent[0]["requester"] == "ada#1815"
-    assert sent[0]["message"] == "I maintain the parser"
+    # Waiting on a decision, so it is filed under the category for things
+    # somebody has to act on.
+    assert sent[0]["category"] is NotificationCategory.approvals
+    assert sent[0]["guild_id"] == manager.guild.id
+    assert sent[0]["subject"] == "Request to join Knockable"
+    assert "ada#1815" in sent[0]["body"]
+    assert "I maintain the parser" in sent[0]["body"]
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.
     assert f"guild_id={manager.guild.id}" in sent[0]["link"]
@@ -2079,10 +2096,18 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("action", "expected_type", "event"),
+    ("action", "expected_type", "subject"),
     [
-        ("approve", NotificationType.initiative_join_approved, "approved"),
-        ("deny", NotificationType.initiative_join_denied, "denied"),
+        (
+            "approve",
+            NotificationType.initiative_join_approved,
+            "You've joined Knockable",
+        ),
+        (
+            "deny",
+            NotificationType.initiative_join_denied,
+            "Request to join Knockable declined",
+        ),
     ],
 )
 async def test_a_resolution_reaches_the_requester_on_both_channels(
@@ -2092,7 +2117,7 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     monkeypatch,
     action: str,
     expected_type: NotificationType,
-    event: str,
+    subject: str,
 ):
     """The outcome goes back to the person who asked — and only to them."""
     manager = await acting_user(guild_role=GuildRole.member)
@@ -2121,9 +2146,9 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     assert notes[0].data["request_id"] == request_id
 
     assert [m["recipient_id"] for m in sent] == [member.user.id]
-    assert sent[0]["event"] == event
-    assert sent[0]["initiative_name"] == "Knockable"
-    assert sent[0]["requester"] is None
+    # Being told the answer is membership news, not something to act on.
+    assert sent[0]["category"] is NotificationCategory.membership
+    assert sent[0]["subject"] == subject
     assert f"guild_id={manager.guild.id}" in sent[0]["link"]
 
 
@@ -2192,6 +2217,36 @@ async def test_directory_badges_the_queue_for_whoever_could_answer_it(
 
 
 @pytest.mark.integration
+async def test_a_knock_writes_its_mail_down(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """The manager's mail reaches the queue the worker drains.
+
+    Written on the guild-routed session the request is already holding, which
+    is the path every notification email out of a community takes — and the
+    half the tests either side of this one, both counting to zero, cannot show.
+    """
+
+    async def _email_configured(_session) -> bool:
+        return True
+
+    monkeypatch.setattr(email_service, "email_configured", _email_configured)
+
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={"message": "I maintain the parser"},
+    )
+
+    assert response.status_code == 201, response.text
+    assert await _pending_mail_for(session, manager.user.id) == 1
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "reason", ["the manager switched approvals off", "no SMTP configured"]
 )
@@ -2203,20 +2258,22 @@ async def test_a_knock_lands_even_when_no_mail_goes_out(
     A join request waits on the manager's decision, so it resolves under
     ``approvals`` — the category for things somebody has to act on — and a
     manager who turned that category's mail off still gets the in-app
-    notification. So does one on a deployment with no SMTP at all.
+    notification. So does one on a deployment with no SMTP at all, where
+    nothing is written down for a worker that could never drain it.
+
+    Two different gates, so both are read where the mail would be: the
+    preference is answered before the queue, the missing mail server by the
+    queue itself.
     """
-    sent: list[dict] = []
+    can_send = reason != "no SMTP configured"
+
+    async def _email_configured(_session) -> bool:
+        return can_send
+
+    monkeypatch.setattr(email_service, "email_configured", _email_configured)
+
     manager = await acting_user(guild_role=GuildRole.member)
-    if reason == "no SMTP configured":
-
-        async def _unconfigured(*args, **kwargs):
-            raise email_service.EmailNotConfiguredError("no smtp")
-
-        monkeypatch.setattr(
-            email_service, "send_initiative_join_request_email", _unconfigured
-        )
-    else:
-        sent = _capture_join_request_emails(monkeypatch)
+    if can_send:
         await set_notification_prefs(
             session, manager.user, {"categories": {"approvals": {"email": False}}}
         )
@@ -2231,7 +2288,7 @@ async def test_a_knock_lands_even_when_no_mail_goes_out(
     )
 
     assert response.status_code == 201
-    assert sent == []
+    assert await _pending_mail_for(session, manager.user.id) == 0
     assert (
         len(
             await _notifications_for(

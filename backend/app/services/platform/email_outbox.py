@@ -99,8 +99,11 @@ async def enqueue(
         tz_name=recipient.timezone,
         last_active_at=getattr(recipient, "last_active_at", None),
     )
+    # Written without reading the row back: the generated id is never used
+    # here, and the row is the worker's from this point.
     await session.exec(
-        insert(EmailOutboxItem).values(
+        insert(EmailOutboxItem)
+        .values(
             user_id=recipient.id,
             notification_id=notification_id,
             category=category.value,
@@ -114,6 +117,7 @@ async def enqueue(
             created_at=datetime.now(timezone.utc),
             deliver_after=due,
         )
+        .inline()
     )
     return True
 
