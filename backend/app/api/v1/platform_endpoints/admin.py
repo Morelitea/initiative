@@ -916,7 +916,7 @@ async def admin_delete_guild(
     # ``deleted`` and everything is kept — shared rows, roster, the guild_<id>
     # schema, the stored blobs — until guild_purge destroys it at the end of
     # the retention window.
-    await guilds_service.soft_delete_guild(
+    notice = await guilds_service.soft_delete_guild(
         session,
         guild,
         actor_user_id=_current_user.id,
@@ -924,6 +924,8 @@ async def admin_delete_guild(
         target_user_id=blocked_user_id,
     )
     await session.commit()
+    # The receipt, once the deletion is a fact. Never allowed to fail it.
+    await email_service.announce_community_deleted(session, notice)
     # See soft_delete_guild: these live on another connection, so they go after
     # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)

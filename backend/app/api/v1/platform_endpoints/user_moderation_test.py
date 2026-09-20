@@ -329,6 +329,7 @@ class TestNothingElse:
             ("/api/v1/admin/users/{user_id}/username", "PATCH"),
             ("/api/v1/admin/users/{user_id}/suspension", "POST"),
             ("/api/v1/admin/users/{user_id}/reactivate", "POST"),
+            ("/api/v1/admin/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
             ("/api/v1/admin/users/{user_id}/reset-password", "POST"),
             # Clears a second factor the holder can no longer present — the

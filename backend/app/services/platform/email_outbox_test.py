@@ -338,8 +338,14 @@ async def test_going_back_to_instant_releases_what_a_digest_was_holding(
     )
     await session.commit()
 
+    # Held for the weekly slot rather than sent now. Asserted as "it *is* that
+    # slot" rather than "it is more than a day away": the next Monday 09:00 is
+    # eleven hours off if this runs on a Sunday evening, and the day-away form
+    # then fails on the clock rather than on the behaviour.
     (row,) = await _rows(session, user.id)
-    assert row.deliver_after > datetime.now(timezone.utc) + timedelta(days=1)
+    assert row.deliver_after > datetime.now(timezone.utc)
+    assert row.deliver_after.weekday() == 0  # the configured weekday
+    assert (row.deliver_after.hour, row.deliver_after.minute) == (9, 0)
 
     moved = await email_outbox.recompute_pending(
         session,

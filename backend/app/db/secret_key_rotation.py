@@ -92,10 +92,9 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # rotation left the object-storage credential under the old key.
     ("app_settings", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
-    # The address a sign-in code was sent to, held between the request for
-    # one and its answer. Short-lived like the import credential above, and
-    # registered for the same reason: a rotation must not be what fails a
-    # sign-in already in flight.
+    # The address a sign-in code was sent to before any account held it. Same
+    # ciphertext and same salt as the two address columns above, so it is
+    # re-keyed with them.
     ("auth_challenges", "email_encrypted", SALT_EMAIL),
     # The shared secret an app service signs its requests with. Left out, a
     # rotation would strand it: the registration would still be there and still

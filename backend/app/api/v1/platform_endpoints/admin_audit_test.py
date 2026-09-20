@@ -96,7 +96,7 @@ async def test_an_export_that_matched_nobody_records_nothing(
     ("action", "event_type"),
     [
         ("deactivate", AuditEventType.USER_DEACTIVATED),
-        ("soft_delete", AuditEventType.USER_ANONYMIZED),
+        ("soft_delete", AuditEventType.USER_DELETION_SCHEDULED),
         ("hard_delete", AuditEventType.USER_DELETED),
     ],
 )
@@ -238,7 +238,7 @@ async def test_an_operator_deleting_a_blocking_guild_records_who_it_was_for(
     assert [_where(row) for row in rows] == [
         (operator_id, stuck_id, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0]["detail"] == {"via": "operator"}
+    assert rows[0]["detail"] == {"via": "operator", "roster_cleared": False}
 
 
 async def test_a_refused_guild_deletion_records_nothing(

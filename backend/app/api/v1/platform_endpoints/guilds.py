@@ -42,11 +42,11 @@ from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import (
     get_admin_session,
-    guild_schema_context,
     set_rls_context,
 )
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     assignable_roles,
@@ -1519,7 +1519,11 @@ async def delete_guild(
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(
+    # The seat, not an ordinary admin. Deleting a community is the one action
+    # an admin cannot undo and cannot be undone for them — only an operator
+    # can, and only inside the retention window — so it sits with the seat
+    # that is told about it and that a restore needs (``guild_has_seat``).
+    await _ensure_guild_superadmin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
@@ -1550,23 +1554,24 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Both halves run on the system engine, in ONE transaction, because they
-    # have to agree: a guild whose apps were let go but which is then still
-    # live has lost its integrations for nothing, and a deleted guild whose
-    # apps were not let go leaves grants behind. The guild's own role cannot do
-    # the second half — ``app_guild_base`` holds UPDATE on the identity columns
-    # a guild admin edits and deliberately not on ``status``, which is the
-    # operator's — so the status write happens outside the excursion, on the
-    # login role.
-    async with guild_schema_context(
-        admin_session, guild_id=guild_id, guild_role=GuildRole.admin.value
-    ):
-        # End the guild's app access. The guild has withdrawn its
-        # authorization, so each app is told to let go now rather than in
-        # ninety days' time — a third party must not keep a live grant on the
-        # chance of a restore. A restored guild comes back with its apps
-        # disconnected, and an admin reconnects them.
-        await app_connections_service.delete_guild_connections(admin_session)
+    # End the guild's app access. The guild has withdrawn its authorization, so
+    # each app is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its apps disconnected, and an
+    # admin reconnects them.
+    #
+    # On the REQUEST session, which is the one that can reach these rows: they
+    # live in the guild's own schema, and the grants that read and write them
+    # belong to the guild role as the request path assumes it. The system
+    # engine cannot stand in for it here.
+    #
+    # That makes this a separate transaction from the status write below, which
+    # the guild role in turn cannot do (``app_guild_base`` holds UPDATE on the
+    # identity columns a guild admin edits, and deliberately not on ``status``).
+    # The connections go first: a guild left live with its integrations ended
+    # is a thing its admin can see and put back, and the revocations are not
+    # dispatched until the deletion below has actually committed.
+    await app_connections_service.delete_guild_connections(session)
+    await session.commit()
 
     # Move the guild to ``deleted`` and keep everything: the shared rows, the
     # guild_<id> schema and the stored blobs all stay, so a platform operator
@@ -1577,15 +1582,17 @@ async def delete_guild(
     # From here the guild is gone as far as everybody in it is concerned:
     # absent from their guild lists and refused on every path, admins included.
     guild_row = await guilds_service.get_guild(admin_session, guild_id=guild_id)
-    await guilds_service.soft_delete_guild(
+    notice = await guilds_service.soft_delete_guild(
         admin_session, guild_row, actor_user_id=current_user.id, via="admin"
     )
     await admin_session.commit()
+    # The receipt, once the deletion is a fact. Never allowed to fail it.
+    await email_service.announce_community_deleted(admin_session, notice)
     # See soft_delete_guild: these live on another connection, so they go after
     # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)
     await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(admin_session)
+        app_revocation_service.drain_revocations(session)
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

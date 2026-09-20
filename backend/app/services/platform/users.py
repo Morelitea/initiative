@@ -238,6 +238,57 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
+async def _end_app_access(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> None:
+    """End everything this account let an app do, in one guild.
+
+    Every app credential they connected, and every app they let act as them.
+    Losing the account has to end the vendor access it opened, and an
+    authorization to carry somebody's name has nothing left to mean once the
+    account it named is gone.
+
+    The caller routes the session into ``guild_id`` as guild admin first, which
+    is what lets the own-row policy admit rows the acting session does not own
+    (an operator closing somebody else's account).
+    """
+    from app.services.tenant import app_connections as app_connections_service
+    from app.services.tenant import app_delegations as app_delegations_service
+
+    await app_connections_service.delete_member_connections(
+        session, user_id=user_id, reason="account_closed"
+    )
+    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
+
+
+async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
+    """The same, across every community the account belongs to.
+
+    For the paths that keep the roster: a deleted account holds its memberships
+    for its whole window, so there is no membership loop to hang this off, and
+    the guilds have to be enumerated for it.
+
+    Returns the session to the public baseline, because the caller's remaining
+    work is on shared tables.
+    """
+    guild_ids = list(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
+    )
+    for guild_id in guild_ids:
+        # ids repeat per schema, so the identity map is cleared between guilds.
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await _end_app_access(session, user_id=user_id, guild_id=guild_id)
+        await session.flush()
+    await set_rls_context(session)
+
+
 async def _drop_user_memberships(
     session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
 ) -> User:
@@ -280,8 +331,6 @@ async def _drop_user_memberships(
     # commit here: we ``flush`` so the SQL lands in the shared transaction the
     # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_delegations as app_delegations_service
 
     for gid in guild_ids:
         session.expunge_all()
@@ -291,20 +340,7 @@ async def _drop_user_memberships(
             guild_id=gid,
             user_id=user_id,
         )
-        # Every app credential this person connected, in every guild they
-        # belong to — one sweep rather than a per-guild chore, because losing
-        # the account has to end the vendor access it opened. Routed as guild
-        # admin, which is what lets the own-row policy admit rows the acting
-        # session does not own (an admin removing somebody else's account).
-        await app_connections_service.delete_member_connections(
-            session, user_id=user_id, reason="account_closed"
-        )
-        # And every app this person let act as them. An authorization to carry
-        # somebody's name has nothing left to mean once the account it named is
-        # gone.
-        await app_delegations_service.delete_member_delegations(
-            session, user_id=user_id
-        )
+        await _end_app_access(session, user_id=user_id, guild_id=gid)
         await session.flush()
 
     # Back to the public, login-role baseline for the shared-table work: the
@@ -391,6 +427,15 @@ async def request_account_deletion(
     user = await session.get(User, user_id)
     if user is None:
         raise ValueError(AuthMessages.USER_NOT_FOUND)
+    # The account has withdrawn what it let apps do, so they are told now
+    # rather than in a month's time — the same call the community deletion
+    # makes, for the same reason. A restored account comes back with its app
+    # connections gone, and reconnects them.
+    await _end_app_access_everywhere(session, user_id=user_id)
+    session.expunge_all()
+    user = await session.get(User, user_id)
+    if user is None:  # pragma: no cover — re-read after the routing excursion
+        raise ValueError(AuthMessages.USER_NOT_FOUND)
     user.status = UserStatus.deleted
     user.status_changed_at = datetime.now(timezone.utc)
     # Every session this account holds ends here. Getting back in is what calls
@@ -408,6 +453,7 @@ async def request_account_deletion(
         detail={"self": actor_user_id == user_id},
     )
     await session.commit()
+    await _dispatch_queued_revocations(session)
     return user
 
 

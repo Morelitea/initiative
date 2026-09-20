@@ -735,5 +735,6 @@
   "GUILD_NOT_DELETED": "Cette communauté n'a pas été supprimée, il n'y a donc rien à restaurer.",
   "GUILD_RESTORE_STATUS_INVALID": "Choisissez l'état dans lequel la communauté revient.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Choisissez qui dirigera la communauté avant de la restaurer.",
-  "GUILD_STATUS_NOT_SETTABLE": "Une communauté se supprime depuis ses propres paramètres, pas ici."
+  "GUILD_STATUS_NOT_SETTABLE": "Une communauté se supprime depuis ses propres paramètres, pas ici.",
+  "ADMIN_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer."
 }

@@ -475,3 +475,52 @@ async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):
         assert (
             await session.exec(select(Guild).where(Guild.id == guild_id))
         ).one_or_none() is not None
+
+
+@pytest.mark.integration
+async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(session):
+    """The superadmin seat hears. An ordinary admin cannot ask for a restore,
+    and members learn from it leaving their lists."""
+    from app.models.platform.guild import GuildRole
+    from app.services.platform import guilds as guilds_service
+    from app.testing import create_guild_membership, create_user
+
+    seat = await create_user(session, email="gd-seat@example.com")
+    guild = await create_guild(session, creator=seat, name="Allotment Society")
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    boss = await create_user(session, email="gd-admin@example.com")
+    await create_guild_membership(session, user=boss, guild=guild, role=GuildRole.admin)
+    hand = await create_user(session, email="gd-member@example.com")
+    await create_guild_membership(
+        session, user=hand, guild=guild, role=GuildRole.member
+    )
+
+    notice = await guilds_service.soft_delete_guild(
+        session, guild, actor_user_id=seat.id
+    )
+
+    assert notice.community_name == "Allotment Society"
+    assert notice.recipients == ["gd-seat@example.com"]
+
+
+@pytest.mark.integration
+async def test_the_notice_is_gathered_before_the_roster_goes(session):
+    """A community of one loses its roster on the way out, so the person to
+    tell has to be read while they are still in it."""
+    from app.models.platform.guild import GuildRole
+    from app.services.platform import guilds as guilds_service
+    from app.testing import create_guild_membership, create_user
+
+    alone = await create_user(session, email="gd-solo@example.com")
+    guild = await create_guild(session, creator=alone, name="Just Me")
+    await create_guild_membership(
+        session, user=alone, guild=guild, role=GuildRole.superadmin
+    )
+
+    notice = await guilds_service.soft_delete_guild(
+        session, guild, actor_user_id=alone.id
+    )
+
+    assert notice.recipients == ["gd-solo@example.com"]
