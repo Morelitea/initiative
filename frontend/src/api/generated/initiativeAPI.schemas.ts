@@ -284,6 +284,7 @@ export const UserStatus = {
   suspended: "suspended",
   deactivated: "deactivated",
   anonymized: "anonymized",
+  deleted: "deleted",
 } as const;
 
 /**
@@ -513,6 +514,7 @@ export interface AdminUserRead {
   has_federated_identity: boolean;
   has_password: boolean;
   initiative_roles: UserInitiativeRole[];
+  purge_at: string | null;
   readonly can_create_guilds: boolean;
   /**
    * Platform capabilities granted by this user's standing role.
@@ -2144,6 +2146,7 @@ export interface CommunitySettingsResponse {
   default_dm_policy: DmPolicy;
   direct_messages_enabled: boolean;
   deleted_community_retention_days: number | null;
+  deleted_account_retention_days: number | null;
 }
 
 export interface CommunitySettingsUpdate {
@@ -2152,6 +2155,7 @@ export interface CommunitySettingsUpdate {
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
   deleted_community_retention_days?: number | null;
+  deleted_account_retention_days?: number | null;
 }
 
 /**

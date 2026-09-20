@@ -12,6 +12,7 @@ import {
   listAllUsersApiV1AdminUsersGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
   removeUserAvatarApiV1AdminUsersUserIdAvatarDelete,
+  restoreDeletedUserApiV1AdminUsersUserIdRestorePost,
   setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
   setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
@@ -139,6 +140,20 @@ export const useAdminReactivateUser = (options?: MutationOpts<AdminUserRead, num
   useApiMutation<AdminUserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidate(q.adminUsers()),
+    },
+    options
+  );
+
+/** Call off a pending erasure (``users.manage``).
+ *
+ * Not the same thing as reactivating: a deleted account never lost its
+ * memberships, so this puts it back exactly where it was, while reactivating a
+ * deactivated one gives back an account with no communities. */
+export const useAdminRestoreUser = (options?: MutationOpts<AdminUserRead, number>) =>
+  useApiMutation<AdminUserRead, number>(
+    {
+      mutationFn: (userId) => restoreDeletedUserApiV1AdminUsersUserIdRestorePost(userId),
       invalidate: () => invalidate(q.adminUsers()),
     },
     options

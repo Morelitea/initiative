@@ -33,12 +33,19 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
 /**
  * Three actions are exposed in the admin dialog:
  *   - ``deactivate`` — reversible; flips status, drops memberships, PII intact.
- *   - ``soft_delete`` — anonymize PII (permanent), keep the row.
+ *   - ``soft_delete`` — delete with the deployment's recovery window. The
+ *     account keeps everything, is gone for everybody else, and is erased when
+ *     the window ends unless its holder signs in or somebody restores it.
  *   - ``hard_delete`` — purge the row, cascade clean up related data.
  * Project transfer is required for all three: only owners hold certain
  * permissions, and a deactivated/anonymized/deleted owner can't act on
  * the projects they own. Transfer is enforced before the action runs so
  * projects always have a usable owner.
+ *
+ * Hard deletion is the only one with nothing behind it, so its confirm step
+ * is a consent screen — and that screen offers the windowed deletion instead,
+ * one checkbox away. The dangerous action stays available and stops being the
+ * easy mis-click.
  */
 type AdminAction = "deactivate" | "soft_delete" | "hard_delete";
 type DeletionStep = "choose-type" | "check-blockers" | "resolve-blockers" | "confirm";
@@ -55,6 +62,10 @@ const ACTIONS_BY_STATUS: Record<string, readonly AdminAction[]> = {
   active: ["deactivate", "soft_delete", "hard_delete"],
   deactivated: ["soft_delete", "hard_delete"],
   anonymized: ["hard_delete"],
+  // Already deleted and waiting out its window. Deleting it again says
+  // nothing; hard deletion is the only thing left that changes anything, and
+  // restoring it is a control on the row rather than an action in here.
+  deleted: ["hard_delete"],
 };
 const validActionsFor = (status: string | undefined): readonly AdminAction[] =>
   ACTIONS_BY_STATUS[status ?? "active"] ?? ACTIONS_BY_STATUS.active;
@@ -101,6 +112,9 @@ export function AdminDeleteUserDialog({
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
+  // Ticked on the consent screen to take the windowed deletion instead of the
+  // permanent one. It changes what is submitted, not just what is shown.
+  const [preferWindow, setPreferWindow] = useState(false);
 
   // State for blocker resolution
   const [guildDeleteConfirm, setGuildDeleteConfirm] = useState<GuildBlockerInfo | null>(null);
@@ -116,6 +130,7 @@ export function AdminDeleteUserDialog({
       setEligibility(null);
       setConfirmationText("");
       setAgreedToConsequences(false);
+      setPreferWindow(false);
       setGuildDeleteConfirm(null);
       setIsResolvingBlocker(false);
     }
@@ -192,8 +207,14 @@ export function AdminDeleteUserDialog({
     }
   };
 
+  // What is actually submitted. An operator who ticked the offer on the
+  // consent screen is asking for the windowed deletion, whatever they picked
+  // on the first step.
+  const effectiveAction: AdminAction =
+    action === "hard_delete" && preferWindow ? "soft_delete" : action;
+
   const handleDelete = () => {
-    deleteUser.mutate({ action });
+    deleteUser.mutate({ action: effectiveAction });
   };
 
   const handlePromoteGuildMember = (guildId: number, userId: number) => {
@@ -221,8 +242,12 @@ export function AdminDeleteUserDialog({
   // asterisks — an unusable thing to ask somebody to copy out. The handle is
   // also what the row and this dialog's own title identify the account by.
   const confirmationRequired = targetUser.username.toUpperCase();
+  // The consent is asked for only where there is something to consent to: a
+  // deletion that can be undone does not need somebody to say they understand
+  // it cannot.
   const canConfirm =
-    confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
+    confirmationText === confirmationRequired &&
+    (effectiveAction !== "hard_delete" || agreedToConsequences);
 
   const displayName = getUserDisplayName(targetUser);
 
@@ -434,15 +459,34 @@ export function AdminDeleteUserDialog({
               </div>
 
               {action === "hard_delete" && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="agree"
-                    checked={agreedToConsequences}
-                    onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
-                  />
-                  <Label htmlFor="agree" className="cursor-pointer text-sm">
-                    {t("adminDeleteUser.confirmDescription")}
-                  </Label>
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-2 rounded-md border p-3">
+                    <Checkbox
+                      id="prefer-window"
+                      className="mt-0.5"
+                      checked={preferWindow}
+                      onCheckedChange={(checked) => setPreferWindow(checked === true)}
+                    />
+                    <Label htmlFor="prefer-window" className="cursor-pointer font-normal text-sm">
+                      <span className="font-medium">{t("adminDeleteUser.preferWindowLabel")}</span>
+                      <span className="block text-muted-foreground text-xs">
+                        {t("adminDeleteUser.preferWindowHelp")}
+                      </span>
+                    </Label>
+                  </div>
+
+                  {!preferWindow && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="agree"
+                        checked={agreedToConsequences}
+                        onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
+                      />
+                      <Label htmlFor="agree" className="cursor-pointer text-sm">
+                        {t("adminDeleteUser.confirmDescription")}
+                      </Label>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -188,6 +188,14 @@ async def create_session(
     auth-policy gate and step-up read them locally. ``provider_auth`` carries
     each satisfied provider's own account of its authentication event (see
     ``services.auth.assurance``).
+
+    **Opening a session calls off a pending deletion.** Somebody whose account
+    is waiting out its erasure window has just proved they are its holder and
+    that they want it, which is the whole of what cancelling asks for. It
+    happens here rather than at each of the ways in, because every one of them
+    ends at this function and a rule spread over eight of them is a rule with
+    seven places to forget it. It lands in the same transaction as the session,
+    so a sign-in that fails leaves the deletion exactly where it was.
     """
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
@@ -212,6 +220,13 @@ async def create_session(
     )
     session.add(row)
     await session.flush()
+    # Imported here: ``users`` reaches back into the auth package, and the two
+    # would import each other at module scope.
+    from app.services.platform import users as users_service
+
+    await users_service.cancel_account_deletion(
+        session, user_id, actor_user_id=user_id, via="sign_in"
+    )
     return IssuedSession(session=row, refresh_token=raw)
 
 

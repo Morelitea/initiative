@@ -453,6 +453,11 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: to keep what its members put in it. Owner-only, deployment-wide; a
     #: community has no say in its own.
     deleted_community_retention_days: Optional[int] = None
+    #: How long a deleted account is kept before it is erased, in days. Its own
+    #: figure rather than the one above: what a deployment owes the people in a
+    #: community and what it owes the person leaving are different questions.
+    #: ``None`` means never, for a deployment required to keep accounts.
+    deleted_account_retention_days: Optional[int] = None
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -473,6 +478,13 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: leave the window alone, send a number to set it, send ``null`` to turn
     #: destruction off. The endpoint inspects ``model_fields_set``.
     deleted_community_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
+    #: The account window, read the same way: omit to leave it alone, send a
+    #: number to set it, send ``null`` to stop erasing on a timer.
+    deleted_account_retention_days: Optional[int] = Field(
         default=None,
         ge=MIN_GUILD_RETENTION_DAYS,
         le=MAX_GUILD_RETENTION_DAYS,

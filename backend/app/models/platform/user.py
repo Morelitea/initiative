@@ -52,6 +52,17 @@ class UserStatus(str, Enum):
     #: Erased. The row is a husk kept only so the work it touched still says
     #: who did it.
     anonymized = "anonymized"
+    #: The holder asked for the account to go, and it is being kept for the
+    #: deployment's window before it is erased. Distinct from ``deactivated``,
+    #: which is somebody taking a break and must never be erased by a timer:
+    #: this one has a date on it.
+    #:
+    #: Memberships, initiative roles and owned documents are all kept, so
+    #: coming back restores the account whole rather than to an empty one —
+    #: which is what ``deactivated`` gives, its memberships having been
+    #: dropped. What the account loses meanwhile is everybody else: it is
+    #: absent from rosters, pickers and search for as long as it sits here.
+    deleted = "deleted"
 
 
 class Presence(str, Enum):
@@ -92,6 +103,29 @@ class Presence(str, Enum):
 #: and is stopped at every guild instead.
 LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
     {UserStatus.active, UserStatus.suspended}
+)
+
+#: The statuses a sign-in may be completed against.
+#:
+#: ``deleted`` is here on purpose: signing in is how somebody calls off the
+#: deletion of their own account, so the sign-in has to be allowed to happen
+#: before there is anything to call off. The account is restored at the moment
+#: the session is opened (``sessions.create_session``), so nothing ever holds a
+#: live session while still deleted.
+SIGN_IN_STATUSES: frozenset[UserStatus] = frozenset(
+    {UserStatus.active, UserStatus.deleted}
+)
+
+#: The statuses whose holder does not appear where people are listed as
+#: somebody to work with — rosters, pickers, search, mention candidates,
+#: presence. Read through ``users.visible_to_other_people()``, which is the
+#: one place the rule is applied.
+#:
+#: Neither is a removal. A suspension is reversible and a deletion is
+#: reversible for its window, so in both cases the work the account already
+#: touched keeps saying who did it.
+ABSENT_STATUSES: frozenset[UserStatus] = frozenset(
+    {UserStatus.suspended, UserStatus.deleted}
 )
 
 
@@ -168,6 +202,13 @@ class User(SQLModel, table=True):
             nullable=False,
             server_default=UserStatus.active.value,
         ),
+    )
+    # When ``status`` last changed; NULL until the first change. For a
+    # ``deleted`` account this is when the deletion was asked for, and so what
+    # the erasure date is counted from — the same column, doing the same job,
+    # as ``guilds.status_changed_at``.
+    status_changed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

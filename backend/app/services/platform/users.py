@@ -8,12 +8,18 @@ from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import AuthMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
 from app.core.encryption import hash_email
 from app.db.session import set_rls_context, set_system_guild_context
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import (
+    ABSENT_STATUSES,
+    User,
+    UserRole,
+    UserStatus,
+)
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
@@ -357,6 +363,86 @@ async def deactivate_user(
     )
     await session.commit()
     await _dispatch_queued_revocations(session)
+
+
+async def request_account_deletion(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> User:
+    """Mark an account for erasure and keep it until the window runs out.
+
+    The account stops existing for everybody else — absent from rosters,
+    pickers and search, and its sessions end — while everything it holds stays
+    exactly where it is. Memberships, initiative roles and owned documents are
+    **not** dropped, which is the whole difference from ``deactivate_user``:
+    coming back restores the account whole rather than to an empty one.
+
+    ``status_changed_at`` is the moment it was asked for, and so what the
+    erasure date is counted from. Stamped unconditionally rather than through a
+    general status setter — an account asked for twice would otherwise keep the
+    first stamp and be erased early.
+
+    Nothing is erased here. ``account_purge`` runs :func:`soft_delete_user` when
+    the window ends, which is the erasure this used to do immediately.
+
+    ``actor_user_id`` is who asked — the account holder, or somebody acting on
+    the account.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise ValueError(AuthMessages.USER_NOT_FOUND)
+    user.status = UserStatus.deleted
+    user.status_changed_at = datetime.now(timezone.utc)
+    # Every session this account holds ends here. Getting back in is what calls
+    # the deletion off, so the way back has to start from a sign-in.
+    user.token_version += 1
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETION_SCHEDULED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
+    await session.commit()
+    return user
+
+
+async def cancel_account_deletion(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    actor_user_id: int | None = None,
+    via: str,
+) -> bool:
+    """Call off a pending erasure. Returns whether there was one to call off.
+
+    ``via`` says how it was called off — ``sign_in`` when the holder simply
+    came back, ``operator`` when somebody restored it from the users table.
+
+    Does not commit: a sign-in cancelling a deletion is part of opening that
+    session, and the two land together or not at all.
+    """
+    user = await session.get(User, user_id)
+    if user is None or user.status != UserStatus.deleted:
+        return False
+    user.status = UserStatus.active
+    user.status_changed_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETION_CANCELLED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"via": via},
+    )
+    await session.flush()
+    return True
 
 
 async def _scrub_invites_addressed_to(
@@ -901,10 +987,17 @@ def visible_to_other_people(status_column=None):
     """Rows that may appear where a person is listed as someone to work with.
 
     A suspended account is not one: it vanishes from rosters, pickers, search,
-    mention candidates and presence for as long as the suspension lasts. What
-    it does **not** vanish from is work it already touched — a comment it wrote
-    still says who wrote it, because suspension is reversible and removes the
-    account from nothing.
+    mention candidates and presence for as long as the suspension lasts. Nor is
+    an account whose holder has asked for it to go — for the window before the
+    erasure, it is as absent as if the erasure had already happened.
+
+    Neither vanishes from work it already touched: a comment either wrote still
+    says who wrote it. Both states are reversible, and neither removes the
+    account from anything.
+
+    Stated against :data:`~app.models.platform.user.ABSENT_STATUSES` rather
+    than by naming one status, so a state added later is a decision about which
+    side of this line it falls on.
 
     A clause rather than a filtered query, so each surface keeps its own
     joins and its own gates and only borrows the predicate. It reads the guild
@@ -913,7 +1006,7 @@ def visible_to_other_people(status_column=None):
     ``user_profiles`` view, which carry the same column and the same rule.
     """
     column = MemberProfile.status if status_column is None else status_column
-    return column != UserStatus.suspended
+    return column.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value))
 
 
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
@@ -968,13 +1061,51 @@ async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
     from app.schemas.platform.user import AdminUserRead
 
     primary, proven = await _reach([u.id for u in users])
+    # Only asked when somebody on this page is actually waiting out a window,
+    # which on an ordinary roster is nobody.
+    retention = (
+        await _account_retention_days()
+        if any(u.status == UserStatus.deleted for u in users)
+        else None
+    )
     out: List[AdminUserRead] = []
     for user in users:
         payload = AdminUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
+        payload.purge_at = _erase_at(user, retention)
         out.append(payload)
     return out
+
+
+async def _account_retention_days() -> int | None:
+    """The deployment's window for deleted accounts, on its own session.
+
+    Same reason as :func:`_reach`: this shape is built outside any particular
+    request's session, and the setting is one row read once for the whole page.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.services.platform import app_settings as app_settings_service
+
+    async with AdminSessionLocal() as admin_session:
+        row = await app_settings_service.get_app_settings(admin_session)
+        return row.deleted_account_retention_days
+
+
+def _erase_at(user: User, retention: int | None) -> datetime | None:
+    """When this account is erased, or None if nothing will erase it.
+
+    ``status_changed_at`` is when the deletion was asked for. ``retention`` of
+    None is a deployment that keeps deleted accounts, and an account that is
+    never erased has no date to show.
+    """
+    if user.status != UserStatus.deleted or user.status_changed_at is None:
+        return None
+    if retention is None:
+        return None
+    from app.services.platform.account_purge import erase_at
+
+    return erase_at(user.status_changed_at, retention)
 
 
 async def to_admin_read_one(user: User) -> "AdminUserRead":

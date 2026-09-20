@@ -600,6 +600,12 @@ class AdminUserRead(UserRead):
     #: reason ``UserRead`` gives.
     email: str = ""
 
+    #: When a deleted account is erased: the moment the deletion was asked for
+    #: plus the deployment's window. Null unless ``status`` is ``deleted``, and
+    #: null for a deployment that keeps deleted accounts. Computed from the
+    #: columns beside it rather than stored, so the window is stated once.
+    purge_at: Optional[datetime] = None
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:

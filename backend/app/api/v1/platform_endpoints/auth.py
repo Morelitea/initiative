@@ -66,7 +66,7 @@ from app.api.v1.platform_endpoints.session_opening import (
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import SIGN_IN_STATUSES, User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
@@ -792,7 +792,9 @@ async def login_access_token(
         )
 
     # These are failed sign-ins even though the password itself matched.
-    if user.status != UserStatus.active:
+    # SIGN_IN_STATUSES rather than active: an account waiting out its erasure
+    # window signs in precisely so that signing in can call the deletion off.
+    if user.status not in SIGN_IN_STATUSES:
         await record_sign_in_failure(
             admin_session, user, method="password", reason="inactive"
         )
@@ -885,7 +887,7 @@ async def answer_second_factor(
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await admin_session.get(User, user_id)
-    if user is None or user.status != UserStatus.active:
+    if user is None or user.status not in SIGN_IN_STATUSES:
         await admin_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
@@ -1199,7 +1201,7 @@ async def create_device_token(
             detail=AuthMessages.INCORRECT_CREDENTIALS,
         )
 
-    if user.status != UserStatus.active:
+    if user.status not in SIGN_IN_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
@@ -1784,7 +1786,11 @@ async def _complete_provider_login(
     # Refuse to silently reactivate an admin- or self-deactivated account via
     # SSO — deactivation is reversed by an admin, not by a login. Checked
     # before any link is written.
-    if user.status != UserStatus.active:
+    #
+    # An account waiting out its erasure window is the deliberate exception
+    # (SIGN_IN_STATUSES): the holder coming back is exactly what calls the
+    # deletion off, and which way they came back is not the question.
+    if user.status not in SIGN_IN_STATUSES:
         return _error_redirect(is_mobile, OidcMessages.ACCOUNT_INACTIVE)
 
     if resolution.outcome is ResolutionOutcome.EMAIL_UNVERIFIED:

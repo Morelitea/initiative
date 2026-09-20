@@ -59,6 +59,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         GUILD_PURGE_POLL_SECONDS,
         process_guild_purges,
     )
+    from app.services.platform.account_purge import (
+        ACCOUNT_PURGE_POLL_SECONDS,
+        process_account_purges,
+    )
     from app.services.tenant.app_updates import (
         AUTO_UPDATE_POLL_SECONDS,
         process_app_auto_updates,
@@ -175,6 +179,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_guild_purges, GUILD_PURGE_POLL_SECONDS, "guild-purge")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_account_purges, ACCOUNT_PURGE_POLL_SECONDS, "account-purge"
+            )
         ),
         asyncio.create_task(
             _loop_worker(
