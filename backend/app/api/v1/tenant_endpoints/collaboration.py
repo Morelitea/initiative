@@ -58,6 +58,7 @@ from app.services.tenant.relationships import Endpoint
 from app.services import permissions as permissions_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
+from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
 
 router = APIRouter()
@@ -159,6 +160,9 @@ async def _collaborate(
     Note: This endpoint manages its own database sessions to avoid holding
     connections open for the entire WebSocket lifetime.
     """
+    # One line per session says they edited it; the rest is keystrokes.
+    edit_recorded = False
+
     # Must accept WebSocket before we can close it properly
     # If we try to close before accept, the HTTP upgrade never completes
     # and the client sees an abnormal closure (1006)
@@ -388,6 +392,16 @@ async def _collaborate(
 
                 try:
                     room.apply_update(payload, connection=websocket)
+                    if msg_type == MSG_UPDATE and not edit_recorded:
+                        # Once per session, and only for an update: a
+                        # SYNC_STEP2 is the client answering the room's
+                        # opening handshake, which is not somebody typing.
+                        edit_recorded = record_privileged_edit(
+                            guild_id=guild_id,
+                            resource_type=spec.resource_type,
+                            resource_id=resource_id,
+                            actor_user_id=user.id,
+                        )
                     # Relayed under MSG_UPDATE whichever it arrived as: to every
                     # other connection this is simply state they do not have.
                     await stream_authority.emit_bytes(

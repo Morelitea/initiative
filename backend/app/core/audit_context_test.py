@@ -10,7 +10,7 @@ pytestmark = pytest.mark.unit
 def test_outside_a_request_there_is_no_context():
     """A background sweep writes a line with nothing to say about a request,
     rather than an invented one."""
-    assert audit_context.envelope_context() is None
+    assert audit_context.envelope_context(caller=True) is None
 
 
 def test_a_request_carries_its_id_and_where_it_came_from():
@@ -19,7 +19,7 @@ def test_a_request_carries_its_id_and_where_it_came_from():
     )
     try:
         assert audit_context.current() is context
-        assert audit_context.envelope_context() == {
+        assert audit_context.envelope_context(caller=True) == {
             "request_id": "abc123",
             "source_ip": "203.0.113.7",
             "user_agent": "Firefox/1",
@@ -38,12 +38,23 @@ def test_a_long_user_agent_is_cut_to_a_length():
         audit_context.end(token)
 
 
+def test_a_line_that_does_not_need_the_caller_names_only_the_request():
+    """Which request it was, and not where the person was sitting."""
+    _, token = audit_context.begin(
+        request_id="abc123", source_ip="203.0.113.7", user_agent="Firefox/1"
+    )
+    try:
+        assert audit_context.envelope_context(caller=False) == {"request_id": "abc123"}
+    finally:
+        audit_context.end(token)
+
+
 def test_an_ordinary_request_says_nothing_about_a_grant():
     """The grant half appears only where there is a grant, so a filter on it
     selects the privileged requests and nothing else."""
     _, token = audit_context.begin(request_id="x")
     try:
-        assert "grant_id" not in audit_context.envelope_context()
+        assert "grant_id" not in audit_context.envelope_context(caller=True)
         assert audit_context.current().is_privileged is False
     finally:
         audit_context.end(token)
@@ -65,7 +76,7 @@ def test_a_granted_request_names_the_grant_that_serves_it():
         assert context.is_privileged
         assert context.actor_user_id == 42
         assert context.guild_id == 7
-        assert audit_context.envelope_context() == {
+        assert audit_context.envelope_context(caller=True) == {
             "request_id": "x",
             "source_ip": None,
             "user_agent": None,
