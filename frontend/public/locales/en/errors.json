@@ -729,5 +729,7 @@
   "LEGAL_PORTAL_UNAVAILABLE": "The terms and privacy policy can't be reached right now. Please try again in a moment.",
   "LEGAL_DOCUMENT_NOT_FOUND": "That document doesn't exist.",
   "ACCESS_GRANT_PASSKEY_INVALID": "That passkey did not answer. Try again, or use your authenticator code.",
-  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Set up email sending first — the code has no way to reach anybody."
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Set up email sending first — the code has no way to reach anybody.",
+  "EMAIL_OTP_INVALID": "That code didn't work, or it has expired. Ask for a new one.",
+  "EMAIL_OTP_CANNOT_SEND": "This server can't send email, so it can't send a code."
 }

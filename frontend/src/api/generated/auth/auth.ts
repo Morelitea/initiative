@@ -29,6 +29,10 @@ import type {
   DeviceTokenInfo,
   DeviceTokenRequest,
   DeviceTokenResponse,
+  EmailOtpRegister,
+  EmailOtpSend,
+  EmailOtpSent,
+  EmailOtpVerify,
   FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams,
   HTTPValidationError,
   LoginProvidersResponse,
@@ -4340,6 +4344,293 @@ export const useRecoverWithCodeApiV1AuthPasswordRecoverPost = <
 > => {
   return useMutation(
     getRecoverWithCodeApiV1AuthPasswordRecoverPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Post a code to an address, and hand back the handle that names it.
+ *
+ * The captcha is answered before the address is resolved: it says something
+ * about the request, not about the address, so it is the one refusal this
+ * route makes.
+ * @summary Send Sign In Code
+ */
+export const sendSignInCodeApiV1AuthEmailOtpSendPost = (
+  emailOtpSend: BodyType<EmailOtpSend>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<EmailOtpSent>(
+    {
+      url: `/api/v1/auth/email-otp/send`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: emailOtpSend,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSendSignInCodeApiV1AuthEmailOtpSendPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>,
+    TError,
+    { data: BodyType<EmailOtpSend> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>,
+  TError,
+  { data: BodyType<EmailOtpSend> },
+  TContext
+> => {
+  const mutationKey = ["sendSignInCodeApiV1AuthEmailOtpSendPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>,
+    { data: BodyType<EmailOtpSend> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendSignInCodeApiV1AuthEmailOtpSendPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendSignInCodeApiV1AuthEmailOtpSendPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>
+>;
+export type SendSignInCodeApiV1AuthEmailOtpSendPostMutationBody = BodyType<EmailOtpSend>;
+export type SendSignInCodeApiV1AuthEmailOtpSendPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Send Sign In Code
+ */
+export const useSendSignInCodeApiV1AuthEmailOtpSendPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>,
+      TError,
+      { data: BodyType<EmailOtpSend> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendSignInCodeApiV1AuthEmailOtpSendPost>>,
+  TError,
+  { data: BodyType<EmailOtpSend> },
+  TContext
+> => {
+  return useMutation(
+    getSendSignInCodeApiV1AuthEmailOtpSendPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take the code back and open the session it earned.
+ * @summary Verify Sign In Code
+ */
+export const verifySignInCodeApiV1AuthEmailOtpVerifyPost = (
+  emailOtpVerify: BodyType<EmailOtpVerify>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/email-otp/verify`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: emailOtpVerify,
+      signal,
+    },
+    options
+  );
+};
+
+export const getVerifySignInCodeApiV1AuthEmailOtpVerifyPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>,
+    TError,
+    { data: BodyType<EmailOtpVerify> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>,
+  TError,
+  { data: BodyType<EmailOtpVerify> },
+  TContext
+> => {
+  const mutationKey = ["verifySignInCodeApiV1AuthEmailOtpVerifyPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>,
+    { data: BodyType<EmailOtpVerify> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifySignInCodeApiV1AuthEmailOtpVerifyPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifySignInCodeApiV1AuthEmailOtpVerifyPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>
+>;
+export type VerifySignInCodeApiV1AuthEmailOtpVerifyPostMutationBody = BodyType<EmailOtpVerify>;
+export type VerifySignInCodeApiV1AuthEmailOtpVerifyPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Verify Sign In Code
+ */
+export const useVerifySignInCodeApiV1AuthEmailOtpVerifyPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>,
+      TError,
+      { data: BodyType<EmailOtpVerify> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof verifySignInCodeApiV1AuthEmailOtpVerifyPost>>,
+  TError,
+  { data: BodyType<EmailOtpVerify> },
+  TContext
+> => {
+  return useMutation(
+    getVerifySignInCodeApiV1AuthEmailOtpVerifyPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Make the account a proved address earned, and sign it in.
+ *
+ * The gates are asked again here — the ticket says which address, and
+ * nothing else about the registration was settled when it was issued. The
+ * captcha is not among them: it was answered when the code was asked for,
+ * and a token is spent by being checked.
+ *
+ * The account is made with no password. Its way in is the address it just
+ * proved; it sets a password afterwards if it wants one.
+ * @summary Register With Code
+ */
+export const registerWithCodeApiV1AuthEmailOtpRegisterPost = (
+  emailOtpRegister: BodyType<EmailOtpRegister>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/email-otp/register`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: emailOtpRegister,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>,
+    TError,
+    { data: BodyType<EmailOtpRegister> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>,
+  TError,
+  { data: BodyType<EmailOtpRegister> },
+  TContext
+> => {
+  const mutationKey = ["registerWithCodeApiV1AuthEmailOtpRegisterPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>,
+    { data: BodyType<EmailOtpRegister> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return registerWithCodeApiV1AuthEmailOtpRegisterPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>
+>;
+export type RegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationBody = BodyType<EmailOtpRegister>;
+export type RegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Register With Code
+ */
+export const useRegisterWithCodeApiV1AuthEmailOtpRegisterPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>,
+      TError,
+      { data: BodyType<EmailOtpRegister> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof registerWithCodeApiV1AuthEmailOtpRegisterPost>>,
+  TError,
+  { data: BodyType<EmailOtpRegister> },
+  TContext
+> => {
+  return useMutation(
+    getRegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationOptions(options),
     queryClient
   );
 };

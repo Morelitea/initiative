@@ -729,5 +729,7 @@
   "LEGAL_PORTAL_UNAVAILABLE": "Nutzungsbedingungen und Datenschutzerklärung sind gerade nicht erreichbar. Bitte versuche es gleich noch einmal.",
   "LEGAL_DOCUMENT_NOT_FOUND": "Dieses Dokument gibt es nicht.",
   "ACCESS_GRANT_PASSKEY_INVALID": "Dieser Passkey hat nicht geantwortet. Versuche es erneut oder nutze deinen Authenticator-Code.",
-  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Richte zuerst den E-Mail-Versand ein — der Code erreicht sonst niemanden."
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Richte zuerst den E-Mail-Versand ein — der Code erreicht sonst niemanden.",
+  "EMAIL_OTP_INVALID": "Dieser Code hat nicht funktioniert oder ist abgelaufen. Fordere einen neuen an.",
+  "EMAIL_OTP_CANNOT_SEND": "Dieser Server kann keine E-Mails senden und daher auch keinen Code."
 }

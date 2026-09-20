@@ -729,5 +729,7 @@
   "LEGAL_PORTAL_UNAVAILABLE": "Les conditions d'utilisation et la politique de confidentialité sont injoignables pour le moment. Réessayez dans un instant.",
   "LEGAL_DOCUMENT_NOT_FOUND": "Ce document n'existe pas.",
   "ACCESS_GRANT_PASSKEY_INVALID": "Cette clé d'accès n'a pas répondu. Réessayez ou utilisez votre code d'authentification.",
-  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configurez d'abord l'envoi d'e-mails : le code n'a aucun moyen d'atteindre qui que ce soit."
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configurez d'abord l'envoi d'e-mails : le code n'a aucun moyen d'atteindre qui que ce soit.",
+  "EMAIL_OTP_INVALID": "Ce code n'a pas fonctionné, ou il a expiré. Demandez-en un nouveau.",
+  "EMAIL_OTP_CANNOT_SEND": "Ce serveur ne peut pas envoyer d'e-mails, donc pas de code non plus."
 }
