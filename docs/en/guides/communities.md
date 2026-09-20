@@ -125,7 +125,7 @@ Open **Community settings** from the sidebar or the rail:
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in — single sign-on for this community, where its people land, and whether members must carry a second factor or a passkey — and on what terms: whether personal API keys reach it, and whether members sign in again every twelve hours. Each half appears only where your server has granted it; most communities never see this tab. |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
 | **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
 | **Data** | Export the whole community, and re-download a finished export. |

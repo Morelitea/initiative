@@ -1,0 +1,99 @@
+---
+icon: lucide/key-round
+---
+
+# Your community's sign-in and security
+
+Most communities never need this page. A club, a committee, a group running a campaign — everybody signs in the ordinary way, and that is the end of it.
+
+Some communities answer to somebody: a business with an IT department, a chapter with a parent organisation, a team that filled in a security questionnaire before it was allowed to use anything at all. For those, **Community settings → Security** decides two things — **who gets in**, and **on what terms**.
+
+Only a community's [superadmin](../guides/communities.md#why-superadmin-is-separate) reaches that tab; an ordinary admin does not see it. Whoever runs the server grants it per community as two independent switches — one for sign-in, one for the security standard — and with neither there is no tab.
+
+## Who gets in
+
+### Which sign-ins are yours
+
+Whoever runs the server registers the identity providers. Your community says **which of them count as yours**, and **whose accounts on them do**.
+
+That second half is the point. A provider like Google vouches for anybody with an account, so a community connecting to one names the accounts that are its own:
+
+| You use | Narrow it by | Values look like |
+|---|---|---|
+| Google Workspace | Workspace domain | `example.com` |
+| Microsoft Entra | Entra tenant | your tenant id |
+| Your own identity provider | nothing — it already holds only your people | — |
+
+It is both halves or neither, and any one value is enough to count. You never handle an issuer, a client id or a secret: a community connects to a provider, it does not configure one.
+
+**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
+
+**The member sign-in link** offers your community's providers and lands people inside it rather than at the front door. It is a link, not an invite — it grants nothing on its own and never expires.
+
+### Where your people land
+
+If your provider reports which groups somebody is in, **rules** say what those groups mean here. A rule names one group and gives it a standing: member or admin of the community, and optionally a place in one initiative with a role there. So `eng-platform` arrives in the Platform initiative and `ops-leads` arrives as community admins, without anybody clicking anything.
+
+- Rules match the group **exactly** as your provider spells it, give or take capitals.
+- A rule grants **member or admin** — never the superadmin seat.
+- Standing is reconciled at **each sign-in** through that provider. Take a group away and the next sign-in takes the standing with it.
+- Memberships given by hand are never touched, and deleting a rule revokes nothing by itself — the next sign-in does.
+
+!!! warning "An empty answer is still an answer"
+    A provider asked for groups that reports none matches no rules, and the standings those rules granted are released. That is different from a provider nobody has told where its groups live: there, rules never run at all, and the tab marks the provider so you can see why nothing matches.
+
+### The sign-in requirement
+
+By default a community is **open**: any signed-in member reaches it.
+
+Instead you can **require single sign-on** — through any provider of yours, or one you name. Signing in elsewhere on the same server does not count. Independently of that, you can ask that the session carried a **second factor** or a **passkey**.
+
+The requirement is checked when somebody enters the community and again in the database, so it holds for every route in rather than only the sign-in page.
+
+You have to satisfy a requirement yourself before you can set it; the page names the part your session is missing and offers to settle it there and then. Where the server already asks everybody for a second factor, that box is not offered — your answer is kept, and returns if the server relaxes.
+
+## On what terms
+
+### API access
+
+[Personal API keys](../account/api-keys-and-integrations.md) are how members reach Initiative from scripts, integrations and MCP clients. Your community decides whether they work **here**.
+
+Turn it off and no key reaches this community, including keys that already exist. Those keys carry on working for that person's other communities — the decision is about your space, not somebody's account. Nothing is revoked, so turning it back on restores them.
+
+### Session length
+
+**Sign in again every twelve hours** holds your members to that instead of the server's ordinary session length.
+
+Twelve, rather than a number you pick: somebody in two communities that both ask for this gets one answer instead of a comparison. Shorter still wins, so a server that signs people out sooner keeps doing that.
+
+It follows the person rather than the room, so it applies to your members everywhere they go. Browser sessions come under it at their next sign-in rather than ending mid-sentence. Phones are the exception: a device that signed in longer ago than the standard allows is signed out at once.
+
+## Turning something off
+
+Nothing here destroys anything on the way out.
+
+| If you | Then |
+|---|---|
+| **Disconnect a provider** | Its button comes off your sign-in page and nobody new arrives through it. Nobody is signed out, no account changes, no membership is removed. If a requirement rests on it, you are asked to lift that first. |
+| **Lift a requirement** | Members simply stop being asked. |
+| **Allow API keys again** | The keys that already existed reach you again, with nobody minting replacements. |
+| **Stop asking for twelve-hour sessions** | People return to the ordinary length at their next sign-in. Sessions already shortened are not lengthened again. |
+
+If your server's administrator withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
+
+??? techspec "For the technically minded — what each control actually is"
+
+    **Connections** are rows joining your community to a provider in the server's registry, optionally narrowed by a claim and the values that count — `hd` for a Google Workspace domain, `tid` for an Entra tenant. Matching is case-insensitive and any-one-of. The values your session asserted are recorded when you sign in; *which* values count is read live, so editing a narrowing lands without waiting for anybody to sign in again.
+
+    **Rules** map one group value, per provider, to a community role and optionally an initiative and a role in it. They reconcile in both directions at each sign-in through that provider: granting what they match, and releasing only what that same provider's earlier syncs granted.
+
+    **The requirement** is one row per community: `open`, or `required` naming a provider and/or the methods a session must carry (`sso`, `totp`, `passkey`). `password` is refused by a database constraint — whether passwords exist at all is the server's question, not a community's. It is enforced at the community-context gate, which answers with a step-up challenge, and again inside the database's row-level security.
+
+    **API access** and **session length** are flags on the community itself rather than on the policy row, which is why they outlive a requirement being lifted. A key is judged when it is used, not when it is created. The session standard is twelve hours, `min()`-ed with the server's own limit; it re-stamps device-token deadlines immediately, and browser sessions come under it at their next sign-in.
+
+## Related
+
+- [Working with communities](../guides/communities.md) — the rest of the settings tabs, and what the superadmin seat is for.
+- [Single sign-on](../admin/single-sign-on.md) — for whoever runs the server and registers the providers.
+- [API keys & integrations](../account/api-keys-and-integrations.md) — what a personal key is, from a member's side.
+- [Two-factor authentication](../account/two-factor-authentication.md) and [Passkeys](../account/passkeys.md) — what you are asking members for.
