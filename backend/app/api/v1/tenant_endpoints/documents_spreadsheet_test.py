@@ -5,14 +5,13 @@ The live Y.Map collaboration layer is exercised separately on the
 frontend; these tests are about the durable storage shape.
 """
 
-from dataclasses import dataclass
+from typing import Any
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 
-from app.models.platform.guild import Guild, GuildRole
-from app.models.tenant.initiative import Initiative
-from app.models.platform.user import User
+from app.models.platform.guild import GuildRole
+from app.testing import Actor
 
 
 def _sheet(content: dict, index: int = 0) -> dict:
@@ -22,99 +21,97 @@ def _sheet(content: dict, index: int = 0) -> dict:
     return content["sheets"][index]
 
 
-@dataclass
-class _SpreadsheetEnv:
-    user: User
-    guild: Guild
-    initiative: Initiative
-    headers: dict[str, str]
-
-
 @pytest.fixture
-async def env(acting_user) -> _SpreadsheetEnv:
-    """Shared user / guild / membership / initiative setup for every
-    spreadsheet endpoint test. Per-test scope so each gets a fresh
-    initiative — the round-trip and PATCH tests don't need to be
-    isolated from each other but the validation tests do, and a
-    function-scoped fixture is the cheap, consistent default."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    return _SpreadsheetEnv(
-        user=a.user,
-        guild=a.guild,
-        initiative=a.initiative,
-        headers=a.headers,
-    )
+async def author(acting_user) -> Actor:
+    """A guild admin with an initiative to keep spreadsheets in.
+
+    Per-test scope so each gets a fresh initiative — the round-trip and PATCH
+    tests don't need to be isolated from each other but the validation tests
+    do, and a function-scoped fixture is the cheap, consistent default.
+    """
+    return await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+
+async def _create_sheet(
+    client: AsyncClient, a: Actor, content: dict | None = None, **fields: Any
+) -> Response:
+    """Save a workbook through the create endpoint, whatever comes back.
+
+    Omitting ``content`` sends a payload without one, which is a fresh
+    spreadsheet; ``fields`` override the rest (``name``, ``document_type``).
+    """
+    payload: dict[str, Any] = {
+        "name": "Sheet",
+        "initiative_id": a.initiative.id,
+        "document_type": "spreadsheet",
+        **fields,
+    }
+    if content is not None:
+        payload["content"] = content
+    return await client.post(a.g("/documents/"), headers=a.headers, json=payload)
+
+
+async def _stored_content(
+    client: AsyncClient, a: Actor, content: dict | None = None, **fields: Any
+) -> dict:
+    """The snapshot a saved workbook came back as."""
+    response = await _create_sheet(client, a, content, **fields)
+    assert response.status_code == 201, response.text
+    return response.json()["content"]
+
+
+async def _stored_id(
+    client: AsyncClient, a: Actor, content: dict | None = None, **fields: Any
+) -> int:
+    """The id of a saved workbook."""
+    response = await _create_sheet(client, a, content, **fields)
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
 
 @pytest.mark.integration
-async def test_create_spreadsheet_round_trips_cells(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    payload = {
-        "name": "Q2 Numbers",
-        "initiative_id": env.initiative.id,
-        "document_type": "spreadsheet",
-        "content": {
-            "schema_version": 1,
-            "kind": "spreadsheet",
-            "dimensions": {"rows": 100, "cols": 26},
-            "cells": {
-                "0:0": "Date",
-                "0:1": "Amount",
-                "1:0": "2026-05-01",
-                "1:1": 42.5,
-                "2:1": True,
-            },
-        },
-    }
-
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/", headers=env.headers, json=payload
-    )
-    assert response.status_code == 201, response.text
-    data = response.json()
-    doc_id = data["id"]
-    assert data["document_type"] == "spreadsheet"
-
-    # GET round-trip preserves the cell map exactly.
-    response = await client.get(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}", headers=env.headers
-    )
-    assert response.status_code == 200
-    content = response.json()["content"]
-    # v1 input is upcast to the current schema version on save.
-    assert content["schema_version"] == 3
-    assert content["kind"] == "spreadsheet"
-    assert _sheet(content)["cells"] == {
+async def test_create_spreadsheet_round_trips_cells(client: AsyncClient, author: Actor):
+    cells = {
         "0:0": "Date",
         "0:1": "Amount",
         "1:0": "2026-05-01",
         "1:1": 42.5,
         "2:1": True,
     }
+    created = await _create_sheet(
+        client,
+        author,
+        {
+            "schema_version": 1,
+            "kind": "spreadsheet",
+            "dimensions": {"rows": 100, "cols": 26},
+            "cells": cells,
+        },
+        name="Q2 Numbers",
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["document_type"] == "spreadsheet"
+
+    # GET round-trip preserves the cell map exactly.
+    response = await client.get(
+        author.g(f"/documents/{created.json()['id']}"), headers=author.headers
+    )
+    assert response.status_code == 200
+    content = response.json()["content"]
+    # v1 input is upcast to the current schema version on save.
+    assert content["schema_version"] == 3
+    assert content["kind"] == "spreadsheet"
+    assert _sheet(content)["cells"] == cells
 
 
 @pytest.mark.integration
-async def test_patch_spreadsheet_replaces_cells(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    create_response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"cells": {"0:0": "before"}},
-        },
-    )
-    assert create_response.status_code == 201
-    doc_id = create_response.json()["id"]
+async def test_patch_spreadsheet_replaces_cells(client: AsyncClient, author: Actor):
+    doc_id = await _stored_id(client, author, {"cells": {"0:0": "before"}})
 
     # PATCH replaces the content snapshot wholesale (snapshot path).
     patch_response = await client.patch(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}",
-        headers=env.headers,
+        author.g(f"/documents/{doc_id}"),
+        headers=author.headers,
         json={"content": {"cells": {"0:0": "after", "5:7": 99}}},
     )
     assert patch_response.status_code == 200, patch_response.text
@@ -165,52 +162,38 @@ async def test_patch_spreadsheet_replaces_cells(
     ids=lambda v: v if isinstance(v, str) else "",
 )
 async def test_create_spreadsheet_refuses_a_malformed_payload(
-    client: AsyncClient, env: _SpreadsheetEnv, case: str, content: dict
+    client: AsyncClient, author: Actor, case: str, content: dict
 ):
     """Every shape the sheet parser cannot trust is refused the same way, so a
     malformed payload never lands half-read."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": content,
-        },
-    )
+    response = await _create_sheet(client, author, content, name="Bad Sheet")
+
     assert response.status_code == 400, response.text
     assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
 
 
 @pytest.mark.integration
 async def test_create_spreadsheet_canonicalizes_cell_keys(
-    client: AsyncClient, env: _SpreadsheetEnv
+    client: AsyncClient, author: Actor
 ):
     """Non-canonical numeric keys ("01:2", "0001:0002") round-trip as
     canonical "r:c" — JS emits ``String(number)`` form when the snapshot
     is hydrated into a Y.Map, so any leading-zero form stored verbatim
     would silently disappear after a collaboration round-trip."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "cells": {
-                    "01:2": "padded row",
-                    "3:04": "padded col",
-                    "0005:0006": "padded both",
-                    "7:8": "canonical",
-                }
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "cells": {
+                "01:2": "padded row",
+                "3:04": "padded col",
+                "0005:0006": "padded both",
+                "7:8": "canonical",
+            }
         },
     )
-    assert response.status_code == 201, response.text
-    cells = _sheet(response.json()["content"])["cells"]
-    assert cells == {
+
+    assert _sheet(content)["cells"] == {
         "1:2": "padded row",
         "3:4": "padded col",
         "5:6": "padded both",
@@ -219,54 +202,50 @@ async def test_create_spreadsheet_canonicalizes_cell_keys(
 
 
 @pytest.mark.integration
-async def test_create_spreadsheet_with_empty_content(
-    client: AsyncClient, env: _SpreadsheetEnv
+@pytest.mark.parametrize(
+    "content",
+    [None, {"schema_version": 3, "kind": "spreadsheet", "sheets": []}],
+    ids=["no content at all", "an empty list of sheets"],
+)
+async def test_a_workbook_with_nothing_in_it_opens_on_one_empty_sheet(
+    client: AsyncClient, author: Actor, content: dict | None
 ):
-    """Fresh spreadsheets default to an empty cell map and a 100x26 canvas."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Empty Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-        },
-    )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
-    assert _sheet(content)["cells"] == {}
-    assert _sheet(content)["dimensions"] == {"rows": 100, "cols": 26}
-    assert content["kind"] == "spreadsheet"
-    assert content["schema_version"] == 3
-    # Fresh docs default to empty formatting structures.
-    assert _sheet(content)["columns"] == {}
-    assert _sheet(content)["rows"] == {}
-    assert _sheet(content)["cellStyles"] == {}
-    assert _sheet(content)["frozen"] == {"rows": 0, "cols": 0}
+    """A fresh spreadsheet gets an empty cell map, a 100x26 canvas and empty
+    formatting structures. An editor with no sheet at all has nothing to
+    render, so an explicitly empty list is repaired into the same thing rather
+    than persisted."""
+    stored = await _stored_content(client, author, content, name="Empty Sheet")
+
+    assert stored["kind"] == "spreadsheet"
+    assert stored["schema_version"] == 3
+    assert len(stored["sheets"]) == 1
+    assert _sheet(stored)["id"] == "s1"
+    assert _sheet(stored)["name"] == "Sheet1"
+    assert _sheet(stored)["cells"] == {}
+    assert _sheet(stored)["dimensions"] == {"rows": 100, "cols": 26}
+    assert _sheet(stored)["columns"] == {}
+    assert _sheet(stored)["rows"] == {}
+    assert _sheet(stored)["cellStyles"] == {}
+    assert _sheet(stored)["frozen"] == {"rows": 0, "cols": 0}
 
 
 @pytest.mark.integration
-async def test_v1_payload_upcasts_to_current(client: AsyncClient, env: _SpreadsheetEnv):
+async def test_v1_payload_upcasts_to_current(client: AsyncClient, author: Actor):
     """An explicit v1 payload (no formatting keys) is accepted and saved
-    as v2 with empty formatting structures — existing documents keep
-    working without a data migration and never 422."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Legacy Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 1,
-                "kind": "spreadsheet",
-                "dimensions": {"rows": 100, "cols": 26},
-                "cells": {"0:0": "kept"},
-            },
+    as the current version with empty formatting structures — existing
+    documents keep working without a data migration and never 422."""
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 1,
+            "kind": "spreadsheet",
+            "dimensions": {"rows": 100, "cols": 26},
+            "cells": {"0:0": "kept"},
         },
+        name="Legacy Sheet",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert content["schema_version"] == 3
     assert _sheet(content)["cells"] == {"0:0": "kept"}
     assert _sheet(content)["columns"] == {}
@@ -276,42 +255,36 @@ async def test_v1_payload_upcasts_to_current(client: AsyncClient, env: _Spreadsh
 
 
 @pytest.mark.integration
-async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetEnv):
+async def test_v2_formatting_round_trips(client: AsyncClient, author: Actor):
     """A full v2 payload round-trips: widths, styles, number formats,
     per-cell overrides, and the frozen-pane hint."""
-    payload_content = {
-        "schema_version": 2,
-        "kind": "spreadsheet",
-        "dimensions": {"rows": 100, "cols": 26},
-        "cells": {"0:0": "Revenue", "1:0": 1234.5},
-        "columns": {
-            "0": {
-                "width": 180,
-                "format": {"type": "currency", "currency": "USD", "decimals": 2},
-                "style": {"bold": True, "align": "right"},
-            }
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "kind": "spreadsheet",
+            "dimensions": {"rows": 100, "cols": 26},
+            "cells": {"0:0": "Revenue", "1:0": 1234.5},
+            "columns": {
+                "0": {
+                    "width": 180,
+                    "format": {"type": "currency", "currency": "USD", "decimals": 2},
+                    "style": {"bold": True, "align": "right"},
+                }
+            },
+            "rows": {"0": {"height": 32, "style": {"bold": True}}},
+            "cellStyles": {
+                "1:0": {
+                    "style": {"fill": "#ffeecc"},
+                    "format": {"type": "fixed", "decimals": 1},
+                }
+            },
+            "frozen": {"rows": 1, "cols": 1},
         },
-        "rows": {"0": {"height": 32, "style": {"bold": True}}},
-        "cellStyles": {
-            "1:0": {
-                "style": {"fill": "#ffeecc"},
-                "format": {"type": "fixed", "decimals": 1},
-            }
-        },
-        "frozen": {"rows": 1, "cols": 1},
-    }
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Formatted",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": payload_content,
-        },
+        name="Formatted",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert content["schema_version"] == 3
     assert _sheet(content)["columns"] == {
         "0": {
@@ -331,30 +304,25 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
 
 
 @pytest.mark.integration
-async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, env: _SpreadsheetEnv):
+async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, author: Actor):
     """Out-of-range widths/heights/decimals/frozen are clamped, not
     rejected."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Clamp",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "cells": {},
-                "dimensions": {"rows": 100, "cols": 26},
-                "columns": {
-                    "0": {"width": 99999, "format": {"type": "fixed", "decimals": 99}}
-                },
-                "rows": {"0": {"height": 0}},
-                "frozen": {"rows": 50, "cols": -3},
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "cells": {},
+            "dimensions": {"rows": 100, "cols": 26},
+            "columns": {
+                "0": {"width": 99999, "format": {"type": "fixed", "decimals": 99}}
             },
+            "rows": {"0": {"height": 0}},
+            "frozen": {"rows": 50, "cols": -3},
         },
+        name="Clamp",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert _sheet(content)["columns"]["0"]["width"] == 2000
     assert _sheet(content)["columns"]["0"]["format"]["decimals"] == 10
     assert _sheet(content)["rows"]["0"]["height"] == 16
@@ -362,154 +330,130 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, env: _Spreadsheet
 
 
 @pytest.mark.integration
-async def test_v2_drops_malformed_formatting(client: AsyncClient, env: _SpreadsheetEnv):
-    """A bad ``align``, bad hex, and an unknown style key are stripped —
-    the document still saves (201, NOT 400) because formatting failures
-    must never block the user's actual data."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Lenient",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "cells": {"0:0": "data"},
-                "columns": {
-                    "0": {
-                        "style": {
-                            "align": "diagonal",
-                            "color": "red",
-                            "squiggly": True,
-                            "bold": True,
-                        },
-                        "format": {"type": "bogus"},
+async def test_v2_drops_malformed_formatting(client: AsyncClient, author: Actor):
+    """A bad ``align``, bad hex, and an unknown style key are stripped — the
+    document still saves (201, NOT 400) because formatting failures must never
+    block the user's actual data."""
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "cells": {"0:0": "data"},
+            "columns": {
+                "0": {
+                    "style": {
+                        "align": "diagonal",
+                        "color": "red",
+                        "squiggly": True,
+                        "bold": True,
                     },
-                    "not-an-index": {"width": 100},
+                    "format": {"type": "bogus"},
                 },
-                "cellStyles": {"garbage-key": {"style": {"bold": True}}},
+                "not-an-index": {"width": 100},
             },
+            "cellStyles": {"garbage-key": {"style": {"bold": True}}},
         },
+        name="Lenient",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     # Only the valid ``bold`` survived; the column entry is kept.
     assert _sheet(content)["columns"] == {"0": {"style": {"bold": True}}}
     assert _sheet(content)["cellStyles"] == {}
 
 
 @pytest.mark.integration
-async def test_v2_canonicalizes_formatting_keys(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
+async def test_v2_canonicalizes_formatting_keys(client: AsyncClient, author: Actor):
     """Leading-zero index/cell keys collapse to canonical form so they
     survive the JS Y.Map round-trip, exactly like the cell map."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Canon",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "cells": {},
-                "columns": {"007": {"width": 90}},
-                "cellStyles": {"01:02": {"style": {"italic": True}}},
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "cells": {},
+            "columns": {"007": {"width": 90}},
+            "cellStyles": {"01:02": {"style": {"italic": True}}},
         },
+        name="Canon",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert _sheet(content)["columns"] == {"7": {"width": 90}}
     assert _sheet(content)["cellStyles"] == {"1:2": {"style": {"italic": True}}}
 
 
 @pytest.mark.integration
 async def test_v2_border_round_trips_and_drops_bad_edges(
-    client: AsyncClient, env: _SpreadsheetEnv
+    client: AsyncClient, author: Actor
 ):
     """Valid border edges round-trip (color lowercased); a bad style
     enum, a bad hex, and an unknown edge are dropped without 400."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Borders",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "cells": {"0:0": "x"},
-                "cellStyles": {
-                    "0:0": {
-                        "style": {
-                            "border": {
-                                "top": {"style": "thin", "color": "#ABCDEF"},
-                                "bottom": {"style": "huge", "color": "#000000"},
-                                "left": {"style": "thick", "color": "red"},
-                                "diagonal": {"style": "thin", "color": "#000000"},
-                            }
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "cells": {"0:0": "x"},
+            "cellStyles": {
+                "0:0": {
+                    "style": {
+                        "border": {
+                            "top": {"style": "thin", "color": "#ABCDEF"},
+                            "bottom": {"style": "huge", "color": "#000000"},
+                            "left": {"style": "thick", "color": "red"},
+                            "diagonal": {"style": "thin", "color": "#000000"},
                         }
                     }
-                },
+                }
             },
         },
+        name="Borders",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert _sheet(content)["cellStyles"] == {
         "0:0": {"style": {"border": {"top": {"style": "thin", "color": "#abcdef"}}}}
     }
 
 
 @pytest.mark.integration
-async def test_v2_tier1_style_and_number_options(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
+async def test_v2_tier1_style_and_number_options(client: AsyncClient, author: Actor):
     """Underline/strike/valign/fontSize and number-format grouping +
     negatives round-trip; fontSize is clamped, bad valign/negatives are
     dropped without a 400."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Tier1",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "cells": {"0:0": -5},
-                "cellStyles": {
-                    "0:0": {
-                        "style": {
-                            "underline": True,
-                            "strike": False,
-                            "valign": "sideways",
-                            "fontSize": 9999,
-                        },
-                        "format": {
-                            "type": "fixed",
-                            "decimals": 2,
-                            "grouping": True,
-                            "negatives": "redParens",
-                        },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "cells": {"0:0": -5},
+            "cellStyles": {
+                "0:0": {
+                    "style": {
+                        "underline": True,
+                        "strike": False,
+                        "valign": "sideways",
+                        "fontSize": 9999,
                     },
-                    "1:0": {
-                        "format": {
-                            "type": "currency",
-                            "currency": "EUR",
-                            "decimals": 0,
-                            "negatives": "bogus",
-                        }
+                    "format": {
+                        "type": "fixed",
+                        "decimals": 2,
+                        "grouping": True,
+                        "negatives": "redParens",
                     },
+                },
+                "1:0": {
+                    "format": {
+                        "type": "currency",
+                        "currency": "EUR",
+                        "decimals": 0,
+                        "negatives": "bogus",
+                    }
                 },
             },
         },
+        name="Tier1",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert _sheet(content)["cellStyles"]["0:0"]["style"] == {
         "underline": True,
         "strike": False,
@@ -535,40 +479,35 @@ async def test_v2_tier1_style_and_number_options(
 
 
 @pytest.mark.integration
-async def test_v3_multiple_sheets_round_trip(client: AsyncClient, env: _SpreadsheetEnv):
+async def test_v3_multiple_sheets_round_trip(client: AsyncClient, author: Actor):
     """A workbook keeps its sheets, their order, and each sheet's own cells,
     dimensions, and formatting."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Workbook",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 3,
-                "kind": "spreadsheet",
-                "sheets": [
-                    {
-                        "id": "s1",
-                        "name": "Summary",
-                        "dimensions": {"rows": 100, "cols": 26},
-                        "cells": {"0:0": "=SUM(Data!A1:A3)"},
-                        "frozen": {"rows": 1, "cols": 0},
-                    },
-                    {
-                        "id": "sabc123",
-                        "name": "Data",
-                        "dimensions": {"rows": 100, "cols": 26},
-                        "cells": {"0:0": 1, "1:0": 2, "2:0": 3},
-                        "columns": {"0": {"width": 140}},
-                    },
-                ],
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {
+                    "id": "s1",
+                    "name": "Summary",
+                    "dimensions": {"rows": 100, "cols": 26},
+                    "cells": {"0:0": "=SUM(Data!A1:A3)"},
+                    "frozen": {"rows": 1, "cols": 0},
+                },
+                {
+                    "id": "sabc123",
+                    "name": "Data",
+                    "dimensions": {"rows": 100, "cols": 26},
+                    "cells": {"0:0": 1, "1:0": 2, "2:0": 3},
+                    "columns": {"0": {"width": 140}},
+                },
+            ],
         },
+        name="Workbook",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert content["schema_version"] == 3
     assert [s["name"] for s in content["sheets"]] == ["Summary", "Data"]
     assert [s["id"] for s in content["sheets"]] == ["s1", "sabc123"]
@@ -580,31 +519,24 @@ async def test_v3_multiple_sheets_round_trip(client: AsyncClient, env: _Spreadsh
 
 
 @pytest.mark.integration
-async def test_v2_payload_upcasts_to_single_sheet(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
+async def test_v2_payload_upcasts_to_single_sheet(client: AsyncClient, author: Actor):
     """A pre-multi-sheet payload is read as the workbook's one sheet, keeping
     its cells and formatting — existing documents never 422 and never lose
     data on their next save."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Legacy",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 2,
-                "kind": "spreadsheet",
-                "dimensions": {"rows": 100, "cols": 26},
-                "cells": {"0:0": "kept"},
-                "columns": {"0": {"width": 200}},
-                "frozen": {"rows": 1, "cols": 1},
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 2,
+            "kind": "spreadsheet",
+            "dimensions": {"rows": 100, "cols": 26},
+            "cells": {"0:0": "kept"},
+            "columns": {"0": {"width": 200}},
+            "frozen": {"rows": 1, "cols": 1},
         },
+        name="Legacy",
     )
-    assert response.status_code == 201, response.text
-    content = response.json()["content"]
+
     assert content["schema_version"] == 3
     assert len(content["sheets"]) == 1
     assert _sheet(content)["id"] == "s1"
@@ -616,33 +548,29 @@ async def test_v2_payload_upcasts_to_single_sheet(
 
 @pytest.mark.integration
 async def test_v3_sheet_names_are_sanitized_and_deduplicated(
-    client: AsyncClient, env: _SpreadsheetEnv
+    client: AsyncClient, author: Actor
 ):
     """Names are load-bearing (a formula addresses a sheet by name), so the
     forbidden characters are stripped, the length is capped at Excel's 31,
     and collisions are broken case-insensitively."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Names",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 3,
-                "kind": "spreadsheet",
-                "sheets": [
-                    {"id": "s1", "name": "Q1/Q2: *plan*?", "cells": {}},
-                    {"id": "s2", "name": "budget", "cells": {}},
-                    {"id": "s3", "name": "BUDGET", "cells": {}},
-                    {"id": "s4", "name": "   ", "cells": {}},
-                    {"id": "s5", "name": "x" * 50, "cells": {}},
-                ],
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {"id": "s1", "name": "Q1/Q2: *plan*?", "cells": {}},
+                {"id": "s2", "name": "budget", "cells": {}},
+                {"id": "s3", "name": "BUDGET", "cells": {}},
+                {"id": "s4", "name": "   ", "cells": {}},
+                {"id": "s5", "name": "x" * 50, "cells": {}},
+            ],
         },
+        name="Names",
     )
-    assert response.status_code == 201, response.text
-    names = [s["name"] for s in response.json()["content"]["sheets"]]
+
+    names = [s["name"] for s in content["sheets"]]
     assert names[0] == "Q1Q2 plan"
     assert names[1] == "budget"
     # Case-insensitive collision — a reference resolves case-insensitively.
@@ -653,85 +581,41 @@ async def test_v3_sheet_names_are_sanitized_and_deduplicated(
 
 
 @pytest.mark.integration
-async def test_v3_duplicate_sheet_ids_are_repaired(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
+async def test_v3_duplicate_sheet_ids_are_repaired(client: AsyncClient, author: Actor):
     """Two sheets sharing an id would share one Yjs container on the client,
     so the second is re-issued rather than rejected."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Ids",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 3,
-                "kind": "spreadsheet",
-                "sheets": [
-                    {"id": "s1", "name": "One", "cells": {"0:0": "a"}},
-                    {"id": "s1", "name": "Two", "cells": {"0:0": "b"}},
-                ],
-            },
+    content = await _stored_content(
+        client,
+        author,
+        {
+            "schema_version": 3,
+            "kind": "spreadsheet",
+            "sheets": [
+                {"id": "s1", "name": "One", "cells": {"0:0": "a"}},
+                {"id": "s1", "name": "Two", "cells": {"0:0": "b"}},
+            ],
         },
+        name="Ids",
     )
-    assert response.status_code == 201, response.text
-    sheets = response.json()["content"]["sheets"]
-    assert len({s["id"] for s in sheets}) == 2
-    assert _sheet(response.json()["content"], 1)["cells"] == {"0:0": "b"}
 
-
-@pytest.mark.integration
-async def test_v3_empty_sheets_list_yields_one_sheet(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    """An editor with no sheet has nothing to render, so an empty list is
-    repaired into the default single sheet rather than persisted."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Empty",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": []},
-        },
-    )
-    assert response.status_code == 201, response.text
-    sheets = response.json()["content"]["sheets"]
-    assert len(sheets) == 1
-    assert sheets[0]["name"] == "Sheet1"
+    assert len({s["id"] for s in content["sheets"]}) == 2
+    assert _sheet(content, 1)["cells"] == {"0:0": "b"}
 
 
 # ── import ───────────────────────────────────────────────────────────────────
 
 
-async def _spreadsheet(client: AsyncClient, env: _SpreadsheetEnv) -> int:
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Inventory",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": []},
-        },
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
-
-
 @pytest.mark.integration
 async def test_import_returns_sheets_without_writing_the_document(
-    client: AsyncClient, env: _SpreadsheetEnv
+    client: AsyncClient, author: Actor
 ):
     """The document is the permission scope, not the destination — the editor
     adds what comes back to its live workbook itself."""
-    doc_id = await _spreadsheet(client, env)
+    doc_id = await _stored_id(client, author, name="Inventory")
 
     response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
-        headers=env.headers,
+        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        headers=author.headers,
         files={"file": ("Q1 sales.csv", b"Item,Qty\nWidget,3\n", "text/csv")},
     )
 
@@ -748,20 +632,18 @@ async def test_import_returns_sheets_without_writing_the_document(
 
     # The document itself is untouched.
     response = await client.get(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}", headers=env.headers
+        author.g(f"/documents/{doc_id}"), headers=author.headers
     )
     assert _sheet(response.json()["content"])["cells"] == {}
 
 
 @pytest.mark.integration
-async def test_import_refuses_a_file_it_cannot_read(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    doc_id = await _spreadsheet(client, env)
+async def test_import_refuses_a_file_it_cannot_read(client: AsyncClient, author: Actor):
+    doc_id = await _stored_id(client, author, name="Inventory")
 
     response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
-        headers=env.headers,
+        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        headers=author.headers,
         files={"file": ("notes.pdf", b"%PDF-1.4", "application/pdf")},
     )
 
@@ -771,23 +653,23 @@ async def test_import_refuses_a_file_it_cannot_read(
 
 @pytest.mark.integration
 async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
-    client: AsyncClient, env: _SpreadsheetEnv
+    client: AsyncClient, author: Actor
 ):
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
+    created = await client.post(
+        author.g("/documents/"),
+        headers=author.headers,
         json={
             "name": "Just notes",
-            "initiative_id": env.initiative.id,
+            "initiative_id": author.initiative.id,
             "document_type": "native",
             "content": {},
         },
     )
-    doc_id = response.json()["id"]
+    doc_id = created.json()["id"]
 
     response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
-        headers=env.headers,
+        author.g(f"/documents/{doc_id}/spreadsheet/import"),
+        headers=author.headers,
         files={"file": ("x.csv", b"a,b\n", "text/csv")},
     )
 
@@ -796,20 +678,20 @@ async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
 
 @pytest.mark.integration
 async def test_import_needs_write_access(
-    client: AsyncClient, env: _SpreadsheetEnv, acting_user
+    client: AsyncClient, author: Actor, acting_user
 ):
     """Reading a file through somebody else's document is still a write to it
     as far as permission goes — it is their workbook the sheets are for."""
-    doc_id = await _spreadsheet(client, env)
+    doc_id = await _stored_id(client, author, name="Inventory")
     reader = await acting_user(
         guild_role=GuildRole.member,
-        guild=env.guild,
-        initiative=env.initiative,
+        guild=author.guild,
+        initiative=author.initiative,
         initiative_role="member",
     )
 
     response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/{doc_id}/spreadsheet/import",
+        reader.g(f"/documents/{doc_id}/spreadsheet/import"),
         headers=reader.headers,
         files={"file": ("x.csv", b"a,b\n", "text/csv")},
     )

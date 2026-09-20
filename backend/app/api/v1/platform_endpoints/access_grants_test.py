@@ -8,596 +8,391 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.user import UserRole
+from app.models.platform.guild import GuildRole
 from app.testing import (
+    Actor,
+    create_counter_group,
     create_guild,
-    create_initiative,
     create_project,
-    create_user,
-    get_auth_headers,
 )
 
+GRANTS = "/api/v1/access-grants/"
 
-async def _approved_read_grant(session, *, user, guild, owner, level="read"):
+
+async def _approved_grant(
+    session: AsyncSession,
+    *,
+    grantee: Actor,
+    host: Actor,
+    level: str = "read",
+    reason: str = "ticket",
+    expires_in: timedelta = timedelta(hours=1),
+) -> AccessGrant:
+    """A live (or, with a negative ``expires_in``, a lapsed) approved grant on
+    ``host``'s community, approved by ``host``."""
     now = datetime.now(timezone.utc)
     grant = AccessGrant(
-        user_id=user.id,
-        guild_id=guild.id,
+        user_id=grantee.user.id,
+        guild_id=host.guild.id,
         access_level=level,
         status="approved",
-        reason="ticket",
+        reason=reason,
         requested_duration_minutes=60,
-        requested_by_id=user.id,
-        approved_by_id=owner.id,
+        requested_by_id=grantee.user.id,
+        approved_by_id=host.user.id,
         decided_at=now,
-        expires_at=now + timedelta(hours=1),
+        expires_at=now + expires_in,
     )
     session.add(grant)
     await session.commit()
     return grant
 
 
-@pytest.mark.integration
-async def test_support_can_request_and_owner_approves(
-    client: AsyncClient, session: AsyncSession
-):
-    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
-    support = await create_user(
-        session, email="support@example.com", role=UserRole.support
+async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> object:
+    """Ask for access to ``guild`` through the request->approve flow."""
+    return await client.post(
+        GRANTS,
+        json={"guild_id": guild.id, "reason": "debugging a ticket", **body},
+        headers=actor.headers,
     )
-    # A guild the support user is NOT a member of.
-    guild = await create_guild(session, creator=owner)
 
-    # Support requests read access.
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={
-            "guild_id": guild.id,
-            "access_level": "read",
-            "reason": "debugging a ticket",
-        },
-        headers=get_auth_headers(support),
-    )
-    assert resp.status_code == 201, resp.text
-    grant = resp.json()
+
+@pytest.mark.integration
+async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The whole request->approve flow, and how the queue names the people in
+    it: an address is masked wherever it appears, on the row the approver reads
+    and on the decision they get back. Both enrichment fields are assigned
+    after the row is validated, so this covers the masking applying on
+    assignment rather than only on the way in.
+    """
+    owner = await acting_user("owner", email="owner@example.com")
+    support = await acting_user("support", email="support@example.com")
+    # A community the support user is NOT a member of.
+    guild = await create_guild(session)
+
+    requested = await _request_access(client, support, guild, access_level="read")
+    assert requested.status_code == 201, requested.text
+    grant = requested.json()
     assert grant["status"] == "pending"
     assert grant["is_live"] is False
     assert grant["guild_name"] == guild.name
     grant_id = grant["id"]
 
-    # Owner sees it in the full queue (mine=false requires access.read).
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=false&status=pending",
-        headers=get_auth_headers(owner),
+    # The owner sees it in the full queue (mine=false requires access.read).
+    queue = await client.get(
+        f"{GRANTS}?mine=false&status=pending", headers=owner.headers
     )
-    assert resp.status_code == 200
-    assert any(g["id"] == grant_id for g in resp.json())
+    assert queue.status_code == 200
+    row = next(g for g in queue.json() if g["id"] == grant_id)
+    assert row["user_email"] == "s***t@e***m"
 
-    # Owner approves.
-    resp = await client.post(
-        f"/api/v1/access-grants/{grant_id}/approve",
-        json={},
-        headers=get_auth_headers(owner),
+    approved = await client.post(
+        f"{GRANTS}{grant_id}/approve", json={}, headers=owner.headers
     )
-    assert resp.status_code == 200, resp.text
-    approved = resp.json()
-    assert approved["status"] == "approved"
-    assert approved["is_live"] is True
-    assert approved["expires_at"] is not None
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "approved"
+    assert approved.json()["is_live"] is True
+    assert approved.json()["expires_at"] is not None
+    assert approved.json()["approved_by_email"] == "o***r@e***m"
+    assert "@example.com" not in approved.text
 
 
 @pytest.mark.integration
 async def test_my_requests_respects_limit_and_order(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``limit`` caps the my-requests history to the most recent N (newest
     first), so a churny requester's list can't grow unbounded."""
-    owner = await create_user(
-        session, email="owner-lim@example.com", role=UserRole.owner
-    )
-    support = await create_user(
-        session, email="support-lim@example.com", role=UserRole.support
-    )
+    support = await acting_user("support")
 
     # Five historical grants with strictly increasing requested_at.
     base = datetime.now(timezone.utc) - timedelta(days=5)
     for i in range(5):
         session.add(
             AccessGrant(
-                user_id=support.id,
-                guild_id=(await create_guild(session, creator=owner)).id,
+                user_id=support.user.id,
+                guild_id=(await create_guild(session)).id,
                 access_level="read",
                 status="expired",
                 reason=f"old {i}",
                 requested_duration_minutes=60,
-                requested_by_id=support.id,
+                requested_by_id=support.user.id,
                 requested_at=base + timedelta(hours=i),
             )
         )
     await session.commit()
 
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=true&limit=3", headers=get_auth_headers(support)
-    )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert len(body) == 3, "limit must cap the result"
+    page = await client.get(f"{GRANTS}?mine=true&limit=3", headers=support.headers)
+    assert page.status_code == 200, page.text
     # Newest-first: the three most-recently-requested ("old 4/3/2").
-    assert [g["reason"] for g in body] == ["old 4", "old 3", "old 2"]
+    assert [g["reason"] for g in page.json()] == ["old 4", "old 3", "old 2"]
 
     # Second page via offset continues where the first left off.
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=true&limit=3&offset=3",
-        headers=get_auth_headers(support),
+    rest = await client.get(
+        f"{GRANTS}?mine=true&limit=3&offset=3", headers=support.headers
     )
-    assert resp.status_code == 200, resp.text
-    assert [g["reason"] for g in resp.json()] == ["old 1", "old 0"]
+    assert rest.status_code == 200, rest.text
+    assert [g["reason"] for g in rest.json()] == ["old 1", "old 0"]
 
 
 @pytest.mark.integration
 async def test_queue_live_filter_excludes_expired(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``live=true`` on the approver queue drops approved-but-expired grants so
     the active list pages accurately."""
-    owner = await create_user(
-        session, email="owner-live@example.com", role=UserRole.owner
+    host = await acting_user("owner", guild_role=GuildRole.admin)
+    support = await acting_user("support")
+    await _approved_grant(session, grantee=support, host=host, reason="live one")
+    await _approved_grant(
+        session,
+        grantee=support,
+        host=host,
+        reason="stale one",
+        expires_in=-timedelta(hours=1),
     )
-    support = await create_user(
-        session, email="support-live@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
-    now = datetime.now(timezone.utc)
 
-    # One live grant, one approved-but-expired.
-    session.add(
-        AccessGrant(
-            user_id=support.id,
-            guild_id=guild.id,
-            access_level="read",
-            status="approved",
-            reason="live one",
-            requested_duration_minutes=60,
-            requested_by_id=support.id,
-            approved_by_id=owner.id,
-            decided_at=now,
-            expires_at=now + timedelta(hours=1),
-        )
+    queue = await client.get(
+        f"{GRANTS}?mine=false&status=approved&live=true", headers=host.headers
     )
-    session.add(
-        AccessGrant(
-            user_id=support.id,
-            guild_id=guild.id,
-            access_level="read",
-            status="approved",
-            reason="stale one",
-            requested_duration_minutes=60,
-            requested_by_id=support.id,
-            approved_by_id=owner.id,
-            decided_at=now - timedelta(hours=2),
-            expires_at=now - timedelta(hours=1),
-        )
-    )
-    await session.commit()
-
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=false&status=approved&live=true",
-        headers=get_auth_headers(owner),
-    )
-    assert resp.status_code == 200, resp.text
-    reasons = [g["reason"] for g in resp.json()]
-    assert reasons == ["live one"], "live filter must exclude the expired grant"
+    assert queue.status_code == 200, queue.text
+    assert [g["reason"] for g in queue.json()] == ["live one"]
 
 
 @pytest.mark.integration
-async def test_member_cannot_request_access(client: AsyncClient, session: AsyncSession):
+async def test_member_cannot_request_access(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """A plain member lacks access.request and is forbidden."""
-    owner = await create_user(session, email="owner2@example.com", role=UserRole.owner)
-    member = await create_user(
-        session, email="member2@example.com", role=UserRole.member
-    )
-    guild = await create_guild(session, creator=owner)
+    member = await acting_user("member")
+    guild = await create_guild(session)
 
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "no caps"},
-        headers=get_auth_headers(member),
-    )
+    resp = await _request_access(client, member, guild, reason="no caps")
+
     assert resp.status_code == 403
 
 
 @pytest.mark.integration
-async def test_requester_cannot_approve_own(client: AsyncClient, session: AsyncSession):
-    """An admin can both request and approve, but never their own request."""
-    owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
-    admin = await create_user(
-        session, email="admin3@example.com", role=UserRole.operator
-    )
-    guild = await create_guild(session, creator=owner)
+async def test_requester_cannot_approve_own(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An operator can both request and approve, but never their own request."""
+    operator = await acting_user("operator")
+    guild = await create_guild(session)
+
+    requested = await _request_access(client, operator, guild, reason="self")
+    assert requested.status_code == 201, requested.text
 
     resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "self"},
-        headers=get_auth_headers(admin),
-    )
-    assert resp.status_code == 201, resp.text
-    grant_id = resp.json()["id"]
-
-    resp = await client.post(
-        f"/api/v1/access-grants/{grant_id}/approve",
+        f"{GRANTS}{requested.json()['id']}/approve",
         json={},
-        headers=get_auth_headers(admin),
+        headers=operator.headers,
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "ACCESS_GRANT_CANNOT_APPROVE_OWN"
 
 
 @pytest.mark.integration
-async def test_duration_over_cap_rejected(client: AsyncClient, session: AsyncSession):
-    owner = await create_user(session, email="owner4@example.com", role=UserRole.owner)
-    support = await create_user(
-        session, email="support4@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
+@pytest.mark.parametrize(
+    "tier,minutes,expected",
+    [
+        pytest.param("moderator", 480, 201, id="8h-within-a-moderators-cap"),
+        pytest.param("support", 480, 400, id="8h-over-supports-4h-cap"),
+        pytest.param("support", 10_000, 400, id="a-week-over-every-cap"),
+    ],
+)
+async def test_the_window_a_role_may_ask_for(
+    client: AsyncClient, session: AsyncSession, acting_user, tier, minutes, expected
+):
+    """Lower-trust roles get shorter windows: support is capped at 4h, a
+    moderator may go to 8h, and the 24h platform ceiling is over both."""
+    requester = await acting_user(tier)
+    guild = await create_guild(session)
 
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={
-            "guild_id": guild.id,
-            "reason": "too long",
-            "requested_duration_minutes": 10_000,  # over the 24h ceiling
-        },
-        headers=get_auth_headers(support),
+    resp = await _request_access(
+        client, requester, guild, reason="a window", requested_duration_minutes=minutes
     )
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
 
-
-@pytest.mark.integration
-async def test_duration_cap_is_per_role(client: AsyncClient, session: AsyncSession):
-    """Lower-trust roles get shorter windows: support is capped at 4h, but a
-    moderator may go to 8h."""
-    owner = await create_user(session, email="owner6@example.com", role=UserRole.owner)
-    support = await create_user(
-        session, email="support6@example.com", role=UserRole.support
-    )
-    moderator = await create_user(
-        session, email="mod6@example.com", role=UserRole.moderator
-    )
-    guild = await create_guild(session, creator=owner)
-
-    # 8h is within the moderator cap...
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "8h", "requested_duration_minutes": 480},
-        headers=get_auth_headers(moderator),
-    )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["requested_duration_minutes"] == 480
-
-    # ...but exceeds support's 4h cap.
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "8h", "requested_duration_minutes": 480},
-        headers=get_auth_headers(support),
-    )
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
+    assert resp.status_code == expected, resp.text
+    if expected == 201:
+        assert resp.json()["requested_duration_minutes"] == minutes
+    else:
+        assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
 
 
 @pytest.mark.integration
-async def test_revoke_and_cancel(client: AsyncClient, session: AsyncSession):
-    owner = await create_user(session, email="owner5@example.com", role=UserRole.owner)
-    support = await create_user(
-        session, email="support5@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
+async def test_revoke_and_cancel(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user("owner")
+    support = await acting_user("support")
+    guild = await create_guild(session)
 
     # Cancel own pending.
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "cancel me"},
-        headers=get_auth_headers(support),
+    pending = await _request_access(client, support, guild, reason="cancel me")
+    cancelled = await client.delete(
+        f"{GRANTS}{pending.json()['id']}", headers=support.headers
     )
-    grant_id = resp.json()["id"]
-    resp = await client.delete(
-        f"/api/v1/access-grants/{grant_id}", headers=get_auth_headers(support)
-    )
-    assert resp.status_code == 204
+    assert cancelled.status_code == 204
 
     # Approve then revoke.
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "reason": "revoke me"},
-        headers=get_auth_headers(support),
-    )
-    grant_id = resp.json()["id"]
-    await client.post(
-        f"/api/v1/access-grants/{grant_id}/approve",
-        json={},
-        headers=get_auth_headers(owner),
-    )
-    resp = await client.post(
-        f"/api/v1/access-grants/{grant_id}/revoke", headers=get_auth_headers(owner)
-    )
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "revoked"
-    assert resp.json()["is_live"] is False
+    requested = await _request_access(client, support, guild, reason="revoke me")
+    grant_id = requested.json()["id"]
+    await client.post(f"{GRANTS}{grant_id}/approve", json={}, headers=owner.headers)
+    revoked = await client.post(f"{GRANTS}{grant_id}/revoke", headers=owner.headers)
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    assert revoked.json()["is_live"] is False
 
 
 @pytest.mark.integration
-async def test_grant_cannot_manage_project_members(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(
+    "tool,path,make",
+    [
+        pytest.param(Tool.project, "projects", create_project, id="a-project"),
+        pytest.param(
+            Tool.counter_group,
+            "counter-groups",
+            create_counter_group,
+            id="a-counter-group",
+        ),
+    ],
+)
+async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
+    client: AsyncClient, session: AsyncSession, acting_user, tool, path, make
 ):
-    """Even a read_write grant can't manage project members/permissions — a
-    grant confers content read/write only. Must be a clean 403, not a 500 from
-    the project_permissions write faulting under RLS."""
-    owner = await create_user(
-        session, email="owner-mm@example.com", role=UserRole.owner
-    )
-    support = await create_user(
-        session, email="support-mm@example.com", role=UserRole.support
-    )
-    target = await create_user(session, email="target-mm@example.com")
-    guild = await create_guild(session, creator=owner)
-    init = await create_initiative(session, guild, owner, name="Ops")
-    project = await create_project(session, init, owner, name="Site")
-    await _approved_read_grant(
-        session, user=support, guild=guild, owner=owner, level="read_write"
+    """A read_write grant carries content read/write, so managing a tool's
+    members is answered as a plain 403 with the tool's own code."""
+    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    support = await acting_user("support")
+    target = await acting_user()
+    resource = await make(session, host.initiative, host.user)
+    await _approved_grant(session, grantee=support, host=host, level="read_write")
+
+    resp = await client.put(
+        host.g(f"/{path}/{resource.id}/grants"),
+        json=[{"user_id": target.user.id, "level": "write"}],
+        headers=support.headers,
     )
 
-    headers = get_auth_headers(support)
-    resp = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        json=[{"user_id": target.id, "level": "write"}],
-        headers=headers,
-    )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == "PROJECT_GRANT_CANNOT_MANAGE_MEMBERS"
+    assert resp.json()["detail"] == tool.grant_cannot_manage_members_code
 
 
 @pytest.mark.integration
-async def test_grant_cannot_manage_counter_group_access(
-    client: AsyncClient, session: AsyncSession
+async def test_grantee_sees_guild_content(
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A read_write grant can't manage counter group access (a grant confers
-    content read/write only) — clean 403, not 500."""
-    from app.models.tenant.counter import CounterGroup
-
-    owner = await create_user(
-        session, email="owner-cg@example.com", role=UserRole.owner
-    )
-    support = await create_user(
-        session, email="support-cg@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
-    init = await create_initiative(session, guild, owner, name="Stats Wing")
-    cg = CounterGroup(
-        guild_id=guild.id, initiative_id=init.id, name="Stats", created_by=owner.id
-    )
-    session.add(cg)
-    await session.commit()
-    await session.refresh(cg)
-    await _approved_read_grant(
-        session, user=support, guild=guild, owner=owner, level="read_write"
-    )
-
-    headers = get_auth_headers(support)
-    resp = await client.put(
-        f"/api/v1/g/{guild.id}/counter-groups/{cg.id}/grants",
-        json=[],
-        headers=headers,
-    )
-    assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == "COUNTER_GROUP_GRANT_CANNOT_MANAGE_MEMBERS"
-
-
-@pytest.mark.integration
-async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSession):
     """A read grant exposes the guild's initiatives/projects in the list
     endpoints — not just RLS, but the app-layer membership filters too (the
     'empty guild' bug)."""
-    owner = await create_user(
-        session, email="owner-content@example.com", role=UserRole.owner
+    host = await acting_user(
+        "owner", guild_role=GuildRole.admin, initiative=True, project=True
     )
-    support = await create_user(
-        session, email="support-content@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
-    init = await create_initiative(session, guild, owner, name="Recon Wing")
-    project = await create_project(session, init, owner, name="Alpha Site")
-    await _approved_read_grant(session, user=support, guild=guild, owner=owner)
+    support = await acting_user("support")
+    await _approved_grant(session, grantee=support, host=host)
 
-    headers = get_auth_headers(support)
+    headers = support.headers
+    initiatives = await client.get(host.g("/initiatives/"), headers=headers)
+    assert initiatives.status_code == 200, initiatives.text
+    assert any(i["id"] == host.initiative.id for i in initiatives.json())
 
-    resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
-    assert resp.status_code == 200, resp.text
-    assert any(i["name"] == "Recon Wing" for i in resp.json()), (
-        "grantee should see the initiative"
-    )
-
-    resp = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
+    projects = await client.get(host.g("/projects/"), headers=headers)
+    assert projects.status_code == 200, projects.text
+    body = projects.json()
     items = body["items"] if isinstance(body, dict) and "items" in body else body
-    assert any(p["name"] == "Alpha Site" for p in items), (
-        "grantee should see the project"
-    )
+    assert any(p["id"] == host.project.id for p in items)
 
-    # Initiative tool views: a grantee has no membership row, so these used to
-    # 403. They should now succeed (read-only, never manager).
-    resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
+    # Initiative tool views: a grantee has no membership row, and reads them
+    # read-only, never as a manager.
+    perms = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}/my-permissions"), headers=headers
     )
-    assert resp.status_code == 200, resp.text
-    perms = resp.json()
-    assert perms["is_manager"] is False, "a grant never confers initiative management"
-    assert perms["permissions"]["create_projects"] is False, (
-        "read grant must not create"
-    )
+    assert perms.status_code == 200, perms.text
+    assert perms.json()["is_manager"] is False
+    assert perms.json()["permissions"]["create_projects"] is False
 
-    resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{init.id}/members", headers=headers
+    members = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}/members"), headers=headers
     )
-    assert resp.status_code == 200, resp.text
+    assert members.status_code == 200, members.text
 
-    resp = await client.get(f"/api/v1/g/{guild.id}/calendar-events/", headers=headers)
-    assert resp.status_code == 200, resp.text
+    events = await client.get(host.g("/calendar-events/"), headers=headers)
+    assert events.status_code == 200, events.text
 
-    # Recording a recent view must not 500 (the recent_views guild policy would
-    # reject a grantee's INSERT; we skip persistence instead).
-    resp = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    # Recording a recent view answers rather than faulting: a grantee's own
+    # view is simply not persisted.
+    viewed = await client.post(
+        host.g(f"/projects/{host.project.id}/view"), headers=headers
     )
-    assert resp.status_code == 200, resp.text
+    assert viewed.status_code == 200, viewed.text
 
 
 @pytest.mark.integration
-async def test_scoped_read_write_grant_cannot_author_tools(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize("tier", ["moderator", "operator"])
+async def test_a_scoped_read_write_grant_cannot_author_tools(
+    client: AsyncClient, session: AsyncSession, acting_user, tier
 ):
     """A scoped read_write grant edits *existing* content only. Authoring a
     new top-level tool is an initiative-role permission a grantee never holds,
-    so ``my-permissions`` must report every create flag off (the UI keys its
-    create affordances on these flags) while view flags stay on — and an
-    actual create attempt is denied."""
-    owner = await create_user(
-        session, email="owner-scoped-rw@example.com", role=UserRole.owner
-    )
-    moderator = await create_user(
-        session, email="moderator-scoped-rw@example.com", role=UserRole.moderator
-    )
-    guild = await create_guild(session, creator=owner)
-    init = await create_initiative(session, guild, owner, name="Scoped Wing")
-    await _approved_read_grant(
-        session, user=moderator, guild=guild, owner=owner, level="read_write"
-    )
+    so ``my-permissions`` reports every create flag off (the UI keys its create
+    affordances on these flags) while view flags stay on — and an actual create
+    attempt is denied.
 
-    headers = get_auth_headers(moderator)
+    Parametrised over a tier that holds ``data.bypass`` and one that does not:
+    holding it changes nothing about what a content grant is. It used to be
+    answered from the guild-admin branch, so the create flags came back on for
+    an operator; a grant reaches existing content, and authoring is not part of
+    it whoever holds it.
+    """
+    host = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
+    grantee = await acting_user(tier)
+    await _approved_grant(session, grantee=grantee, host=host, level="read_write")
 
-    resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
+    perms = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}/my-permissions"),
+        headers=grantee.headers,
     )
-    assert resp.status_code == 200, resp.text
-    perms = resp.json()
-    assert perms["is_manager"] is False
+    assert perms.status_code == 200, perms.text
+    permissions = perms.json()["permissions"]
+    assert perms.json()["is_manager"] is False
     for tool in Tool:
-        assert perms["permissions"][tool.create_permission] is False, (
+        assert permissions[tool.create_permission] is False, (
             f"scoped read_write grant must not author {tool.plural}"
         )
     # View access is unaffected — core tools stay visible.
-    assert perms["permissions"]["projects_enabled"] is True
-    assert perms["permissions"]["documents_enabled"] is True
+    assert permissions["projects_enabled"] is True
+    assert permissions["documents_enabled"] is True
 
-    resp = await client.post(
-        f"/api/v1/g/{guild.id}/projects/",
-        headers=headers,
-        json={"name": "Grantee Project", "initiative_id": init.id},
+    created = await client.post(
+        host.g("/projects/"),
+        headers=grantee.headers,
+        json={"name": "Grantee Project", "initiative_id": host.initiative.id},
     )
-    assert resp.status_code == 403, resp.text
-
-
-@pytest.mark.integration
-async def test_an_operators_read_write_grant_reports_the_same_as_supports(
-    client: AsyncClient, session: AsyncSession
-):
-    """Holding ``data.bypass`` changes nothing about what a content grant is.
-
-    It used to be answered from the guild-admin branch, so the create flags
-    came back on. There is no such branch now: a grant reaches existing
-    content, and authoring is not part of it whoever holds it.
-    """
-    owner = await create_user(
-        session, email="owner-bg-perms@example.com", role=UserRole.owner
-    )
-    operator = await create_user(
-        session, email="operator-bg-perms@example.com", role=UserRole.operator
-    )
-    guild = await create_guild(session, creator=owner)
-    init = await create_initiative(session, guild, owner, name="Break Glass Wing")
-    await _approved_read_grant(
-        session, user=operator, guild=guild, owner=owner, level="read_write"
-    )
-
-    headers = get_auth_headers(operator)
-
-    resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
-    )
-    assert resp.status_code == 200, resp.text
-    perms = resp.json()
-    assert perms["is_manager"] is False
-    assert perms["permissions"]["create_projects"] is False
-    assert perms["permissions"]["create_documents"] is False
+    assert created.status_code == 403, created.text
 
 
 @pytest.mark.integration
 async def test_grant_read_carries_guild_status(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A grantee's own grant list carries the guild's lifecycle status, so an
     operator sees they're acting in a suspended / read-only guild (surfaced in
-    the access banner). Not disclosed to plain members — this is operator context."""
+    the access banner). Not disclosed to plain members — this is operator
+    context."""
     from app.models.platform.guild import GuildStatus
 
-    owner = await create_user(
-        session, email="owner-gstatus-grant@example.com", role=UserRole.owner
-    )
-    support = await create_user(
-        session, email="support-gstatus-grant@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
-    await _approved_read_grant(session, user=support, guild=guild, owner=owner)
+    host = await acting_user("owner", guild_role=GuildRole.admin)
+    support = await acting_user("support")
+    await _approved_grant(session, grantee=support, host=host)
 
-    guild.status = GuildStatus.suspended.value
-    session.add(guild)
+    host.guild.status = GuildStatus.suspended.value
+    session.add(host.guild)
     await session.commit()
 
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=true", headers=get_auth_headers(support)
-    )
-    assert resp.status_code == 200, resp.text
-    mine = [g for g in resp.json() if g["guild_id"] == guild.id]
-    assert mine and mine[0]["guild_status"] == "suspended"
-
-
-@pytest.mark.integration
-async def test_approval_queue_masks_addresses(
-    client: AsyncClient, session: AsyncSession
-):
-    """The queue names who is asking, and masks their address.
-
-    Both enrichment fields are assigned after the row is validated, so this
-    also covers the masking applying on assignment rather than only on the way
-    in.
-    """
-    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
-    support = await create_user(
-        session, email="support@example.com", role=UserRole.support
-    )
-    guild = await create_guild(session, creator=owner)
-
-    resp = await client.post(
-        "/api/v1/access-grants/",
-        json={"guild_id": guild.id, "access_level": "read", "reason": "a ticket"},
-        headers=get_auth_headers(support),
-    )
-    assert resp.status_code == 201, resp.text
-    grant_id = resp.json()["id"]
-
-    resp = await client.get(
-        "/api/v1/access-grants/?mine=false&status=pending",
-        headers=get_auth_headers(owner),
-    )
-    assert resp.status_code == 200
-    row = next(g for g in resp.json() if g["id"] == grant_id)
-    assert row["user_email"] == "s***t@e***m"
-
-    resp = await client.post(
-        f"/api/v1/access-grants/{grant_id}/approve",
-        json={},
-        headers=get_auth_headers(owner),
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["approved_by_email"] == "o***r@e***m"
-    assert "@example.com" not in resp.text
+    mine = await client.get(f"{GRANTS}?mine=true", headers=support.headers)
+    assert mine.status_code == 200, mine.text
+    rows = [g for g in mine.json() if g["guild_id"] == host.guild.id]
+    assert rows and rows[0]["guild_status"] == "suspended"

@@ -1191,39 +1191,30 @@ class TestListParams:
         assert response.status_code == 400
         assert response.json()["detail"] == AppDataMessages.INVALID_PARAMS
 
-    async def test_an_array_for_a_single_parameter_is_refused(
-        self, client, acting_user, session, upstream
+    @pytest.mark.parametrize(
+        "params",
+        [
+            '{"shop":["north"]}',
+            # "None of them" is a parameter that is absent. An array with
+            # nothing in it is a request nobody meant to make.
+            '{"tags":[]}',
+            '{"tags":["red",7]}',
+        ],
+        ids=[
+            "an array for a single parameter",
+            "an empty array",
+            "an entry of the wrong type",
+        ],
+    )
+    async def test_a_value_the_declaration_does_not_describe_never_reaches_the_app(
+        self, client, acting_user, session, upstream, params
     ):
+        """Cardinality and type are both read off the declaration, and a value
+        that answers neither is refused here rather than forwarded."""
         a, app, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"shop":["north"]}'),
-            headers=a.headers,
-        )
-        assert response.status_code == 400
-        assert upstream.count == 0
-
-    async def test_an_empty_array_is_refused_rather_than_sent(
-        self, client, acting_user, session, upstream
-    ):
-        """ "None of them" is a parameter that is absent. An array with nothing
-        in it is a request nobody meant to make."""
-        a, app, dashboard = await _workspace(session, acting_user)
-
-        response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":[]}'),
-            headers=a.headers,
-        )
-        assert response.status_code == 400
-        assert upstream.count == 0
-
-    async def test_every_entry_is_held_to_the_declared_type(
-        self, client, acting_user, session, upstream
-    ):
-        a, app, dashboard = await _workspace(session, acting_user)
-
-        response = await client.get(
-            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red",7]}'),
+            _url(a, app, ORDERS_SUMMARY, dashboard, params=params),
             headers=a.headers,
         )
         assert response.status_code == 400

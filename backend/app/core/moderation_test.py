@@ -72,15 +72,13 @@ def test_every_outcome_closes_a_report():
 
 
 def test_every_platform_target_names_a_public_relation():
-    """A member added later cannot ship unresolvable.
-
-    And it must name a relation the *reporter* can read: ``public.users`` is
+    """Each target names a relation the *reporter* can read: ``public.users`` is
     own-row for a platform-tier session, so checking against it would answer
-    "not found" for every account but your own.
+    "not found" for every account but your own. That every target has an entry
+    at all is a row in ``core/registry_coverage_test.py``.
     """
     from app.core.moderation import PLATFORM_TARGET_RELATION
 
-    assert set(PLATFORM_TARGET_RELATION) == set(PlatformReportTarget)
     assert set(PLATFORM_TARGET_RELATION.values()) <= {"user_profiles", "guilds"}
     assert "users" not in set(PLATFORM_TARGET_RELATION.values())
 

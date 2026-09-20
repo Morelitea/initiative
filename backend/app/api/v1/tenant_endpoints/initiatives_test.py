@@ -9,22 +9,21 @@ Tests the initiative API endpoints at /api/v1/initiatives including:
 - Managing initiative members (add, remove, update roles)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import InitiativeMessages
+from app.core.messages import GuildMessages, InitiativeMessages
+from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import create_user, get_auth_headers, set_notification_prefs
-from app.testing.factories import create_guild_membership, create_initiative_member
+from app.testing import set_notification_prefs
 from app.testing.factories import create_initiative
 
 
@@ -38,10 +37,6 @@ async def _live_grant(
     purpose: str = "content",
 ):
     """An approved, currently-live access grant — the PAM branch of GuildContext."""
-    from datetime import datetime, timedelta, timezone
-
-    from app.models.platform.access_grant import AccessGrant
-
     now = datetime.now(timezone.utc)
     session.add(
         AccessGrant(
@@ -61,275 +56,365 @@ async def _live_grant(
     await session.commit()
 
 
-@pytest.mark.integration
-async def test_list_initiatives_returns_own_memberships(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The default listing is the caller's own workspace."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-
-    # Create multiple initiatives (factory creates builtin roles + PM membership)
-    await create_initiative(session, admin.guild, admin.user, name="Initiative 1")
-    await create_initiative(session, admin.guild, admin.user, name="Initiative 2")
-
-    response = await client.get(admin.g("/initiatives/"), headers=admin.headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) >= 2
-    initiative_names = {init["name"] for init in data}
-    assert "Initiative 1" in initiative_names
-    assert "Initiative 2" in initiative_names
+async def _initiative_with_owner(session: AsyncSession, acting_user, **overrides):
+    """A plain guild member and the initiative they created — and therefore
+    manage — in their guild."""
+    overrides.setdefault("name", "Doorway")
+    owner = await acting_user(guild_role=GuildRole.member)
+    initiative = await create_initiative(session, owner.guild, owner.user, **overrides)
+    return owner, initiative
 
 
-@pytest.mark.integration
-async def test_list_initiatives_omits_ones_admin_has_not_joined(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin's navigation is their memberships, not the whole guild."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-    await create_initiative(session, admin.guild, other.user, name="Not Admin's")
-
-    response = await client.get(admin.g("/initiatives/"), headers=admin.headers)
-
-    assert response.status_code == 200
-    assert "Not Admin's" not in {init["name"] for init in response.json()}
-
-
-@pytest.mark.integration
-async def test_list_initiatives_guild_scope_shows_all_for_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """``scope=guild`` is the guild-settings management listing."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-    await create_initiative(session, admin.guild, other.user, name="Not Admin's")
-
-    response = await client.get(
-        admin.g("/initiatives/?scope=guild"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    assert "Not Admin's" in {init["name"] for init in response.json()}
-
-
-@pytest.mark.integration
-async def test_list_initiatives_shows_whole_guild_to_a_scoped_grantee(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A grantee holds no membership in the guild — the grant is what they
-    navigate by, so the default listing stays the whole guild for its window."""
-    owner = await acting_user(guild_role=GuildRole.admin)
-    await create_initiative(session, owner.guild, owner.user, name="Apollo")
-
-    support = await create_user(session, role=UserRole.support)
-    await _live_grant(
-        session, user=support, guild=owner.guild, approver=owner.user, level="read"
-    )
-
-    response = await client.get(
-        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=get_auth_headers(support)
-    )
-
-    assert response.status_code == 200, response.text
-    assert "Apollo" in {init["name"] for init in response.json()}
-
-
-@pytest.mark.integration
-async def test_list_initiatives_shows_whole_guild_to_break_glass(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Break-glass acts as a full guild admin for its window, in a guild the
-    holder is not a member of."""
-    owner = await acting_user(guild_role=GuildRole.admin)
-    await create_initiative(session, owner.guild, owner.user, name="Apollo")
-
-    operator = await create_user(session, role=UserRole.operator)
-    await _live_grant(
-        session,
-        user=operator,
+async def _caller(acting_user, kind: str, owner, initiative):
+    """One of the three standings an initiative answers to: ``manager`` is the
+    person who made it, ``admin`` a guild admin who never joined it, and
+    ``member`` a plain member of it."""
+    if kind == "manager":
+        return owner
+    if kind == "admin":
+        return await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    return await acting_user(
+        guild_role=GuildRole.member,
         guild=owner.guild,
-        approver=owner.user,
-        level="read_write",
+        initiative=initiative,
+        initiative_role="member",
     )
 
-    response = await client.get(
-        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=get_auth_headers(operator)
+
+async def _project_shared_with_the_initiative(session: AsyncSession, initiative, owner):
+    """A project every member of the initiative may read, so that the
+    membership row is the only thing that changes when somebody joins."""
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+    from app.testing.factories import create_project
+    from app.testing.schema_harness import route_session_to_guild
+
+    project = await create_project(session, initiative, owner, name="Shared work")
+    await route_session_to_guild(session, initiative.guild_id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=initiative.guild_id,
+            initiative_id=initiative.id,
+        )
+    )
+    await session.commit()
+    return project
+
+
+async def _notifications_for(
+    session: AsyncSession, user_id: int, ntype: NotificationType
+) -> list[Notification]:
+    result = await session.exec(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == ntype,
+        )
+    )
+    return list(result.all())
+
+
+async def _requestable(session: AsyncSession, actor, **overrides):
+    """A `request`-policy initiative managed by ``actor``."""
+    return await create_initiative(
+        session,
+        actor.guild,
+        actor.user,
+        join_policy="request",
+        **overrides,
     )
 
-    assert response.status_code == 200, response.text
-    assert "Apollo" in {init["name"] for init in response.json()}
+
+async def _knocked_on(
+    client: AsyncClient, session: AsyncSession, acting_user, count: int = 2
+):
+    """A request-policy initiative with ``count`` guild members waiting at it.
+
+    Returns its manager, the initiative, and each asker paired with the id of
+    the request they left.
+    """
+    owner, initiative = await _initiative_with_owner(
+        session, acting_user, name="Knockable", join_policy="request"
+    )
+    knocks = []
+    for _ in range(count):
+        asker = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        created = await client.post(
+            asker.g(f"/initiatives/{initiative.id}/join-requests"),
+            headers=asker.headers,
+            json={},
+        )
+        assert created.status_code == 201, created.text
+        knocks.append((asker, created.json()["id"]))
+    return owner, initiative, knocks
+
+
+def _capture_join_request_emails(monkeypatch) -> list[dict]:
+    """Record every join-request email instead of reaching SMTP."""
+    sent: list[dict] = []
+
+    async def _fake_email(
+        _session,
+        recipient,
+        *,
+        event,
+        initiative_name,
+        link,
+        requester=None,
+        message=None,
+    ):
+        sent.append(
+            {
+                "recipient_id": recipient.id,
+                "event": event,
+                "initiative_name": initiative_name,
+                "link": link,
+                "requester": requester,
+                "message": message,
+            }
+        )
+
+    monkeypatch.setattr(
+        email_service, "send_initiative_join_request_email", _fake_email
+    )
+    return sent
 
 
 @pytest.mark.integration
-async def test_scoped_grantee_reads_an_initiative_it_holds_no_membership_in(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    "caller_role",
+    [GuildRole.admin, GuildRole.member],
+    ids=["a guild admin", "a plain member"],
+)
+async def test_the_default_listing_is_the_callers_own_memberships(
+    client: AsyncClient, session: AsyncSession, acting_user, caller_role: GuildRole
+):
+    """The default listing is navigation rather than authority: it is what the
+    caller joined, for a guild admin exactly as for anyone else."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(session, owner.guild, owner.user, name="Theirs")
+    caller = await acting_user(
+        guild_role=caller_role, guild=owner.guild, initiative=True
+    )
+
+    response = await client.get(caller.g("/initiatives/"), headers=caller.headers)
+
+    assert response.status_code == 200
+    listed = {entry["name"] for entry in response.json()}
+    assert caller.initiative.name in listed
+    assert "Theirs" not in listed
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("caller_role", "status_code"),
+    [(GuildRole.admin, 200), (GuildRole.member, 403)],
+    ids=["a guild admin", "a plain member"],
+)
+async def test_guild_scope_lists_the_whole_guild_for_admins_only(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    caller_role: GuildRole,
+    status_code: int,
+):
+    """``scope=guild`` is the guild-settings management listing: every
+    initiative in the guild, including the ones the caller never joined."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(session, owner.guild, owner.user, name="Theirs")
+    caller = await acting_user(guild_role=caller_role, guild=owner.guild)
+
+    response = await client.get(
+        caller.g("/initiatives/?scope=guild"), headers=caller.headers
+    )
+
+    assert response.status_code == status_code, response.text
+    if status_code == 200:
+        assert "Theirs" in {entry["name"] for entry in response.json()}
+    else:
+        assert response.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("caller", "status_code"),
+    [("grantee", 200), ("outsider", 403)],
+    ids=["a live read grant", "a guild member outside it"],
+)
+async def test_reading_an_initiative_by_id_answers_each_caller(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    caller: str,
+    status_code: int,
 ):
     """The initiative and its roles are addressable by id for a grantee — the
-    pages that open one resolve it that way rather than from a roster."""
+    pages that open one resolve it that way rather than from a roster. The
+    grantee leg widened nothing for an ordinary member of the guild.
+    """
     owner = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
         session, owner.guild, owner.user, name="Apollo"
     )
+    if caller == "grantee":
+        actor = await acting_user("support")
+        await _live_grant(
+            session,
+            user=actor.user,
+            guild=owner.guild,
+            approver=owner.user,
+            level="read",
+        )
+    else:
+        actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
-    support = await create_user(session, role=UserRole.support)
-    await _live_grant(
-        session, user=support, guild=owner.guild, approver=owner.user, level="read"
-    )
-    headers = get_auth_headers(support)
     base = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+    detail = await client.get(base, headers=actor.headers)
 
-    detail = await client.get(base, headers=headers)
-    assert detail.status_code == 200, detail.text
+    assert detail.status_code == status_code, detail.text
+    if status_code != 200:
+        assert detail.json()["detail"] == InitiativeMessages.NOT_A_MEMBER
+        return
+
     assert detail.json()["name"] == "Apollo"
-
-    roles = await client.get(f"{base}/roles", headers=headers)
+    roles = await client.get(f"{base}/roles", headers=actor.headers)
     assert roles.status_code == 200, roles.text
     assert "project_manager" in {role["name"] for role in roles.json()}
 
 
 @pytest.mark.integration
-async def test_guild_member_outside_an_initiative_still_cannot_read_it(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("tier", "level"),
+    [("support", "read"), ("operator", "read_write")],
+    ids=["a scoped read grant", "break-glass"],
+)
+async def test_a_live_grant_lists_the_whole_guild_it_reaches(
+    client: AsyncClient, session: AsyncSession, acting_user, tier: str, level: str
 ):
-    """The grantee leg widened nothing for an ordinary member of the guild."""
+    """A grantee holds no membership in the guild — the grant is what they
+    navigate by, so the default listing stays the whole guild for its window.
+    Break-glass reads it the same way, as a full guild admin for that window.
+    """
     owner = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, owner.guild, owner.user, name="Apollo"
+    await create_initiative(session, owner.guild, owner.user, name="Apollo")
+    grantee = await acting_user(tier)
+    await _live_grant(
+        session, user=grantee.user, guild=owner.guild, approver=owner.user, level=level
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
     response = await client.get(
-        outsider.g(f"/initiatives/{initiative.id}"), headers=outsider.headers
+        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=grantee.headers
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
+    assert response.status_code == 200, response.text
+    assert "Apollo" in {entry["name"] for entry in response.json()}
 
 
 @pytest.mark.integration
-async def test_list_initiatives_guild_scope_requires_guild_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("verb", "caller", "target", "status_code", "detail"),
+    [
+        ("create", "admin", "own", 201, None),
+        ("create", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("create", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("update", "admin", "own", 200, None),
+        ("update", "manager", "own", 200, None),
+        ("update", "member", "own", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("archive", "admin", "own", 200, None),
+        ("archive", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("archive", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "admin", "own", 204, None),
+        ("delete", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("delete", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("delete", "admin", "default", 400, InitiativeMessages.CANNOT_DELETE_DEFAULT),
+    ],
+)
+async def test_initiative_crud_answers_each_caller(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    verb: str,
+    caller: str,
+    target: str,
+    status_code: int,
+    detail: str | None,
 ):
-    member = await acting_user(guild_role=GuildRole.member)
+    """What an initiative answers to depends on what is being asked of it.
 
-    response = await client.get(
-        member.g("/initiatives/?scope=guild"), headers=member.headers
-    )
+    Putting one in the guild, filing it away, or taking it out of the guild
+    altogether is the guild's decision and takes a guild admin; editing what an
+    initiative says is its managers' decision. A guild admin reaches every
+    initiative in their guild without holding a membership row in it. The
+    guild's default initiative stays.
+    """
+    owner, initiative = await _initiative_with_owner(session, acting_user)
+    actor = await _caller(acting_user, caller, owner, initiative)
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+    if target == "default":
+        initiative = await create_initiative(
+            session, owner.guild, owner.user, name="House", is_default=True
+        )
+
+    if verb == "create":
+        response = await client.post(
+            actor.g("/initiatives/"), headers=actor.headers, json={"name": "Fresh"}
+        )
+    elif verb == "update":
+        response = await client.patch(
+            actor.g(f"/initiatives/{initiative.id}"),
+            headers=actor.headers,
+            json={"name": "Renamed"},
+        )
+    elif verb == "archive":
+        response = await client.post(
+            actor.g(f"/archive/initiative/{initiative.id}"), headers=actor.headers
+        )
+    else:
+        response = await client.delete(
+            actor.g(f"/initiatives/{initiative.id}"), headers=actor.headers
+        )
+
+    assert response.status_code == status_code, response.text
+    if detail is not None:
+        assert response.json()["detail"] == detail
 
 
 @pytest.mark.integration
-async def test_list_initiatives_as_member_shows_only_membership(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("asked_for", "expected_policy"),
+    [({}, "private"), ({"join_policy": "open"}, "open")],
+    ids=["a closed door by default", "an open one on request"],
+)
+async def test_creating_an_initiative_records_what_it_was_given(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    asked_for: dict,
+    expected_policy: str,
 ):
-    """Test that regular members only see initiatives they're part of."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-
-    # Create two initiatives
-    initiative1 = await create_initiative(
-        session, admin.guild, admin.user, name="Member's Initiative"
-    )
-    await create_initiative(session, admin.guild, admin.user, name="Other Initiative")
-
-    # Add member to only initiative1
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=initiative1,
-        initiative_role="member",
-    )
-
-    response = await client.get(member.g("/initiatives/"), headers=member.headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    initiative_names = {init["name"] for init in data}
-    assert "Member's Initiative" in initiative_names
-    assert "Other Initiative" not in initiative_names
-
-
-@pytest.mark.integration
-async def test_create_initiative_as_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that guild admin can create initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-
-    payload = {
-        "name": "New Initiative",
-        "description": "A test initiative",
-        "color": "#FF0000",
-    }
-
-    response = await client.post(
-        admin.g("/initiatives/"), headers=admin.headers, json=payload
-    )
-
-    assert response.status_code == 201
-    data = response.json()
-    assert data["name"] == "New Initiative"
-    assert data["description"] == "A test initiative"
-    assert data["color"] == "#FF0000"
-    assert data["join_policy"] == "private"
-
-
-@pytest.mark.integration
-async def test_create_initiative_with_join_policy(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The creation payload may set the join policy directly."""
+    """The creation payload lands as given, and a join policy nobody mentioned
+    settles on the closed one."""
     admin = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.post(
         admin.g("/initiatives/"),
         headers=admin.headers,
-        json={"name": "Open Initiative", "join_policy": "open"},
+        json={
+            "name": "New Initiative",
+            "description": "A test initiative",
+            "color": "#FF0000",
+            **asked_for,
+        },
     )
 
-    assert response.status_code == 201
-    assert response.json()["join_policy"] == "open"
-
-
-@pytest.mark.integration
-async def test_create_initiative_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that regular members cannot create initiatives."""
-    member = await acting_user(guild_role=GuildRole.member)
-
-    payload = {"name": "New Initiative"}
-
-    response = await client.post(
-        member.g("/initiatives/"), headers=member.headers, json=payload
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_create_initiative_duplicate_name_fails(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that duplicate initiative names are rejected."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-
-    # Create first initiative
-    await create_initiative(
-        session, admin.guild, admin.user, name="Existing Initiative"
-    )
-
-    payload = {"name": "Existing Initiative"}
-
-    response = await client.post(
-        admin.g("/initiatives/"), headers=admin.headers, json=payload
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "INITIATIVE_NAME_EXISTS"
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["name"] == "New Initiative"
+    assert data["description"] == "A test initiative"
+    assert data["color"] == "#FF0000"
+    assert data["join_policy"] == expected_policy
 
 
 @pytest.mark.integration
@@ -354,19 +439,16 @@ async def test_create_initiative_makes_creator_manager(
 
 
 @pytest.mark.integration
-async def test_update_initiative_as_manager(
+async def test_updating_an_initiative_records_the_new_name_and_description(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that initiative manager can update initiative."""
-    # A plain guild member who creates (and therefore manages) an initiative.
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    payload = {"name": "Updated Initiative", "description": "Updated description"}
+    """The patch lands as given."""
+    owner, initiative = await _initiative_with_owner(session, acting_user)
 
     response = await client.patch(
-        manager.g(f"/initiatives/{manager.initiative.id}"),
-        headers=manager.headers,
-        json=payload,
+        owner.g(f"/initiatives/{initiative.id}"),
+        headers=owner.headers,
+        json={"name": "Updated Initiative", "description": "Updated description"},
     )
 
     assert response.status_code == 200
@@ -376,103 +458,58 @@ async def test_update_initiative_as_manager(
 
 
 @pytest.mark.integration
-async def test_update_initiative_as_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize("verb", ["create", "update"], ids=["creating", "renaming"])
+async def test_an_initiative_name_is_taken_only_once(
+    client: AsyncClient, session: AsyncSession, acting_user, verb: str
 ):
-    """Test that guild admin can update any initiative."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
-
-    payload = {"name": "Admin Updated"}
-
-    response = await client.patch(
-        admin.g(f"/initiatives/{manager.initiative.id}"),
-        headers=admin.headers,
-        json=payload,
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["name"] == "Admin Updated"
-
-
-@pytest.mark.integration
-async def test_update_initiative_as_regular_member_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that regular members cannot update initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-
-    payload = {"name": "Hacked Name"}
-
-    response = await client.patch(
-        member.g(f"/initiatives/{admin.initiative.id}"),
-        headers=member.headers,
-        json=payload,
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_update_initiative_duplicate_name_fails(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that renaming to existing name fails."""
+    """A guild's initiative names are unique, however the name arrives."""
     admin = await acting_user(guild_role=GuildRole.admin)
-
-    initiative1 = await create_initiative(
+    mine = await create_initiative(
         session, admin.guild, admin.user, name="Initiative 1"
     )
     await create_initiative(session, admin.guild, admin.user, name="Initiative 2")
 
-    payload = {"name": "Initiative 2"}
-
-    response = await client.patch(
-        admin.g(f"/initiatives/{initiative1.id}"),
-        headers=admin.headers,
-        json=payload,
-    )
+    if verb == "create":
+        response = await client.post(
+            admin.g("/initiatives/"),
+            headers=admin.headers,
+            json={"name": "Initiative 2"},
+        )
+    else:
+        response = await client.patch(
+            admin.g(f"/initiatives/{mine.id}"),
+            headers=admin.headers,
+            json={"name": "Initiative 2"},
+        )
 
     assert response.status_code == 409
+    assert response.json()["detail"] == InitiativeMessages.NAME_EXISTS
 
 
 # ── Archive ──────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.integration
-async def test_initiative_is_not_archived_to_begin_with(
+async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A freshly created initiative is not archived."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(session, admin.guild, admin.user, name="Fresh")
+    """A fresh initiative carries no archive stamp; a guild admin sets one
+    through the polymorphic archive endpoint and takes it off again.
 
-    response = await client.get(
-        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    assert response.json()["archived_at"] is None
-
-
-@pytest.mark.integration
-async def test_archive_initiative(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin can archive (and unarchive) an initiative through the
-    polymorphic archive endpoint; it stays in the list either way (the settings
-    table manages it there)."""
+    It stays in the guild listing either way — only the sidebar filters
+    archived initiatives client-side, and the settings table has to keep seeing
+    them.
+    """
     admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Archivable"
     )
+
+    fresh = await client.get(
+        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
+    )
+    assert fresh.status_code == 200
+    assert fresh.json()["archived_at"] is None
 
     archive = await client.post(
         admin.g(f"/archive/initiative/{initiative.id}"), headers=admin.headers
@@ -480,8 +517,6 @@ async def test_archive_initiative(
     assert archive.status_code == 200
     assert archive.json()["archived_at"] is not None
 
-    # Archived initiatives are NOT removed from the list — only the sidebar
-    # filters them client-side; the settings table must still see them.
     listing = await client.get(
         admin.g("/initiatives/?scope=guild"), headers=admin.headers
     )
@@ -494,125 +529,6 @@ async def test_archive_initiative(
     )
     assert unarchive.status_code == 200
     assert unarchive.json()["archived_at"] is None
-
-
-@pytest.mark.integration
-async def test_archive_initiative_as_manager_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Archiving is guild-admin only. A plain initiative manager (who may edit
-    other settings here) is rejected."""
-    # Creator becomes the initiative's PM (manager) but is not a guild admin.
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    # A non-archive edit still works for a manager...
-    ok = await client.patch(
-        manager.g(f"/initiatives/{manager.initiative.id}"),
-        headers=manager.headers,
-        json={"description": "Edited by manager"},
-    )
-    assert ok.status_code == 200
-
-    # ...but archiving is admin-only.
-    forbidden = await client.post(
-        manager.g(f"/archive/initiative/{manager.initiative.id}"),
-        headers=manager.headers,
-    )
-    assert forbidden.status_code == 403
-    assert forbidden.json()["detail"] == "GUILD_ADMIN_REQUIRED"
-
-
-@pytest.mark.integration
-async def test_delete_initiative_as_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that guild admin can delete initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="To Delete"
-    )
-
-    response = await client.delete(
-        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
-    )
-
-    assert response.status_code == 204
-
-
-@pytest.mark.integration
-async def test_delete_initiative_as_manager_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that initiative manager cannot delete initiatives."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    response = await client.delete(
-        manager.g(f"/initiatives/{manager.initiative.id}"), headers=manager.headers
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_delete_default_initiative_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that default initiative cannot be deleted."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-
-    # Create and mark as default
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Default Initiative", is_default=True
-    )
-
-    response = await client.delete(
-        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_CANNOT_DELETE_DEFAULT"
-
-
-@pytest.mark.integration
-async def test_get_initiative_members(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test getting all members of an initiative."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Test Initiative"
-    )
-    member1 = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=initiative,
-        initiative_role="member",
-        email="member1@example.com",
-        full_name="Member One",
-    )
-    member2 = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=initiative,
-        initiative_role="member",
-        email="member2@example.com",
-        full_name="Member Two",
-    )
-
-    response = await client.get(
-        admin.g(f"/initiatives/{initiative.id}/members"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) >= 3
-    # A roster names members by handle. An address is never a guild's to hand
-    # out, so it is absent from the shape entirely.
-    handles = {user["username"] for user in data}
-    assert admin.user.username in handles
-    assert member1.user.username in handles
-    assert member2.user.username in handles
-    assert all("email" not in user for user in data)
 
 
 @pytest.mark.integration
@@ -743,95 +659,96 @@ async def test_search_initiative_members_filters_by_user_id(
 
 
 @pytest.mark.integration
-async def test_search_initiative_members_as_nonmember_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("endpoint", "caller", "status_code"),
+    [
+        ("/members", "insider", 200),
+        ("/members", "admin", 200),
+        ("/members", "outsider", 403),
+        ("/members/search", "insider", 200),
+        ("/members/search", "admin", 200),
+        ("/members/search", "outsider", 403),
+    ],
+)
+async def test_the_roster_answers_its_members_and_a_guild_admin(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    endpoint: str,
+    caller: str,
+    status_code: int,
 ):
-    """A plain guild member outside the initiative is locked out of the slim
-    roster, mirroring the full members endpoint."""
-    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
+    """The roster names everyone in the initiative, to everyone in it.
+
+    A guild admin reads it too, without ever having joined — the same
+    guild-admin override every other initiative read honors, and what the
+    assignee and linked-member pickers run on. A plain guild member outside the
+    initiative stays out. The slim search answers exactly as the full roster
+    does.
+    """
+    owner, initiative = await _initiative_with_owner(session, acting_user)
+    insider = await _caller(acting_user, "member", owner, initiative)
+    if caller == "insider":
+        actor = insider
+    elif caller == "admin":
+        actor = await _caller(acting_user, "admin", owner, initiative)
+    else:
+        actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
     response = await client.get(
-        outsider.g(f"/initiatives/{creator.initiative.id}/members/search"),
-        headers=outsider.headers,
+        actor.g(f"/initiatives/{initiative.id}{endpoint}"), headers=actor.headers
     )
-    assert response.status_code == 403
+
+    assert response.status_code == status_code, response.text
+    if status_code != 200:
+        assert response.json()["detail"] == InitiativeMessages.NOT_A_MEMBER
+        return
+
+    body = response.json()
+    rows = body["items"] if isinstance(body, dict) else body
+    # A roster names members by handle. An address is never a guild's to hand
+    # out, so it is absent from the shape entirely.
+    assert {row["username"] for row in rows} == {
+        owner.user.username,
+        insider.user.username,
+    }
+    assert all("email" not in row for row in rows)
 
 
 @pytest.mark.integration
-async def test_get_initiative_members_as_nonmember_guild_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("caller", "status_code", "detail"),
+    [
+        ("manager", 200, None),
+        ("member", 403, InitiativeMessages.MANAGER_REQUIRED),
+    ],
+)
+async def test_adding_a_member_takes_manager_standing(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    caller: str,
+    status_code: int,
+    detail: str | None,
 ):
-    """A guild admin sees the roster of an initiative they never joined —
-    the same guild-admin override every other initiative read honors (they
-    already see the initiative's content via the RLS admin leg, and the
-    assignee / linked-member pickers need the roster). A plain guild member
-    outside the initiative stays locked out."""
-    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
-    other_admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
-
-    response = await client.get(
-        other_admin.g(f"/initiatives/{creator.initiative.id}/members"),
-        headers=other_admin.headers,
-    )
-    assert response.status_code == 200
-    handles = {user["username"] for user in response.json()}
-    assert creator.user.username in handles
-
-    outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
-    response = await client.get(
-        outsider.g(f"/initiatives/{creator.initiative.id}/members"),
-        headers=outsider.headers,
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
-
-
-@pytest.mark.integration
-async def test_add_initiative_member_as_manager(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that manager can add members to initiative."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-    new_member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-
-    payload = {"user_id": new_member.user.id, "role": "member"}
+    """Staffing an initiative is its managers' to do."""
+    owner, initiative = await _initiative_with_owner(session, acting_user)
+    actor = await _caller(acting_user, caller, owner, initiative)
+    newcomer = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
     response = await client.post(
-        manager.g(f"/initiatives/{manager.initiative.id}/members"),
-        headers=manager.headers,
-        json=payload,
+        actor.g(f"/initiatives/{initiative.id}/members"),
+        headers=actor.headers,
+        json={"user_id": newcomer.user.id, "role": "member"},
     )
 
-    assert response.status_code == 200
-    data = response.json()
-    member_ids = {m["user"]["id"] for m in data["members"]}
-    assert new_member.user.id in member_ids
-
-
-@pytest.mark.integration
-async def test_add_initiative_member_as_regular_member_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that regular members cannot add members."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-    new_member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-
-    payload = {"user_id": new_member.user.id, "role": "member"}
-
-    response = await client.post(
-        member.g(f"/initiatives/{admin.initiative.id}/members"),
-        headers=member.headers,
-        json=payload,
-    )
-
-    assert response.status_code == 403
+    assert response.status_code == status_code, response.text
+    if detail is None:
+        assert newcomer.user.id in {
+            member["user"]["id"] for member in response.json()["members"]
+        }
+    else:
+        assert response.json()["detail"] == detail
 
 
 @pytest.mark.integration
@@ -929,42 +846,65 @@ async def test_member_roster_reports_a_custom_role_as_itself(
 
 
 @pytest.mark.integration
-async def test_inviting_a_guild_admin_lands_them_on_the_manager_role(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("inviter", "asked_role", "expected_role"),
+    [
+        ("guild admin", "member", "moderator"),
+        ("project manager", None, "moderator"),
+        ("guild admin", "project_manager", "project_manager"),
+    ],
+)
+async def test_inviting_a_guild_admin_lands_them_on_a_manager_role(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    inviter: str,
+    asked_role: str | None,
+    expected_role: str,
 ):
     """An invite naming a standard role for a guild admin still succeeds.
 
     A guild admin's standing already reaches every initiative, so their row
-    carries the moderator role — the invite settles that rather than refusing,
+    carries a manager role — the invite settles that rather than refusing,
     which is what lets a project manager add an admin without first checking
-    who is one.
+    who is one. Asking for the manager role outright is honored as asked, for
+    the manager-style features that read off it.
     """
     from app.models.tenant.initiative import InitiativeRoleModel
-    from sqlmodel import select
 
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    target_admin = await acting_user(
-        guild_role=GuildRole.admin, guild=admin.guild, email="admin2@example.com"
-    )
-
-    member_role = (
-        await session.exec(
-            select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == admin.initiative.id,
-                InitiativeRoleModel.name == "member",
-            )
+    if inviter == "guild admin":
+        actor = admin
+    else:
+        actor = await acting_user(
+            guild_role=GuildRole.member,
+            guild=admin.guild,
+            initiative=admin.initiative,
+            initiative_role="project_manager",
         )
-    ).one()
+    target = await acting_user(guild_role=GuildRole.admin, guild=admin.guild)
+
+    payload: dict = {"user_id": target.user.id}
+    if asked_role is not None:
+        role = (
+            await session.exec(
+                select(InitiativeRoleModel).where(
+                    InitiativeRoleModel.initiative_id == admin.initiative.id,
+                    InitiativeRoleModel.name == asked_role,
+                )
+            )
+        ).one()
+        payload["role_id"] = role.id
 
     response = await client.post(
-        admin.g(f"/initiatives/{admin.initiative.id}/members"),
-        headers=admin.headers,
-        json={"user_id": target_admin.user.id, "role_id": member_role.id},
+        actor.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=actor.headers,
+        json=payload,
     )
 
-    assert response.status_code == 200
-    member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
-    assert member_roles[target_admin.user.id] == "moderator"
+    assert response.status_code == 200, response.text
+    roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
+    assert roles[target.user.id] == expected_role
 
 
 @pytest.mark.integration
@@ -1008,129 +948,9 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
 
 
 @pytest.mark.integration
-async def test_the_queue_badge_survives_a_role_a_promotion_left_behind(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin inside an initiative reads its queue whatever their row says.
-
-    Answering a request is authority they hold as admin, so the badge follows
-    the standing rather than the role their membership row happens to carry.
-    """
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    admin = await acting_user(
-        guild_role=GuildRole.admin,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-    created = await client.post(
-        manager.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=(
-            await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-        ).headers,
-        json={},
-    )
-    assert created.status_code == 201, created.text
-
-    response = await client.get(
-        admin.g("/initiatives/directory"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    entry = next(e for e in response.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 1
-
-
-@pytest.mark.integration
-async def test_a_project_manager_can_invite_a_guild_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The invite is the project manager's to make, on their own initiative."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    manager = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="project_manager",
-    )
-    target_admin = await acting_user(
-        guild_role=GuildRole.admin, guild=admin.guild, email="admin3@example.com"
-    )
-
-    response = await client.post(
-        manager.g(f"/initiatives/{admin.initiative.id}/members"),
-        headers=manager.headers,
-        json={"user_id": target_admin.user.id},
-    )
-
-    assert response.status_code == 200
-    member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
-    assert member_roles[target_admin.user.id] == "moderator"
-
-
-@pytest.mark.integration
-async def test_guild_admin_can_be_assigned_manager_role(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin may be elevated to the manager role (for manager-style
-    features like notifications)."""
-    from app.models.tenant.initiative import InitiativeRoleModel
-    from sqlmodel import select
-
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    target_admin = await acting_user(
-        guild_role=GuildRole.admin, guild=admin.guild, email="admin2@example.com"
-    )
-
-    pm_role = (
-        await session.exec(
-            select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == admin.initiative.id,
-                InitiativeRoleModel.name == "project_manager",
-            )
-        )
-    ).one()
-
-    response = await client.post(
-        admin.g(f"/initiatives/{admin.initiative.id}/members"),
-        headers=admin.headers,
-        json={"user_id": target_admin.user.id, "role_id": pm_role.id},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    member_roles = {m["user"]["id"]: m["role_name"] for m in data["members"]}
-    assert member_roles[target_admin.user.id] == "project_manager"
-
-
-@pytest.mark.integration
-async def test_remove_initiative_member(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test removing an initiative member."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-
-    response = await client.delete(
-        admin.g(f"/initiatives/{admin.initiative.id}/members/{member.user.id}"),
-        headers=admin.headers,
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    member_ids = {m["user"]["id"] for m in data["members"]}
-    assert member.user.id not in member_ids
-
-
-@pytest.mark.integration
-async def test_removing_the_last_manager_is_allowed(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize("who", ["a member", "the last manager"])
+async def test_removing_a_membership_ends_it(
+    client: AsyncClient, session: AsyncSession, acting_user, who: str
 ):
     """An initiative may be left with no manager until an admin appoints one.
 
@@ -1138,15 +958,21 @@ async def test_removing_the_last_manager_is_allowed(
     ``test_cannot_demote_last_manager`` covers the case that still is, which
     edits a live membership rather than ending it.
     """
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    response = await client.delete(
-        manager.g(f"/initiatives/{manager.initiative.id}/members/{manager.user.id}"),
-        headers=manager.headers,
+    owner, initiative = await _initiative_with_owner(session, acting_user)
+    target = (
+        owner
+        if who == "the last manager"
+        else await _caller(acting_user, "member", owner, initiative)
     )
 
-    assert response.status_code == 200
-    assert response.json()["members"] == []
+    response = await client.delete(
+        owner.g(f"/initiatives/{initiative.id}/members/{target.user.id}"),
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    remaining = {m["user"]["id"] for m in response.json()["members"]}
+    assert remaining == (set() if who == "the last manager" else {owner.user.id})
 
 
 @pytest.mark.integration
@@ -1225,11 +1051,20 @@ async def test_initiative_guild_isolation(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    "caller_role",
+    [GuildRole.member, GuildRole.admin],
+    ids=["a plain member", "a guild admin"],
+)
 async def test_directory_lists_only_joinable_initiatives(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user, caller_role: GuildRole
 ):
     """Listing is opt-in: `private` appears only to its own members, archived
     never appears.
+
+    A guild admin's front page reads the same way — their authority over the
+    guild is unchanged, the directory just stops standing in for it, and
+    ``scope=guild`` is where the whole guild is.
 
     RLS *would* permit listing a private initiative to any guild member (the
     `initiatives` table is structural), so this exclusion is an app-layer
@@ -1255,9 +1090,9 @@ async def test_directory_lists_only_joinable_initiatives(
         archived_at=datetime.now(timezone.utc),
     )
 
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    caller = await acting_user(guild_role=caller_role, guild=admin.guild)
     response = await client.get(
-        member.g("/initiatives/directory"), headers=member.headers
+        caller.g("/initiatives/directory"), headers=caller.headers
     )
 
     assert response.status_code == 200
@@ -1268,14 +1103,14 @@ async def test_directory_lists_only_joinable_initiatives(
 
 
 @pytest.mark.integration
-async def test_directory_lists_private_initiatives_to_their_members(
+async def test_directory_reports_the_callers_own_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The directory doubles as the caller's own initiative list.
 
-    A private initiative appears to its own members (their sidebar already
-    shows it), listed ahead of the joinable ones — and stays invisible to
-    everyone else.
+    A private initiative appears to its own members — their sidebar already
+    shows it — listed ahead of the joinable ones. Each card carries the roster
+    size and where the caller stands with it.
     """
     admin = await acting_user(guild_role=GuildRole.admin)
     mine = await create_initiative(
@@ -1301,72 +1136,13 @@ async def test_directory_lists_private_initiatives_to_their_members(
     # Membership outranks the alphabet: "Zebra Ours" leads despite sorting last.
     assert [entry["name"] for entry in entries] == ["Zebra Ours", "Askable"]
     assert entries[0]["join_policy"] == "private"
-    assert entries[0]["is_member"] is True
-
-
-@pytest.mark.integration
-async def test_directory_reads_the_same_way_for_a_guild_admin(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin's directory is theirs plus what is on offer.
-
-    Their authority over the guild is unchanged; the front page just stops
-    standing in for it. A private initiative they are not in is not listed to
-    them any more than to anyone else — ``scope=guild`` is where the whole
-    guild is, and guild settings is where it is staffed.
-    """
-    owner = await acting_user(guild_role=GuildRole.admin)
-    await create_initiative(
-        session, owner.guild, owner.user, name="Hidden", join_policy="private"
-    )
-    await create_initiative(
-        session, owner.guild, owner.user, name="Askable", join_policy="open"
-    )
-
-    other_admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
-    response = await client.get(
-        other_admin.g("/initiatives/directory"), headers=other_admin.headers
-    )
-
-    assert response.status_code == 200
-    listed = {entry["name"] for entry in response.json()}
-    assert "Hidden" not in listed
-    assert "Askable" in listed
-
-
-@pytest.mark.integration
-async def test_directory_reports_caller_state(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Each card carries the roster size and the caller's own state."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    joined = await create_initiative(
-        session, admin.guild, admin.user, name="Joined", join_policy="open"
-    )
-    await create_initiative(
-        session, admin.guild, admin.user, name="Unjoined", join_policy="open"
-    )
-
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=joined,
-        initiative_role="member",
-    )
-
-    response = await client.get(
-        member.g("/initiatives/directory"), headers=member.headers
-    )
-
-    assert response.status_code == 200
-    listed = {entry["name"]: entry for entry in response.json()}
     # The creator (PM) plus the member who joined.
-    assert listed["Joined"]["member_count"] == 2
-    assert listed["Joined"]["is_member"] is True
-    assert listed["Joined"]["has_pending_request"] is False
-    assert listed["Unjoined"]["member_count"] == 1
-    assert listed["Unjoined"]["is_member"] is False
-    assert listed["Unjoined"]["has_pending_request"] is False
+    assert entries[0]["member_count"] == 2
+    assert entries[0]["is_member"] is True
+    assert entries[0]["has_pending_request"] is False
+    assert entries[1]["member_count"] == 1
+    assert entries[1]["is_member"] is False
+    assert entries[1]["has_pending_request"] is False
 
 
 @pytest.mark.integration
@@ -1387,28 +1163,88 @@ async def test_directory_rejects_non_guild_member(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
-async def test_self_join_open_initiative_grants_member_role(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Self-join hands out the floor: the built-in member role, not managed by OIDC."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+async def _joiner(acting_user, session: AsyncSession, kind: str, owner, initiative):
+    """The caller trying the door."""
+    if kind == "guild member":
+        return await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    if kind == "existing member":
+        return await acting_user(
+            guild_role=GuildRole.member,
+            guild=owner.guild,
+            initiative=initiative,
+            initiative_role="member",
+        )
+    if kind == "guild admin":
+        return await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    grantee = await acting_user("support")
+    await _live_grant(
+        session,
+        user=grantee.user,
+        guild=owner.guild,
+        approver=owner.user,
+        level="read_write",
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    return grantee
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("policy", "caller", "status_code", "outcome"),
+    [
+        ("open", "guild member", 200, ("member", False)),
+        ("private", "guild member", 403, InitiativeMessages.NOT_JOINABLE),
+        ("request", "guild member", 403, InitiativeMessages.NOT_JOINABLE),
+        ("private", "guild admin", 200, ("moderator", True)),
+        ("request", "guild admin", 200, ("moderator", True)),
+        ("open", "existing member", 200, ("member", False)),
+        ("open", "grantee", 403, InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS),
+    ],
+)
+async def test_self_join_answers_each_policy_and_caller(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    policy: str,
+    caller: str,
+    status_code: int,
+    outcome,
+):
+    """Who walks in, and on which role.
+
+    Self-join hands out the floor — the built-in member role, not managed by
+    OIDC — and joining twice is a success rather than a second row. ``private``
+    and ``request`` answer identically ("not by this route"), so the refusal
+    says no more about one than the other. A guild admin's sidebar is their
+    memberships, so walking in is how they put an initiative in it, and they
+    land on the moderator role their standing already carries. A grant reaches
+    the guild for a window; the membership row a join writes has no end date.
+    """
+    owner = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, owner.guild, owner.user, name="Doorway", join_policy=policy
+    )
+    actor = await _joiner(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join",
+        headers=actor.headers,
     )
 
-    assert response.status_code == 200
-    entry = next(
-        m for m in response.json()["members"] if m["user"]["id"] == member.user.id
-    )
-    assert entry["role_name"] == "member"
-    assert entry["is_manager"] is False
-    assert entry["oidc_managed"] is False
+    assert response.status_code == status_code, response.text
+    if isinstance(outcome, str):
+        assert response.json()["detail"] == outcome
+        return
+
+    role_name, is_manager = outcome
+    rows = [
+        member
+        for member in response.json()["members"]
+        if member["user"]["id"] == actor.user.id
+    ]
+    assert len(rows) == 1
+    assert rows[0]["role_name"] == role_name
+    assert rows[0]["is_manager"] is is_manager
+    assert rows[0]["oidc_managed"] is False
 
 
 @pytest.mark.integration
@@ -1465,341 +1301,102 @@ async def test_self_join_absorbs_a_lost_insert_race(
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("policy", ["private", "request"])
-async def test_self_join_rejected_for_non_open_policy(
-    client: AsyncClient, session: AsyncSession, acting_user, policy: str
+@pytest.mark.parametrize(
+    ("policy", "auto_join", "caller", "patch", "status_code", "expected"),
+    [
+        ("private", False, "manager", {"join_policy": "open"}, 200, ("open", False)),
+        ("open", False, "admin", {"auto_join": True}, 200, ("open", True)),
+        (
+            "open",
+            True,
+            "admin",
+            {"join_policy": "request", "auto_join": False},
+            200,
+            ("request", False),
+        ),
+        (
+            "private",
+            False,
+            "member",
+            {"join_policy": "open"},
+            403,
+            InitiativeMessages.MANAGER_REQUIRED,
+        ),
+        (
+            "open",
+            False,
+            "manager",
+            {"auto_join": True},
+            403,
+            InitiativeMessages.AUTO_JOIN_ADMIN_ONLY,
+        ),
+        (
+            "private",
+            False,
+            "admin",
+            {"auto_join": True},
+            400,
+            InitiativeMessages.AUTO_JOIN_REQUIRES_OPEN,
+        ),
+        (
+            "open",
+            True,
+            "admin",
+            {"join_policy": "request"},
+            400,
+            InitiativeMessages.AUTO_JOIN_REQUIRES_OPEN,
+        ),
+    ],
+    ids=[
+        "a manager opens the door",
+        "a guild admin turns auto-join on",
+        "closing the door together with auto-join",
+        "a plain member of it may not open it",
+        "a manager may not turn auto-join on",
+        "auto-join needs an open door",
+        "closing the door on its own is refused",
+    ],
+)
+async def test_the_join_settings_answer_each_caller_and_pairing(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    policy: str,
+    auto_join: bool,
+    caller: str,
+    patch: dict,
+    status_code: int,
+    expected,
 ):
-    """Private and request answer identically — "not by this route"."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name=f"Closed {policy}", join_policy=policy
-    )
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    """``join_policy`` travels with the ordinary update permission, so any
+    manager may open or close the door.
 
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_NOT_JOINABLE"
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("policy", ["private", "request"])
-async def test_a_guild_admin_walks_into_a_closed_initiative_as_manager(
-    client: AsyncClient, session: AsyncSession, acting_user, policy: str
-):
-    """A guild admin joins whatever the policy says, on the moderator role.
-
-    Their sidebar is their memberships now, so this is how they put an
-    initiative in it — the same act as ticking themselves in guild settings,
-    and the reason they never have to knock at a queue they could answer.
+    Auto-join enrols every new guild member, which shapes onboarding for the
+    whole guild — a guild admin's to set, and only coherent on an open door, so
+    that anyone who leaves can walk back in. The two settings move together or
+    not at all: an edit that would leave them at odds is refused rather than
+    quietly dropping one of them.
     """
-    owner = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, owner.guild, owner.user, name=f"Closed {policy}", join_policy=policy
+    owner, initiative = await _initiative_with_owner(
+        session, acting_user, join_policy=policy, auto_join=auto_join
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
-
-    response = await client.post(
-        admin.g(f"/initiatives/{initiative.id}/join"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    entry = next(
-        m for m in response.json()["members"] if m["user"]["id"] == admin.user.id
-    )
-    assert entry["role_name"] == "moderator"
-    assert entry["is_manager"] is True
-
-
-@pytest.mark.integration
-async def test_self_join_is_idempotent(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Joining twice is a success, not a conflict, and adds no second row."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Anyone", join_policy="open"
-    )
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
-    )
-
-    assert response.status_code == 200
-    rows = [m for m in response.json()["members"] if m["user"]["id"] == member.user.id]
-    assert len(rows) == 1
-    assert rows[0]["role_name"] == "member"
-
-
-@pytest.mark.integration
-async def test_self_join_flips_content_visibility(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The point of the feature: content is hidden by RLS before the membership
-    row exists and reachable the moment it does — with no RLS change at all."""
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-    from app.testing.factories import create_project
-    from app.testing.schema_harness import route_session_to_guild
-
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Anyone", join_policy="open"
-    )
-    project = await create_project(session, initiative, admin.user, name="Shared work")
-    # Shared with the whole initiative, so gate 4 is satisfied for any member and
-    # initiative membership is the only thing that changes across the join.
-    await route_session_to_guild(session, admin.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            guild_id=initiative.guild_id,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
-
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-
-    before = await client.get(
-        member.g(f"/projects/{project.id}"), headers=member.headers
-    )
-    assert before.status_code == 404
-
-    joined = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
-    )
-    assert joined.status_code == 200
-
-    after = await client.get(
-        member.g(f"/projects/{project.id}"), headers=member.headers
-    )
-    assert after.status_code == 200
-    assert after.json()["name"] == "Shared work"
-
-
-@pytest.mark.integration
-async def test_manager_can_set_join_policy(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """join_policy travels with the existing update permission."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await _caller(acting_user, caller, owner, initiative)
 
     response = await client.patch(
-        manager.g(f"/initiatives/{manager.initiative.id}"),
-        headers=manager.headers,
-        json={"join_policy": "open"},
+        actor.g(f"/initiatives/{initiative.id}"), headers=actor.headers, json=patch
     )
 
-    assert response.status_code == 200
-    assert response.json()["join_policy"] == "open"
-    assert response.json()["auto_join"] is False
-
-
-@pytest.mark.integration
-async def test_plain_member_cannot_set_join_policy(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A non-manager member of the initiative may not open it."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=manager.initiative,
-        initiative_role="member",
-    )
-
-    response = await client.patch(
-        member.g(f"/initiatives/{manager.initiative.id}"),
-        headers=member.headers,
-        json={"join_policy": "open"},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
-
-
-@pytest.mark.integration
-async def test_guild_admin_can_set_auto_join_on_open_initiative(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Welcome", join_policy="open"
-    )
-
-    response = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"auto_join": True},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["auto_join"] is True
-    assert response.json()["join_policy"] == "open"
-
-
-@pytest.mark.integration
-async def test_non_admin_manager_cannot_set_auto_join(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Auto-join shapes onboarding for the whole guild — guild admins only."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Welcome", join_policy="open"
-    )
-    manager = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=initiative,
-        initiative_role="project_manager",
-    )
-
-    response = await client.patch(
-        manager.g(f"/initiatives/{initiative.id}"),
-        headers=manager.headers,
-        json={"auto_join": True},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_ADMIN_ONLY"
-
-
-@pytest.mark.integration
-async def test_auto_join_requires_open_policy(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """An auto-enrolled-but-private initiative would be incoherent: leavers
-    could never rejoin it."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Secret", join_policy="private"
-    )
-
-    response = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"auto_join": True},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
-
-
-@pytest.mark.integration
-async def test_closing_policy_while_auto_join_on_is_rejected(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Explicit beats silent: the pair is refused rather than auto-join being
-    dropped as a side effect of an unrelated edit."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session,
-        admin.guild,
-        admin.user,
-        name="Welcome",
-        join_policy="open",
-        auto_join=True,
-    )
-
-    response = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"join_policy": "request"},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
-
-    # Both fields moved together is fine.
-    ok = await client.patch(
-        admin.g(f"/initiatives/{initiative.id}"),
-        headers=admin.headers,
-        json={"join_policy": "request", "auto_join": False},
-    )
-    assert ok.status_code == 200
-    assert ok.json()["join_policy"] == "request"
-    assert ok.json()["auto_join"] is False
-
-
-@pytest.mark.integration
-async def test_self_join_refused_to_scoped_grantee(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A time-bound grant reaches the guild for a window; the membership row a
-    join creates has no end date, so the two must not be traded for each other."""
-    from datetime import datetime, timedelta, timezone
-
-    from app.models.platform.access_grant import AccessGrant
-
-    admin = await acting_user(guild_role=GuildRole.admin)
-    initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Anyone", join_policy="open"
-    )
-
-    grantee = await acting_user("support")
-    now = datetime.now(timezone.utc)
-    session.add(
-        AccessGrant(
-            user_id=grantee.user.id,
-            guild_id=admin.guild.id,
-            access_level="read_write",
-            status="approved",
-            reason="ticket",
-            requested_duration_minutes=60,
-            requested_by_id=grantee.user.id,
-            approved_by_id=admin.user.id,
-            decided_at=now,
-            expires_at=now + timedelta(hours=1),
-        )
-    )
-    await session.commit()
-
-    response = await client.post(
-        f"/api/v1/g/{admin.guild.id}/initiatives/{initiative.id}/join",
-        headers=grantee.headers,
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+    assert response.status_code == status_code, response.text
+    body = response.json()
+    if isinstance(expected, str):
+        assert body["detail"] == expected
+    else:
+        assert (body["join_policy"], body["auto_join"]) == expected
 
 
 # ============================================================================
 # Discovery: join requests
 # ============================================================================
-
-
-async def _notifications_for(
-    session: AsyncSession, user_id: int, ntype: NotificationType
-) -> list[Notification]:
-    result = await session.exec(
-        select(Notification).where(
-            Notification.user_id == user_id,
-            Notification.type == ntype,
-        )
-    )
-    return list(result.all())
-
-
-async def _requestable(session: AsyncSession, actor, **overrides):
-    """A `request`-policy initiative managed by ``actor``."""
-    return await create_initiative(
-        session,
-        actor.guild,
-        actor.user,
-        join_policy="request",
-        **overrides,
-    )
 
 
 @pytest.mark.integration
@@ -1836,100 +1433,68 @@ async def test_join_request_created_on_request_policy(
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("policy", ["private", "open"])
-async def test_join_request_rejected_for_non_request_policy(
-    client: AsyncClient, session: AsyncSession, acting_user, policy: str
+@pytest.mark.parametrize(
+    ("policy", "caller", "knocked_first", "status_code", "detail"),
+    [
+        ("private", "guild member", False, 403, InitiativeMessages.NOT_REQUESTABLE),
+        ("open", "guild member", False, 403, InitiativeMessages.NOT_REQUESTABLE),
+        (
+            "request",
+            "guild member",
+            True,
+            409,
+            InitiativeMessages.JOIN_REQUEST_ALREADY_PENDING,
+        ),
+        ("request", "existing member", False, 409, InitiativeMessages.ALREADY_A_MEMBER),
+        (
+            "request",
+            "guild admin",
+            False,
+            409,
+            InitiativeMessages.GUILD_ADMIN_NEED_NOT_REQUEST,
+        ),
+        (
+            "request",
+            "grantee",
+            False,
+            403,
+            InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        ),
+    ],
+)
+async def test_knocking_answers_each_policy_and_caller(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    policy: str,
+    caller: str,
+    knocked_first: bool,
+    status_code: int,
+    detail: str,
 ):
-    """`private` and `open` answer identically — "not by this route" — so the
-    refusal reveals no more about a private initiative than it did before."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await create_initiative(
-        session,
-        manager.guild,
-        manager.user,
-        name=f"Closed {policy}",
-        join_policy=policy,
+    """Who may leave a request at the door, and who has nothing to ask for.
+
+    `private` and `open` answer identically — "not by this route" — so the
+    refusal reveals no more about a private initiative than it did before.
+    There is one live request per door. A guild admin already reaches every
+    initiative in their guild and may only ever hold a manager role in one, so
+    there is nothing for them to ask and no request to approve later. A grant
+    reaches the guild for a window; a membership row has no end date.
+    """
+    owner, initiative = await _initiative_with_owner(
+        session, acting_user, name="Doorway", join_policy=policy
     )
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    actor = await _joiner(acting_user, session, caller, owner, initiative)
+    url = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join-requests"
 
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
+    if knocked_first:
+        first = await client.post(url, headers=actor.headers, json={})
+        assert first.status_code == 201, first.text
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_NOT_REQUESTABLE"
+    response = await client.post(url, headers=actor.headers, json={})
 
-
-@pytest.mark.integration
-async def test_second_pending_join_request_conflicts(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """One live request per door."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-
-    first = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-    assert first.status_code == 201
-
-    second = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-
-    assert second.status_code == 409
-    assert second.json()["detail"] == "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING"
-
-
-@pytest.mark.integration
-async def test_join_request_from_existing_member_conflicts(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "INITIATIVE_ALREADY_A_MEMBER"
-
-
-@pytest.mark.integration
-async def test_guild_admin_cannot_request_to_join(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A guild admin already reaches every initiative in their guild, and must
-    never hold a standard member role — so there is nothing to ask for, and no
-    request that could later be approved into a forbidden row."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
-
-    response = await client.post(
-        admin.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=admin.headers,
-        json={},
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "INITIATIVE_GUILD_ADMIN_NEED_NOT_REQUEST"
+    assert response.status_code == status_code, response.text
+    assert response.json()["detail"] == detail
 
 
 @pytest.mark.integration
@@ -2019,11 +1584,12 @@ async def test_join_request_absorbs_a_lost_insert_race(
 
 
 @pytest.mark.integration
-async def test_manager_reads_the_pending_queue(
+async def test_the_pending_queue_carries_what_the_decision_needs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The queue carries everything the decision needs: who, what they said, and
-    whether this initiative has turned them down before."""
+    """Who is asking, what they said, and whether this initiative has turned
+    them down before — with the settled rows kept out of the default view and
+    reachable by asking for them."""
     manager = await acting_user(guild_role=GuildRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
     member = await acting_user(
@@ -2073,146 +1639,113 @@ async def test_manager_reads_the_pending_queue(
 
 
 @pytest.mark.integration
-async def test_plain_member_cannot_read_the_queue(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("caller", "path", "status_code", "expected"),
+    [
+        ("manager", "", 200, "everyone waiting"),
+        ("admin", "", 200, "everyone waiting"),
+        ("member", "", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("asker", "", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("asker", "/me", 200, "their own"),
+    ],
+    ids=[
+        "its manager",
+        "a guild admin",
+        "a plain member of it",
+        "somebody waiting at it",
+        "somebody waiting, asking after theirs",
+    ],
+)
+async def test_the_join_queue_answers_each_caller(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    caller: str,
+    path: str,
+    status_code: int,
+    expected: str,
 ):
-    """Who asked to get in is manager business — a non-manager member of the
-    initiative has no more claim on it than an outsider."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    insider = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
+    """Who asked to get in is manager business, and a guild admin's too — a
+    non-manager member of the initiative has no more claim on it than the
+    people waiting at it. A requester reaches their own row through ``/me``
+    and nobody else's.
 
-    response = await client.get(
-        insider.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=insider.headers,
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
-
-
-@pytest.mark.integration
-async def test_guild_admin_can_read_the_queue(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
-
-    response = await client.get(
-        admin.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=admin.headers,
-    )
-
-    assert response.status_code == 200
-    assert [row["user"]["id"] for row in response.json()] == [member.user.id]
-
-
-@pytest.mark.integration
-async def test_requester_reads_only_their_own_request(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """``initiative_join_requests`` is guild-level: the schema boundary is its
+    ``initiative_join_requests`` is guild-level: the schema boundary is its
     only DB gate, so row visibility is an app-layer contract — pinned here.
-
-    A requester reaches their own row and no one else's; the queue itself stays
-    shut to them.
     """
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    alice = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    bob = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-
-    for actor in (alice, bob):
-        created = await client.post(
-            actor.g(f"/initiatives/{initiative.id}/join-requests"),
-            headers=actor.headers,
-            json={"message": f"from {actor.user.id}"},
-        )
-        assert created.status_code == 201
-
-    mine = await client.get(
-        alice.g(f"/initiatives/{initiative.id}/join-requests/me"),
-        headers=alice.headers,
+    owner, initiative, knocks = await _knocked_on(client, session, acting_user)
+    actor = (
+        knocks[0][0]
+        if caller == "asker"
+        else await _caller(acting_user, caller, owner, initiative)
     )
-    assert mine.status_code == 200
-    assert [row["user"]["id"] for row in mine.json()] == [alice.user.id]
 
-    # And the full queue — Bob's row included — stays out of reach.
-    queue = await client.get(
-        alice.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=alice.headers,
+    response = await client.get(
+        actor.g(f"/initiatives/{initiative.id}/join-requests{path}"),
+        headers=actor.headers,
     )
-    assert queue.status_code == 403
-    assert queue.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+
+    assert response.status_code == status_code, response.text
+    if status_code != 200:
+        assert response.json()["detail"] == expected
+        return
+
+    seen = {row["user"]["id"] for row in response.json()}
+    assert seen == (
+        {asker.user.id for asker, _ in knocks}
+        if expected == "everyone waiting"
+        else {knocks[0][0].user.id}
+    )
 
 
 @pytest.mark.integration
-async def test_approve_creates_membership_and_flips_content_visibility(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("way_in", "policy"), [("join", "open"), ("approval", "request")]
+)
+async def test_joining_flips_content_visibility(
+    client: AsyncClient, session: AsyncSession, acting_user, way_in: str, policy: str
 ):
-    """The point of the flow: approval writes the one membership row every join
-    path produces, and ``initiative_access`` does the rest — content that 404'd
-    before the approval resolves after it, with no RLS change at all."""
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-    from app.testing.factories import create_project
-    from app.testing.schema_harness import route_session_to_guild
-
+    """The point of both doors: every way in writes the same membership row,
+    and ``initiative_access`` does the rest — content that 404'd before the
+    join resolves after it, with no RLS change at all."""
     manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    project = await create_project(
-        session, initiative, manager.user, name="Shared work"
+    initiative = await create_initiative(
+        session, manager.guild, manager.user, name="Doorway", join_policy=policy
     )
-    # Shared with the whole initiative, so gate 4 is satisfied for any member and
-    # the membership row is the only thing that changes across the approval.
-    await route_session_to_guild(session, manager.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            guild_id=initiative.guild_id,
-            initiative_id=initiative.id,
-        )
+    project = await _project_shared_with_the_initiative(
+        session, initiative, manager.user
     )
-    await session.commit()
-
     member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
     before = await client.get(
         member.g(f"/projects/{project.id}"), headers=member.headers
     )
     assert before.status_code == 404
 
-    created = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-    assert created.status_code == 201
-    request_id = created.json()["id"]
-
-    approved = await client.post(
-        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/approve"),
-        headers=manager.headers,
-    )
-
-    assert approved.status_code == 200
-    body = approved.json()
-    assert body["status"] == "approved"
-    assert body["resolved_by"] == manager.user.id
-    assert body["resolved_at"] is not None
+    if way_in == "join":
+        joined = await client.post(
+            member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+        )
+        assert joined.status_code == 200, joined.text
+    else:
+        created = await client.post(
+            member.g(f"/initiatives/{initiative.id}/join-requests"),
+            headers=member.headers,
+            json={},
+        )
+        assert created.status_code == 201, created.text
+        approved = await client.post(
+            manager.g(
+                f"/initiatives/{initiative.id}"
+                f"/join-requests/{created.json()['id']}/approve"
+            ),
+            headers=manager.headers,
+        )
+        assert approved.status_code == 200, approved.text
+        body = approved.json()
+        assert body["status"] == "approved"
+        assert body["resolved_by"] == manager.user.id
+        assert body["resolved_at"] is not None
 
     membership = await initiatives_service.get_initiative_membership_with_role(
         session, initiative_id=initiative.id, user_id=member.user.id
@@ -2407,345 +1940,86 @@ async def test_resolving_a_request_from_another_initiative_is_not_found(
     assert response.json()["detail"] == "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize("action", ["approve", "deny"])
-async def test_non_manager_member_cannot_resolve(
-    client: AsyncClient, session: AsyncSession, acting_user, action: str
-):
-    """Answering a request grants access, so it takes exactly the authority that
-    adding a member by hand takes."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    created = await client.post(
-        requester.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=requester.headers,
-        json={},
+async def _resolver(acting_user, session: AsyncSession, kind: str, owner, initiative):
+    """The caller trying to answer somebody else's request."""
+    if kind == "member":
+        return await _caller(acting_user, "member", owner, initiative)
+
+    holder = await acting_user("support" if kind == "support grant" else "operator")
+    held = (
+        (("content", "read_write"), ("settings", "superadmin"))
+        if kind == "break-glass"
+        else (("content", "read_write"),)
     )
-    request_id = created.json()["id"]
-    insider = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-
-    response = await client.post(
-        insider.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/{action}"),
-        headers=insider.headers,
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("action", ["approve", "deny"])
-async def test_scoped_grantee_cannot_resolve(
-    client: AsyncClient, session: AsyncSession, acting_user, action: str
-):
-    """A grant reaches the guild for a window; the membership row an approval
-    writes has no end date, so the two are never traded for each other."""
-    manager = await acting_user(guild_role=GuildRole.admin)
-    initiative = await _requestable(session, manager, name="Knockable")
-    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    created = await client.post(
-        requester.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=requester.headers,
-        json={},
-    )
-    request_id = created.json()["id"]
-
-    grantee = await acting_user("support")
-    await _live_grant(
-        session,
-        user=grantee.user,
-        guild=manager.guild,
-        approver=manager.user,
-        level="read_write",
-    )
-
-    response = await client.post(
-        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}"
-        f"/join-requests/{request_id}/{action}",
-        headers=grantee.headers,
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
-
-
-@pytest.mark.integration
-async def _pending_join_request(client, session, acting_user):
-    """A community with somebody knocking at one of its initiatives."""
-    manager = await acting_user(guild_role=GuildRole.admin)
-    initiative = await _requestable(session, manager, name="Knockable")
-    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    created = await client.post(
-        requester.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=requester.headers,
-        json={},
-    )
-    return manager, initiative, requester, created.json()["id"]
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    "held",
-    [
-        pytest.param((("content", "read_write"),), id="a content grant"),
-        pytest.param(
-            (("content", "read_write"), ("settings", "superadmin")),
-            id="everything breaking glass issues",
-        ),
-    ],
-)
-async def test_no_grant_answers_a_join_request(
-    client: AsyncClient, session: AsyncSession, acting_user, held
-):
-    """A grant reaches a community for a window. The membership on the other
-    side of an approval has no end date, so the two are never traded for each
-    other — and holding the highest grant there is does not change that."""
-    from app.models.platform.user import UserRole
-
-    manager, initiative, requester, request_id = await _pending_join_request(
-        client, session, acting_user
-    )
-    # data.bypass platform admin, deliberately NOT a guild member.
-    bg_admin = await acting_user(UserRole.operator)
     for purpose, level in held:
         await _live_grant(
             session,
-            user=bg_admin.user,
-            guild=manager.guild,
-            approver=manager.user,
+            user=holder.user,
+            guild=owner.guild,
+            approver=owner.user,
             level=level,
             purpose=purpose,
         )
+    return holder
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("action", ["approve", "deny"])
+@pytest.mark.parametrize(
+    ("caller", "detail"),
+    [
+        ("member", InitiativeMessages.MANAGER_REQUIRED),
+        ("support grant", InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS),
+        ("operator grant", InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS),
+        ("break-glass", InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS),
+    ],
+)
+async def test_answering_a_join_request_takes_manager_standing(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    caller: str,
+    detail: str,
+    action: str,
+):
+    """Answering a request grants access, so it takes exactly the authority
+    that adding a member by hand takes.
+
+    A grant reaches a community for a window; the membership on the other side
+    of an approval has no end date, so the two are never traded for each other
+    — and holding the highest grant there is does not change that.
+    """
+    owner, initiative, knocks = await _knocked_on(client, session, acting_user, count=1)
+    asker, request_id = knocks[0]
+    actor = await _resolver(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}"
-        f"/join-requests/{request_id}/approve",
-        headers=bg_admin.headers,
+        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+        f"/join-requests/{request_id}/{action}",
+        headers=actor.headers,
     )
 
     assert response.status_code == 403, response.text
-    assert response.json()["detail"] == InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS
+    assert response.json()["detail"] == detail
     # The person knocking is still outside it.
     assert (
         await initiatives_service.get_initiative_membership(
-            session, initiative_id=initiative.id, user_id=requester.user.id
+            session, initiative_id=initiative.id, user_id=asker.user.id
         )
     ) is None
 
 
 @pytest.mark.integration
-async def test_scoped_grantee_cannot_request_to_join(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    manager = await acting_user(guild_role=GuildRole.admin)
-    initiative = await _requestable(session, manager, name="Knockable")
-
-    grantee = await acting_user("support")
-    await _live_grant(
-        session,
-        user=grantee.user,
-        guild=manager.guild,
-        approver=manager.user,
-        level="read_write",
-    )
-
-    response = await client.post(
-        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}/join-requests",
-        headers=grantee.headers,
-        json={},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
-
-
-@pytest.mark.integration
-async def test_join_request_notifies_managers(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Addressed to the people who can answer it, and carrying who asked —
-    never any of the initiative's content."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    bystander = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        full_name="Ada Lovelace",
-        username="ada",
-        discriminator=1815,
-    )
-
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-    assert response.status_code == 201
-
-    notes = await _notifications_for(
-        session, manager.user.id, NotificationType.initiative_join_requested
-    )
-    assert len(notes) == 1
-    assert notes[0].data["initiative_id"] == initiative.id
-    assert notes[0].data["requester_id"] == member.user.id
-    # A notification is read on the cross-guild list, away from the guild it
-    # was written in, so it names her by handle whatever this guild renders.
-    assert notes[0].data["requester_name"] == "ada#1815"
-    assert notes[0].data["request_id"] == response.json()["id"]
-    # It was sent to be acted on, so it opens the queue rather than the
-    # initiative's front page. Only managers ever receive one.
-    assert notes[0].data["target_path"] == f"/i/{initiative.id}/settings/members"
-
-    # A non-manager member of the initiative is not on the hook for answering it.
-    assert (
-        await _notifications_for(
-            session, bystander.user.id, NotificationType.initiative_join_requested
-        )
-        == []
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    ("action", "expected_type"),
-    [
-        ("approve", NotificationType.initiative_join_approved),
-        ("deny", NotificationType.initiative_join_denied),
-    ],
-)
-async def test_resolution_notifies_the_requester(
-    client: AsyncClient,
-    session: AsyncSession,
-    acting_user,
-    action: str,
-    expected_type: NotificationType,
-):
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    created = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-    request_id = created.json()["id"]
-
-    resolved = await client.post(
-        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/{action}"),
-        headers=manager.headers,
-    )
-    assert resolved.status_code == 200
-
-    notes = await _notifications_for(session, member.user.id, expected_type)
-    assert len(notes) == 1
-    assert notes[0].data["initiative_id"] == initiative.id
-    assert notes[0].data["initiative_name"] == "Knockable"
-    assert notes[0].data["request_id"] == request_id
-
-
-@pytest.mark.integration
-async def test_directory_badges_the_queue_for_managers_only(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The pending count rides the directory the guild home already loads, and
-    only for whoever could open the queue — a bystander reads a flat zero rather
-    than a headcount of their peers' knocking."""
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    insider = await acting_user(
-        guild_role=GuildRole.member,
-        guild=manager.guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-    created = await client.post(
-        requester.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=requester.headers,
-        json={},
-    )
-    assert created.status_code == 201
-
-    as_manager = await client.get(
-        manager.g("/initiatives/directory"), headers=manager.headers
-    )
-    assert as_manager.status_code == 200
-    entry = next(e for e in as_manager.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 1
-
-    as_insider = await client.get(
-        insider.g("/initiatives/directory"), headers=insider.headers
-    )
-    entry = next(e for e in as_insider.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 0
-
-    as_requester = await client.get(
-        requester.g("/initiatives/directory"), headers=requester.headers
-    )
-    entry = next(e for e in as_requester.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 0
-    assert entry["has_pending_request"] is True
-
-    # A guild admin outside the initiative is a bystander here like anyone
-    # else: they staff themselves onto it to take the queue.
-    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
-    as_admin = await client.get(
-        admin.g("/initiatives/directory"), headers=admin.headers
-    )
-    entry = next(e for e in as_admin.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 0
-
-
-def _capture_join_request_emails(monkeypatch) -> list[dict]:
-    """Record every join-request email instead of reaching SMTP."""
-    sent: list[dict] = []
-
-    async def _fake_email(
-        _session,
-        recipient,
-        *,
-        event,
-        initiative_name,
-        link,
-        requester=None,
-        message=None,
-    ):
-        sent.append(
-            {
-                "recipient_id": recipient.id,
-                "event": event,
-                "initiative_name": initiative_name,
-                "link": link,
-                "requester": requester,
-                "message": message,
-            }
-        )
-
-    monkeypatch.setattr(
-        email_service, "send_initiative_join_request_email", _fake_email
-    )
-    return sent
-
-
-@pytest.mark.integration
-async def test_join_request_emails_the_managers(
+async def test_a_knock_reaches_the_managers_on_both_channels(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
-    """Managers get the mail, with who asked and what they wrote — the two
-    things the decision rests on. A non-manager member of the initiative is not
-    on the hook for answering, so nothing reaches them."""
+    """Addressed to the people who can answer it, and carrying who asked and
+    what they wrote — the two things the decision rests on — but never any of
+    the initiative's content.
+
+    A non-manager member of the initiative is not on the hook for answering, so
+    neither the bell nor the mail reaches them.
+    """
     sent = _capture_join_request_emails(monkeypatch)
 
     manager = await acting_user(guild_role=GuildRole.member)
@@ -2771,28 +2045,53 @@ async def test_join_request_emails_the_managers(
     )
     assert response.status_code == 201
 
+    notes = await _notifications_for(
+        session, manager.user.id, NotificationType.initiative_join_requested
+    )
+    assert len(notes) == 1
+    assert notes[0].data["initiative_id"] == initiative.id
+    assert notes[0].data["requester_id"] == member.user.id
+    # A notification is read on the cross-guild list, and mail outside the app
+    # entirely, so both name her by handle whatever this guild renders.
+    assert notes[0].data["requester_name"] == "ada#1815"
+    assert notes[0].data["request_id"] == response.json()["id"]
+    # It was sent to be acted on, so it opens the queue rather than the
+    # initiative's front page. Only managers ever receive one.
+    assert notes[0].data["target_path"] == f"/i/{initiative.id}/settings/members"
+
     assert [m["recipient_id"] for m in sent] == [manager.user.id]
     assert sent[0]["event"] == "requested"
     assert sent[0]["initiative_name"] == "Knockable"
-    # Mail is read outside the guild too, so the handle names her there as well.
     assert sent[0]["requester"] == "ada#1815"
     assert sent[0]["message"] == "I maintain the parser"
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.
     assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+
+    assert (
+        await _notifications_for(
+            session, bystander.user.id, NotificationType.initiative_join_requested
+        )
+        == []
+    )
     assert bystander.user.id not in {m["recipient_id"] for m in sent}
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("action", "event"), [("approve", "approved"), ("deny", "denied")]
+    ("action", "expected_type", "event"),
+    [
+        ("approve", NotificationType.initiative_join_approved, "approved"),
+        ("deny", NotificationType.initiative_join_denied, "denied"),
+    ],
 )
-async def test_resolution_emails_the_requester(
+async def test_a_resolution_reaches_the_requester_on_both_channels(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
     monkeypatch,
     action: str,
+    expected_type: NotificationType,
     event: str,
 ):
     """The outcome goes back to the person who asked — and only to them."""
@@ -2815,6 +2114,12 @@ async def test_resolution_emails_the_requester(
     )
     assert resolved.status_code == 200
 
+    notes = await _notifications_for(session, member.user.id, expected_type)
+    assert len(notes) == 1
+    assert notes[0].data["initiative_id"] == initiative.id
+    assert notes[0].data["initiative_name"] == "Knockable"
+    assert notes[0].data["request_id"] == request_id
+
     assert [m["recipient_id"] for m in sent] == [member.user.id]
     assert sent[0]["event"] == event
     assert sent[0]["initiative_name"] == "Knockable"
@@ -2823,17 +2128,99 @@ async def test_resolution_emails_the_requester(
 
 
 @pytest.mark.integration
-async def test_join_request_email_honours_the_initiative_preference(
-    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+@pytest.mark.parametrize(
+    ("viewer", "expected_count"),
+    [
+        ("manager", 1),
+        ("admin inside it", 1),
+        ("plain member of it", 0),
+        ("guild admin outside it", 0),
+        ("the requester", 0),
+    ],
+)
+async def test_directory_badges_the_queue_for_whoever_could_answer_it(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    viewer: str,
+    expected_count: int,
 ):
-    """A join request waits on the manager's decision, so it resolves under
-    ``approvals`` — the category for things somebody has to act on."""
-    sent = _capture_join_request_emails(monkeypatch)
+    """The pending count rides the directory the guild home already loads, and
+    only for whoever could open the queue — a bystander reads a flat zero
+    rather than a headcount of their peers' knocking.
 
+    A guild admin inside the initiative reads the badge whatever their
+    membership row says, because answering is authority they hold as admin; one
+    outside it is a bystander like anyone else, and staffs themselves onto the
+    initiative to take the queue. The person waiting sees their own request
+    reflected back instead.
+    """
     manager = await acting_user(guild_role=GuildRole.member)
-    await set_notification_prefs(
-        session, manager.user, {"categories": {"approvals": {"email": False}}}
+    initiative = await _requestable(session, manager, name="Knockable")
+    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        requester.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=requester.headers,
+        json={},
     )
+    assert created.status_code == 201
+
+    if viewer == "manager":
+        actor = manager
+    elif viewer == "the requester":
+        actor = requester
+    elif viewer == "guild admin outside it":
+        actor = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
+    else:
+        actor = await acting_user(
+            guild_role=(
+                GuildRole.admin if viewer == "admin inside it" else GuildRole.member
+            ),
+            guild=manager.guild,
+            initiative=initiative,
+            initiative_role="member",
+        )
+
+    response = await client.get(
+        actor.g("/initiatives/directory"), headers=actor.headers
+    )
+
+    assert response.status_code == 200
+    entry = next(e for e in response.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == expected_count
+    assert entry["has_pending_request"] is (viewer == "the requester")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "reason", ["the manager switched approvals off", "no SMTP configured"]
+)
+async def test_a_knock_lands_even_when_no_mail_goes_out(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, reason: str
+):
+    """Mail is best effort, and the bell is not.
+
+    A join request waits on the manager's decision, so it resolves under
+    ``approvals`` — the category for things somebody has to act on — and a
+    manager who turned that category's mail off still gets the in-app
+    notification. So does one on a deployment with no SMTP at all.
+    """
+    sent: list[dict] = []
+    manager = await acting_user(guild_role=GuildRole.member)
+    if reason == "no SMTP configured":
+
+        async def _unconfigured(*args, **kwargs):
+            raise email_service.EmailNotConfiguredError("no smtp")
+
+        monkeypatch.setattr(
+            email_service, "send_initiative_join_request_email", _unconfigured
+        )
+    else:
+        sent = _capture_join_request_emails(monkeypatch)
+        await set_notification_prefs(
+            session, manager.user, {"categories": {"approvals": {"email": False}}}
+        )
+
     initiative = await _requestable(session, manager, name="Knockable")
     member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
 
@@ -2845,42 +2232,6 @@ async def test_join_request_email_honours_the_initiative_preference(
 
     assert response.status_code == 201
     assert sent == []
-    # The in-app notification still lands: an approval keeps the bell whatever
-    # else is switched off.
-    assert (
-        len(
-            await _notifications_for(
-                session, manager.user.id, NotificationType.initiative_join_requested
-            )
-        )
-        == 1
-    )
-
-
-@pytest.mark.integration
-async def test_unconfigured_smtp_does_not_break_the_request(
-    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
-):
-    """Email is best effort: with no SMTP configured the knock still lands."""
-
-    async def _unconfigured(*args, **kwargs):
-        raise email_service.EmailNotConfiguredError("no smtp")
-
-    monkeypatch.setattr(
-        email_service, "send_initiative_join_request_email", _unconfigured
-    )
-
-    manager = await acting_user(guild_role=GuildRole.member)
-    initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
-
-    response = await client.post(
-        member.g(f"/initiatives/{initiative.id}/join-requests"),
-        headers=member.headers,
-        json={},
-    )
-
-    assert response.status_code == 201
     assert (
         len(
             await _notifications_for(
@@ -2893,14 +2244,18 @@ async def test_unconfigured_smtp_does_not_break_the_request(
 
 @pytest.mark.integration
 async def test_initiative_member_search_finds_a_misspelled_name(
-    client, session, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """One rule for looking people up, wherever the picker is. An initiative's
     roster matches a near miss exactly as the guild's does."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await create_user(session, username="moonwhisper")
-    await create_guild_membership(session, user=member, guild=a.guild)
-    await create_initiative_member(session, a.initiative, member)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+        username="moonwhisper",
+    )
 
     response = await client.get(
         a.g(f"/initiatives/{a.initiative.id}/members/search"),
@@ -2908,4 +2263,4 @@ async def test_initiative_member_search_finds_a_misspelled_name(
         params={"search": "moonwhsiper"},
     )
     assert response.status_code == 200, response.text
-    assert member.username in {u["username"] for u in response.json()["items"]}
+    assert member.user.username in {u["username"] for u in response.json()["items"]}

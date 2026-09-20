@@ -58,10 +58,9 @@ PURGE_POLL_SECONDS = 3600
 # Top-of-cascade models, in dependency order. We iterate top-down so an
 # Initiative whose retention has elapsed takes its Project / Document /
 # Queue / CalendarEvent / CounterGroup descendants with it via hard_purge_entity,
-# leaving the per-entity passes empty for those rows. Must cover every
-# soft-deletable model, else an independently-trashed row of a missing type never
-# auto-purges — ``test_purge_top_down_covers_all_soft_delete_models`` enforces
-# ``set(_PURGE_TOP_DOWN) == set(SOFT_DELETE_MODELS)``.
+# leaving the per-entity passes empty for those rows. It covers every
+# soft-deletable model; ``core/registry_coverage_test.py`` holds it and
+# ``SOFT_DELETE_MODELS`` in step.
 _PURGE_TOP_DOWN = (
     Initiative,
     Project,

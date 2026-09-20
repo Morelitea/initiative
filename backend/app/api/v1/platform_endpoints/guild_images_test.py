@@ -549,18 +549,29 @@ async def test_a_pam_grantee_reads_the_full_banner(
 
 
 @pytest.mark.integration
-async def test_a_guild_can_choose_a_colour_instead(client: AsyncClient, acting_user):
-    """No artwork to find: the banner is a colour, and it costs no request."""
+@pytest.mark.parametrize(
+    ("sent", "stored"),
+    [("#3F6FB5", "#3f6fb5"), ("#2A9D8FFF", "#2a9d8f")],
+    ids=["a plain colour", "a colour with the picker's alpha byte"],
+)
+async def test_a_guild_can_choose_a_colour_instead(
+    client: AsyncClient, acting_user, sent: str, stored: str
+):
+    """No artwork to find: the banner is a colour, and it costs no request.
+
+    The shared colour picker emits ``#rrggbbaa``; a banner is a fill with
+    nothing behind it, so the alpha is dropped rather than refused.
+    """
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner": _banner(color="#3F6FB5")},
+        json={"banner": _banner(color=sent)},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner"]["color"] == "#3f6fb5"
+    assert response.json()["banner"]["color"] == stored
 
 
 @pytest.mark.integration
@@ -627,22 +638,6 @@ async def test_the_banner_text_colour_is_the_guilds_to_set(
 
     assert response.status_code == 200
     assert response.json()["banner"]["text_color"] == "#000000"
-
-
-@pytest.mark.integration
-async def test_the_picker_may_send_an_alpha_byte(client: AsyncClient, acting_user):
-    """The shared colour picker emits ``#rrggbbaa``; a banner is a fill with
-    nothing behind it, so the alpha is dropped rather than refused."""
-    a = await acting_user(guild_role=GuildRole.admin)
-
-    response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
-        headers=a.headers,
-        json={"banner": _banner(color="#2A9D8FFF")},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["banner"]["color"] == "#2a9d8f"
 
 
 @pytest.mark.integration

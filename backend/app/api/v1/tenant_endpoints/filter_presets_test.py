@@ -357,30 +357,25 @@ async def test_reorder_persists_positions(
     ]
 
 
-async def test_unknown_filter_key_is_rejected(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("name", "filters"),
+    [("Weird", {"colour": ["blue"]}), ("Bad", {"assignees": ["everyone"]})],
+    ids=["a key no filter has", "an assignee token that is not one"],
+)
+async def test_a_preset_is_refused_unless_every_filter_is_one_we_serve(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    name: str,
+    filters: dict[str, list[str]],
 ):
+    """Keys and their values are both held to the vocabulary."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _seed(session, a.project)
 
     response = await client.post(
         _url(a.project),
-        json={"name": "Weird", "filters": {"colour": ["blue"]}},
-        headers=a.headers,
-    )
-
-    assert response.status_code == 422
-
-
-async def test_assignee_tokens_are_validated(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    await _seed(session, a.project)
-
-    response = await client.post(
-        _url(a.project),
-        json={"name": "Bad", "filters": {"assignees": ["everyone"]}},
+        json={"name": name, "filters": filters},
         headers=a.headers,
     )
 
