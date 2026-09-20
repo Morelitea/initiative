@@ -68,6 +68,7 @@ async def test_asking_about_an_address_nobody_holds_reads_the_same(
     """Same status, same shape, a handle either way — and no letter."""
     await _permit(session)
     caught = _catch_codes(monkeypatch)
+    sign_ups = _catch_sign_ups(monkeypatch)
     await create_user(session, email="held@example.com")
 
     held = await client.post(SEND_URL, json={"email": "held@example.com"})
@@ -77,23 +78,9 @@ async def test_asking_about_an_address_nobody_holds_reads_the_same(
     assert held.json().keys() == unheld.json().keys()
     assert held.json()["status"] == unheld.json()["status"] == "sent"
     assert unheld.json()["challenge"]
+    # Each gets the letter that fits it, and the two letters are different.
     assert [address for address, _ in caught] == ["held@example.com"]
-
-
-async def test_a_handle_that_names_nobody_opens_nothing(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """There is no code stored against it, so nothing answers it."""
-    await _permit(session)
-    _catch_codes(monkeypatch)
-
-    handle = await _ask(client, "nobody@example.com")
-    refused = await client.post(
-        VERIFY_URL, json={"challenge": handle, "code": "000000"}
-    )
-
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == "EMAIL_OTP_INVALID"
+    assert [address for address, _ in sign_ups] == ["nobody@example.com"]
 
 
 async def test_a_wrong_code_spends_an_attempt(
@@ -343,3 +330,226 @@ async def test_signing_in_this_way_needs_no_password(
     )
 
     assert signed_in.status_code == 200, signed_in.text
+
+
+# ---------------------------------------------------------------------------
+# The same door makes an account
+# ---------------------------------------------------------------------------
+
+REGISTER_URL = "/api/v1/auth/email-otp/register"
+
+
+async def _sign_up_to_ticket(client: AsyncClient, caught, address: str) -> str:
+    """Ask at an unheld address, answer the code, and take the ticket."""
+    handle = await _ask(client, address)
+    answered = await client.post(
+        VERIFY_URL, json={"challenge": handle, "code": caught[-1][1]}
+    )
+    assert answered.status_code == 202, answered.text
+    return answered.json()["registration_ticket"]
+
+
+def _catch_sign_ups(monkeypatch) -> list[tuple[str, str]]:
+    from app.services import email as email_service
+
+    caught: list[tuple[str, str]] = []
+
+    async def _capture(session_, *, email, code, minutes, locale):
+        caught.append((email, code))
+
+    monkeypatch.setattr(email_service, "send_sign_up_code_email", _capture)
+    return caught
+
+
+async def test_an_unheld_address_is_offered_a_sign_up(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+
+    handle = await _ask(client, "newcomer@example.com")
+    assert [address for address, _ in caught] == ["newcomer@example.com"]
+
+    answered = await client.post(
+        VERIFY_URL, json={"challenge": handle, "code": caught[0][1]}
+    )
+
+    assert answered.status_code == 202, answered.text
+    assert answered.json()["registration_ticket"]
+    assert "access_token" not in answered.json()
+
+
+async def test_the_ticket_makes_the_account_and_signs_it_in(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    from sqlalchemy import select
+
+    from app.models.platform.user import User
+
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    ticket = await _sign_up_to_ticket(client, caught, "arrival@example.com")
+
+    made = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "arrival"}
+    )
+
+    assert made.status_code == 201, made.text
+    assert made.json()["access_token"]
+    account = (
+        await session.exec(select(User).where(User.username == "arrival"))
+    ).scalar_one()
+    # No password: the address it proved is its way in.
+    assert account.hashed_password is None
+
+
+async def test_the_address_it_proved_needs_no_confirming(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The code arrived there, so the letter that asks the same question is
+    not sent and the address starts out proved."""
+    from sqlalchemy import select
+
+    from app.core.encryption import hash_email
+    from app.models.platform.user_email import UserEmail
+
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    ticket = await _sign_up_to_ticket(client, caught, "proved-at-birth@example.com")
+
+    made = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "proven"}
+    )
+    assert made.status_code == 201, made.text
+
+    row = (
+        await session.exec(
+            select(UserEmail).where(
+                UserEmail.email_hash == hash_email("proved-at-birth@example.com")
+            )
+        )
+    ).scalar_one()
+    assert row.verified_at is not None
+
+
+async def test_a_ticket_is_spent_once(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    ticket = await _sign_up_to_ticket(client, caught, "twice@example.com")
+
+    first = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "twiceover"}
+    )
+    assert first.status_code == 201, first.text
+
+    again = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "twiceagain"}
+    )
+    assert again.status_code == 400
+    assert again.json()["detail"] == "EMAIL_OTP_INVALID"
+
+
+async def test_a_closed_deployment_sends_no_sign_up_code(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """And says so no differently than it says anything else about an
+    address: the answer is the same, and no letter goes."""
+    from app.core.config import settings as app_config
+
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    # Somebody is already here: the first account bootstraps the deployment
+    # and is taken whatever the registration setting says.
+    await create_user(session, email="resident@example.com")
+    monkeypatch.setattr(app_config, "ENABLE_PUBLIC_REGISTRATION", False)
+
+    response = await client.post(SEND_URL, json={"email": "shutout@example.com"})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "sent"
+    assert response.json()["challenge"]
+    assert caught == []
+
+
+async def test_a_code_for_an_address_no_sign_up_follows_opens_nothing(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The challenge stands so the answer reads the same, and answers to it
+    are refused like any other pair that names nothing."""
+    from app.core.config import settings as app_config
+
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    _catch_sign_ups(monkeypatch)
+    await create_user(session, email="resident@example.com")
+    monkeypatch.setattr(app_config, "ENABLE_PUBLIC_REGISTRATION", False)
+
+    handle = await _ask(client, "shutout@example.com")
+    refused = await client.post(
+        VERIFY_URL, json={"challenge": handle, "code": "000000"}
+    )
+
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "EMAIL_OTP_INVALID"
+
+
+async def test_asking_reads_the_same_whether_or_not_the_address_is_known(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The whole point of the door: the response to the three cases is one
+    response."""
+    from app.core.config import settings as app_config
+    from app.models.platform.user import UserStatus
+
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    _catch_sign_ups(monkeypatch)
+    await create_user(session, email="known@example.com")
+    await create_user(session, email="halted@example.com", status=UserStatus.suspended)
+
+    known = await client.post(SEND_URL, json={"email": "known@example.com"})
+    halted = await client.post(SEND_URL, json={"email": "halted@example.com"})
+    fresh = await client.post(SEND_URL, json={"email": "fresh@example.com"})
+    monkeypatch.setattr(app_config, "ENABLE_PUBLIC_REGISTRATION", False)
+    closed = await client.post(SEND_URL, json={"email": "closed@example.com"})
+
+    bodies = [r.json() for r in (known, halted, fresh, closed)]
+    assert {r.status_code for r in (known, halted, fresh, closed)} == {200}
+    assert {b["status"] for b in bodies} == {"sent"}
+    assert all(b.keys() == bodies[0].keys() for b in bodies)
+    assert all(b["challenge"] for b in bodies)
+
+
+async def test_registering_needs_the_method_permitted(
+    client: AsyncClient, session: AsyncSession
+):
+    refused = await client.post(
+        REGISTER_URL, json={"registration_ticket": "anything", "username": "nobody"}
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+
+
+async def test_a_sign_in_code_is_not_a_registration_ticket(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The two are different purposes, so one cannot be spent as the other."""
+    await _permit(session)
+    caught = _catch_codes(monkeypatch)
+    _catch_sign_ups(monkeypatch)
+    await create_user(session, email="holder@example.com")
+    handle = await _ask(client, "holder@example.com")
+    assert caught
+
+    refused = await client.post(
+        REGISTER_URL, json={"registration_ticket": handle, "username": "mixedup"}
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "EMAIL_OTP_INVALID"

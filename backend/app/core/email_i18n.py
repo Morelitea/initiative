@@ -18,6 +18,13 @@ from pathlib import Path
 
 
 _LOCALES_DIR = Path(__file__).resolve().parent.parent / "locales"
+
+#: The languages this deployment writes email in — the locale directories
+#: beside this module. Read once: they ship with the image and do not change
+#: while it runs.
+SUPPORTED_EMAIL_LOCALES: frozenset[str] = frozenset(
+    path.name for path in _LOCALES_DIR.iterdir() if path.is_dir()
+)
 _VAR_RE = re.compile(r"\{\{(\w+)\}\}")
 
 # Namespaces whose templates are rendered into HTML email bodies. Interpolated

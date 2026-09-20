@@ -34,10 +34,20 @@ CODE_DIGITS = 6
 #: mail delivery and on somebody going to look for it.
 CODE_TTL = timedelta(minutes=10)
 
+#: How long the handle screen has to be filled in, once the code is answered.
+#: Shorter than the code's own life: the person is already at the keyboard.
+TICKET_TTL = timedelta(minutes=15)
+
 #: The purposes a code may be presented against, so one route serves both.
 PURPOSES = (
     challenge_service.ChallengePurpose.email_otp,
     challenge_service.ChallengePurpose.email_otp_native,
+)
+
+#: And the purposes a registration ticket may be spent against.
+TICKET_PURPOSES = (
+    challenge_service.ChallengePurpose.email_otp_register,
+    challenge_service.ChallengePurpose.email_otp_register_native,
 )
 
 
@@ -64,11 +74,16 @@ async def issue(
     user_id: int | None,
     user_email_id: int | None,
     native: bool,
+    email: str | None = None,
 ) -> IssuedCode:
     """Open a challenge waiting for a code, and hand back both halves.
 
     ``user_email_id`` names the address the code is going to, so what
     arriving there proves is about that address rather than the account.
+
+    ``email`` is set instead where the address reached no account and a
+    sign-up may follow: there is no address row to point at yet, and the code
+    is what will prove it.
 
     ``user_id`` is ``None`` where the address reached no account. The row is
     written anyway: the response to a request about an address is the same
@@ -89,6 +104,7 @@ async def issue(
         answer=code,
         ttl=CODE_TTL,
         user_email_id=user_email_id,
+        email=email,
     )
     return IssuedCode(handle=issued.value, code=code)
 
@@ -114,6 +130,34 @@ async def claim(
     if not challenge_service.answered_by(challenge, value=handle, answer=code):
         return None
     return challenge
+
+
+async def issue_ticket(session: AsyncSession, *, email: str, native: bool) -> str:
+    """Open the ticket the handle screen spends, and hand back its value.
+
+    Its own challenge rather than a longer life on the code's: the code is
+    spent by the moment it is answered, and what follows is a different thing
+    being waited for. It carries the address the code proved.
+    """
+    issued = await challenge_service.create(
+        session,
+        user_id=None,
+        purpose=(
+            challenge_service.ChallengePurpose.email_otp_register_native
+            if native
+            else challenge_service.ChallengePurpose.email_otp_register
+        ),
+        ttl=TICKET_TTL,
+        email=email,
+    )
+    return issued.value
+
+
+async def claim_ticket(session: AsyncSession, *, ticket: str) -> AuthChallenge | None:
+    """The registration ticket this value names, or ``None``."""
+    return await challenge_service.claim_attempt(
+        session, value=ticket, purposes=TICKET_PURPOSES
+    )
 
 
 def is_native(challenge: AuthChallenge) -> bool:

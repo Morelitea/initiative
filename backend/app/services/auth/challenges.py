@@ -31,6 +31,7 @@ from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field
 from app.models.platform.auth_challenge import AuthChallenge
 
 #: Bytes of randomness behind the value handed to the client.
@@ -79,6 +80,12 @@ class ChallengePurpose(str, Enum):
     #: :attr:`sign_in_native` is: a browser reads its refresh token from a
     #: cookie, and the app is given one to keep.
     email_otp_native = "email_otp_native"
+    #: A code sent to an address no account holds has been answered, and the
+    #: handle screen is being filled in. The row carries the address the code
+    #: proved; nothing else about the account exists yet.
+    email_otp_register = "email_otp_register"
+    #: The same, from the native sign-up.
+    email_otp_register_native = "email_otp_register_native"
     #: A passkey is being registered for an account that does not exist yet.
     #: The row names nobody — there is nobody to name — and what it stands for
     #: is that the gates a registration has to pass were passed before the
@@ -115,6 +122,7 @@ async def create(
     answer: str | None = None,
     ttl: timedelta | None = None,
     user_email_id: int | None = None,
+    email: str | None = None,
 ) -> IssuedChallenge:
     """Open a challenge, for one account or for none. The caller commits.
 
@@ -131,6 +139,9 @@ async def create(
     ``ttl`` overrides :data:`CHALLENGE_TTL` for a challenge whose answer has
     further to travel than an authenticator on the desk.
 
+    ``email`` is for a challenge about an address no account holds yet; it is
+    kept encrypted, and :func:`address_of` reads it back.
+
     ``user_id`` is ``None`` for a ceremony that starts before anybody is named:
     a passkey sign-in offers what the authenticator holds for this domain, and
     the account arrives with the assertion.
@@ -141,6 +152,7 @@ async def create(
         answer_hash=_hash(f"{value}:{answer}") if answer is not None else None,
         user_id=user_id,
         user_email_id=user_email_id,
+        email_encrypted=encrypt_field(email, SALT_EMAIL) if email else None,
         purpose=purpose.value,
         expires_at=_now() + (ttl or CHALLENGE_TTL),
     )
@@ -188,6 +200,13 @@ async def claim_attempt(
             select(AuthChallenge).where(AuthChallenge.challenge_hash == digest)
         )
     ).first()
+
+
+def address_of(challenge: AuthChallenge) -> str | None:
+    """The address this challenge names, where it names one no account holds."""
+    if not challenge.email_encrypted:
+        return None
+    return decrypt_field(challenge.email_encrypted, SALT_EMAIL)
 
 
 def answered_by(challenge: AuthChallenge, *, value: str, answer: str) -> bool:

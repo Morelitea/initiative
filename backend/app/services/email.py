@@ -701,6 +701,45 @@ async def send_sign_in_code_email(
     )
 
 
+async def send_sign_up_code_email(
+    session: AsyncSession, *, email: str, code: str, minutes: int, locale: str
+) -> None:
+    """Send a one-time code to an address no account holds yet.
+
+    There is no account, so there is no name to greet and no stored language
+    to write in: the locale is the one the browser asked in.
+    """
+    settings_obj, accent = await _email_context(session)
+    shown = (
+        f'<p style="margin:24px 0;font-size:32px;font-weight:700;'
+        f'letter-spacing:0.25em;color:{accent};">{code}</p>'
+    )
+    body = f"""
+    <p>{email_t("signUpCode.greeting", locale=locale)}</p>
+    <p>{email_t("signUpCode.body", locale=locale)}</p>
+    {shown}
+    <p>{email_t("signUpCode.expiry", locale=locale, minutes=minutes)}</p>
+    <p>{email_t("signUpCode.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("signUpCode.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=[email],
+        subject=email_t("signUpCode.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(
+            "signUpCode.textBody",
+            locale=locale,
+            code=code,
+            minutes=minutes,
+            escape=False,
+        ),
+        settings_obj=settings_obj,
+    )
+
+
 async def send_second_factor_changed_email(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:

@@ -333,5 +333,14 @@
     "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
     "fallbackText": "Si no has pedido iniciar sesión, puedes ignorar este correo.",
     "textBody": "Tu código de acceso de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
+  },
+  "signUpCode": {
+    "subject": "Tu código de registro de Initiative",
+    "title": "Termina de crear tu cuenta",
+    "greeting": "Hola:",
+    "body": "Escribe este código en la página que te lo ha pedido para terminar de crear tu cuenta:",
+    "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
+    "fallbackText": "Si no has intentado crear una cuenta, puedes ignorar este correo.",
+    "textBody": "Tu código de registro de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
   }
 }

@@ -333,5 +333,14 @@
     "expiry": "The code works for {{minutes}} minutes and can be used once.",
     "fallbackText": "If you didn't ask to sign in, you can ignore this email.",
     "textBody": "Your Initiative sign-in code is {{code}}. It works for {{minutes}} minutes and can be used once."
+  },
+  "signUpCode": {
+    "subject": "Your Initiative sign-up code",
+    "title": "Finish creating your account",
+    "greeting": "Hello,",
+    "body": "Type this code into the page that asked for it to finish creating your account:",
+    "expiry": "The code works for {{minutes}} minutes and can be used once.",
+    "fallbackText": "If you didn't try to create an account, you can ignore this email.",
+    "textBody": "Your Initiative sign-up code is {{code}}. It works for {{minutes}} minutes and can be used once."
   }
 }

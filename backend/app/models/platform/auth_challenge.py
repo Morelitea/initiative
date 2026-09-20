@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    String,
     SmallInteger,
     Text,
 )
@@ -67,6 +68,14 @@ class AuthChallenge(SQLModel, table=True):
     #: issued value is itself the proof.
     answer_hash: Optional[bytes] = Field(
         default=None, sa_column=Column(LargeBinary, nullable=True)
+    )
+
+    #: The address a challenge names when no account holds it yet — a code
+    #: sent to somebody signing up. Fernet ciphertext under ``SALT_EMAIL``,
+    #: the way ``user_emails`` keeps one, so an address waiting on a sign-up
+    #: is stored no differently from one already held.
+    email_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
     )
 
     #: Which of the account's addresses the challenge went to, where it went

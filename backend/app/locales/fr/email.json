@@ -333,5 +333,14 @@
     "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
     "fallbackText": "Si vous n'avez pas demandé à vous connecter, vous pouvez ignorer cet e-mail.",
     "textBody": "Votre code de connexion Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
+  },
+  "signUpCode": {
+    "subject": "Votre code d'inscription Initiative",
+    "title": "Terminez la création de votre compte",
+    "greeting": "Bonjour,",
+    "body": "Saisissez ce code sur la page qui vous l'a demandé pour terminer la création de votre compte :",
+    "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
+    "fallbackText": "Si vous n'avez pas cherché à créer un compte, vous pouvez ignorer cet e-mail.",
+    "textBody": "Votre code d'inscription Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
   }
 }

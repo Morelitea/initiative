@@ -28,11 +28,17 @@ from app.api.v1.platform_endpoints.session_opening import (
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
+from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
 from app.db.session import get_admin_session, get_session
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_email import UserEmail
-from app.schemas.platform.email_otp import EmailOtpSend, EmailOtpSent, EmailOtpVerify
+from app.schemas.platform.email_otp import (
+    EmailOtpRegister,
+    EmailOtpSend,
+    EmailOtpSent,
+    EmailOtpVerify,
+)
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services import captcha as captcha_service
@@ -82,6 +88,49 @@ async def _retire_credentials_predating_proof(
     )
 
 
+def _requested_locale(request: Request) -> str:
+    """The language to write to somebody who has no account to have set one.
+
+    The first tag of ``Accept-Language``, narrowed to the languages this
+    deployment writes in; English where it names none of them.
+    """
+    header = request.headers.get("accept-language", "")
+    for part in header.split(","):
+        tag = part.split(";")[0].strip().lower()[:2]
+        if tag in SUPPORTED_EMAIL_LOCALES:
+            return tag
+    return "en"
+
+
+async def _registration_open(
+    request: Request, session: AsyncSession, *, address: str, invite: str | None
+) -> bool:
+    """Whether a sign-up at this address would be taken.
+
+    The registration gates, asked here so that a code is only posted where an
+    account could follow from it. The captcha among them was answered by the
+    route above, and a token is spent by being checked, so it is not asked for
+    a second time.
+
+    A refusal is an answer, not an error: the route says the same thing either
+    way, and only whether a letter goes out differs.
+    """
+    from app.api.v1.platform_endpoints.auth import _registration_gate
+
+    try:
+        await _registration_gate(
+            request,
+            session,
+            email=address,
+            invite=invite,
+            captcha_token=None,
+            check_captcha=False,
+        )
+    except HTTPException:
+        return False
+    return True
+
+
 @router.post("/email-otp/send", response_model=EmailOtpSent)
 @limiter.limit("5/15minutes")
 async def send_sign_in_code(
@@ -116,27 +165,42 @@ async def send_sign_in_code(
         if recipient is not None
         else None
     )
+    # An address nobody holds is a sign-up, where this deployment takes one.
+    # Asked with the captcha already spent, because it was answered above.
+    signing_up = user is None and await _registration_open(
+        request, admin_session, address=address, invite=payload.invite_code
+    )
 
     issued = await email_otp_service.issue(
         admin_session,
         user_id=recipient.id if recipient is not None else None,
         user_email_id=row.id if row is not None else None,
         native=payload.native,
+        email=address if signing_up else None,
     )
-    if recipient is not None:
-        try:
+    minutes = int(email_otp_service.CODE_TTL.total_seconds() // 60)
+    try:
+        if recipient is not None:
             await email_service.send_sign_in_code_email(
                 admin_session,
                 recipient,
                 email=address,
                 code=issued.code,
-                minutes=int(email_otp_service.CODE_TTL.total_seconds() // 60),
+                minutes=minutes,
             )
-        except email_service.EmailNotConfiguredError:  # pragma: no cover
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
-            ) from None
+        elif signing_up:
+            await email_service.send_sign_up_code_email(
+                admin_session,
+                email=address,
+                code=issued.code,
+                minutes=minutes,
+                locale=_requested_locale(request),
+            )
+    except email_service.EmailNotConfiguredError:  # pragma: no cover
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
+        ) from None
     await admin_session.commit()
     return EmailOtpSent(challenge=issued.handle)
 
@@ -155,13 +219,40 @@ async def verify_sign_in_code(
     challenge = await email_otp_service.claim(
         admin_session, handle=payload.challenge, code=payload.code
     )
-    if challenge is None or challenge.user_id is None:
+    if challenge is None:
         # The attempt is counted whether or not the code was any good, so the
         # commit comes before the refusal.
         await admin_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_INVALID,
+        )
+
+    if challenge.user_id is None:
+        pending = challenge_service.address_of(challenge)
+        if pending is None:
+            # A code was asked for at an address nobody holds and no sign-up
+            # followed from. There is nothing for it to open.
+            await admin_session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.EMAIL_OTP_INVALID,
+            )
+        if not await challenge_service.consume(admin_session, challenge):
+            await admin_session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.EMAIL_OTP_INVALID,
+            )
+        ticket = await email_otp_service.issue_ticket(
+            admin_session,
+            email=pending,
+            native=email_otp_service.is_native(challenge),
+        )
+        await admin_session.commit()
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={"registration_ticket": ticket},
         )
 
     user_id = challenge.user_id
@@ -229,4 +320,76 @@ async def verify_sign_in_code(
         amr=["otp"],
         audit_detail={"method": "email_otp"},
         return_refresh_token=native,
+    )
+
+
+@router.post(
+    "/email-otp/register",
+    response_model=Token,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("5/15minutes")
+async def register_with_code(
+    request: Request,
+    response: Response,
+    payload: EmailOtpRegister,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+) -> Token:
+    """Make the account a proved address earned, and sign it in.
+
+    The gates are asked again here — the ticket says which address, and
+    nothing else about the registration was settled when it was issued. The
+    captcha is not among them: it was answered when the code was asked for,
+    and a token is spent by being checked.
+
+    The account is made with no password. Its way in is the address it just
+    proved; it sets a password afterwards if it wants one.
+    """
+    from app.api.v1.platform_endpoints.auth import (
+        RegistrationDetails,
+        _register_account,
+    )
+
+    await require_login_method(session, LoginMethod.email_otp)
+    ticket = await email_otp_service.claim_ticket(
+        admin_session, ticket=payload.registration_ticket
+    )
+    address = challenge_service.address_of(ticket) if ticket is not None else None
+    if ticket is None or address is None:
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_INVALID,
+        )
+    if not await challenge_service.consume(admin_session, ticket):
+        await admin_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_INVALID,
+        )
+
+    registered = await _register_account(
+        request,
+        admin_session,
+        details=RegistrationDetails(
+            email=address,
+            username=payload.username,
+            full_name=payload.full_name,
+            timezone=payload.timezone,
+        ),
+        invite_code=payload.invite_code,
+        hashed_password=None,
+        check_captcha=False,
+        address_proved=True,
+    )
+    return await open_session(
+        request,
+        response,
+        admin_session,
+        user_id=registered.user.id,
+        token_version=registered.user.token_version,
+        amr=["otp"],
+        audit_detail={"method": "email_otp", "during": "registration"},
+        return_refresh_token=email_otp_service.is_native(ticket),
     )

@@ -344,6 +344,7 @@ async def _register_account(
     hashed_password: str | None,
     passkey: PasskeyToKeep | None = None,
     check_captcha: bool = True,
+    address_proved: bool = False,
 ) -> RegisteredAccount:
     """Everything registering does, including settling how the account gets in.
 
@@ -361,6 +362,10 @@ async def _register_account(
 
     The caller has already refused a method this deployment does not permit and
     taken whatever its own door asks for.
+
+    ``address_proved`` is for a door that proved the address on the way in —
+    a code read out of that mailbox and typed back. Such an account needs no
+    verification letter, because the thing the letter asks for has happened.
     """
     normalized_invite = (invite_code or "").strip() or None
 
@@ -395,9 +400,10 @@ async def _register_account(
         # column default ``"UTC"`` applies.
         normalized_timezone = normalize_timezone(details.timezone)
 
-        # Confirmed on the spot when there is no mail to confirm it with, and
-        # for the account that bootstraps the deployment.
-        address_confirmed = is_first_user or not smtp_configured
+        # Confirmed on the spot when the door proved it, when there is no mail
+        # to confirm it with, and for the account that bootstraps the
+        # deployment.
+        address_confirmed = address_proved or is_first_user or not smtp_configured
         user_kwargs: dict[str, Any] = dict(
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.

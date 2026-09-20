@@ -333,5 +333,14 @@
     "expiry": "Der Code gilt {{minutes}} Minuten und kann einmal verwendet werden.",
     "fallbackText": "Wenn du dich nicht anmelden wolltest, kannst du diese E-Mail ignorieren.",
     "textBody": "Dein Initiative-Anmeldecode lautet {{code}}. Er gilt {{minutes}} Minuten und kann einmal verwendet werden."
+  },
+  "signUpCode": {
+    "subject": "Dein Initiative-Registrierungscode",
+    "title": "Konto fertig einrichten",
+    "greeting": "Hallo,",
+    "body": "Gib diesen Code auf der Seite ein, die danach gefragt hat, um dein Konto fertig einzurichten:",
+    "expiry": "Der Code gilt {{minutes}} Minuten und kann einmal verwendet werden.",
+    "fallbackText": "Wenn du kein Konto erstellen wolltest, kannst du diese E-Mail ignorieren.",
+    "textBody": "Dein Initiative-Registrierungscode lautet {{code}}. Er gilt {{minutes}} Minuten und kann einmal verwendet werden."
   }
 }
