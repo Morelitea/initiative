@@ -23,10 +23,8 @@ export type PresetHintKey =
   | "authentik"
   | "authelia"
   | "pocketId"
-  | "gitlab"
-  | "gitea"
-  | "discord"
   | "salesforce"
+  | "dex"
   | "custom";
 
 /** A blank in an issuer template, asked for as its own field. */
@@ -56,8 +54,14 @@ export interface ProviderPreset {
   hintKey?: PresetHintKey;
 }
 
-/** Offered in the order somebody scanning the grid would want them: the ones
- *  a community brings with it, then the ones a deployment runs itself. */
+/** Offered in the order somebody scanning the grid would want them: the
+ *  enterprise platforms an organisation already has, then the ones a
+ *  deployment runs itself.
+ *
+ *  Dedicated identity providers only. A self-hosted app that happens to speak
+ *  OpenID Connect — a git forge, a chat server — is reached through the
+ *  generic entry at the end rather than named here, which is what keeps this
+ *  list to things somebody chose as their way in. */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: "google",
@@ -92,22 +96,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     slug: "auth0",
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "auth0Host", example: "your-tenant.eu.auth0.com" }],
-  },
-  {
-    key: "gitlab",
-    name: "GitLab",
-    slug: "gitlab",
-    template: "https://{host}",
-    blanks: [{ name: "host", labelKey: "host", example: "gitlab.com" }],
-    hintKey: "gitlab",
-  },
-  {
-    key: "discord",
-    name: "Discord",
-    slug: "discord",
-    template: "https://discord.com",
-    blanks: [],
-    hintKey: "discord",
   },
   {
     key: "salesforce",
@@ -165,12 +153,15 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hintKey: "pocketId",
   },
   {
-    key: "gitea",
-    name: "Gitea / Forgejo",
-    slug: "gitea",
-    template: "https://{host}",
-    blanks: [{ name: "host", labelKey: "host", example: "codeberg.org" }],
-    hintKey: "gitea",
+    key: "dex",
+    name: "Dex",
+    slug: "dex",
+    // Dex is mounted under a path far more often than at a root, and `/dex`
+    // is the convention its own examples use. Whatever the deployment set as
+    // its `issuer` is the answer, which is what the hint says.
+    template: "https://{host}/dex",
+    blanks: [{ name: "host", labelKey: "host", example: "auth.example.com" }],
+    hintKey: "dex",
   },
   {
     key: "zitadel",

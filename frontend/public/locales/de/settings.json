@@ -1335,10 +1335,8 @@
       "authentik": "Der Application-Slug, nicht der Provider-Name — der Issuer folgt der Application.",
       "authelia": "Füge das Client-Secret im Klartext ein, nicht den Hash aus der YAML-Datei.",
       "pocketId": "Nur Passkeys, damit eure Anmeldungen Passkeys ohne weiteres Zutun übernehmen.",
-      "gitlab": "Dein eigenes GitLab oder gitlab.com — die Adresse ist in beiden Fällen die Instanz-Wurzel. Lege unter Benutzereinstellungen oder Admin eine Anwendung mit der Callback-URL unten an.",
-      "gitea": "Auch Forgejo und Codeberg. Lege in den Einstellungen eine OAuth2-Anwendung an und wähle groups als Gruppen-Claim, um Leute nach ihren Teams einzuordnen.",
-      "discord": "Funktioniert, ist von Discord aber nicht dokumentiert und kann sich ohne Vorwarnung ändern. Gut zu wissen, bevor es der einzige Zugangsweg wird.",
       "salesforce": "Sandboxes und My-Domain-Organisationen melden sich jeweils unter ihrer eigenen Adresse an. Nimm die, die deine Leute tatsächlich nutzen, statt des allgemeinen Login-Hosts.",
+      "dex": "Die Adresse endet mit dem, was in deiner Dex-Konfiguration als issuer steht — üblicherweise /dex. Sie muss exakt damit übereinstimmen.",
       "custom": "Jeder Anbieter, der OpenID Connect spricht. Füge dessen Issuer-Adresse ein — eine .well-known-URL funktioniert auch."
     }
   },
