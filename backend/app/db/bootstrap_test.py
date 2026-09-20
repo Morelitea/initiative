@@ -188,6 +188,62 @@ def test_the_printed_sql_sets_every_setting_it_reads():
     assert read <= written, f"read but never set: {sorted(read - written)}"
 
 
+def test_the_printed_handover_runs_rather_than_prints():
+    """The script is piped into psql unattended, so a step that only *displays*
+    the work is a step nobody does.
+
+    The ownership handover used to be emitted as the bare query plus a comment
+    saying to run what it returned. A fresh install has nothing to hand over
+    and never noticed; a database already running under another login — which
+    is the only kind that reaches this step — was left with its objects still
+    owned by the outgoing login, and the next boot failed on "must be owner
+    of".
+    """
+    body = bootstrap_sql()
+    assert "DO $handover$" in body
+    assert "EXECUTE statements[i]" in body
+    assert "run what it" not in body
+
+
+def test_the_printed_handover_and_the_app_run_one_query():
+    """Both forms are built from ``_TRANSFER_STATEMENTS``; a second copy is a
+    second handover to keep in step."""
+    from app.db.bootstrap import _TRANSFER_STATEMENTS
+
+    assert _TRANSFER_STATEMENTS.strip() in bootstrap_sql()
+
+
+@pytest.mark.integration
+async def test_the_wrapper_executes_every_statement_it_is_given(session):
+    """Proved on a stub query, not the real one: the real one would move the
+    ownership of every object in this worker's database."""
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _executing
+
+    block = _executing(
+        "SELECT 'probe' AS label, "
+        "$stmt$SELECT set_config('app._handover_probe', 'ran', true)$stmt$ AS stmt"
+    )
+    await session.exec(text(block))
+    ran = (
+        await session.exec(text("SELECT current_setting('app._handover_probe', true)"))
+    ).one()
+    assert ran[0] == "ran"
+
+
+@pytest.mark.integration
+async def test_the_wrapper_is_a_no_op_when_there_is_nothing_to_move(session):
+    """A fresh install renders the same block and must pass straight through
+    it."""
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _executing
+
+    block = _executing("SELECT NULL::text AS label, NULL::text AS stmt WHERE false")
+    await session.exec(text(block))
+
+
 def test_the_bootstrap_keeps_the_functions_it_installs():
     """The handover's exclusion list names functions the bootstrap creates.
 

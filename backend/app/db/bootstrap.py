@@ -618,6 +618,44 @@ async def _apply_search_operator(conn) -> bool:
     return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
 
 
+def _executing(query: str) -> str:
+    """Wrap a ``(label, stmt)`` query in a block that RUNS what it returns.
+
+    The app executes those rows itself (:func:`_transfer_ownership`). The
+    printed script is piped into ``psql`` with nobody reading it, so it needs
+    the same rows executed rather than displayed. Both forms are built from the
+    one query, so they cannot come to describe different work.
+
+    Every statement is collected before any of them runs: the query reads
+    ``pg_class`` for objects the current user owns, and altering an owner
+    part-way through a scan of the catalog it is filtering on is not something
+    to leave to chance. That is also exactly what the app path does — fetch
+    all, then execute.
+    """
+    return (
+        "DO $handover$\n"
+        "DECLARE\n"
+        "    statements text[];\n"
+        "    labels text[];\n"
+        "    i int;\n"
+        "BEGIN\n"
+        "    SELECT array_agg(stmt ORDER BY label), array_agg(label ORDER BY label)\n"
+        "      INTO statements, labels\n"
+        "      FROM (\n"
+        f"{query.strip()}\n"
+        "      ) AS pending;\n"
+        "    IF statements IS NULL THEN\n"
+        "        RETURN;\n"
+        "    END IF;\n"
+        "    FOR i IN 1 .. array_length(statements, 1) LOOP\n"
+        "        EXECUTE statements[i];\n"
+        "        RAISE NOTICE 'ownership: %', labels[i];\n"
+        "    END LOOP;\n"
+        "END\n"
+        "$handover$;"
+    )
+
+
 def bootstrap_sql() -> str:
     """The whole bootstrap as runnable SQL, for an operator applying it by hand.
 
@@ -663,13 +701,12 @@ def bootstrap_sql() -> str:
     out += [
         ADMINISTER_EXISTING_ROLES.strip(),
         "-- Ownership handover, for a database already running under another",
-        "-- login. Each statement is rendered by the query below; run what it",
-        "-- returns. Nothing to do on a fresh install.",
+        "-- login. Nothing to do on a fresh install.",
         setting("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
         setting(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
         ),
-        _TRANSFER_STATEMENTS.strip() + ";",
+        _executing(_TRANSFER_STATEMENTS),
         _DEFAULT_PRIVILEGES.strip(),
         "",
         "-- Guild search match operator",
