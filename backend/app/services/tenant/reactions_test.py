@@ -1,15 +1,15 @@
-"""Unit tests for the reaction service's own logic — the summary shape, the
-emoji rule, and the registry's completeness."""
+"""Unit tests for the reaction service's own logic — the summary shape and the
+emoji rule. That every reactable kind has a resolver is a row in
+``app/core/registry_coverage_test.py``."""
 
 import pytest
 
 from app.core.emoji import MAX_EMOJI_CODEPOINTS, validate_emoji
-from app.core.reactions import REACTION_TARGETS, ReactionTarget
+from app.core.reactions import ReactionTarget
 from app.models.tenant.reaction import Reaction
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import (
     MAX_NAMED_REACTORS,
-    TARGET_RESOLVERS,
     summarize,
 )
 
@@ -85,10 +85,3 @@ class TestEmojiRule:
     def test_refuses_anything_that_would_render_as_text(self, value):
         with pytest.raises(ValueError):
             validate_emoji(value)
-
-
-@pytest.mark.unit
-def test_every_target_kind_has_a_resolver():
-    """The registry is what makes reactions reusable — a kind with no resolver
-    would 500 on its first request rather than 404."""
-    assert set(TARGET_RESOLVERS) == set(REACTION_TARGETS)

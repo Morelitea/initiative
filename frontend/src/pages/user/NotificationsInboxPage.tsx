@@ -186,7 +186,7 @@ export const NotificationsInboxPage = () => {
                         <RelativeTime date={notification.created_at} />
                       </p>
                     </button>
-                    <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                    <div className="flex items-center gap-1 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon"

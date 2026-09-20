@@ -1084,13 +1084,28 @@ class TestParseConditions:
         with pytest.raises(ValueError, match="size limit"):
             parse_conditions("x" * 101, max_length=100)
 
-    def test_rejects_invalid_json(self):
-        with pytest.raises(ValueError, match="not valid JSON"):
-            parse_conditions("{not json}")
-
-    def test_rejects_non_array(self):
-        with pytest.raises(ValueError, match="must be a JSON array"):
-            parse_conditions('{"field": "name"}')
+    @pytest.mark.parametrize(
+        ("raw", "problem"),
+        [
+            ("{not json}", "not valid JSON"),
+            ('{"field": "name"}', "must be a JSON array"),
+            ('[{"bad_key": "value"}]', "invalid condition structure"),
+            (
+                '[{"field": "name", "op": "DROP TABLE", "value": "x"}]',
+                "invalid condition structure",
+            ),
+        ],
+        ids=[
+            "not JSON",
+            "not an array",
+            "not a condition",
+            "an operator nobody serves",
+        ],
+    )
+    def test_a_payload_that_is_not_a_list_of_conditions_is_refused(self, raw, problem):
+        """Each refusal names what the payload was instead."""
+        with pytest.raises(ValueError, match=problem):
+            parse_conditions(raw)
 
     def test_rejects_too_many_conditions(self):
         items = [{"field": "f", "value": i} for i in range(51)]
@@ -1105,14 +1120,6 @@ class TestParseConditions:
 
         with pytest.raises(ValueError, match="too many conditions"):
             parse_conditions(json.dumps(items), max_conditions=2)
-
-    def test_rejects_invalid_structure(self):
-        with pytest.raises(ValueError, match="invalid condition structure"):
-            parse_conditions('[{"bad_key": "value"}]')
-
-    def test_rejects_invalid_op(self):
-        with pytest.raises(ValueError, match="invalid condition structure"):
-            parse_conditions('[{"field": "name", "op": "DROP TABLE", "value": "x"}]')
 
     def test_at_exact_limit_succeeds(self):
         items = [{"field": "f", "value": i} for i in range(50)]
@@ -1299,13 +1306,25 @@ class TestParseSortFields:
         with pytest.raises(ValueError, match="size limit"):
             parse_sort_fields("x" * 10_001)
 
-    def test_rejects_invalid_json(self):
-        with pytest.raises(ValueError, match="not valid JSON"):
-            parse_sort_fields("{not json}")
-
-    def test_rejects_non_array(self):
-        with pytest.raises(ValueError, match="must be a JSON array"):
-            parse_sort_fields('{"field": "name"}')
+    @pytest.mark.parametrize(
+        ("raw", "problem"),
+        [
+            ("{not json}", "not valid JSON"),
+            ('{"field": "name"}', "must be a JSON array"),
+            ('[{"bad_key": "value"}]', "invalid sort field structure"),
+            ('[{"field": "name", "dir": "RANDOM"}]', "invalid sort field structure"),
+        ],
+        ids=[
+            "not JSON",
+            "not an array",
+            "not a sort field",
+            "a direction that is not one",
+        ],
+    )
+    def test_a_payload_that_is_not_a_list_of_sort_fields_is_refused(self, raw, problem):
+        """Each refusal names what the payload was instead."""
+        with pytest.raises(ValueError, match=problem):
+            parse_sort_fields(raw)
 
     def test_rejects_too_many_fields(self):
         items = [{"field": f"f{i}"} for i in range(11)]
@@ -1313,14 +1332,6 @@ class TestParseSortFields:
 
         with pytest.raises(ValueError, match="too many sort fields"):
             parse_sort_fields(json.dumps(items))
-
-    def test_rejects_invalid_structure(self):
-        with pytest.raises(ValueError, match="invalid sort field structure"):
-            parse_sort_fields('[{"bad_key": "value"}]')
-
-    def test_rejects_invalid_dir(self):
-        with pytest.raises(ValueError, match="invalid sort field structure"):
-            parse_sort_fields('[{"field": "name", "dir": "RANDOM"}]')
 
     def test_at_exact_limit_succeeds(self):
         items = [{"field": f"f{i}"} for i in range(10)]

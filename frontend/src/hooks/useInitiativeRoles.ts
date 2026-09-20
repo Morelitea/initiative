@@ -255,17 +255,6 @@ export const useDeleteRole = (initiativeId: number) => {
   });
 };
 
-// Helper to check if user has a specific permission
-export const hasPermission = (
-  permissions: MyInitiativePermissions | undefined,
-  key: PermissionKey
-): boolean => {
-  if (!permissions) return false;
-  // Managers always have all permissions
-  if (permissions.is_manager) return true;
-  return permissions.permissions[key] ?? false;
-};
-
 // Helper to check if a tool is visible to the user.
 // Reads the permission value directly — the backend already accounts for
 // initiative-level master switches and manager status, so we must not
@@ -297,12 +286,6 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromE
   ])
 ) as Record<PermissionKey, string>;
 
-// All permission keys in display order (view before create, per tool)
-export const ALL_PERMISSION_KEYS: PermissionKey[] = TOOLS.flatMap((tool) => [
-  toolViewPermission(tool),
-  toolCreatePermission(tool),
-]);
-
 // Permission groups for card-based layout
 export type PermissionGroup = {
   labelKey: string;
@@ -326,9 +309,3 @@ export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
 export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
   (tool) => !DEFAULT_ENABLED_TOOLS.has(tool)
 ).map(toolPermissionGroup);
-
-// All groups combined (for backward compat)
-export const PERMISSION_GROUPS: PermissionGroup[] = [
-  ...CORE_PERMISSION_GROUPS,
-  ...ADVANCED_PERMISSION_GROUPS,
-];

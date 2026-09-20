@@ -12,6 +12,7 @@ import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useGuilds } from "@/hooks/useGuilds";
+import { managesInitiative } from "@/hooks/useInitiativeAccess";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
@@ -51,13 +52,8 @@ export const canPinProject = (
   // carried on the guild.
   if (isGuildAdmin) return true;
 
-  // Manager standing in this project's initiative — `is_manager` is the flag
-  // the role carries, so a renamed or additional managing role counts.
-  const initiative = project.initiative;
-  if (!initiative?.members) return false;
-
-  const membership = initiative.members.find((m) => m.user.id === userId);
-  return Boolean(membership?.is_manager);
+  // Manager standing in this project's initiative, by the one rule.
+  return managesInitiative(project.initiative?.members, userId);
 };
 
 export const ProjectCardLink = ({

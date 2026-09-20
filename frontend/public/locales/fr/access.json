@@ -91,8 +91,6 @@
   "bulkBar": {
     "selected_one": "{{count}} sélectionné",
     "selected_other": "{{count}} sélectionnés",
-    "select": "Sélectionner",
-    "done": "Terminé",
     "editAccess": "Modifier l'accès",
     "needManage": "Vous ne pouvez modifier l'accès que sur les éléments que vous possédez ou pouvez modifier.",
     "resource_project_one": "projet",

@@ -1,8 +1,6 @@
 {
   "title": "Papierkorb",
   "description": "Elemente hier werden nach Ablauf der Aufbewahrungsfrist der Community endgültig gelöscht. Stelle sie jederzeit davor wieder her.",
-  "scopeGuild": "Alle in der Community",
-  "scopeMine": "Nur meine",
   "empty": "Der Papierkorb ist leer.",
   "columnType": "Typ",
   "columnName": "Name",
@@ -20,12 +18,6 @@
   "restoreError": "Element konnte nicht wiederhergestellt werden.",
   "purgeSuccess": "Endgültig gelöscht.",
   "purgeError": "Element konnte nicht endgültig gelöscht werden.",
-  "reassignDialog": {
-    "title": "Neuen Eigentümer auswählen",
-    "description": "Der ursprüngliche Eigentümer dieses {{type}} ist kein Mitglied der Initiative mehr. Wähle jemanden aus, der die Eigentümerschaft vor der Wiederherstellung übernimmt.",
-    "ownerLabel": "Neuer Eigentümer",
-    "confirm": "Mit neuem Eigentümer wiederherstellen"
-  },
   "entityType": {
     "project": "Projekt",
     "task": "Aufgabe",

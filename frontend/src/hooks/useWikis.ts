@@ -1,87 +1,49 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import type {
-  InitiativeGroupedCountsResponse,
-  ListWikisApiV1GGuildIdWikisGetParams,
-  ResourceGrantSchema,
-  WikiCreate,
-  WikiListResponse,
   WikiPageCreate,
   WikiPageLinks,
   WikiPageMove,
   WikiPageRead,
   WikiPageTree,
   WikiPageUpdate,
-  WikiRead,
-  WikiUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   addDocumentToWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdPut,
-  createWikiApiV1GGuildIdWikisPost,
   createWikiPageApiV1GGuildIdWikisWikiIdPagesPost,
-  deleteWikiApiV1GGuildIdWikisWikiIdDelete,
   deleteWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdDelete,
-  getGetWikiCountsByInitiativeApiV1GGuildIdWikisCountsByInitiativeGetQueryKey,
   getListWikiPagesApiV1GGuildIdWikisWikiIdPagesGetQueryKey,
-  getListWikisApiV1GGuildIdWikisGetQueryKey,
-  getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey,
   getReadWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdGetQueryKey,
   getReadWikiPageLinksApiV1GGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey,
-  getWikiCountsByInitiativeApiV1GGuildIdWikisCountsByInitiativeGet,
   listWikiPagesApiV1GGuildIdWikisWikiIdPagesGet,
-  listWikisApiV1GGuildIdWikisGet,
   moveWikiDocumentApiV1GGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
   moveWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdMovePost,
-  readWikiApiV1GGuildIdWikisWikiIdGet,
   readWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdGet,
   readWikiPageLinksApiV1GGuildIdWikisWikiIdPagesPageIdLinksGet,
   removeDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentIdDelete,
-  setWikiGrantsApiV1GGuildIdWikisWikiIdGrantsPut,
-  updateWikiApiV1GGuildIdWikisWikiIdPatch,
   updateWikiPageApiV1GGuildIdWikisWikiIdPagesPageIdPatch,
 } from "@/api/generated/wikis/wikis";
 import { invalidate, q } from "@/api/query-keys";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── Queries ─────────────────────────────────────────────────────────────────
+// ── The standard seven ──────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires.
 
-/** Visible-wiki counts per initiative, for the sidebar badges. */
-export const useWikiCountsByInitiative = (options?: QueryOpts<InitiativeGroupedCountsResponse>) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey: getGetWikiCountsByInitiativeApiV1GGuildIdWikisCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getWikiCountsByInitiativeApiV1GGuildIdWikisCountsByInitiativeGet(guildId),
-    ...options,
-  });
-};
+const wikis = TOOL_HOOKS[Tool.wiki];
+export const useWikisList = wikis.useList;
+export const useWiki = wikis.useDetail;
+export const useCreateWiki = wikis.useCreate;
+export const useUpdateWiki = wikis.useUpdate;
+export const useDeleteWiki = wikis.useDelete;
+export const useSetWikiGrants = wikis.useSetGrants;
 
-export const useWikisList = (
-  params?: ListWikisApiV1GGuildIdWikisGetParams,
-  options?: QueryOpts<WikiListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<WikiListResponse>({
-    queryKey: getListWikisApiV1GGuildIdWikisGetQueryKey(guildId, params),
-    queryFn: () => listWikisApiV1GGuildIdWikisGet(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-export const useWiki = (wikiId: number | null, options?: QueryOpts<WikiRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<WikiRead>({
-    queryKey: getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey(guildId, wikiId!),
-    queryFn: () => readWikiApiV1GGuildIdWikisWikiIdGet(guildId, wikiId!),
-    enabled: wikiId !== null && Number.isFinite(wikiId) && userEnabled,
-    ...rest,
-  });
-};
+// ── A wiki's pages ──────────────────────────────────────────────────────────
 
 /**
  * Every page of a wiki, flat and in reading order.
@@ -145,51 +107,6 @@ export const useWikiPageLinks = (
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-export const useCreateWiki = (options?: MutationOpts<WikiRead, WikiCreate>) =>
-  useGuildMutation<WikiRead, WikiCreate>(
-    {
-      mutationFn: (guildId, data) => createWikiApiV1GGuildIdWikisPost(guildId, data),
-      invalidate: () => invalidate(q.allWikis()),
-      errorKey: "wikis:error",
-    },
-    options
-  );
-
-export const useUpdateWiki = (wikiId: number, options?: MutationOpts<WikiRead, WikiUpdate>) =>
-  useGuildMutation<WikiRead, WikiUpdate>(
-    {
-      mutationFn: (guildId, data) => updateWikiApiV1GGuildIdWikisWikiIdPatch(guildId, wikiId, data),
-      invalidate: () => invalidate(q.tool(Tool.wiki, wikiId)),
-      errorKey: "wikis:error",
-    },
-    options
-  );
-
-export const useDeleteWiki = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: (guildId, wikiId) =>
-        deleteWikiApiV1GGuildIdWikisWikiIdDelete(guildId, wikiId).then(() => undefined),
-      invalidate: () => invalidate(q.allWikis()),
-      errorKey: "wikis:error",
-    },
-    options
-  );
-
-export const useSetWikiGrants = (
-  wikiId: number,
-  options?: MutationOpts<WikiRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<WikiRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setWikiGrantsApiV1GGuildIdWikisWikiIdGrantsPut(guildId, wikiId, grants),
-      invalidate: () => invalidate(q.wiki(wikiId)),
-      errorKey: "wikis:error",
-    },
-    options
-  );
 
 export const useCreateWikiPage = (
   wikiId: number,

@@ -96,18 +96,6 @@ async def get_page(
     return (await session.exec(statement)).one_or_none()
 
 
-async def get_page_by_slug(
-    session: AsyncSession, wiki_id: int, slug: str
-) -> WikiPage | None:
-    """One page of one wiki, by the name in its URL."""
-    statement = (
-        select(WikiPage)
-        .where(WikiPage.wiki_id == wiki_id, WikiPage.slug == slug)
-        .options(selectinload(WikiPage.author))
-    )
-    return (await session.exec(statement)).one_or_none()
-
-
 def slugify_page_title(title: str, *, fallback: str = "page") -> str:
     """Kebab-case a page title down to the slug alphabet.
 

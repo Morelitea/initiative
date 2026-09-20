@@ -44,7 +44,6 @@
   },
   "update": {
     "available": "Version {{version}} disponible",
-    "action": "Mettre à jour",
     "done": "Mis à jour vers {{version}}.",
     "failed": "Impossible de mettre à jour ce tableau de bord."
   },

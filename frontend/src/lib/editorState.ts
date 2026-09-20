@@ -21,8 +21,6 @@ export const createEmptyEditorState = (): SerializedEditorState => ({
   } as SerializedEditorState["root"],
 });
 
-export const EMPTY_EDITOR_STATE: SerializedEditorState = createEmptyEditorState();
-
 export const normalizeEditorState = (
   state?: SerializedEditorState | null
 ): SerializedEditorState => {

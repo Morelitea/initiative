@@ -389,14 +389,16 @@ async def _apply_file_entry(
     """A file document: its content is the restored ``assets/`` blob."""
     from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.property import DocumentPropertyValue
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
     from app.services.import_engine.common import (
         ensure_tag,
         load_initiative_member_handles,
     )
-    from app.services.import_engine.importers._base import resolve_property_values
+    from app.services.import_engine.importers._base import (
+        grant_ownership,
+        resolve_property_values,
+    )
 
     storage_key = (entry.asset or "").removeprefix("assets/")
     if not storage_key:
@@ -430,20 +432,13 @@ async def _apply_file_entry(
             )
             session.add(document)
             await session.flush()
-            session.add(
-                ResourceGrant(
-                    resource_type="document",
-                    resource_id=document.id,
-                    user_id=user.id,
-                    role_id=None,
-                    level=ResourceAccessLevel.owner,
-                    guild_id=initiative.guild_id,
-                    initiative_id=initiative.id,
-                )
+            await grant_ownership(
+                session,
+                tool=Tool.document,
+                entity_id=document.id,
+                target_initiative=initiative,
+                importer=user,
             )
-            # Sharing before the content it governs — a flush orders its
-            # statements by table, not by the order things were added.
-            await session.flush()
 
             for tag_name in entry.tags:
                 resolved = await ensure_tag(

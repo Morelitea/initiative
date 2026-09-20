@@ -230,10 +230,10 @@ export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
 /**
  * Cross-guild events + assigned-task markers for the My Calendar page.
  *
- * The two legs use different engines by design: events aggregate per guild
- * schema via the admin session (``gather_across_guilds``), tasks run on the
- * ``platform_<tier>`` user session — the same split as ``/me/calendar-events``
- * and ``/me/tasks``.
+ * Both legs run on the caller's own ``platform_<tier>`` session, exactly as
+ * ``/me/calendar-events`` and ``/me/tasks`` do: the event leg enters each
+ * member guild with the membership role held there (``gather_across_guilds``)
+ * and the task leg is the ``/me/tasks`` query, fetch-all over the window.
  * @summary List My Calendar Entries
  */
 export const listMyCalendarEntriesApiV1MeCalendarEntriesGet = (

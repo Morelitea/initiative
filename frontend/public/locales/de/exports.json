@@ -49,7 +49,6 @@
       "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren."
     },
     "report": {
-      "include": "Einschließen",
       "documentNative": "Textdokumente",
       "documentSpreadsheet": "Tabellen",
       "documentOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
@@ -89,7 +88,6 @@
       "export": "Export",
       "status": "Status",
       "created": "Erstellt",
-      "expires": "Läuft ab",
       "actions": "Aktionen"
     },
     "status": {
@@ -104,13 +102,13 @@
       "project": "Projekt",
       "document": "Dokument",
       "queue": "Warteschlange",
-      "counter-group": "Zählergruppe",
       "calendar": "Kalender",
       "post": "Beitrag",
       "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Community",
-      "gallery": "Galerie"
+      "gallery": "Galerie",
+      "counter-group": "Zählergruppe"
     },
     "download": "Herunterladen",
     "empty": "Noch keine Exporte.",

@@ -1,14 +1,10 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   createCalendarEventApiV1GGuildIdCalendarEventsPost,
   deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete,
-  getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey,
-  getListMyCalendarEventsApiV1MeCalendarEventsGetQueryKey,
   getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey,
   importIcalEventsApiV1GGuildIdCalendarEventsImportPost,
-  listCalendarEventsApiV1GGuildIdCalendarEventsGet,
-  listMyCalendarEventsApiV1MeCalendarEventsGet,
   parseIcalFileApiV1GGuildIdCalendarEventsImportParsePost,
   readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
@@ -18,7 +14,6 @@ import {
 } from "@/api/generated/calendar-events/calendar-events";
 import type {
   CalendarEventCreate,
-  CalendarEventListResponse,
   CalendarEventRead,
   CalendarEventRSVPUpdate,
   CalendarEventUpdate,
@@ -26,44 +21,13 @@ import type {
   ICalImportResult,
   ICalParseRequest,
   ICalParseResult,
-  ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
-  ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   TagSetRequest,
 } from "@/api/generated/initiativeAPI.schemas";
-import { type RelationshipRead, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { setRelated } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
-
-// ── Queries ─────────────────────────────────────────────────────────────────
-
-export const useCalendarEventsList = (
-  params: ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
-  options?: QueryOpts<CalendarEventListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<CalendarEventListResponse>({
-    queryKey: getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey(guildId, params),
-    queryFn: () => listCalendarEventsApiV1GGuildIdCalendarEventsGet(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-export const useGlobalCalendarEventsList = (
-  params: ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
-  options?: QueryOpts<CalendarEventListResponse>
-) => {
-  return useQuery<CalendarEventListResponse>({
-    queryKey: getListMyCalendarEventsApiV1MeCalendarEventsGetQueryKey(params),
-    queryFn: () => listMyCalendarEventsApiV1MeCalendarEventsGet(params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
 
 export const useCalendarEvent = (
   eventId: number | null,
@@ -205,25 +169,6 @@ export const useSetEventTags = (
     {
       mutationFn: (guildId, data) =>
         setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data),
-      invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendars:error",
-    },
-    options
-  );
-
-export const useSetEventDocuments = (
-  eventId: number,
-  options?: MutationOpts<RelationshipRead[], number[]>
-) =>
-  useGuildMutation<RelationshipRead[], number[]>(
-    {
-      mutationFn: (guildId, documentIds) =>
-        setRelated(
-          guildId,
-          { type: SearchEntityType.calendar_event, id: eventId },
-          SearchEntityType.document,
-          documentIds
-        ),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },

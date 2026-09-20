@@ -1162,21 +1162,6 @@ async def _list_models(
     return [], f"Unknown provider: {provider}"
 
 
-def _resolved_from_conn(conn: _ConnRow, api_key: str | None) -> ResolvedAISettings:
-    provider = AIProvider(conn.provider)
-    return ResolvedAISettings(
-        enabled=True,
-        provider=provider,
-        api_key=api_key,
-        base_url=conn.base_url,
-        model=conn.model,
-        allow_private=_allow_private_for(provider, conn.scope),
-        scope=ConnectionScope(conn.scope),
-        connection_id=conn.id,
-        source=conn.scope,
-    )
-
-
 async def _probe(conn: _ConnRow, api_key: str | None) -> AIConnectionTestResponse:
     provider = AIProvider(conn.provider)
     allow_private = _allow_private_for(provider, conn.scope)

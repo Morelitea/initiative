@@ -363,9 +363,16 @@ describe("tool surfaces are wired, not just typed", () => {
   });
 
   it("the sidebar asks for a count per tool", async () => {
-    const source = await import("@/components/AppSidebar?raw").then((m) => m.default as string);
+    // The sidebar fans out over the hook table rather than naming nine hooks,
+    // so the table is what has to carry a counts query addressed at each
+    // tool's own endpoint.
+    const { TOOL_HOOKS } = await import("@/hooks/toolHooks");
+    const { toolRouteSegment } = await import("@/lib/tools");
     for (const tool of TOOLS) {
-      expect(source, `AppSidebar never fills counts[${tool}]`).toContain(`[Tool.${tool}]:`);
+      const { queryKey } = TOOL_HOOKS[tool].countsQuery(1);
+      expect(JSON.stringify(queryKey), `no counts query for ${tool}`).toContain(
+        `/${toolRouteSegment(tool)}/counts/by-initiative`
+      );
     }
   });
 });

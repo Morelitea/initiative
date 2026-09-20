@@ -1,8 +1,4 @@
 {
-  "backlinks": {
-    "title_one": "Linked from {{count}} document",
-    "title_other": "Linked from {{count}} documents"
-  },
   "bulk": {
     "delete": "Delete",
     "deleteConfirm_one": "Delete {{count}} document?",
@@ -67,9 +63,7 @@
     "activeCollaborators": "Active collaborators:",
     "viewing": "(viewing)",
     "noCollaborators": "No other collaborators. Changes sync in real-time when others join.",
-    "failedToConnect": "Failed to connect. Changes will be saved locally.",
-    "collaborators_one": "{{count}} collaborator",
-    "collaborators_other": "{{count}} collaborators"
+    "failedToConnect": "Failed to connect. Changes will be saved locally."
   },
   "columns": {
     "title": "Title",
@@ -92,7 +86,6 @@
     "documentTypeText": "Text document",
     "documentTypeWhiteboard": "Whiteboard",
     "documentTypeSpreadsheet": "Spreadsheet",
-    "documentTypeSmartLink": "Smart link",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Paste a link",
     "smartLinkSupportedProviders": "Supported:",
@@ -122,9 +115,6 @@
     "createDocument": "Create document",
     "uploadingFile": "Uploading…",
     "uploadDocument": "Upload document",
-    "titleRequired": "Document title is required",
-    "initiativeRequired": "Please select an initiative",
-    "fileRequired": "Please select a file to upload",
     "createdAttached": "Document created and attached.",
     "created": "Document created.",
     "uploadedAttached": "Document uploaded and attached.",
@@ -198,7 +188,6 @@
     "alignJustify": "Justify Align",
     "alignLeft": "Left Align",
     "alignRight": "Right Align",
-    "alignment": "Alignment",
     "background": "Background",
     "blockCode": "Code block",
     "blockH1": "Heading 1",
@@ -210,7 +199,6 @@
     "bulletedList": "Bulleted list",
     "checklist": "Checklist",
     "clearFormatting": "Clear Formatting",
-    "codeBlock": "Code block",
     "colorBlack": "Black",
     "colorBlue": "Blue",
     "colorDefault": "Default",
@@ -222,8 +210,6 @@
     "colorPurple": "Purple",
     "colorRed": "Red",
     "colorYellow": "Yellow",
-    "columnLeft": "Column left",
-    "columnRight": "Column right",
     "columnsLayout": "Columns Layout",
     "deleteColumn": "Delete column",
     "deleteRow": "Delete row",
@@ -231,20 +217,11 @@
     "dismiss": "Dismiss",
     "embed": "Embed",
     "embedContent": "Embed {{contentName}}",
-    "errorImageOnly": "Only image files are supported.",
-    "errorInsertColumn": "Unable to insert table column.",
-    "errorInsertRow": "Unable to insert table row.",
-    "errorTableCursor": "Place your cursor inside a table first.",
-    "errorUpload": "Failed to upload {{fileName}}.",
-    "errorYoutubeUrl": "Unable to parse YouTube URL.",
     "fontSize": "Font size",
     "format": "Format",
-    "formatting": "Formatting",
-    "history": "History",
     "horizontalRule": "Horizontal rule",
     "image": "Image",
     "indent": "Indent",
-    "inlineCode": "Code",
     "insert": "Insert",
     "insertColumnLeft": "Insert column left",
     "insertColumnRight": "Insert column right",
@@ -258,17 +235,9 @@
     "moreFormatting": "More formatting",
     "numberedList": "Numbered list",
     "outdent": "Outdent",
-    "promptColumns": "Number of columns",
-    "promptRows": "Number of rows",
-    "promptUrl": "Enter a URL",
-    "promptYoutubeUrl": "YouTube URL",
     "redo": "Redo",
-    "rowAbove": "Row above",
-    "rowBelow": "Row below",
     "selectLanguage": "Select language",
-    "selectTable": "Select a table",
     "strikethrough": "Strikethrough",
-    "subSuperscript": "Subscript & superscript",
     "subscript": "Subscript",
     "superscript": "Superscript",
     "table": "Table",
@@ -280,23 +249,7 @@
     "tweet": "Tweet",
     "underline": "Underline",
     "undo": "Undo",
-    "youtubeEmbed": "YouTube embed",
     "youtubeVideo": "YouTube Video"
-  },
-  "myDocuments": {
-    "title": "My Documents",
-    "subtitle": "Documents you own across all your communities.",
-    "empty": "You haven't created any documents yet.",
-    "loadError": "Unable to load your documents.",
-    "searchPlaceholder": "Search documents...",
-    "filterByGuild": "Filter by community",
-    "allGuilds": "All communities",
-    "noGuilds": "No communities found",
-    "noGuild": "No community",
-    "filters": "Filters",
-    "showFilters": "Show filters",
-    "hideFilters": "Hide filters",
-    "updating": "Updating..."
   },
   "outline": {
     "title": "Contents",
@@ -317,8 +270,6 @@
     "viewGrid": "Grid",
     "viewList": "List",
     "filters": "Filters",
-    "showFilters": "Show filters",
-    "hideFilters": "Hide filters",
     "searchLabel": "Search",
     "searchPlaceholder": "Search documents",
     "filterByTag": "Filter by tag",
@@ -351,11 +302,9 @@
     "unavailable": "This is no longer available to you"
   },
   "settings": {
-    "loading": "Loading document…",
     "notFound": "Document not found.",
     "title": "Document settings",
     "subtitle": "Manage access, template status, duplication, and deletion.",
-    "breadcrumb": "Settings",
     "templateTitle": "Template",
     "templateDescription": "Template documents are intended to be duplicated instead of edited directly.",
     "templateToggle": "Toggle template status",
@@ -388,14 +337,9 @@
     "documentCopied": "Document copied to {{initiative}}",
     "duplicateError": "Unable to duplicate document",
     "copyError": "Unable to copy document",
-    "templateUpdated": "Template status updated",
-    "templateError": "Unable to update template status",
-    "tagsSaved": "Tags updated",
-    "tagsError": "Unable to update tags"
+    "templateError": "Unable to update template status"
   },
   "sidePanel": {
-    "title": "Document Panel",
-    "commentsTab": "Comments",
     "summaryTab": "Summary"
   },
   "smartChips": {
@@ -502,12 +446,6 @@
       "inputLabel": "Formula bar — edit the active cell's formula or value"
     },
     "format": {
-      "scopeCell": "Cell",
-      "scopeColumn": "Column",
-      "scopeRow": "Row",
-      "scopeCellLabel": "Cell {{name}}",
-      "scopeColumnLabel": "Column {{name}}",
-      "scopeRowLabel": "Row {{name}}",
       "title": "Format",
       "font": "Font",
       "colors": "Colors",
@@ -558,7 +496,6 @@
       "alignTop": "Align top",
       "alignMiddle": "Align middle",
       "alignBottom": "Align bottom",
-      "numberOptions": "Options",
       "decimals": "Decimal places",
       "thousandsSeparator": "Thousands separator",
       "negatives": "Negative numbers",
@@ -588,7 +525,6 @@
       "hiddenCount_other": "{{count}} hidden sheets",
       "unhideNamed": "Show “{{name}}”",
       "import": "Import a file",
-      "importing": "Reading file…",
       "imported_one": "{{count}} sheet imported.",
       "imported_other": "{{count}} sheets imported.",
       "importFailed": "That file could not be imported.",
@@ -675,21 +611,6 @@
     "showRendered": "View rendered"
   },
   "whiteboard": {
-    "loading": "Loading whiteboard…",
-    "syncing": "Syncing whiteboard…",
-    "readOnly": "You have read-only access to this whiteboard."
-  },
-  "wikilink": {
-    "title": "Create document",
-    "descriptionCanCreate": "The document \"{{title}}\" doesn’t exist yet. Would you like to create it?",
-    "descriptionNoPermission": "The document \"{{title}}\" doesn’t exist. You don’t have permission to create documents in this initiative.",
-    "templateLabel": "Template (optional)",
-    "searchTemplates": "Search templates…",
-    "blankDocument": "Blank document",
-    "noTemplates": "No templates available",
-    "createDocument": "Create document",
-    "creating": "Creating…",
-    "created": "Document created",
-    "createError": "Unable to create document."
+    "syncing": "Syncing whiteboard…"
   }
 }

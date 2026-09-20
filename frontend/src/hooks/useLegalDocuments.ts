@@ -25,8 +25,6 @@ import { useAppConfig } from "@/hooks/useAppConfig";
  *  before the index has loaded, and it is the same pair. */
 export const REQUIRED_DOCUMENTS = ["terms", "privacy"] as const;
 
-export type RequiredDocument = (typeof REQUIRED_DOCUMENTS)[number];
-
 /** Where a reader goes to read one. */
 export const legalDocumentPath = (slug: string) => `/legal/${slug}`;
 

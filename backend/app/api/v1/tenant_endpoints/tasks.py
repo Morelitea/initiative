@@ -451,12 +451,6 @@ def _task_to_list_read(task: Task) -> TaskListRead:
     )
 
 
-def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
-    now = timestamp or datetime.now(timezone.utc)
-    task.updated_at = now
-    return now
-
-
 async def _touch_project(
     session: SessionDep, project_id: int, *, timestamp: datetime | None = None
 ) -> datetime:

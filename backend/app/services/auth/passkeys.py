@@ -16,7 +16,6 @@ reported rather than what was asked for.
 from __future__ import annotations
 
 import ipaddress
-import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -428,11 +427,6 @@ async def remove(session: AsyncSession, *, user_id: int, passkey_id: Any) -> boo
     await session.delete(row)
     await session.flush()
     return True
-
-
-def generate_challenge() -> bytes:
-    """A challenge of our own, for a caller holding one outside a ceremony."""
-    return secrets.token_bytes(32)
 
 
 def _options_to_dict(options: Any) -> dict[str, Any]:

@@ -517,37 +517,6 @@ export const DocumentOutlinePanel = ({
   );
 };
 
-/**
- * The headings the live editor is reporting, as a tree.
- *
- * For a surface that draws the outline somewhere other than the panel — the
- * wiki sidebar lists a page's headings under the page itself. Empty wherever
- * no editor is mounted inside the scope, which is every other screen.
- */
-export const useOutlineNodes = (): OutlineNode[] => {
-  const store = useContext(DocumentOutlineContext);
-  const snapshot = useSyncExternalStore(
-    store?.subscribe ?? NO_SUBSCRIBE,
-    store?.getSnapshot ?? NO_SNAPSHOT
-  );
-  return useMemo(() => buildOutlineTree(snapshot.entries), [snapshot.entries]);
-};
-
-/**
- * Jump to a heading. The same scroll the panel performs, for a caller that
- * draws its own list.
- */
-export const useOutlineNavigate = () => {
-  const store = useContext(DocumentOutlineContext);
-  return useCallback(
-    (key: string) => {
-      const heading = store?.getSnapshot().editor?.getElementByKey(key);
-      if (heading) scrollToHeading(heading);
-    },
-    [store]
-  );
-};
-
 /** Whether the outline is showing. Closed until somebody opens it, and then
  *  remembered, the same as the document's other panels. */
 export const useDocumentOutline = () => {

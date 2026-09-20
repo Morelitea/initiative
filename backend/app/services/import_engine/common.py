@@ -169,14 +169,6 @@ class ResolvedProperties:
         self.renamed: list[str] = []
 
 
-class _EnvelopePropertyDefinition(Protocol):
-    name: str
-    type: PropertyType
-    position: int
-    color: str | None
-    options: list[dict] | None
-
-
 async def resolve_property_definitions(
     session: AsyncSession,
     *,

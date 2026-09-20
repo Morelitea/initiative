@@ -81,7 +81,9 @@ async def _validate_project_write_access(
             detail=ImportMessages.PROJECT_ARCHIVED,
         )
 
-    permissions_service.require_project_access(project, user, access="write")
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.project], project, user, access="write"
+    )
 
     return project
 

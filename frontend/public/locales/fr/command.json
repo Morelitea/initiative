@@ -33,7 +33,6 @@
     "platformSettings": "Paramètres de la plateforme",
     "operatorDashboard": "Tableau de bord opérateur"
   },
-  "shortcutHint": "Rechercher",
   "shortcutTooltip": "Recherche rapide ({{shortcut}})",
   "types": {
     "project": "Projet",

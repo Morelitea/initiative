@@ -5,7 +5,7 @@ Follows the document endpoint patterns for RLS, DAC, and initiative permission c
 """
 
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 import json
 import logging
@@ -14,12 +14,10 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Query,
     WebSocket,
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -29,7 +27,6 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
-from app.services.tenant import archive as archive_service
 from app.services.tenant import relationships
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
@@ -53,32 +50,24 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.queue import (
     QueueCreate,
     QueueUpdate,
     QueueRead,
-    QueueListResponse,
     QueueItemCreate,
     QueueItemUpdate,
     QueueItemRead,
     QueueItemReorderRequest,
     QueueReleaseRequest,
     serialize_queue,
-    serialize_queue_summary,
     serialize_queue_item,
 )
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
-from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant import search as search_service
-from app.services.tenant import tool_listing
 from app.schemas.tenant.tag import TagSetRequest
-from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 
@@ -239,20 +228,6 @@ async def _get_initiative_for_queue(
     return initiative
 
 
-async def _get_queue_with_access(
-    session: RLSSessionDep,
-    queue_id: int,
-    user: User,
-    guild_context: GuildContext,
-    *,
-    access: str = "read",
-) -> Queue:
-    """Fetch + authorize a queue via the shared enforcement path."""
-    return await resource_access.load_authorized(
-        session, Tool.queue, queue_id, user, guild_context, access=access
-    )
-
-
 async def _get_item_for_queue(
     session: RLSSessionDep,
     queue_id: int,
@@ -310,159 +285,10 @@ async def read_queue_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
-    await _get_queue_with_access(
-        session, item.queue_id, current_user, guild_context, access="read"
+    await resource_access.load_authorized(
+        session, Tool.queue, item.queue_id, current_user, guild_context, access="read"
     )
     return await _serialized_queue_item(session, item)
-
-
-@router.get("/", response_model=QueueListResponse)
-async def list_queues(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the row — its name and its description. "
-            "Reads the same index the search page does, so a list's filter "
-            "box and a search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for this "
-            "tool's own default order."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-) -> QueueListResponse:
-    """List queues visible to the current user.
-
-    DAC: Queues with explicit QueuePermission or role-based permission.
-    Guild admins see all queues.
-    """
-    conditions = [
-        Queue.guild_id == guild_context.guild_id,
-        archive_service.archive_filter_clause(Queue, archived),
-    ]
-
-    if initiative_id is not None:
-        # Validate that queues are enabled for this initiative
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.queues_enabled:
-            return QueueListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
-        conditions.append(Queue.initiative_id == initiative_id)
-    else:
-        # Only include queues from initiatives with queues enabled
-        conditions.append(
-            Queue.initiative_id.in_(
-                select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.queue,
-            Queue.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(Tool.queue, Queue.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    # Count query
-    count_subq = select(Queue.id).where(*conditions).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
-    # Data query with eager loading for serialization
-    stmt = (
-        select(Queue).where(*conditions).options(*queues_service.list_loader_options())
-    )
-    stmt = (
-        tool_listing.apply_tool_order(
-            stmt,
-            Queue,
-            sort_by,
-            sort_dir,
-            default=[Queue.updated_at.desc(), Queue.id.desc()],
-        )
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await session.exec(stmt)
-    queues = result.unique().all()
-    await tags_service.annotate_tags(session, queues)
-
-    items = [
-        serialize_queue_summary(
-            q,
-            user_id=current_user.id,
-        )
-        for q in queues
-    ]
-
-    has_next = page * page_size < total_count
-    return QueueListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_queue_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-queue counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar badges — same visibility rules
-    as the queue list (queues-enabled initiatives, DAC), one GROUP BY
-    instead of a capped list page.
-    """
-    conditions = [
-        Queue.guild_id == guild_context.guild_id,
-        Queue.initiative_id.in_(
-            select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
-        ),
-    ]
-    conditions.append(
-        permissions_service.granted_scope_clause(
-            Tool.queue, Queue.id, current_user.id, guild_id=guild_context.guild_id
-        )
-    )
-
-    statement = (
-        select(Queue.initiative_id, func.count(Queue.id))
-        .where(*conditions)
-        .group_by(Queue.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
 
 
 @router.get("/{queue_id}", response_model=QueueRead)
@@ -551,8 +377,8 @@ async def update_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Update queue name/description. Requires write access."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     updated = False
     update_data = queue_in.model_dump(exclude_unset=True)
@@ -590,10 +416,15 @@ async def delete_queue(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="read"
     )
-    queues_service.require_queue_access(queue, current_user, require_owner=True)
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.queue],
+        queue,
+        current_user,
+        require_owner=True,
+    )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
@@ -634,8 +465,8 @@ async def add_queue_item(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Add an item to a queue. Requires write access."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
 
     item = QueueItem(
@@ -706,8 +537,8 @@ async def update_queue_item(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
-    await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
@@ -748,8 +579,8 @@ async def delete_queue_item(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
@@ -779,8 +610,8 @@ async def reorder_queue_items(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Bulk reorder queue items. Requires write access."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
 
     # Build a map of existing items for validation
@@ -817,8 +648,8 @@ async def start_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Start the queue: set active, reset to first item, round 1."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.start_queue(session, queue)
     await session.commit()
@@ -839,8 +670,8 @@ async def stop_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Stop the queue: set inactive but keep current position."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.stop_queue(session, queue)
     await session.commit()
@@ -861,8 +692,8 @@ async def advance_turn(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Advance to the next visible item. Wraps around and increments round."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.advance_turn(session, queue)
     await session.commit()
@@ -881,8 +712,8 @@ async def previous_turn(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Move to the previous visible item. Wraps around and decrements round."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.previous_turn(session, queue)
     await session.commit()
@@ -904,8 +735,8 @@ async def set_active_item(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Jump to a specific item in the queue."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.set_active_item(session, queue, item_id)
     await session.commit()
@@ -926,8 +757,8 @@ async def reset_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Reset the queue to round 1, first visible item."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.reset_queue(session, queue)
     await session.commit()
@@ -951,8 +782,8 @@ async def hold_current_turn(
     auto-releases it when its natural position-desc slot comes back around in
     a later round. Users can also call ``/release/{item_id}`` to act sooner.
     """
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.hold_current(session, queue)
     await session.commit()
@@ -985,8 +816,8 @@ async def release_held_item(
     position so it acts at its natural slot next time the rotation reaches
     it.
     """
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     await queues_service.release_held(
         session, queue, item_id, reposition=options.reposition
@@ -1016,8 +847,8 @@ async def set_queue_item_tags(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Set tags on a queue item. Replaces all existing tags."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
@@ -1053,31 +884,19 @@ async def set_queue_item_tags(
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{queue_id}/grants", response_model=QueueRead)
-async def set_queue_grants(
-    queue_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    queue_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> QueueRead:
-    """Replace the queue's entire sharing state in one call — the body is the
-    full list of grants (all-initiative-members / per-user / per-role). Every
-    non-owner grant is rebuilt from it; the owner is always preserved.
-    """
-    await resource_access.set_resource_grants(
-        session, Tool.queue, queue_id, current_user, guild_context, grants
-    )
+    """The queue a write answers with: re-read after the commit, serialized.
 
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
     hydrated = await _refetch_queue(session, queue_id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
-    await _emit_queue(
-        session,
-        queue_id,
-        "permissions_changed",
-        {"grants": [g.model_dump(mode="json") for g in result.grants]},
-    )
-    return result
+    return await _serialized_queue(session, hydrated, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -1166,7 +985,9 @@ async def websocket_queue(
         # DAC level via the shared engine; the guild-admin / break-glass bypass is
         # applied inside compute_* through the active role context that
         # establish_guild_access set, so no separate admin check is needed.
-        level = queues_service.compute_queue_permission(queue, user.id)
+        level = permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[Tool.queue], queue, user.id
+        )
         if level is None:
             logger.warning(
                 f"Queue WS: user {user.id} has no access to queue {queue_id}"
@@ -1186,7 +1007,12 @@ async def websocket_queue(
         q = await queues_service.get_queue(check_session, queue_id)
         if q is None or q.guild_id != guild_id:
             return False
-        return queues_service.compute_queue_permission(q, check_user.id) is not None
+        return (
+            permissions_service.compute_permission(
+                permissions_service.DAC_RESOURCES[Tool.queue], q, check_user.id
+            )
+            is not None
+        )
 
     await stream_authority.join(
         websocket,
@@ -1208,51 +1034,3 @@ async def websocket_queue(
     finally:
         await stream_authority.leave(websocket)
         logger.info(f"Queue WS: user {user.id} left queue {queue_id}")
-
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{queue_id}/view", response_model=RecentViewWrite)
-async def record_queue_view(
-    queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="queue",
-        entity_id=queue.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="queue",
-        entity_id=queue.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{queue_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_queue_view(
-    queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="queue",
-        entity_id=queue.id,
-    )

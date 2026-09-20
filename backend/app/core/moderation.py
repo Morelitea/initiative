@@ -53,8 +53,8 @@ class PlatformReportTarget(str, Enum):
 #:
 #: Asking through these is what makes a hidden row and a missing row answer
 #: the same way — the check runs as the reporter, on the reporter's session,
-#: like the community half does. ``moderation_test`` holds this and the enum
-#: in step, so a member added later cannot ship unresolvable.
+#: like the community half does. ``core/registry_coverage_test.py`` holds this
+#: and the enum in step, so a member added later cannot ship unresolvable.
 PLATFORM_TARGET_RELATION: dict[PlatformReportTarget, str] = {
     PlatformReportTarget.user_profile: "user_profiles",
     PlatformReportTarget.username: "user_profiles",

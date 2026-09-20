@@ -687,15 +687,13 @@ def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
     from app.services import notifications
 
     if comment.task_id is not None:
-        return notifications.task_target_path(
-            comment.task_id, ctx.project.id if ctx.project is not None else None
-        )
+        return notifications.reference_path("task", comment.task_id)
     if comment.document_id is not None:
-        return notifications.document_target_path(comment.document_id)
+        return notifications.reference_path(Tool.document, comment.document_id)
     address = ctx.address
     if address is None:  # pragma: no cover - every parent resolves to one
         return "/"
-    return notifications.tool_target_path(*address)
+    return notifications.reference_path(*address)
 
 
 async def create_comment(

@@ -10,34 +10,12 @@
   "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
   "accessRestricted": "Acceso restringido",
   "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
-  "myProjects": {
-    "title": "Mis proyectos",
-    "subtitle": "Proyectos a los que tienes acceso en todos tus comunidades.",
-    "empty": "Aún no formas parte de ningún proyecto.",
-    "loadError": "No se pudieron cargar tus proyectos.",
-    "searchPlaceholder": "Buscar proyectos...",
-    "filterByGuild": "Filtrar por comunidad",
-    "allGuilds": "Todas las comunidades",
-    "noGuilds": "No hay comunidades disponibles",
-    "columns": {
-      "guild": "Comunidad",
-      "project": "Proyecto",
-      "initiative": "Iniciativa",
-      "tasks": "Tareas",
-      "tags": "Etiquetas",
-      "updated": "Actualizado"
-    },
-    "tasksDone": "{{completed}}/{{total}} terminadas",
-    "noTasks": "Sin tareas"
-  },
   "view": {
     "grid": "Cuadrícula",
     "list": "Lista"
   },
   "filters": {
     "heading": "Filtros",
-    "show": "Mostrar filtros",
-    "hide": "Ocultar filtros",
     "searchLabel": "Nombre o descripción",
     "searchProjects": "Buscar proyectos",
     "selectedInitiative": "Iniciativa seleccionada",
@@ -79,7 +57,6 @@
     "presetNamePlaceholder": "p. ej. Trabajo bloqueado",
     "presetSetDefault": "Convertir en el predeterminado del proyecto",
     "presetSaved": "Preajuste guardado",
-    "presetDeleted": "Preajuste eliminado",
     "presetUnavailable": "Ese preajuste ya no existe en este proyecto, así que se muestra el predeterminado.",
     "presetSaveError": "No se pudo guardar el preajuste",
     "presetDeleteError": "No se pudo eliminar el preajuste",
@@ -94,27 +71,16 @@
   "templates": {
     "loading": "Cargando plantillas…",
     "loadError": "No se pudieron cargar las plantillas.",
-    "initiativeLabel": "Iniciativa: {{name}}",
-    "lastUpdated": "Última actualización: {{date}}",
-    "viewTemplate": "Ver plantilla",
     "stopUsingAsTemplate": "Dejar de usar como plantilla",
     "noTemplates": "No hay plantillas disponibles",
-    "noTemplatesDescription": "Crea una plantilla desde cualquier proyecto en la configuración del proyecto.",
-    "description": "Estandariza mejores prácticas y crea nuevas iniciativas rápidamente usando plantillas reutilizables."
+    "noTemplatesDescription": "Crea una plantilla desde cualquier proyecto en la configuración del proyecto."
   },
   "archived": {
-    "title": "Proyectos archivados",
-    "subtitle": "Reabre una iniciativa cuando el trabajo se retome.",
     "loading": "Cargando proyectos archivados…",
     "loadError": "No se pudieron cargar los proyectos archivados.",
-    "initiativeLabel": "Iniciativa: {{name}}",
-    "archivedAt": "Archivado el: {{date}}",
-    "archivedAtUnknown": "Desconocido",
-    "viewDetails": "Ver detalles",
     "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
     "noArchivedDescription": "Los proyectos activos están en la pestaña Activos.",
-    "noArchivedDescriptionAlt": "Los proyectos activos están en la pestaña principal de proyectos.",
     "sharingUnavailable": "No se puede cambiar el uso compartido de un proyecto archivado."
   },
   "createDialog": {
@@ -138,7 +104,6 @@
     "saveAsTemplate": "Guardar como plantilla",
     "saveAsTemplateHint": "Los proyectos de plantilla se encuentran en la pestaña Plantillas y se pueden reutilizar para iniciar nuevo trabajo.",
     "createError": "No se pudo crear el proyecto.",
-    "selectInitiativeError": "Selecciona una iniciativa antes de crear un proyecto",
     "creating": "Creando…",
     "createProject": "Crear proyecto"
   },
@@ -190,21 +155,6 @@
     "description": "Agrega trabajo por hacer.",
     "archivedMessage": "Este proyecto está archivado. Desarchívalo para agregar nuevas tareas.",
     "noWriteAccess": "Necesitas acceso de escritura para crear tareas.",
-    "titleLabel": "Título",
-    "titlePlaceholder": "Borrador del plan de lanzamiento",
-    "advancedDetails": "Detalles avanzados",
-    "descriptionLabel": "Descripción (Markdown soportado)",
-    "descriptionPlaceholder": "Comparte contexto, enlaces o criterios de aceptación.",
-    "priorityLabel": "Prioridad",
-    "priorityLow": "Prioridad baja",
-    "priorityMedium": "Prioridad media",
-    "priorityHigh": "Prioridad alta",
-    "priorityUrgent": "Urgente",
-    "assigneesLabel": "Asignados",
-    "assigneesEmptyMessage": "Invita a miembros de la iniciativa para asignar trabajo.",
-    "startDateLabel": "Fecha de inicio",
-    "dueDateLabel": "Fecha de vencimiento",
-    "optional": "Opcional",
     "saving": "Guardando…",
     "createTask": "Crear tarea",
     "createError": "No se pudo crear la tarea."
@@ -212,7 +162,6 @@
   "assignee": {
     "emptyMessage": "Invita a miembros de la iniciativa para asignar tareas.",
     "searchPlaceholder": "Buscar miembros",
-    "noAssignees": "No hay asignados seleccionados.",
     "removeAssignee": "Quitar a {{name}}",
     "clearAssignees": "Limpiar asignados",
     "you": "Tú"
@@ -264,10 +213,7 @@
     "unknownError": "Error desconocido"
   },
   "settings": {
-    "loading": "Cargando configuración del proyecto...",
-    "loadError": "No se pudo cargar el proyecto.",
     "title": "Configuración del proyecto",
-    "description": "Configura el acceso, propiedad y estado de archivo de {{name}}.",
     "breadcrumbSettings": "Configuración",
     "tabTaskStatuses": "Estados de tarea",
     "details": {
@@ -291,7 +237,6 @@
       "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales."
     },
     "access": {
-      "updated": "Acceso actualizado",
       "updateError": "No se pudo actualizar el acceso"
     },
     "templateStatus": {
@@ -315,18 +260,6 @@
       "duplicateButton": "Duplicar proyecto",
       "noWriteAccess": "Necesitas acceso de escritura para duplicar este proyecto."
     },
-    "archiveStatus": {
-      "title": "Estado de archivo",
-      "isArchived": "Este proyecto está archivado.",
-      "isActive": "Este proyecto está activo.",
-      "unarchive": "Desarchivar proyecto",
-      "archive": "Archivar proyecto",
-      "noWriteAccess": "Necesitas acceso de escritura para cambiar el estado de archivo."
-    },
-    "danger": {
-      "title": "Zona de peligro",
-      "description": "Eliminar un proyecto lo envía a la papelera junto con sus tareas. Pueden restaurarse antes de que finalice el período de retención."
-    },
     "tabFilterPresets": "Vistas",
     "filterPresetsHeading": "Preajustes de filtro",
     "filterPresetsDescription": "Conjuntos de filtros guardados que cualquiera del proyecto puede elegir. El predeterminado es con el que se abre el proyecto.",
@@ -341,62 +274,20 @@
     "presetMoveDown": "Bajar el preajuste"
   },
   "documents": {
-    "title": "Documentos",
-    "description": "Adjunta documentos de la iniciativa para mantener el contexto cerca del trabajo del proyecto.",
-    "attachDocument": "Adjuntar documento",
-    "createDocument": "Crear documento",
-    "newDocument": "Nuevo documento",
-    "attachExisting": "Adjuntar existente",
-    "noDocuments": "Aún no hay documentos adjuntos a este proyecto.",
-    "noDocumentsHint": "Adjunta uno para destacar resúmenes relevantes.",
-    "expandDocuments": "Expandir documentos",
-    "collapseDocuments": "Contraer documentos",
-    "attachDialogTitle": "Adjuntar un documento existente",
-    "attachDialogDescription": "Solo están disponibles los documentos creados bajo esta iniciativa.",
-    "selectDocument": "Seleccionar documento",
-    "noAvailableDocuments": "No hay documentos disponibles",
-    "loadingDocuments": "Cargando documentos…",
-    "chooseDocument": "Elegir documento",
-    "allAttached": "Todos los documentos de la iniciativa ya están adjuntos.",
-    "noMatchesFound": "No se encontraron coincidencias.",
-    "attachHint": "¿Necesitas uno nuevo? Abre Mis iniciativas y usa la pestaña Documentos de la iniciativa para crearlo, luego regresa aquí para adjuntarlo.",
-    "attaching": "Adjuntando…",
-    "attach": "Adjuntar",
-    "attached": "Documento adjuntado.",
-    "attachError": "No se pudo adjuntar el documento.",
-    "detached": "Documento desvinculado.",
-    "detachError": "No se pudo desvincular el documento.",
-    "detach": "Desvincular",
-    "detachAriaLabel": "Desvincular {{name}}",
-    "detachDocument": "Desvincular documento",
-    "updatedAgo": "Actualizado hace {{time}}",
-    "attachedAgo": "Adjuntado hace {{time}}"
+    "newDocument": "Nuevo documento"
   },
   "tasks": {
-    "title": "Tareas",
     "projectTasks": "Tareas del proyecto",
     "addTask": "Agregar tarea",
-    "selectView": "Seleccionar vista",
     "enterTooltip": "Presiona 'enter' para crear una nueva tarea",
     "viewTable": "Tabla",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendario",
     "filtersHeading": "Filtros",
-    "showFilters": "Mostrar filtros",
-    "hideFilters": "Ocultar filtros",
-    "groupBy": "Agrupar por",
-    "groupByNone": "Ninguno",
-    "groupByStatus": "Estado",
-    "groupByPriority": "Prioridad",
-    "groupByAssignee": "Asignado",
-    "archiveSelected": "Archivar seleccionados",
     "archiveDoneTasks": "Archivar tareas terminadas",
     "archiveDialogTitle": "Archivar tareas",
     "archiveDialogDescription": "Esto archivará {{count}} tarea. Las tareas archivadas se ocultan por defecto pero se pueden mostrar usando el filtro.",
     "archiveDialogDescription_other": "Esto archivará {{count}} tareas. Las tareas archivadas se ocultan por defecto pero se pueden mostrar usando el filtro.",
-    "archiveTitle": "¿Archivar {{count}} tarea?",
-    "archiveTitle_other": "¿Archivar {{count}} tareas?",
-    "archiveDescription": "Las tareas archivadas se ocultarán de la vista predeterminada pero aún se podrán acceder mediante filtros.",
     "archiveConfirm": "Archivar",
     "archiving": "Archivando…",
     "archivedSuccess": "{{count}} tarea archivada",
@@ -431,11 +322,8 @@
     "untagged": "Sin etiqueta",
     "commentsColumn": "Comentarios",
     "statusColumn": "Estado",
-    "sortHelp": "Haz clic en cualquier encabezado de columna para ordenar. Mantén Shift para ordenar por múltiples columnas.",
-    "groupHelp": "Las tareas están agrupadas por {{field}}. Ordena y filtra dentro de cada grupo.",
     "filterPlaceholder": "Filtrar tareas...",
     "reorderTask": "Reordenar tarea",
-    "noTasks": "Aún no hay tareas.",
     "manualSortDisabled": "Orden manual deshabilitado, <1>restablece el orden de columnas y la agrupación de filas</1> para reordenar."
   },
   "kanban": {
@@ -449,9 +337,7 @@
     "taskCount_one": "{{count}} tarea",
     "taskCount_other": "{{count}} tareas",
     "collapse": "Contraer {{name}}",
-    "expand": "Expandir {{name}}",
-    "comments_one": "{{count}} comentario",
-    "comments_other": "{{count}} comentarios"
+    "expand": "Expandir {{name}}"
   },
   "recurrence": {
     "repeat": "Repetir",
@@ -519,15 +405,6 @@
       "everyNYears": "Cada {{count}} años el {{day}} de {{month}}"
     }
   },
-  "calendarView": {
-    "subtitle": "Visualiza las fechas de inicio y vencimiento de las tareas.",
-    "previousMonth": "Mes anterior",
-    "nextMonth": "Mes siguiente",
-    "today": "Hoy",
-    "start": "Inicio",
-    "due": "Vence",
-    "more": "+{{count}} más"
-  },
   "progressLabel": "Progreso del proyecto",
   "preview": {
     "updated": "Actualizado {{date}}",
@@ -551,29 +428,9 @@
     "description": "Descarga este proyecto como copia de seguridad JSON portátil o como informe con formato (PDF, CSV o Excel).",
     "detail": "La copia JSON puede reimportarse en esta instancia o en cualquier otra instalación de Initiative: las referencias usan nombres y correos para que no se filtren IDs de esta base de datos. Los formatos de informe cubren las tareas no archivadas del proyecto.",
     "exportButton": "Exportar",
-    "exporting": "Exportando…",
     "noWriteAccess": "Necesitas acceso de escritura en este proyecto para exportarlo.",
     "success": "Proyecto exportado",
     "error": "No se pudo exportar el proyecto. Inténtalo de nuevo."
-  },
-  "import": {
-    "title": "Importar proyecto",
-    "description": "Crea un nuevo proyecto a partir de un archivo JSON exportado previamente.",
-    "importButton": "Importar",
-    "importing": "Importando…",
-    "selectFile": "Archivo JSON del proyecto",
-    "parseError": "Eso no parece una exportación de proyecto de Initiative.",
-    "fileTooLarge": "Ese archivo es inusualmente grande. Elige una exportación más pequeña (≤50 MB).",
-    "previewProject": "Proyecto",
-    "previewTaskCount": "Tareas",
-    "previewSchemaVersion": "Versión del esquema",
-    "targetInitiative": "Importar en la iniciativa",
-    "selectInitiative": "Elige una iniciativa",
-    "success": "“{{name}}” importado",
-    "warningUnmatchedAssignees_one": "Importado, pero se descartó {{count}} responsable que no pertenece a esta iniciativa: {{emails}}",
-    "warningUnmatchedAssignees_other": "Importado, pero se descartaron {{count}} responsables que no pertenecen a esta iniciativa: {{emails}}",
-    "error": "No se pudo importar el proyecto. Inténtalo de nuevo.",
-    "queued": "Importación iniciada: recibirás una notificación cuando termine."
   },
   "status": {
     "label": "Mostrar",

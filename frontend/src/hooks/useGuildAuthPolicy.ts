@@ -17,7 +17,6 @@ import {
   listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet,
   listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet,
   listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet,
-  updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch,
   updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch,
 } from "@/api/generated/guild-provider-connections/guild-provider-connections";
 import {
@@ -37,7 +36,6 @@ import type {
   GuildAuthSettingsRead,
   GuildClaimRuleCreate,
   GuildClaimRulesResponse,
-  GuildClaimRuleUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
@@ -251,15 +249,6 @@ export const useCreateClaimRule = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildClaimRuleCreate) =>
       createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost(guildId, data),
-    onSuccess: invalidate,
-  });
-};
-
-export const useUpdateClaimRule = (guildId: number) => {
-  const invalidate = useInvalidateClaimRules(guildId);
-  return useMutation({
-    mutationFn: ({ ruleId, data }: { ruleId: number; data: GuildClaimRuleUpdate }) =>
-      updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch(guildId, ruleId, data),
     onSuccess: invalidate,
   });
 };

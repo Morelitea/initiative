@@ -1,8 +1,6 @@
 {
   "title": "Papelera",
   "description": "Los elementos aquí se eliminarán permanentemente después del período de retención de la comunidad. Puedes restaurarlos en cualquier momento antes de eso.",
-  "scopeGuild": "Todo en la comunidad",
-  "scopeMine": "Solo lo mío",
   "empty": "La papelera está vacía.",
   "columnType": "Tipo",
   "columnName": "Nombre",
@@ -20,12 +18,6 @@
   "restoreError": "No se pudo restaurar ese elemento.",
   "purgeSuccess": "Eliminado permanentemente.",
   "purgeError": "No se pudo eliminar permanentemente ese elemento.",
-  "reassignDialog": {
-    "title": "Elige un nuevo propietario",
-    "description": "El propietario original de este {{type}} ya no es miembro de la iniciativa. Elige a alguien para asumir la propiedad antes de restaurar.",
-    "ownerLabel": "Nuevo propietario",
-    "confirm": "Restaurar con nuevo propietario"
-  },
   "entityType": {
     "project": "Proyecto",
     "task": "Tarea",

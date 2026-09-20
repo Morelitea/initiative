@@ -1,44 +1,30 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost,
-  createCounterGroupApiV1GGuildIdCounterGroupsPost,
-  decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost,
   deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
-  deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete,
   duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost,
-  getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet,
-  getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey,
-  getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey,
   getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey,
-  incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
-  listCounterGroupsApiV1GGuildIdCounterGroupsGet,
-  readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet,
+  type incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
   resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost,
   resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
   setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost,
-  setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut,
   sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost,
   updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
-  updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch,
 } from "@/api/generated/counters/counters";
 import type {
   CounterCreate,
-  CounterGroupCreate,
   CounterGroupDuplicateRequest,
-  CounterGroupListResponse,
   CounterGroupRead,
-  CounterGroupUpdate,
   CounterRead,
   CounterSetCountRequest,
   CounterSortRequest,
   CounterUpdate,
-  InitiativeGroupedCountsResponse,
-  ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
-  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
@@ -51,7 +37,6 @@ import {
 import { fireCounterStepFeedback } from "@/lib/counterStepFeedback";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
-import type { QueryOpts } from "@/types/query";
 
 // ── Optimistic update helpers ───────────────────────────────────────────────
 
@@ -93,78 +78,23 @@ const rollbackGroup = (
   queryClient.setQueryData<CounterGroupRead>(key, context.previousGroup);
 };
 
-// ── Queries ─────────────────────────────────────────────────────────────────
+// ── The standard seven ──────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires.
 
-export const useCounterGroupsList = (
-  params: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
-  options?: QueryOpts<CounterGroupListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<CounterGroupListResponse>({
-    queryKey: getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey(guildId, params),
-    queryFn: () => listCounterGroupsApiV1GGuildIdCounterGroupsGet(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
+const counterGroups = TOOL_HOOKS[Tool.counter_group];
 
-export const useCounterGroupCountsByInitiative = (
-  options?: QueryOpts<InitiativeGroupedCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey:
-      getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey(
-        guildId
-      ),
-    queryFn: () =>
-      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(guildId),
-    ...options,
-  });
-};
-
-export const useCounterGroup = (groupId: number | null, options?: QueryOpts<CounterGroupRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<CounterGroupRead>({
-    queryKey: getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId!),
-    queryFn: () => readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet(guildId, groupId!),
-    enabled: groupId !== null && Number.isFinite(groupId) && userEnabled,
-    ...rest,
-  });
-};
+export const useCounterGroupsList = counterGroups.useList;
+export const useCounterGroup = counterGroups.useDetail;
+export const useCreateCounterGroup = counterGroups.useCreate;
+export const useUpdateCounterGroup = counterGroups.useUpdate;
+export const useDeleteCounterGroup = counterGroups.useDelete;
+export const useSetCounterGroupGrants = counterGroups.useSetGrants;
 
 // ── Group mutations ─────────────────────────────────────────────────────────
 
 const invalidateGroupAndList = (groupId: number) =>
   invalidate(q.counterGroup(groupId), q.allCounterGroups());
-
-export const useCreateCounterGroup = (
-  options?: MutationOpts<CounterGroupRead, CounterGroupCreate>
-) =>
-  useGuildMutation<CounterGroupRead, CounterGroupCreate>(
-    {
-      mutationFn: (guildId, data) =>
-        createCounterGroupApiV1GGuildIdCounterGroupsPost(guildId, data),
-      invalidate: () => invalidate(q.allCounterGroups()),
-      errorKey: "counterGroups:error",
-    },
-    options
-  );
-
-export const useUpdateCounterGroup = (
-  groupId: number,
-  options?: MutationOpts<CounterGroupRead, CounterGroupUpdate>
-) =>
-  useGuildMutation<CounterGroupRead, CounterGroupUpdate>(
-    {
-      mutationFn: (guildId, data) =>
-        updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch(guildId, groupId, data),
-      invalidate: () => invalidateGroupAndList(groupId),
-      errorKey: "counterGroups:error",
-    },
-    options
-  );
 
 export const useDuplicateCounterGroup = (
   groupId: number,
@@ -174,18 +104,6 @@ export const useDuplicateCounterGroup = (
     {
       mutationFn: (guildId, data) =>
         duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost(guildId, groupId, data),
-      invalidate: () => invalidate(q.allCounterGroups()),
-      errorKey: "counterGroups:error",
-    },
-    options
-  );
-
-export const useDeleteCounterGroup = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: async (guildId, groupId) => {
-        await deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete(guildId, groupId);
-      },
       invalidate: () => invalidate(q.allCounterGroups()),
       errorKey: "counterGroups:error",
     },
@@ -375,16 +293,6 @@ const makeValueOpHook = (
     });
   };
 };
-
-export const useIncrementCounter = makeValueOpHook(
-  incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
-  optimisticIncrement
-);
-
-export const useDecrementCounter = makeValueOpHook(
-  decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost,
-  optimisticDecrement
-);
 
 export const useResetCounter = makeValueOpHook(
   resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
@@ -670,19 +578,3 @@ export const useSteppedCount = (groupId: number) => {
     cancelAll,
   };
 };
-
-// ── Grants mutation (unified resource sharing) ──────────────────────────────
-
-export const useSetCounterGroupGrants = (
-  groupId: number,
-  options?: MutationOpts<CounterGroupRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<CounterGroupRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut(guildId, groupId, grants),
-      invalidate: () => invalidateGroupAndList(groupId),
-      errorKey: "counterGroups:error",
-    },
-    options
-  );

@@ -13,8 +13,6 @@
   },
   "filters": {
     "heading": "Filtres",
-    "show": "Afficher les filtres",
-    "hide": "Masquer les filtres",
     "statusCategory": "Catégorie de statut",
     "filterByStatusCategory": "Filtrer par catégorie de statut",
     "allStatusCategories": "Toutes les catégories de statut",
@@ -67,21 +65,10 @@
     "createdAt": "Créée {{time}}",
     "readOnlyNoAccess": "Vous n'avez qu'un accès en lecture à ce projet, les champs de la tâche sont donc désactivés.",
     "readOnlyArchived": "Ce projet est archivé. Désarchivez-le depuis les paramètres du projet pour modifier les tâches.",
-    "titleLabel": "Titre",
-    "titlePlaceholder": "Titre de la tâche",
     "descriptionLabel": "Description",
     "aiGenerate": "Génération IA",
     "descriptionPlaceholder": "Ajoutez du contexte supplémentaire ou des critères d'acceptation. Markdown pris en charge.",
     "noDescriptionReadOnly": "Aucune description pour l'instant.",
-    "statusLabel": "Statut",
-    "selectStatus": "Sélectionner un statut",
-    "priorityLabel": "Priorité",
-    "startDateLabel": "Date de début",
-    "dueDateLabel": "Date d'échéance",
-    "assigneesLabel": "Assignés",
-    "assigneesEmptyMessage": "Aucun membre de l'initiative disponible pour le moment.",
-    "tagsLabel": "Étiquettes",
-    "tagsPlaceholder": "Ajouter des étiquettes...",
     "saving": "Enregistrement…",
     "saveTask": "Enregistrer la tâche",
     "moveToProject": "Déplacer vers un projet",
@@ -102,7 +89,6 @@
     "taskUnarchived": "Tâche désarchivée",
     "moveSuccess": "Tâche déplacée vers {{projectName}}.",
     "moveError": "Impossible de déplacer la tâche",
-    "archiveError": "Impossible de mettre à jour la tâche",
     "descriptionGenerated": "Description générée",
     "generateDescriptionError": "Impossible de générer la description",
     "commentsError": "Impossible de charger les commentaires pour l'instant.",
@@ -134,7 +120,6 @@
   "myTasks": {
     "title": "Mes tâches",
     "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
-    "addTask": "Ajouter une tâche",
     "noGuild": "Aucune communauté",
     "loadError": "Impossible de charger vos tâches.",
     "groupByDate": "Date",
@@ -142,10 +127,7 @@
   },
   "myCalendar": {
     "title": "Mon calendrier",
-    "subtitle": "Tâches et événements dans tous vos communautés.",
-    "loadError": "Impossible de charger les données du calendrier.",
-    "typeEvents": "Événements",
-    "typeTasks": "Tâches"
+    "subtitle": "Tâches et événements dans tous vos communautés."
   },
   "tagTasks": {
     "loadError": "Impossible de charger les tâches."
@@ -177,8 +159,7 @@
   },
   "prioritySelector": {
     "ariaLabel": "Priorité : {{priority}}. Cliquer pour modifier.",
-    "changed": "Priorité changée en {{priority}}",
-    "updateError": "Impossible de mettre à jour la priorité."
+    "changed": "Priorité changée en {{priority}}"
   },
   "statusSelector": {
     "invalidStatus": "Statut sélectionné invalide."
@@ -215,14 +196,12 @@
   },
   "createWizard": {
     "title": "Ajouter une tâche",
-    "description": "Sélectionnez un projet pour créer une nouvelle tâche.",
     "lastUsed": "Dernier utilisé",
     "selectGuild": "Sélectionnez une communauté",
     "selectInitiative": "Sélectionnez une initiative",
     "selectProject": "Sélectionnez un projet",
     "noInitiatives": "Aucune initiative trouvée dans cette communauté.",
     "noProjects": "Aucun projet trouvé dans cette initiative.",
-    "loading": "Chargement…",
     "back": "Retour",
     "searchProjects": "Rechercher des projets…",
     "loadMore": "Charger plus"
@@ -250,8 +229,7 @@
     "applyChanges": "Appliquer les modifications",
     "selected": "{{count}} tâche sélectionnée",
     "selected_other": "{{count}} tâches sélectionnées",
-    "editTags": "Modifier les étiquettes",
-    "archiving": "Archivage…"
+    "editTags": "Modifier les étiquettes"
   },
   "taskForm": {
     "titleLabel": "Titre",

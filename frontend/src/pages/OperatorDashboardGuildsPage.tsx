@@ -44,7 +44,7 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
       const { handoff_token } =
         await createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
           guild.id,
-          { params: { console } }
+          { console }
         );
       const lang = i18n.resolvedLanguage ?? i18n.language;
       // The token rides in the fragment, which never leaves the browser. The

@@ -182,7 +182,7 @@ async def _resolve_post(
         target=ReactionTarget.post,
         target_id=cast(int, post.id),
         title=post.name,
-        target_path=notifications.tool_target_path(Tool.post.value, post.id),
+        target_path=notifications.reference_path(Tool.post, post.id),
         author_id=post.created_by,
         initiative_id=post.initiative_id,
         tool=Tool.post.value,

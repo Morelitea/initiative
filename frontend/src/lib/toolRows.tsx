@@ -28,7 +28,7 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { ProgressCircle } from "@/components/ui/progress-circle";
-import { toolDetailRoute } from "@/lib/tools";
+import { TOOLS, toolDetailRoute } from "@/lib/tools";
 
 /** One row of a tool table, in terms every tool can answer. */
 export interface ToolRow {
@@ -71,6 +71,23 @@ export type ToolResponses = {
   [Tool.post]: PostListResponse | undefined;
   [Tool.gallery]: GalleryListResponse | undefined;
   [Tool.wiki]: WikiListResponse | undefined;
+};
+
+/**
+ * A {@link ToolResponses} holding one tool's page and nothing else.
+ *
+ * Both tables show one tool at a time and gate every other query off, so this
+ * is exactly what they have in hand. The keys come from the registry rather
+ * than a literal, which keeps the "name every tool" promise above without a
+ * second list to keep in step — `Object.fromEntries` is what loses the key
+ * union on the way, hence the assertion.
+ */
+export const oneToolResponse = <T extends Tool>(tool: T, page: ToolResponses[T]): ToolResponses => {
+  const responses = Object.fromEntries(
+    TOOLS.map((candidate) => [candidate, undefined])
+  ) as ToolResponses;
+  responses[tool] = page;
+  return responses;
 };
 
 const ColourDot = ({ colour }: { colour: string }) => (

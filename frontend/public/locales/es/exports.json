@@ -49,7 +49,6 @@
       "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar."
     },
     "report": {
-      "include": "Incluir",
       "documentNative": "Documentos de texto",
       "documentSpreadsheet": "Hojas de cálculo",
       "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
@@ -89,7 +88,6 @@
       "export": "Exportación",
       "status": "Estado",
       "created": "Creada",
-      "expires": "Caduca",
       "actions": "Acciones"
     },
     "status": {
@@ -104,13 +102,13 @@
       "project": "Proyecto",
       "document": "Documento",
       "queue": "Cola",
-      "counter-group": "Grupo de contadores",
       "calendar": "Calendario",
       "post": "Publicación",
       "wiki": "Wiki",
       "initiative": "Iniciativa",
       "guild": "Comunidad",
-      "gallery": "Galería"
+      "gallery": "Galería",
+      "counter-group": "Grupo de contadores"
     },
     "download": "Descargar",
     "empty": "Aún no hay exportaciones.",

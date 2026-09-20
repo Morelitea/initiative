@@ -65,19 +65,21 @@ def _normalize(**overrides) -> dict:
 class TestAttribution:
     """Every listing states who publishes it, in one required name."""
 
-    def test_a_listing_without_a_publisher_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="publisher is required"):
-            normalize_publisher(None)
-
-    def test_a_blank_name_is_not_a_name(self):
-        with pytest.raises(ListingDefinitionError, match="publisher"):
-            normalize_publisher("   ")
-
-    def test_a_name_may_not_span_lines(self):
-        # It is rendered on one line beside the listing; a value carrying its
-        # own line breaks is refused rather than displayed however it lands.
-        with pytest.raises(ListingDefinitionError, match="single line"):
-            normalize_publisher("Widget Co\nby someone else")
+    @pytest.mark.parametrize(
+        ("value", "problem"),
+        [
+            (None, "publisher is required"),
+            ("   ", "publisher"),
+            # It is rendered on one line beside the listing; a value carrying
+            # its own line breaks is refused rather than displayed however it
+            # lands.
+            ("Widget Co\nby someone else", "single line"),
+        ],
+        ids=["no name at all", "a blank name", "a name spanning lines"],
+    )
+    def test_a_name_that_is_not_one_is_refused(self, value, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            normalize_publisher(value)
 
     def test_a_name_is_kept_as_written(self):
         assert normalize_publisher("  Widget Co  ") == "Widget Co"
@@ -159,9 +161,16 @@ class TestServiceIdentity:
 class TestFeaturesMatchBlocks:
     """A declaration and a manifest body cannot disagree, in either direction."""
 
-    def test_declaring_a_feature_with_no_block_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="is declared but"):
-            _normalize(features=["widgets"])
+    @pytest.mark.parametrize(
+        ("feature", "problem"),
+        [("widgets", "is declared but"), ("telemetry", "unknown feature")],
+        ids=["a feature with no block behind it", "a feature this build has not got"],
+    )
+    def test_a_declared_feature_the_manifest_cannot_back_is_refused(
+        self, feature, problem
+    ):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(features=[feature])
 
     def test_shipping_a_block_without_declaring_it_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="is not declared"):
@@ -170,10 +179,6 @@ class TestFeaturesMatchBlocks:
                     {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
                 ],
             )
-
-    def test_an_unknown_feature_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown feature"):
-            _normalize(features=["telemetry"])
 
     def test_an_empty_block_is_not_a_block(self):
         """Empty means absent, the same way for every block.
@@ -304,32 +309,29 @@ class TestConnections:
                     ]
                 )
 
-    def test_an_unknown_field_type_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown field type"):
+    @pytest.mark.parametrize(
+        ("field", "problem"),
+        [
+            (
+                {"key": "token", "type": "certificate", "label": _label()},
+                "unknown field type",
+            ),
+            (
+                {"key": "region", "type": "select", "label": _label()},
+                "at least one option",
+            ),
+        ],
+        ids=["a type this build has not got", "a menu with nothing on it"],
+    )
+    def test_a_field_nobody_could_fill_in_is_refused(self, field, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
             _normalize(
                 connections=[
                     {
                         "id": "shop",
                         "scope": "static",
                         "label": _label(),
-                        "fields": [
-                            {"key": "token", "type": "certificate", "label": _label()}
-                        ],
-                    }
-                ]
-            )
-
-    def test_a_select_field_offers_its_values(self):
-        with pytest.raises(ListingDefinitionError, match="at least one option"):
-            _normalize(
-                connections=[
-                    {
-                        "id": "shop",
-                        "scope": "static",
-                        "label": _label(),
-                        "fields": [
-                            {"key": "region", "type": "select", "label": _label()}
-                        ],
+                        "fields": [field],
                     }
                 ]
             )
@@ -1185,13 +1187,14 @@ class TestWhereAParametersValuesComeFrom:
                 ],
             )
 
-    def test_a_key_the_source_does_not_return_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="is not returned by"):
-            _with_option_source({"endpoint": LOOKUP_ID, "key": "nope"})
-
-    def test_one_value_cannot_be_a_menu(self):
-        with pytest.raises(ListingDefinitionError, match="is a single value"):
-            _with_option_source({"endpoint": LOOKUP_ID, "key": "total"})
+    @pytest.mark.parametrize(
+        ("key", "problem"),
+        [("nope", "is not returned by"), ("total", "is a single value")],
+        ids=["a key the source does not return", "a key that is one value"],
+    )
+    def test_a_menu_must_name_a_list_the_source_returns(self, key, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _with_option_source({"endpoint": LOOKUP_ID, "key": key})
 
     def test_it_can_only_send_a_parameter_the_source_takes(self):
         with pytest.raises(ListingDefinitionError, match="does not take"):
@@ -1217,10 +1220,10 @@ class TestWhereAParametersValuesComeFrom:
 class TestListingAudience:
     """Who a listing installs to, and what follows from it."""
 
-    def test_every_kind_says_who_it_installs_to(self):
-        # A kind added to the vocabulary without an audience would be offered
-        # by neither marketplace, or by both.
-        assert set(KIND_AUDIENCE) == set(LISTING_KINDS)
+    def test_every_audience_a_kind_names_is_one_of_the_two(self):
+        # Which kinds have an audience at all is asserted in
+        # ``app/core/registry_coverage_test.py``, beside every other registry
+        # that has to span its vocabulary.
         assert set(KIND_AUDIENCE.values()) <= LISTING_AUDIENCES
 
     def test_the_two_shelves_do_not_overlap(self):

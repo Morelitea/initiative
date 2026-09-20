@@ -18,7 +18,6 @@ how a community declines a default.
 import logging
 
 from fastapi import HTTPException, status
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
@@ -55,17 +54,6 @@ async def _require_provider(session: AsyncSession, provider_id: int) -> AuthProv
             detail=AuthProviderMessages.NOT_FOUND,
         )
     return provider
-
-
-async def list_defaults(session: AsyncSession) -> list[PlatformProviderDefaultRead]:
-    rows = (
-        await session.exec(
-            select(PlatformProviderDefault).order_by(
-                PlatformProviderDefault.provider_id
-            )
-        )
-    ).all()
-    return [default_read(row) for row in rows]
 
 
 async def get_default(

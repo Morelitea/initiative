@@ -1,8 +1,7 @@
 {
   "job": {
     "succeeded": "Import abgeschlossen.",
-    "failed": "Import fehlgeschlagen.",
-    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist."
+    "failed": "Import fehlgeschlagen."
   },
   "wizard": {
     "title": "Backup importieren",
@@ -16,8 +15,7 @@
       "hint": "Eine aus einem Community- oder Initiative-Backup von Initiative exportierte .zip.",
       "notZip": "Diese Datei ist kein gültiges Initiative-Backup.",
       "readFailed": "Diese Backup-Datei konnte nicht gelesen werden. Sie ist möglicherweise beschädigt.",
-      "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}.",
-      "reading": "Backup wird gelesen…"
+      "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}."
     },
     "peek": {
       "source": "Backup von {{name}}",
@@ -34,7 +32,6 @@
     "plan": {
       "prompt": "Überprüfe, was importiert wird",
       "willCreate": "\"{{name}}\" wird als neue Initiative \"{{proposed}}\" importiert",
-      "toolCount": "{{tool}}: {{count}}",
       "skipped_one": "{{count}} Element wurde vom Exporteur aus diesem Backup ausgelassen",
       "skipped_other": "{{count}} Elemente wurden vom Exporteur aus diesem Backup ausgelassen",
       "unknownTypes": "Unbekannte Inhaltstypen werden übersprungen: {{types}}",
@@ -99,11 +96,11 @@
       "initiative-project": "Projekt",
       "initiative-document": "Dokument",
       "initiative-queue": "Warteschlange",
-      "initiative-counter-group": "Zählergruppe",
       "initiative-calendar": "Kalender",
       "initiative-post": "Beitrag",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Galerie"
+      "initiative-gallery": "Galerie",
+      "initiative-counter-group": "Zählergruppe"
     },
     "cancel": "Abbrechen",
     "viewReport": "Bericht anzeigen",

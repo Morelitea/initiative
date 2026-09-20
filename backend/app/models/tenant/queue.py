@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
@@ -153,9 +152,3 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         },
     )
-
-
-class QueuePermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"

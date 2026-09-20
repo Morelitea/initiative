@@ -8,7 +8,6 @@ from app.blueprints.intake import blueprint_for
 from app.core.intake import (
     CASE_FIELD_TYPES,
     STREAM_FIELDS,
-    STREAMS,
     CaseField,
     IntakeStream,
     meta,
@@ -19,13 +18,9 @@ from app.models.tenant.task import TaskStatusCategory
 pytestmark = pytest.mark.unit
 
 
-def test_every_stream_says_what_feeds_it():
-    assert set(STREAMS) == set(IntakeStream)
-    assert set(STREAM_FIELDS) == set(IntakeStream)
-
-
-def test_every_case_field_has_a_real_property_type():
-    assert set(CASE_FIELD_TYPES) == set(CaseField)
+def test_every_case_field_names_a_property_type_the_writer_can_create():
+    """Which fields exist at all is a row in ``core/registry_coverage_test.py``;
+    this is the type each one declares."""
     for field, declared in CASE_FIELD_TYPES.items():
         assert PropertyType(declared), field
 

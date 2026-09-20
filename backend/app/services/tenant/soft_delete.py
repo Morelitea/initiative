@@ -258,56 +258,6 @@ async def soft_delete_entity(
     await session.flush()
 
 
-async def _resolve_initiative_scope(
-    session: AsyncSession,
-    entity: SoftDeleteMixin,
-) -> Optional[int]:
-    """Return the initiative_id this entity is scoped to, walking up the
-    parent chain when necessary. None for guild-level entities (Tag) or
-    when the parent row can't be resolved."""
-    # Direct initiative_id on the entity itself.
-    if (
-        hasattr(entity, "initiative_id")
-        and getattr(entity, "initiative_id") is not None
-    ):
-        return int(entity.initiative_id)
-    # Project-scoped → look up project.initiative_id.
-    if isinstance(entity, Task) and entity.project_id is not None:
-        stmt = select_including_deleted(Project.initiative_id).where(
-            Project.id == entity.project_id
-        )
-        result = await session.exec(stmt)
-        row = result.one_or_none()
-        return int(row) if row is not None else None
-    # Calendar-scoped → look up calendar.initiative_id.
-    if isinstance(entity, CalendarEvent) and entity.calendar_id is not None:
-        stmt = select_including_deleted(Calendar.initiative_id).where(
-            Calendar.id == entity.calendar_id
-        )
-        result = await session.exec(stmt)
-        row = result.one_or_none()
-        return int(row) if row is not None else None
-    # Comments can hang off either a task or a document.
-    if isinstance(entity, Comment):
-        if entity.task_id is not None:
-            stmt = (
-                select_including_deleted(Project.initiative_id)
-                .join(Task, Task.project_id == Project.id)
-                .where(Task.id == entity.task_id)
-            )
-            result = await session.exec(stmt)
-            row = result.one_or_none()
-            return int(row) if row is not None else None
-        if entity.document_id is not None:
-            stmt = select_including_deleted(Document.initiative_id).where(
-                Document.id == entity.document_id
-            )
-            result = await session.exec(stmt)
-            row = result.one_or_none()
-            return int(row) if row is not None else None
-    return None
-
-
 async def restore_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,

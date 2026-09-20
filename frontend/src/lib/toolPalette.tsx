@@ -1,13 +1,15 @@
 /**
  * Per-tool command-palette sources — the ONE place a tool declares how its
- * entities surface in the command center: which query feeds it, what a row is
- * labelled, its keywords, icon, and target route.
+ * entities surface in the command center: how much of its list the group
+ * browses, what a row is labelled, its keywords, icon, and target route.
  *
  * `CommandCenter` renders one group per tool with `commandPalette: true` in
  * the registry by mounting a `<ToolPaletteGroup>` per tool; each group calls
  * its own source hook here (a component boundary per group keeps the rules of
- * hooks happy). A new tool adds one entry — the drift test asserts every
- * palette-enabled tool has one.
+ * hooks happy). The query behind every group is the tool's own entry in
+ * `TOOL_HOOKS`, so a group reads the same list, under the same cache key, as
+ * the tool's list page. A new tool adds one entry — the drift test asserts
+ * every palette-enabled tool has one.
  *
  * These groups are what the palette shows while BROWSING. Once there is
  * something to search for, the guild index answers instead, across every kind
@@ -18,15 +20,9 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useCalendarsList } from "@/hooks/useCalendars";
-import { useCounterGroupsList } from "@/hooks/useCounters";
-import { useDashboardsList } from "@/hooks/useDashboards";
-import { useDocumentsList } from "@/hooks/useDocuments";
-import { useGalleriesList } from "@/hooks/useGalleries";
-import { usePostsList } from "@/hooks/usePosts";
-import { useProjects } from "@/hooks/useProjects";
-import { useQueuesList } from "@/hooks/useQueues";
-import { useWikisList } from "@/hooks/useWikis";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
+import type { ToolPaletteListOptions } from "@/hooks/useToolPaletteList";
+import { useToolPaletteList } from "@/hooks/useToolPaletteList";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -41,10 +37,8 @@ export interface PaletteItem {
   path: string;
 }
 
-export interface PaletteSourceContext {
-  /** Only fetch while the palette is open for an authenticated user. */
-  enabled: boolean;
-}
+/** Only fetch while the palette is open for an authenticated user. */
+export type PaletteSourceContext = ToolPaletteListOptions;
 
 export interface ToolPaletteSource {
   /** Group heading; null hides the group entirely (e.g. no runtime config). */
@@ -57,11 +51,18 @@ const useGroupHeading = (tool: Tool): string => {
   return t(`groups.${toolCamelPlural(tool)}` as never);
 };
 
+/** How much of a list a group browses. Most tools take a round hundred; the
+ *  two that carry text per row take a page. */
+const BROWSE_PAGE = { page_size: 100 } as const;
+const BROWSE_PAGE_HEAVY = { page_size: 25 } as const;
+
 export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   [Tool.project]: {
     useHeading: () => useGroupHeading(Tool.project),
-    useItems: () => {
-      const query = useProjects(undefined, { staleTime: 60_000 });
+    useItems: (ctx) => {
+      // No page size: the sidebar already holds this exact query, so the group
+      // reads what is cached rather than asking for a page of its own.
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.project].listQuery, undefined, ctx);
       return (query.data?.items ?? []).map((project) => ({
         id: project.id,
         label: project.name,
@@ -77,10 +78,10 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.document]: {
     useHeading: () => useGroupHeading(Tool.document),
-    useItems: ({ enabled }) => {
+    useItems: (ctx) => {
       // The 25 most recently updated. Narrowing by what was typed is the
       // index's job now, and it answers for every tool at once.
-      const query = useDocumentsList({ page_size: 25 }, { enabled, staleTime: 60_000 });
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.document].listQuery, BROWSE_PAGE_HEAVY, ctx);
       return (query.data?.items ?? []).map((doc) => {
         const DocIcon = getDocumentIcon(
           doc.document_type,
@@ -104,8 +105,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.queue]: {
     useHeading: () => useGroupHeading(Tool.queue),
-    useItems: () => {
-      const query = useQueuesList({ page_size: 100 }, { staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.queue].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((queue) => ({
         id: queue.id,
         label: queue.name,
@@ -117,8 +118,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.counter_group]: {
     useHeading: () => useGroupHeading(Tool.counter_group),
-    useItems: () => {
-      const query = useCounterGroupsList({ page_size: 100 }, { staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.counter_group].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((group) => ({
         id: group.id,
         label: group.name,
@@ -130,8 +131,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.calendar]: {
     useHeading: () => useGroupHeading(Tool.calendar),
-    useItems: ({ enabled }) => {
-      const query = useCalendarsList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.calendar].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((calendar) => ({
         id: calendar.id,
         label: calendar.name,
@@ -143,8 +144,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.dashboard]: {
     useHeading: () => useGroupHeading(Tool.dashboard),
-    useItems: ({ enabled }) => {
-      const query = useDashboardsList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.dashboard].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((dashboard) => ({
         id: dashboard.id,
         label: dashboard.name,
@@ -156,12 +157,12 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.post]: {
     useHeading: () => useGroupHeading(Tool.post),
-    useItems: ({ enabled }) => {
+    useItems: (ctx) => {
       // A page rather than the usual 100: posts carry their bodies, so a
       // hundred of them is a hundred editor states pulled in to fill a
       // dropdown. The palette matches on headline and excerpt, both of which
       // the first page already has.
-      const query = usePostsList({ page_size: 25 }, { enabled, staleTime: 60_000 });
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.post].listQuery, BROWSE_PAGE_HEAVY, ctx);
       return (query.data?.items ?? []).map((post) => ({
         id: post.id,
         label: post.name,
@@ -173,8 +174,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.gallery]: {
     useHeading: () => useGroupHeading(Tool.gallery),
-    useItems: ({ enabled }) => {
-      const query = useGalleriesList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.gallery].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((gallery) => ({
         id: gallery.id,
         label: gallery.name,
@@ -186,8 +187,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.wiki]: {
     useHeading: () => useGroupHeading(Tool.wiki),
-    useItems: ({ enabled }) => {
-      const query = useWikisList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+    useItems: (ctx) => {
+      const query = useToolPaletteList(TOOL_HOOKS[Tool.wiki].listQuery, BROWSE_PAGE, ctx);
       return (query.data?.items ?? []).map((wiki) => ({
         id: wiki.id,
         label: wiki.name,

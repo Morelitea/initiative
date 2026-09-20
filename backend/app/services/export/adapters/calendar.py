@@ -19,26 +19,27 @@ both count and build time, under the caller's RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.tenant.ical_service import documents_for_events
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
-from app.services.export.adapters._common import selection_ids
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+    export_stem,
+)
+from app.services.export.contract import RenderItem
 
 
-class CalendarAdapter:
-    source = "calendar"
-    # Required by the SourceAdapter protocol; neither format uses a template.
-    template_id = "data-table"
+class CalendarAdapter(ToolExportAdapter):
+    tool = Tool.calendar
     formats = frozenset({"ics", "json"})
 
     async def count(
@@ -55,9 +56,10 @@ class CalendarAdapter:
         # explicit id selection keeps the per-calendar fetch+authorize — the
         # engine's contract is that count() rejects an unauthorized selection
         # BEFORE a job row exists, and the selection cap bounds it.
-        if params.get("calendar_ids") or params.get("calendar_id"):
-            calendars = await self._calendars(session, user, guild_id, params)
-            return sum(len(calendar.events) for calendar in calendars)
+        if _is_selection(params):
+            return await super().count(
+                session, user=user, guild_id=guild_id, params=params, format=format
+            )
         from app.services.tenant.calendars import list_calendar_ids_for_export
 
         calendar_ids = await list_calendar_ids_for_export(
@@ -76,59 +78,62 @@ class CalendarAdapter:
             )
         ).one()
 
-    async def build(
+    async def load(
         self,
         session: AsyncSession,
-        *,
         user: User,
         guild_id: int,
         params: dict,
         format: str,
-    ) -> RenderRequest:
-        calendars = await self._calendars(session, user, guild_id, params)
-        date = localize_now(datetime.now(timezone.utc), params.get("tz")).strftime(
-            "%Y-%m-%d"
-        )
-        # Every event across every calendar, once: the builders below are
-        # synchronous and hold no session.
-        documents_by_event = await documents_for_events(
-            session, [event for calendar in calendars for event in calendar.events]
-        )
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(
-                build_calendar_item(calendar, format, date, documents_by_event)
-                for calendar in calendars
-            ),
-        )
-
-    async def _calendars(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
     ) -> list[Calendar]:
-        from app.services.tenant.calendars import (
-            get_calendar_for_export,
-            list_calendar_ids_for_export,
-        )
-
-        if params.get("calendar_ids") or params.get("calendar_id"):
-            calendar_ids = selection_ids(
-                params,
-                single_key="calendar_id",
-                multi_key="calendar_ids",
-            )
+        """An explicit selection, or every calendar the creator can reach in
+        one initiative (or across the guild) — the enumeration applies the
+        same per-calendar sharing."""
+        if _is_selection(params):
+            calendar_ids = self.selection(params)
         else:
-            initiative_id = _optional_int(params, "initiative_id")
+            from app.services.tenant.calendars import list_calendar_ids_for_export
+
             calendar_ids = await list_calendar_ids_for_export(
-                session, user, guild_id, initiative_id=initiative_id
+                session,
+                user,
+                guild_id,
+                initiative_id=_optional_int(params, "initiative_id"),
             )
         return [
-            await get_calendar_for_export(
-                session, user, guild_id, calendar_id=calendar_id
-            )
+            await self.fetch(session, user, guild_id, calendar_id)
             for calendar_id in calendar_ids
         ]
+
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, calendar_id: int, /
+    ) -> Calendar:
+        from app.services.tenant.calendars import get_calendar_for_export
+
+        return await get_calendar_for_export(
+            session, user, guild_id, calendar_id=calendar_id
+        )
+
+    def rows(self, calendar: Calendar, /) -> int:
+        return len(calendar.events)
+
+    async def prepare(
+        self, session: AsyncSession, calendars: list[Calendar], /
+    ) -> dict[int, list]:
+        # Every event across every calendar, once: the builders below are
+        # synchronous and hold no session.
+        return await documents_for_events(
+            session, [event for calendar in calendars for event in calendar.events]
+        )
+
+    def item(self, calendar: Calendar, ctx: BuildContext, /) -> RenderItem:
+        return build_calendar_item(calendar, ctx.format, ctx.date, ctx.prepared)
+
+
+def _is_selection(params: dict) -> bool:
+    """Whether this request named the calendars it wants, rather than asking
+    for everything the creator can reach."""
+    return bool(params.get("calendar_ids") or params.get("calendar_id"))
 
 
 def build_calendar_item(
@@ -146,18 +151,18 @@ def build_calendar_item(
         event_export_dict(event, by_event.get(event.id, []))
         for event in calendar.events
     ]
-    stem = safe_filename_component(calendar.name).lower()
     if format == "json":
         # The envelope is importable machine data — stays canonical, never
         # localized (translating field keys / enum values breaks import).
         return RenderItem(
-            key=f"{stem}-{date}.initiative-calendar",
+            key=envelope_key(Tool.calendar, calendar.name, date),
             data=_envelope(calendar, dicts),
         )
+    stem = export_stem(calendar.name, date)
     return RenderItem(
-        key=f"{stem}-{date}",
+        key=stem,
         data={"layout": "ical", "events": dicts},
-        filename=f"{stem}-{date}.ics",
+        filename=f"{stem}.ics",
     )
 
 

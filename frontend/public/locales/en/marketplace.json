@@ -44,7 +44,6 @@
   },
   "update": {
     "available": "Version {{version}} available",
-    "action": "Update",
     "done": "Updated to {{version}}.",
     "failed": "Could not update this dashboard."
   },

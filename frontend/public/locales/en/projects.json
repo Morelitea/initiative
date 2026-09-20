@@ -10,34 +10,12 @@
   "onlyPinnedMatch": "Only pinned projects match your filters.",
   "accessRestricted": "Access Restricted",
   "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
-  "myProjects": {
-    "title": "My Projects",
-    "subtitle": "Projects you have access to across all your communities.",
-    "empty": "You're not part of any projects yet.",
-    "loadError": "Unable to load your projects.",
-    "searchPlaceholder": "Search projects...",
-    "filterByGuild": "Filter by community",
-    "allGuilds": "All communities",
-    "noGuilds": "No communities available",
-    "columns": {
-      "guild": "Community",
-      "project": "Project",
-      "initiative": "Initiative",
-      "tasks": "Tasks",
-      "tags": "Tags",
-      "updated": "Updated"
-    },
-    "tasksDone": "{{completed}}/{{total}} done",
-    "noTasks": "No tasks"
-  },
   "view": {
     "grid": "Grid",
     "list": "List"
   },
   "filters": {
     "heading": "Filters",
-    "show": "Show filters",
-    "hide": "Hide filters",
     "searchLabel": "Name or description",
     "searchProjects": "Search projects",
     "selectedInitiative": "Selected initiative",
@@ -79,7 +57,6 @@
     "presetNamePlaceholder": "e.g. Blocked work",
     "presetSetDefault": "Make this the project's default",
     "presetSaved": "Preset saved",
-    "presetDeleted": "Preset deleted",
     "presetUnavailable": "That preset no longer exists on this project, so the project default is shown instead.",
     "presetSaveError": "Couldn't save the preset",
     "presetDeleteError": "Couldn't delete the preset",
@@ -94,27 +71,16 @@
   "templates": {
     "loading": "Loading templates…",
     "loadError": "Unable to load templates.",
-    "initiativeLabel": "Initiative: {{name}}",
-    "lastUpdated": "Last updated: {{date}}",
-    "viewTemplate": "View template",
     "stopUsingAsTemplate": "Stop using as template",
     "noTemplates": "No templates available",
-    "noTemplatesDescription": "Create a template from any project in project settings.",
-    "description": "Standardize best practices and quickly spin up new initiatives using reusable templates."
+    "noTemplatesDescription": "Create a template from any project in project settings."
   },
   "archived": {
-    "title": "Archived projects",
-    "subtitle": "Reopen an initiative when the work picks back up.",
     "loading": "Loading archived projects…",
     "loadError": "Unable to load archived projects.",
-    "initiativeLabel": "Initiative: {{name}}",
-    "archivedAt": "Archived at: {{date}}",
-    "archivedAtUnknown": "Unknown",
-    "viewDetails": "View details",
     "unarchive": "Unarchive",
     "noArchived": "No archived projects",
     "noArchivedDescription": "Active projects stay on the Active tab.",
-    "noArchivedDescriptionAlt": "Active projects stay on the main projects tab.",
     "sharingUnavailable": "Sharing can't be changed on an archived project."
   },
   "createDialog": {
@@ -138,7 +104,6 @@
     "saveAsTemplate": "Save as template",
     "saveAsTemplateHint": "Template projects live under the Templates tab and can be reused to spin up new work.",
     "createError": "Unable to create project.",
-    "selectInitiativeError": "Select an initiative before creating a project",
     "creating": "Creating…",
     "createProject": "Create project"
   },
@@ -190,21 +155,6 @@
     "description": "Add work to be done.",
     "archivedMessage": "This project is archived. Unarchive it to add new tasks.",
     "noWriteAccess": "You need write access to create tasks.",
-    "titleLabel": "Title",
-    "titlePlaceholder": "Draft launch plan",
-    "advancedDetails": "Advanced details",
-    "descriptionLabel": "Description (Markdown supported)",
-    "descriptionPlaceholder": "Share context, links, or acceptance criteria.",
-    "priorityLabel": "Priority",
-    "priorityLow": "Low priority",
-    "priorityMedium": "Medium priority",
-    "priorityHigh": "High priority",
-    "priorityUrgent": "Urgent",
-    "assigneesLabel": "Assignees",
-    "assigneesEmptyMessage": "Invite initiative members to assign work.",
-    "startDateLabel": "Start date",
-    "dueDateLabel": "Due date",
-    "optional": "Optional",
     "saving": "Saving…",
     "createTask": "Create task",
     "createError": "Unable to create task."
@@ -212,7 +162,6 @@
   "assignee": {
     "emptyMessage": "Invite initiative members to assign tasks.",
     "searchPlaceholder": "Search members",
-    "noAssignees": "No assignees selected.",
     "removeAssignee": "Remove {{name}}",
     "clearAssignees": "Clear assignees",
     "you": "You"
@@ -264,10 +213,7 @@
     "unknownError": "Unknown error"
   },
   "settings": {
-    "loading": "Loading project settings...",
-    "loadError": "Unable to load project.",
     "title": "Project settings",
-    "description": "Configure access, ownership, and archival status for {{name}}.",
     "breadcrumbSettings": "Settings",
     "tabTaskStatuses": "Task statuses",
     "details": {
@@ -291,7 +237,6 @@
       "scheduleDescription": "Set when the project starts and ends. Both are optional."
     },
     "access": {
-      "updated": "Access updated",
       "updateError": "Unable to update access"
     },
     "templateStatus": {
@@ -315,18 +260,6 @@
       "duplicateButton": "Duplicate project",
       "noWriteAccess": "You need write access to duplicate this project."
     },
-    "archiveStatus": {
-      "title": "Archive status",
-      "isArchived": "This project is archived.",
-      "isActive": "This project is active.",
-      "unarchive": "Unarchive project",
-      "archive": "Archive project",
-      "noWriteAccess": "You need write access to change archive status."
-    },
-    "danger": {
-      "title": "Danger zone",
-      "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends."
-    },
     "tabFilterPresets": "Views",
     "filterPresetsHeading": "Filter presets",
     "filterPresetsDescription": "Saved filter sets everyone in this project can pick from. The default is what the project opens on.",
@@ -341,62 +274,20 @@
     "presetMoveDown": "Move preset down"
   },
   "documents": {
-    "title": "Documents",
-    "description": "Attach initiative documents to keep context close to project work.",
-    "attachDocument": "Attach document",
-    "createDocument": "Create document",
-    "newDocument": "New document",
-    "attachExisting": "Attach existing",
-    "noDocuments": "No documents attached to this project yet.",
-    "noDocumentsHint": "Attach one to highlight relevant briefs.",
-    "expandDocuments": "Expand documents",
-    "collapseDocuments": "Collapse documents",
-    "attachDialogTitle": "Attach an existing document",
-    "attachDialogDescription": "Only documents created under this initiative are available.",
-    "selectDocument": "Select document",
-    "noAvailableDocuments": "No available documents",
-    "loadingDocuments": "Loading documents…",
-    "chooseDocument": "Choose document",
-    "allAttached": "All initiative documents are already attached.",
-    "noMatchesFound": "No matches found.",
-    "attachHint": "Need a new one? Open My Initiatives and use the initiative's Documents tab to create it, then return here to attach it.",
-    "attaching": "Attaching…",
-    "attach": "Attach",
-    "attached": "Document attached.",
-    "attachError": "Unable to attach document.",
-    "detached": "Document detached.",
-    "detachError": "Unable to detach document.",
-    "detach": "Detach",
-    "detachAriaLabel": "Detach {{name}}",
-    "detachDocument": "Detach document",
-    "updatedAgo": "Updated {{time}} ago",
-    "attachedAgo": "Attached {{time}} ago"
+    "newDocument": "New document"
   },
   "tasks": {
-    "title": "Tasks",
     "projectTasks": "Project tasks",
     "addTask": "Add task",
-    "selectView": "Select view",
     "enterTooltip": "Hit ‘enter’ to create a new task",
     "viewTable": "Table",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendar",
     "filtersHeading": "Filters",
-    "showFilters": "Show filters",
-    "hideFilters": "Hide filters",
-    "groupBy": "Group by",
-    "groupByNone": "None",
-    "groupByStatus": "Status",
-    "groupByPriority": "Priority",
-    "groupByAssignee": "Assignee",
-    "archiveSelected": "Archive selected",
     "archiveDoneTasks": "Archive done tasks",
     "archiveDialogTitle": "Archive tasks",
     "archiveDialogDescription": "This will archive {{count}} task. Archived tasks are hidden by default but can be shown using the filter.",
     "archiveDialogDescription_other": "This will archive {{count}} tasks. Archived tasks are hidden by default but can be shown using the filter.",
-    "archiveTitle": "Archive {{count}} task?",
-    "archiveTitle_other": "Archive {{count}} tasks?",
-    "archiveDescription": "Archived tasks will be hidden from the default view but can still be accessed via filters.",
     "archiveConfirm": "Archive",
     "archiving": "Archiving…",
     "archivedSuccess": "{{count}} task archived",
@@ -431,11 +322,8 @@
     "untagged": "Untagged",
     "commentsColumn": "Comments",
     "statusColumn": "Status",
-    "sortHelp": "Click any column header to sort. Hold Shift to multi-sort.",
-    "groupHelp": "Tasks are grouped by {{field}}. Sort and filter within each group.",
     "filterPlaceholder": "Filter tasks...",
     "reorderTask": "Reorder task",
-    "noTasks": "No tasks yet.",
     "manualSortDisabled": "Manual sorting disabled, <1>reset column sorting and row grouping</1> to reorder."
   },
   "kanban": {
@@ -449,9 +337,7 @@
     "taskCount_one": "{{count}} task",
     "taskCount_other": "{{count}} tasks",
     "collapse": "Collapse {{name}}",
-    "expand": "Expand {{name}}",
-    "comments_one": "{{count}} comment",
-    "comments_other": "{{count}} comments"
+    "expand": "Expand {{name}}"
   },
   "recurrence": {
     "repeat": "Repeat",
@@ -519,15 +405,6 @@
       "everyNYears": "Every {{count}} years on {{month}} {{day}}"
     }
   },
-  "calendarView": {
-    "subtitle": "See task start and due dates at a glance.",
-    "previousMonth": "Previous month",
-    "nextMonth": "Next month",
-    "today": "Today",
-    "start": "Start",
-    "due": "Due",
-    "more": "+{{count}} more"
-  },
   "progressLabel": "Project progress",
   "preview": {
     "updated": "Updated {{date}}",
@@ -551,29 +428,9 @@
     "description": "Download this project as a portable JSON backup, or as a formatted report (PDF, CSV, or Excel).",
     "detail": "The JSON backup can be re-imported on this instance or any other Initiative installation — cross-row references use names and emails so IDs from this database don't leak. Report formats cover the project's unarchived tasks.",
     "exportButton": "Export",
-    "exporting": "Exporting…",
     "noWriteAccess": "You need write access on this project to export it.",
     "success": "Project exported",
     "error": "Could not export the project. Please try again."
-  },
-  "import": {
-    "title": "Import project",
-    "description": "Create a new project from a previously-exported JSON file.",
-    "importButton": "Import",
-    "importing": "Importing…",
-    "selectFile": "Project JSON file",
-    "parseError": "That doesn't look like an Initiative project export.",
-    "fileTooLarge": "That file is unusually large. Pick a smaller export (≤50 MB).",
-    "previewProject": "Project",
-    "previewTaskCount": "Tasks",
-    "previewSchemaVersion": "Schema version",
-    "targetInitiative": "Import into initiative",
-    "selectInitiative": "Choose an initiative",
-    "success": "Imported “{{name}}”",
-    "warningUnmatchedAssignees_one": "Imported, but {{count}} assignee not in this initiative was dropped: {{emails}}",
-    "warningUnmatchedAssignees_other": "Imported, but {{count}} assignees not in this initiative were dropped: {{emails}}",
-    "error": "Could not import the project. Please try again.",
-    "queued": "Import started — you'll get a notification when it finishes."
   },
   "status": {
     "label": "Show",

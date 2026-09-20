@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,57 +29,29 @@ function stubInitiative(members: unknown[] = []) {
   );
 }
 
-/** The settings frame at one of its section addresses. */
+/** The settings frame, for a reader with the given standing. */
 const renderLayout = ({
-  path = "",
   role = "admin",
   user,
 }: {
-  path?: string;
   role?: "admin" | "member";
   user?: UserRead;
 } = {}) =>
   renderPage(InitiativeSettingsLayout, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: `/c/$guildId/i/$initiativeId/settings${path}`,
+    initialRoute: "/c/$guildId/i/$initiativeId/settings",
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
     ...(user ? { auth: { user } } : {}),
   });
 
+/**
+ * How the bar itself behaves — naming every section, navigating to the one a
+ * tab names, lighting the one the address names — is the shared
+ * `SettingsTabsNav`, proved once in
+ * `src/components/tools/settings/ToolSettingsLayout.test.tsx`. What is left
+ * here is who gets a bar at all, which only this layout decides.
+ */
 describe("InitiativeSettingsLayout", () => {
-  it("names every section as a tab", async () => {
-    stubInitiative();
-
-    renderLayout();
-
-    expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
-    for (const label of ["Members", "Roles", "Custom properties", "Export", "Danger zone"]) {
-      expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
-    }
-  });
-
-  it("navigates to the section a tab names", async () => {
-    stubInitiative();
-
-    const { router } = renderLayout();
-
-    await userEvent.click(await screen.findByRole("tab", { name: "Members" }));
-
-    // The section is an address, not a piece of component state.
-    expect(router.state.location.pathname).toBe("/c/1/i/7/settings/members");
-  });
-
-  it("lights the tab the address names", async () => {
-    stubInitiative();
-
-    renderLayout({ path: "/roles" });
-
-    expect(await screen.findByRole("tab", { name: "Roles" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-  });
-
   it("keeps the export tab out of the bar for someone who may not export", async () => {
     // A plain guild member who manages nothing here: the layout still refuses
     // the whole surface, so no section is offered at all.

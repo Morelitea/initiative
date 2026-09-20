@@ -12,6 +12,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Presence } from "@/api/generated/initiativeAPI.schemas";
 import { getUrlHandle } from "@/lib/userDisplay";
 import { routeTree } from "@/routeTree.gen";
 
@@ -84,11 +85,15 @@ const renderProfile = async () => {
 const answerWith = (profile: unknown) =>
   mocks.profile.mockReturnValue({ data: profile, isLoading: false });
 
+/** What the server says one person may do about another. */
+const permits = (permission: string, may_connect = true) =>
+  mocks.dmPermission.mockReturnValue({ data: { permission, may_connect } });
+
 beforeEach(() => {
   vi.clearAllMocks();
   answerWith(buildUserProfile());
   mocks.communities.mockReturnValue({ data: [] });
-  mocks.dmPermission.mockReturnValue({ data: { permission: "denied", may_connect: true } });
+  permits("denied");
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
 });
@@ -128,25 +133,15 @@ describe("a member's profile", () => {
 
   // The badge is on the picture, and says its state in words rather than in
   // colour alone — so it is found by the name it carries.
-  it("says on the picture itself when someone has Initiative open", async () => {
-    answerWith(buildUserProfile({ presence: "online" }));
+  it.each([
+    ["says on the picture itself when someone has Initiative open", Presence.online, "Online"],
+    ["says which state someone is in, not just that they are here", Presence.busy, "Busy"],
+    ["shows someone who stepped away from the keyboard as idle", Presence.idle, "Idle"],
+  ])("%s", async (_label, presence, badge) => {
+    answerWith(buildUserProfile({ presence }));
     await renderProfile();
 
-    expect(await screen.findByRole("img", { name: "Online" })).toBeInTheDocument();
-  });
-
-  it("says which state someone is in, not just that they are here", async () => {
-    answerWith(buildUserProfile({ presence: "busy" }));
-    await renderProfile();
-
-    expect(await screen.findByRole("img", { name: "Busy" })).toBeInTheDocument();
-  });
-
-  it("shows someone who stepped away from the keyboard as idle", async () => {
-    answerWith(buildUserProfile({ presence: "idle" }));
-    await renderProfile();
-
-    expect(await screen.findByRole("img", { name: "Idle" })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: badge })).toBeInTheDocument();
   });
 
   it("badges nobody as offline — an empty corner already says it", async () => {
@@ -162,7 +157,7 @@ describe("a member's profile", () => {
     // came to do is a button on it rather than an item behind a menu.
     const them = buildUserProfile();
     answerWith(them);
-    mocks.dmPermission.mockReturnValue({ data: { permission: "open", may_connect: true } });
+    permits("open");
     await renderProfile();
 
     // Addressed by their handle, which is how My Messages resolves a person.
@@ -173,7 +168,7 @@ describe("a member's profile", () => {
   it("offers to ask, where there is no channel yet", async () => {
     const them = buildUserProfile();
     answerWith(them);
-    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request", may_connect: true } });
+    permits("may_request");
     await renderProfile();
 
     await userEvent.click(await screen.findByRole("button", { name: /ask to message/i }));
@@ -198,7 +193,7 @@ describe("a member's profile", () => {
     // Connecting and messaging are separate rules, so a person who takes no
     // connection requests must not be shown a button that answers with an
     // error. The server says which, and the profile asks.
-    mocks.dmPermission.mockReturnValue({ data: { permission: "open", may_connect: false } });
+    permits("open", false);
     await renderProfile();
 
     expect(await screen.findByRole("link", { name: /message/i })).toBeInTheDocument();

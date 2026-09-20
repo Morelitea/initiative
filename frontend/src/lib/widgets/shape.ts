@@ -78,8 +78,3 @@ export const canDraw = (
   const mapping = resolveMapping(columns, shape, stored);
   return shape.every((slot) => !slot.required || mapping[slot.name]?.length);
 };
-
-/** The columns a slot may be pointed at, for the picker that overrides
- *  inference. Offered by *ordinal*, because two columns may share a name. */
-export const candidatesFor = (columns: DataColumn[], slot: WidgetSlot): number[] =>
-  columns.flatMap((column, index) => (fits(column, slot) ? [index] : []));

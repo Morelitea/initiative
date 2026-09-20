@@ -428,8 +428,7 @@
     "failed": "No se pudo guardar ese estado."
   },
   "guilds": {
-    "title": "Comunidades",
-    "empty": "Ninguna comunidad pública."
+    "title": "Comunidades"
   },
   "trophyRail": "Trofeos"
 }

@@ -13,8 +13,6 @@
   },
   "filters": {
     "heading": "Filter",
-    "show": "Filter anzeigen",
-    "hide": "Filter ausblenden",
     "statusCategory": "Statuskategorie",
     "filterByStatusCategory": "Nach Statuskategorie filtern",
     "allStatusCategories": "Alle Statuskategorien",
@@ -67,21 +65,10 @@
     "createdAt": "Erstellt {{time}}",
     "readOnlyNoAccess": "Du hast nur Lesezugriff auf dieses Projekt, daher sind die Aufgabenfelder deaktiviert.",
     "readOnlyArchived": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Projekteinstellungen auf, um Aufgaben zu bearbeiten.",
-    "titleLabel": "Titel",
-    "titlePlaceholder": "Aufgabentitel",
     "descriptionLabel": "Beschreibung",
     "aiGenerate": "Mit KI generieren",
     "descriptionPlaceholder": "Füge zusätzlichen Kontext oder Abnahmekriterien hinzu. Markdown wird unterstützt.",
     "noDescriptionReadOnly": "Noch keine Beschreibung.",
-    "statusLabel": "Status",
-    "selectStatus": "Status auswählen",
-    "priorityLabel": "Priorität",
-    "startDateLabel": "Startdatum",
-    "dueDateLabel": "Fälligkeitsdatum",
-    "assigneesLabel": "Zuständige Personen",
-    "assigneesEmptyMessage": "Noch keine Initiativmitglieder verfügbar.",
-    "tagsLabel": "Tags",
-    "tagsPlaceholder": "Tags hinzufügen...",
     "saving": "Wird gespeichert…",
     "saveTask": "Aufgabe speichern",
     "moveToProject": "In Projekt verschieben",
@@ -102,7 +89,6 @@
     "taskUnarchived": "Archivierung der Aufgabe aufgehoben",
     "moveSuccess": "Aufgabe nach {{projectName}} verschoben.",
     "moveError": "Aufgabe konnte nicht verschoben werden",
-    "archiveError": "Aufgabe konnte nicht aktualisiert werden",
     "descriptionGenerated": "Beschreibung generiert",
     "generateDescriptionError": "Beschreibung konnte nicht generiert werden",
     "commentsError": "Kommentare können derzeit nicht geladen werden.",
@@ -134,7 +120,6 @@
   "myTasks": {
     "title": "Meine Aufgaben",
     "subtitle": "Alles, was dir projektübergreifend zugewiesen ist.",
-    "addTask": "Aufgabe hinzufügen",
     "noGuild": "Keine Community",
     "loadError": "Deine Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
@@ -142,10 +127,7 @@
   },
   "myCalendar": {
     "title": "Mein Kalender",
-    "subtitle": "Aufgaben und Termine über alle deine Communitys hinweg.",
-    "loadError": "Kalenderdaten konnten nicht geladen werden.",
-    "typeEvents": "Termine",
-    "typeTasks": "Aufgaben"
+    "subtitle": "Aufgaben und Termine über alle deine Communitys hinweg."
   },
   "tagTasks": {
     "loadError": "Aufgaben konnten nicht geladen werden."
@@ -177,8 +159,7 @@
   },
   "prioritySelector": {
     "ariaLabel": "Priorität: {{priority}}. Klicke zum Ändern.",
-    "changed": "Priorität geändert zu {{priority}}",
-    "updateError": "Priorität konnte nicht aktualisiert werden."
+    "changed": "Priorität geändert zu {{priority}}"
   },
   "statusSelector": {
     "invalidStatus": "Ungültiger Status ausgewählt."
@@ -215,14 +196,12 @@
   },
   "createWizard": {
     "title": "Aufgabe hinzufügen",
-    "description": "Wähle ein Projekt aus, um eine neue Aufgabe zu erstellen.",
     "lastUsed": "Zuletzt verwendet",
     "selectGuild": "Eine Community auswählen",
     "selectInitiative": "Eine Initiative auswählen",
     "selectProject": "Ein Projekt auswählen",
     "noInitiatives": "Keine Initiativen in dieser Community gefunden.",
     "noProjects": "Keine Projekte in dieser Initiative gefunden.",
-    "loading": "Wird geladen…",
     "back": "Zurück",
     "searchProjects": "Projekte suchen…",
     "loadMore": "Mehr laden"
@@ -250,8 +229,7 @@
     "applyChanges": "Änderungen anwenden",
     "selected": "{{count}} Aufgabe ausgewählt",
     "selected_other": "{{count}} Aufgaben ausgewählt",
-    "editTags": "Tags bearbeiten",
-    "archiving": "Wird archiviert…"
+    "editTags": "Tags bearbeiten"
   },
   "taskForm": {
     "titleLabel": "Titel",

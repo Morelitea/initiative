@@ -44,7 +44,9 @@
     "existingTags": "Etiquetas existentes",
     "noTagsFound": "No se encontraron etiquetas.",
     "createTag": "Crear \"{{name}}\"",
-    "selected": "{{count}} seleccionadas"
+    "selected": "{{count}} seleccionadas",
+    "filterLabel": "Etiquetas",
+    "anyTag": "Cualquier etiqueta"
   },
   "tree": {
     "notTagged": "Sin etiquetar",
@@ -59,6 +61,5 @@
   "createError": "No se pudo crear la etiqueta.",
   "updateError": "No se pudo actualizar la etiqueta.",
   "deleteError": "No se pudo eliminar la etiqueta.",
-  "taskTagsError": "No se pudieron actualizar las etiquetas de la tarea.",
   "toolTagsError": "No se pudieron actualizar las etiquetas."
 }

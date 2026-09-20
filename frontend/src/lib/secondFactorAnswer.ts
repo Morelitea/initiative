@@ -14,8 +14,11 @@ export interface SecondFactorAnswer {
   recovery_code?: string;
 }
 
+/** A live code as the server reads it: the spacing an authenticator shows, removed. */
+export const compactCode = (entered: string): string => entered.trim().replace(/[\s-]/g, "");
+
 export const classifySecondFactorAnswer = (entered: string): SecondFactorAnswer => {
   const trimmed = entered.trim();
-  const compact = trimmed.replace(/[\s-]/g, "");
+  const compact = compactCode(trimmed);
   return /^\d{6}$/.test(compact) ? { code: compact } : { recovery_code: trimmed };
 };

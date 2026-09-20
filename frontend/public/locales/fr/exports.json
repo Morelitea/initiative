@@ -49,7 +49,6 @@
       "overUploadLimit": "Les fichiers téléversés dépassent la limite de {{limit}} — excluez-les pour continuer."
     },
     "report": {
-      "include": "Inclure",
       "documentNative": "Documents texte",
       "documentSpreadsheet": "Tableurs",
       "documentOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
@@ -89,7 +88,6 @@
       "export": "Export",
       "status": "Statut",
       "created": "Créé",
-      "expires": "Expire",
       "actions": "Actions"
     },
     "status": {
@@ -104,13 +102,13 @@
       "project": "Projet",
       "document": "Document",
       "queue": "File",
-      "counter-group": "Groupe de compteurs",
       "calendar": "Calendrier",
       "post": "Publication",
       "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Communauté",
-      "gallery": "Galerie"
+      "gallery": "Galerie",
+      "counter-group": "Groupe de compteurs"
     },
     "download": "Télécharger",
     "empty": "Aucun export pour l’instant.",

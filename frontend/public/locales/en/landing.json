@@ -1,7 +1,6 @@
 {
   "nav": {
     "signIn": "Sign in",
-    "getStarted": "Start a community",
     "pricing": "Pricing",
     "help": "Help"
   },
@@ -129,8 +128,7 @@
   "cta": {
     "title": "Ready when you are.",
     "description": "Sign in if your group's already here. Start a community if it isn't.",
-    "signIn": "Sign in",
-    "start": "Start a community"
+    "signIn": "Sign in"
   },
   "footer": {
     "copyright": "© {{year}} Initiative. Open source, and staying that way.",

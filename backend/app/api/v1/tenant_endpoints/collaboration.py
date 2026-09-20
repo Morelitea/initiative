@@ -51,6 +51,7 @@ from app.services.tenant.collaborative_resources import (
     resource_for,
 )
 from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
 from app.services.tenant.relationships import Endpoint
@@ -536,7 +537,9 @@ async def sync_document_content(
 
     # Write level via the shared DAC engine (guild-admin / break-glass / PAM /
     # explicit grants), against the context establish_guild_access set above.
-    level = permissions_service.compute_document_permission(document, user.id)
+    level = permissions_service.compute_permission(
+        permissions_service.DAC_RESOURCES[Tool.document], document, user.id
+    )
     if level not in ("write", "owner"):
         logger.warning(
             f"Sync content: User {handle_of(user)} has no write access to document {document_id}"

@@ -5,12 +5,9 @@
   "noPosts": "Noch nichts veröffentlicht",
   "noPostsDescription": "Am schwarzen Brett sagt eine Initiative Dinge laut – eine Planänderung, ein Termin, eine Begrüßung. Beiträge werden vom neuesten zum ältesten gelesen, und die wichtigen lassen sich oben anheften.",
   "createPost": "Neuer Beitrag",
-  "editPost": "Beitrag bearbeiten",
-  "postCreated": "Veröffentlicht",
   "name": "Überschrift",
   "namePlaceholder": "Worum geht es?",
   "body": "Beitrag",
-  "bodyPlaceholder": "Schreibe deine Mitteilung ...",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
   "tags": "Tags",
@@ -22,7 +19,6 @@
   "dangerZone": "Gefahrenzone",
   "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Beiträge landen im Papierkorb und können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden.",
   "detailsUpdated": "Beitrag aktualisiert",
-  "postedBy": "Veröffentlicht von {{name}}",
   "pin": {
     "pin": "Oben anheften",
     "unpin": "Lösen",
@@ -36,8 +32,7 @@
     "changeExpiry": "Enddatum ändern",
     "removeExpiry": "Enddatum entfernen",
     "pinnedToast": "Beitrag angeheftet",
-    "unpinnedToast": "Beitrag gelöst",
-    "managerOnly": "Nur Initiativ-Manager können einen Beitrag anheften."
+    "unpinnedToast": "Beitrag gelöst"
   },
   "schedule": {
     "label": "Zeitplan",
@@ -53,7 +48,6 @@
   "read": {
     "markUnread": "Als ungelesen markieren",
     "markedUnread": "Als ungelesen markiert",
-    "unread": "Ungelesen",
     "whoRead": "Wer das gelesen hat",
     "whoReadHint": "Alle, mit denen dieser Beitrag geteilt wurde.",
     "readTab": "Gelesen {{count}}",
@@ -65,8 +59,6 @@
   },
   "filters": {
     "heading": "Filter",
-    "show": "Anzeigen",
-    "hide": "Ausblenden",
     "searchLabel": "Überschrift oder Inhalt",
     "searchPosts": "Diese Pinnwand durchsuchen...",
     "noMatchingPosts": "Keine Beiträge entsprechen deinen Filtern.",
@@ -76,11 +68,8 @@
   },
   "loading": "Beiträge werden geladen ...",
   "loadError": "Beiträge konnten nicht geladen werden.",
-  "loadingPost": "Beitrag wird geladen ...",
-  "loadMore": "Ältere Beiträge anzeigen",
   "creating": "Wird veröffentlicht ...",
   "saving": "Wird gespeichert ...",
-  "deleting": "Wird gelöscht ...",
   "notFound": "Beitrag nicht gefunden",
   "notFoundDescription": "Der gesuchte Beitrag existiert nicht oder wurde entfernt.",
   "noAccess": "Zugriff verweigert",

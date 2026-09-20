@@ -6,7 +6,6 @@ import type {
   TaggedEntitiesResponse,
   TagRead,
   TagUpdate,
-  TaskRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createTagApiV1GGuildIdTagsPost,
@@ -19,7 +18,6 @@ import {
   listTagsApiV1GGuildIdTagsGet,
   updateTagApiV1GGuildIdTagsTagIdPatch,
 } from "@/api/generated/tags/tags";
-import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -127,21 +125,6 @@ export const useDeleteTag = (
     onSettled,
   });
 };
-
-export const useSetTaskTags = (
-  options?: MutationOpts<TaskRead, { taskId: number; tagIds: number[] }>
-) =>
-  useGuildMutation<TaskRead, { taskId: number; tagIds: number[] }>(
-    {
-      mutationFn: (guildId, { taskId, tagIds }) =>
-        setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut(guildId, taskId, {
-          tag_ids: tagIds,
-        }),
-      invalidate: () => invalidate(q.allTasks()),
-      errorKey: "tags:taskTagsError",
-    },
-    options
-  );
 
 export const useTagEntities = (tagId: number | null) => {
   const guildId = useActiveGuildId();

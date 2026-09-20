@@ -321,61 +321,43 @@ def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
 # an extra load at every call site, and a stored target_path would go stale the
 # moment an entity moved. So these emit an entity REFERENCE and let the client's
 # /go resolver turn it into the canonical address on the way in.
-def _entity_ref_path(ref_type: str, entity_id: int) -> str:
-    return f"/go/{ref_type}/{entity_id}"
+def reference_path(kind: Tool | str, entity_id: int | None) -> str:
+    """One entity's reference path, the same for every notifier and for any
+    other service that addresses the entity.
 
-
-def _document_target_path(document_id: int | None) -> str:
-    if document_id is None:
+    ``kind`` is a ``Tool``, or the name of a kind that lives inside one
+    (``task``, ``event``), spelled the way the client's resolver speaks it —
+    kebab singular. Without an id there is no entity to resolve, so the guild
+    home is the landing spot.
+    """
+    if entity_id is None:
         return "/"
-    return _entity_ref_path("document", document_id)
+    name = kind.value if isinstance(kind, Tool) else kind
+    return f"/go/{name.replace('_', '-')}/{entity_id}"
 
 
 def _task_target_path(task_id: int | None, project_id: int | None) -> str:
+    """Where a notice about a task opens — the task, or the project holding it
+    when the notice names no one task."""
     if task_id:
-        return _entity_ref_path("task", task_id)
+        return reference_path("task", task_id)
     if project_id:
-        return _entity_ref_path("project", project_id)
+        return reference_path(Tool.project, project_id)
     # No entity to resolve — the guild home is the only honest landing spot now
     # that there is no guild-wide project list.
     return "/"
 
 
-def _project_target_path(project_id: int | None) -> str:
-    if project_id is None:
-        return "/"
-    return _entity_ref_path("project", project_id)
-
-
-def _tool_target_path(entity_type: str, entity_id: int) -> str:
-    """A tool entity's reference path — the ref type is the tool's kebab
-    singular (``counter_group`` → ``counter-group``), which is what the
-    client's resolver speaks."""
-    return _entity_ref_path(entity_type.replace("_", "-"), entity_id)
-
-
-def _event_target_path(event_id: int | None) -> str:
-    if event_id is None:
-        return "/"
-    return _entity_ref_path("event", event_id)
-
-
 def _initiative_target_path(initiative_id: int | None) -> str:
+    """An initiative is addressed directly rather than through the resolver: it
+    is the thing tool references resolve INTO, so it has a stable address of its
+    own."""
     if initiative_id is None:
         # No one initiative to open, so land on the guild's front page — which
         # is where the initiative list lives now that the standalone page is
         # gone. "/i" would only redirect here anyway.
         return "/"
     return f"/i/{initiative_id}"
-
-
-# Public spellings of the three path builders above. Another service that
-# addresses the same entity must produce the IDENTICAL path — a notification
-# and a reaction digest pointing at the same comment must land in the same
-# place — so it calls these rather than deriving its own.
-task_target_path = _task_target_path
-document_target_path = _document_target_path
-tool_target_path = _tool_target_path
 
 
 def _recipient_locale(user: User) -> str:
@@ -810,7 +792,7 @@ async def notify_project_added(
     initiative_id: int,
     guild_id: int,
 ) -> None:
-    target_path = _project_target_path(project_id)
+    target_path = reference_path(Tool.project, project_id)
     channels = await _channels(
         session,
         user,
@@ -877,6 +859,90 @@ async def notify_project_added(
     await session.commit()
 
 
+async def _deliver_rolled_up_comment(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    actor: User,
+    notification_type: NotificationType,
+    data: dict[str, Any],
+    email_subject: str,
+    email_headline: str,
+    email_body: str,
+    push_title: str,
+    push_body: str,
+    push_data: Mapping[str, str | None],
+    rollup_key: str | None = None,
+) -> None:
+    """Shared delivery for mentions and comments: one bell line, then email and
+    push.
+
+    The bell line is the window the reaching channels fire on. With a
+    ``rollup_key`` the notice joins this recipient's unread line for that thread
+    and the mail and the push go only when it opened one; without a key each
+    notice is its own line and its own interruption.
+
+    ``push_data`` names the ids this one notification is about; its type, its
+    community and where it opens are the three every push carries.
+    """
+    guild_id = data.get("guild_id")
+    guild_id = guild_id if isinstance(guild_id, int) else None
+    channels = await _channels(
+        session,
+        recipient,
+        notification_type=notification_type,
+        guild_id=guild_id,
+    )
+    if rollup_key is None:
+        opened = True
+        notification = await user_notifications.create_notification(
+            session,
+            user_id=recipient.id,
+            notification_type=notification_type,
+            data=data,
+        )
+    else:
+        opened, notification = await _roll_up_comment(
+            session,
+            recipient=recipient,
+            notification_type=notification_type,
+            rollup_key=rollup_key,
+            data=data,
+            commenter_name=handle_of(actor),
+            commenter_id=actor.id,
+        )
+    if channels.email and opened:
+        await _queue_email(
+            session,
+            recipient,
+            notification_type=notification_type,
+            guild_id=guild_id,
+            notification=notification,
+            prefs=channels.prefs,
+            subject=email_subject,
+            headline=email_headline,
+            body=email_body,
+            link=data.get("smart_link"),
+        )
+    if channels.push and opened:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=recipient.id,
+                notification_type=notification_type,
+                title=push_title,
+                body=push_body,
+                data={
+                    "type": notification_type.value,
+                    **push_data,
+                    "guild_id": str(guild_id),
+                    "target_path": data.get("target_path", "/"),
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
 async def notify_document_mention(
     session: AsyncSession,
     *,
@@ -890,19 +956,13 @@ async def notify_document_mention(
     """Notify a user they were mentioned in a document."""
     if mentioned_user.id == mentioned_by.id:
         return
-    target_path = _document_target_path(document_id)
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    target_path = reference_path(Tool.document, document_id)
     mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(mentioned_user)
-    channels = await _channels(
+    await _deliver_rolled_up_comment(
         session,
-        mentioned_user,
-        notification_type=NotificationType.mention,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=mentioned_user.id,
+        recipient=mentioned_user,
+        actor=mentioned_by,
         notification_type=NotificationType.mention,
         data={
             "document_id": document_id,
@@ -913,56 +973,49 @@ async def notify_document_mention(
             "initiative_id": initiative_id,
             "tool": Tool.document.value,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
         },
+        email_subject=email_t(
+            "mention.document.subject", locale, document=document_name, escape=False
+        ),
+        email_headline=email_t("mention.document.title", locale),
+        email_body=email_t(
+            "mention.document.body",
+            locale,
+            actor=mentioned_by_name,
+            document=document_name,
+        ),
+        push_title=_nt("mention.document.title", locale),
+        push_body=_nt(
+            "mention.document.body",
+            locale,
+            actor=mentioned_by_name,
+            document=document_name,
+        ),
+        push_data={"document_id": str(document_id)},
     )
-    # Email
-    if channels.email:
-        await _queue_email(
-            session,
-            mentioned_user,
-            notification_type=NotificationType.mention,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t(
-                "mention.document.subject",
-                locale,
-                document=document_name,
-                escape=False,
-            ),
-            headline=email_t("mention.document.title", locale),
-            body=email_t(
-                "mention.document.body",
-                locale,
-                actor=mentioned_by_name,
-                document=document_name,
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=mentioned_user.id,
-                notification_type=NotificationType.mention,
-                title=_nt("mention.document.title", locale),
-                body=_nt(
-                    "mention.document.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    document=document_name,
-                ),
-                data={
-                    "type": "mention",
-                    "document_id": str(document_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+def _comment_context_path(
+    *,
+    task_id: int | None,
+    document_id: int | None,
+    entity_type: str | None,
+    entity_id: int | None,
+) -> str | None:
+    """Where a notice about a comment opens: the thread's parent.
+
+    A task and a document are named by their own fields; any other tool parent
+    arrives as an entity reference. ``None`` means the caller named no parent,
+    and there is nowhere for the notice to point.
+    """
+    if task_id:
+        return _task_target_path(task_id, None)
+    if document_id:
+        return reference_path(Tool.document, document_id)
+    if entity_type and entity_id:
+        return reference_path(entity_type, entity_id)
+    return None
 
 
 async def notify_comment_mention(
@@ -985,29 +1038,20 @@ async def notify_comment_mention(
     document (a project, queue, counter group, calendar, or dashboard)."""
     if mentioned_user.id == mentioned_by.id:
         return
-
-    if task_id:
-        target_path = _task_target_path(task_id, None)
-    elif document_id:
-        target_path = _document_target_path(document_id)
-    elif entity_type and entity_id:
-        target_path = _tool_target_path(entity_type, entity_id)
-    else:
+    target_path = _comment_context_path(
+        task_id=task_id,
+        document_id=document_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+    if target_path is None:
         return
-
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(mentioned_user)
-
-    channels = await _channels(
+    await _deliver_rolled_up_comment(
         session,
-        mentioned_user,
-        notification_type=NotificationType.mention,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=mentioned_user.id,
+        recipient=mentioned_user,
+        actor=mentioned_by,
         notification_type=NotificationType.mention,
         data={
             "comment_id": comment_id,
@@ -1022,53 +1066,29 @@ async def notify_comment_mention(
             "initiative_id": initiative_id,
             "tool": tool,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+        email_subject=email_t("mention.comment.subject", locale, escape=False),
+        email_headline=email_t("mention.comment.title", locale),
+        email_body=email_t(
+            "mention.comment.body",
+            locale,
+            actor=mentioned_by_name,
+            context=context_title,
+        ),
+        push_title=_nt("mention.comment.title", locale),
+        push_body=_nt(
+            "mention.comment.body",
+            locale,
+            actor=mentioned_by_name,
+            context=context_title,
+        ),
+        push_data={
+            "comment_id": str(comment_id),
+            "task_id": str(task_id) if task_id else None,
+            "document_id": str(document_id) if document_id else None,
         },
     )
-    # Email
-    if channels.email:
-        await _queue_email(
-            session,
-            mentioned_user,
-            notification_type=NotificationType.mention,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t("mention.comment.subject", locale, escape=False),
-            headline=email_t("mention.comment.title", locale),
-            body=email_t(
-                "mention.comment.body",
-                locale,
-                actor=mentioned_by_name,
-                context=context_title,
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=mentioned_user.id,
-                notification_type=NotificationType.mention,
-                title=_nt("mention.comment.title", locale),
-                body=_nt(
-                    "mention.comment.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    context=context_title,
-                ),
-                data={
-                    "type": "mention",
-                    "comment_id": str(comment_id),
-                    "task_id": str(task_id) if task_id else None,
-                    "document_id": str(document_id) if document_id else None,
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_task_mentioned_in_comment(
@@ -1091,29 +1111,20 @@ async def notify_task_mentioned_in_comment(
     """Notify task assignee that their task was mentioned in a comment."""
     if assignee.id == mentioned_by.id:
         return
-
-    if context_task_id:
-        target_path = _task_target_path(context_task_id, None)
-    elif context_document_id:
-        target_path = _document_target_path(context_document_id)
-    elif context_entity_type and context_entity_id:
-        target_path = _tool_target_path(context_entity_type, context_entity_id)
-    else:
+    target_path = _comment_context_path(
+        task_id=context_task_id,
+        document_id=context_document_id,
+        entity_type=context_entity_type,
+        entity_id=context_entity_id,
+    )
+    if target_path is None:
         return
-
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(assignee)
-
-    channels = await _channels(
+    await _deliver_rolled_up_comment(
         session,
-        assignee,
-        notification_type=NotificationType.mention,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=assignee.id,
+        recipient=assignee,
+        actor=mentioned_by,
         notification_type=NotificationType.mention,
         data={
             "comment_id": comment_id,
@@ -1130,54 +1141,30 @@ async def notify_task_mentioned_in_comment(
             "initiative_id": initiative_id,
             "tool": tool,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+        email_subject=email_t("mention.task.subject", locale, escape=False),
+        email_headline=email_t("mention.task.title", locale),
+        email_body=email_t(
+            "mention.task.body",
+            locale,
+            actor=mentioned_by_name,
+            task=mentioned_task_title,
+            context=context_title,
+        ),
+        push_title=_nt("mention.task.title", locale),
+        push_body=_nt(
+            "mention.task.body",
+            locale,
+            actor=mentioned_by_name,
+            task=mentioned_task_title,
+            context=context_title,
+        ),
+        push_data={
+            "comment_id": str(comment_id),
+            "mentioned_task_id": str(mentioned_task_id),
         },
     )
-    # Email
-    if channels.email:
-        await _queue_email(
-            session,
-            assignee,
-            notification_type=NotificationType.mention,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t("mention.task.subject", locale, escape=False),
-            headline=email_t("mention.task.title", locale),
-            body=email_t(
-                "mention.task.body",
-                locale,
-                actor=mentioned_by_name,
-                task=mentioned_task_title,
-                context=context_title,
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=assignee.id,
-                notification_type=NotificationType.mention,
-                title=_nt("mention.task.title", locale),
-                body=_nt(
-                    "mention.task.body",
-                    locale,
-                    actor=mentioned_by_name,
-                    task=mentioned_task_title,
-                    context=context_title,
-                ),
-                data={
-                    "type": "mention",
-                    "comment_id": str(comment_id),
-                    "mentioned_task_id": str(mentioned_task_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_on_task(
@@ -1196,21 +1183,13 @@ async def notify_comment_on_task(
     """Notify task assignee that someone commented on their task."""
     if assignee.id == commenter.id:
         return
-
     target_path = _task_target_path(task_id, None)
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = handle_of(commenter)
     locale = _recipient_locale(assignee)
-
-    channels = await _channels(
-        session,
-        assignee,
-        notification_type=NotificationType.comment_on_task,
-        guild_id=guild_id,
-    )
-    opened, notification = await _roll_up_comment(
+    await _deliver_rolled_up_comment(
         session,
         recipient=assignee,
+        actor=commenter,
         notification_type=NotificationType.comment_on_task,
         rollup_key=_comment_rollup_key("task", task_id),
         data={
@@ -1224,50 +1203,21 @@ async def notify_comment_on_task(
             "initiative_id": initiative_id,
             "tool": tool,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
         },
-        commenter_name=commenter_name,
-        commenter_id=commenter.id,
+        email_subject=email_t(
+            "comment.onTask.subject", locale, task=task_title, escape=False
+        ),
+        email_headline=email_t("comment.onTask.title", locale),
+        email_body=email_t(
+            "comment.onTask.body", locale, actor=commenter_name, task=task_title
+        ),
+        push_title=_nt("comment.onTask.title", locale),
+        push_body=_nt(
+            "comment.onTask.body", locale, actor=commenter_name, task=task_title
+        ),
+        push_data={"comment_id": str(comment_id), "task_id": str(task_id)},
     )
-    # Email
-    if channels.email and opened:
-        await _queue_email(
-            session,
-            assignee,
-            notification_type=NotificationType.comment_on_task,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t(
-                "comment.onTask.subject", locale, task=task_title, escape=False
-            ),
-            headline=email_t("comment.onTask.title", locale),
-            body=email_t(
-                "comment.onTask.body", locale, actor=commenter_name, task=task_title
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push and opened:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=assignee.id,
-                notification_type=NotificationType.comment_on_task,
-                title=_nt("comment.onTask.title", locale),
-                body=_nt(
-                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
-                ),
-                data={
-                    "type": "comment_on_task",
-                    "comment_id": str(comment_id),
-                    "task_id": str(task_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_on_resource(
@@ -1295,21 +1245,13 @@ async def notify_comment_on_resource(
     """
     if owner.id == commenter.id:
         return
-
-    target_path = _tool_target_path(*(target or (entity_type, entity_id)))
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    target_path = reference_path(*(target or (entity_type, entity_id)))
     commenter_name = handle_of(commenter)
     locale = _recipient_locale(owner)
-
-    channels = await _channels(
-        session,
-        owner,
-        notification_type=NotificationType.comment_on_resource,
-        guild_id=guild_id,
-    )
-    opened, notification = await _roll_up_comment(
+    await _deliver_rolled_up_comment(
         session,
         recipient=owner,
+        actor=commenter,
         notification_type=NotificationType.comment_on_resource,
         rollup_key=_comment_rollup_key(entity_type, entity_id),
         data={
@@ -1323,60 +1265,25 @@ async def notify_comment_on_resource(
             "initiative_id": initiative_id,
             "tool": tool,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
         },
-        commenter_name=commenter_name,
-        commenter_id=commenter.id,
+        email_subject=email_t(
+            "comment.onResource.subject", locale, context=entity_name, escape=False
+        ),
+        email_headline=email_t("comment.onResource.title", locale),
+        email_body=email_t(
+            "comment.onResource.body", locale, actor=commenter_name, context=entity_name
+        ),
+        push_title=_nt("comment.onResource.title", locale),
+        push_body=_nt(
+            "comment.onResource.body", locale, actor=commenter_name, context=entity_name
+        ),
+        push_data={
+            "comment_id": str(comment_id),
+            "entity_type": entity_type,
+            "entity_id": str(entity_id),
+        },
     )
-    # Email
-    if channels.email and opened:
-        await _queue_email(
-            session,
-            owner,
-            notification_type=NotificationType.comment_on_resource,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t(
-                "comment.onResource.subject",
-                locale,
-                context=entity_name,
-                escape=False,
-            ),
-            headline=email_t("comment.onResource.title", locale),
-            body=email_t(
-                "comment.onResource.body",
-                locale,
-                actor=commenter_name,
-                context=entity_name,
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push and opened:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=owner.id,
-                notification_type=NotificationType.comment_on_resource,
-                title=_nt("comment.onResource.title", locale),
-                body=_nt(
-                    "comment.onResource.body",
-                    locale,
-                    actor=commenter_name,
-                    context=entity_name,
-                ),
-                data={
-                    "type": "comment_on_resource",
-                    "comment_id": str(comment_id),
-                    "entity_type": entity_type,
-                    "entity_id": str(entity_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_reply(
@@ -1397,29 +1304,20 @@ async def notify_comment_reply(
     """Notify parent comment author that someone replied to their comment."""
     if parent_author.id == replier.id:
         return
-
-    if task_id:
-        target_path = _task_target_path(task_id, None)
-    elif document_id:
-        target_path = _document_target_path(document_id)
-    elif entity_type and entity_id:
-        target_path = _tool_target_path(entity_type, entity_id)
-    else:
+    target_path = _comment_context_path(
+        task_id=task_id,
+        document_id=document_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+    if target_path is None:
         return
-
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     replier_name = handle_of(replier)
     locale = _recipient_locale(parent_author)
-
-    channels = await _channels(
+    await _deliver_rolled_up_comment(
         session,
-        parent_author,
-        notification_type=NotificationType.comment_reply,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=parent_author.id,
+        recipient=parent_author,
+        actor=replier,
         notification_type=NotificationType.comment_reply,
         data={
             "comment_id": comment_id,
@@ -1434,53 +1332,23 @@ async def notify_comment_reply(
             "initiative_id": initiative_id,
             "tool": tool,
             "target_path": target_path,
-            "smart_link": smart_link,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+        email_subject=email_t("comment.reply.subject", locale, escape=False),
+        email_headline=email_t("comment.reply.title", locale),
+        email_body=email_t(
+            "comment.reply.body", locale, actor=replier_name, context=context_title
+        ),
+        push_title=_nt("comment.reply.title", locale),
+        push_body=_nt(
+            "comment.reply.body", locale, actor=replier_name, context=context_title
+        ),
+        push_data={
+            "comment_id": str(comment_id),
+            "task_id": str(task_id) if task_id else None,
+            "document_id": str(document_id) if document_id else None,
         },
     )
-    # Email
-    if channels.email:
-        await _queue_email(
-            session,
-            parent_author,
-            notification_type=NotificationType.comment_reply,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_t("comment.reply.subject", locale, escape=False),
-            headline=email_t("comment.reply.title", locale),
-            body=email_t(
-                "comment.reply.body",
-                locale,
-                actor=replier_name,
-                context=context_title,
-            ),
-            link=smart_link,
-        )
-    # Push notification
-    if channels.push:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=parent_author.id,
-                notification_type=NotificationType.comment_reply,
-                title=_nt("comment.reply.title", locale),
-                body=_nt(
-                    "comment.reply.body",
-                    locale,
-                    actor=replier_name,
-                    context=context_title,
-                ),
-                data={
-                    "type": "comment_reply",
-                    "comment_id": str(comment_id),
-                    "task_id": str(task_id) if task_id else None,
-                    "document_id": str(document_id) if document_id else None,
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1605,7 +1473,7 @@ async def _event_data(
     no initiative, and the notification then lights its community and nothing
     inside it.
     """
-    target_path = _event_target_path(event.id)
+    target_path = reference_path("event", event.id)
     initiative_id = await _calendar_initiative(
         session, calendar_id=event.calendar_id, guild_id=guild_id
     )
@@ -1823,7 +1691,7 @@ async def notify_post_published(
     """
     if recipient.id == author_id:
         return
-    target_path = _tool_target_path(Tool.post.value, post_id)
+    target_path = reference_path(Tool.post, post_id)
     locale = _recipient_locale(recipient)
     await _deliver_notification(
         session,
@@ -2909,18 +2777,7 @@ def _lift_stamps(prefs: Mapping[str, Any]) -> dict[str, str]:
     one covering the other's stretch would strand a summary that never went.
     """
     raw = _section_of(_section_of(prefs, "holds"), "last_summary_at")
-    stamps = {k: v for k, v in raw.items() if isinstance(v, str)}
-    if stamps:
-        return stamps
-    # The shape this started as, when only quiet hours could hold anything and
-    # each channel stamped itself. Only the push half survives, so that is the
-    # half worth carrying over.
-    legacy = _section_of(prefs, "quiet_hours").get("last_summary_at")
-    if isinstance(legacy, Mapping) and isinstance(legacy.get("push"), str):
-        return {notification_prefs.HoldKind.quiet_hours.value: legacy["push"]}
-    if isinstance(legacy, str):
-        return {notification_prefs.HoldKind.quiet_hours.value: legacy}
-    return {}
+    return {k: v for k, v in raw.items() if isinstance(v, str)}
 
 
 def _covered(
@@ -2965,10 +2822,6 @@ async def _record_lift(
         stamps[lift.kind.value] = lift.closed.isoformat()
         holds["last_summary_at"] = stamps
         fresh["holds"] = holds
-        # The per-channel stamp this replaced has nothing left to say.
-        window = dict(_section_of(fresh, "quiet_hours"))
-        if window.pop("last_summary_at", None) is not None:
-            fresh["quiet_hours"] = window
     else:
         return
     await notification_prefs.save_prefs(session, user_id, fresh)

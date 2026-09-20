@@ -14,7 +14,11 @@ import {
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { InitiativeDirectoryEntry, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type InitiativeDirectoryEntry,
+  InitiativeJoinPolicy,
+  type UserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -43,6 +47,13 @@ const renderDirectory = (entries: InitiativeDirectoryEntry[], user?: UserRead) =
     }
   );
 
+/** The same directory seen by a guild admin, whose authority over the guild is
+ *  not membership of anything in it. */
+const renderDirectoryAsAdmin = (entries: InitiativeDirectoryEntry[]) =>
+  renderPage(() => <InitiativeDirectory entries={entries} />, {
+    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+  });
+
 const openEntry = () =>
   buildInitiativeDirectoryEntry({ id: OPEN_ID, name: "Nebula", join_policy: "open" });
 
@@ -59,6 +70,60 @@ const requestEntry = (overrides: Partial<InitiativeDirectoryEntry> = {}) =>
 /** The group a heading names, so a card can be asserted to be in one. */
 const group = (name: string) => screen.getByRole("heading", { name }).parentElement as HTMLElement;
 
+/** The reader's own row inside an initiative they belong to — the listing the
+ *  card reads its badge and its counts from. Returns the reader. */
+const stubMembership = (
+  member: Parameters<typeof buildInitiativeMember>[0],
+  initiative: Parameters<typeof buildInitiative>[0] = {}
+) => {
+  const user = buildUser({ id: 42 });
+  server.use(
+    guildHttp.get("/initiatives/", () =>
+      HttpResponse.json([
+        buildInitiative({
+          id: 7,
+          name: "Apollo",
+          ...initiative,
+          members: [buildInitiativeMember({ user: { ...user, id: 42 }, ...member })],
+        }),
+      ])
+    )
+  );
+  return user;
+};
+
+/** The card for an initiative the reader is in. */
+const memberEntry = () => buildInitiativeDirectoryEntry({ id: 7, name: "Apollo", is_member: true });
+
+/** Records each knock the page sends, and answers however this case needs. */
+const stubJoinRequests = (answer?: () => Response) => {
+  const sent: Array<{ id: string; body: unknown }> = [];
+  server.use(
+    guildHttp.post("/initiatives/:id/join-requests", async ({ params, request }) => {
+      sent.push({ id: String(params.id), body: await request.json() });
+      return (
+        answer?.() ??
+        HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: REQUEST_ID }), {
+          status: 201,
+        })
+      );
+    })
+  );
+  return sent;
+};
+
+/** Records each initiative walked into, and answers however this case needs. */
+const stubJoins = (answer?: () => Response) => {
+  const joined: string[] = [];
+  server.use(
+    guildHttp.post("/initiatives/:id/join", ({ params }) => {
+      joined.push(String(params.id));
+      return answer?.() ?? HttpResponse.json(buildInitiative({ id: OPEN_ID, name: "Nebula" }));
+    })
+  );
+  return joined;
+};
+
 describe("InitiativeDirectory", () => {
   it("offers Join only on an initiative anyone can join", async () => {
     renderDirectory([
@@ -71,6 +136,8 @@ describe("InitiativeDirectory", () => {
     expect(await screen.findByText("Vanguard")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Join" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Request to join" })).toBeInTheDocument();
+    // Neither card has anybody waiting, so neither says so.
+    expect(screen.queryByText(/waiting to join/)).not.toBeInTheDocument();
   });
 
   it("splits the ones you're in from the ones you could join", async () => {
@@ -84,12 +151,17 @@ describe("InitiativeDirectory", () => {
     expect(within(group("Open to join")).getByText("Nebula")).toBeInTheDocument();
   });
 
-  it("leaves out a group with nothing in it", async () => {
+  it("files a card you're not in under Open to join, as plain text with no counts", async () => {
     renderDirectory([openEntry()]);
 
     expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
     // No heading over an empty grid.
     expect(screen.queryByRole("heading", { name: "Your initiatives" })).not.toBeInTheDocument();
+    // A title you cannot enter is not a link, and what is inside a card you are
+    // not in is not on offer either.
+    expect(screen.getByText("Nebula")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Nebula" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Projects:/)).not.toBeInTheDocument();
   });
 
   it("leads into an initiative you're in from its title", async () => {
@@ -105,13 +177,6 @@ describe("InitiativeDirectory", () => {
     // The title is the way in — there is no second button saying the same.
     expect(await screen.findByRole("link", { name: "Apollo" })).toHaveAttribute("href", "/c/1/i/7");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
-  });
-
-  it("leaves a title you cannot enter as plain text", async () => {
-    renderDirectory([openEntry()]);
-
-    expect(await screen.findByText("Nebula")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Nebula" })).not.toBeInTheDocument();
   });
 
   it("shows the reader's own private initiative as theirs, never as joinable", async () => {
@@ -131,82 +196,36 @@ describe("InitiativeDirectory", () => {
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
-  it("does not file an initiative an admin has not joined as theirs", async () => {
-    renderPage(
-      () => (
-        <InitiativeDirectory
-          entries={[
-            buildInitiativeDirectoryEntry({
-              id: 11,
-              name: "Knockable",
-              join_policy: "request",
-              is_member: false,
-            }),
-          ]}
-        />
-      ),
-      { guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) } }
-    );
+  // An admin's authority over the guild is unchanged; this page just stops
+  // standing in for it. An admin can reach either card anyway, so it stays on
+  // offer rather than being filed as theirs — and an admin walks in rather than
+  // knocking, so it carries Join and never Request to join.
+  it.each([
+    ["one that asks people to knock", InitiativeJoinPolicy.request, "Knockable", 11],
+    ["one anyone can join", InitiativeJoinPolicy.open, "Nebula", 12],
+  ])(
+    "offers an admin %s they have not joined, without filing it as theirs",
+    async (_label, join_policy, name, id) => {
+      renderDirectoryAsAdmin([
+        buildInitiativeDirectoryEntry({ id, name, join_policy, is_member: false }),
+      ]);
 
-    // Their authority over the guild is unchanged; this page just stops
-    // standing in for it. The card is on offer, and an admin walks in rather
-    // than knocking, so it carries Join and not Request to join.
-    expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Your initiatives" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Request to join" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Knockable" })).not.toBeInTheDocument();
-  });
-
-  it("still offers an admin an open initiative they are not in", async () => {
-    renderPage(
-      () => (
-        <InitiativeDirectory
-          entries={[
-            buildInitiativeDirectoryEntry({
-              id: 12,
-              name: "Nebula",
-              join_policy: "open",
-              is_member: false,
-            }),
-          ]}
-        />
-      ),
-      { guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) } }
-    );
-
-    // An admin can reach it either way, so it stays on offer rather than being
-    // filed as theirs — and the card carries one way in, never both.
-    expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Nebula" })).not.toBeInTheDocument();
-  });
+      expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Your initiatives" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Request to join" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    }
+  );
 
   it("names the reader's role on a card they're in", async () => {
-    const user = buildUser({ id: 42 });
-    server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([
-          buildInitiative({
-            id: 7,
-            name: "Apollo",
-            members: [
-              buildInitiativeMember({
-                user: { ...user, id: 42 },
-                role_name: "project_manager",
-                role_display_name: "Project Manager",
-                is_manager: true,
-              }),
-            ],
-          }),
-        ])
-      )
-    );
+    const user = stubMembership({
+      role_name: "project_manager",
+      role_display_name: "Project Manager",
+      is_manager: true,
+    });
 
-    renderDirectory(
-      [buildInitiativeDirectoryEntry({ id: 7, name: "Apollo", is_member: true })],
-      user
-    );
+    renderDirectory([memberEntry()], user);
 
     // The badge says WHAT you are there, which already implies that you're in.
     expect(await screen.findByText("Project Manager")).toBeInTheDocument();
@@ -214,36 +233,23 @@ describe("InitiativeDirectory", () => {
   });
 
   it("counts what is inside an initiative you're in, tool by tool", async () => {
-    const user = buildUser({ id: 42 });
+    const user = stubMembership(
+      {
+        can_view_projects: true,
+        can_view_queues: true,
+        // Calendars stay off for this member, so they get no stat.
+        can_view_calendars: false,
+      },
+      { queues_enabled: true }
+    );
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([
-          buildInitiative({
-            id: 7,
-            name: "Apollo",
-            queues_enabled: true,
-            members: [
-              buildInitiativeMember({
-                user: { ...user, id: 42 },
-                can_view_projects: true,
-                can_view_queues: true,
-                // Calendars stay off for this member, so they get no stat.
-                can_view_calendars: false,
-              }),
-            ],
-          }),
-        ])
-      ),
       guildHttp.get("/projects/counts/by-initiative", () =>
         HttpResponse.json({ counts: { "7": 3 } })
       ),
       guildHttp.get("/queues/counts/by-initiative", () => HttpResponse.json({ counts: { "7": 2 } }))
     );
 
-    renderDirectory(
-      [buildInitiativeDirectoryEntry({ id: 7, name: "Apollo", is_member: true })],
-      user
-    );
+    renderDirectory([memberEntry()], user);
 
     expect(await screen.findByText("Projects: 3")).toBeInTheDocument();
     expect(screen.getByText("Queues: 2")).toBeInTheDocument();
@@ -251,17 +257,13 @@ describe("InitiativeDirectory", () => {
     expect(screen.queryByText(/^Calendar:/)).not.toBeInTheDocument();
   });
 
-  it("leaves a card you're not in free of counts", async () => {
-    renderDirectory([openEntry()]);
+  it.each([
+    ["1 member", 1],
+    ["3 members", 3],
+  ])("names each initiative's roster size as %s", async (shown, member_count) => {
+    renderDirectory([buildInitiativeDirectoryEntry({ name: "Nebula", member_count })]);
 
-    expect(await screen.findByText("Nebula")).toBeInTheDocument();
-    expect(screen.queryByText(/^Projects:/)).not.toBeInTheDocument();
-  });
-
-  it("names each initiative's roster size", async () => {
-    renderDirectory([buildInitiativeDirectoryEntry({ name: "Nebula", member_count: 1 })]);
-
-    expect(await screen.findByText("1 member")).toBeInTheDocument();
+    expect(await screen.findByText(shown)).toBeInTheDocument();
   });
 
   it("collapses the whole section from its heading, and remembers it", async () => {
@@ -280,15 +282,7 @@ describe("InitiativeDirectory", () => {
   });
 
   it("sends a request to join, with the note the reader wrote", async () => {
-    const requests: Array<{ id: string; body: unknown }> = [];
-    server.use(
-      guildHttp.post("/initiatives/:id/join-requests", async ({ params, request }) => {
-        requests.push({ id: String(params.id), body: await request.json() });
-        return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: 6 }), {
-          status: 201,
-        });
-      })
-    );
+    const requests = stubJoinRequests();
 
     renderDirectory([requestEntry()]);
 
@@ -305,15 +299,7 @@ describe("InitiativeDirectory", () => {
   });
 
   it("sends a request with no note at all", async () => {
-    const bodies: unknown[] = [];
-    server.use(
-      guildHttp.post("/initiatives/:id/join-requests", async ({ request }) => {
-        bodies.push(await request.json());
-        return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: 6 }), {
-          status: 201,
-        });
-      })
-    );
+    const requests = stubJoinRequests();
 
     renderDirectory([requestEntry()]);
 
@@ -321,7 +307,7 @@ describe("InitiativeDirectory", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Send request" }));
 
     // The note is optional, and an empty one is sent as no note rather than "".
-    await waitFor(() => expect(bodies).toEqual([{ message: null }]));
+    await waitFor(() => expect(requests.map((sent) => sent.body)).toEqual([{ message: null }]));
   });
 
   it("shows a knock already waiting as a state, not a button", async () => {
@@ -333,10 +319,8 @@ describe("InitiativeDirectory", () => {
   });
 
   it("explains a refused request in the reader's own words", async () => {
-    server.use(
-      guildHttp.post("/initiatives/:id/join-requests", () =>
-        HttpResponse.json({ detail: "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING" }, { status: 409 })
-      )
+    stubJoinRequests(() =>
+      HttpResponse.json({ detail: "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING" }, { status: 409 })
     );
 
     renderDirectory([requestEntry()]);
@@ -373,21 +357,8 @@ describe("InitiativeDirectory", () => {
     );
   });
 
-  it("leaves the waiting count off a card with nobody waiting", async () => {
-    renderDirectory([requestEntry()]);
-
-    expect(await screen.findByText("Vanguard")).toBeInTheDocument();
-    expect(screen.queryByText(/waiting to join/)).not.toBeInTheDocument();
-  });
-
   it("joins an open initiative and says so", async () => {
-    const joined: string[] = [];
-    server.use(
-      guildHttp.post("/initiatives/:id/join", ({ params }) => {
-        joined.push(String(params.id));
-        return HttpResponse.json(buildInitiative({ id: OPEN_ID, name: "Nebula" }));
-      })
-    );
+    const joined = stubJoins();
 
     renderDirectory([openEntry()]);
 
@@ -398,11 +369,7 @@ describe("InitiativeDirectory", () => {
   });
 
   it("explains a refused join in the reader's own words", async () => {
-    server.use(
-      guildHttp.post("/initiatives/:id/join", () =>
-        HttpResponse.json({ detail: "INITIATIVE_NOT_JOINABLE" }, { status: 403 })
-      )
-    );
+    stubJoins(() => HttpResponse.json({ detail: "INITIATIVE_NOT_JOINABLE" }, { status: 403 }));
 
     renderDirectory([openEntry()]);
 

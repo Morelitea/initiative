@@ -8,14 +8,11 @@ reaching across to a sibling endpoint's underscore-prefixed symbol.
 
 from __future__ import annotations
 
-import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
 
 from app.core.messages import UserMessages
-
-_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 def normalize_timezone(value: str | None) -> str | None:
@@ -36,21 +33,6 @@ def normalize_timezone(value: str | None) -> str | None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.INVALID_TIMEZONE,
-        )
-    return cleaned
-
-
-def normalize_notification_time(value: str | None) -> str | None:
-    """Validate a ``"HH:MM"`` 24-hour clock string."""
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    if not _TIME_PATTERN.match(cleaned):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_TIME_FORMAT,
         )
     return cleaned
 

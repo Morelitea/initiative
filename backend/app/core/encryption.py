@@ -101,8 +101,8 @@ def decrypt_field(
     )
 
 
-# Kept for backward compatibility — used by oidc_refresh.py and auth.py
-# for the oidc_refresh_token_encrypted column which predates per-field keys.
+# The accessors for the oidc_refresh_token_encrypted column, whose salt
+# predates per-field keys and cannot be renamed.
 def encrypt_token(plaintext: str) -> str:
     return encrypt_field(plaintext, SALT_OIDC_REFRESH_TOKEN)
 

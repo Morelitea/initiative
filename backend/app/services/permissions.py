@@ -43,7 +43,6 @@ from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.project import Project
-from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.db.frozen import ancestor_is_frozen, row_is_frozen
@@ -876,34 +875,7 @@ def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
     }
 
 
-# ── High-level helpers for projects ─────────────────────────────
-
-
-def compute_project_permission(
-    project: Project,
-    user_id: int,
-) -> str | None:
-    """Effective project permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.project], project, user_id)
-
-
-def require_project_access(
-    project: Project,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
-) -> None:
-    """Raise 403 unless the user may act on the project (delegates to the engine)."""
-    require_access(
-        DAC_RESOURCES[Tool.project],
-        project,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
-    )
+# ── Project helpers above the generic engine ────────────────────
 
 
 async def can_administer_project(
@@ -924,7 +896,7 @@ async def can_administer_project(
 
     if rls_service.is_guild_admin(guild_role):
         return True
-    if compute_project_permission(project, user.id) == "owner":
+    if compute_permission(DAC_RESOURCES[Tool.project], project, user.id) == "owner":
         return True
     if project.initiative_id:
         return await rls_service.is_initiative_manager(
@@ -960,47 +932,4 @@ def has_project_write_access(
     return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",
         "owner",
-    )
-
-
-# ── High-level helpers for documents ─────────────────────────────
-
-
-def compute_document_permission(
-    document: Document,
-    user_id: int,
-) -> str | None:
-    """Effective document permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.document], document, user_id)
-
-
-def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
-    """Effective calendar permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
-
-
-def compute_post_permission(post: Any, user_id: int) -> str | None:
-    """Effective post permission string for the client (delegates to the
-    engine). Reading a post is reading the board it sits on; writing one is
-    editing that notice, which is its author's or whoever they shared it
-    with — pinning is a separate, initiative-level authority."""
-    return compute_permission(DAC_RESOURCES[Tool.post], post, user_id)
-
-
-def require_document_access(
-    document: Document,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
-) -> None:
-    """Raise 403 unless the user may act on the document (delegates to the engine)."""
-    require_access(
-        DAC_RESOURCES[Tool.document],
-        document,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
     )

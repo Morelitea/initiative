@@ -5,12 +5,9 @@
   "noPosts": "Rien de publié pour l’instant",
   "noPostsDescription": "Le tableau d’affichage est l’endroit où une initiative dit les choses à voix haute : un changement de plan, une date, un mot de bienvenue. Les publications se lisent de la plus récente à la plus ancienne, et les plus importantes peuvent être épinglées en haut.",
   "createPost": "Nouvelle publication",
-  "editPost": "Modifier la publication",
-  "postCreated": "Publié",
   "name": "Titre",
   "namePlaceholder": "De quoi s’agit-il ?",
   "body": "Publication",
-  "bodyPlaceholder": "Rédigez votre avis...",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
   "tags": "Étiquettes",
@@ -22,7 +19,6 @@
   "dangerZone": "Zone de danger",
   "dangerZoneDescription": "Actions destructrices. Les publications supprimées vont à la corbeille et peuvent être restaurées avant la fin de la période de rétention.",
   "detailsUpdated": "Publication mise à jour",
-  "postedBy": "Publié par {{name}}",
   "pin": {
     "pin": "Épingler en haut",
     "unpin": "Désépingler",
@@ -36,8 +32,7 @@
     "changeExpiry": "Modifier la date de fin",
     "removeExpiry": "Retirer la date de fin",
     "pinnedToast": "Publication épinglée",
-    "unpinnedToast": "Publication désépinglée",
-    "managerOnly": "Seuls les gestionnaires de l’initiative peuvent épingler une publication."
+    "unpinnedToast": "Publication désépinglée"
   },
   "schedule": {
     "label": "Planification",
@@ -53,7 +48,6 @@
   "read": {
     "markUnread": "Marquer comme non lue",
     "markedUnread": "Marquée comme non lue",
-    "unread": "Non lue",
     "whoRead": "Qui l'a lue",
     "whoReadHint": "Toutes les personnes avec qui elle a été partagée.",
     "readTab": "Lue {{count}}",
@@ -65,8 +59,6 @@
   },
   "filters": {
     "heading": "Filtres",
-    "show": "Afficher",
-    "hide": "Masquer",
     "searchLabel": "Titre ou contenu",
     "searchPosts": "Rechercher dans ce tableau...",
     "noMatchingPosts": "Aucune publication ne correspond à vos filtres.",
@@ -76,11 +68,8 @@
   },
   "loading": "Chargement des publications...",
   "loadError": "Échec du chargement des publications.",
-  "loadingPost": "Chargement de la publication...",
-  "loadMore": "Afficher les publications plus anciennes",
   "creating": "Publication en cours...",
   "saving": "Enregistrement...",
-  "deleting": "Suppression...",
   "notFound": "Publication introuvable",
   "notFoundDescription": "La publication que vous cherchez n’existe pas ou a été supprimée.",
   "noAccess": "Accès refusé",

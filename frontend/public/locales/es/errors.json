@@ -211,7 +211,6 @@
   "USER_API_KEY_READ_ONLY": "Esta clave API es de solo lectura y no puede realizar cambios.",
   "USER_API_KEY_GUILD_FORBIDDEN": "Solo puedes limitar una clave a una comunidad al que perteneces.",
   "USER_INVALID_TIMEZONE": "Zona horaria no válida",
-  "USER_INVALID_TIME_FORMAT": "Formato de hora no válido",
   "USER_INVALID_WEEK_START": "El inicio de semana debe estar entre 0 (domingo) y 6 (sábado)",
   "USER_INVALID_REMINDER_MINUTES": "Tiempo de recordatorio no válido",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Efecto de comentarios al completar tarea desconocido",

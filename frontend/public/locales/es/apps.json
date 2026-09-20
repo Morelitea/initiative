@@ -41,12 +41,6 @@
     "adminOnly": "Pide a un administrador de la comunidad que añada esta aplicación.",
     "unknownState": "No se pudo comprobar si esta aplicación ya está añadida."
   },
-  "page": {
-    "notFound": "Aplicación no encontrada",
-    "notFoundDescription": "Puede que la hayan quitado o desactivado. Los administradores de la comunidad pueden comprobarlo en los ajustes de la comunidad.",
-    "noSurface": "{{name}} no tiene nada que mostrar aquí",
-    "noSurfaceDescription": "Esta aplicación no tiene una página propia."
-  },
   "connections": {
     "none": "Esta aplicación no pide nada que configurar.",
     "guildScope": "Credencial de la comunidad",

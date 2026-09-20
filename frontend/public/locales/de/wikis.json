@@ -33,8 +33,6 @@
     "untitled": "Ohne Titel",
     "titleLabel": "Titel",
     "titlePlaceholder": "Worum es auf dieser Seite geht",
-    "created": "Seite erstellt",
-    "saved": "Gespeichert",
     "deleted": "Seite in den Papierkorb verschoben",
     "deleteTitle": "Diese Seite löschen?",
     "deleteDescription": "Ihre Unterseiten gehen mit. Du kannst sie aus dem Papierkorb wiederherstellen.",
@@ -43,13 +41,10 @@
     "createFirst": "Die erste Seite schreiben",
     "loading": "Seite wird geladen ...",
     "notFound": "Diese Seite ist nicht in diesem Wiki",
-    "setHome": "Als Startseite festlegen",
     "isHome": "Startseite",
     "homeSet": "Startseite festgelegt",
-    "noMatches": "Keine Seite passt dazu",
     "collapse": "Einklappen",
     "expand": "Ausklappen",
-    "moved": "Seite verschoben",
     "draft": "Entwurf",
     "previous": "Zurück",
     "next": "Weiter",
@@ -62,7 +57,6 @@
     "title": "Verbindungen",
     "outgoing": "Links von dieser Seite",
     "incoming": "Verlinkt von",
-    "none": "Noch verweist nichts hierher",
     "noneDescription": "Erwähne diese Seite mit [[ von irgendwo – dann erscheint sie hier.",
     "loading": "Verbindungen werden geladen ..."
   },
@@ -75,13 +69,10 @@
     "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
     "searchWikis": "Wikis durchsuchen ...",
-    "noMatchingWikis": "Keine Wikis entsprechen deinen Filtern.",
-    "tags": "Tags",
-    "anyTag": "Beliebiges Tag"
+    "noMatchingWikis": "Keine Wikis entsprechen deinen Filtern."
   },
   "settings": {
     "title": "Wiki-Einstellungen",
-    "description": "Wofür dieses Wiki da ist. Alles hier gilt für das ganze Wiki.",
     "order": "Seitenreihenfolge",
     "orderDescription": "Wie Seiten in der Seitenleiste untereinander stehen.",
     "orderManual": "Die Reihenfolge, die du festlegst",
@@ -96,7 +87,6 @@
     "contentsLevels_other": "{{count}} Ebenen",
     "connections": "Anzeigen, was auf eine Seite verweist",
     "connectionsHint": "Die Liste am Fuß jeder Seite. Schalte sie aus, wenn niemand quer verlinkt.",
-    "width": "Seitenbreite",
     "widthWide": "Volle Breite",
     "widthWideHint": "Platz für Tabellen und Screenshots.",
     "widthComfortable": "Lesebreite",
@@ -133,7 +123,6 @@
     "drafted": "Seite als Entwurf markiert"
   },
   "comments": "Kommentare",
-  "closeComments": "Kommentare schließen",
   "newPage": "Neue Seite",
   "viewMode": {
     "read": "Als Leser ansehen",

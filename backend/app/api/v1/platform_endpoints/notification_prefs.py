@@ -11,7 +11,9 @@ from fastapi import APIRouter, Depends
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, get_current_active_user
-from app.db.session import set_rls_context
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.db.session import get_admin_session, set_rls_context
 from app.core.notification_categories import (
     CATEGORY_SPECS,
     ALL_CHANNELS,
@@ -165,6 +167,7 @@ async def update_my_notification_preferences(
     payload: NotificationPreferencesUpdate,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    admin_session: Annotated[AsyncSession, Depends(get_admin_session)],
 ) -> NotificationPreferencesRead:
     """Move some switches.
 
@@ -234,15 +237,17 @@ async def update_my_notification_preferences(
 
     # Anything already waiting is re-timed against what they just chose, so
     # Resume releases what a pause was holding and a cadence changed at noon
-    # applies from noon.
+    # applies from noon. The outbox is the worker's table — the request path
+    # only ever appends to it — so the re-timing runs on the system engine.
     if _retimes(payload):
         await email_outbox.recompute_pending(
-            session,
+            admin_session,
             user_id=current_user.id,
             prefs=doc,
             tz_name=current_user.timezone,
             last_active_at=current_user.last_active_at,
         )
+        await admin_session.commit()
 
     # A queue nobody will ever be sent is discarded, not kept: it is guild
     # scoped, so this reaches into each of the account's guild schemas.

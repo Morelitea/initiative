@@ -186,21 +186,6 @@ async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List
     return blockers
 
 
-async def _user_guild_ids(session: AsyncSession, user_id: int) -> List[int]:
-    """Guild ids the user belongs to. ``guild_memberships`` is shared/public, so
-    this needs no guild routing — it's the entry point for fanning per-guild
-    routed reads/writes out across the user's guilds."""
-    return list(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == user_id
-                )
-            )
-        ).all()
-    )
-
-
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
@@ -583,39 +568,6 @@ async def _dispatch_queued_revocations(session: AsyncSession) -> None:
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )
-
-
-async def count_capability_holders(
-    session: AsyncSession, capability: Capability, *, for_update: bool = False
-) -> int:
-    """Count active users whose standing role grants ``capability``.
-
-    Args:
-        session: Database session
-        capability: The platform capability to count holders of
-        for_update: If True, lock the matching user rows to prevent race conditions
-    """
-    roles = list(roles_with_capability(capability))
-    if not roles:
-        return 0
-    if for_update:
-        # Lock the matching users to prevent a race when demoting/deleting.
-        stmt = (
-            select(User)
-            .where(
-                User.role.in_(roles),
-                User.status == UserStatus.active,
-            )
-            .with_for_update()
-        )
-        result = await session.exec(stmt)
-        return len(result.all())
-    stmt = select(func.count(User.id)).where(
-        User.role.in_(roles),
-        User.status == UserStatus.active,
-    )
-    result = await session.exec(stmt)
-    return result.one()
 
 
 async def is_last_capability_holder(

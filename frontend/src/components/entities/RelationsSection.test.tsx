@@ -56,6 +56,22 @@ import { RelationsSection } from "./RelationsSection";
 
 let nextId = 1;
 
+/** Everything a far end of a link carries and none of these cases vary. */
+const farEnd = {
+  initiative_id: null,
+  updated_at: null,
+  tool: null,
+  tool_id: null,
+  tool_title: null,
+  image_urls: [],
+  icon: null,
+  color: null,
+  document_type: null,
+  mime_type: null,
+  original_filename: null,
+  smart_link_url: null,
+};
+
 const row = (
   relationship_type: RelationshipRead["relationship_type"],
   direction: "inbound" | "outbound",
@@ -70,49 +86,23 @@ const row = (
   created_by: 1,
   created_at: "2026-09-01T00:00:00Z",
   other: {
+    ...farEnd,
     type: SearchEntityType.task,
     id: nextId,
     title,
     initiative_id: 3,
-    updated_at: null,
     tool: Tool.project,
     tool_id: 1,
-    tool_title: null,
-    image_urls: [],
-    icon: null,
-    color: null,
-    document_type: null,
-    mime_type: null,
-    original_filename: null,
-    smart_link_url: null,
   },
 });
 
-const tagEnd = {
-  type: SearchEntityType.tag,
-  id: 99,
-  title: "combat",
-  initiative_id: null,
-  updated_at: null,
-  tool: null,
-  tool_id: null,
-  tool_title: null,
-  image_urls: [],
-  icon: null,
-  color: "#ff0000",
-  document_type: null,
-  mime_type: null,
-  original_filename: null,
-  smart_link_url: null,
-};
+const tagEnd = { ...farEnd, type: SearchEntityType.tag, id: 99, title: "combat", color: "#ff0000" };
 
-const renderSection = (
-  rows: RelationshipRead[],
-  canEdit = true,
-  defaultLayout: "tiles" | "rows" | "carousel" | "graph" = "tiles"
-) => {
-  server.use(guildHttp.get("/relationships/", () => HttpResponse.json(rows)));
-  return renderPage(
+type Layout = "tiles" | "rows" | "carousel" | "graph";
+
+/** The section itself, however this case has already answered the endpoint. */
+const mount = (canEdit = true, defaultLayout: Layout = "tiles") =>
+  renderPage(
     () => (
       <RelationsSection
         entity={{ type: SearchEntityType.task, id: 1 }}
@@ -123,7 +113,25 @@ const renderSection = (
     ),
     { initialRoute: "/c/1" }
   );
+
+const renderSection = (
+  rows: RelationshipRead[],
+  canEdit = true,
+  defaultLayout: Layout = "tiles"
+) => {
+  server.use(guildHttp.get("/relationships/", () => HttpResponse.json(rows)));
+  return mount(canEdit, defaultLayout);
 };
+
+/** The block a heading names, so a link can be asserted to be filed under it. */
+const sectionNamed = async (name: string) =>
+  (await screen.findByRole("heading", { name })).closest("section") as HTMLElement;
+
+/** A label, which is fetched with everything else and drawn by no heading. */
+const tagRow = (): RelationshipRead => ({
+  ...row("tagged_with", "outbound", "combat"),
+  other: { ...tagEnd },
+});
 
 describe("RelationsSection", () => {
   it("sorts the two sides of a dependency under their own headings", async () => {
@@ -132,12 +140,8 @@ describe("RelationsSection", () => {
       row("depends_on", "inbound", "Held up by me"),
     ]);
 
-    const blockedBy = (await screen.findByRole("heading", { name: "Blocked by" })).closest(
-      "section"
-    ) as HTMLElement;
-    const blocks = (await screen.findByRole("heading", { name: "Blocks" })).closest(
-      "section"
-    ) as HTMLElement;
+    const blockedBy = await sectionNamed("Blocked by");
+    const blocks = await sectionNamed("Blocks");
 
     expect(within(blockedBy).getByText("Waiting on this")).toBeInTheDocument();
     expect(within(blocks).getByText("Held up by me")).toBeInTheDocument();
@@ -146,9 +150,7 @@ describe("RelationsSection", () => {
   it("takes a symmetric link whichever way it runs", async () => {
     renderSection([row("attached", "inbound", "Attached from the far side")]);
 
-    const attached = (await screen.findByRole("heading", { name: "Attached" })).closest(
-      "section"
-    ) as HTMLElement;
+    const attached = await sectionNamed("Attached");
     expect(within(attached).getByText("Attached from the far side")).toBeInTheDocument();
   });
 
@@ -160,16 +162,14 @@ describe("RelationsSection", () => {
     expect(screen.queryByRole("heading", { name: "Part of" })).not.toBeInTheDocument();
   });
 
-  it("says so plainly when nothing is connected", async () => {
-    renderSection([]);
-    expect(await screen.findByText("Nothing is connected to this yet.")).toBeInTheDocument();
-  });
-
-  it("says nothing is connected when nothing it shows is", async () => {
-    // A tag is fetched with everything else and drawn by no heading here, so
-    // counting the answer rather than what is drawn reported "some" over an
-    // empty panel.
-    renderSection([{ ...row("tagged_with", "outbound", "combat"), other: { ...tagEnd } }]);
+  // Counting the answer rather than what is drawn reported "some" over an
+  // empty panel, because a label comes back with everything else and no
+  // heading here draws it.
+  it.each([
+    ["nothing is connected", [] as RelationshipRead[]],
+    ["nothing it shows is", [tagRow()]],
+  ])("says so plainly when %s", async (_label, rows) => {
+    renderSection(rows);
 
     expect(await screen.findByText("Nothing is connected to this yet.")).toBeInTheDocument();
   });
@@ -179,9 +179,7 @@ describe("RelationsSection", () => {
     // there is nothing here to click.
     renderSection([row("references", "inbound", "A page that mentions this", "content")]);
 
-    const section = (await screen.findByRole("heading", { name: "Referenced by" })).closest(
-      "section"
-    ) as HTMLElement;
+    const section = await sectionNamed("Referenced by");
     expect(within(section).getByText("A page that mentions this")).toBeInTheDocument();
     expect(
       within(section).queryByRole("button", { name: /A page that mentions this/ })
@@ -259,17 +257,7 @@ describe("RelationsSection", () => {
         );
       })
     );
-    renderPage(
-      () => (
-        <RelationsSection
-          entity={{ type: SearchEntityType.task, id: 1 }}
-          initiativeId={3}
-          canEdit
-          defaultLayout="graph"
-        />
-      ),
-      { initialRoute: "/c/1" }
-    );
+    mount(true, "graph");
 
     await screen.findByRole("region", { name: /1 thing/ });
     expect(asked.filter((entity) => entity !== "task:1")).toHaveLength(0);
@@ -283,14 +271,7 @@ describe("RelationsSection", () => {
     // reaches most of the community in a hop. Filtering it when drawing would
     // still have paid for the walk.
     const user = userEvent.setup();
-    renderSection(
-      [
-        row("attached", "outbound", "A brief"),
-        { ...row("tagged_with", "outbound", "combat"), other: { ...tagEnd } },
-      ],
-      true,
-      "graph"
-    );
+    renderSection([row("attached", "outbound", "A brief"), tagRow()], true, "graph");
 
     // One of the two links is a label, and it is not in the picture.
     expect(await screen.findByRole("region", { name: /1 thing/ })).toBeInTheDocument();
@@ -304,45 +285,30 @@ describe("RelationsSection", () => {
   it("says which project a link is in, when its name does not", async () => {
     // Six projects run from one template hold six tasks called "Do a thing".
     // The card has to say which, or it says nothing at all.
-    renderSection([
-      {
-        ...row("attached", "outbound", "Do a thing"),
-        other: { ...row("attached", "outbound", "Do a thing").other, tool_title: "Harvest" },
-      },
-    ]);
+    const link = row("attached", "outbound", "Do a thing");
+    renderSection([{ ...link, other: { ...link.other, tool_title: "Harvest" } }]);
 
-    const section = (await screen.findByRole("heading", { name: "Attached" })).closest(
-      "section"
-    ) as HTMLElement;
+    const section = await sectionNamed("Attached");
     expect(within(section).getByText(/Harvest/)).toBeInTheDocument();
   });
 
   it("says where each thing the picker offers lives", async () => {
     const user = userEvent.setup();
+    // Two tasks of the same name, in different projects of one initiative.
+    const offered = (entity_id: number, tool_id: number, tool_title: string) =>
+      buildSearchSuggestion({
+        entity_type: SearchEntityType.task,
+        entity_id,
+        title: "Do a thing",
+        tool: Tool.project,
+        tool_id,
+        tool_title,
+        initiative_id: 3,
+        initiative_name: "Farmhands",
+      });
     server.use(
       guildHttp.get("/search/recent", () =>
-        HttpResponse.json([
-          buildSearchSuggestion({
-            entity_type: SearchEntityType.task,
-            entity_id: 11,
-            title: "Do a thing",
-            tool: Tool.project,
-            tool_id: 1,
-            tool_title: "Harvest",
-            initiative_id: 3,
-            initiative_name: "Farmhands",
-          }),
-          buildSearchSuggestion({
-            entity_type: SearchEntityType.task,
-            entity_id: 12,
-            title: "Do a thing",
-            tool: Tool.project,
-            tool_id: 2,
-            tool_title: "Winterhold",
-            initiative_id: 3,
-            initiative_name: "Farmhands",
-          }),
-        ])
+        HttpResponse.json([offered(11, 1, "Harvest"), offered(12, 2, "Winterhold")])
       )
     );
     renderSection([]);

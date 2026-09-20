@@ -8687,6 +8687,20 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   offset?: number;
 };
 
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams =
+  {
+    console?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostConsole;
+  };
+
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostConsole =
+  (typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostConsole)[keyof typeof CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostConsole];
+
+export const CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostConsole =
+  {
+    support: "support",
+    operator: "operator",
+  } as const;
+
 export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
 
 export type ListNotificationsApiV1NotificationsGetParams = {
@@ -8729,12 +8743,307 @@ export type ListProjectsApiV1GGuildIdProjectsGetParams = {
    */
   sort_dir?: string | null;
   /**
+   * Only projects carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
    * @minimum 1
    */
   page?: number;
   /**
    * @minimum 0
    * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
+   */
+  ids?: number[] | null;
+  search?: string | null;
+  /**
+   * Filter by tag IDs
+   */
+  tag_ids?: number[] | null;
+  /**
+   * Filter to documents with no tags
+   */
+  untagged?: boolean | null;
+  /**
+   * Filter to template (or non-template) documents
+   */
+  is_template?: boolean | null;
+  /**
+   * Filter by document type
+   */
+  document_type?: DocumentType | null;
+  /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+  /**
+   * Order by one of: name, initiative, updated_at, created_at.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+};
+
+export type ListQueuesApiV1GGuildIdQueuesGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only queues carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only counter groups carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
+  initiative_id?: number | null;
+  scope?: "guild" | null;
+  /**
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only calendars carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only dashboards carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ListPostsApiV1GGuildIdPostsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the notice — its headline and its body. Reads the same index the search page does, so the board's filter and a search agree about what matches.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for the board order — live pins first, then newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only posts carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * Only notices this reader has not read yet.
+   */
+  unread?: boolean;
+  /**
+   * Start the board at this instant and go back — inclusive, and measured by the same date the feed is ordered by. This is how a timeline jumps to a month without paging through everything since. An anchored board is strictly chronological: the pinned band steps aside, because a pin says what matters now rather than what mattered then.
+   */
+  until?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Posts per page. Small by default: a board renders each post's body, so a page is that many editors to mount.
+   * @minimum 1
+   * @maximum 50
+   */
+  page_size?: number;
+};
+
+export type ListGalleriesApiV1GGuildIdGalleriesGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the gallery's name and description, through the same index the search page reads.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only galleries carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 500
+   */
+  page_size?: number;
+};
+
+export type ListWikisApiV1GGuildIdWikisGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Full-text match over the wiki's name and description, through the same index the search page reads.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * Only wikis carrying any of these tags.
+   */
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 500
    */
   page_size?: number;
 };
@@ -8909,56 +9218,6 @@ export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
    * Filter by document type
    */
   document_type?: DocumentType | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-};
-
-export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
-   */
-  ids?: number[] | null;
-  search?: string | null;
-  /**
-   * Filter by tag IDs
-   */
-  tag_ids?: number[] | null;
-  /**
-   * Filter to documents with no tags
-   */
-  untagged?: boolean | null;
-  /**
-   * Filter to template (or non-template) documents
-   */
-  is_template?: boolean | null;
-  /**
-   * Filter by document type
-   */
-  document_type?: DocumentType | null;
-  /**
-   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
-   */
-  property_filters?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
-  /**
-   * Order by one of: name, initiative, updated_at, created_at.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
@@ -9216,35 +9475,6 @@ export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
   [key: string]: unknown;
 } | null;
 
-export type ListQueuesApiV1GGuildIdQueuesGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
-};
-
 export type ReadQueueApiV1GGuildIdQueuesQueueIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
@@ -9257,35 +9487,6 @@ export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
-};
-
-export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
 };
 
 export type ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams = {
@@ -9302,36 +9503,6 @@ export type ReadCounterApiV1GGuildIdCountersCounterIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
-  initiative_id?: number | null;
-  scope?: "guild" | null;
-  /**
-   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  page_size?: number;
-};
-
 export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
@@ -9339,78 +9510,11 @@ export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  page_size?: number;
-};
-
 export type ReadDashboardApiV1GGuildIdDashboardsDashboardIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
-};
-
-export type ListPostsApiV1GGuildIdPostsGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the notice — its headline and its body. Reads the same index the search page does, so the board's filter and a search agree about what matches.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for the board order — live pins first, then newest first.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * Only notices this reader has not read yet.
-   */
-  unread?: boolean;
-  /**
-   * Start the board at this instant and go back — inclusive, and measured by the same date the feed is ordered by. This is how a timeline jumps to a month without paging through everything since. An anchored board is strictly chronological: the pinned band steps aside, because a pin says what matters now rather than what mattered then.
-   */
-  until?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * Posts per page. Small by default: a board renders each post's body, so a page is that many editors to mount.
-   * @minimum 1
-   * @maximum 50
-   */
-  page_size?: number;
 };
 
 export type GetPostTimelineApiV1GGuildIdPostsTimelineGetParams = {
@@ -9428,35 +9532,6 @@ export type ReadPostApiV1GGuildIdPostsPostIdGetParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
-};
-
-export type ListGalleriesApiV1GGuildIdGalleriesGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the gallery's name and description, through the same index the search page reads.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for newest first.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 500
-   */
-  page_size?: number;
 };
 
 export type ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams = {
@@ -9501,39 +9576,6 @@ export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimeline
    * IANA zone the month boundaries are cut in, e.g. Pacific/Auckland. Defaults to UTC.
    */
   tz?: string | null;
-};
-
-export type ListWikisApiV1GGuildIdWikisGetParams = {
-  initiative_id?: number | null;
-  /**
-   * Full-text match over the wiki's name and description, through the same index the search page reads.
-   */
-  search?: string | null;
-  /**
-   * Order by one of: name, initiative, updated_at. Omit for newest first.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * Only wikis carrying any of these tags.
-   */
-  tag_ids?: number[] | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 500
-   */
-  page_size?: number;
 };
 
 export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
@@ -9814,22 +9856,10 @@ export type ListMyCreatedTasksApiV1MeTasksCreatedGetParams = {
   tz?: string | null;
 };
 
-export type ListMyDocumentsApiV1MeDocumentsGetParams = {
+export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
   guild_ids?: number[] | null;
-  search?: string | null;
   /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
-  sort_by?: string | null;
-  sort_dir?: string | null;
-  /**
-   * Narrow to documents the caller wrote.
+   * Count only what the caller wrote, matching the list views.
    */
   created_by_me?: boolean;
 };
@@ -9854,36 +9884,22 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   created_by_me?: boolean;
 };
 
-export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+export type ListMyDocumentsApiV1MeDocumentsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
-  /**
-   * Narrow to calendars the caller created.
-   */
-  created_by_me?: boolean;
-  /**
-   * Order by one of: name, updated_at, created_at. Omit for this view's own order, which is by name.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
   /**
    * @minimum 1
    */
   page?: number;
   /**
-   * @minimum 1
-   * @maximum 200
+   * @minimum 0
+   * @maximum 100
    */
   page_size?: number;
-};
-
-export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
-  guild_ids?: number[] | null;
+  sort_by?: string | null;
+  sort_dir?: string | null;
   /**
-   * Count only what the caller wrote, matching the list views.
+   * Narrow to documents the caller wrote.
    */
   created_by_me?: boolean;
 };
@@ -9912,6 +9928,55 @@ export type ListMyQueuesApiV1MeQueuesGetParams = {
 };
 
 export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  /**
+   * Narrow to calendars the caller created.
+   */
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this view's own order, which is by name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ListMyDashboardsApiV1MeDashboardsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;
@@ -9981,29 +10046,6 @@ export type ListMyGalleriesApiV1MeGalleriesGetParams = {
 };
 
 export type ListMyWikisApiV1MeWikisGetParams = {
-  guild_ids?: number[] | null;
-  search?: string | null;
-  created_by_me?: boolean;
-  /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
-   */
-  sort_by?: string | null;
-  /**
-   * asc (default) or desc.
-   */
-  sort_dir?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
-};
-
-export type ListMyDashboardsApiV1MeDashboardsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   created_by_me?: boolean;

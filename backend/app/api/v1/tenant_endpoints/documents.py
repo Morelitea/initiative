@@ -34,7 +34,6 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
-    UserSessionDep,
     addressed_guild_id,
     establish_guild_access,
     get_current_active_user,
@@ -42,16 +41,13 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.db.query import apply_pagination, page_has_next, paginate_sequence
 from app.core.messages import (
     AttachmentMessages,
     DocumentMessages,
     InitiativeMessages,
-    QueryMessages,
 )
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
@@ -64,7 +60,6 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
     PermissionKey,
 )
-from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
@@ -74,7 +69,6 @@ from app.schemas.tenant.document import (
     DocumentCreate,
     DocumentDuplicateRequest,
     DocumentFileVersionRead,
-    DocumentListResponse,
     DocumentRead,
     DocumentSummary,
     DocumentUpdate,
@@ -84,8 +78,6 @@ from app.schemas.tenant.document import (
     serialize_document_summary,
     SpreadsheetImportRead,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
@@ -95,17 +87,14 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
-from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
 from app.services import reachability
-from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
-from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
-from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
@@ -115,7 +104,7 @@ from app.services.tenant.collaboration import collaboration_manager
 logger = logging.getLogger(__name__)
 
 
-async def _document_projects(
+async def attached_projects(
     session: AsyncSession, documents: Sequence[Document]
 ) -> dict[int, list[Related]]:
     """Which projects each of these documents is attached to.
@@ -135,9 +124,6 @@ async def _document_projects(
 
 
 router = APIRouter()
-# Cross-guild "my documents" aggregate (My Documents page). Mounted under
-# /api/v1/me; user-scoped, routes per member guild via gather_across_guilds.
-me_router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -146,39 +132,8 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 # an unbounded IN list into the query.
 MAX_DOCUMENT_IDS = 100
 
-DOCUMENT_SORT_FIELDS = {
-    "name": Document.name,
-    "updated_at": Document.updated_at,
-    "created_at": Document.created_at,
-    # By the initiative's name rather than its id — the name is the column the
-    # guild home shows. The list statement is joined to Initiative already.
-    "initiative": Initiative.name,
-}
 
-
-def _apply_document_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
-    col = DOCUMENT_SORT_FIELDS.get(sort_by) if sort_by else None
-    if col is not None:
-        order = col.desc() if sort_dir == "desc" else col.asc()
-        statement = statement.order_by(order.nulls_last(), Document.id.desc())
-    else:
-        statement = statement.order_by(Document.updated_at.desc(), Document.id.desc())
-    return statement
-
-
-def _grant_for_user(document: Document, user_id: int) -> ResourceGrant | None:
-    """Find a user's (non-role) document grant from the loaded grants."""
-    return next(
-        (
-            g
-            for g in (document.grants or [])
-            if g.user_id == user_id and g.role_id is None
-        ),
-        None,
-    )
-
-
-async def _get_initiative_or_404(
+async def get_initiative_or_404(
     session: SessionDep,
     *,
     initiative_id: int,
@@ -205,11 +160,16 @@ async def _get_document_or_404(
     populate_existing: bool = False,
     user_id: int,
 ) -> Document:
-    document = await documents_service.get_document(
-        session,
-        document_id=document_id,
-        guild_id=guild_id,
-        populate_existing=populate_existing,
+    """Load a document with everything a ``DocumentRead`` reads, or refuse.
+
+    The eager loads are the registry's (``documents.get_document_hydrated`` —
+    the same ones ``resource_access.load_authorized(..., hydrated=True)``
+    takes), so a document reaches a response the same way whichever door it
+    came through. For the re-read a write answers with, where the row has
+    already been authorized.
+    """
+    document = await documents_service.get_document_hydrated(
+        session, document_id, populate_existing=populate_existing
     )
     if not document:
         raise await reachability.missing_or_denied(
@@ -284,37 +244,6 @@ async def _require_initiative_access(
             )
 
 
-def _require_document_write_access(
-    document: Document,
-    user: User,
-) -> None:
-    """Check if user has write access to a document."""
-    permissions_service.require_document_access(document, user, access="write")
-
-
-def _require_document_access(
-    document: Document,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    manage_access: bool = False,
-    guild_role: GuildRole | str | None = None,
-) -> None:
-    """Authorize a document via the shared engine. ``manage_access=True`` (member/
-    permission ops) additionally rejects PAM grantees — a grant never manages
-    access."""
-    resource_access.authorize(
-        Tool.document,
-        document,
-        user,
-        access=access,
-        require_owner=require_owner,
-        manage_access=manage_access,
-        guild_role=guild_role,
-    )
-
-
 def _file_download_response(
     *,
     guild_id: int,
@@ -364,7 +293,7 @@ def _file_download_response(
     )
 
 
-def _build_visible_docs_filters(
+def visible_document_conditions(
     guild_id: int,
     user_id: int,
     *,
@@ -376,29 +305,24 @@ def _build_visible_docs_filters(
     is_template: Optional[bool] = None,
     document_type: Optional[DocumentType] = None,
 ):
-    """Build common WHERE conditions for visible-document queries.
+    """WHERE conditions for visible-document queries — the list and the tag
+    counts beside it, so the sidebar's numbers match the rows under them.
 
-    Guild scope and the document table's own policies apply either way;
-    ``listing_scope_clause`` adds only what a list spanning initiatives needs.
+    The guild, the documents switch, sharing, the search box and the tag filter
+    are the shared set (:func:`tool_listing.base_conditions`); the rest are the
+    document list's own. The archive answer is the caller's, since the tag
+    counts take their own ``archived`` parameter.
     """
-    conditions = [
-        Initiative.guild_id == guild_id,
-        # An initiative that has switched documents off has none to list. See
-        # the note on the projects equivalent: the RLS leg deliberately admits
-        # a guild admin and a PAM reader, and a list is not where that
-        # exemption should surface.
-        Initiative.documents_enabled.is_(True),
-        permissions_service.listing_scope_clause(
-            Tool.document,
-            Document.id,
-            user_id,
-            guild_id=guild_id,
-            initiative_id=initiative_id,
-        ),
-    ]
-
-    if initiative_id is not None:
-        conditions.append(Document.initiative_id == initiative_id)
+    conditions = tool_listing.base_conditions(
+        Tool.document,
+        Document,
+        Initiative.documents_enabled,
+        user_id,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        search=search,
+        tag_ids=tag_ids,
+    )
 
     if ids is not None:
         conditions.append(Document.id.in_(tuple(ids)))
@@ -409,125 +333,41 @@ def _build_visible_docs_filters(
     if document_type is not None:
         conditions.append(Document.document_type == document_type)
 
-    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
-    if tag_ids:
+    if untagged:
         conditions.append(
-            Document.id.in_(
-                tags_service.tagged_entity_ids(spec, tuple(tag_ids), guild_id=guild_id)
+            tags_service.untagged_clause(
+                tags_service.TOOL_TAG_LINKS[Tool.document], Document.id
             )
         )
-
-    if untagged:
-        conditions.append(tags_service.untagged_clause(spec, Document.id))
 
     return conditions
 
 
-async def _apply_property_filters(
-    session: SessionDep,
-    conditions: list,
-) -> list:
-    """Return SA WHERE clauses for parsed property filter conditions.
+async def serialize_document_page(
+    session: AsyncSession, user: User, documents: list[Document]
+) -> list[DocumentSummary]:
+    """Serialize one page of documents — the rows a document list answers with.
 
-    Thin adapter over the shared
-    :func:`properties_service.build_property_filter_clauses` helper —
-    loads the definitions visible under the caller's RLS, then delegates
-    the per-condition compilation so documents, tasks, and events all
-    share one source of truth for typed-column + is_empty semantics.
+    Everything a card shows beyond the row itself (its tags, its comment count,
+    the projects it is attached to) is a grouped query over the whole page, run
+    once here rather than per row. The order is already settled by the caller
+    and is preserved.
+
+    Both document lists run this: the guild-wide one through
+    ``tool_lists.TOOL_LISTS``, and the cross-guild ``/me/documents`` through
+    ``me_tools.MY_TOOL_LISTS``.
     """
-    if not conditions:
-        return []
-    defs = await properties_service.load_definitions_by_ids(
-        session,
-        [c.property_id for c in conditions],
-    )
-    return properties_service.build_property_filter_clauses(
-        "document", conditions, defs
-    )
-
-
-async def _list_global_documents(
-    session: SessionDep,
-    current_user: User,
-    *,
-    guild_ids: Optional[List[int]] = None,
-    search: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20,
-    sort_by: Optional[str] = None,
-    sort_dir: Optional[str] = None,
-    created_by_me: bool = False,
-) -> tuple[list[DocumentSummary], int]:
-    """List the documents that reach the user across every guild they belong to.
-
-    Visits each guild's schema in turn and merges. Per-schema ids collide, so
-    items are distinguished by (guild_id, id) via the nested initiative. What
-    "reach" means, and what ``created_by_me`` narrows it to, is
-    ``my_tools.scope_conditions`` — the same rules every cross-guild tool list
-    reads.
-    """
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-
-    async def _fetch(
-        guild_session: AsyncSession, guild_id: int
-    ) -> list[DocumentSummary]:
-        statement = (
-            select(Document)
-            .where(
-                *my_tools_service.scope_conditions(
-                    Tool.document,
-                    user_id=current_user.id,
-                    guild_id=guild_id,
-                    search=search,
-                    created_by_me=created_by_me,
-                )
-            )
-            .options(
-                selectinload(Document.initiative).selectinload(Initiative.guild),
-                selectinload(Document.initiative)
-                .selectinload(Initiative.memberships)
-                .options(
-                    selectinload(InitiativeMember.user),
-                    selectinload(InitiativeMember.role_ref).selectinload(
-                        InitiativeRoleModel.permissions
-                    ),
-                ),
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                selectinload(Document.property_values).selectinload(
-                    DocumentPropertyValue.property_definition
-                ),
-                selectinload(Document.property_values).selectinload(
-                    DocumentPropertyValue.value_user
-                ),
-            )
+    await tags_service.annotate_tags(session, documents)
+    await documents_service.annotate_comment_counts(session, documents)
+    attached = await attached_projects(session, documents)
+    return [
+        serialize_document_summary(
+            document,
+            user_id=user.id,
+            projects=attached.get(document.id, []),
         )
-        documents = list((await guild_session.exec(statement)).unique().all())
-        await tags_service.annotate_tags(guild_session, documents)
-        await documents_service.annotate_comment_counts(guild_session, documents)
-        attached = await _document_projects(guild_session, documents)
-        return [
-            serialize_document_summary(
-                document,
-                user_id=current_user.id,
-                projects=attached.get(document.id, []),
-            )
-            for document in documents
-        ]
-
-    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    items = my_tools_service.sort_merged(
-        items, sort_by, sort_dir, default=lambda d: d.updated_at
-    )
-    total_count = len(items)
-    # One slicing rule for every page_size, including the windowed
-    # page_size<=0 "fetch all" protocol (bounded response, SEC-14).
-    return paginate_sequence(items, page, page_size), total_count
+        for document in documents
+    ]
 
 
 @router.get("/counts", response_model=DocumentCountsResponse)
@@ -554,11 +394,11 @@ async def get_document_counts(
     list endpoint so the sidebar counts match the list beside it.
     """
     if initiative_id is not None:
-        await _get_initiative_or_404(
+        await get_initiative_or_404(
             session, initiative_id=initiative_id, guild_id=guild_context.guild_id
         )
 
-    conditions = _build_visible_docs_filters(
+    conditions = visible_document_conditions(
         guild_context.guild_id,
         current_user.id,
         initiative_id=initiative_id,
@@ -569,9 +409,7 @@ async def get_document_counts(
     conditions.append(archive_service.archive_filter_clause(Document, archived))
 
     # Subquery: IDs of visible documents
-    visible_docs_subq = (
-        select(Document.id).join(Document.initiative).where(*conditions).subquery()
-    )
+    visible_docs_subq = select(Document.id).where(*conditions).subquery()
 
     # Total count
     total_stmt = select(func.count()).select_from(visible_docs_subq)
@@ -599,226 +437,6 @@ async def get_document_counts(
         total_count=total_count,
         untagged_count=untagged_count,
         tag_counts=tag_counts,
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_document_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-document counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar and initiative landing-card
-    badges — same visibility filters as the document list, one GROUP BY
-    instead of walking the full corpus.
-    """
-    conditions = _build_visible_docs_filters(guild_context.guild_id, current_user.id)
-    statement = (
-        select(Document.initiative_id, func.count(Document.id))
-        .join(Document.initiative)
-        .where(*conditions)
-        .group_by(Document.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
-
-
-@me_router.get("/documents", response_model=DocumentListResponse)
-async def list_my_documents(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_ids: Optional[List[int]] = Query(default=None),
-    search: Optional[str] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(default=None),
-    sort_dir: Optional[str] = Query(default=None),
-    created_by_me: bool = Query(
-        default=False,
-        description="Narrow to documents the caller wrote.",
-    ),
-) -> DocumentListResponse:
-    """Documents that reach the current user across every guild they belong to.
-
-    An optional ``guild_ids`` filter narrows to a subset of guilds, and
-    ``created_by_me`` to the ones the caller wrote.
-    """
-    items, total_count = await _list_global_documents(
-        session,
-        current_user,
-        guild_ids=guild_ids,
-        search=search,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        created_by_me=created_by_me,
-    )
-    return DocumentListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=page_has_next(page, page_size, total_count),
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-    )
-
-
-@router.get("/", response_model=DocumentListResponse)
-async def list_documents(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    ids: Optional[List[int]] = Query(
-        default=None,
-        description=(
-            "Filter to specific document IDs — for hydrating a known set of "
-            f"documents without walking a collection. Maximum {MAX_DOCUMENT_IDS} IDs."
-        ),
-    ),
-    search: Optional[str] = Query(default=None),
-    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
-    untagged: Optional[bool] = Query(
-        default=None, description="Filter to documents with no tags"
-    ),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
-    ),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Filter by document type"
-    ),
-    property_filters: Optional[str] = Query(
-        default=None,
-        description=(
-            "JSON-encoded list of property-value filters, e.g. "
-            '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
-            "Maximum 5 conditions per request."
-        ),
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description="Order by one of: name, initiative, updated_at, created_at.",
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-) -> DocumentListResponse:
-    """List documents in the active guild visible to the current user.
-
-    DAC: Documents with explicit DocumentPermission or role-based permission.
-
-    Pagination: page_size=0 serves the full set in server-bounded windows —
-    walk page=1,2,... until has_next is false.
-
-    Cross-guild "my documents" lives under /me/documents (see list_my_documents).
-    """
-
-    if initiative_id is not None:
-        await _get_initiative_or_404(
-            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
-        )
-
-    if ids is not None and len(ids) > MAX_DOCUMENT_IDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TOO_MANY_IDS,
-        )
-
-    conditions = _build_visible_docs_filters(
-        guild_context.guild_id,
-        current_user.id,
-        initiative_id=initiative_id,
-        ids=ids,
-        search=search,
-        tag_ids=tag_ids,
-        untagged=untagged,
-        is_template=is_template,
-        document_type=document_type,
-    )
-    conditions.append(archive_service.archive_filter_clause(Document, archived))
-
-    # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
-    try:
-        parsed_property_filters = properties_service.parse_property_filters(
-            property_filters
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
-    property_clauses = await _apply_property_filters(session, parsed_property_filters)
-    conditions.extend(property_clauses)
-
-    # Count query
-    count_subq = (
-        select(Document.id).join(Document.initiative).where(*conditions).subquery()
-    )
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
-    # Data query with eager loading
-    stmt = (
-        select(Document)
-        .join(Document.initiative)
-        .where(*conditions)
-        .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.property_definition
-            ),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.value_user
-            ),
-        )
-    )
-    stmt = _apply_document_sort(stmt, sort_by, sort_dir)
-
-    # One windowing rule for every page_size, including the page_size<=0
-    # "fetch all" protocol: bounded response (SEC-14), ``page`` selects the
-    # window, has_next below tells the caller to keep walking.
-    stmt = apply_pagination(stmt, page, page_size)
-
-    result = await session.exec(stmt)
-    documents = result.unique().all()
-
-    await tags_service.annotate_tags(session, documents)
-    await documents_service.annotate_comment_counts(session, documents)
-    attached = await _document_projects(session, documents)
-    items = [
-        serialize_document_summary(
-            document,
-            user_id=current_user.id,
-            projects=attached.get(document.id, []),
-        )
-        for document in documents
-    ]
-
-    return DocumentListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=page_has_next(page, page_size, total_count),
-        sort_by=sort_by,
-        sort_dir=sort_dir,
     )
 
 
@@ -857,7 +475,7 @@ async def create_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    initiative = await _get_initiative_or_404(
+    initiative = await get_initiative_or_404(
         session,
         initiative_id=document_in.initiative_id,
         guild_id=guild_context.guild_id,
@@ -964,7 +582,7 @@ async def upload_document_file(
     file: UploadFile = File(...),
 ) -> DocumentRead:
     """Upload a file document (PDF, DOCX, etc.)."""
-    initiative = await _get_initiative_or_404(
+    initiative = await get_initiative_or_404(
         session,
         initiative_id=initiative_id,
         guild_id=guild_context.guild_id,
@@ -1131,11 +749,14 @@ async def upload_document_version(
     file: UploadFile = File(...),
 ) -> DocumentFileVersionRead:
     """Upload a new version of a file document. Requires write access."""
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -1145,7 +766,6 @@ async def upload_document_version(
 
     # Pick up a backend/credential change saved in another worker before writing.
     await storage_config.ensure_storage_config_fresh(session)
-    _require_document_access(document, current_user, access="write")
 
     # Read the body with a hard cap so an over-limit upload is rejected before
     # the whole payload is buffered into memory (memory-exhaustion DoS guard).
@@ -1261,18 +881,20 @@ async def list_document_versions(
     guild_context: GuildContextDep,
 ) -> List[DocumentFileVersionRead]:
     """List all stored versions of a file document, newest first. Read access."""
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="read",
+        hydrated=True,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
-    _require_document_access(document, current_user, access="read")
 
     result = await session.exec(
         select(DocumentFileVersion)
@@ -1296,18 +918,20 @@ async def delete_document_version(
 ) -> None:
     """Delete a version of a file document. Owner only. Deleting the current
     version promotes the previous one; deleting the last version is blocked."""
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        require_owner=True,
+        hydrated=True,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
-    _require_document_access(document, current_user, require_owner=True)
 
     # Serialize concurrent deletes against the same document by taking a
     # row-level lock on the document row. Without it, two owner DELETEs that
@@ -1391,13 +1015,15 @@ async def read_document(
         ),
     ] = True,
 ) -> DocumentRead:
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="read",
+        hydrated=True,
     )
-    _require_document_access(document, current_user, access="read")
     return serialize_document(
         document,
         user_id=current_user.id,
@@ -1413,13 +1039,15 @@ async def update_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
-    _require_document_write_access(document, current_user)
     updated = False
     update_data = document_in.model_dump(exclude_unset=True)
     removed_upload_urls: set[str] = set()
@@ -1542,13 +1170,15 @@ async def duplicate_document(
     guild_context: GuildContextDep,
     payload: DocumentDuplicateRequest | None = Body(default=None),
 ) -> DocumentRead:
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
-    _require_document_access(document, current_user, access="write")
     payload = payload or DocumentDuplicateRequest()
     name = (payload.name or f"{document.name} (Copy)").strip()
     if not name:
@@ -1595,17 +1225,26 @@ async def copy_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        hydrated=True,
     )
-    # Templates are starter content meant to be copied — read on the source is enough.
-    # Non-templates still require write to prevent silent fork-and-edit of someone else's work.
-    required_access = "read" if document.is_template else "write"
-    _require_document_access(document, current_user, access=required_access)
-    target_initiative = await _get_initiative_or_404(
+    # Templates are starter content meant to be copied — read on the source is
+    # enough. Copying anything else asks for write on it, so a copy is never a
+    # quiet fork of somebody else's work.
+    if not document.is_template:
+        resource_access.authorize(
+            Tool.document,
+            document,
+            current_user,
+            access="write",
+            guild_role=guild_context.role,
+        )
+    target_initiative = await get_initiative_or_404(
         session,
         initiative_id=payload.target_initiative_id,
         guild_id=guild_context.guild_id,
@@ -1668,13 +1307,15 @@ async def delete_document(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        require_owner=True,
+        hydrated=True,
     )
-    _require_document_access(document, current_user, require_owner=True)
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
@@ -1698,16 +1339,18 @@ async def notify_mentions(
     """Notify users that they were mentioned in a document."""
     if not mentioned_user_ids:
         return
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
-    _require_document_write_access(document, current_user)
     initiative = document.initiative
     if not initiative:
-        initiative = await _get_initiative_or_404(
+        initiative = await get_initiative_or_404(
             session,
             initiative_id=document.initiative_id,
             guild_id=guild_context.guild_id,
@@ -1752,13 +1395,15 @@ async def generate_summary(
     Requires read access to the document. Only works for native documents
     (not file uploads like PDFs).
     """
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="read",
+        hydrated=True,
     )
-    _require_document_access(document, current_user, access="read")
 
     # Only allow summarization of native documents with content
     if document.document_type == DocumentType.file:
@@ -1815,13 +1460,15 @@ async def set_document_properties(
     Requires document write access. Values are validated server-side against
     each property definition's type and options.
     """
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
-    _require_document_access(document, current_user, access="write")
 
     try:
         await properties_service.set_document_property_values(
@@ -1859,35 +1506,28 @@ async def set_document_properties(
     )
 
 
-@router.put("/{document_id}/grants", response_model=DocumentRead)
-async def set_document_grants(
-    document_id: int,
-    grants: list[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    document_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> DocumentRead:
-    """Replace the document's entire sharing state in one call — the body is the
-    full list of grants (all-initiative-members / per-user / per-role). Every
-    non-owner grant is rebuilt from it; the owner is always preserved.
+    """The document a write answers with: re-read after the commit, serialized.
+
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
     """
-    await resource_access.set_resource_grants(
-        session, Tool.document, document_id, current_user, guild_context, grants
-    )
     hydrated = await _get_document_or_404(
         session,
         document_id=document_id,
         guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        user_id=user.id,
     )
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-    )
+    return serialize_document(hydrated, user_id=user.id)
 
 
 def _download_document_options():
-    """Eager loads needed by ``_require_document_access`` on a download."""
+    """Eager loads the download's access check reads off the document."""
     return (
         selectinload(Document.initiative)
         .selectinload(Initiative.memberships)
@@ -1993,8 +1633,8 @@ async def download_document_file(
 
     # ``guild_role`` feeds the initiative-scope gate's guild-admin leg — the
     # routed session has no request role context of its own here.
-    _require_document_access(
-        document, current_user, access="read", guild_role=guild_role
+    resource_access.authorize(
+        Tool.document, document, current_user, access="read", guild_role=guild_role
     )
 
     logger.info(
@@ -2044,8 +1684,8 @@ async def download_document_file_version(
             status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
-    _require_document_access(
-        document, current_user, access="read", guild_role=guild_role
+    resource_access.authorize(
+        Tool.document, document, current_user, access="read", guild_role=guild_role
     )
 
     version_result = await session.exec(
@@ -2077,58 +1717,6 @@ async def download_document_file_version(
     )
 
 
-@router.post("/{document_id}/view", response_model=RecentViewWrite)
-async def record_document_view(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    """Record a recent-view for the layout tabs bar."""
-    document = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    _require_document_access(document, current_user, access="read")
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="document",
-        entity_id=document.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="document",
-        entity_id=document.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{document_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_document_view(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    document = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    _require_document_access(document, current_user, access="read")
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="document",
-        entity_id=document.id,
-    )
-
-
 @router.post(
     "/{document_id}/spreadsheet/import",
     response_model=SpreadsheetImportRead,
@@ -2152,13 +1740,15 @@ async def import_spreadsheet_file(
     created spreadsheet does, so an imported sheet is the same kind of object
     as any other.
     """
-    document = await _get_document_or_404(
+    document = await resource_access.load_authorized(
         session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Tool.document,
+        document_id,
+        current_user,
+        guild_context,
+        access="write",
+        hydrated=True,
     )
-    _require_document_write_access(document, current_user)
     if document.document_type != DocumentType.spreadsheet:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

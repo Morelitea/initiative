@@ -1,7 +1,6 @@
 {
   "nav": {
     "signIn": "Iniciar sesión",
-    "getStarted": "Crear una comunidad",
     "pricing": "Precios",
     "help": "Ayuda"
   },
@@ -129,8 +128,7 @@
   "cta": {
     "title": "Cuando tú quieras.",
     "description": "Inicia sesión si tu grupo ya está aquí. Crea una comunidad si no.",
-    "signIn": "Iniciar sesión",
-    "start": "Crear una comunidad"
+    "signIn": "Iniciar sesión"
   },
   "footer": {
     "copyright": "© {{year}} Initiative. Código abierto, y así seguirá.",

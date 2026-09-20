@@ -271,27 +271,12 @@ describe("completion", () => {
     await waitFor(() => expect(sqlBox()).toHaveValue("SELECT title"));
   });
 
-  it("offers what the statement's dataset can be read alongside", async () => {
-    const user = userEvent.setup();
-    mount(widget({ source: "query", sql: "SELECT title FROM tasks WHERE " }));
-
-    await user.click(sqlBox());
-    await user.type(sqlBox(), "proj");
-    // The relation, which says what it reaches — beside the `projects` dataset,
-    // which matches the same letters and is a different thing to offer.
-    expect(await screen.findByRole("button", { name: /tasks · projects/ })).toBeInTheDocument();
-  });
-
-  it("offers a related dataset's columns under the relation's name", async () => {
-    const user = userEvent.setup();
-    mount(widget({ source: "query", sql: "SELECT title FROM tasks WHERE " }));
-
-    await user.click(sqlBox());
-    // `name` belongs to projects, which this statement never names — it is
-    // reachable only through the relation in front of it.
-    await user.type(sqlBox(), "project.");
-    expect(await screen.findByRole("button", { name: /^name/i })).toBeInTheDocument();
-  });
+  // What the list holds for a given word — a relation beside the dataset that
+  // matches the same letters, a related dataset's columns under the relation's
+  // name — is the completion library's answer, proved directly in
+  // `src/lib/widgets/completion.test.ts`. The tests here are the dialog's side
+  // of it: that the catalog the server sent reaches the list, and that
+  // choosing an entry lands in the box.
 
   it("offers nothing once a name is written in full", async () => {
     const user = userEvent.setup();

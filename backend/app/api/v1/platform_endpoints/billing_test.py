@@ -528,7 +528,7 @@ async def test_trial_expiry_sets_status_unattributed(
     assert (row.source, row.actor) == ("trial_expiry", None)
 
 
-async def test_admin_manual_sets_status_and_names_the_actor(
+async def test_operator_manual_sets_status_and_names_the_actor(
     client: AsyncClient, session: AsyncSession
 ):
     guild = await create_guild(session)
@@ -538,9 +538,9 @@ async def test_admin_manual_sets_status_and_names_the_actor(
         "guild-tier",
         await _tier_payload(
             guild.id,
-            source="admin_manual",
+            source="operator_manual",
             actor="staff:7",
-            event_id="evt-admin-suspend",
+            event_id="evt-operator-suspend",
             status="suspended",
         ),
     )
@@ -550,7 +550,7 @@ async def test_admin_manual_sets_status_and_names_the_actor(
     anonymous = await _post(
         client,
         "guild-tier",
-        await _tier_payload(guild.id, source="admin_manual", status="active"),
+        await _tier_payload(guild.id, source="operator_manual", status="active"),
     )
     assert anonymous.status_code == 422
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
@@ -558,11 +558,11 @@ async def test_admin_manual_sets_status_and_names_the_actor(
     row = (
         await session.exec(
             select(BillingEventLog).where(
-                BillingEventLog.event_id == "evt-admin-suspend"
+                BillingEventLog.event_id == "evt-operator-suspend"
             )
         )
     ).one()
-    assert (row.source, row.actor) == ("admin_manual", "staff:7")
+    assert (row.source, row.actor) == ("operator_manual", "staff:7")
 
 
 async def test_support_source_cannot_lower_storage(

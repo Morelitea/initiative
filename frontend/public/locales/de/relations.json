@@ -11,9 +11,6 @@
     "hopsN_one": "{{count}} Schritt",
     "hopsN_other": "{{count}} Schritte",
     "walking": "Sucht weiter…",
-    "zoomIn": "Vergrößern",
-    "zoomOut": "Verkleinern",
-    "reset": "Ansicht zurücksetzen",
     "showTags": "Tags anzeigen"
   },
   "layout": {
@@ -52,37 +49,30 @@
     },
     "blockedBy": {
       "title": "Blockiert von",
-      "empty": "Nichts steht im Weg.",
       "option": "Wird blockiert von"
     },
     "blocks": {
       "title": "Blockiert",
-      "empty": "Hält nichts auf.",
       "option": "Blockiert"
     },
     "partOf": {
       "title": "Teil von",
-      "empty": "Nicht Teil von etwas Größerem.",
       "option": "Ist Teil von"
     },
     "parts": {
       "title": "Teile",
-      "empty": "Nichts gehört hierzu.",
       "option": "Hat als Teil"
     },
     "related": {
       "title": "Verwandt",
-      "empty": "Noch nichts Verwandtes.",
       "option": "Ist verwandt mit"
     },
     "referencedBy": {
       "title": "Erwähnt von",
-      "empty": "Nichts erwähnt das hier.",
       "option": "Verweist auf"
     },
     "tagged": {
       "title": "Markiert",
-      "empty": "Keine Tags.",
       "option": "Ist markiert"
     }
   },

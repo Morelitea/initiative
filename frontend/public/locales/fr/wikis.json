@@ -33,8 +33,6 @@
     "untitled": "Sans titre",
     "titleLabel": "Titre",
     "titlePlaceholder": "De quoi parle cette page",
-    "created": "Page créée",
-    "saved": "Enregistré",
     "deleted": "Page mise à la corbeille",
     "deleteTitle": "Supprimer cette page ?",
     "deleteDescription": "Ses sous-pages partent avec elle. Vous pouvez les restaurer depuis la corbeille.",
@@ -43,13 +41,10 @@
     "createFirst": "Écrire la première page",
     "loading": "Chargement de la page...",
     "notFound": "Cette page n’est pas dans ce wiki",
-    "setHome": "Définir comme page d’accueil",
     "isHome": "Page d’accueil",
     "homeSet": "Page d’accueil définie",
-    "noMatches": "Aucune page ne correspond",
     "collapse": "Réduire",
     "expand": "Développer",
-    "moved": "Page déplacée",
     "draft": "Brouillon",
     "previous": "Précédent",
     "next": "Suivant",
@@ -62,7 +57,6 @@
     "title": "Connexions",
     "outgoing": "Liens depuis cette page",
     "incoming": "Lié depuis",
-    "none": "Rien ne pointe encore ici",
     "noneDescription": "Mentionnez cette page avec [[ depuis n’importe où et elle apparaîtra ici.",
     "loading": "Chargement des connexions..."
   },
@@ -75,13 +69,10 @@
     "heading": "Filtres",
     "searchLabel": "Nom ou description",
     "searchWikis": "Rechercher des wikis...",
-    "noMatchingWikis": "Aucun wiki ne correspond à vos filtres.",
-    "tags": "Étiquettes",
-    "anyTag": "N'importe quelle étiquette"
+    "noMatchingWikis": "Aucun wiki ne correspond à vos filtres."
   },
   "settings": {
     "title": "Paramètres du wiki",
-    "description": "À quoi sert ce wiki. Tout ceci s’applique au wiki entier.",
     "order": "Ordre des pages",
     "orderDescription": "Comment les pages se placent les unes sous les autres dans la barre latérale.",
     "orderManual": "L’ordre que vous définissez",
@@ -96,7 +87,6 @@
     "contentsLevels_other": "{{count}} niveaux",
     "connections": "Afficher ce qui pointe vers une page",
     "connectionsHint": "La liste au bas de chaque page. Désactivez-la si personne ne fait de renvois.",
-    "width": "Largeur de page",
     "widthWide": "Pleine largeur",
     "widthWideHint": "De la place pour les tableaux et les captures.",
     "widthComfortable": "Largeur de lecture",
@@ -133,7 +123,6 @@
     "drafted": "Page marquée comme brouillon"
   },
   "comments": "Commentaires",
-  "closeComments": "Fermer les commentaires",
   "newPage": "Nouvelle page",
   "viewMode": {
     "read": "Voir comme un lecteur",
