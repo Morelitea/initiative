@@ -1,7 +1,9 @@
-"""Integration tests for the polymorphic recent-items API.
+"""Integration tests for the cross-guild recent-items bar.
 
-Covers POST/DELETE ``/<entity>/{id}/view`` per type plus the combined
-``GET /api/v1/recents`` endpoint that the layout tabs bar consumes.
+Covers ``GET /api/v1/recents`` — the mixed-type list the layout header
+consumes — and the guild-addressed delete that closes a tab. Recording and
+forgetting a single entity is the per-tool pair, proved over the whole ``Tool``
+enum in ``tool_views_test.py``.
 """
 
 import asyncio
@@ -18,52 +20,6 @@ from app.testing import (
     create_project,
     create_queue,
 )
-
-
-@pytest.mark.integration
-async def test_record_and_list_recent_project(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    project = await create_project(session, a.initiative, a.user, name="P1")
-
-    r = await client.post(a.g(f"/projects/{project.id}/view"), headers=a.headers)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["entity_type"] == "project"
-    assert body["entity_id"] == project.id
-
-    r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert r.status_code == 200
-    items = r.json()
-    assert len(items) == 1
-    assert items[0]["entity_type"] == "project"
-    assert items[0]["entity_id"] == project.id
-    assert items[0]["name"] == "P1"
-    # The tabs bar builds /g/{guild}/i/{initiative}/projects/{id} from this —
-    # without the initiative it can't address the entity at all.
-    assert items[0]["initiative_id"] == a.initiative.id
-
-
-@pytest.mark.integration
-async def test_record_and_list_recent_queue(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    queue = await create_queue(session, a.initiative, a.user, name="Q1")
-
-    r = await client.post(a.g(f"/queues/{queue.id}/view"), headers=a.headers)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["entity_type"] == "queue"
-    assert body["entity_id"] == queue.id
-
-    r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert r.status_code == 200
-    items = r.json()
-    assert any(
-        i["entity_type"] == "queue" and i["entity_id"] == queue.id for i in items
-    )
 
 
 @pytest.mark.integration
@@ -89,21 +45,6 @@ async def test_recents_mixed_ordering(
     assert items[0]["entity_id"] == queue.id
     assert items[1]["entity_type"] == "project"
     assert items[1]["entity_id"] == project.id
-
-
-@pytest.mark.integration
-async def test_clear_view_removes_item(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    project = await create_project(session, a.initiative, a.user, name="P")
-
-    await client.post(a.g(f"/projects/{project.id}/view"), headers=a.headers)
-    r = await client.delete(a.g(f"/projects/{project.id}/view"), headers=a.headers)
-    assert r.status_code == 204
-
-    r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert r.json() == []
 
 
 @pytest.mark.integration
@@ -220,39 +161,6 @@ async def test_clear_recent_is_guild_addressed(
     r = await client.get("/api/v1/recents/", headers=a.headers)
     assert r.status_code == 200
     assert r.json() == []
-
-
-@pytest.mark.integration
-async def test_record_and_list_recent_calendar(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Calendars (the container tool) are recentable; events are not."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    a.initiative.calendars_enabled = True
-    session.add(a.initiative)
-    await session.commit()
-    calendar = await create_calendar(session, a.initiative, a.user, name="C1")
-
-    r = await client.post(a.g(f"/calendars/{calendar.id}/view"), headers=a.headers)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["entity_type"] == "calendar"
-    assert body["entity_id"] == calendar.id
-
-    r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert r.status_code == 200
-    items = r.json()
-    assert any(
-        i["entity_type"] == "calendar"
-        and i["entity_id"] == calendar.id
-        and i["name"] == "C1"
-        for i in items
-    )
-
-    r = await client.delete(a.g(f"/calendars/{calendar.id}/view"), headers=a.headers)
-    assert r.status_code == 204
-    r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert all(i["entity_type"] != "calendar" for i in r.json())
 
 
 @pytest.mark.integration

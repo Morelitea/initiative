@@ -24,11 +24,11 @@ from sqlmodel import select
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
+    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
 )
-from app.db.session import get_admin_session
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
@@ -71,11 +71,10 @@ from app.services.tenant import tags as tags_service
 
 router = APIRouter()
 # Cross-guild "my calendar" aggregate (My Calendar page). Mounted under
-# /api/v1/me; routes per member guild via gather_across_guilds.
+# /api/v1/me; runs on the caller's own platform session and enters each member
+# guild with the membership role they hold there, via gather_across_guilds.
 me_router = APIRouter()
 logger = logging.getLogger(__name__)
-
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -225,7 +224,7 @@ async def query_my_calendar_events(
 
 @me_router.get("/calendar-events", response_model=CalendarEventListResponse)
 async def list_my_calendar_events(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
@@ -271,7 +270,7 @@ async def list_my_calendar_events(
 
 @me_router.get("/calendar-events/export.ics")
 async def export_my_calendar_events_ics(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),

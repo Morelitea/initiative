@@ -130,6 +130,29 @@ def normalize_document_content(
     return payload
 
 
+def list_loader_options() -> list:
+    """Eager-load what a document *list* row needs: its initiative's
+    memberships (the DAC engine reads them), its sharing, and the property
+    values its card shows."""
+    return [
+        selectinload(Document.initiative)
+        .selectinload(Initiative.memberships)
+        .options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            ),
+        ),
+        selectinload(Document.grants).selectinload(ResourceGrant.role),
+        selectinload(Document.property_values).selectinload(
+            DocumentPropertyValue.property_definition
+        ),
+        selectinload(Document.property_values).selectinload(
+            DocumentPropertyValue.value_user
+        ),
+    ]
+
+
 async def get_document(
     session: AsyncSession,
     *,
@@ -144,23 +167,7 @@ async def get_document(
             Document.id == document_id,
             Initiative.guild_id == guild_id,
         )
-        .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.property_definition
-            ),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.value_user
-            ),
-        )
+        .options(*list_loader_options())
     )
     if populate_existing:
         # Force SA to refresh attributes on any Document already in the
@@ -170,6 +177,33 @@ async def get_document(
         statement = statement.execution_options(populate_existing=True)
     result = await session.exec(statement)
     document = result.one_or_none()
+    if document:
+        await tags_service.annotate_tags(session, [document])
+        await annotate_comment_counts(session, [document])
+    return document
+
+
+async def get_document_hydrated(
+    session: AsyncSession, document_id: int, *, populate_existing: bool = False
+) -> Document | None:
+    """Load a document with everything a serialized ``DocumentRead`` reads.
+
+    The grant loader above carries what the access decision needs; this is
+    :func:`get_document` without the redundant guild filter — RLS has already
+    scoped the row to the request's guild — in the uniform ``(session, id)``
+    shape ``resource_access`` registers a loader by. Annotates the tags and
+    comment count a response carries, like the list loader does.
+    """
+    statement = (
+        select(Document)
+        .where(Document.id == document_id)
+        .options(*list_loader_options())
+    )
+    if populate_existing:
+        # Refresh a document already in the identity map, for a re-read after a
+        # commit (expire_on_commit=False otherwise keeps stale collections).
+        statement = statement.execution_options(populate_existing=True)
+    document = (await session.exec(statement)).one_or_none()
     if document:
         await tags_service.annotate_tags(session, [document])
         await annotate_comment_counts(session, [document])
@@ -198,7 +232,8 @@ async def get_document_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.document.not_found_code,
         )
-    permissions_service.require_document_access(
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.document],
         document,
         current_user,
         access="read",

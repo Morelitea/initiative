@@ -58,6 +58,240 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
+ * Visible-dashboard counts grouped by initiative.
+ *
+ * Lightweight endpoint for the sidebar badges — same visibility rules as the
+ * dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY instead
+ * of a capped list page.
+ * @summary Get Dashboard Counts By Initiative
+ */
+export const getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/dashboards/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey =
+  (guildId: number) => {
+    return [`/api/v1/g/${guildId}/dashboards/counts/by-initiative`] as const;
+  };
+
+export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey(
+        guildId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+        >
+      >
+    > = ({ signal }) =>
+      getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet(
+        guildId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: guildId !== null && guildId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+    >
+  >;
+export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Dashboard Counts By Initiative
+ */
+
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * List dashboards visible to the current user (guild admins see all).
  * @summary List Dashboards
  */
@@ -323,240 +557,6 @@ export const useCreateDashboardApiV1GGuildIdDashboardsPost = <
     queryClient
   );
 };
-/**
- * Visible-dashboard counts grouped by initiative.
- *
- * Lightweight endpoint for the sidebar badges — same visibility rules as the
- * dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY instead
- * of a capped list page.
- * @summary Get Dashboard Counts By Initiative
- */
-export const getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet = (
-  guildId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/dashboards/counts/by-initiative`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey =
-  (guildId: number) => {
-    return [`/api/v1/g/${guildId}/dashboards/counts/by-initiative`] as const;
-  };
-
-export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey(
-        guildId
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<
-          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-        >
-      >
-    > = ({ signal }) =>
-      getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet(
-        guildId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled: guildId !== null && guildId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<
-          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-        >
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-    >
-  >;
-export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-          >
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-          >
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Dashboard Counts By Initiative
- */
-
-export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions(
-      guildId,
-      options
-    );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
 /**
  * Which marketplace listings this guild has installed, and how many of each.
  *
@@ -1920,6 +1920,195 @@ export const useRevokePublishedViewApiV1GGuildIdDashboardsDashboardIdPublishedRe
     );
   };
 /**
+ * Record that the caller opened this entity, for the tabs bar.
+ *
+ * Takes read access, the same the entity's own page takes. A PAM
+ * grantee's browsing is transient by design and is not stored.
+ * @summary Record Dashboard View
+ */
+export const recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost = (
+  guildId: number,
+  dashboardId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecentViewWrite>(
+    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/view`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
+    TError,
+    { guildId: number; dashboardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  const mutationKey = ["recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
+    { guildId: number; dashboardId: number }
+  > = (props) => {
+    const { guildId, dashboardId } = props ?? {};
+
+    return recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost(
+      guildId,
+      dashboardId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>
+  >;
+
+export type RecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Record Dashboard View
+ */
+export const useRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
+      TError,
+      { guildId: number; dashboardId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  return useMutation(
+    getRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Close this entity's tab: drop the caller's own recent-view row.
+ *
+ * Idempotent — a tab that is not open stays closed.
+ * @summary Clear Dashboard View
+ */
+export const clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete = (
+  guildId: number,
+  dashboardId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/view`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
+    TError,
+    { guildId: number; dashboardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  const mutationKey = ["clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
+    { guildId: number; dashboardId: number }
+  > = (props) => {
+    const { guildId, dashboardId } = props ?? {};
+
+    return clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete(
+      guildId,
+      dashboardId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>
+  >;
+
+export type ClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Dashboard View
+ */
+export const useClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
+      TError,
+      { guildId: number; dashboardId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Replace the dashboard's entire sharing state in one call — the body is
  * the full list of grants (all-initiative-members / per-user / per-role).
  * Every non-owner grant is rebuilt from it; the owner is always preserved.
@@ -2023,188 +2212,6 @@ export const useSetDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut = 
 > => {
   return useMutation(
     getSetDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Record Dashboard View
- */
-export const recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost = (
-  guildId: number,
-  dashboardId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
-    TError,
-    { guildId: number; dashboardId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
-  TError,
-  { guildId: number; dashboardId: number },
-  TContext
-> => {
-  const mutationKey = ["recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
-    { guildId: number; dashboardId: number }
-  > = (props) => {
-    const { guildId, dashboardId } = props ?? {};
-
-    return recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost(
-      guildId,
-      dashboardId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>
-  >;
-
-export type RecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Record Dashboard View
- */
-export const useRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
-      TError,
-      { guildId: number; dashboardId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost>>,
-  TError,
-  { guildId: number; dashboardId: number },
-  TContext
-> => {
-  return useMutation(
-    getRecordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Clear Dashboard View
- */
-export const clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete = (
-  guildId: number,
-  dashboardId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/view`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
-    TError,
-    { guildId: number; dashboardId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
-  TError,
-  { guildId: number; dashboardId: number },
-  TContext
-> => {
-  const mutationKey = ["clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
-    { guildId: number; dashboardId: number }
-  > = (props) => {
-    const { guildId, dashboardId } = props ?? {};
-
-    return clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete(
-      guildId,
-      dashboardId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>
-  >;
-
-export type ClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Clear Dashboard View
- */
-export const useClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
-      TError,
-      { guildId: number; dashboardId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof clearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDelete>>,
-  TError,
-  { guildId: number; dashboardId: number },
-  TContext
-> => {
-  return useMutation(
-    getClearDashboardViewApiV1GGuildIdDashboardsDashboardIdViewDeleteMutationOptions(options),
     queryClient
   );
 };

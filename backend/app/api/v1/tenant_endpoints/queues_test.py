@@ -733,34 +733,6 @@ async def test_hold_requires_write_access(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
-async def test_set_queue_grants(client: AsyncClient, acting_user):
-    """Owner can set user grants on a queue via the unified grants endpoint."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-    queue_data = await _create_queue_via_api(client, admin)
-
-    response = await client.put(
-        admin.g(f"/queues/{queue_data['id']}/grants"),
-        headers=admin.headers,
-        json=[{"user_id": member.user.id, "level": "write"}],
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    member_grants = [
-        g
-        for g in data["grants"]
-        if g["user_id"] == member.user.id and g["level"] == "write"
-    ]
-    assert len(member_grants) == 1
-
-
-@pytest.mark.integration
 async def test_sharing_does_not_reach_past_the_role_gate(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -790,39 +762,6 @@ async def test_sharing_does_not_reach_past_the_role_gate(
     # Nothing was written, and the queue is still not theirs to open.
     seen = await client.get(b.g(f"/queues/{queue_data['id']}"), headers=b.headers)
     assert seen.status_code in (403, 404)
-
-
-@pytest.mark.integration
-async def test_set_queue_role_grants(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Owner can set role grants on a queue via the unified grants endpoint."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    queue_data = await _create_queue_via_api(client, a)
-
-    # Find the member role
-    result = await session.exec(
-        select(InitiativeRoleModel).where(
-            InitiativeRoleModel.initiative_id == a.initiative.id,
-            InitiativeRoleModel.name == "member",
-        )
-    )
-    member_role = result.one()
-
-    response = await client.put(
-        a.g(f"/queues/{queue_data['id']}/grants"),
-        headers=a.headers,
-        json=[{"role_id": member_role.id, "level": "read"}],
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    role_grants = [
-        g
-        for g in data["grants"]
-        if g["role_id"] == member_role.id and g["level"] == "read"
-    ]
-    assert len(role_grants) == 1
 
 
 @pytest.mark.integration

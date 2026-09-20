@@ -2,10 +2,10 @@
 
 When a request is served via a live PAM grant (rather than real membership),
 the deps layer records the granted guild + access level here. The app-layer
-resource access checks (`require_project_access`, `require_document_access`,
-`require_queue_access`, `require_counter_group_access`) consult it so that what
-a grantee can list under RLS, they can also open/edit — read-only or
-read-write per the grant — without an explicit permission row.
+resource access check (`permissions.require_access`, reached through
+`resource_access.authorize`) consults it so that what a grantee can list under
+RLS, they can also open/edit — read-only or read-write per the grant — without
+an explicit permission row.
 
 A ``contextvars.ContextVar`` keeps this per-request (each request runs in its
 own asyncio task with its own context), so there's no cross-request leakage and

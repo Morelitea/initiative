@@ -1,8 +1,8 @@
 """Request-scoped active-guild role context.
 
 The deps layer records the authenticated user's role in the request's active
-guild here (mirroring ``pam_context``). The sync app-layer access checks
-(``require_project_access`` / ``require_document_access``) consult it for the
+guild here (mirroring ``pam_context``). The sync app-layer access check
+(``permissions.require_access``) consults it for the
 guild-admin leg of the initiative-scope gate — the leg the old RESTRICTIVE RLS
 policies expressed as ``current_setting('app.current_guild_role') = 'admin'`` —
 without the session being threaded through them.

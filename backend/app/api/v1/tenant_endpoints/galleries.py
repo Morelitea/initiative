@@ -69,30 +69,21 @@ from app.schemas.tenant.gallery import (
     GalleryImageRead,
     GalleryImageUpdate,
     GalleryImageVersionRead,
-    GalleryListResponse,
     GalleryRead,
     GalleryUpdate,
     serialize_gallery,
     serialize_gallery_image,
     serialize_gallery_image_version,
     serialize_gallery_image_versions,
-    serialize_gallery_summary,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.recent_view import RecentViewWrite
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import permissions as permissions_service
 from app.services import storage_config
-from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
-from app.services.tenant import recent_views as recent_views_service
-from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
-from app.services.tenant import tool_listing
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +168,11 @@ async def _refetch_gallery(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.gallery.not_found_code,
         )
-    await _annotate(session, [gallery])
+    await annotate_gallery_rows(session, [gallery])
     return gallery
 
 
-async def _annotate(session: RLSSessionDep, galleries: list) -> None:
+async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None:
     """Everything a gallery row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, galleries)
@@ -346,48 +337,6 @@ def _store_thumbnail(
     )
 
 
-async def _gallery_scope(
-    session: RLSSessionDep,
-    current_user: User,
-    guild_context: GuildContext,
-    *,
-    initiative_id: Optional[int],
-    search: Optional[str] = None,
-) -> list | None:
-    """Which galleries this reader may see — the guild, the feature switch,
-    sharing, and the search box. ``None`` means the initiative exists but has
-    the tool turned off."""
-    conditions = [Gallery.guild_id == guild_context.guild_id]
-
-    if initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.galleries_enabled:
-            return None
-        conditions.append(Gallery.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            Gallery.initiative_id.in_(
-                select(Initiative.id).where(Initiative.galleries_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.gallery,
-            Gallery.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(Tool.gallery, Gallery.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    return conditions
-
-
 def _image_scope(
     gallery: Gallery,
     *,
@@ -425,101 +374,6 @@ def _image_scope(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/", response_model=GalleryListResponse)
-async def list_galleries(
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the gallery's name and description, through "
-            "the same index the search page reads."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description="Order by one of: name, initiative, updated_at. Omit for newest first.",
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=0, le=500),
-) -> GalleryListResponse:
-    """List galleries visible to the current user (guild admins see all)."""
-    scope = await _gallery_scope(
-        session, current_user, guild_context, initiative_id=initiative_id, search=search
-    )
-    if scope is None:
-        return GalleryListResponse(
-            items=[], total_count=0, page=page, page_size=page_size, has_next=False
-        )
-
-    scope = [*scope, archive_service.archive_filter_clause(Gallery, archived)]
-    count_subq = select(Gallery.id).where(*scope).subquery()
-    total_count = (
-        await session.exec(select(func.count()).select_from(count_subq))
-    ).one()
-
-    stmt = (
-        select(Gallery).where(*scope).options(*galleries_service.list_loader_options())
-    )
-    stmt = tool_listing.apply_tool_order(
-        stmt,
-        Gallery,
-        sort_by,
-        sort_dir,
-        default=[Gallery.updated_at.desc(), Gallery.id.desc()],
-    )
-    if page_size > 0:
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    galleries = (await session.exec(stmt)).unique().all()
-    await _annotate(session, list(galleries))
-
-    items = [serialize_gallery_summary(g, user_id=current_user.id) for g in galleries]
-    has_next = page_size > 0 and page * page_size < total_count
-    return GalleryListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_gallery_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-gallery counts grouped by initiative, for the sidebar badges."""
-    conditions = [
-        Gallery.guild_id == guild_context.guild_id,
-        Gallery.initiative_id.in_(
-            select(Initiative.id).where(Initiative.galleries_enabled == True)  # noqa: E712
-        ),
-        permissions_service.granted_scope_clause(
-            Tool.gallery,
-            Gallery.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        ),
-    ]
-    statement = (
-        select(Gallery.initiative_id, func.count(Gallery.id))
-        .where(*conditions)
-        .group_by(Gallery.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
-
-
 @router.get("/{gallery_id}", response_model=GalleryRead)
 async def read_gallery(
     gallery_id: int,
@@ -531,7 +385,7 @@ async def read_gallery(
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
-    await _annotate(session, [gallery])
+    await annotate_gallery_rows(session, [gallery])
     return serialize_gallery(gallery, user_id=current_user.id)
 
 
@@ -672,70 +526,19 @@ async def delete_gallery(
     await session.commit()
 
 
-@router.put("/{gallery_id}/grants", response_model=GalleryRead)
-async def set_gallery_grants(
-    gallery_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    gallery_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> GalleryRead:
-    """Replace the gallery's entire sharing state in one call — the body is
-    the full list of grants. Every non-owner grant is rebuilt from it; the
-    owner is always preserved."""
-    await resource_access.set_resource_grants(
-        session, Tool.gallery, gallery_id, current_user, guild_context, grants
-    )
-    hydrated = await _refetch_gallery(session, gallery_id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id)
+    """The gallery a write answers with: re-read after the commit, serialized.
 
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{gallery_id}/view", response_model=RecentViewWrite)
-async def record_gallery_view(
-    gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    gallery = await resource_access.load_authorized(
-        session, Tool.gallery, gallery_id, current_user, guild_context
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="gallery",
-        entity_id=gallery.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="gallery",
-        entity_id=gallery.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{gallery_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_gallery_view(
-    gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> None:
-    await resource_access.load_authorized(
-        session, Tool.gallery, gallery_id, current_user, guild_context
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="gallery",
-        entity_id=gallery_id,
-    )
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
+    hydrated = await _refetch_gallery(session, gallery_id, user_id=user.id)
+    return serialize_gallery(hydrated, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------

@@ -15,9 +15,9 @@ a viewer who cannot read a bound counter simply sees an empty widget.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -51,17 +51,12 @@ from app.schemas.tenant.dashboard import (
     PublishRequest,
     DashboardInstalledListings,
     DashboardCreate,
-    DashboardListResponse,
     DashboardRead,
     DashboardUpdate,
     WidgetCatalog,
     build_widget_catalog,
     serialize_dashboard,
-    serialize_dashboard_summary,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.recent_view import RecentViewWrite
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db import session as db_session
 from app.db.session import rls_context_params
@@ -74,13 +69,9 @@ from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
-from app.services.tenant import archive as archive_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import published_views
-from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant import search as search_service
-from app.services.tenant import tool_listing
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.app_data import row_columns
 from app.services.tenant.dashboard_definition import (
@@ -223,149 +214,6 @@ async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashb
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=DashboardListResponse)
-async def list_dashboards(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the row — its name and its description. "
-            "Reads the same index the search page does, so a list's filter "
-            "box and a search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for this "
-            "tool's own default order."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=1, le=200),
-) -> DashboardListResponse:
-    """List dashboards visible to the current user (guild admins see all)."""
-    conditions = [
-        Dashboard.guild_id == guild_context.guild_id,
-        archive_service.archive_filter_clause(Dashboard, archived),
-    ]
-
-    if initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.dashboards_enabled:
-            return DashboardListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
-        conditions.append(Dashboard.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            Dashboard.initiative_id.in_(
-                select(Initiative.id).where(Initiative.dashboards_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.dashboard,
-            Dashboard.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(Tool.dashboard, Dashboard.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    count_subq = select(Dashboard.id).where(*conditions).subquery()
-    total_count = (
-        await session.exec(select(func.count()).select_from(count_subq))
-    ).one()
-
-    stmt = (
-        select(Dashboard)
-        .where(*conditions)
-        .options(*dashboards_service.dashboard_loader_options())
-    )
-    stmt = (
-        tool_listing.apply_tool_order(
-            stmt,
-            Dashboard,
-            sort_by,
-            sort_dir,
-            default=[Dashboard.name.asc(), Dashboard.id.asc()],
-        )
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await session.exec(stmt)
-    dashboards = result.unique().all()
-    await tags_service.annotate_tags(session, dashboards)
-
-    items = [
-        serialize_dashboard_summary(d, user_id=current_user.id) for d in dashboards
-    ]
-    has_next = page * page_size < total_count
-    return DashboardListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-# Declared before /{dashboard_id} so the literal path wins the match.
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_dashboard_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-dashboard counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar badges — same visibility rules as the
-    dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY instead
-    of a capped list page.
-    """
-    conditions = [
-        Dashboard.guild_id == guild_context.guild_id,
-        Dashboard.initiative_id.in_(
-            select(Initiative.id).where(Initiative.dashboards_enabled == True)  # noqa: E712
-        ),
-    ]
-    conditions.append(
-        permissions_service.granted_scope_clause(
-            Tool.dashboard,
-            Dashboard.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    )
-
-    statement = (
-        select(Dashboard.initiative_id, func.count(Dashboard.id))
-        .where(*conditions)
-        .group_by(Dashboard.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
 
 
 # Declared before /{dashboard_id} so the literal path wins the match.
@@ -1083,71 +931,16 @@ async def _serialized_with_published(
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{dashboard_id}/grants", response_model=DashboardRead)
-async def set_dashboard_grants(
-    dashboard_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    dashboard_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> DashboardRead:
-    """Replace the dashboard's entire sharing state in one call — the body is
-    the full list of grants (all-initiative-members / per-user / per-role).
-    Every non-owner grant is rebuilt from it; the owner is always preserved.
+    """The dashboard a write answers with: re-read after the commit, serialized.
 
-    This shares the canvas, not its data: each widget still resolves against
-    the viewer's own access to the sources it binds.
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
     """
-    await resource_access.set_resource_grants(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context, grants
-    )
     hydrated = await _refetch_dashboard(session, dashboard_id)
-    return serialize_dashboard(hydrated, user_id=current_user.id)
-
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{dashboard_id}/view", response_model=RecentViewWrite)
-async def record_dashboard_view(
-    dashboard_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    dashboard = await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="dashboard",
-        entity_id=dashboard.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="dashboard",
-        entity_id=dashboard.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{dashboard_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_dashboard_view(
-    dashboard_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    await resource_access.load_authorized(
-        session, Tool.dashboard, dashboard_id, current_user, guild_context
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="dashboard",
-        entity_id=dashboard_id,
-    )
+    return serialize_dashboard(hydrated, user_id=user.id)

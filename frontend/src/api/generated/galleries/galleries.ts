@@ -65,6 +65,223 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
+ * Visible-gallery counts grouped by initiative, for the sidebar badges.
+ * @summary Get Gallery Counts By Initiative
+ */
+export const getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/galleries/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/galleries/counts/by-initiative`] as const;
+};
+
+export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey(guildId);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+      >
+    > = ({ signal }) =>
+      getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet(
+        guildId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: guildId !== null && guildId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    >
+  >;
+export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Gallery Counts By Initiative
+ */
+
+export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * List galleries visible to the current user (guild admins see all).
  * @summary List Galleries
  */
@@ -329,223 +546,6 @@ export const useCreateGalleryApiV1GGuildIdGalleriesPost = <
     queryClient
   );
 };
-/**
- * Visible-gallery counts grouped by initiative, for the sidebar badges.
- * @summary Get Gallery Counts By Initiative
- */
-export const getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet = (
-  guildId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/galleries/counts/by-initiative`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/g/${guildId}/galleries/counts/by-initiative`] as const;
-};
-
-export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey(guildId);
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-      >
-    > = ({ signal }) =>
-      getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet(
-        guildId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled: guildId !== null && guildId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-    >
-  >;
-export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Gallery Counts By Initiative
- */
-
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
-  TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions(
-      guildId,
-      options
-    );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
 /**
  * @summary Read Gallery
  */
@@ -918,289 +918,6 @@ export const useDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete = <
 > => {
   return useMutation(
     getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the gallery's entire sharing state in one call — the body is
- * the full list of grants. Every non-owner grant is rebuilt from it; the
- * owner is always preserved.
- * @summary Set Gallery Grants
- */
-export const setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = (
-  guildId: number,
-  galleryId: number,
-  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GalleryRead>(
-    {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/grants`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: resourceGrantSchema,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-    TError,
-    { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-  TError,
-  { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
-  TContext
-> => {
-  const mutationKey = ["setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-    { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> }
-  > = (props) => {
-    const { guildId, galleryId, data } = props ?? {};
-
-    return setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut(
-      guildId,
-      galleryId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>
->;
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationBody = BodyType<
-  ResourceGrantSchema[]
->;
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Gallery Grants
- */
-export const useSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-      TError,
-      { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-  TError,
-  { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
-  TContext
-> => {
-  return useMutation(
-    getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Record Gallery View
- */
-export const recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = (
-  guildId: number,
-  galleryId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-    TError,
-    { guildId: number; galleryId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-  TError,
-  { guildId: number; galleryId: number },
-  TContext
-> => {
-  const mutationKey = ["recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-    { guildId: number; galleryId: number }
-  > = (props) => {
-    const { guildId, galleryId } = props ?? {};
-
-    return recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost(
-      guildId,
-      galleryId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>
->;
-
-export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Record Gallery View
- */
-export const useRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-      TError,
-      { guildId: number; galleryId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-  TError,
-  { guildId: number; galleryId: number },
-  TContext
-> => {
-  return useMutation(
-    getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Clear Gallery View
- */
-export const clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = (
-  guildId: number,
-  galleryId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-    TError,
-    { guildId: number; galleryId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-  TError,
-  { guildId: number; galleryId: number },
-  TContext
-> => {
-  const mutationKey = ["clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-    { guildId: number; galleryId: number }
-  > = (props) => {
-    const { guildId, galleryId } = props ?? {};
-
-    return clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete(
-      guildId,
-      galleryId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>
->;
-
-export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Clear Gallery View
- */
-export const useClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-      TError,
-      { guildId: number; galleryId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-  TError,
-  { guildId: number; galleryId: number },
-  TContext
-> => {
-  return useMutation(
-    getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2905,3 +2622,293 @@ export const useDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
       queryClient
     );
   };
+/**
+ * Record that the caller opened this entity, for the tabs bar.
+ *
+ * Takes read access, the same the entity's own page takes. A PAM
+ * grantee's browsing is transient by design and is not stored.
+ * @summary Record Gallery View
+ */
+export const recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = (
+  guildId: number,
+  galleryId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecentViewWrite>(
+    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+    TError,
+    { guildId: number; galleryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+  TError,
+  { guildId: number; galleryId: number },
+  TContext
+> => {
+  const mutationKey = ["recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+    { guildId: number; galleryId: number }
+  > = (props) => {
+    const { guildId, galleryId } = props ?? {};
+
+    return recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost(
+      guildId,
+      galleryId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>
+>;
+
+export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Record Gallery View
+ */
+export const useRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+      TError,
+      { guildId: number; galleryId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+  TError,
+  { guildId: number; galleryId: number },
+  TContext
+> => {
+  return useMutation(
+    getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Close this entity's tab: drop the caller's own recent-view row.
+ *
+ * Idempotent — a tab that is not open stays closed.
+ * @summary Clear Gallery View
+ */
+export const clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = (
+  guildId: number,
+  galleryId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+    TError,
+    { guildId: number; galleryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+  TError,
+  { guildId: number; galleryId: number },
+  TContext
+> => {
+  const mutationKey = ["clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+    { guildId: number; galleryId: number }
+  > = (props) => {
+    const { guildId, galleryId } = props ?? {};
+
+    return clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete(
+      guildId,
+      galleryId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>
+>;
+
+export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Gallery View
+ */
+export const useClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+      TError,
+      { guildId: number; galleryId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+  TError,
+  { guildId: number; galleryId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Replace the gallery's entire sharing state in one call — the body is
+ * the full list of grants. Every non-owner grant is rebuilt from it; the
+ * owner is always preserved.
+ * @summary Set Gallery Grants
+ */
+export const setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = (
+  guildId: number,
+  galleryId: number,
+  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GalleryRead>(
+    {
+      url: `/api/v1/g/${guildId}/galleries/${galleryId}/grants`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: resourceGrantSchema,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+    TError,
+    { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+  TError,
+  { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
+  TContext
+> => {
+  const mutationKey = ["setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+    { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> }
+  > = (props) => {
+    const { guildId, galleryId, data } = props ?? {};
+
+    return setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut(
+      guildId,
+      galleryId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>
+>;
+export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationBody = BodyType<
+  ResourceGrantSchema[]
+>;
+export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Gallery Grants
+ */
+export const useSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+      TError,
+      { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+  TError,
+  { guildId: number; galleryId: number; data: BodyType<ResourceGrantSchema[]> },
+  TContext
+> => {
+  return useMutation(
+    getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};

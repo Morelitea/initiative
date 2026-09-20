@@ -24,6 +24,7 @@ import type {
   BillingPortalHandoffResponse,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
+  CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
@@ -2482,9 +2483,19 @@ export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
  * @summary Create Platform Guild Billing Service Handoff
  */
 export const createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost =
-  (guildId: number, options?: SecondParameter<typeof apiMutator>, signal?: AbortSignal) => {
+  (
+    guildId: number,
+    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
     return apiMutator<BillingPortalHandoffResponse>(
-      { url: `/api/v1/settings/guilds/${guildId}/billing/service-handoff`, method: "POST", signal },
+      {
+        url: `/api/v1/settings/guilds/${guildId}/billing/service-handoff`,
+        method: "POST",
+        params,
+        signal,
+      },
       options
     );
   };
@@ -2498,7 +2509,10 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
         >
       >,
       TError,
-      { guildId: number },
+      {
+        guildId: number;
+        params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+      },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2509,7 +2523,10 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
       >
     >,
     TError,
-    { guildId: number },
+    {
+      guildId: number;
+      params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+    },
     TContext
   > => {
     const mutationKey = [
@@ -2527,12 +2544,16 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
           typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
         >
       >,
-      { guildId: number }
+      {
+        guildId: number;
+        params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+      }
     > = (props) => {
-      const { guildId } = props ?? {};
+      const { guildId, params } = props ?? {};
 
       return createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
         guildId,
+        params,
         requestOptions
       );
     };
@@ -2565,7 +2586,10 @@ export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
           >
         >,
         TError,
-        { guildId: number },
+        {
+          guildId: number;
+          params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+        },
         TContext
       >;
       request?: SecondParameter<typeof apiMutator>;
@@ -2578,7 +2602,10 @@ export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
       >
     >,
     TError,
-    { guildId: number },
+    {
+      guildId: number;
+      params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+    },
     TContext
   > => {
     return useMutation(

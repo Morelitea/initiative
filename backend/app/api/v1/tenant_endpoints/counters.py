@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 import json
 import logging
@@ -11,12 +11,10 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Query,
     WebSocket,
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -43,13 +41,10 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.counter import (
     CounterCreate,
     CounterGroupCreate,
     CounterGroupDuplicateRequest,
-    CounterGroupListResponse,
     CounterGroupRead,
     CounterGroupUpdate,
     CounterRead,
@@ -58,21 +53,14 @@ from app.schemas.tenant.counter import (
     CounterUpdate,
     serialize_counter,
     serialize_counter_group,
-    serialize_counter_group_summary,
     _validate_counter_constraints,
 )
-from app.services.tenant import archive as archive_service
 from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
-from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
-from app.services.tenant import search as search_service
-from app.services.tenant import tool_listing
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.schemas.tenant.recent_view import RecentViewWrite
-from app.services.tenant import tags as tags_service
 
 
 router = APIRouter()
@@ -143,27 +131,6 @@ async def _get_initiative_for_counter_group(
     return initiative
 
 
-async def _get_counter_group_with_access(
-    session: RLSSessionDep,
-    group_id: int,
-    user: User,
-    guild_context: GuildContext,
-    *,
-    access: str = "read",
-    manage_access: bool = False,
-) -> CounterGroup:
-    """Fetch + authorize a counter group via the shared enforcement path."""
-    return await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        user,
-        guild_context,
-        access=access,
-        manage_access=manage_access,
-    )
-
-
 async def _get_counter_for_group(
     session: RLSSessionDep,
     group_id: int,
@@ -197,153 +164,6 @@ async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
 # ---------------------------------------------------------------------------
 # Counter Group CRUD
 # ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=CounterGroupListResponse)
-async def list_counter_groups(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the row — its name and its description. "
-            "Reads the same index the search page does, so a list's filter "
-            "box and a search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for this "
-            "tool's own default order."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-) -> CounterGroupListResponse:
-    conditions = [
-        CounterGroup.guild_id == guild_context.guild_id,
-        archive_service.archive_filter_clause(CounterGroup, archived),
-    ]
-
-    if initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.counter_groups_enabled:
-            return CounterGroupListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
-        conditions.append(CounterGroup.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            CounterGroup.initiative_id.in_(
-                select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.counter_group,
-            CounterGroup.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(
-        Tool.counter_group, CounterGroup.id, search
-    )
-    if name_match is not None:
-        conditions.append(name_match)
-
-    count_subq = select(CounterGroup.id).where(*conditions).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
-    stmt = (
-        select(CounterGroup)
-        .where(*conditions)
-        .options(*counters_service.list_loader_options())
-    )
-    stmt = (
-        tool_listing.apply_tool_order(
-            stmt,
-            CounterGroup,
-            sort_by,
-            sort_dir,
-            default=[CounterGroup.updated_at.desc(), CounterGroup.id.desc()],
-        )
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await session.exec(stmt)
-    groups = result.unique().all()
-    await tags_service.annotate_tags(session, groups)
-
-    items = [
-        serialize_counter_group_summary(
-            g,
-            user_id=current_user.id,
-        )
-        for g in groups
-    ]
-
-    has_next = page * page_size < total_count
-    return CounterGroupListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_counter_group_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible counter-group counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar badges — same visibility rules
-    as the counter-group list (counters-enabled initiatives, DAC), one
-    GROUP BY instead of a capped list page.
-    """
-    conditions = [
-        CounterGroup.guild_id == guild_context.guild_id,
-        CounterGroup.initiative_id.in_(
-            select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
-        ),
-    ]
-    conditions.append(
-        permissions_service.granted_scope_clause(
-            Tool.counter_group,
-            CounterGroup.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    )
-
-    statement = (
-        select(CounterGroup.initiative_id, func.count(CounterGroup.id))
-        .where(*conditions)
-        .group_by(CounterGroup.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
 
 
 @router.get("/{group_id}", response_model=CounterGroupRead)
@@ -437,8 +257,13 @@ async def duplicate_counter_group(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterGroupRead:
-    source = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
+    source = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="read",
     )
 
     new_name = (
@@ -470,8 +295,13 @@ async def update_counter_group(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterGroupRead:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    group = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     updated = False
     update_data = group_in.model_dump(exclude_unset=True)
@@ -510,11 +340,19 @@ async def delete_counter_group(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
+    group = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="read",
     )
-    counters_service.require_counter_group_access(
-        group, current_user, require_owner=True
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.counter_group],
+        group,
+        current_user,
+        require_owner=True,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -555,8 +393,13 @@ async def add_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    group = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
 
     clamped = counters_service.clamp(counter_in.count, counter_in.min, counter_in.max)
@@ -603,8 +446,13 @@ async def update_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
 
@@ -699,8 +547,13 @@ async def delete_counter(
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     retention_days = await guilds_service.get_guild_retention_days(
@@ -761,8 +614,13 @@ async def read_counter(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
-    await _get_counter_group_with_access(
-        session, counter.counter_group_id, current_user, guild_context, access="read"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        counter.counter_group_id,
+        current_user,
+        guild_context,
+        access="read",
     )
     return serialize_counter(counter)
 
@@ -776,8 +634,13 @@ async def set_counter_count(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.set_count(session, counter, payload.count)
@@ -792,8 +655,13 @@ async def increment_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.increment_counter(session, counter)
@@ -808,8 +676,13 @@ async def decrement_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.decrement_counter(session, counter)
@@ -824,8 +697,13 @@ async def reset_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.reset_counter(session, counter)
@@ -839,8 +717,13 @@ async def reset_all_counters(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterGroupRead:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    group = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     await counters_service.reset_all_counters(session, group)
     await session.commit()
@@ -864,8 +747,13 @@ async def sort_counters(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterGroupRead:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
+    group = await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        group_id,
+        current_user,
+        guild_context,
+        access="write",
     )
     await counters_service.sort_counters(
         session, group, field=payload.field, direction=payload.direction
@@ -888,36 +776,20 @@ async def sort_counters(
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{group_id}/grants", response_model=CounterGroupRead)
-async def set_counter_group_grants(
-    group_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    group_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> CounterGroupRead:
-    """Replace the counter group's entire sharing state in one call — the body
-    is the full list of grants (all-initiative-members / per-user / per-role).
-    Every non-owner grant is rebuilt from it; the owner is always preserved.
-    """
-    # Write access is sufficient to manage sharing; only deleting the group is
-    # reserved for owners. The owner row itself is preserved regardless.
-    await resource_access.set_resource_grants(
-        session, Tool.counter_group, group_id, current_user, guild_context, grants
-    )
+    """The counter group a write answers with: re-read after the commit,
+    serialized.
 
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
     hydrated = await _refetch_group(session, group_id)
-    result = serialize_counter_group(
-        hydrated,
-        user_id=current_user.id,
-    )
-    await _emit_counter(
-        session,
-        group_id,
-        "permissions_changed",
-        {"grants": [g.model_dump(mode="json") for g in result.grants]},
-    )
-    return result
+    return serialize_counter_group(hydrated, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -996,7 +868,7 @@ async def websocket_counter_group(
             return
 
         # Mirror the feature gate enforced on every HTTP endpoint via
-        # _get_counter_group_with_access — don't stream events for a group
+        # resource_access.load_authorized — don't stream events for a group
         # whose initiative has counters disabled.
         if group.initiative and not group.initiative.counter_groups_enabled:
             logger.warning(f"Counter WS: counters disabled for group {group_id}")
@@ -1006,7 +878,9 @@ async def websocket_counter_group(
         # DAC level via the shared engine; the guild-admin / break-glass bypass is
         # applied inside compute_* through the active role context that
         # establish_guild_access set, so no separate admin check is needed.
-        level = counters_service.compute_counter_group_permission(group, user.id)
+        level = permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[Tool.counter_group], group, user.id
+        )
         if level is None:
             logger.warning(
                 f"Counter WS: user {user.id} has no access to group {group_id}"
@@ -1027,7 +901,11 @@ async def websocket_counter_group(
         if grp is None or grp.guild_id != guild_id:
             return False
         return (
-            counters_service.compute_counter_group_permission(grp, check_user.id)
+            permissions_service.compute_permission(
+                permissions_service.DAC_RESOURCES[Tool.counter_group],
+                grp,
+                check_user.id,
+            )
             is not None
         )
 
@@ -1050,51 +928,3 @@ async def websocket_counter_group(
     finally:
         await stream_authority.leave(websocket)
         logger.info(f"Counter WS: user {user.id} left group {group_id}")
-
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{group_id}/view", response_model=RecentViewWrite)
-async def record_counter_group_view(
-    group_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="counter_group",
-        entity_id=group.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="counter_group",
-        entity_id=group.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{group_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_counter_group_view(
-    group_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="counter_group",
-        entity_id=group.id,
-    )

@@ -354,39 +354,6 @@ async def test_non_member_of_initiative_cannot_see_dashboard(
     assert response.status_code in (403, 404)
 
 
-# ---------------------------------------------------------------------------
-# Sharing
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_set_grants_replaces_sharing(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _dashboards_enabled(session, a.initiative)
-    dashboard = await create_dashboard(session, a.initiative, a.user)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
-
-    response = await client.put(
-        a.g(f"/dashboards/{dashboard.id}/grants"),
-        headers=a.headers,
-        json=[{"user_id": b.user.id, "level": "write"}],
-    )
-    assert response.status_code == 200, response.text
-
-    # b can now re-author it; the all-members read grant is gone.
-    patched = await client.patch(
-        b.g(f"/dashboards/{dashboard.id}"),
-        headers=b.headers,
-        json={"name": "Co-owned"},
-    )
-    assert patched.status_code == 200
-
-
 # --- widget catalog --------------------------------------------------------
 #
 # The catalog is what stops the editor's palette from carrying a second copy of
