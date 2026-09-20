@@ -103,6 +103,7 @@ from app.services.auth.assurance import (
     session_amr,
 )
 from app.services.platform import billing_claim
+from app.services.platform import legal as legal_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
 from app.services.auth.identity import (
@@ -316,6 +317,10 @@ async def register_user(
             verified=address_confirmed,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        # The form said, above the button they just pressed, that creating an
+        # account agrees to this deployment's terms and privacy policy. On a
+        # deployment that has none — every self-hosted one — this does nothing.
+        await legal_service.record_acceptance(session, user_id=user.id)
         # Staged beside the account, before either branch below commits it, so
         # a registration that fails leaves no record of one.
         await audit_service.record(

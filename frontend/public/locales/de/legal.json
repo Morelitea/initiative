@@ -1,0 +1,17 @@
+{
+  "signupNotice": "Mit der Erstellung eines Kontos stimmst du den <termsLink>{{terms}}</termsLink> und der <privacyLink>{{privacy}}</privacyLink> von {{appName}} zu.",
+  "termsTitle": "Nutzungsbedingungen",
+  "privacyTitle": "Datenschutzerklärung",
+  "documentFallbackTitle": "Rechtliches Dokument",
+  "effective": "Gültig ab {{date}}",
+  "version": "Version {{version}}",
+  "unavailable": "Dieses Dokument kann gerade nicht angezeigt werden. Bitte versuche es gleich noch einmal.",
+  "backToSignIn": "Zurück zur Anmeldung",
+  "acceptError": "Das konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  "accept": {
+    "title": "Eine Sache noch",
+    "subtitle": "Dein Konto wurde über deinen Identitätsanbieter erstellt, du hast diese Dokumente also noch nicht gesehen. Lies sie durch und stimme zu, um fortzufahren.",
+    "submit": "Ich stimme zu",
+    "signOut": "Abmelden"
+  }
+}

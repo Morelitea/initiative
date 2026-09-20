@@ -516,6 +516,14 @@ class UserRead(UserBase):
     #: self endpoints (``/users/me`` and ``PATCH /users/me``), which is where
     #: the SPA reads its own account; defaults false elsewhere.
     age_confirmation_required: bool = False
+    #: Whether this account still owes its agreement to this deployment's
+    #: terms and privacy policy. Always false where there are none to agree
+    #: to, which is every self-hosted deployment. An account created through
+    #: the signup form agreed there and never sees this; one provisioned by an
+    #: identity provider met no form, so true blocks the app on the acceptance
+    #: screen the way ``age_confirmation_required`` does. Populated by
+    #: ``/users/me``; defaults false elsewhere.
+    legal_acceptance_required: bool = False
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see
     #: ``services.platform.users.to_read``) — the ``users`` row carries neither.

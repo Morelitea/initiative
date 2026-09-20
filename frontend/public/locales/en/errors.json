@@ -713,5 +713,8 @@
   "PLATFORM_AUTH_FACTOR_REQUIRED": "This server requires a second factor. Set one up, or enter a code, to carry on.",
   "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Permit the authenticator app or passkeys first — there's nothing to ask people for.",
   "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Set up a second factor of your own before requiring one.",
-  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "This server still requires a second factor. Lift that requirement first."
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "This server still requires a second factor. Lift that requirement first.",
+  "LEGAL_NOT_CONFIGURED": "This deployment has no terms of its own.",
+  "LEGAL_PORTAL_UNAVAILABLE": "The terms and privacy policy can't be reached right now. Please try again in a moment.",
+  "LEGAL_DOCUMENT_NOT_FOUND": "That document doesn't exist."
 }

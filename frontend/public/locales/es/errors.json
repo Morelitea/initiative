@@ -713,5 +713,8 @@
   "PLATFORM_AUTH_FACTOR_REQUIRED": "Este servidor exige un segundo factor. Configura uno, o introduce un código, para continuar.",
   "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD": "Permite antes la aplicación de autenticación o las claves de acceso: no hay nada que exigir.",
   "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED": "Configura tu propio segundo factor antes de exigirlo.",
-  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Este servidor todavía exige un segundo factor. Retira antes ese requisito."
+  "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Este servidor todavía exige un segundo factor. Retira antes ese requisito.",
+  "LEGAL_NOT_CONFIGURED": "Esta instalación no tiene términos propios.",
+  "LEGAL_PORTAL_UNAVAILABLE": "Ahora mismo no se puede acceder a los términos ni a la política de privacidad. Vuelve a intentarlo en un momento.",
+  "LEGAL_DOCUMENT_NOT_FOUND": "Ese documento no existe."
 }

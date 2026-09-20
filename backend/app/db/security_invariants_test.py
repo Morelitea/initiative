@@ -66,6 +66,7 @@ _RLS_SHARED_TABLES = {
     "guild_provider_connections",
     "guilds",
     "identity_refs",
+    "legal_acceptances",
     "marketplace_listing_versions",
     "marketplace_listings",
     "marketplace_media",

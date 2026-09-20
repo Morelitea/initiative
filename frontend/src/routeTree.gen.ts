@@ -37,6 +37,7 @@ import { Route as ServerRequiredAuthenticatedSettingsRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedTasksRouteImport } from './routes/_serverRequired/_authenticated/tasks'
 import { Route as ServerRequiredAuthenticatedUserStatsRouteImport } from './routes/_serverRequired/_authenticated/user-stats'
 import { Route as ServerRequiredInviteCodeRouteImport } from './routes/_serverRequired/invite.$code'
+import { Route as ServerRequiredLegalSlugRouteImport } from './routes/_serverRequired/legal.$slug'
 import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_serverRequired/oidc.callback'
 import { Route as ServerRequiredAuthenticatedCGuildIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
@@ -330,6 +331,11 @@ const ServerRequiredInviteCodeRoute =
     path: '/invite/$code',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
+const ServerRequiredLegalSlugRoute = ServerRequiredLegalSlugRouteImport.update({
+  id: '/legal/$slug',
+  path: '/legal/$slug',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
 const ServerRequiredOidcCallbackRoute =
   ServerRequiredOidcCallbackRouteImport.update({
     id: '/oidc/callback',
@@ -1371,6 +1377,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof ServerRequiredAuthenticatedTasksRoute
   '/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
+  '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
@@ -1530,6 +1537,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof ServerRequiredAuthenticatedTasksRoute
   '/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
+  '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
@@ -1676,6 +1684,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/tasks': typeof ServerRequiredAuthenticatedTasksRoute
   '/_serverRequired/_authenticated/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
   '/_serverRequired/invite/$code': typeof ServerRequiredInviteCodeRoute
+  '/_serverRequired/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/_serverRequired/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/_serverRequired/_authenticated/': typeof ServerRequiredAuthenticatedIndexRoute
   '/_serverRequired/_authenticated/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
@@ -1839,6 +1848,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/user-stats'
     | '/invite/$code'
+    | '/legal/$slug'
     | '/oidc/callback'
     | '/c/$guildId'
     | '/profile/account'
@@ -1998,6 +2008,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/user-stats'
     | '/invite/$code'
+    | '/legal/$slug'
     | '/oidc/callback'
     | '/profile/account'
     | '/profile/ai'
@@ -2143,6 +2154,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/tasks'
     | '/_serverRequired/_authenticated/user-stats'
     | '/_serverRequired/invite/$code'
+    | '/_serverRequired/legal/$slug'
     | '/_serverRequired/oidc/callback'
     | '/_serverRequired/_authenticated/'
     | '/_serverRequired/_authenticated/c/$guildId'
@@ -2480,6 +2492,13 @@ declare module '@tanstack/react-router' {
       path: '/invite/$code'
       fullPath: '/invite/$code'
       preLoaderRoute: typeof ServerRequiredInviteCodeRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/legal/$slug': {
+      id: '/_serverRequired/legal/$slug'
+      path: '/legal/$slug'
+      fullPath: '/legal/$slug'
+      preLoaderRoute: typeof ServerRequiredLegalSlugRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/oidc/callback': {
@@ -4087,6 +4106,7 @@ interface ServerRequiredRouteChildren {
   ServerRequiredVerifyEmailRoute: typeof ServerRequiredVerifyEmailRoute
   ServerRequiredWelcomeRoute: typeof ServerRequiredWelcomeRoute
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
+  ServerRequiredLegalSlugRoute: typeof ServerRequiredLegalSlugRoute
   ServerRequiredOidcCallbackRoute: typeof ServerRequiredOidcCallbackRoute
   ServerRequiredCommunityGuildIdLoginRoute: typeof ServerRequiredCommunityGuildIdLoginRoute
 }
@@ -4101,6 +4121,7 @@ const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredVerifyEmailRoute: ServerRequiredVerifyEmailRoute,
   ServerRequiredWelcomeRoute: ServerRequiredWelcomeRoute,
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
+  ServerRequiredLegalSlugRoute: ServerRequiredLegalSlugRoute,
   ServerRequiredOidcCallbackRoute: ServerRequiredOidcCallbackRoute,
   ServerRequiredCommunityGuildIdLoginRoute:
     ServerRequiredCommunityGuildIdLoginRoute,

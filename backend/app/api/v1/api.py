@@ -80,6 +80,7 @@ from app.api.v1.platform_endpoints import (
     guild_provider_connections,
     guilds,
     health,
+    legal,
     marketplace,
     native,
     notification_prefs,
@@ -108,6 +109,9 @@ api_router.include_router(version.router, tags=["version"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
+# This deployment's terms and privacy policy, if it has any.
+# Unauthenticated: the signup form links to them.
+api_router.include_router(legal.router, tags=["legal"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # Mounted on the same prefix: the factor routes are part of /auth, kept in
 # their own module rather than growing the sign-in one.

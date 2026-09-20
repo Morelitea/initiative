@@ -1303,6 +1303,16 @@ class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
 
 
+class LegalMessages:
+    """Codes for the hosted deployment's terms and privacy policy."""
+
+    #: This deployment has no billing portal, so it has no terms of its own.
+    NOT_CONFIGURED = "LEGAL_NOT_CONFIGURED"
+    #: The portal that holds the documents could not be reached.
+    PORTAL_UNAVAILABLE = "LEGAL_PORTAL_UNAVAILABLE"
+    DOCUMENT_NOT_FOUND = "LEGAL_DOCUMENT_NOT_FOUND"
+
+
 class BillingMessages:
     """Codes for the service-to-service billing write boundary.
 
