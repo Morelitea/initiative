@@ -27,6 +27,7 @@ from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import GalleryEnvelope
 from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
+from app.services.import_engine.links import LinkCollector
 from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
@@ -53,6 +54,7 @@ class GalleryImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        links: LinkCollector | None = None,
     ) -> EnvelopeImportResult:
         env: GalleryEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id

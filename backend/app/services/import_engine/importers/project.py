@@ -18,6 +18,7 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
+from app.services.import_engine.links import LinkCollector
 
 
 class ProjectImporter:
@@ -48,7 +49,12 @@ class ProjectImporter:
 
     def count(self, validated: BaseModel) -> int:
         envelope: ProjectExportEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
-        return len(envelope.tasks) + 1
+        # A comment is a row like any other, so it counts against the
+        # ceiling: a project with ten tasks and four thousand comments on
+        # them is a large import however few tasks it names.
+        return (
+            len(envelope.tasks) + sum(len(task.comments) for task in envelope.tasks) + 1
+        )
 
     async def apply(
         self,
@@ -57,6 +63,7 @@ class ProjectImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        links: LinkCollector | None = None,
     ) -> EnvelopeImportResult:
         from app.services.tenant.project_import import import_project
 
@@ -66,6 +73,7 @@ class ProjectImporter:
                 envelope=envelope,
                 target_initiative=target_initiative,
                 importer=importer,
+                links=links,
             )
         except HTTPException as exc:
             # The service speaks HTTP; the engine speaks ImportEngineError so
@@ -79,6 +87,7 @@ class ProjectImporter:
                 "tasks": result.task_count,
                 "tags": result.tag_create_count,
                 "properties": result.property_create_count,
+                "comments": result.comment_count,
             },
             matched={
                 "tags": result.tag_match_count,

@@ -4,9 +4,15 @@ The output is a :class:`ProjectExportEnvelope` that references tags, task
 statuses, properties, and users by string keys (name / handle) rather than
 integer IDs so it can be imported on a different Initiative instance.
 
-Out of scope (see plan): comments, documents, attachments, project-role
-permissions, favorites, recents, queues. Those would extend the schema
-under a future ``schema_version`` bump.
+Tasks carry what was said on them and what they point at: comments (as
+text plus the author's handle and display name — never an id), and the edges
+between tasks, named by ``external_ref`` so the far end resolves after both
+ends have been restored. Both are optional fields, so an older reader that
+does not know them ignores them and the version does not move.
+
+Out of scope (see plan): documents, attachments, project-role permissions,
+favorites, recents, queues. Those would extend the schema under a future
+``schema_version`` bump.
 """
 
 from __future__ import annotations
@@ -18,13 +24,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.user_display import handle_of
+from app.core.relationships import RelationshipType, decode_node_id, node_id
+from app.core.search import SearchEntityType
+from app.core.user_display import display_name, handle_of
 from app.core.version import get_version
+from app.models.tenant.comment import Comment
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyType, TaskPropertyValue
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
+    ProjectExportComment,
     ProjectExportEnvelope,
     ProjectExportProject,
     ProjectExportPropertyDefinition,
@@ -32,6 +43,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportChecklistItem,
     ProjectExportTag,
     ProjectExportTask,
+    ProjectExportTaskLink,
     ProjectExportTaskStatus,
 )
 from app.services.tenant import tags as tags_service
@@ -66,6 +78,10 @@ async def build_project_export(
     project = (await session.exec(stmt)).one()
     await tags_service.annotate_tags(session, [project])
     await tags_service.annotate_tags(session, project.tasks or [])
+
+    task_ids = [task.id for task in (project.tasks or []) if task.id is not None]
+    comments_by_task = await _load_comments(session, task_ids)
+    links_by_task = await _load_links(session, task_ids)
 
     # Project-level tag set
     project_tags: list[ProjectExportTag] = []
@@ -150,6 +166,11 @@ async def build_project_export(
                 assignee_handles=assignee_handles,
                 checklist=checklist,
                 property_values=property_values,
+                created_at=task.created_at,
+                updated_at=task.updated_at,
+                external_ref=task_ref(task.id),
+                links=links_by_task.get(task.id, []),
+                comments=comments_by_task.get(task.id, []),
             )
         )
 
@@ -184,6 +205,121 @@ async def build_project_export(
         property_definitions=property_definitions,
         tasks=tasks,
     )
+
+
+#: Edge kinds a task envelope carries. ``tagged_with`` is already the task's
+#: ``tags`` and ``references`` is derived from bodies on save rather than
+#: asserted, so neither is something a restore should re-assert from here.
+_EXPORTED_LINK_TYPES: tuple[RelationshipType, ...] = (
+    RelationshipType.depends_on,
+    RelationshipType.part_of,
+    RelationshipType.related_to,
+    RelationshipType.attached,
+)
+
+#: Far ends worth naming: the kinds whose importer registers a ref, so a link
+#: to one can actually be resolved on the other side. A link to anything else
+#: would be written only to be counted as unresolved.
+_LINKABLE_TARGETS: frozenset[SearchEntityType] = frozenset(
+    {SearchEntityType.task, SearchEntityType.calendar_event}
+)
+
+
+def task_ref(task_id: int | None) -> str | None:
+    """The name a task answers to across one import.
+
+    Derived from the source id rather than stored, because it has to be the
+    same string wherever the task is named — a project envelope writing its
+    own tasks, and another project's envelope pointing at one of them in the
+    same backup.
+    """
+    return f"task:{task_id}" if task_id is not None else None
+
+
+def _entity_ref(kind: SearchEntityType, entity_id: int) -> str:
+    return f"{kind.value}:{entity_id}"
+
+
+async def _load_comments(
+    session: AsyncSession, task_ids: list[int]
+) -> dict[int, list[ProjectExportComment]]:
+    """What was said on each of these tasks, oldest first.
+
+    Authors cross as a handle and a display name and never as an id — the
+    rule every envelope follows for people. Trashed comments do not cross at
+    all: a restore is not where somebody's deleted words come back.
+    """
+    if not task_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(Comment)
+            .where(
+                Comment.task_id.in_(task_ids),
+                Comment.deleted_at.is_(None),
+            )
+            .options(selectinload(Comment.author))
+            .order_by(Comment.created_at.asc(), Comment.id.asc())
+        )
+    ).all()
+    by_task: dict[int, list[ProjectExportComment]] = {}
+    for row in rows:
+        author = getattr(row, "author", None)
+        by_task.setdefault(row.task_id, []).append(
+            ProjectExportComment(
+                author_handle=handle_of(author) if author is not None else None,
+                author_name=display_name(author) if author is not None else None,
+                body=row.content,
+                created_at=row.created_at,
+            )
+        )
+    return by_task
+
+
+async def _load_links(
+    session: AsyncSession, task_ids: list[int]
+) -> dict[int, list[ProjectExportTaskLink]]:
+    """The edges these tasks assert, from the task's side.
+
+    Only edges *stored* with one of these tasks as the source are read, so an
+    edge is written once rather than from both ends — a symmetric one is
+    stored in node order, and the importer re-orders it on the way back in.
+
+    Refs, not ids: the far end may be in another envelope of the same backup
+    (a task in a different project, a sprint on a calendar), which resolves
+    once everything has been applied, or outside it entirely, which is
+    counted. Both are ordinary, and neither is knowable from here.
+    """
+    if not task_ids:
+        return {}
+    source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_ids]
+    rows = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_node.in_(source_nodes),
+                EntityRelationship.relationship_type.in_(
+                    [t.value for t in _EXPORTED_LINK_TYPES]
+                ),
+                EntityRelationship.removed_at.is_(None),
+            )
+        )
+    ).all()
+    by_task: dict[int, list[ProjectExportTaskLink]] = {}
+    for row in rows:
+        try:
+            target_kind, target_id = decode_node_id(row.target_node)
+        except ValueError:
+            # A kind this build has no code for: nothing here can name it.
+            continue
+        if target_kind not in _LINKABLE_TARGETS:
+            continue
+        by_task.setdefault(row.source_id, []).append(
+            ProjectExportTaskLink(
+                type=RelationshipType(row.relationship_type),
+                target_external_ref=_entity_ref(target_kind, target_id),
+            )
+        )
+    return by_task
 
 
 async def list_project_ids_for_export(

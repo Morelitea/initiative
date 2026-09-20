@@ -118,6 +118,10 @@ def event_export_dict(
             recurrence = None
     return {
         "id": event.id,
+        # The name this event answers to across one import. An id is guild-
+        # local and means nothing on the far side; this string is what a task
+        # in another envelope points at when it says which sprint it was in.
+        "external_ref": f"calendar_event:{event.id}",
         "title": event.title,
         "description": event.description,
         "location": event.location,

@@ -35,6 +35,8 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
@@ -52,8 +54,13 @@ from app.schemas.tenant.import_job import (
     BackupPlanInitiative,
     EntryResult,
 )
+from app.services.import_engine import engine as import_engine
 from app.services.import_engine.common import unique_name
-from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine.contract import (
+    EnvelopeImportResult,
+    ImportEngineError,
+)
+from app.services.import_engine.links import LinkCollector
 from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
@@ -67,6 +74,41 @@ _TOOL_ORDER = tuple(t.value for t in BULK_EXPORT_TOOLS)
 _REFRESH_EVERY = 25
 
 _MANIFEST_NAME = "manifest.json"
+
+#: What "filed in" means, per kind of far end. A document in a wiki is a
+#: ``part_of`` — the wiki is a place, and the document is one of the things
+#: in it, which is exactly the edge ``wikis.linked_documents`` reads.
+#:
+#: One kind, because ``attach_to`` names another manifest ENTRY, and a wiki is
+#: the only place a file can be filed that is an entry of its own. A task is
+#: not: it lives inside its project's envelope, so a document attached to a
+#: task is a link the envelope asserts by ref, not a placement recorded here.
+#: A kind nothing here names is left alone rather than guessed at.
+_ATTACH_RELATIONSHIPS: dict[str, RelationshipType] = {
+    "wiki": RelationshipType.part_of,
+}
+
+
+def _entry_ref(path: str) -> str:
+    """The name an entry answers to inside one job.
+
+    Namespaced so it cannot collide with an external ref an envelope chose
+    for itself (``"jira:ACME-123"``) — both live in the same map, because
+    both are "a name that resolves to a row once the import has run"."""
+    return f"entry:{path}"
+
+
+def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
+    """What kind of thing this entry becomes. A file entry is a document
+    whatever tool it was filed under; everything else is its own tool. A
+    tool this build has no endpoint kind for cannot be an end of an edge,
+    which is a reason to skip it rather than to fail the restore."""
+    name = "document" if entry.type == "file" else entry.tool
+    try:
+        return SearchEntityType(name)
+    except ValueError:
+        return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -229,19 +271,24 @@ async def apply_backup(
     from app.services.rls import is_guild_admin
     from app.services.tenant import initiatives as initiatives_service
 
-    # Re-verify REAL guild adminship at apply time — enqueue-time authority
-    # can be gone by now, and a backup import creates initiatives.
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_ADMIN_REQUIRED, status_code=403
-        )
-
     archive = open_backup_zip(payload)
     manifest = read_manifest(archive)
     result = BackupImportResult()
+
+    # Re-verify REAL guild adminship at apply time — enqueue-time authority
+    # can be gone by now, and creating an initiative is a guild admin's act.
+    # It is asked for only when something here actually creates one: a bundle
+    # that applies into initiatives somebody already runs is gated by the
+    # per-tool create permission in those initiatives instead (§8.2), which
+    # is the same gate a lone envelope passes.
+    if any(mi.target_initiative_id is None for mi in manifest.initiatives):
+        membership = await guilds_service.get_membership(
+            session, guild_id=guild_id, user_id=user.id
+        )
+        if membership is None or not is_guild_admin(membership.role):
+            raise ImportEngineError(
+                ImportEngineMessages.IMPORT_ADMIN_REQUIRED, status_code=403
+            )
 
     # Assets first, one chunk: written under their ORIGINAL storage keys so
     # embedded editor-state image references resolve without rewriting.
@@ -257,20 +304,36 @@ async def apply_backup(
     since_refresh = 0
     from app.models.tenant.initiative import Initiative
 
+    # One collector for the whole bundle: an edge routinely crosses two
+    # entries applied by two different importers, so nothing resolves until
+    # the last of them has flushed.
+    collector = LinkCollector()
+
     for mi in manifest.initiatives:
         # System sentinel: user-attributed job, gate passed at enqueue.
         await establish_guild_access(
             session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
         )
-        initiative = await initiatives_service.create_imported_initiative(
-            session,
-            guild_id=guild_id,
-            name=mi.name,
-            description=mi.description,
-            color=mi.color,
-            tool_flags=_manifest_tool_flags(mi.tools),
-            manager_id=user.id,
-        )
+        entries_here = entries_by_initiative.get(mi.id, [])
+        if mi.target_initiative_id is not None:
+            initiative = await _resolve_target_initiative(
+                session,
+                target_initiative_id=mi.target_initiative_id,
+                entries=entries_here,
+                user=user,
+                guild_id=guild_id,
+                include=include,
+            )
+        else:
+            initiative = await initiatives_service.create_imported_initiative(
+                session,
+                guild_id=guild_id,
+                name=mi.name,
+                description=mi.description,
+                color=mi.color,
+                tool_flags=_manifest_tool_flags(mi.tools),
+                manager_id=user.id,
+            )
         result.initiatives.append(
             {
                 "source_id": mi.id,
@@ -280,7 +343,7 @@ async def apply_backup(
         )
 
         entries = sorted(
-            entries_by_initiative.get(mi.id, []),
+            entries_here,
             key=lambda e: (
                 _TOOL_ORDER.index(e.tool) if e.tool in _TOOL_ORDER else len(_TOOL_ORDER)
             ),
@@ -309,6 +372,7 @@ async def apply_backup(
                 importers=IMPORTERS,
                 assets_by_key=assets_by_key,
                 result=result,
+                links=collector,
             )
             result.entries.append(outcome)
             bucket = result.per_tool.setdefault(
@@ -317,7 +381,78 @@ async def apply_backup(
             bucket[outcome.status] += 1
         await session.commit()
 
+    # Everything is in the database; now the names can become edges.
+    await establish_guild_access(
+        session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+    )
+    resolution = await collector.resolve(session, created_by=user.id)
+    result.links_created = resolution.created
+    result.links_unresolved = resolution.unresolved
+    await session.commit()
+
     return result
+
+
+async def _resolve_target_initiative(
+    session: AsyncSession,
+    *,
+    target_initiative_id: int,
+    entries: list[ManifestEntry],
+    user: User,
+    guild_id: int,
+    include: dict[str, bool] | None,
+):
+    """Resolve an initiative the bundle wants to apply INTO, and prove the
+    importer may write each kind of thing it is about to receive.
+
+    The gate is the same one a lone envelope passes, run once per kind the
+    bundle carries: ``load_target_initiative`` resolves the initiative under
+    the caller's own RLS (unreachable reads as absent — 404), checks the
+    tool's master switch, and checks the create permission. So a bundle
+    naming four tools is refused unless its importer may create all four,
+    and nothing is written before that is known.
+
+    Only kinds this apply will actually reach are checked: an entry excluded
+    by the include map is not going to be written, and demanding a permission
+    for it would refuse an import that was never going to need it.
+    """
+    from app.services.import_engine.importers import IMPORTERS
+
+    initiative = None
+    seen: set[str] = set()
+    for entry in entries:
+        if include is not None and not include.get(entry.tool, True):
+            continue
+        # A file entry is a document whatever tool it was filed under, so it
+        # is the document importer's permission that governs it.
+        envelope_type = "initiative-document" if entry.type == "file" else entry.type
+        if envelope_type in seen:
+            continue
+        seen.add(envelope_type)
+        importer = IMPORTERS.get(envelope_type)
+        if importer is None:
+            # An unknown type is skipped at apply time with a code in the
+            # report; it names no permission to check here.
+            continue
+        initiative = await import_engine.load_target_initiative(
+            session,
+            guild_id=guild_id,
+            initiative_id=target_initiative_id,
+            importer=importer,
+            user=user,
+        )
+    if initiative is None:
+        # Nothing to apply, or nothing whose type this build knows. Resolve
+        # the initiative anyway so the rest of the pass has one to work with
+        # and an unreachable id still fails here rather than later.
+        initiative = await import_engine.load_target_initiative(
+            session,
+            guild_id=guild_id,
+            initiative_id=target_initiative_id,
+            importer=IMPORTERS["initiative-document"],
+            user=user,
+        )
+    return initiative
 
 
 async def _apply_entry(
@@ -331,6 +466,7 @@ async def _apply_entry(
     importers: dict,
     assets_by_key: dict[str, Any],
     result: BackupImportResult,
+    links: LinkCollector | None = None,
 ) -> EntryResult:
     base = {
         "path": entry.path,
@@ -341,9 +477,11 @@ async def _apply_entry(
     if include is not None and not include.get(entry.tool, True):
         return EntryResult(**base, status="skipped")
     if entry.type == "file":
-        return await _apply_file_entry(
+        outcome = await _apply_file_entry(
             session, entry, initiative, user, assets_by_key, base
         )
+        _record_entry(links, entry, outcome)
+        return outcome
     importer = importers.get(entry.type)
     if importer is None:
         return EntryResult(**base, status="skipped", error="IMPORT_UNKNOWN_TYPE")
@@ -356,6 +494,7 @@ async def _apply_entry(
                 envelope=validated,
                 target_initiative=initiative,
                 importer=user,
+                links=links,
             )
     except ImportEngineError as exc:
         logger.warning(
@@ -375,7 +514,34 @@ async def _apply_entry(
     result.unmatched_handles = sorted(
         set(result.unmatched_handles) | set(detail.unmatched_handles)
     )
-    return EntryResult(**base, status="created", detail=detail)
+    outcome = EntryResult(**base, status="created", detail=detail)
+    _record_entry(links, entry, outcome)
+    return outcome
+
+
+def _record_entry(
+    links: LinkCollector | None, entry: ManifestEntry, outcome: EntryResult
+) -> None:
+    """Put a successfully applied entry into the job's ref map, and record
+    what it said it is filed in.
+
+    Both halves are names, not ids: the far end of an ``attach_to`` is
+    another entry that may not have been applied yet, and resolving it is the
+    deferred pass's job.
+    """
+    if links is None or outcome.status != "created":
+        return
+    kind = _entry_kind(entry)
+    entity_id = outcome.detail.entity_id if outcome.detail is not None else None
+    if kind is None or entity_id is None:
+        return
+    links.register(_entry_ref(entry.path), kind, entity_id)
+    if entry.attach_to is None:
+        return
+    relationship = _ATTACH_RELATIONSHIPS.get(entry.attach_to.kind)
+    if relationship is None:
+        return
+    links.link(_entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref))
 
 
 async def _apply_file_entry(
@@ -482,7 +648,18 @@ async def _apply_file_entry(
         return EntryResult(
             **base, status="failed", error=ImportEngineMessages.IMPORT_APPLY_FAILED
         )
-    return EntryResult(**base, status="created")
+    # The id is reported so the entry can be an end of an edge — a file
+    # placed in a wiki is a ``document part_of wiki``, resolved by the
+    # deferred pass once the wiki entry has been applied too.
+    return EntryResult(
+        **base,
+        status="created",
+        detail=EnvelopeImportResult(
+            entity_id=document.id,
+            entity_title=document.name,
+            created={"documents": 1},
+        ),
+    )
 
 
 async def _restore_assets(

@@ -26,6 +26,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.core.messages import ProjectExportMessages
+from app.core.search import SearchEntityType
+from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -43,11 +45,13 @@ from app.models.platform.user import User
 from app.schemas.tenant.project_export import (
     MIN_SUPPORTED_IMPORT_VERSION,
     SCHEMA_VERSION,
+    ProjectExportComment,
     ProjectExportEnvelope,
     ProjectExportTask,
     ProjectImportResult,
 )
 from app.schemas.tenant.task import mint_checklist_item_id
+from app.services.import_engine.links import LinkCollector
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -65,6 +69,7 @@ async def import_project(
     envelope: ProjectExportEnvelope,
     target_initiative: Initiative,
     importer: User,
+    links: LinkCollector | None = None,
 ) -> ProjectImportResult:
     """Materialize ``envelope`` as a new project under ``target_initiative``.
 
@@ -73,6 +78,11 @@ async def import_project(
     function only flushes, so the import engine can compose it inside a
     larger transaction (per-chunk backup commits). RLS context must
     already point at the target guild.
+
+    ``links`` is the job's collector. Each task registers itself under the
+    ``external_ref`` its envelope gave, and the links it asserts are recorded
+    for the deferred pass — nothing is resolved here, because the far end is
+    usually in an entry that has not been applied yet.
     """
     if not (MIN_SUPPORTED_IMPORT_VERSION <= envelope.schema_version <= SCHEMA_VERSION):
         raise HTTPException(
@@ -198,9 +208,10 @@ async def import_project(
 
     # 5. Tasks
     assignee_match_count = 0
+    comment_count = 0
     unmatched_handles: set[str] = set()
     for t in envelope.tasks:
-        matched = await _import_task(
+        matched, comments_made = await _import_task(
             session,
             envelope_task=t,
             project_id=project.id,
@@ -213,8 +224,10 @@ async def import_project(
             prop_key_to_id=prop_key_to_id,
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
+            links=links,
         )
         assignee_match_count += matched
+        comment_count += comments_made
 
     await session.flush()
 
@@ -229,6 +242,7 @@ async def import_project(
         property_rename_count=property_rename_count,
         assignee_match_count=assignee_match_count,
         assignee_unmatched_handles=sorted(unmatched_handles),
+        comment_count=comment_count,
     )
 
 
@@ -268,9 +282,10 @@ async def _import_task(
     prop_key_to_id: dict[tuple[str, PropertyType], int],
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
-) -> int:
-    """Insert one task, its checklist, tags, assignees, and property
-    values. Returns the number of distinct assignees matched & linked.
+    links: LinkCollector | None = None,
+) -> tuple[int, int]:
+    """Insert one task, its checklist, tags, assignees, property values and
+    comments. Returns (assignees matched & linked, comments written).
     """
     status_id = status_name_to_id.get(envelope_task.status_name) or default_status_id
     if status_id is None:
@@ -297,6 +312,12 @@ async def _import_task(
         archived_at=envelope_task.archived_at,
         completed_at=envelope_task.completed_at,
         created_by=importer_id,
+        # When the work was written down, where the envelope says so. An
+        # envelope that carries neither leaves the model's own default — the
+        # moment of the import, which is the only time this row can honestly
+        # claim. ``None`` would be a lie of a different kind: the column is
+        # NOT NULL and every reader treats it as "when this appeared".
+        **_timestamps(envelope_task),
         checklist=[
             {
                 "id": mint_checklist_item_id(),
@@ -358,4 +379,62 @@ async def _import_task(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )
 
-    return len(seen_user_ids)
+    # What this task was called at the source, and what it says it points at.
+    # Both are handed to the job's collector and resolved once every entry has
+    # been applied — see ``import_engine.links``.
+    if links is not None:
+        links.register(envelope_task.external_ref, SearchEntityType.task, task.id)
+        for link in envelope_task.links:
+            links.link(envelope_task.external_ref, link.type, link.target_external_ref)
+
+    comment_count = 0
+    for envelope_comment in envelope_task.comments:
+        body = _comment_body(envelope_comment)
+        if not body:
+            continue
+        session.add(
+            Comment(
+                task_id=task.id,
+                guild_id=guild_id,
+                content=body,
+                created_by=importer_id,
+                created_at=envelope_comment.created_at or datetime.now(timezone.utc),
+            )
+        )
+        comment_count += 1
+
+    return len(seen_user_ids), comment_count
+
+
+def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:
+    """The creation/update times to write, if the envelope carried any.
+
+    Returned as kwargs rather than values so an absent field falls through to
+    the model's own default instead of overwriting it with None.
+    """
+    stamps: dict[str, datetime] = {}
+    if envelope_task.created_at is not None:
+        stamps["created_at"] = envelope_task.created_at
+    if envelope_task.updated_at is not None:
+        stamps["updated_at"] = envelope_task.updated_at
+    return stamps
+
+
+def _comment_body(envelope_comment: ProjectExportComment) -> str:
+    """One imported comment's text, with its original author named in it.
+
+    Authorship is deliberately NOT transferred — see the note on the
+    ``comments`` model. A comment is first-person speech, and an envelope is
+    text the importing user supplied, so matching a handle to a member of the
+    target initiative would let anyone who can craft an envelope put words in
+    that member's mouth. The row is therefore the importer's, and who actually
+    said it is recorded where it cannot be mistaken for the app's own claim:
+    in the comment, as the first line a reader sees.
+    """
+    body = (envelope_comment.body or "").strip()
+    if not body:
+        return ""
+    who = (envelope_comment.author_name or envelope_comment.author_handle or "").strip()
+    if not who:
+        return body
+    return f"*Originally by {who}*\n\n{body}"

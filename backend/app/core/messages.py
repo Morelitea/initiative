@@ -717,6 +717,21 @@ class ImportEngineMessages:
     IMPORT_PERMISSION_REQUIRED = "IMPORT_PERMISSION_REQUIRED"
     IMPORT_TOOL_DISABLED = "IMPORT_TOOL_DISABLED"
 
+    # Reading a foreign source. These name what the SOURCE said or did, which
+    # is a different thing from anything the envelope path can go wrong at:
+    # the person has to fix something at the other end, not in this app.
+    #: The site did not answer, or did not answer as a site of this kind.
+    IMPORT_SOURCE_UNREACHABLE = "IMPORT_SOURCE_UNREACHABLE"
+    #: The credential was refused, or it does not reach what was asked for.
+    IMPORT_SOURCE_AUTH = "IMPORT_SOURCE_AUTH"
+    #: The site asked us to slow down more than the job is willing to wait.
+    IMPORT_SOURCE_RATE_LIMITED = "IMPORT_SOURCE_RATE_LIMITED"
+    #: The address resolves inside a private network, which this client will
+    #: not connect to — the same rule webhooks and the AI client follow.
+    IMPORT_SOURCE_PRIVATE_HOST = "IMPORT_SOURCE_PRIVATE_HOST"
+    #: The request named nothing to bring over.
+    IMPORT_SOURCE_NOTHING_SELECTED = "IMPORT_SOURCE_NOTHING_SELECTED"
+
 
 class QueryMessages:
     INVALID_CONDITIONS = "QUERY_INVALID_CONDITIONS"

@@ -470,6 +470,7 @@ class _ScopeBuilder:
         await self._add_posts(initiative, folder)
         await self._add_wikis(initiative, folder)
         await self._add_galleries(initiative, folder)
+        await self._link_wiki_documents(initiative)
 
     # -- per-tool chunks -----------------------------------------------------
 
@@ -759,6 +760,75 @@ class _ScopeBuilder:
                 title=wiki.name,
                 initiative_id=initiative.id,
             )
+
+    async def _link_wiki_documents(self, initiative) -> None:
+        """Say which wiki each file document sits in, now that both entries
+        exist.
+
+        A document joins a wiki by an edge (``document part_of wiki``), not
+        by a column, and the edge names rows this archive is about to stop
+        being able to identify. So it crosses as ``attach_to`` on the
+        document's own entry, naming the wiki by **entry path** — which is
+        the one thing both sides agree on — and the importer rebuilds the
+        edge once both ends have been applied.
+
+        Runs after both tools have been written for this initiative, because
+        documents are added before wikis and a path cannot be named before it
+        exists. A document in more than one wiki keeps the first: one entry
+        carries one placement, and a second copy of the file is not what the
+        edge said.
+        """
+        if self.mode != "backup":
+            return
+        from sqlmodel import select
+
+        from app.core.relationships import RelationshipType, node_id
+        from app.core.search import SearchEntityType
+        from app.models.tenant.relationship import EntityRelationship
+        from app.schemas.tenant.backup_export import ManifestAttachTo
+
+        wiki_paths = {
+            entry.entity_id: entry.path
+            for entry in self.entries
+            if entry.tool == "wiki"
+            and entry.type == "initiative-wiki"
+            and entry.initiative_id == initiative.id
+        }
+        file_entries = {
+            entry.entity_id: entry
+            for entry in self.entries
+            if entry.type == "file" and entry.initiative_id == initiative.id
+        }
+        if not wiki_paths or not file_entries:
+            return
+
+        edges = (
+            await self.session.exec(
+                select(EntityRelationship).where(
+                    EntityRelationship.source_node.in_(
+                        [
+                            node_id(SearchEntityType.document, document_id)
+                            for document_id in file_entries
+                        ]
+                    ),
+                    EntityRelationship.target_node.in_(
+                        [
+                            node_id(SearchEntityType.wiki, wiki_id)
+                            for wiki_id in wiki_paths
+                        ]
+                    ),
+                    EntityRelationship.relationship_type
+                    == RelationshipType.part_of.value,
+                    EntityRelationship.removed_at.is_(None),
+                )
+            )
+        ).all()
+        for edge in edges:
+            entry = file_entries.get(edge.source_id)
+            path = wiki_paths.get(edge.target_id)
+            if entry is None or path is None or entry.attach_to is not None:
+                continue
+            entry.attach_to = ManifestAttachTo(kind="wiki", ref=path)
 
     async def _add_galleries(self, initiative, folder: str) -> None:
         """Every gallery in this initiative: one envelope each, and its

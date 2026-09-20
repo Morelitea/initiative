@@ -95,5 +95,10 @@ class BackupImportResult(SanitizedBaseModel):
     assets_restored: int = 0
     assets_deduped: int = 0
     asset_bytes: int = 0
+    # Edges the deferred pass wrote, and the ones whose far end was never
+    # imported — a link out of the selection is ordinary, and counted rather
+    # than treated as a failure.
+    links_created: int = 0
+    links_unresolved: int = 0
     unmatched_handles: list[str] = []
     warnings: list[str] = []

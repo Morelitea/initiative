@@ -23,6 +23,20 @@ BACKUP_SCHEMA_VERSION = 1
 MIN_SUPPORTED_IMPORT_VERSION = 1
 
 
+class ManifestAttachTo(SanitizedBaseModel):
+    """Where an entry belongs once both ends of the archive exist.
+
+    A file document has one home — the initiative's document list — and this
+    says what it is *also* filed in, as the relation that is the second view
+    of it. It names the far end by **manifest entry path**, not by id, for the
+    reason every cross-entry reference does: an id means nothing until the
+    entry it names has been applied, and entries apply in tool order.
+    """
+
+    kind: str  # "wiki"
+    ref: str  # the far end's manifest entry path
+
+
 class ManifestEntry(SanitizedBaseModel):
     """One exported file inside the archive."""
 
@@ -40,6 +54,9 @@ class ManifestEntry(SanitizedBaseModel):
     properties: list[dict] = []
     # ``assets/{storage_key}`` for file documents (the blob IS the document).
     asset: Optional[str] = None
+    # What this entry is filed in besides its own list, resolved after every
+    # entry has been applied. Absent for everything that is only where it is.
+    attach_to: Optional[ManifestAttachTo] = None
 
 
 class ManifestAsset(SanitizedBaseModel):
@@ -69,6 +86,11 @@ class ManifestInitiative(SanitizedBaseModel):
     color: Optional[str] = None
     # tool -> "included" | "excluded" | "disabled" (per-initiative flag off)
     tools: dict[str, str]
+    # Apply into an initiative that already exists, rather than creating one.
+    # An exporter never writes this — a backup describes where it came from,
+    # not where it is going. A foreign source (an Atlassian fetch) writes it,
+    # because a Jira project belongs in an initiative somebody already runs.
+    target_initiative_id: Optional[int] = None
 
 
 class BackupManifest(SanitizedBaseModel):
