@@ -162,7 +162,7 @@ export const LandingCinematic = () => {
   // Somebody already signed in has no business on the front door.
   useEffect(() => {
     if (!loading && token) {
-      router.navigate({ to: "/tasks", replace: true });
+      router.navigate({ to: "/", replace: true });
     }
   }, [token, loading, router]);
 

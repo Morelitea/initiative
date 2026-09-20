@@ -15,7 +15,7 @@ filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
 
 Phases delivered here:
 - ``LocalFilesystemStorage`` — files under ``UPLOADS_DIR/guild_<id>/`` (same
-  per-guild layout as S3; legacy flat files are relocated on boot).
+  per-guild layout as S3).
 - ``S3Storage`` — boto3 against any S3-compatible endpoint; serves via streaming
   proxy (:func:`build_upload_response`) and can presign for opt-in offload.
 
@@ -125,10 +125,6 @@ class LocalFilesystemStorage:
     can never escape the (prefixed) base directory; this centralizes the
     path-traversal guard the two serve endpoints previously duplicated. The
     directory is created on demand.
-
-    (Legacy flat files written before this layout are relocated into their
-    ``guild_<id>/`` subdir by the one-time startup migration in
-    ``app.db.local_upload_migration``.)
     """
 
     def __init__(self, base_dir: str | None = None, prefix: str = "") -> None:
