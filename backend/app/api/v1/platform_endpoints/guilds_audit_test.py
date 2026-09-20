@@ -384,7 +384,9 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
 async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
     client: AsyncClient, session: AsyncSession, capfd
 ):
-    admin, guild = await _guild_with_admin(session, name="To Delete")
+    admin, guild = await _guild_with_admin(
+        session, name="To Delete", role=GuildRole.superadmin
+    )
     admin_id, guild_id = admin.id, guild.id
     capfd.readouterr()
 
@@ -413,7 +415,9 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
 async def test_a_refused_guild_deletion_records_nothing(
     client: AsyncClient, session: AsyncSession, capfd
 ):
-    admin, guild = await _guild_with_admin(session, name="To Delete")
+    admin, guild = await _guild_with_admin(
+        session, name="To Delete", role=GuildRole.superadmin
+    )
     capfd.readouterr()
 
     response = await client.request(

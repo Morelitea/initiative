@@ -351,5 +351,14 @@
     "kept": "Algunas cosas permanecen y ya no te nombran: el trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada.",
     "unexpected": "Si no has pedido esto, escribe cuanto antes a quien administre tu servidor de Initiative.",
     "textBody": "La cuenta de Initiative asociada a esta dirección ha sido eliminada, junto con los datos personales que se guardaban con ella. El trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} ha sido eliminada",
+    "title": "{{community}} ha sido eliminada",
+    "greeting": "Hola:",
+    "body": "La comunidad <strong>{{community}}</strong> ha sido eliminada. Sus miembros ya no la ven y no se puede acceder a nada de lo que contenía.",
+    "recoverable": "Todavía no se ha destruido nada. Hasta el <strong>{{date}}</strong>, quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
+    "recoverableNoDate": "No se ha destruido nada. Quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
+    "textBody": "La comunidad {{community}} ha sido eliminada. Sus miembros ya no la ven. Todavía no se ha destruido nada y quien administre este servidor puede restaurarla."
   }
 }

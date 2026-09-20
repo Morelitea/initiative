@@ -7,6 +7,7 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
@@ -790,6 +791,82 @@ async def announce_account_erased(
         logger.info("no mail configured; erasure not acknowledged by letter")
     except Exception:  # pragma: no cover - delivery is best-effort here
         logger.exception("could not send the erasure receipt")
+
+
+async def send_community_deleted_email(
+    session: AsyncSession,
+    *,
+    recipients: list[str],
+    community: str,
+    purge_at: datetime | None,
+    locale: str = "en",
+) -> None:
+    """Tell the people who ran a community that it is gone.
+
+    Its members learn from it leaving their lists, which is the thing they can
+    act on. The people who ran it get this, because the one action left —
+    asking an operator to put it back — is theirs, and it has a deadline.
+    """
+    settings_obj, accent = await _email_context(session)
+    recoverable = (
+        email_t(
+            "communityDeleted.recoverable",
+            locale=locale,
+            date=purge_at.strftime("%-d %B %Y"),
+        )
+        if purge_at is not None
+        else email_t("communityDeleted.recoverableNoDate", locale=locale)
+    )
+    body = f"""
+    <p>{email_t("communityDeleted.greeting", locale=locale)}</p>
+    <p>{email_t("communityDeleted.body", locale=locale, community=community)}</p>
+    <p>{recoverable}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("communityDeleted.title", locale=locale, community=community),
+        body,
+        accent,
+        locale=locale,
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t(
+            "communityDeleted.subject", locale=locale, community=community, escape=False
+        ),
+        html_body=html_body,
+        text_body=email_t(
+            "communityDeleted.textBody",
+            locale=locale,
+            community=community,
+            escape=False,
+        ),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_community_deleted(
+    session: AsyncSession, notice, *, locale: str = "en"
+) -> None:
+    """Send the receipt, and never fail the deletion because it could not go.
+
+    By the time this runs the community is deleted and committed. A deployment
+    with no mail configured still deleted it.
+    """
+    if not notice.recipients:
+        return
+    try:
+        await send_community_deleted_email(
+            session,
+            recipients=notice.recipients,
+            community=notice.community_name,
+            purge_at=notice.purge_at,
+            locale=locale,
+        )
+    except EmailNotConfiguredError:
+        logger.info("no mail configured; community deletion not acknowledged")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the community deletion receipt")
 
 
 async def send_second_factor_changed_email(
