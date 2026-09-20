@@ -69,7 +69,61 @@ It never claims something you can't see doesn't exist, and it never leaves a hol
 
 ## Going further than a link
 
-Inside a text document, a **smart chip** shows what a thing is currently *doing*, not just what it's called. See [Documents](documents.md#smart-chips).
+Inside a text document, a **smart chip** shows what a thing is currently *doing*, not just what it's called — a task's column, an event's date, a counter against its target, a project as **1 / 3** of its tasks done. See [Documents](documents.md#smart-chips).
+
+The same readings show up on anything you've linked, so a relation is never just a name.
+
+## Relations
+
+A `#` link says *that* two things are connected. A **relation** says *how*.
+
+Every task, document and project has a panel for them. Add one and you get a
+sentence with both names in it:
+
+> **This task** *is blocked by* **Order the marquee**
+
+Find the thing first. The wording is a dropdown in the middle, and you can
+change it after — so you never have to know the vocabulary before you start
+typing.
+
+| Heading | What it means |
+|---|---|
+| **Attached** | The documents and files this runs on |
+| **Blocked by** | What has to happen first |
+| **Blocking** | What's waiting on this |
+| **Part of** | The bigger thing this belongs to |
+| **Made up of** | The pieces it's built from |
+| **See also** | Related. No stronger claim than that |
+| **Mentioned in** | Everything pointing here |
+
+**Mentioned in** writes itself — it's the backlinks from `#` and `[[ ]]` above.
+Edit the words and it follows.
+
+### "Blocked by" earns its keep
+
+A task waiting on something says so on the board and in the list, and the count
+only counts the things that haven't finished. Mark the blocker done and the
+mark goes away on its own. Nobody has to remember to tidy up.
+
+What counts as finished depends on what it is:
+
+| | Stops blocking when |
+|---|---|
+| A task | It reaches a **Done** column |
+| A project | Every task in it is done — an empty one hasn't finished anything yet, so it still counts |
+| An event | It's been and gone — a repeating one never counts, having no last time |
+| A counter | It reaches its target |
+
+Archived tasks sit it out, so shelving something doesn't keep a project open
+forever.
+
+Anything else — a document, a gallery, a wiki page — still shows up as a link,
+and still sits there under **Blocked by** if that's what you said. It just
+isn't counted, because nothing about a document says when it's done.
+
+!!! tip "The panel remembers how you like it"
+    Tiles, a list, a carousel, or a graph of everything within a hop or two.
+    Pick one and that page keeps it.
 
 ## Related
 

@@ -33,6 +33,7 @@ import {
   type RelationshipRead,
   RelationshipType,
   type SearchEntityType,
+  SearchEntityType as SearchEntityTypeValues,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { Direction } from "@/api/relationships";
 import type { SearchTarget } from "@/lib/searchResults";
@@ -152,6 +153,66 @@ export const RELATION_GROUP_ORDER: RelationGroupKey[] = [
 export const ASSERTABLE_GROUPS: RelationGroup[] = RELATION_GROUP_ORDER.map(
   (key) => RELATION_GROUPS[key]
 ).filter((group) => group.assertable);
+
+/**
+ * The kinds that are a thing you attach rather than a thing you depend on.
+ *
+ * A document or a picture is almost always evidence about the work rather than
+ * a step in it, so a link touching one reads as "attached" unless somebody says
+ * otherwise.
+ */
+const FILE_LIKE: ReadonlySet<SearchEntityType> = new Set([
+  SearchEntityTypeValues.document,
+  SearchEntityTypeValues.gallery_image,
+]);
+
+/**
+ * The link to offer first, given what was picked.
+ *
+ * The dialog asks for the thing before it asks what the link says, so by the
+ * time this is consulted both ends are known and the common case can be
+ * answered for the reader. What it answers is deliberately the least committal
+ * reading that is still accurate:
+ *
+ * **It never proposes a dependency.** "Blocked by" is a claim with consequences
+ * — it shows on the board, it counts, it says somebody is waiting — and it is
+ * not one to assert on a reader's behalf because they picked a task. Leaving
+ * the sentence saying something harmless but not quite right is also what
+ * teaches people the verb is theirs to change; a guess that happens to be right
+ * teaches nothing, and a guess that is wrong is worse than a default.
+ * {@link groupOrderFor} promotes it in the list instead, where choosing it is
+ * one click and still a choice.
+ */
+export const defaultGroupFor = (
+  anchor: SearchEntityType,
+  picked: SearchEntityType
+): RelationGroupKey => {
+  if (FILE_LIKE.has(picked) || FILE_LIKE.has(anchor)) return "attached";
+  if (anchor === picked) return "related";
+  return "attached";
+};
+
+/**
+ * The order to offer links in for this pair of things.
+ *
+ * Only the order changes — every group a reader may assert is still in the
+ * list. Two things of the same kind are usually sequenced rather than filed, so
+ * the dependency pair rises to where it can be found without reading the whole
+ * menu.
+ */
+export const groupOrderFor = (
+  anchor: SearchEntityType,
+  picked: SearchEntityType,
+  groups: RelationGroup[]
+): RelationGroup[] => {
+  const promoted: RelationGroupKey[] =
+    anchor === picked && !FILE_LIKE.has(anchor) ? ["blockedBy", "blocks"] : [];
+  const rank = (group: RelationGroup) => {
+    const index = promoted.indexOf(group.key);
+    return index === -1 ? promoted.length : index;
+  };
+  return [...groups].sort((a, b) => rank(a) - rank(b));
+};
 
 /**
  * The edge a group asserts, written as the API takes it.

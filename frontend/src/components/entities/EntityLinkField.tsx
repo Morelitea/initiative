@@ -89,6 +89,7 @@ export const EntityLinkField = ({
                   mime_type: null,
                   original_filename: null,
                   smart_link_url: null,
+                  is_open: null,
                 }}
                 onRemove={
                   readOnly

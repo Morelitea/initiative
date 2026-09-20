@@ -347,6 +347,7 @@
       "assignee": "Personne assignée",
       "due": "Date d'échéance",
       "priority": "Priorité",
+      "progress": "Avancement",
       "status": "Statut",
       "value": "Valeur",
       "when": "Date"
@@ -359,6 +360,7 @@
     "none": "Aucun",
     "nothingYet": "Rien à désigner dans cette initiative pour l’instant.",
     "openHint": "Cliquez pour ouvrir",
+    "projectProgress": "Avancement du projet",
     "recent": "Modifié récemment",
     "scopeHint": "Seule l’initiative de ce document peut être nommée ici.",
     "searchPlaceholder": "Cherchez quelque chose à afficher",

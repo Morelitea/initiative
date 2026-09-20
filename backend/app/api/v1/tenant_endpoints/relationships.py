@@ -242,6 +242,7 @@ def _render(
             mime_type=found.mime_type,
             original_filename=found.original_filename,
             smart_link_url=found.smart_link_url,
+            is_open=found.is_open,
         ),
         provenance=row.provenance,
         confidence=row.confidence,

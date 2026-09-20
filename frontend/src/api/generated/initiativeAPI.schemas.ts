@@ -1657,6 +1657,7 @@ export interface TaskListRead {
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
   comment_count: number;
+  blocked_by_open_count: number;
   guild_id: number | null;
   guild_name: string | null;
   project_name: string | null;
@@ -6844,6 +6845,7 @@ export interface RelatedEnd {
   mime_type: string | null;
   original_filename: string | null;
   smart_link_url: string | null;
+  is_open: boolean | null;
 }
 
 /**
@@ -7151,6 +7153,7 @@ export const SmartChipAspect = {
   priority: "priority",
   value: "value",
   when: "when",
+  progress: "progress",
 } as const;
 
 export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
@@ -7158,6 +7161,7 @@ export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
 export const SmartChipKind = {
   "calendar_event:when": "calendar_event:when",
   "counter:value": "counter:value",
+  "project:progress": "project:progress",
   "task:assignee": "task:assignee",
   "task:due": "task:due",
   "task:priority": "task:priority",
@@ -7595,6 +7599,7 @@ export interface TaskRead {
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
   comment_count: number;
+  blocked_by_open_count: number;
   guild: GuildSummary | null;
   project: TaskProjectSummary | null;
   checklist: ChecklistItem[];
@@ -9857,7 +9862,7 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
 
 export type ReadSmartChipsApiV1GGuildIdSmartChipsGetParams = {
   /**
-   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, task:assignee, task:due, task:priority, task:status
+   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status
    * @maxItems 100
    */
   ref?: string[];

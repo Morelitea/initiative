@@ -30,6 +30,8 @@ class SmartChipAspect(str, Enum):
     value = "value"
     #: When something happens, and whether it has.
     when = "when"
+    #: How much of the work in something is finished.
+    progress = "progress"
 
 
 class SmartChipTone(str, Enum):
@@ -58,6 +60,7 @@ class SmartChipTone(str, Enum):
 SMART_CHIP_KINDS: tuple[tuple[SearchEntityType, SmartChipAspect], ...] = (
     (SearchEntityType.calendar_event, SmartChipAspect.when),
     (SearchEntityType.counter, SmartChipAspect.value),
+    (SearchEntityType.project, SmartChipAspect.progress),
     (SearchEntityType.task, SmartChipAspect.assignee),
     (SearchEntityType.task, SmartChipAspect.due),
     (SearchEntityType.task, SmartChipAspect.priority),

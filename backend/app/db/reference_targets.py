@@ -29,6 +29,7 @@ from sqlmodel import SQLModel
 from app.core.references import NOT_REFERENCEABLE
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.blocking import open_expr
 from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
 
@@ -406,6 +407,10 @@ class Resolved:
     mime_type: str | None = None
     original_filename: str | None = None
     smart_link_url: str | None = None
+    #: Whether this row is still outstanding — still capable of holding
+    #: something else up. None for a kind that never finishes, which is most of
+    #: them; see :mod:`app.db.blocking`.
+    is_open: bool | None = None
 
 
 async def resolve_many(
@@ -437,6 +442,7 @@ async def resolve_many(
     )
     tool, tool_id = _governing_tool(table_name, table)
     container, tool_title = _container_title(table_name, table, tool)
+    is_open = open_expr(table_name, table)
 
     stmt = select(
         table.c["id"],
@@ -453,6 +459,7 @@ async def resolve_many(
         filename,
         link_url,
         tool_title,
+        is_open,
     ).select_from(table)
     if container is not None:
         # Left: a container this reader cannot see leaves the name blank rather
@@ -483,6 +490,7 @@ async def resolve_many(
             original_filename=row[11],
             smart_link_url=row[12],
             tool_title=row[13],
+            is_open=None if row[14] is None else bool(row[14]),
         )
         for row in rows.all()
     }

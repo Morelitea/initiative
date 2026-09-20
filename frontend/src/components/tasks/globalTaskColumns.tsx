@@ -7,6 +7,7 @@ import {
   type TaskStatusRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -206,6 +207,7 @@ export function globalTaskColumns({
               >
                 {task.title}
               </Link>
+              <TaskBlockersHoverCard task={task} />
               <TaskDescriptionHoverCard task={task} />
             </div>
             <div className="space-y-1 text-muted-foreground text-xs">

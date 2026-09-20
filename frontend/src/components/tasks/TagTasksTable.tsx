@@ -18,6 +18,7 @@ import {
 import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -351,6 +352,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
               >
                 {task.title}
               </Link>
+              <TaskBlockersHoverCard task={task} />
               <TaskDescriptionHoverCard task={task} />
             </div>
             <TaskChecklistProgress

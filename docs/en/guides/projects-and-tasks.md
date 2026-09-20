@@ -182,5 +182,6 @@ Next time, start *from* it and skip the fiddling. Ideal for anything you do more
 
 ## Related
 
+- [Mentions & links](mentions-and-links.md#relations) — saying a task is blocked by another.
 - [Tags](tags.md) — labelling and filtering.
 - [Your space](your-space.md) — all your tasks, from every project and community at once.

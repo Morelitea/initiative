@@ -96,6 +96,11 @@ class RelatedEnd(SanitizedBaseModel):
     mime_type: Optional[str] = None
     original_filename: Optional[str] = None
     smart_link_url: Optional[str] = None
+    #: Whether the far end is still outstanding — whether, were this a
+    #: ``depends_on`` edge, it would still be holding the anchor up. None for a
+    #: kind that has no notion of finishing, which is most of them: a document
+    #: is never "done". See :mod:`app.db.blocking`.
+    is_open: Optional[bool] = None
 
 
 class RelationshipRead(SanitizedBaseModel):

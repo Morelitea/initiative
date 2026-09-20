@@ -198,6 +198,45 @@ async def test_a_counter_reads_its_number_and_its_ceiling(
     assert state["tone"] == "neutral"
 
 
+async def test_a_project_reads_how_much_of_its_work_is_done(
+    client, session, acting_user: ActingUser
+) -> None:
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, status_category=TaskStatusCategory.done)
+    await create_task(session, a.project, status_category=TaskStatusCategory.todo)
+    await create_task(session, a.project, status_category=TaskStatusCategory.todo)
+
+    body = await _chips(client, a, f"project:{a.project.id}:progress")
+    state = body[f"project:{a.project.id}:progress"]
+    assert state["text"] == "1 / 3"
+    assert state["tone"] == "neutral"
+
+
+async def test_a_project_with_all_its_work_done_reads_as_arrived(
+    client, session, acting_user: ActingUser
+) -> None:
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, status_category=TaskStatusCategory.done)
+    await create_task(session, a.project, status_category=TaskStatusCategory.done)
+
+    body = await _chips(client, a, f"project:{a.project.id}:progress")
+    state = body[f"project:{a.project.id}:progress"]
+    assert state["text"] == "2 / 2"
+    assert state["tone"] == "good"
+
+
+async def test_a_project_with_no_work_in_it_does_not_read_as_finished(
+    client, session, acting_user: ActingUser
+) -> None:
+    """0 / 0 is not an achievement."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    body = await _chips(client, a, f"project:{a.project.id}:progress")
+    state = body[f"project:{a.project.id}:progress"]
+    assert state["text"] == "0 / 0"
+    assert state["tone"] == "muted"
+
+
 async def test_a_counter_at_its_ceiling_reads_as_arrived(
     client, session, acting_user: ActingUser
 ) -> None:
