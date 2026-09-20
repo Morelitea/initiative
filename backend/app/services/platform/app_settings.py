@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -100,12 +101,12 @@ async def _session_can_write_app_settings(session: AsyncSession) -> bool:
     After Phase 2 ``app_settings`` is owner-only at the GRANT layer (write granted
     only to ``platform_owner`` + the ``app_admin`` engine; revoked from ``app_user``,
     ``platform_base``, and ``app_guild_base``), and that GRANT is the single writer
-    gate. A non-owner session that reads config and would lazily create / env-reseed
-    the singleton must NOT attempt the write: an ORM flush failure dooms the whole
-    session transaction (a SAVEPOINT doesn't isolate a failed flush the way it does a
-    plain statement). So we probe the grant up front and skip the write, serving an
-    in-memory env-correct value instead. ``has_table_privilege`` respects role
-    inheritance, so it is authoritative now that the grant alone gates writes.
+    gate. Boot asks this before seeding the singleton, so a deployment whose
+    system engine cannot write the table serves the env-seeded defaults in
+    memory instead of faulting: a failed flush dooms the whole session
+    transaction (a SAVEPOINT doesn't isolate one the way it does a plain
+    statement). ``has_table_privilege`` respects role inheritance, so it is
+    authoritative now that the grant alone gates writes.
     """
     return bool(
         await session.scalar(
@@ -120,20 +121,56 @@ async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -
     await session.refresh(settings_row)
 
 
-async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
+async def _stored_app_settings(session: AsyncSession) -> AppSetting | None:
     stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
     result = await session.exec(stmt)
-    settings_row = result.one_or_none()
-    if settings_row:
-        # NOTE: an existing row is served as-is — env values seed a *new* row
-        # once (_build_default_app_settings); after that the DB is
-        # authoritative. (The OIDC env values now seed the platform provider
-        # registry row instead — see platform_provider.seed_platform_provider_from_env.)
+    return result.one_or_none()
+
+
+async def ensure_settings_row(session: AsyncSession) -> AppSetting:
+    """The stored singleton, put in place here if boot has not already.
+
+    For callers that are about to write the row or lock it, and so need a
+    stored row rather than the transient value a read is served. The INSERT
+    joins the caller's transaction and does not end it; a row another
+    connection inserted first is kept rather than overwritten.
+
+    The caller must hold write access to the table — every caller does, since
+    it is on its way to a write. A read wants :func:`get_app_settings`.
+    """
+    settings_row = await _stored_app_settings(session)
+    if settings_row is not None:
         return settings_row
-    app_settings = _build_default_app_settings()
-    if await _session_can_write_app_settings(session):
-        await _write_app_settings(session, app_settings)
-    return app_settings
+    defaults = _build_default_app_settings()
+    columns = AppSetting.__table__.columns
+    await session.exec(
+        pg_insert(AppSetting.__table__)
+        .values({name: getattr(defaults, name) for name in columns.keys()})
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    settings_row = await _stored_app_settings(session)
+    if settings_row is None:  # pragma: no cover - the INSERT landed or conflicted
+        raise RuntimeError("app_settings singleton could not be created")
+    return settings_row
+
+
+async def seed_app_settings(session: AsyncSession) -> AppSetting:
+    """Create the settings singleton, once, at boot.
+
+    This is the only place the row is created outside a write somebody asked
+    for, and it runs on the system engine before any request is served. A
+    deployment whose session cannot write the table gets the env-seeded
+    defaults in memory and no row, which is what it had before.
+    """
+    settings_row = await _stored_app_settings(session)
+    if settings_row is not None:
+        return settings_row
+    if not await _session_can_write_app_settings(session):
+        return _build_default_app_settings()
+    settings_row = await ensure_settings_row(session)
+    await session.commit()
+    await session.refresh(settings_row)
+    return settings_row
 
 
 async def record_running_version(session: AsyncSession, *, version: str) -> str | None:
@@ -148,10 +185,10 @@ async def record_running_version(session: AsyncSession, *, version: str) -> str 
     Idempotent across restarts on the same version: the pair only moves when
     the running version actually changed.
     """
-    settings_row = await _ensure_app_settings(session)
-    if settings_row.last_seen_version == version:
-        return settings_row.previous_version
     if not await _session_can_write_app_settings(session):
+        return (await get_app_settings(session)).previous_version
+    settings_row = await ensure_settings_row(session)
+    if settings_row.last_seen_version == version:
         return settings_row.previous_version
     settings_row.previous_version = settings_row.last_seen_version
     settings_row.last_seen_version = version
@@ -161,20 +198,26 @@ async def record_running_version(session: AsyncSession, *, version: str) -> str 
 
 async def previous_running_version(session: AsyncSession) -> str | None:
     """What this deployment was running before its current version, if anything."""
-    settings_row = await _ensure_app_settings(session)
-    return settings_row.previous_version
+    return (await get_app_settings(session)).previous_version
 
 
-async def get_app_settings(
-    session: AsyncSession, *, force_refresh: bool = False
-) -> AppSetting:
-    if force_refresh:
-        stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
-        result = await session.exec(stmt)
-        row = result.one_or_none()
-        if row:
-            return row
-    return await _ensure_app_settings(session)
+async def get_app_settings(session: AsyncSession) -> AppSetting:
+    """What this deployment's configuration says — a read, and only a read.
+
+    Boot puts the singleton in place (:func:`seed_app_settings`). Until it has,
+    or where it could not, the caller is served the env-seeded defaults as a
+    value that is not attached to the session: reading configuration writes
+    nothing, and so never ends the transaction of whoever asked.
+
+    An existing row is served as-is — env values seed a *new* row once
+    (``_build_default_app_settings``); after that the database is
+    authoritative. (The OIDC env values seed the platform provider registry row
+    instead — see ``platform_provider.seed_platform_provider_from_env``.)
+    """
+    settings_row = await _stored_app_settings(session)
+    if settings_row is not None:
+        return settings_row
+    return _build_default_app_settings()
 
 
 # Which columns of the settings singleton each area of the owner's settings
@@ -247,7 +290,7 @@ async def update_interface_colors(
     dark_accent_color: str,
     actor_user_id: int | None = None,
 ) -> AppSetting:
-    settings_row = await _ensure_app_settings(session)
+    settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, INTERFACE_FIELDS)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
@@ -341,7 +384,7 @@ async def update_community_settings(
     is destroyed, because the date is counted from each deletion rather than
     stamped at the time.
     """
-    settings_row = await _ensure_app_settings(session)
+    settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, COMMUNITY_FIELDS)
     settings_row.community_directory_enabled = bool(community_directory_enabled)
     if community_age_gate_enabled is not None:
@@ -382,7 +425,7 @@ async def update_email_settings(
     test_recipient: str | None,
     actor_user_id: int | None = None,
 ) -> AppSetting:
-    settings_row = await _ensure_app_settings(session)
+    settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, EMAIL_FIELDS)
     settings_row.smtp_host = _normalize_optional_string(host)
     settings_row.smtp_port = port if port else None
@@ -429,7 +472,7 @@ async def update_storage_settings(
     s3_local_fallback: bool,
     actor_user_id: int | None = None,
 ) -> AppSetting:
-    settings_row = await _ensure_app_settings(session)
+    settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, STORAGE_FIELDS)
     settings_row.storage_backend = (backend or "local").lower()
     settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
@@ -469,7 +512,7 @@ async def update_storage_settings(
 
 
 async def ensure_defaults(session: AsyncSession) -> None:
-    await _ensure_app_settings(session)
+    await seed_app_settings(session)
     primary_guild_id = await guilds_service.get_primary_guild_id(session)
     # guild_settings is guild-scoped (lives only in the guild schema), so route
     # into the primary guild before seeding it — mirroring init_db.init(). On

@@ -271,6 +271,10 @@ async def init() -> None:
     await verify_effective_shared_grants()
     await init_owner()
     async with AdminSessionLocal() as session:
+        # The platform settings singleton, before anything reads it: a read
+        # serves defaults in memory rather than creating the row, so this is
+        # where it comes from on a database that has never had one.
+        await app_settings_service.seed_app_settings(session)
         # guild_settings is guild-scoped; route into the primary guild's schema so
         # the seeded settings row lands there, not in public. get_primary_guild_id
         # provisions the guild if it has to create it (no-FIRST_OWNER path).

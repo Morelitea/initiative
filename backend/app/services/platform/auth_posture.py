@@ -348,7 +348,7 @@ async def set_login_methods(
 
 async def _locked_settings(session: AsyncSession) -> AppSetting:
     """The settings row, held for the rest of this transaction."""
-    await app_settings_service.get_app_settings(session)
+    await app_settings_service.ensure_settings_row(session)
     return (
         await session.exec(
             select(AppSetting)
@@ -365,7 +365,7 @@ async def hold_settings_for_read(session: AsyncSession) -> AppSetting:
     Shared locks do not block each other, so concurrent guild admins proceed
     normally; only a write to this row waits.
     """
-    await app_settings_service.get_app_settings(session)
+    await app_settings_service.ensure_settings_row(session)
     return (
         await session.exec(
             select(AppSetting)

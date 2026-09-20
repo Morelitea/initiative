@@ -562,7 +562,7 @@ async def test_storage_settings_round_trip_never_returns_secret(
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
     from app.services.platform.app_settings import get_app_settings
 
-    row = await get_app_settings(session, force_refresh=True)
+    row = await get_app_settings(session)
     assert row.s3_secret_access_key_encrypted
     assert row.s3_secret_access_key_encrypted != "super-secret-value"
     assert (
@@ -598,7 +598,7 @@ async def test_storage_update_keeps_secret_when_omitted(
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
     from app.services.platform.app_settings import get_app_settings
 
-    row = await get_app_settings(session, force_refresh=True)
+    row = await get_app_settings(session)
     assert (
         decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
         == "super-secret-value"
