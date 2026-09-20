@@ -721,5 +721,6 @@
   "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "This server still requires a second factor. Lift that requirement first.",
   "LEGAL_NOT_CONFIGURED": "This deployment has no terms of its own.",
   "LEGAL_PORTAL_UNAVAILABLE": "The terms and privacy policy can't be reached right now. Please try again in a moment.",
-  "LEGAL_DOCUMENT_NOT_FOUND": "That document doesn't exist."
+  "LEGAL_DOCUMENT_NOT_FOUND": "That document doesn't exist.",
+  "ACCESS_GRANT_PASSKEY_INVALID": "That passkey did not answer. Try again, or use your authenticator code."
 }

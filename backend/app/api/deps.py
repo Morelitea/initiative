@@ -17,13 +17,16 @@ from app.core.auth_context import (
     set_api_key_credential,
     set_device_token_id,
     set_satisfied_providers,
-    set_session_mfa,
-    set_session_passkey,
+    set_session_amr,
     claims_from_provider_auth,
     set_satisfied_claims,
 )
 from app.services.auth import guild_provider_connections as guild_connections
-from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
+from app.services.auth.assurance import (
+    SECOND_FACTOR_AMR,
+    carries_passkey,
+    policy_markers,
+)
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
 from app.services.platform import auth_posture
@@ -313,8 +316,7 @@ async def get_current_user(
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
-    set_session_mfa(False)
-    set_session_passkey(False)
+    set_session_amr(None)
     set_device_token_id(None)
     # Not an API key until the branch below says so, which is the answer a
     # community that declines them admits.
@@ -386,12 +388,10 @@ async def get_current_user(
     # non-session credential never reaches this branch and leaves it empty.
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # The marker the sign-in wrote when a code was presented. Absent on every
-    # credential that is not a session.
-    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
-    # And which kind of key answered, where one did. A community asking for a
-    # passkey is asking for that; a code presented after a password is not it.
-    set_session_passkey(carries_passkey(token_data.amr or ()))
+    # What the sign-in wrote about how it was made — the second-factor marker
+    # where a code was presented, the passkey markers where a key answered.
+    # Empty on every credential that is not a session.
+    set_session_amr(policy_markers(token_data.amr))
 
     if not token_data.sub:
         raise HTTPException(
@@ -493,7 +493,7 @@ async def platform_factor_unmet(
     so the question costs that path no round trip of its own. Left out, it is
     read here.
     """
-    if auth_context.session_mfa():
+    if SECOND_FACTOR_AMR in auth_context.session_amr():
         auth_context.set_platform_factor(True)
         return False
     if level is None:
@@ -684,8 +684,7 @@ async def _enforce_guild_auth_policy(
     policy: GuildAuthPolicy | None,
     guild_id: int,
     satisfied: frozenset[int] | str,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    markers: frozenset[str] = frozenset(),
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -738,7 +737,7 @@ async def _enforce_guild_auth_policy(
     # And the account's own second factor, where the community asks for one.
     # The answer names no provider, so the step-up says a factor is what is
     # wanted rather than pointing at a sign-in page.
-    if LoginMethod.totp in policy.require_methods and not session_mfa:
+    if LoginMethod.totp in policy.require_methods and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -747,7 +746,7 @@ async def _enforce_guild_auth_policy(
     # And a passkey, where the community asks for one. Read from the passkey
     # markers rather than the factor's, so each method is answered by itself:
     # an assertion records the second factor as well as the key.
-    if LoginMethod.passkey in policy.require_methods and not session_passkey:
+    if LoginMethod.passkey in policy.require_methods and not carries_passkey(markers):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
@@ -935,8 +934,7 @@ async def _load_guild_context(
             policy,
             guild_id,
             satisfied,
-            auth_context.session_mfa(),
-            auth_context.session_passkey(),
+            auth_context.session_amr(),
         )
         # Every grantee gets the ``support`` role — a first-class identity for
         # PAM access rather than a ``member`` masquerade. It is the content
@@ -970,8 +968,7 @@ async def _load_guild_context(
         policy,
         guild_id,
         satisfied,
-        auth_context.session_mfa(),
-        auth_context.session_passkey(),
+        auth_context.session_amr(),
     )
     return GuildContext(
         guild=guild,
@@ -1173,7 +1170,7 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
-            session_mfa=auth_context.session_mfa(),
+            session_amr=auth_context.session_amr(),
         )
         return session
 
@@ -1202,8 +1199,7 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
-            session_mfa=auth_context.session_mfa(),
-            session_passkey=auth_context.session_passkey(),
+            session_amr=auth_context.session_amr(),
         )
         return session
 
@@ -1236,8 +1232,7 @@ async def _apply_guild_session_context(
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
         satisfied_claims=auth_context.satisfied_claims(),
-        session_mfa=auth_context.session_mfa(),
-        session_passkey=auth_context.session_passkey(),
+        session_amr=auth_context.session_amr(),
     )
     # The initiatives where this member holds "Full access", for the sync DAC
     # checks (gate 4, without an async query) and for the policies that read
@@ -1467,8 +1462,7 @@ async def _authenticate_upload_query_token(
             user_id,
             token_satisfied,
             token_claims,
-            token_mfa,
-            token_passkey,
+            token_markers,
         ) = verify_upload_token(token_param)
     except UploadTokenError:
         pass
@@ -1477,8 +1471,7 @@ async def _authenticate_upload_query_token(
         # it so the guild auth-policy gate treats this request as that session.
         set_satisfied_providers(token_satisfied)
         set_satisfied_claims(token_claims)
-        set_session_mfa(token_mfa)
-        set_session_passkey(token_passkey)
+        set_session_amr(policy_markers(token_markers))
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).
@@ -1527,8 +1520,7 @@ async def _resolve_upload_user(
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
-    set_session_mfa(False)
-    set_session_passkey(False)
+    set_session_amr(None)
     set_device_token_id(None)
     set_api_key_credential(False)
 
@@ -1627,8 +1619,7 @@ async def _resolve_upload_user(
     # What the session proved about the person, read from its own ``amr`` as
     # ``get_current_user`` reads it — a community asking for either answers a
     # picture and a download the same way it answers a page.
-    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
-    set_session_passkey(carries_passkey(token_data.amr or ()))
+    set_session_amr(policy_markers(token_data.amr))
     return user
 
 

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-from typing import Optional, List
+from typing import Optional, List, Sequence
 
 from sqlmodel import select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,6 +29,14 @@ DEVICE_TOKEN_TTL_DAYS = 90
 # ``TTL - 1 day`` — so an active device writes at most ~once/day while its
 # expiry still tracks last use to within a day.
 DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD = timedelta(days=DEVICE_TOKEN_TTL_DAYS - 1)
+# How long a device token still offers the sign-in's own markers to the
+# exchange that turns it into a session. The relay hands the token to the app
+# by a deep link and the app trades it at once, so this is the length of that
+# handoff and not a session lifetime: what a passkey ceremony proved is true of
+# a moment, and the token that carries it across is a bearer string with a
+# sliding window. An app that comes back later resumes without them, which is
+# where it stood before any of this.
+DEVICE_TOKEN_HANDOFF_WINDOW = timedelta(hours=1)
 
 
 def _hash_token(token: str) -> str:
@@ -182,9 +190,15 @@ async def create_device_token(
     *,
     user_id: int,
     device_name: str,
+    amr: Sequence[str] = (),
     commit: bool = True,
 ) -> str:
     """Create a sliding-window device token for mobile app authentication.
+
+    ``amr`` is what the sign-in that minted it recorded about itself, kept so
+    the session the app trades this for can say the same. It is offered to one
+    exchange, within :data:`DEVICE_TOKEN_HANDOFF_WINDOW` of here (see
+    :func:`claim_handoff_amr`).
 
     ``commit=False`` stages it instead, for a caller issuing something else in
     the same transaction: a token that outlived the response it was minted for
@@ -208,6 +222,7 @@ async def create_device_token(
         token=_hash_token(token_value),
         purpose=UserTokenPurpose.device_auth,
         device_name=device_name,
+        amr=list(amr),
         expires_at=expires_at,
     )
     session.add(token)
@@ -217,6 +232,37 @@ async def create_device_token(
         await session.flush()
     # Return the raw token exactly once; only its hash is persisted.
     return token_value
+
+
+async def claim_handoff_amr(session: AsyncSession, *, record: UserToken) -> list[str]:
+    """Take the sign-in's markers across to the session being opened, once.
+
+    The relay sign-in hands the app a token instead of a session, so the first
+    exchange is the rest of that sign-in and carries what it proved. Every
+    exchange after it is the app resuming on a string it has been keeping,
+    which proves nothing new, and a token that was never traded stops offering
+    them a window after it was minted.
+
+    Returns what the new session may record — empty in every case above — and
+    marks the row so the next exchange gets nothing. The caller commits.
+    """
+    if not record.amr or record.amr_claimed_at is not None:
+        return []
+    now = datetime.now(timezone.utc)
+    if now - record.created_at > DEVICE_TOKEN_HANDOFF_WINDOW:
+        return []
+
+    # Conditional on it still being unclaimed: two exchanges arriving together
+    # both read the row above, and this is what settles which of them is the
+    # handoff.
+    claimed = await session.exec(
+        sql_update(UserToken)
+        .where(UserToken.id == record.id, UserToken.amr_claimed_at.is_(None))
+        .values(amr_claimed_at=now)
+    )
+    if claimed.rowcount != 1:
+        return []
+    return list(record.amr)
 
 
 async def get_device_token(

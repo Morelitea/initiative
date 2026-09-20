@@ -787,8 +787,10 @@
       "error": "Impossible d'activer l'accès d'urgence",
       "codeLabel": "Votre code d'authentification",
       "codePlaceholder": "123456, ou un code de récupération",
-      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence demande donc un code. Un code de récupération convient aussi.",
-      "codeNotEnrolled": "Aucune application d'authentification n'est configurée sur ce compte. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence."
+      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
+      "codeNotEnrolled": "Ce compte n'a ni application d'authentification ni clé d'accès. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence.",
+      "passkeySubmit": "Accès d'urgence avec une clé d'accès",
+      "passkeyPresenting": "En attente de votre clé d'accès…"
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",

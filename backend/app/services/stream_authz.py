@@ -82,13 +82,15 @@ class _StreamMember:
     # added mid-connection disconnects sockets whose session doesn't satisfy
     # it — same continuous-authorization rule as every other gate.
     satisfied_providers: frozenset[int] = frozenset()
-    # The rest of that session's standing: whether it carries the account's
-    # second factor and whether it carries a passkey. Captured at join for the
-    # same reason and presented the same way — a re-check runs in another
-    # task's context, so it reads these off the member rather than off
-    # whatever request happens to be in flight.
-    session_mfa: bool = False
-    session_passkey: bool = False
+    # The rest of that session's standing: the markers it recorded about how
+    # it was opened. Captured at join for the same reason and presented the
+    # same way — a re-check runs in another task's context, so it reads these
+    # off the member rather than off whatever request happens to be in flight.
+    session_amr: frozenset[str] = frozenset()
+    # And what those providers asserted for the claims a community narrows one
+    # of them by, captured for the same reason: the gate reads these off the
+    # context too, and a re-check runs in another task's.
+    satisfied_claims: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     # Per-connection state the channel owns and the spine only carries:
     # collaboration keeps the display name and write level it computed at
     # join here. It lives on the member so a channel never needs a second
@@ -144,8 +146,9 @@ class StreamAuthority:
         the adapter load + DAC) at connect; the socket is governed from here on.
         ``satisfied_providers`` is the joining session's satisfied set — the
         re-checks replay it against the guild's (possibly changed) auth policy.
-        The two factor flags beside it are read from the joining request's own
-        auth context, where the credential validator recorded them.
+        The factor flags and the narrowing claims beside it are read from the
+        joining request's own auth context, where the credential validator
+        recorded them.
         """
         room: RoomKey = (guild_id, resource_type, resource_id)
         async with self._lock:
@@ -157,8 +160,8 @@ class StreamAuthority:
                 room=room,
                 authorize=authorize,
                 satisfied_providers=satisfied_providers,
-                session_mfa=auth_context.session_mfa(),
-                session_passkey=auth_context.session_passkey(),
+                session_amr=auth_context.session_amr(),
+                satisfied_claims=auth_context.satisfied_claims(),
                 meta=dict(meta) if meta else {},
             )
             self._rooms.setdefault(room, set()).add(websocket)
@@ -280,14 +283,14 @@ class StreamAuthority:
         Fail closed: any error (including a since-dropped guild schema) drops the
         socket rather than leaving a potentially-unauthorized stream open.
         """
-        # The gate below reads the two factor flags from the auth context, and
-        # this runs in whoever asked for the re-check — a request with a
-        # session of its own, or the bounded loop. What is there is held and
-        # put back on the way out.
-        held_mfa, held_passkey, held_factor = (
-            auth_context.session_mfa(),
-            auth_context.session_passkey(),
+        # The gate below reads the factor flags and the narrowing claims from
+        # the auth context, and this runs in whoever asked for the re-check — a
+        # request with a session of its own, or the bounded loop. What is there
+        # is held and put back on the way out.
+        held_amr, held_factor, held_claims = (
+            auth_context.session_amr(),
             auth_context.platform_factor(),
+            auth_context.satisfied_claims(),
         )
         try:
             async with AsyncSessionLocal() as session:
@@ -305,8 +308,8 @@ class StreamAuthority:
                 # way ``satisfied_providers`` is: the socket's own values, so
                 # a community's rule about how its people sign in is answered
                 # against the session that opened it.
-                auth_context.set_session_mfa(member.session_mfa)
-                auth_context.set_session_passkey(member.session_passkey)
+                auth_context.set_session_amr(member.session_amr)
+                auth_context.set_satisfied_claims(member.satisfied_claims)
                 try:
                     await establish_guild_access(
                         session,
@@ -324,8 +327,8 @@ class StreamAuthority:
             )
             return False
         finally:
-            auth_context.set_session_mfa(held_mfa)
-            auth_context.set_session_passkey(held_passkey)
+            auth_context.set_session_amr(held_amr)
+            auth_context.set_satisfied_claims(held_claims)
             # The gate inside the access check resolves this for the account
             # being re-checked; put back whoever's it was.
             auth_context.set_platform_factor(held_factor)

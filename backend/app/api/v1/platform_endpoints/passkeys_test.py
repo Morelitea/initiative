@@ -30,7 +30,15 @@ from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.services import email as email_service
 from app.services.auth import passkeys as passkey_service
-from app.testing import create_user, emitted, get_auth_headers, get_auth_token
+from app.testing import (
+    assertion_for,
+    create_passkey,
+    create_user,
+    emitted,
+    get_auth_headers,
+    get_auth_token,
+    stub_assertion,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -691,73 +699,9 @@ SIGN_IN_BEGIN = "/api/v1/auth/passkeys/authenticate/begin"
 SIGN_IN_FINISH = "/api/v1/auth/passkeys/authenticate/finish"
 
 
-def _assertion(challenge: str, *, credential_id: str = "credential-one") -> dict:
-    """What the browser hands back for a sign-in, with the challenge inside the
-    client data it signed."""
-    raw_id = bytes_to_base64url(credential_id.encode())
-    client_data = json.dumps(
-        {
-            "type": "webauthn.get",
-            "challenge": challenge,
-            "origin": "http://localhost:5173",
-        }
-    ).encode()
-    return {
-        "id": raw_id,
-        "rawId": raw_id,
-        "type": "public-key",
-        "response": {
-            "clientDataJSON": bytes_to_base64url(client_data),
-            "authenticatorData": bytes_to_base64url(b"authenticator"),
-            "signature": bytes_to_base64url(b"signature"),
-        },
-    }
-
-
-def _stub_assertion(monkeypatch, *, backed_up: bool = False) -> None:
-    """Stand in for the library's assertion check, reporting what a verified
-    ceremony reports."""
-
-    def verify(**kwargs):
-        return SimpleNamespace(
-            new_sign_count=kwargs["credential_current_sign_count"] + 1,
-            credential_backed_up=backed_up,
-            user_verified=True,
-        )
-
-    monkeypatch.setattr(
-        passkey_service.webauthn, "verify_authentication_response", verify
-    )
-
-
 @pytest.fixture
 def assertion(monkeypatch):
-    _stub_assertion(monkeypatch)
-
-
-async def _credential_for(
-    session: AsyncSession,
-    user: User,
-    *,
-    credential_id: str = "credential-one",
-    backed_up: bool = False,
-) -> UserPasskey:
-    row = await passkey_service.store(
-        session,
-        user_id=user.id,
-        registered=passkey_service.RegisteredCredential(
-            credential_id=credential_id.encode(),
-            public_key=b"public-key-bytes",
-            sign_count=0,
-            aaguid=None,
-            user_verified=True,
-            backed_up=backed_up,
-            transports=["internal"],
-        ),
-        name="Signing key",
-    )
-    await session.commit()
-    return row
+    stub_assertion(monkeypatch)
 
 
 async def _begin_sign_in(client: AsyncClient, **payload) -> str:
@@ -806,12 +750,12 @@ async def test_an_assertion_opens_a_session(
     ceremony proved the person as well as the device."""
     user = await _account(session, "pk-signin@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -839,14 +783,14 @@ async def test_a_synced_key_says_so(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """One a password manager syncs between devices records ``swk``."""
-    _stub_assertion(monkeypatch, backed_up=True)
+    stub_assertion(monkeypatch, backed_up=True)
     user = await _account(session, "pk-synced@example.com")
     user_id = user.id
-    await _credential_for(session, user, backed_up=True)
+    await create_passkey(session, user, backed_up=True)
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 200, response.text
 
@@ -863,12 +807,12 @@ async def test_the_credential_records_that_it_answered(
     """The counter and the last-used stamp land in the same commit as the
     session."""
     user = await _account(session, "pk-counter-signin@example.com")
-    row = await _credential_for(session, user)
+    row = await create_passkey(session, user)
     row_id = row.id
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 200, response.text
 
@@ -883,10 +827,10 @@ async def test_a_challenge_answers_one_sign_in(
 ):
     user = await _account(session, "pk-once-signin@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
 
     challenge = await _begin_sign_in(client)
-    credential = _assertion(challenge)
+    credential = assertion_for(challenge)
 
     first = await client.post(SIGN_IN_FINISH, json={"credential": credential})
     assert first.status_code == 200, first.text
@@ -906,13 +850,13 @@ async def test_a_credential_nobody_registered_is_refused(
     client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     user = await _account(session, "pk-stranger@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
-        json={"credential": _assertion(challenge, credential_id="never-registered")},
+        json={"credential": assertion_for(challenge, credential_id="never-registered")},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
@@ -933,7 +877,7 @@ async def test_a_credential_that_does_not_verify_names_its_account(
     credential this deployment holds names the account it belongs to."""
     user = await _account(session, "pk-unverified@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
 
     def refuse(**kwargs):
         raise ValueError("signature")
@@ -945,7 +889,7 @@ async def test_a_credential_that_does_not_verify_names_its_account(
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
@@ -965,7 +909,7 @@ async def test_a_credential_from_another_domain_is_recorded_and_left_there(
     account."""
     user = await _account(session, "pk-moved-domain@example.com")
     user_id = user.id
-    row = await _credential_for(session, user)
+    row = await create_passkey(session, user)
     row.rp_id = "before.example.org"
     session.add(row)
     await session.commit()
@@ -973,7 +917,7 @@ async def test_a_credential_from_another_domain_is_recorded_and_left_there(
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
@@ -991,7 +935,7 @@ async def test_an_inactive_account_is_refused(
     down against the account the credential named."""
     user = await _account(session, "pk-gone@example.com")
     user_id = user.id
-    row = await _credential_for(session, user)
+    row = await create_passkey(session, user)
     row_id = row.id
 
     user.status = UserStatus.deactivated
@@ -1001,7 +945,7 @@ async def test_an_inactive_account_is_refused(
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "INACTIVE_USER"
@@ -1030,11 +974,11 @@ async def test_a_registration_challenge_cannot_finish_a_sign_in(
 ):
     """Each ceremony answers for its own purpose and no other."""
     user = await _account(session, "pk-crossed@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
 
     registration_challenge = await _begin(client, user)
     refused = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(registration_challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(registration_challenge)}
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
@@ -1067,16 +1011,18 @@ async def test_a_phone_is_handed_a_device_token(
     given the address the app is waiting at, carrying a device token."""
     from app.services.platform import user_tokens
 
+    from app.core.security import decode_session_token
+
     user = await _account(session, "pk-mobile@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     capfd.readouterr()
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
         json={
-            "credential": _assertion(challenge),
+            "credential": assertion_for(challenge),
             "mobile": True,
             "device_name": "Pixel 9",
         },
@@ -1093,12 +1039,26 @@ async def test_a_phone_is_handed_a_device_token(
     assert record is not None
     assert record.user_id == user_id
     assert record.device_name == "Pixel 9"
+    # What the ceremony proved rides across with the token. Read before the
+    # expire below, which would make this a load of its own.
+    assert sorted(record.amr) == ["hwk", "mfa"]
 
     # No session in the relay browser, and nothing set on it either.
     session.expire_all()
     assert (
         await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
     ).all() == []
+
+    # So the session the app trades it for is the one this sign-in earned — a
+    # community asking for a passkey is answered by the phone that just
+    # presented one.
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange",
+        json={"device_token": handed["token"][0]},
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    opened = decode_session_token(exchanged.json()["access_token"])
+    assert sorted(opened["amr"]) == ["hwk", "mfa"]
     assert SESSION_COOKIE_NAME not in response.cookies
     assert REFRESH_COOKIE_NAME not in response.cookies
 
@@ -1120,12 +1080,16 @@ async def test_a_phone_that_sent_no_name_still_appears_in_the_list(
     from app.services.platform import user_tokens
 
     user = await _account(session, "pk-unnamed@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
-        json={"credential": _assertion(challenge), "mobile": True, "device_name": "  "},
+        json={
+            "credential": assertion_for(challenge),
+            "mobile": True,
+            "device_name": "  ",
+        },
     )
     assert response.status_code == 200, response.text
     handed = parse_qs(urlsplit(response.json()["redirect_to"]).query)
@@ -1143,7 +1107,7 @@ async def test_a_withdrawn_method_closes_both_sign_in_routes(
     client: AsyncClient, session: AsyncSession, assertion
 ):
     user = await _account(session, "pk-withdrawn@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     challenge = await _begin_sign_in(client)
     await _withdraw_passkeys(session)
 
@@ -1152,7 +1116,7 @@ async def test_a_withdrawn_method_closes_both_sign_in_routes(
     assert began.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     finished = await client.post(
-        SIGN_IN_FINISH, json={"credential": _assertion(challenge)}
+        SIGN_IN_FINISH, json={"credential": assertion_for(challenge)}
     )
     assert finished.status_code == 403
     assert finished.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
@@ -1164,7 +1128,7 @@ async def test_a_withdrawn_method_stops_new_registrations(
     """The credentials an account already holds are left alone; what stops is
     adding another."""
     user = await _account(session, "pk-noadd@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     await _withdraw_passkeys(session)
 
     began = await client.post(
@@ -1242,9 +1206,9 @@ async def test_stepping_up_offers_only_this_accounts_credentials(
     own credentials rather than for whatever the authenticator holds."""
     user = await _account(session, "pk-stepup-list@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     other = await _account(session, "pk-stepup-other@example.com")
-    await _credential_for(session, other, credential_id="credential-two")
+    await create_passkey(session, other, credential_id="credential-two")
     _id, headers = await _open_session(session, user)
 
     response = await client.post(STEP_UP_BEGIN, headers=headers)
@@ -1283,14 +1247,14 @@ async def test_an_assertion_adds_the_passkey_to_the_session(
     from app.core.security import decode_session_token
 
     user = await _account(session, "pk-stepup@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     prior_id, headers = await _open_session(
         session, user, amr=["pwd", "oidc:corp"], satisfied_providers=[9]
     )
 
     challenge = await _begin_step_up(client, headers)
     response = await client.post(
-        STEP_UP_FINISH, json={"credential": _assertion(challenge)}, headers=headers
+        STEP_UP_FINISH, json={"credential": assertion_for(challenge)}, headers=headers
     )
     assert response.status_code == 200, response.text
     claims = decode_session_token(response.json()["access_token"])
@@ -1309,16 +1273,16 @@ async def test_another_accounts_credential_does_not_step_up_this_session(
     recorded against the account that asked."""
     user = await _account(session, "pk-stepup-mine@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     other = await _account(session, "pk-stepup-theirs@example.com")
-    await _credential_for(session, other, credential_id="credential-two")
+    await create_passkey(session, other, credential_id="credential-two")
     _id, headers = await _open_session(session, user)
     capfd.readouterr()
 
     challenge = await _begin_step_up(client, headers)
     response = await client.post(
         STEP_UP_FINISH,
-        json={"credential": _assertion(challenge, credential_id="credential-two")},
+        json={"credential": assertion_for(challenge, credential_id="credential-two")},
         headers=headers,
     )
     assert response.status_code == 400
@@ -1345,14 +1309,16 @@ async def test_a_step_up_records_which_refusal_it_was(
     route writes down."""
     user = await _account(session, "pk-stepup-unknown@example.com")
     user_id = user.id
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     _id, headers = await _open_session(session, user)
     capfd.readouterr()
 
     challenge = await _begin_step_up(client, headers)
     response = await client.post(
         STEP_UP_FINISH,
-        json={"credential": _assertion(challenge, credential_id="credential-nobody")},
+        json={
+            "credential": assertion_for(challenge, credential_id="credential-nobody")
+        },
         headers=headers,
     )
     assert response.status_code == 400
@@ -1376,12 +1342,12 @@ async def test_a_sign_in_challenge_cannot_step_up_a_session(
 ):
     """Each ceremony is finished as the one it was begun as."""
     user = await _account(session, "pk-stepup-crossed@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     _id, headers = await _open_session(session, user)
 
     challenge = await _begin_sign_in(client)
     response = await client.post(
-        STEP_UP_FINISH, json={"credential": _assertion(challenge)}, headers=headers
+        STEP_UP_FINISH, json={"credential": assertion_for(challenge)}, headers=headers
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SIGN_IN_INVALID"
@@ -1391,11 +1357,11 @@ async def test_a_step_up_challenge_answers_one_ceremony(
     client: AsyncClient, session: AsyncSession, assertion
 ):
     user = await _account(session, "pk-stepup-twice@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     _id, headers = await _open_session(session, user)
 
     challenge = await _begin_step_up(client, headers)
-    credential = _assertion(challenge)
+    credential = assertion_for(challenge)
     first = await client.post(
         STEP_UP_FINISH, json={"credential": credential}, headers=headers
     )
@@ -1416,7 +1382,7 @@ async def test_a_standing_credential_cannot_step_up(
     from app.services.platform import api_keys as api_keys_service
 
     user = await _account(session, "pk-stepup-apikey@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     secret, _row = await api_keys_service.create_api_key(
         session, user=user, name="script"
     )
@@ -1438,7 +1404,7 @@ async def test_a_device_token_cannot_step_up(
     from app.services.platform import user_tokens
 
     user = await _account(session, "pk-stepup-device@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     token = await user_tokens.create_device_token(
         session, user_id=user.id, device_name="Phone"
     )
@@ -1464,7 +1430,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
     """Withdrawing passkeys closes the ceremony against an open session too,
     not only the ones that open a new one."""
     user = await _account(session, "pk-stepup-withdrawn@example.com")
-    await _credential_for(session, user)
+    await create_passkey(session, user)
     _id, headers = await _open_session(session, user)
     await _withdraw_passkeys(session)
 
@@ -1474,7 +1440,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
 
     finished = await client.post(
         STEP_UP_FINISH,
-        json={"credential": _assertion("challenge-value")},
+        json={"credential": assertion_for("challenge-value")},
         headers=headers,
     )
     assert finished.status_code == 403
@@ -1517,7 +1483,7 @@ async def test_the_last_credential_of_a_passwordless_account_stays(
     """Nothing else opens a session for this account, so the credential is not
     somebody's to remove."""
     user = await _passwordless(session, "pk-last@example.com")
-    row = await _credential_for(session, user, credential_id="last-one")
+    row = await create_passkey(session, user, credential_id="last-one")
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
@@ -1534,7 +1500,7 @@ async def test_a_withdrawn_method_does_not_free_the_last_credential(
     """A deployment that stopped accepting passkeys leaves such an account
     with nothing that opens a session, so the credential stays."""
     user = await _passwordless(session, "pk-last-withdrawn@example.com")
-    row = await _credential_for(session, user, credential_id="last-withdrawn")
+    row = await create_passkey(session, user, credential_id="last-withdrawn")
     headers = await _just_signed_in(session, user)
     await _withdraw_passkeys(session)
 
@@ -1549,7 +1515,7 @@ async def test_a_password_beside_it_lets_the_credential_go(
     client: AsyncClient, session: AsyncSession
 ):
     user = await _account(session, "pk-last-password@example.com")
-    row = await _credential_for(session, user, credential_id="last-with-password")
+    row = await create_passkey(session, user, credential_id="last-with-password")
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
@@ -1563,8 +1529,8 @@ async def test_a_second_credential_lets_the_first_go(
     client: AsyncClient, session: AsyncSession
 ):
     user = await _passwordless(session, "pk-two-keys@example.com")
-    first = await _credential_for(session, user, credential_id="one-of-two")
-    await _credential_for(session, user, credential_id="two-of-two")
+    first = await create_passkey(session, user, credential_id="one-of-two")
+    await create_passkey(session, user, credential_id="two-of-two")
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{first.id}/remove",

@@ -1270,6 +1270,8 @@ export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
   file: Blob;
 }
 
+export type BreakGlassCreatePasskey = { [key: string]: unknown } | null;
+
 /**
  * A self-approved, time-bound break-glass grant to one guild.
  *
@@ -1291,6 +1293,7 @@ export interface BreakGlassCreate {
   reason: string;
   code?: string | null;
   recovery_code?: string | null;
+  passkey?: BreakGlassCreatePasskey;
 }
 
 /**
@@ -1301,7 +1304,8 @@ export interface BreakGlassCreate {
  */
 export interface BreakGlassRequirements {
   second_factor_required: boolean;
-  enrolled: boolean;
+  totp_enrolled: boolean;
+  passkey_enrolled: boolean;
 }
 
 export type ResourceGrantSchemaLevel =
@@ -5648,6 +5652,59 @@ export interface PasskeySignInStart {
   [key: string]: unknown;
 }
 
+export type PasskeySignUpFinishCredential = { [key: string]: unknown };
+
+/**
+ * The browser's answer, with the same details it began with.
+ *
+ * Said again rather than kept: nothing about the account exists between the
+ * two calls, and everything here is checked again before one is made.
+ */
+export interface PasskeySignUpFinish {
+  email: string;
+  /** @maxLength 64 */
+  username: string;
+  full_name?: string | null;
+  timezone?: string | null;
+  captcha_token?: string | null;
+  credential: PasskeySignUpFinishCredential;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  name?: string;
+}
+
+/**
+ * The account, signed in, and the codes that are now its way back.
+ *
+ * An account with no password cannot be sent a reset, so the recovery set is
+ * issued here and shown once — on a deployment with no mail configured,
+ * which is the self-hosted case, it is the only way back.
+ */
+export interface PasskeySignUpResult {
+  access_token: string;
+  token_type?: string;
+  codes?: string[];
+}
+
+/**
+ * Registering an account whose way in is a key rather than a password.
+ *
+ * The same things a password registration says about itself, minus the
+ * password. A deployment that has withdrawn passwords has no other door of
+ * its own; before this, it could only take a registration through an
+ * identity provider.
+ */
+export interface PasskeySignUpStart {
+  email: string;
+  /** @maxLength 64 */
+  username: string;
+  full_name?: string | null;
+  timezone?: string | null;
+  captcha_token?: string | null;
+}
+
 export type PasskeyStepUpFinishCredential = { [key: string]: unknown };
 
 /**
@@ -8598,6 +8655,14 @@ export type GetChangelogApiV1ChangelogGetParams = {
 export type GetBundleManifestApiV1NativeBundleManifestGet200 = { [key: string]: unknown };
 
 export type RegisterUserApiV1AuthRegisterPostParams = {
+  invite_code?: string | null;
+};
+
+export type BeginPasskeySignUpApiV1AuthRegisterPasskeyBeginPostParams = {
+  invite_code?: string | null;
+};
+
+export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams = {
   invite_code?: string | null;
 };
 

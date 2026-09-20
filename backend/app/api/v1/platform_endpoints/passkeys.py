@@ -548,6 +548,10 @@ async def finish_passkey_sign_in(
             admin_session,
             user_id=user_id,
             device_name=device_name,
+            # What this ceremony proved, kept for the exchange the app makes
+            # next: the relay is a sign-in that hands back a token instead of
+            # a session, and the session is opened a moment later.
+            amr=passkey_amr(backed_up=backed_up),
             commit=False,
         )
         await audit_service.record(
@@ -643,49 +647,28 @@ async def finish_passkey_step_up(
     """
     await _require_passkeys_offered(session)
 
-    value = _challenge_from_client_data(payload.credential, refusal=_sign_in_invalid())
-
-    challenge = await challenge_service.claim_attempt(
-        admin_session, value=value, purposes=_STEP_UP_PURPOSES
-    )
-    if challenge is None or challenge.user_id != current_user.id:
-        # The attempt is counted whether or not the answer was any good, so
-        # the commit comes before the refusal.
-        await admin_session.commit()
-        raise _sign_in_invalid()
-
-    outcome = await passkey_service.finish_authentication(
+    presented = await passkey_service.present_against_challenge(
         admin_session,
+        user_id=current_user.id,
         credential=payload.credential,
-        expected_challenge=webauthn.base64url_to_bytes(value),
+        purposes=_STEP_UP_PURPOSES,
     )
-    if isinstance(outcome, passkey_service.AssertionRefusal):
-        refused = outcome.reason
-    elif outcome.passkey.user_id != current_user.id:
-        # A credential that verified, belonging to somebody else. The session
-        # stays as it is: what is being added to it is this account's key.
-        refused = "other_account"
-    else:
-        refused = None
-    if refused is not None:
-        await audit_service.record(
-            admin_session,
-            event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=current_user.id,
-            detail={"method": "passkey", "during": "step_up", "reason": refused},
-        )
-        await admin_session.commit()
-        raise _sign_in_invalid()
-
-    # Read off the credential while the row is attached: the upgrade below may
-    # roll the transaction back, which expires its attributes.
-    backed_up = outcome.passkey.backed_up
-
-    if not await challenge_service.consume(admin_session, challenge):
-        # Spent between the claim and here, so the upgrade it bought is not
-        # this request's to take a second time. The counter the assertion moved
-        # goes back with the transaction.
-        await admin_session.rollback()
+    if isinstance(presented, passkey_service.PresentationRefused):
+        if presented.reason is not None:
+            await audit_service.record(
+                admin_session,
+                event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
+                actor_user_id=current_user.id,
+                detail={
+                    "method": "passkey",
+                    "during": "step_up",
+                    "reason": presented.reason,
+                },
+            )
+        if presented.keep:
+            await admin_session.commit()
+        else:
+            await admin_session.rollback()
         raise _sign_in_invalid()
 
     # The spent challenge and the credential's counter commit with the session.
@@ -694,5 +677,5 @@ async def finish_passkey_step_up(
         response,
         admin_session,
         user=current_user,
-        add_amr=passkey_amr(backed_up=backed_up),
+        add_amr=passkey_amr(backed_up=presented.backed_up),
     )

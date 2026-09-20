@@ -287,22 +287,20 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
     async def gate_wanting_a_passkey(
         _session, _user, _guild_id, satisfied_providers=None
     ):
-        if not auth_context.session_passkey():
+        if not auth_context.session_amr() & {"hwk", "swk"}:
             raise GuildAccessError()
 
     monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
     monkeypatch.setattr(stream_authz, "establish_guild_access", gate_wanting_a_passkey)
 
     with_a_key = FakeWebSocket()
-    auth_context.set_session_mfa(True)
-    auth_context.set_session_passkey(True)
+    auth_context.set_session_amr(frozenset({"mfa", "hwk"}))
     await _join(
         authority, with_a_key, guild_id=1, resource_type="document", resource_id=3
     )
 
     with_a_password = FakeWebSocket()
-    auth_context.set_session_mfa(False)
-    auth_context.set_session_passkey(False)
+    auth_context.set_session_amr(None)
     await _join(
         authority, with_a_password, guild_id=1, resource_type="document", resource_id=4
     )
@@ -311,18 +309,60 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
     await authority.revoke_user(1, USER.id)
     assert with_a_key.closed is None
     assert with_a_password.closed == status.WS_1008_POLICY_VIOLATION
-    assert auth_context.session_mfa() is False
-    assert auth_context.session_passkey() is False
+    assert auth_context.session_amr() == frozenset()
 
     # And from one carrying both: the socket opened without a key still goes.
     again = FakeWebSocket()
     await _join(authority, again, guild_id=1, resource_type="document", resource_id=5)
-    auth_context.set_session_mfa(True)
-    auth_context.set_session_passkey(True)
+    auth_context.set_session_amr(frozenset({"mfa", "hwk"}))
     await authority.revoke_user(1, USER.id)
     assert again.closed == status.WS_1008_POLICY_VIOLATION
     assert with_a_key.closed is None
-    assert auth_context.session_passkey() is True
+    assert auth_context.session_amr() == frozenset({"mfa", "hwk"})
+
+
+@pytest.mark.unit
+async def test_recheck_answers_a_narrowed_provider_from_the_socket(
+    authority, monkeypatch
+) -> None:
+    """A community that narrows its provider by a claim is answered the same
+    way: from what the joining session asserted, not from whatever the task
+    running the check happens to carry."""
+
+    async def gate_wanting_the_claim(
+        _session, _user, _guild_id, satisfied_providers=None
+    ):
+        asserted = auth_context.satisfied_claims().get("7", {})
+        if "acme.com" not in asserted.get("hd", []):
+            raise GuildAccessError()
+
+    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
+    monkeypatch.setattr(stream_authz, "establish_guild_access", gate_wanting_the_claim)
+
+    from_acme = FakeWebSocket()
+    auth_context.set_satisfied_claims({"7": {"hd": ["acme.com"]}})
+    await _join(
+        authority, from_acme, guild_id=1, resource_type="document", resource_id=3
+    )
+
+    from_elsewhere = FakeWebSocket()
+    auth_context.set_satisfied_claims({"7": {"hd": ["other.example"]}})
+    await _join(
+        authority, from_elsewhere, guild_id=1, resource_type="document", resource_id=4
+    )
+
+    # Re-checked from a context asserting nothing at all: each socket is
+    # answered from what it joined with.
+    auth_context.set_satisfied_claims(None)
+    await authority.revoke_user(1, USER.id)
+    assert from_acme.closed is None
+    assert from_elsewhere.closed == status.WS_1008_POLICY_VIOLATION
+    assert auth_context.satisfied_claims() == {}
+
+    # And what the checking task carried is put back, not left as the socket's.
+    auth_context.set_satisfied_claims({"7": {"hd": ["third.example"]}})
+    await authority.revoke_user(1, USER.id)
+    assert auth_context.satisfied_claims() == {"7": {"hd": ["third.example"]}}
 
 
 @pytest.mark.unit

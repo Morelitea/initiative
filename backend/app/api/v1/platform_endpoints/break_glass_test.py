@@ -12,7 +12,8 @@ grant. These tests state what that grant is and what it permits:
   settings grant — permits editing existing content and reading the
   community's configuration, and is short-lived, non-stacking and capped;
 * the second factor the platform asks for once any ``data.bypass`` holder has
-  enrolled one.
+  one, and the three things that answer it: an authenticator code, a recovery
+  code, and an assertion from one of the account's own passkeys.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -24,7 +25,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.auth import totp as totp_service
 
 from app.models.platform.guild import Guild, GuildRole
-from app.testing import Actor, create_guild, create_guild_membership
+from app.testing import (
+    Actor,
+    assertion_for,
+    create_guild,
+    create_guild_membership,
+    create_passkey,
+    stub_assertion,
+)
 
 BREAK_GLASS = "/api/v1/access-grants/break-glass"
 MINE = "/api/v1/access-grants/?mine=true"
@@ -415,9 +423,157 @@ async def test_the_form_is_told_what_it_will_be_asked_for(
 
     before = await client.get(BREAK_GLASS, headers=a.headers)
     assert before.status_code == 200, before.text
-    assert before.json() == {"second_factor_required": False, "enrolled": False}
+    assert before.json() == {
+        "second_factor_required": False,
+        "totp_enrolled": False,
+        "passkey_enrolled": False,
+    }
 
     await _enrol_factor(client, session, a)
 
     after = await client.get(BREAK_GLASS, headers=a.headers)
-    assert after.json() == {"second_factor_required": True, "enrolled": True}
+    assert after.json() == {
+        "second_factor_required": True,
+        "totp_enrolled": True,
+        "passkey_enrolled": False,
+    }
+
+    # And the other thing that answers, so the form knows it can offer it.
+    await create_passkey(session, a.user)
+    with_a_key = await client.get(BREAK_GLASS, headers=a.headers)
+    assert with_a_key.json() == {
+        "second_factor_required": True,
+        "totp_enrolled": True,
+        "passkey_enrolled": True,
+    }
+
+
+# --- and the key that answers it -------------------------------------------
+
+PASSKEY_BEGIN = f"{BREAK_GLASS}/passkey"
+
+
+async def _present_a_key(
+    client: AsyncClient, actor: Actor, *, credential_id: str = "credential-one"
+) -> dict:
+    """Begin the ceremony this request will answer, and shape the answer.
+
+    The challenge comes back inside the options the browser would be handed,
+    and goes back inside the client data it would sign — so the assertion is
+    held against a challenge issued for breaking glass, and for this account.
+    """
+    begun = await client.post(PASSKEY_BEGIN, headers=actor.headers)
+    assert begun.status_code == 200, begun.text
+    challenge = begun.json()["options"]["challenge"]
+    return assertion_for(challenge, credential_id=credential_id)
+
+
+@pytest.mark.integration
+async def test_a_holder_with_only_a_key_is_not_sent_to_enrol_an_authenticator(
+    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+):
+    """A passkey is a factor the account holds, so holding one is what the ask
+    is answered from — an authenticator app is not a second thing to acquire."""
+    stub_assertion(monkeypatch)
+    a, guild = await outsider()
+    # Somebody else's enrolment is what turns the ask on for the platform.
+    await _enrol_factor(client, session, await acting_user("operator"))
+    await create_passkey(session, a.user)
+
+    # Nothing presented is still refused, but for the right reason: it asks
+    # rather than sending them away to enrol.
+    empty = await _break_glass(client, a, guild, reason="incident")
+    assert empty.status_code == 401, empty.text
+    assert empty.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
+
+    answered = await _break_glass(
+        client, a, guild, reason="incident", passkey=await _present_a_key(client, a)
+    )
+    assert answered.status_code == 201, answered.text
+    assert answered.json()["status"] == "approved"
+
+
+@pytest.mark.integration
+async def test_a_key_holder_turns_the_ask_on_for_everybody(
+    client: AsyncClient, session: AsyncSession, outsider, acting_user
+):
+    """The rule is alive while some holder has a factor of either kind. A
+    passkey is one, so a platform where the only holder has a key still asks —
+    and the holder who has nothing is sent to their Security page."""
+    a, guild = await outsider()
+    nothing_asked = await _break_glass(client, a, guild, reason="incident")
+    assert nothing_asked.status_code == 201, nothing_asked.text
+
+    await create_passkey(session, (await acting_user("operator")).user)
+
+    b, other_guild = await outsider()
+    now_asked = await _break_glass(client, b, other_guild, reason="incident")
+    assert now_asked.status_code == 403, now_asked.text
+    assert now_asked.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_an_assertion_answers_one_request(
+    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+):
+    """The challenge is spent by the request that carries it, so the same
+    assertion does not break glass a second time."""
+    stub_assertion(monkeypatch)
+    a, guild = await outsider()
+    await _enrol_factor(client, session, await acting_user("operator"))
+    await create_passkey(session, a.user)
+
+    presented = await _present_a_key(client, a)
+    first = await _break_glass(client, a, guild, reason="incident", passkey=presented)
+    assert first.status_code == 201, first.text
+
+    _, another = await outsider()
+    again = await _break_glass(client, a, another, reason="incident", passkey=presented)
+    assert again.status_code == 400, again.text
+    assert again.json()["detail"] == "ACCESS_GRANT_PASSKEY_INVALID"
+
+
+@pytest.mark.integration
+async def test_somebody_elses_key_does_not_answer(
+    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+):
+    """A credential that verifies is not the same as this account's."""
+    stub_assertion(monkeypatch)
+    a, guild = await outsider()
+    await _enrol_factor(client, session, await acting_user("operator"))
+    await create_passkey(session, a.user)
+    colleague = await acting_user("operator")
+    await create_passkey(session, colleague.user, credential_id="their-key")
+
+    # The challenge is this account's; the key answering it is not.
+    refused = await _break_glass(
+        client,
+        a,
+        guild,
+        reason="incident",
+        passkey=await _present_a_key(client, a, credential_id="their-key"),
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "ACCESS_GRANT_PASSKEY_INVALID"
+
+
+@pytest.mark.integration
+async def test_a_step_up_challenge_does_not_break_glass(
+    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+):
+    """The purposes are kept apart: what a session step-up issued answers for
+    the session, and breaking glass asks for a proof of its own."""
+    stub_assertion(monkeypatch)
+    a, guild = await outsider()
+    await _enrol_factor(client, session, await acting_user("operator"))
+    await create_passkey(session, a.user)
+
+    begun = await client.post("/api/v1/auth/step-up/passkey/begin", headers=a.headers)
+    assert begun.status_code == 200, begun.text
+    for_the_session = assertion_for(begun.json()["options"]["challenge"])
+
+    refused = await _break_glass(
+        client, a, guild, reason="incident", passkey=for_the_session
+    )
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "ACCESS_GRANT_PASSKEY_INVALID"

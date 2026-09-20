@@ -781,7 +781,7 @@ async def test_upload_token_copies_session_satisfied_providers(
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat, asserted, _mfa, _pk = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, asserted, _amr = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
     # And what those providers asserted, so a community narrowing one reads
     # this token the way it reads that session.
@@ -792,9 +792,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat, asserted, _mfa, _pk = verify_upload_token(
-        unsatisfied.json()["upload_token"]
-    )
+    _, sat, asserted, _amr = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
     assert asserted == {}
 
@@ -2405,8 +2403,9 @@ async def test_upload_token_carries_the_second_factor(
     client: AsyncClient, session: AsyncSession
 ):
     """An upload made in a community that asks for a second factor is made by
-    somebody who presented one, so the scoped token copies that marker the way
-    it copies the satisfied set beside it."""
+    somebody who presented one, so the scoped token copies the markers the way
+    it copies the satisfied set beside it — narrowed to the ones a rule can be
+    written against, so ``pwd`` and the provider's own vocabulary stay out."""
     user = await create_user(session)
 
     with_factor = await client.post(
@@ -2416,10 +2415,22 @@ async def test_upload_token_carries_the_second_factor(
         },
     )
     assert with_factor.status_code == 200, with_factor.text
-    assert verify_upload_token(with_factor.json()["upload_token"])[3] is True
+    assert verify_upload_token(with_factor.json()["upload_token"])[3] == frozenset(
+        {"mfa"}
+    )
+
+    with_a_key = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={
+            "Authorization": "Bearer " + get_auth_token(user, amr=["pwd", "hwk", "mfa"])
+        },
+    )
+    assert verify_upload_token(with_a_key.json()["upload_token"])[3] == frozenset(
+        {"hwk", "mfa"}
+    )
 
     without = await client.post(
         "/api/v1/auth/upload-token",
         headers={"Authorization": "Bearer " + get_auth_token(user, amr=["pwd"])},
     )
-    assert verify_upload_token(without.json()["upload_token"])[3] is False
+    assert verify_upload_token(without.json()["upload_token"])[3] == frozenset()

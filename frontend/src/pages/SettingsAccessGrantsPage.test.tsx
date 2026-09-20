@@ -17,7 +17,7 @@ vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   useCancelAccessRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useBreakGlass: () => ({ mutate: breakGlass, isPending: false }),
   useBreakGlassRequirements: () => ({
-    data: { second_factor_required: false, enrolled: true },
+    data: { second_factor_required: false, totp_enrolled: true, passkey_enrolled: false },
     refetch: vi.fn(),
   }),
   useApproveAccessGrant: () => ({ mutate: vi.fn(), isPending: false }),

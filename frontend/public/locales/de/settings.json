@@ -787,8 +787,10 @@
       "error": "Notfallzugriff nicht möglich",
       "codeLabel": "Dein Authenticator-Code",
       "codePlaceholder": "123456 oder ein Wiederherstellungscode",
-      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher wird beim Notzugriff ein Code verlangt. Ein Wiederherstellungscode funktioniert ebenfalls.",
-      "codeNotEnrolled": "Für dieses Konto ist kein Authenticator eingerichtet. Richte unter Sicherheit einen ein und nutze dann den Notzugriff."
+      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher musst du beim Notzugriff nachweisen, dass du es bist. Ein Authenticator-Code, ein Wiederherstellungscode oder einer deiner Passkeys genügt.",
+      "codeNotEnrolled": "Für dieses Konto sind weder ein Authenticator noch ein Passkey eingerichtet. Richte unter Sicherheit eines davon ein und nutze dann den Notzugriff.",
+      "passkeySubmit": "Notzugriff mit Passkey",
+      "passkeyPresenting": "Warten auf deinen Passkey …"
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",

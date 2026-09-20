@@ -97,52 +97,39 @@ def claims_from_provider_auth(
     return found
 
 
-#: The ``user_tokens`` row that authenticated this request, when the credential
-#: was a device token. It names one installed client, which is the only stable
-#: handle the server has on "this phone" — a push token rotates and a login
-#: expires, so anything that has to recognise the same installation twice
-#: (linking its push registration to its message key store) keys on this.
-#: ``None`` for every other credential, including the web session: a browser
-#: has no device token and minting one to tidy the join would put a long-lived
-#: credential where it does not belong.
-#: Whether this request's credential recorded the account's second factor.
-#: Read from the session's own ``amr`` — the marker the sign-in wrote when a
-#: code was presented — and handed to the database so a community's rule is
-#: answered there as well as here.
-_session_mfa: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "auth_session_mfa", default=False
+#: Which of the markers a community can ask about this request's credential
+#: recorded. Read from the session's own ``amr`` and narrowed to
+#: ``POLICY_AMR_MARKERS`` by ``policy_markers`` — ``mfa`` where a code was
+#: presented, ``hwk``/``swk`` where a key answered — then handed to the
+#: database as ``app.session_amr`` so a community's rule is answered there as
+#: well as here.
+#:
+#: One set rather than a flag per method: a rule asking for a passkey and a
+#: rule asking for a factor are two readings of the same sentence the sign-in
+#: wrote, and a boolean each meant every seam between the validator and the
+#: gate grew a parameter every time a method was added.
+#:
+#: Empty for every credential that is not a session — an API key, a delegation
+#: JWT — which is the fail-closed answer to any community that asks.
+_session_amr: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
+    "auth_session_amr", default=frozenset()
 )
 
 
-def set_session_mfa(value: bool) -> None:
-    _session_mfa.set(bool(value))
+def set_session_amr(value: frozenset[str] | None) -> None:
+    """Record the markers this credential proved. ``None`` clears to the
+    fail-closed empty set."""
+    _session_amr.set(frozenset() if value is None else frozenset(value))
 
 
-def session_mfa() -> bool:
-    return _session_mfa.get()
-
-
-#: Whether this request's credential was opened, or stepped up, with a passkey.
-#: Read from the session's own ``amr`` — the markers a WebAuthn assertion
-#: writes — and handed to the database so a community's rule is answered there
-#: as well as here. A community asking for a passkey is asking for one of
-#: those markers, which a code alone does not write.
-_session_passkey: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "auth_session_passkey", default=False
-)
-
-
-def set_session_passkey(value: bool) -> None:
-    _session_passkey.set(bool(value))
-
-
-def session_passkey() -> bool:
-    return _session_passkey.get()
+def session_amr() -> frozenset[str]:
+    """Those markers, for this request/task."""
+    return _session_amr.get()
 
 
 #: Whether the account this request is made by answers the deployment's own
 #: second-factor rule: a second factor it holds, or one this session
-#: presented. Its own reading rather than :func:`session_mfa`'s, because the
+#: presented. Its own reading rather than :func:`session_amr`'s, because the
 #: two questions are different — a community asks what *this session* proved,
 #: and the deployment asks what the *account* has — and because a credential
 #: that cannot present one (the app's device token, a personal API key) still
@@ -181,6 +168,14 @@ def api_key_credential() -> bool:
     return _api_key_credential.get()
 
 
+#: The ``user_tokens`` row that authenticated this request, when the credential
+#: was a device token. It names one installed client, which is the only stable
+#: handle the server has on "this phone" — a push token rotates and a login
+#: expires, so anything that has to recognise the same installation twice
+#: (linking its push registration to its message key store) keys on this.
+#: ``None`` for every other credential, including the web session: a browser
+#: has no device token and minting one to tidy the join would put a long-lived
+#: credential where it does not belong.
 _device_token_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "auth_device_token_id", default=None
 )

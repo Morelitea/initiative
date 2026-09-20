@@ -95,6 +95,7 @@ from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption, effective_options
 from app.models.platform.access_grant import AccessGrantPurpose
 from app.services.platform import access_grants as access_grants_service
+from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
 from app.services.platform import billing as billing_service
@@ -1322,7 +1323,7 @@ async def set_guild_auth_policy(
                 GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
                 LoginMethod.totp.value,
             )
-        if not auth_context.session_mfa():
+        if SECOND_FACTOR_AMR not in auth_context.session_amr():
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.totp.value
             )
@@ -1338,7 +1339,7 @@ async def set_guild_auth_policy(
                 GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
                 LoginMethod.passkey.value,
             )
-        if not auth_context.session_passkey():
+        if not carries_passkey(auth_context.session_amr()):
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
                 LoginMethod.passkey.value,

@@ -11,8 +11,10 @@
 import {
   browserSupportsWebAuthn,
   browserSupportsWebAuthnAutofill,
+  type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   startAuthentication,
+  startRegistration,
   WebAuthnAbortService,
   WebAuthnError,
 } from "@simplewebauthn/browser";
@@ -20,8 +22,11 @@ import {
 import { apiClient } from "@/api/client";
 import type {
   PasskeyAuthenticationOptions,
+  PasskeyRegistrationOptions,
   PasskeySignInFinishCredential,
   PasskeySignInResult,
+  PasskeySignUpResult,
+  PasskeySignUpStart,
   PasskeyStepUpFinishCredential,
   Token,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -96,6 +101,52 @@ export const stepUpWithPasskey = async (): Promise<Token> => {
     credential: credential as unknown as PasskeyStepUpFinishCredential,
   });
   return finished.data;
+};
+
+/**
+ * Make an account whose way in is a key rather than a password.
+ *
+ * Two calls, like every ceremony: the first asks the server whether this
+ * registration may happen at all — an address already taken, a missing invite,
+ * a captcha — so the refusal comes before the authenticator is asked for
+ * anything, and the second makes the account and signs it in. The details go
+ * out again with the answer; nothing about the account exists in between.
+ */
+export const signUpWithPasskey = async (
+  details: PasskeySignUpStart,
+  inviteCode?: string
+): Promise<PasskeySignUpResult> => {
+  const query = inviteCode ? `?invite_code=${encodeURIComponent(inviteCode)}` : "";
+  const begun = await apiClient.post<PasskeyRegistrationOptions>(
+    `/auth/register/passkey/begin${query}`,
+    details
+  );
+  const credential = await startRegistration({
+    optionsJSON: begun.data.options as unknown as PublicKeyCredentialCreationOptionsJSON,
+  });
+  const finished = await apiClient.post<PasskeySignUpResult>(
+    `/auth/register/passkey/finish${query}`,
+    { ...details, credential }
+  );
+  return finished.data;
+};
+
+/**
+ * Present a passkey against a break-glass request.
+ *
+ * Unlike the step-up above, nothing is added to the session: the challenge is
+ * issued for the request that will spend it, so what the key proves belongs to
+ * the grant being issued rather than to the browser holding it. The assertion
+ * goes back in the break-glass body, beside the reason and the guild.
+ */
+export const assertForBreakGlass = async (): Promise<Record<string, unknown>> => {
+  const begun = await apiClient.post<PasskeyAuthenticationOptions>(
+    "/access-grants/break-glass/passkey"
+  );
+  const credential = await startAuthentication({
+    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+  });
+  return credential as unknown as Record<string, unknown>;
 };
 
 /** Put down whatever prompt is currently waiting. Only one ceremony runs at a

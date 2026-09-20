@@ -787,8 +787,10 @@
       "error": "No se pudo activar el acceso de emergencia",
       "codeLabel": "Tu código de autenticación",
       "codePlaceholder": "123456, o un código de recuperación",
-      "codeHelp": "Alguien que administra esta instalación ha configurado la verificación en dos pasos, así que el acceso de emergencia pide un código. Un código de recuperación también sirve.",
-      "codeNotEnrolled": "Esta cuenta no tiene ninguna aplicación de autenticación configurada. Configúrala en Seguridad y luego usa el acceso de emergencia."
+      "codeHelp": "Alguien que administra esta instalación ha configurado la verificación en dos pasos, así que el acceso de emergencia te pide demostrar que eres tú. Sirve un código de autenticación, un código de recuperación o una de tus claves de acceso.",
+      "codeNotEnrolled": "Esta cuenta no tiene aplicación de autenticación ni clave de acceso. Configura una en Seguridad y luego usa el acceso de emergencia.",
+      "passkeySubmit": "Acceso de emergencia con clave de acceso",
+      "passkeyPresenting": "Esperando tu clave de acceso…"
     },
     "queueTitle": "Aprobaciones",
     "queueDescription": "Concede, deniega o revoca solicitudes de acceso temporal.",

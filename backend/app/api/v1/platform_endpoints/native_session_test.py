@@ -10,6 +10,8 @@ than in a jar the browser manages.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import func, select
@@ -117,8 +119,8 @@ async def test_a_device_token_buys_a_session_and_survives_it(
 async def test_an_exchanged_session_claims_no_factors(
     client: AsyncClient, session: AsyncSession
 ):
-    """A device token does not record what was presented when it was minted, so
-    the session it buys asserts nothing about that either."""
+    """A token minted by a sign-in that recorded nothing buys a session that
+    says nothing either."""
     user = await create_user(session, email="native-amr@example.com")
     device_token = await user_tokens.create_device_token(
         session, user_id=user.id, device_name="old-phone"
@@ -132,6 +134,85 @@ async def test_an_exchanged_session_claims_no_factors(
 
     claims = decode_session_token(response.json()["access_token"])
     assert not claims.get("amr")
+
+
+# --- the handoff -------------------------------------------------------------
+
+
+async def _exchange(client: AsyncClient, device_token: str) -> list[str]:
+    """The ``amr`` of the session a device token is traded for."""
+    response = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert response.status_code == 200, response.text
+    return decode_session_token(response.json()["access_token"]).get("amr") or []
+
+
+async def _age(session: AsyncSession, *, token_id: int, by: timedelta) -> None:
+    """Move a token's mint back, so a window can be reached without waiting."""
+    row = await session.get(UserToken, token_id)
+    assert row is not None
+    row.created_at = datetime.now(timezone.utc) - by
+    session.add(row)
+    await session.commit()
+
+
+async def test_the_handoff_carries_the_sign_in_across(
+    client: AsyncClient, session: AsyncSession
+):
+    """The relay sign-in hands the app a token rather than a session, so the
+    exchange right after it is the rest of that sign-in: what the ceremony
+    proved is what the session records."""
+    user = await create_user(session, email="native-handoff@example.com")
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="phone", amr=["hwk", "mfa"]
+    )
+    await session.commit()
+
+    assert sorted(await _exchange(client, device_token)) == ["hwk", "mfa"]
+
+
+async def test_the_handoff_is_taken_once(client: AsyncClient, session: AsyncSession):
+    """Every exchange after the first is the app resuming on a string it has
+    been keeping, which proves nothing new — so the key is not re-asserted."""
+    user = await create_user(session, email="native-handoff-once@example.com")
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="phone", amr=["hwk", "mfa"]
+    )
+    await session.commit()
+
+    assert sorted(await _exchange(client, device_token)) == ["hwk", "mfa"]
+    assert await _exchange(client, device_token) == []
+
+    # And the token itself still works: only what it says about the sign-in is
+    # spent.
+    still_there = await client.get(
+        "/api/v1/users/me", headers={"Authorization": f"DeviceToken {device_token}"}
+    )
+    assert still_there.status_code == 200
+
+
+async def test_a_token_never_traded_stops_offering_the_sign_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """The markers travel with the handoff, and the handoff is the moment after
+    the sign-in. A token that sat unexchanged past the window carries the
+    account, not the ceremony."""
+    user = await create_user(session, email="native-handoff-late@example.com")
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="phone", amr=["hwk", "mfa"]
+    )
+    await session.commit()
+    row = (
+        await session.exec(select(UserToken).where(UserToken.user_id == user.id))
+    ).one()
+    await _age(
+        session,
+        token_id=row.id,
+        by=user_tokens.DEVICE_TOKEN_HANDOFF_WINDOW + timedelta(minutes=1),
+    )
+
+    assert await _exchange(client, device_token) == []
 
 
 async def test_a_session_that_cannot_be_opened_leaves_no_token_behind(

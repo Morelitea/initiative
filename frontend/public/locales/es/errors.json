@@ -721,5 +721,6 @@
   "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Este servidor todavía exige un segundo factor. Retira antes ese requisito.",
   "LEGAL_NOT_CONFIGURED": "Esta instalación no tiene términos propios.",
   "LEGAL_PORTAL_UNAVAILABLE": "Ahora mismo no se puede acceder a los términos ni a la política de privacidad. Vuelve a intentarlo en un momento.",
-  "LEGAL_DOCUMENT_NOT_FOUND": "Ese documento no existe."
+  "LEGAL_DOCUMENT_NOT_FOUND": "Ese documento no existe.",
+  "ACCESS_GRANT_PASSKEY_INVALID": "Esa clave de acceso no respondió. Inténtalo de nuevo o usa tu código de autenticación."
 }
