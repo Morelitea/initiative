@@ -16,6 +16,9 @@ from app.services.auth.assurance import (
     MAX_TRACKED_PROVIDERS,
     ProviderAssurance,
     MAX_CLAIM_VALUES,
+    POLICY_AMR_MARKERS,
+    passkey_amr,
+    policy_markers,
     read_assurance,
     read_narrowing,
     RESERVED_AMR_PREFIXES,
@@ -266,3 +269,40 @@ def test_an_unreserved_value_that_merely_contains_one_is_kept():
     """The rule is a prefix, not a substring: an IdP's own vocabulary is its
     own, and only the start of a value is ours."""
     assert read_assurance({"amr": ["not-guild:99"]}).amr == ("not-guild:99",)
+
+
+# --- what a community's rule is allowed to be answered by -------------------
+
+
+def test_only_this_modules_own_markers_reach_a_rule():
+    """The vocabulary is closed, so what a community's rule is answered by is
+    named here and not by whoever ran the identity provider."""
+    assert policy_markers(["pwd", "mfa", "hwk", "oidc:corp", "otp"]) == frozenset(
+        {"mfa", "hwk"}
+    )
+    assert policy_markers(None) == frozenset()
+    assert policy_markers([]) == frozenset()
+
+
+def test_a_value_shaped_like_two_markers_is_one_value():
+    """The set travels onward as one delimited string, so a value carrying the
+    delimiter would be two if it got through. It does not get through: it is
+    not on the list."""
+    assert policy_markers(["mfa,hwk"]) == frozenset()
+    assert policy_markers(["hwk,"]) == frozenset()
+
+
+def test_every_marker_on_the_list_is_answered_for():
+    """Derived from the list itself, so a method added later is covered by
+    this test on the day it is added."""
+    for marker in POLICY_AMR_MARKERS:
+        assert policy_markers([marker]) == frozenset({marker})
+
+
+def test_what_a_passkey_writes_is_all_on_the_list():
+    """A ceremony records the key and the factor, and a rule can ask for
+    either — so both have to survive the narrowing."""
+    for backed_up in (True, False):
+        assert policy_markers(passkey_amr(backed_up=backed_up)) == frozenset(
+            passkey_amr(backed_up=backed_up)
+        )
