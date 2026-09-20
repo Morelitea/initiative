@@ -72,7 +72,7 @@ export const SettingsPlatformUsersPage = () => {
   const [resettingUserId, setResettingUserId] = useState<number | null>(null);
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<{
     userId: number;
-    email: string;
+    handle: string;
   } | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
@@ -104,8 +104,8 @@ export const SettingsPlatformUsersPage = () => {
 
   const resetPassword = useAdminTriggerPasswordReset({
     onSuccess: (_data, userId) => {
-      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
-      toast.success(t("platformUsers.resetSuccess", { email: userEmail }));
+      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.resetSuccess", { handle }));
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
@@ -121,8 +121,8 @@ export const SettingsPlatformUsersPage = () => {
 
   const reactivateUser = useAdminReactivateUser({
     onSuccess: (_data, userId) => {
-      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
-      toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
+      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.reactivateSuccess", { handle }));
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.reactivateError"));
@@ -139,8 +139,8 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const handleResetPassword = (userId: number, email: string) => {
-    setResetPasswordConfirm({ userId, email });
+  const handleResetPassword = (userId: number, handle: string) => {
+    setResetPasswordConfirm({ userId, handle });
   };
 
   const confirmResetPassword = () => {
@@ -216,16 +216,6 @@ export const SettingsPlatformUsersPage = () => {
       cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
       enableSorting: true,
       sortFn: "alphanumeric",
-    },
-    {
-      accessorKey: "email",
-      header: sortableHeader(t("platformUsers.columnEmail")),
-      // Shortened by the server (``AdminUserRead``), so this renders what
-      // arrived rather than shortening it here.
-      cell: ({ row }) => (
-        <p className="font-mono text-muted-foreground text-sm">{row.original.email}</p>
-      ),
-      enableSorting: true,
     },
     {
       id: "status",
@@ -329,7 +319,7 @@ export const SettingsPlatformUsersPage = () => {
             )}
             {canReactivate && platformUser.status === "active" && (
               <DropdownMenuItem
-                onSelect={() => handleResetPassword(platformUser.id, platformUser.email)}
+                onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
                 disabled={isResetting || resetPassword.isPending}
               >
                 <Mail className="h-4 w-4" />
@@ -418,7 +408,7 @@ export const SettingsPlatformUsersPage = () => {
         onOpenChange={(open) => !open && setResetPasswordConfirm(null)}
         title={t("platformUsers.resetPassword")}
         description={t("platformUsers.resetDescription", {
-          email: resetPasswordConfirm?.email ?? "this user",
+          handle: resetPasswordConfirm?.handle ?? "this account",
         })}
         confirmLabel={t("common:send")}
         cancelLabel={t("common:cancel")}
