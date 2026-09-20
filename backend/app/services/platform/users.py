@@ -24,6 +24,7 @@ from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
@@ -546,6 +547,11 @@ async def soft_delete_user(
     # Captured before ``replace_all`` below overwrites them — it is how a guild
     # invite bound to one of this person's addresses is found.
     original_email_hashes = await addresses.held_hashes(session, user_id=user_id)
+    # The addresses the receipt goes to, read before the erasure takes them.
+    # Proved ones only: an address nobody confirmed is not somewhere this
+    # account's own news should be sent.
+    receipt_recipients = await addresses.proven_addresses(session, user_id=user_id)
+    receipt_locale = getattr(user, "locale", None) or "en"
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -635,6 +641,11 @@ async def soft_delete_user(
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
     await session.commit()
+    # The receipt, once the erasure is a fact. Never allowed to fail it: the
+    # account is gone whether or not the letter goes.
+    await email_service.announce_account_erased(
+        session, recipients=receipt_recipients, locale=receipt_locale
+    )
     await _dispatch_queued_revocations(session)
     # Last, because the revocations above name this person to each app by the
     # very references this removes.

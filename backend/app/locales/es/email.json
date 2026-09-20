@@ -342,5 +342,14 @@
     "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
     "fallbackText": "Si no has intentado crear una cuenta, puedes ignorar este correo.",
     "textBody": "Tu código de registro de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
+  },
+  "accountErased": {
+    "subject": "Tu cuenta de Initiative ha sido eliminada",
+    "title": "Tu cuenta ha sido eliminada",
+    "greeting": "Hola:",
+    "body": "Confirmamos que la cuenta de Initiative asociada a esta dirección ha sido eliminada, junto con los datos personales que se guardaban con ella.",
+    "kept": "Algunas cosas permanecen y ya no te nombran: el trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada.",
+    "unexpected": "Si no has pedido esto, escribe cuanto antes a quien administre tu servidor de Initiative.",
+    "textBody": "La cuenta de Initiative asociada a esta dirección ha sido eliminada, junto con los datos personales que se guardaban con ella. El trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada."
   }
 }
