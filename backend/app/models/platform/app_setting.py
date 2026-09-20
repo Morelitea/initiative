@@ -17,6 +17,13 @@ from app.models.platform.user_dm_settings import DmPolicy
 # ``login_methods`` below and ``app.services.platform.auth_posture``.
 
 
+#: ``DEFAULT_LOGIN_METHODS`` as Postgres writes an array literal, so the set is
+#: stated once rather than here and in ``login_methods`` below. The migrations
+#: that moved this default keep their own copies: a migration is the record of
+#: what changed when, and is not read for what the default is now.
+_DEFAULT_LOGIN_METHODS_SQL = "{%s}" % ",".join(m.value for m in DEFAULT_LOGIN_METHODS)
+
+
 class AppSetting(SQLModel, table=True):
     __tablename__ = "app_settings"
     __allow_unmapped__ = True
@@ -66,16 +73,11 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
     login_methods: list[str] = Field(
-        # ``DEFAULT_LOGIN_METHODS``, not every member of the enum: the two
-        # coincided while every method waited on the account to do something,
-        # and the set is the one place that answers what a deployment starts
-        # with.
         default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],
         sa_column=Column(
             ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
             nullable=False,
-            # Matches what migration 0315 sets on the column.
-            server_default="{password,sso,totp,passkey}",
+            server_default=_DEFAULT_LOGIN_METHODS_SQL,
         ),
     )
 
