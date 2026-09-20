@@ -9374,6 +9374,19 @@ export const ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat = {
   md: "md",
 } as const;
 
+export type ExportDashboardApiV1GGuildIdExportsDashboardGetParams = {
+  dashboard_id?: number | null;
+  /**
+   * Bulk selection: one artifact per dashboard, zipped
+   */
+  dashboard_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
 export type ExportCalendarsApiV1GGuildIdExportsCalendarGetParams = {
   calendar_id?: number | null;
   /**
