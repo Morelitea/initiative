@@ -62,29 +62,29 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ## The age question
 
 ??? question "Why am I being asked my date of birth?"
-    Because you're joining, or already in, a community that anyone signed in can find. Those are open to people you've never met, and you need to be **13 or older** to take part.
+    Because you clicked Join on a community that anyone signed in can find. Those are open to people you've never met, and you need to be **16 or older** to join one.
 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
     We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
 
-??? question "I'm not joining anything public. Why was I asked?"
-    Something put you in a listed community without you clicking Join: an admin added you, a single sign-on group sync did, an invite led into one, or a community you were already in listed itself. Any of those counts.
+??? question "I'm not joining anything public. Then you shouldn't be asked."
+    Nothing else asks. Not an invite, not an admin adding you, not a group sync, not a community you're already in that lists itself later, and no other part of Initiative. Only the Join button in the directory.
 
-    A community that hasn't listed itself never asks — not on an invite, not when you're added.
+    If you're seeing the question anywhere else, that's worth reporting to whoever runs your server.
 
 ??? question "My account can't reach anybody"
     <a id="my-account-cant-message-anyone"></a>
 
-    If you can't join communities you can see, and the parts of Initiative open to people outside your own communities are closed to you, it's almost always the age question. Two things look alike:
+    If you can't join communities you can see, it's almost always the age question. Two things look alike:
 
     | What you see | What it is | What to do |
     |---|---|---|
-    | A date-of-birth screen you can't get past | You're in a listed community and haven't answered | Answer it. Once. |
-    | A screen saying you told us you're not old enough | Your account answered as under 13 | An admin can reset it — see below |
+    | A date-of-birth box when you click Join | You haven't answered yet | Answer it. Once. |
+    | A box saying you told us you're not old enough | Your account answered as under 16 | An admin can reset it — see below |
 
-    Either way, everything inside communities you were **invited** to still works.
+    Either way, everything inside communities you were **invited** to still works, and so does the rest of Initiative. The only thing behind this question is the Join button.
 
     Extremely common, entirely fixable, and nobody is cross with you. Ask an administrator of your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
 

@@ -391,8 +391,8 @@ async def update_community_settings(
     starts on, and changing it moves no existing account.
 
     ``age_gate_enabled`` is the second switch: whether an account must confirm
-    it belongs to somebody 13 or older before it takes a place in a listed
-    guild. Turning it off is the owner asserting that every account on this
+    it belongs to somebody 16 or older before it takes a place in a listed
+    guild. That join is all it gates; an invited guild asks nobody's age. Turning it off is the owner asserting that every account on this
     deployment already belongs to an adult, which is why it is a deliberate
     write and not a side effect of the first — omitting it leaves it alone.
 

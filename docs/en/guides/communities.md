@@ -43,12 +43,13 @@ What you searched and which shelf you're on live in the address, so a filtered d
 
 ![The community directory](../images/communities/community-directory.png)
 
-The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **13 or older** to take part. You're asked once, ever, and then never again.
+The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **16 or older** to join one. You're asked once, ever, and then never again.
+
+!!! info "It's this button, and nothing else"
+    The question guards joining from the directory. That's the whole of it. Communities you were invited to are yours whatever you answer, the rest of Initiative carries on exactly as it did, and you can close the box and go about your day.
 
 !!! info "The date isn't kept"
-    We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere.
-
-    Only the parts of Initiative open to people outside your own communities ask at all — a private community never does, and neither does an invite into one. See [Data and compliance](../security/data-and-compliance.md).
+    We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"
     It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../admin/configuration.md).

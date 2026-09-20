@@ -471,7 +471,6 @@ export interface AdminUserRead {
   username_chosen: boolean;
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
-  age_confirmation_required: boolean;
   legal_acceptance_required: boolean;
   status: UserStatus;
   email_verified: boolean;
@@ -7889,7 +7888,6 @@ export interface UserRead {
   username_chosen: boolean;
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
-  age_confirmation_required: boolean;
   legal_acceptance_required: boolean;
   status: UserStatus;
   email_verified: boolean;

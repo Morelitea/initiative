@@ -166,10 +166,14 @@ class GuildMessages:
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
     COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
-    # The caller has not said they are 13 or older, and the guild they asked to
+    # The caller has not answered the age question, and the guild they asked to
     # join is listed in the directory. The deployment's own switch decides
     # whether this is ever raised at all.
     AGE_CONFIRMATION_REQUIRED = "GUILD_AGE_CONFIRMATION_REQUIRED"
+    # The caller answered the age question as under the minimum. Separate from
+    # the one above because there is nothing to click: the answer stands, and
+    # the reply has to say so rather than ask again.
+    AGE_BELOW_MINIMUM = "GUILD_AGE_BELOW_MINIMUM"
     # A guild icon or banner rendition that is not one. Each names the rule it
     # broke, so the settings page can say what to do about it rather than
     # "that didn't work".

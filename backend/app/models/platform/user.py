@@ -228,10 +228,11 @@ class User(SQLModel, table=True):
         default=20,
         sa_column=Column(Integer, nullable=False, server_default="20"),
     )
-    #: When this account said it belongs to somebody at least 13 years old.
-    #: NULL means it never has. A timestamp rather than a flag because the
-    #: record of *when* is the point: it is what a deployment running a
-    #: community directory keeps for every account in a listed guild.
+    #: When this account said it belongs to somebody old enough to join a
+    #: community the whole deployment can browse. NULL means it never has,
+    #: which costs it nothing outside the directory. A timestamp rather than a
+    #: flag because the record of *when* is the point: it is what a deployment
+    #: running a community directory keeps for the accounts that joined one.
     #: Whether it is asked for at all is the platform owner's switch
     #: (``AppSetting.community_age_gate_enabled``).
     age_confirmed_at: Optional[datetime] = Field(

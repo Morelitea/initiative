@@ -40,9 +40,11 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one to confirm they're **13 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered — and only the parts of Initiative open to strangers ask at all. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
-The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
+**It guards that one join and nothing else.** An invite doesn't ask. Neither does adding somebody, a group sync, or a community listing itself after they joined it — who belongs to a community is that community's call, and an unanswered question never costs anyone a membership they already have or holds up the rest of Initiative.
+
+The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 16 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
 
 Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [operator dashboard](platform-roles.md#managing-platform-users).
 

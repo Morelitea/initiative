@@ -499,30 +499,23 @@ class UserRead(UserBase):
     # Whether this account picked its handle. False routes the SPA to the
     # choose-your-handle screen before anything else.
     username_chosen: bool = False
-    #: When this account said it belongs to somebody 13 or older, ``None``
-    #: where it never has. Read by the directory's Join button, which asks
-    #: before it joins rather than letting the server refuse.
+    #: When this account said it belongs to somebody old enough for the
+    #: community directory, ``None`` where it never has. Read by the
+    #: directory's Join button, which asks before it joins rather than letting
+    #: the server refuse.
     age_confirmed_at: Optional[datetime] = None
     #: When this account answered the age question as under the minimum,
-    #: ``None`` where it has not. Turns the confirmation screen from a form
-    #: into an explanation: the answer stands, and putting it right is
-    #: somebody else's to do.
+    #: ``None`` where it has not. Turns the directory's dialog from a form into
+    #: an explanation: the answer stands, and putting it right is somebody
+    #: else's to do.
     age_below_minimum_at: Optional[datetime] = None
-    #: Whether it must say so before it can carry on. True only for an account
-    #: that is already in a listed guild without having confirmed — every other
-    #: way in leaves the membership standing and lands here. False routes
-    #: nowhere; true blocks the app on the confirmation screen, the way
-    #: ``username_chosen`` false routes to the handle screen. Populated by the
-    #: self endpoints (``/users/me`` and ``PATCH /users/me``), which is where
-    #: the SPA reads its own account; defaults false elsewhere.
-    age_confirmation_required: bool = False
     #: Whether this account still owes its agreement to this deployment's
     #: terms and privacy policy. Always false where there are none to agree
     #: to, which is every self-hosted deployment. An account created through
     #: the signup form agreed there and never sees this; one provisioned by an
     #: identity provider met no form, so true blocks the app on the acceptance
-    #: screen the way ``age_confirmation_required`` does. Populated by
-    #: ``/users/me``; defaults false elsewhere.
+    #: screen the way ``username_chosen`` false routes to the handle screen.
+    #: Populated by ``/users/me``; defaults false elsewhere.
     legal_acceptance_required: bool = False
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see

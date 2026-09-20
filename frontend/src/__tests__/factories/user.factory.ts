@@ -120,7 +120,6 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // Answered, like the handle: a test that is not about the age gate should
     // never meet it. The gate's own tests override these two.
     age_confirmed_at: "2026-01-01T00:00:00Z",
-    age_confirmation_required: false,
     // Agreed, for the same reason: only the terms gate's own tests want an
     // account that has not.
     legal_acceptance_required: false,

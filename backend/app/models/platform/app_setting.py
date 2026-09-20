@@ -131,8 +131,10 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
-    # Whether an account must say it is 13 or older before it belongs to a
-    # guild listed in that directory. On by default, and only a platform owner
+    # Whether an account must say it is 16 or older before it joins a guild
+    # listed in that directory. It gates that join and nothing else — a
+    # private guild is its own to answer for, and asks nobody's age.
+    # On by default, and only a platform owner
     # turns it off — doing so is that owner asserting that every account on the
     # deployment already belongs to an adult, which is a thing an enterprise
     # rollout knows and a public one does not. Independent of the directory

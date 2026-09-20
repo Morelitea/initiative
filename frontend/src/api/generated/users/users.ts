@@ -1209,10 +1209,16 @@ export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
 /**
  * Answer, once, whether this account is old enough for the open parts.
  *
- * Asked of every account that belongs to a community anyone on the deployment
- * can find. The answer lives on the account rather than per community: it is a
- * fact about the person, and the second listed community they join asks
- * nothing.
+ * Asked where somebody is about to join a community anyone on the deployment
+ * can find, and nowhere else. The answer lives on the account rather than per
+ * community: it is a fact about the person, and the second listed community
+ * they join asks nothing.
+ *
+ * **It gates the directory, not the deployment.** A community somebody was
+ * invited to is theirs and whoever runs it to answer for, so nothing here
+ * stands between them and it — an account that has never answered, or
+ * answered under age, keeps every private community it belongs to and
+ * everything in them.
  *
  * **The date is not kept.** It is read here, compared against the minimum, and
  * goes out of scope with the request — there is no column for it, nothing logs
