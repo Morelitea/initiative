@@ -62,15 +62,7 @@ describe("PlatformAuthSection", () => {
     settings = structuredClone(base);
   });
 
-  it("renders nothing while the ways in are held back", () => {
-    const { container } = renderWithProviders(<PlatformAuthSection />);
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  // The ways in are not rendered while SHOW_LOGIN_METHODS is off; these cover
-  // the section it hides and come back with it.
-  describe.skip("ways in", () => {
+  describe("ways in", () => {
     it("sends the change without a number of its own", () => {
       settings.methods = [
         { method: "password", enabled: true, would_strand: 0 },

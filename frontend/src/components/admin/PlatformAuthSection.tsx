@@ -39,18 +39,6 @@ const strandedByServer = (error: unknown): number | null => {
   return Number.isInteger(counted) && counted > 0 ? counted : null;
 };
 
-/**
- * Whether the ways in are offered on this page at all.
- *
- * They are held back for the moment: nobody is shown the choice, the platform
- * owner included, and the deployment goes on permitting whatever it already
- * permits. Set this to `true` to put the section back — the checkboxes it
- * renders, the mutation behind them and the endpoint they call are all
- * untouched, and so are their tests, which are skipped alongside it. While it
- * is off this section renders nothing at all.
- */
-const SHOW_LOGIN_METHODS: boolean = false;
-
 export const PlatformAuthSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
@@ -74,8 +62,6 @@ export const PlatformAuthSection = () => {
   if (query.isLoading || !query.data) return null;
 
   const { methods, guilds_requiring_sign_in } = query.data;
-
-  if (!SHOW_LOGIN_METHODS) return null;
 
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
