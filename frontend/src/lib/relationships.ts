@@ -187,15 +187,6 @@ export const edgeFor = (
 export const canAssert = (group: RelationGroup, otherIsWritable: boolean): boolean =>
   group.direction !== "inbound" || otherIsWritable;
 
-/** The `relations` namespace key for a group's heading. */
-export const groupTitleKey = (key: RelationGroupKey) => `groups.${key}.title` as const;
-
-/** The `relations` namespace key for what a group says when it is empty. */
-export const groupEmptyKey = (key: RelationGroupKey) => `groups.${key}.empty` as const;
-
-/** The `relations` namespace key for the option naming a group in the add dialog. */
-export const groupOptionKey = (key: RelationGroupKey) => `groups.${key}.option` as const;
-
 /**
  * Which shown group an edge belongs to, or null when none of them claims it.
  *

@@ -90,13 +90,6 @@ function getWorker(): Worker | null {
   }
 }
 
-/** Tear down the runtime. Tests use it between cases; the app calls it when the
- *  last dashboard unmounts. */
-export function disposeWidgetHost(): void {
-  resetWorker(SandboxErrorCode.UNAVAILABLE);
-  workerUnavailable = false;
-}
-
 /** Send one request to the worker and wait for its answer. `inline` is the same
  *  work done in-process, for the no-`Worker` case described at the top. */
 async function evaluate(

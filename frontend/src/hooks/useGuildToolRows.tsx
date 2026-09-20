@@ -29,8 +29,6 @@ import { useWikisList } from "@/hooks/useWikis";
 import type { ToolResponses, ToolRow } from "@/lib/toolRows";
 import { buildToolRows } from "@/lib/toolRows";
 
-export type { ToolRow as GuildToolRow } from "@/lib/toolRows";
-
 /** How the guild home's one table is narrowed and ordered, in the terms every
  *  tool's list endpoint accepts. */
 export interface GuildToolQuery {

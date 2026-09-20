@@ -40,9 +40,6 @@ export type {
   AppWidgetRead,
 };
 
-/** A localized label, as the app's manifest supplies it. */
-export type LocalizedText = Record<string, string>;
-
 export const getAppWidgetCatalog = (guildId: number) =>
   apiClient.get<AppWidgetCatalogResponse>(`/g/${guildId}/apps/widget-catalog`).then((r) => r.data);
 

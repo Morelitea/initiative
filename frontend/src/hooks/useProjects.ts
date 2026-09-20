@@ -1,15 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost,
-  unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost,
-} from "@/api/generated/archive/archive";
+import { unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
   InitiativeGroupedCountsResponse,
   ListMyProjectsApiV1MeProjectsGetParams,
   ListProjectsApiV1GGuildIdProjectsGetParams,
-  ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
-  ProjectActivityResponse,
   ProjectListResponse,
   ProjectRead,
   ResourceGrantSchema,
@@ -19,7 +14,6 @@ import type {
   TaskStatusReorderRequest,
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   createProjectApiV1GGuildIdProjectsPost,
   deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
@@ -31,13 +25,11 @@ import {
   getListMyProjectsApiV1MeProjectsGetQueryKey,
   getListProjectsApiV1GGuildIdProjectsGetQueryKey,
   getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey,
-  getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
   getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet,
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   listMyProjectsApiV1MeProjectsGet,
   listProjectsApiV1GGuildIdProjectsGet,
   listWritableProjectsApiV1GGuildIdProjectsWritableGet,
-  projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
   readProjectApiV1GGuildIdProjectsProjectIdGet,
   reorderProjectsApiV1GGuildIdProjectsReorderPost,
   setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut,
@@ -53,7 +45,6 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
-import { relate, unrelate } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -165,26 +156,6 @@ export const useProjectTaskStatuses = (
   });
 };
 
-export const useProjectActivity = (
-  projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
-  options?: QueryOpts<ProjectActivityResponse>
-) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey(
-      guildId,
-      projectId,
-      params
-    ),
-    queryFn: () =>
-      projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(guildId, projectId, params),
-    enabled: Number.isFinite(projectId) && userEnabled,
-    ...rest,
-  });
-};
-
 // ── Global (cross-guild) queries ────────────────────────────────────────────
 
 export const useGlobalProjects = (
@@ -252,21 +223,6 @@ export const useDeleteProject = (options?: MutationOpts<void, number>) =>
         deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId),
       invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:detail.loadError",
-    },
-    options
-  );
-
-export const useArchiveProject = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: async (guildId, projectId) => {
-        await archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(
-          guildId,
-          "project",
-          projectId
-        );
-      },
-      invalidate: () => invalidate(q.allProjects()),
     },
     options
   );
@@ -467,40 +423,8 @@ export const useSetProjectGrants = (
 
 // ── Project Document Mutations ──────────────────────────────────────────────
 
-const invalidateProjectAndDocuments = (projectId: number) =>
+const _invalidateProjectAndDocuments = (projectId: number) =>
   invalidate(q.project(projectId), q.allDocuments());
-
-export const useAttachProjectDocument = (projectId: number, options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: async (guildId, documentId) => {
-        await relate(
-          guildId,
-          { type: SearchEntityType.project, id: projectId },
-          { type: SearchEntityType.document, id: documentId }
-        );
-      },
-      invalidate: () => invalidateProjectAndDocuments(projectId),
-      errorKey: "projects:documents.attachError",
-    },
-    options
-  );
-
-export const useDetachProjectDocument = (projectId: number, options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: async (guildId, documentId) => {
-        await unrelate(
-          guildId,
-          { type: SearchEntityType.project, id: projectId },
-          { type: SearchEntityType.document, id: documentId }
-        );
-      },
-      invalidate: () => invalidateProjectAndDocuments(projectId),
-      errorKey: "projects:documents.detachError",
-    },
-    options
-  );
 
 // ── Task Status Mutations ───────────────────────────────────────────────────
 

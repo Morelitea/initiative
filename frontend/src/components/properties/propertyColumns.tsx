@@ -135,19 +135,6 @@ export function buildPropertyColumns<T extends RowData>(
   });
 }
 
-/** Default-hidden visibility map for a property-column list. */
-export const propertyColumnsHidden = (
-  definitions: PropertyDefinitionRead[]
-): Record<string, boolean> => {
-  const result: Record<string, boolean> = {};
-  const ambiguousNames = buildAmbiguousNameSet(definitions);
-  for (const definition of definitions) {
-    const ambiguous = isDefinitionAmbiguous(definition, ambiguousNames);
-    result[propertyColumnId(definition, ambiguous)] = false;
-  }
-  return result;
-};
-
 /**
  * Resolve the full set of column ids that ``buildPropertyColumns`` would
  * generate for the same definitions list, with duplicate names disambiguated

@@ -368,21 +368,6 @@ export const retainOnlyGuilds = async (
   }
 };
 
-/**
- * Forget one community's cached content, leaving every other community's in
- * place. Used when a community stops being an ordinary membership — it is left,
- * or it becomes reachable only by a time-bound grant — where erasing the whole
- * cache would be far more than the situation calls for.
- */
-export const forgetGuildOffline = async (guildId: number): Promise<void> => {
-  if (!isOfflineCacheEnabled()) return;
-  try {
-    await getPersister().forgetShard(guildShard(guildId));
-  } catch {
-    // Best effort; the shard also ages out on its own clock.
-  }
-};
-
 /** Epoch ms of the last write, or null if this device has never cached. */
 export const offlineCacheSyncedAt = (): number | null => {
   const raw = getItem(SYNCED_AT_KEY);

@@ -1,5 +1,4 @@
 import {
-  type Cell,
   type Column,
   type ColumnDef,
   columnFilteringFeature,
@@ -65,11 +64,6 @@ export type AppColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
   TValue
 >;
 export type AppColumn<TData extends RowData, TValue = unknown> = Column<
-  AppTableFeatures,
-  TData,
-  TValue
->;
-export type AppCell<TData extends RowData, TValue = unknown> = Cell<
   AppTableFeatures,
   TData,
   TValue

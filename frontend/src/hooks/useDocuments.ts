@@ -33,7 +33,6 @@ import type {
   DocumentFileVersionRead,
   DocumentListResponse,
   DocumentRead,
-  DocumentSummary,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
@@ -101,27 +100,6 @@ export const useDocumentCountsByInitiative = (
       getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId),
     queryFn: () =>
       getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(guildId),
-    ...options,
-  });
-};
-
-export const useInitiativeDocuments = (
-  initiativeId: number,
-  options?: QueryOpts<DocumentSummary[]>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, {
-      initiative_id: initiativeId,
-      page_size: 0,
-    }),
-    queryFn: async () => {
-      const response = await fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, {
-        initiative_id: initiativeId,
-        page_size: 0,
-      });
-      return response.items;
-    },
     ...options,
   });
 };

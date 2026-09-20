@@ -77,7 +77,7 @@ export function removeItem(key: string): void {
   void Preferences.remove({ key });
 }
 
-/** Enumerate every stored key. Used by the one-shot view-preferences migration. */
+/** Enumerate every stored key. */
 export function listKeys(): string[] {
   if (!isNative()) {
     if (!hasLocalStorage) return [];

@@ -105,16 +105,6 @@ export const APP_WIDGET_TYPE_PREFIX = "app:";
 
 export const isAppWidgetType = (type: string): boolean => type.startsWith(APP_WIDGET_TYPE_PREFIX);
 
-/** The listing uid and widget id inside a namespaced type, or `undefined` for
- *  anything that is not one. */
-export const appWidgetParts = (
-  type: string
-): { listingUid: string; widgetId: string } | undefined => {
-  if (!isAppWidgetType(type)) return undefined;
-  const [listingUid, widgetId] = type.slice(APP_WIDGET_TYPE_PREFIX.length).split(":");
-  return listingUid && widgetId ? { listingUid, widgetId } : undefined;
-};
-
 /** Slots a widget still needs filled before it can draw anything.
  *
  *  Re-exported from the source registry, which derives it from each

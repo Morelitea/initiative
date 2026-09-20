@@ -12,7 +12,6 @@ import type {
   QueueCreate,
   QueueItemCreate,
   QueueItemRead,
-  QueueItemReorderRequest,
   QueueItemUpdate,
   QueueListResponse,
   QueueRead,
@@ -35,7 +34,6 @@ import {
   previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost,
   readQueueApiV1GGuildIdQueuesQueueIdGet,
   releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost,
-  reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut,
   resetQueueApiV1GGuildIdQueuesQueueIdResetPost,
   setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost,
   setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut,
@@ -164,20 +162,6 @@ export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void,
     {
       mutationFn: (guildId, itemId) =>
         deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete(guildId, queueId, itemId),
-      invalidate: () => invalidateQueueAndList(queueId),
-      errorKey: "queues:error",
-    },
-    options
-  );
-
-export const useReorderQueueItems = (
-  queueId: number,
-  options?: MutationOpts<QueueRead, QueueItemReorderRequest>
-) =>
-  useGuildMutation<QueueRead, QueueItemReorderRequest>(
-    {
-      mutationFn: (guildId, data) =>
-        reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut(guildId, queueId, data),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },

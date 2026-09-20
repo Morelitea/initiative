@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost,
   createCounterGroupApiV1GGuildIdCounterGroupsPost,
-  decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost,
   deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
   deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete,
   duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost,
@@ -12,7 +11,7 @@ import {
   getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey,
   getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey,
   getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey,
-  incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
+  type incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
   listCounterGroupsApiV1GGuildIdCounterGroupsGet,
   readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet,
   resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost,
@@ -375,16 +374,6 @@ const makeValueOpHook = (
     });
   };
 };
-
-export const useIncrementCounter = makeValueOpHook(
-  incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
-  optimisticIncrement
-);
-
-export const useDecrementCounter = makeValueOpHook(
-  decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost,
-  optimisticDecrement
-);
 
 export const useResetCounter = makeValueOpHook(
   resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,

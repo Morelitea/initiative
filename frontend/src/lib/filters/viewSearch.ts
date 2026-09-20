@@ -37,13 +37,3 @@ export function parseViewMode<V extends string>(
   if (typeof raw !== "string") return undefined;
   return (allowed as readonly string[]).includes(raw) ? (raw as V) : undefined;
 }
-
-export function parseViewSearch<V extends string>(
-  search: Record<string, unknown>,
-  allowed: readonly V[]
-): ViewSearch<V> {
-  return {
-    view: parseViewMode(search.view, allowed),
-    preset: parsePresetSlug(search.preset),
-  };
-}

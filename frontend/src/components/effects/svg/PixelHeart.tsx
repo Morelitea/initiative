@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { cellsFromLayout, type PixelLayout, pathFromLayout } from "./pixelLayout";
+import { cellsFromLayout, type PixelLayout } from "./pixelLayout";
 
 // 11x9 grid (1 = base red, h = highlight). Pure pixel grid, no anti-alias.
 // Bilaterally symmetric around col 5 / row 4 so the SVG's geometric center
@@ -21,9 +21,7 @@ const HEART_VIEW_W = HEART_LAYOUT[0].length;
 const HEART_VIEW_H = HEART_LAYOUT.length;
 
 const RED_BASE = "#DC2626"; // red-600
-const RED_HIGHLIGHT = "#F87171"; // red-400
-
-export const PIXEL_HEART_PATH = pathFromLayout(HEART_LAYOUT);
+const RED_HIGHLIGHT = "#F87171";
 
 interface PixelHeartProps {
   size?: number;

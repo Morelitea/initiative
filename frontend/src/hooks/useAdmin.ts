@@ -2,9 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
-  adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete,
   adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
-  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
   checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
   clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
   deleteUserApiV1AdminUsersUserIdDelete,
@@ -121,44 +119,6 @@ export const useAdminDeleteGuild = (
           blocked_user_id: blockedUserId,
         }),
       invalidate: () => invalidate(q.adminUsers(), q.allGuilds()),
-    },
-    options
-  );
-
-/** Delete an initiative (platform admin only).
- *
- * Used in the user-deletion blocker-resolution flow when the target
- * user is the sole project manager of an initiative with no other
- * members the admin can promote in their place.
- */
-export const useAdminDeleteInitiative = (
-  options?: MutationOpts<void, { initiativeId: number; guildId: number }>
-) =>
-  useApiMutation<void, { initiativeId: number; guildId: number }>(
-    {
-      mutationFn: ({ initiativeId, guildId }) =>
-        adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
-          guild_id: guildId,
-        }),
-      invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
-/** Promote an initiative member to project manager (admin only). */
-export const useAdminPromoteInitiativeMember = (
-  options?: MutationOpts<void, { initiativeId: number; userId: number; guildId: number }>
-) =>
-  useApiMutation<void, { initiativeId: number; userId: number; guildId: number }>(
-    {
-      mutationFn: ({ initiativeId, userId, guildId }) =>
-        adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
-          initiativeId,
-          userId,
-          { role: "project_manager" },
-          { guild_id: guildId }
-        ),
-      invalidate: () => invalidate(q.adminUsers()),
     },
     options
   );

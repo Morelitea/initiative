@@ -122,17 +122,6 @@ export const toFilterFieldSpec = (described: FieldDescription): FilterFieldSpec 
   options: described.options,
 });
 
-/**
- * A field's declaration, as the server describes it.
- *
- * The list itself is no longer here. It was a hand-kept copy of what the
- * backend already knew, with its own idea of which operators each field takes —
- * two lists that could disagree, and did. {@link useFieldCatalog} reads the one
- * declaration instead; what stays here is the shape it arrives in and the
- * lookup over it.
- */
-export type TaskFilterField = string;
-
 /** One field, found by name. Takes the list because these are pure functions
  *  and the list is fetched — the same reason a formatter takes `t`. */
 export const fieldSpec = (
