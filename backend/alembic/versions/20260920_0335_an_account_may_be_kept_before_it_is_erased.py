@@ -26,6 +26,8 @@ Create Date: 2026-09-20
 import sqlalchemy as sa
 from alembic import op
 
+from app.core.config import settings
+
 revision = "20260920_0335"
 down_revision = "20260920_0334"
 branch_labels = None
@@ -41,6 +43,18 @@ def upgrade() -> None:
         "users",
         sa.Column("status_changed_at", sa.DateTime(timezone=True), nullable=True),
     )
+    # UPDATE on ``users`` is granted column by column (0144), so a new column
+    # is reachable by nobody until it is named. The platform path writes this
+    # one wherever it writes ``status``.
+    #
+    # Not ``app_guild_base``: the guild path holds nothing at all on this table
+    # and reads ``public.guild_member_profiles`` instead.
+    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    for role in (base, "app_user"):
+        op.execute(
+            f'GRANT UPDATE (status_changed_at) ON TABLE public.users TO "{role}"'
+        )
+
     op.add_column(
         "app_settings",
         sa.Column(

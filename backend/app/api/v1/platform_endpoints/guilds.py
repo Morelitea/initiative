@@ -42,7 +42,6 @@ from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import (
     get_admin_session,
-    guild_schema_context,
     set_rls_context,
 )
 from app.core.audit_events import AuditEventType
@@ -1555,23 +1554,24 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Both halves run on the system engine, in ONE transaction, because they
-    # have to agree: a guild whose apps were let go but which is then still
-    # live has lost its integrations for nothing, and a deleted guild whose
-    # apps were not let go leaves grants behind. The guild's own role cannot do
-    # the second half — ``app_guild_base`` holds UPDATE on the identity columns
-    # a guild admin edits and deliberately not on ``status``, which is the
-    # operator's — so the status write happens outside the excursion, on the
-    # login role.
-    async with guild_schema_context(
-        admin_session, guild_id=guild_id, guild_role=GuildRole.admin.value
-    ):
-        # End the guild's app access. The guild has withdrawn its
-        # authorization, so each app is told to let go now rather than in
-        # ninety days' time — a third party must not keep a live grant on the
-        # chance of a restore. A restored guild comes back with its apps
-        # disconnected, and an admin reconnects them.
-        await app_connections_service.delete_guild_connections(admin_session)
+    # End the guild's app access. The guild has withdrawn its authorization, so
+    # each app is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its apps disconnected, and an
+    # admin reconnects them.
+    #
+    # On the REQUEST session, which is the one that can reach these rows: they
+    # live in the guild's own schema, and the grants that read and write them
+    # belong to the guild role as the request path assumes it. The system
+    # engine cannot stand in for it here.
+    #
+    # That makes this a separate transaction from the status write below, which
+    # the guild role in turn cannot do (``app_guild_base`` holds UPDATE on the
+    # identity columns a guild admin edits, and deliberately not on ``status``).
+    # The connections go first: a guild left live with its integrations ended
+    # is a thing its admin can see and put back, and the revocations are not
+    # dispatched until the deletion below has actually committed.
+    await app_connections_service.delete_guild_connections(session)
+    await session.commit()
 
     # Move the guild to ``deleted`` and keep everything: the shared rows, the
     # guild_<id> schema and the stored blobs all stay, so a platform operator
@@ -1592,7 +1592,7 @@ async def delete_guild(
     # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)
     await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(admin_session)
+        app_revocation_service.drain_revocations(session)
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
