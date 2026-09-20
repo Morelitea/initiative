@@ -66,6 +66,10 @@ Turn it off and no key reaches this community, including keys that already exist
 
 Twelve, rather than a number you pick: somebody in two communities that both ask for this gets one answer instead of a comparison. Shorter still wins, so a server that signs people out sooner keeps doing that.
 
+The same switch also ends a session that is **left alone for fifteen minutes**. Twelve hours is the longest a session may last; fifteen minutes is the longest it may sit untouched. Both are needed to meet the automatic-logoff expectations these communities are usually holding themselves to, and both come from the one switch rather than two.
+
+Using the app counts as touching it — the app renews its own session in the background while it is open, so the fifteen minutes only run down once somebody actually stops. What they see when they come back is the sign-in page.
+
 It follows the person rather than the room, so it applies to your members everywhere they go. Browser sessions come under it at their next sign-in rather than ending mid-sentence. Phones are the exception: a device that signed in longer ago than the standard allows is signed out at once.
 
 ## Turning something off
@@ -77,7 +81,7 @@ Nothing here destroys anything on the way out.
 | **Disconnect a provider** | Its button comes off your sign-in page and nobody new arrives through it. Nobody is signed out, no account changes, no membership is removed. If a requirement rests on it, you are asked to lift that first. |
 | **Lift a requirement** | Members simply stop being asked. |
 | **Allow API keys again** | The keys that already existed reach you again, with nobody minting replacements. |
-| **Stop asking for twelve-hour sessions** | People return to the ordinary length at their next sign-in. Sessions already shortened are not lengthened again. |
+| **Stop asking for twelve-hour sessions** | People return to the ordinary length, and stop being timed out for idleness, at their next sign-in. Sessions already shortened are not lengthened again. |
 
 If your server's administrator withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
 
@@ -89,7 +93,7 @@ If your server's administrator withdraws one of the two switches, that half of t
 
     **The requirement** is one row per community: `open`, or `required` naming a provider and/or the methods a session must carry (`sso`, `totp`, `passkey`). `password` is refused by a database constraint — whether passwords exist at all is the server's question, not a community's. It is enforced at the community-context gate, which answers with a step-up challenge, and again inside the database's row-level security.
 
-    **API access** and **session length** are flags on the community itself rather than on the policy row, which is why they outlive a requirement being lifted. A key is judged when it is used, not when it is created. The session standard is twelve hours, `min()`-ed with the server's own limit; it re-stamps device-token deadlines immediately, and browser sessions come under it at their next sign-in.
+    **API access** and **session length** are flags on the community itself rather than on the policy row, which is why they outlive a requirement being lifted. A key is judged when it is used, not when it is created. The session standard is twelve hours, `min()`-ed with the server's own limit; it re-stamps device-token deadlines immediately, and browser sessions come under it at their next sign-in. The idle standard is fifteen minutes, carried by the session's own two clocks rather than checked per request: the refresh row expires that far out and is re-stamped on each renewal, and the access token is minted no longer-lived than the row it names. So an idle session lapses on its own, and the control costs one sign-in rather than a database read on every call.
 
 ## Related
 

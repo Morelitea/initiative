@@ -58,6 +58,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.api.v1.platform_endpoints.session_opening import (
+    access_ttl_for,
     MOBILE_CALLBACK_URI,
     open_session,
     record_sign_in_failure,
@@ -1047,6 +1048,10 @@ async def refresh_access_token(
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
         provider_auth=issued.session.provider_auth,
+        # A renewed token is bounded by the row it renews, the same way the
+        # first one was — otherwise a narrowed session widens on its first
+        # refresh.
+        expires_in=access_ttl_for(issued.session, now=issued.session.created_at),
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
