@@ -427,19 +427,20 @@ class Settings(BaseSettings):
     def wasm_worker_content_security_policy(self) -> str:
         """CSP for the WebAssembly worker bundles ONLY (applied per-response).
 
-        Two workers run WebAssembly: the dashboard widget sandbox, which
+        Three workers run WebAssembly: the dashboard widget sandbox, which
         evaluates widget code with QuickJS
-        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``), and the direct
+        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``); the direct
         message ratchet, which runs vodozemac
-        (``frontend/src/crypto/ratchet.worker.ts``). A worker takes its policy
-        from the response that served its script rather than from the document
-        that started it, so the WebAssembly source expression is named here — on
-        those built assets — and the app-wide policy above needs no mention of
-        it.
+        (``frontend/src/crypto/ratchet.worker.ts``); and the PDF viewer's pdf.js
+        worker, which decodes JBIG2, CCITT fax and JPEG 2000 images that way.
+        A worker takes its policy from the response that served its script
+        rather than from the document that started it, so the WebAssembly source
+        expression is named here — on those built assets — and the app-wide
+        policy above needs no mention of it.
 
         Each worker is given the three things it uses and nothing else: its own
         script, WebAssembly compilation, and a same-origin fetch for the
-        ``.wasm`` file. Neither has a DOM, loads styles, images, or fonts, or
+        ``.wasm`` file. None has a DOM, loads styles, images, or fonts, or
         talks to anybody but the page that started it.
         """
         return _format_csp(

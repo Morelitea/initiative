@@ -14,6 +14,11 @@ export default defineConfig({
     // path is a build-time constant. Without it here the identifier survives
     // into the test bundle and any component that opens the picker throws.
     __EMOJIBASE_URL__: JSON.stringify("/emojibase"),
+    // Likewise for the self-hosted pdf.js worker and its WebAssembly image
+    // decoders: the identifiers are build-time constants, and the PDF viewer
+    // reads both at module scope.
+    __PDFJS_WORKER_URL__: JSON.stringify("/assets/workers/pdf.worker-test.mjs"),
+    __PDFJS_WASM_URL__: JSON.stringify("/assets/pdfjs-wasm/test/"),
   },
   test: {
     globals: true,

@@ -75,34 +75,47 @@ async def test_responses_carry_content_security_policy(client: AsyncClient) -> N
 @pytest.mark.unit
 def test_wasm_worker_match_names_only_those_files() -> None:
     match = main_module._is_wasm_worker_asset
-    # The widget sandbox (QuickJS) and the direct message ratchet (vodozemac).
+    # The widget sandbox (QuickJS) and the direct message ratchet (vodozemac),
+    # bundled by Vite as classic scripts; pdf.js ships an ES module and is
+    # emitted under its own version rather than a content hash.
     assert match("assets/workers/sandbox.worker-DQURGIoN.js")
     assert match("assets/workers/ratchet.worker-DQURGIoN.js")
+    assert match("assets/workers/pdf.worker-6.3.289.mjs")
 
-    # Every other built file is an ordinary asset: a third worker, a worker
+    # Every other built file is an ordinary asset: a fourth worker, a worker
     # whose name merely starts the same way, anything nested under a directory
     # that starts with the name, the sourcemap, and the app's own chunks.
     assert not match("assets/workers/other.worker-DQURGIoN.js")
     assert not match("assets/workers/worker-DQURGIoN.js")
     assert not match("assets/workers/sandbox.worker-DQURGIoN/payload.js")
     assert not match("assets/workers/ratchet.worker-DQURGIoN/payload.js")
+    assert not match("assets/workers/pdf.worker-6.3.289/payload.mjs")
     assert not match("assets/workers/sandbox.worker-DQURGIoN.js.map")
+    assert not match("assets/workers/pdf.worker-6.3.289.mjs.map")
     assert not match("assets/index-lSaaosYz.js")
     assert not match("assets/workers/")
 
+    # The WebAssembly modules the pdf.js worker fetches are data, not script —
+    # `script-src` never applies to them, and they take the app-wide policy.
+    assert not match("assets/pdfjs-wasm/6.3.289/jbig2.wasm")
+    assert not match("assets/pdfjs-wasm/6.3.289/jbig2_nowasm_fallback.js")
+
 
 @pytest.mark.integration
-@pytest.mark.parametrize("stem", ["sandbox.worker", "ratchet.worker"])
+@pytest.mark.parametrize(
+    ("stem", "suffix"),
+    [("sandbox.worker", ".js"), ("ratchet.worker", ".js"), ("pdf.worker", ".mjs")],
+)
 async def test_only_the_wasm_worker_assets_carry_their_policy(
-    client: AsyncClient, stem: str
+    client: AsyncClient, stem: str, suffix: str
 ) -> None:
     # End-to-end through the SPA file route: the worker bundle answers with the
     # WebAssembly policy, and the chunk next to it answers with the app-wide one.
     # Both filenames carry the stem: the cases share one static directory and can
     # run on different xdist workers, so a name common to both would be deleted
     # out from under whichever case is still reading it.
-    worker = main_module.static_path / "assets" / "workers" / f"{stem}-t3st.js"
-    ordinary = main_module.static_path / "assets" / f"index-{stem}-t3st.js"
+    worker = main_module.static_path / "assets" / "workers" / f"{stem}-t3st{suffix}"
+    ordinary = main_module.static_path / "assets" / f"index-{stem}-t3st{suffix}"
     worker.parent.mkdir(parents=True, exist_ok=True)
     ordinary.parent.mkdir(parents=True, exist_ok=True)
     worker.write_text("// wasm worker\n")
