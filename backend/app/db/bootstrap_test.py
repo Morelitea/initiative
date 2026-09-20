@@ -188,6 +188,125 @@ def test_the_printed_sql_sets_every_setting_it_reads():
     assert read <= written, f"read but never set: {sorted(read - written)}"
 
 
+def test_the_printed_handover_runs_rather_than_prints():
+    """The script is piped into psql unattended, so a step that only *displays*
+    the work is a step nobody does.
+
+    The ownership handover used to be emitted as the bare query plus a comment
+    saying to run what it returned. A fresh install has nothing to hand over
+    and never noticed; a database already running under another login — which
+    is the only kind that reaches this step — was left with its objects still
+    owned by the outgoing login, and the next boot failed on "must be owner
+    of".
+    """
+    body = bootstrap_sql()
+    assert "DO $handover$" in body
+    assert "EXECUTE statements[i]" in body
+    assert "run what it" not in body
+
+
+def test_the_printed_handover_and_the_app_run_one_query():
+    """Both forms are built from ``_TRANSFER_STATEMENTS``; a second copy is a
+    second handover to keep in step."""
+    from app.db.bootstrap import _TRANSFER_STATEMENTS
+
+    assert _TRANSFER_STATEMENTS.strip() in bootstrap_sql()
+
+
+@pytest.mark.integration
+async def test_the_wrapper_executes_every_statement_it_is_given(session):
+    """Proved on a stub query, not the real one: the real one would move the
+    ownership of every object in this worker's database."""
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _executing
+
+    block = _executing(
+        "SELECT 'probe' AS label, "
+        "$stmt$SELECT set_config('app._handover_probe', 'ran', true)$stmt$ AS stmt"
+    )
+    await session.exec(text(block))
+    ran = (
+        await session.exec(text("SELECT current_setting('app._handover_probe', true)"))
+    ).one()
+    assert ran[0] == "ran"
+
+
+@pytest.mark.integration
+async def test_the_wrapper_is_a_no_op_when_there_is_nothing_to_move(session):
+    """A fresh install renders the same block and must pass straight through
+    it."""
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _executing
+
+    block = _executing("SELECT NULL::text AS label, NULL::text AS stmt WHERE false")
+    await session.exec(text(block))
+
+
+@pytest.mark.integration
+async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
+    session, caplog
+):
+    """The ordinary case, and the one a warning must not fire on."""
+    from app.db.bootstrap import _FOREIGN_OWNERS
+    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from sqlalchemy import text
+
+    owners = (
+        await session.exec(
+            text(str(_FOREIGN_OWNERS)).bindparams(
+                owner=login_roles()[0].name,
+                tables=sorted(GRANTABLE_SHARED_TABLES),
+            )
+        )
+    ).all()
+    assert owners == [], (
+        "the test database's objects were handed to the declared provisioner "
+        "by conftest's bootstrap, so the signal must find none: "
+        f"{owners}"
+    )
+
+
+@pytest.mark.integration
+async def test_an_object_owned_elsewhere_is_seen(session):
+    """A table in a guild schema owned by another login is what the signal is
+    looking for."""
+    from app.db.bootstrap import _FOREIGN_OWNERS
+    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from sqlalchemy import text
+
+    from conftest import RUN_ID
+
+    other = f"owner_probe_{RUN_ID}"
+    await session.exec(text(f'CREATE ROLE "{other}"'))
+    try:
+        await session.exec(text("CREATE SCHEMA IF NOT EXISTS guild_template"))
+        await session.exec(
+            text(f"CREATE TABLE guild_template.owner_probe_{RUN_ID} (id int)")
+        )
+        await session.exec(
+            text(f'ALTER TABLE guild_template.owner_probe_{RUN_ID} OWNER TO "{other}"')
+        )
+        owners = [
+            row[0]
+            for row in (
+                await session.exec(
+                    text(str(_FOREIGN_OWNERS)).bindparams(
+                        owner=login_roles()[0].name,
+                        tables=sorted(GRANTABLE_SHARED_TABLES),
+                    )
+                )
+            ).all()
+        ]
+        assert other in owners
+    finally:
+        await session.exec(
+            text(f"DROP TABLE IF EXISTS guild_template.owner_probe_{RUN_ID}")
+        )
+        await session.exec(text(f'DROP ROLE IF EXISTS "{other}"'))
+
+
 def test_the_bootstrap_keeps_the_functions_it_installs():
     """The handover's exclusion list names functions the bootstrap creates.
 
