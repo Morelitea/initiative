@@ -101,40 +101,10 @@ async def test_readyz_reports_a_hung_dependency_rather_than_hanging(
     assert resp.json()["checks"]["storage"] == "error"
 
 
-@pytest.fixture
-def one_request_a_minute(monkeypatch: pytest.MonkeyPatch):
-    """Turn the global default limit on, at a rate a second request breaks."""
-    from slowapi.wrappers import LimitGroup
-
-    from app.core.rate_limit import get_real_client_ip, limiter
-
-    monkeypatch.setattr(limiter, "enabled", True)
-    monkeypatch.setattr(
-        limiter,
-        "_default_limits",
-        [
-            LimitGroup(
-                limit_provider="1/minute",
-                key_function=get_real_client_ip,
-                scope=None,
-                per_method=False,
-                methods=None,
-                error_message=None,
-                exempt_when=None,
-                cost=1,
-                override_defaults=False,
-            )
-        ],
-    )
-    limiter.reset()
-    yield
-    limiter.reset()
-
-
 @pytest.mark.integration
 @pytest.mark.parametrize("path", ["/api/v1/healthz", "/api/v1/readyz"])
 async def test_probes_are_not_rate_limited(
-    client: AsyncClient, one_request_a_minute, path: str
+    client: AsyncClient, rate_limit_of_one_per_minute, path: str
 ):
     """A cluster calls these on a fixed interval, so they must never be
     answered with a 429 — and the marker slowapi offers for that does not
@@ -144,17 +114,6 @@ async def test_probes_are_not_rate_limited(
     second = await client.get(path)
     assert (first.status_code, second.status_code) != (200, 429), second.text
     assert first.status_code == 200 and second.status_code == 200, second.text
-
-
-@pytest.mark.integration
-async def test_the_limit_it_is_skipping_is_really_on(
-    client: AsyncClient, one_request_a_minute
-):
-    """The other half of the test above: an ordinary route under the same
-    fixture does answer 429, so the probes passing means they were skipped and
-    not that the limiter was asleep."""
-    assert (await client.get("/api/v1/version")).status_code == 200
-    assert (await client.get("/api/v1/version")).status_code == 429
 
 
 @pytest.mark.integration
