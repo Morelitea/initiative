@@ -618,6 +618,105 @@ export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
   );
 };
 /**
+ * Call off a pending erasure from the users table (``users.manage``).
+ *
+ * The account's holder can do this themselves simply by signing in, which is
+ * the ordinary way it happens. This is for when they cannot — the address is
+ * gone, the phone is gone, they asked somebody — and for an operator undoing
+ * a deletion they made on somebody's behalf.
+ *
+ * Nothing is restored as such: the account never lost anything. It kept its
+ * memberships, its initiative roles and the documents it owns for the whole
+ * window, so this puts it back exactly where it was.
+ *
+ * Separate from ``reactivate``, which is for a *deactivated* account and
+ * gives back an account with no communities — the memberships that one
+ * dropped are not coming back.
+ * @summary Restore Deleted User
+ */
+export const restoreDeletedUserApiV1AdminUsersUserIdRestorePost = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AdminUserRead>(
+    { url: `/api/v1/admin/users/${userId}/restore`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["restoreDeletedUserApiV1AdminUsersUserIdRestorePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return restoreDeletedUserApiV1AdminUsersUserIdRestorePost(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>
+>;
+
+export type RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Restore Deleted User
+ */
+export const useRestoreDeletedUserApiV1AdminUsersUserIdRestorePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Take down a user's profile picture.
  *
  * People occasionally upload images that breach the terms of use, so removal

@@ -397,9 +397,9 @@
     "disconnectButton": "Se déconnecter",
     "deactivateTitle": "Désactiver le compte",
     "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
-    "permanentDeleteTitle": "Supprimer définitivement le compte",
-    "permanentDeleteDescriptionText": "Supprimez complètement votre compte du système. Les projets seront transférés à d'autres utilisateurs. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] ».",
-    "cannotBeUndone": "Cette action est irréversible.",
+    "permanentDeleteTitle": "Supprimer le compte",
+    "permanentDeleteDescriptionText": "Votre compte disparaît immédiatement pour les autres. Rien n'est effacé dans l'immédiat : reconnectez-vous avant la fin du délai et la suppression est annulée, avec vos communautés et votre travail tels que vous les avez laissés. Ensuite, les projets sont transférés à d'autres, et les commentaires et documents restent mais affichent « [Utilisateur supprimé] ».",
+    "cannotBeUndone": "Se reconnecter est ce qui l'arrête.",
     "deactivateButton": "Désactiver le compte",
     "deleteButton": "Supprimer le compte"
   },
@@ -733,7 +733,13 @@
       "role": "Rôle de plateforme",
       "roleLabel": "Rôle",
       "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
-    }
+    },
+    "deleted": "Supprimé",
+    "erasedOn": "Effacé le {{date}}",
+    "erasedNever": "Conservé indéfiniment",
+    "restore": "Restaurer le compte",
+    "restoreSuccess": "{{handle}} restauré.",
+    "restoreError": "Impossible de restaurer le compte. Veuillez réessayer."
   },
   "adminDeleteUser": {
     "subtitle": "Supprimer {{email}}",
@@ -745,7 +751,7 @@
     "stepType": "Choisir le type de suppression",
     "stepBlockers": "Résoudre les blocages",
     "softDeleteTitle": "Désactiver l'utilisateur",
-    "softDeleteDescription": "L'utilisateur sera désactivé. Il ne pourra pas se connecter, mais ses données seront préservées. Vous pouvez réactiver son compte ultérieurement.",
+    "softDeleteDescription": "Le compte disparaît pour les autres et conserve tout ce qu'il détient. Il est effacé à la fin du délai de cette installation, sauf si son titulaire se reconnecte ou que vous le restaurez.",
     "hardDeleteTitle": "Supprimer définitivement l'utilisateur",
     "hardDeleteDescription": "L'utilisateur sera définitivement supprimé. Ses projets doivent être transférés. Les commentaires afficheront « [Utilisateur supprimé] ».",
     "blockersTitle": "Blocages",
@@ -775,7 +781,9 @@
     "anonymizeButton": "Anonymiser l'utilisateur",
     "confirmDeactivate": "Désactiver {{email}} — il ne pourra pas se connecter mais ses données sont conservées.",
     "confirmDeactivateTitle": "Confirmer la désactivation",
-    "confirmAnonymizeTitle": "Confirmer l'anonymisation"
+    "confirmAnonymizeTitle": "Confirmer l'anonymisation",
+    "preferWindowLabel": "Supprimer avec le délai de récupération à la place",
+    "preferWindowHelp": "Le compte conserve tout et disparaît pour les autres. Il est effacé à la fin du délai, sauf si quelqu'un le récupère."
   },
   "accessGrants": {
     "title": "Demandes d'accès",
@@ -1434,13 +1442,26 @@
     "retention": {
       "title": "Conservation des communautés supprimées",
       "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",
-      "label": "Conserver pendant (jours)",
+      "label": "Conserver les communautés (jours)",
       "placeholder": "Ne jamais détruire",
       "hint": "Compté à partir du moment où chaque communauté a été supprimée : modifier ce délai déplace donc aussi la date de celles déjà supprimées.",
       "neverHint": "Rien n'est détruit à l'échéance d'un délai. Les communautés supprimées restent dans la liste ci-dessous jusqu'à ce que quelqu'un en restaure une.",
       "saved_one": "Les communautés supprimées sont conservées {{count}} jour.",
       "saved_other": "Les communautés supprimées sont conservées {{count}} jours.",
-      "savedNever": "Les communautés supprimées sont conservées indéfiniment."
+      "savedNever": "Les communautés supprimées sont conservées indéfiniment.",
+      "save": "Enregistrer la durée de conservation des communautés"
+    },
+    "accountRetention": {
+      "title": "Conservation des comptes supprimés",
+      "description": "Un compte supprimé disparaît immédiatement pour les autres et conserve tout ce qu'il détient. Il est effacé à la fin de ce délai, sauf si son titulaire se reconnecte ou qu'un opérateur le restaure.",
+      "label": "Conserver les comptes (jours)",
+      "placeholder": "Ne jamais effacer",
+      "hint": "Compté à partir du moment où chaque compte a été supprimé : modifier ce délai déplace donc aussi la date de ceux déjà supprimés.",
+      "neverHint": "Rien n'est effacé à l'échéance d'un délai. Les comptes supprimés restent dans la table des utilisateurs jusqu'à ce que quelqu'un revienne ou en restaure un.",
+      "saved_one": "Les comptes supprimés sont conservés {{count}} jour.",
+      "saved_other": "Les comptes supprimés sont conservés {{count}} jours.",
+      "savedNever": "Les comptes supprimés sont conservés indéfiniment.",
+      "save": "Enregistrer la durée de conservation des comptes"
     }
   },
   "account": {

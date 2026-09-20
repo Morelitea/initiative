@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DmPolicy } from "@/api/generated/initiativeAPI.schemas";
+import { DeletedAccountRetentionSection } from "@/components/admin/DeletedAccountRetentionSection";
 import { DeletedCommunityRetentionSection } from "@/components/admin/DeletedCommunityRetentionSection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -198,6 +199,8 @@ export const SettingsCommunityPage = () => {
         />
 
         <DeletedCommunityRetentionSection directoryEnabled={communityDirectoryEnabled} />
+
+        <DeletedAccountRetentionSection directoryEnabled={communityDirectoryEnabled} />
 
         <ConfirmDialog
           open={confirmingAgeGateOff}

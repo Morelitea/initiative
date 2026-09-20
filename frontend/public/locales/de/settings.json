@@ -397,9 +397,9 @@
     "disconnectButton": "Trennen",
     "deactivateTitle": "Konto deaktivieren",
     "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
-    "permanentDeleteTitle": "Konto dauerhaft löschen",
-    "permanentDeleteDescriptionText": "Entferne dein Konto vollständig aus dem System. Projekte werden an andere Benutzer übertragen. Kommentare und Dokumente bleiben erhalten, zeigen aber „[Gelöschter Benutzer]“ an.",
-    "cannotBeUndone": "Dies kann nicht rückgängig gemacht werden.",
+    "permanentDeleteTitle": "Konto löschen",
+    "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
+    "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
     "deactivateButton": "Konto deaktivieren",
     "deleteButton": "Konto löschen"
   },
@@ -733,7 +733,13 @@
       "role": "Plattformrolle",
       "roleLabel": "Rolle",
       "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
-    }
+    },
+    "deleted": "Gelöscht",
+    "erasedOn": "Löschung am {{date}}",
+    "erasedNever": "Unbegrenzt aufbewahrt",
+    "restore": "Konto wiederherstellen",
+    "restoreSuccess": "{{handle}} wiederhergestellt.",
+    "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
   },
   "adminDeleteUser": {
     "subtitle": "{{email}} löschen",
@@ -747,7 +753,7 @@
     "deactivateTitle": "Deaktivieren",
     "deactivateDescription": "Benutzer kann sich nicht anmelden. Personenbezogene Daten bleiben erhalten. Über die Benutzerseite reversibel.",
     "softDeleteTitle": "Anonymisieren (Soft-Delete)",
-    "softDeleteDescription": "Personenbezogene Daten werden entfernt. Benutzer kann sich nicht anmelden. Die Inhaltsurheberschaft bleibt als „Gelöschter Benutzer“ erhalten. Kann nicht rückgängig gemacht werden.",
+    "softDeleteDescription": "Das Konto verschwindet für alle anderen und behält alles, was es hält. Am Ende der Frist dieser Installation wird es gelöscht, sofern sich die Person nicht wieder anmeldet oder Sie es wiederherstellen.",
     "hardDeleteTitle": "Endgültig löschen (bereinigen)",
     "hardDeleteDescription": "Alle Benutzerdaten werden aus der Datenbank entfernt. Von diesem Benutzer verfasste Kommentare, Aufgaben und andere Inhalte werden per Kaskade gelöscht. Kann nicht rückgängig gemacht werden.",
     "blockersTitle": "Blockierungen",
@@ -775,7 +781,9 @@
     "deleting": "Wird gelöscht…",
     "deactivateButton": "Benutzer deaktivieren",
     "deactivating": "Wird deaktiviert…",
-    "deleteError": "Benutzer konnte nicht gelöscht werden"
+    "deleteError": "Benutzer konnte nicht gelöscht werden",
+    "preferWindowLabel": "Stattdessen mit Wiederherstellungsfrist löschen",
+    "preferWindowHelp": "Das Konto behält alles und verschwindet für alle anderen. Am Ende der Frist wird es gelöscht, sofern es niemand zurückholt."
   },
   "accessGrants": {
     "title": "Zugriffsanfragen",
@@ -1434,13 +1442,26 @@
     "retention": {
       "title": "Gelöschte Communitys aufbewahren",
       "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",
-      "label": "Aufbewahren für (Tage)",
+      "label": "Communitys aufbewahren für (Tage)",
       "placeholder": "Nie entfernen",
       "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Communitys.",
       "neverHint": "Nichts wird nach Ablauf einer Frist entfernt. Gelöschte Communitys bleiben in der Liste unten, bis jemand eine wiederherstellt.",
       "saved_one": "Gelöschte Communitys werden {{count}} Tag aufbewahrt.",
       "saved_other": "Gelöschte Communitys werden {{count}} Tage aufbewahrt.",
-      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt."
+      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt.",
+      "save": "Aufbewahrungsdauer für Communitys speichern"
+    },
+    "accountRetention": {
+      "title": "Gelöschte Konten aufbewahren",
+      "description": "Ein gelöschtes Konto verschwindet sofort für alle anderen und behält alles, was es hält. Es wird am Ende dieser Frist gelöscht, sofern sich die Person nicht wieder anmeldet oder ein Betreiber es wiederherstellt.",
+      "label": "Konten aufbewahren für (Tage)",
+      "placeholder": "Nie löschen",
+      "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Konten.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist gelöscht. Gelöschte Konten bleiben in der Nutzertabelle, bis jemand zurückkommt oder eines wiederherstellt.",
+      "saved_one": "Gelöschte Konten werden {{count}} Tag aufbewahrt.",
+      "saved_other": "Gelöschte Konten werden {{count}} Tage aufbewahrt.",
+      "savedNever": "Gelöschte Konten werden unbegrenzt aufbewahrt.",
+      "save": "Aufbewahrungsdauer für Konten speichern"
     }
   },
   "account": {

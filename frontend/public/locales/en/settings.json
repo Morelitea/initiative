@@ -397,9 +397,9 @@
     "disconnectButton": "Disconnect",
     "deactivateTitle": "Deactivate Account",
     "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. An administrator can reactivate your account later.",
-    "permanentDeleteTitle": "Permanently Delete Account",
-    "permanentDeleteDescriptionText": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\".",
-    "cannotBeUndone": "This cannot be undone.",
+    "permanentDeleteTitle": "Delete Account",
+    "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
+    "cannotBeUndone": "Signing in is what stops it.",
     "deactivateButton": "Deactivate Account",
     "deleteButton": "Delete Account"
   },
@@ -733,7 +733,13 @@
       "role": "Platform role",
       "roleLabel": "Role",
       "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
-    }
+    },
+    "deleted": "Deleted",
+    "erasedOn": "Erased {{date}}",
+    "erasedNever": "Kept indefinitely",
+    "restore": "Restore account",
+    "restoreSuccess": "Restored {{handle}}.",
+    "restoreError": "Could not restore the account. Please try again."
   },
   "adminDeleteUser": {
     "subtitle": "Delete {{email}}",
@@ -747,7 +753,7 @@
     "deactivateTitle": "Deactivate",
     "deactivateDescription": "User cannot log in. PII preserved. Reversible from the users page.",
     "softDeleteTitle": "Anonymize (soft delete)",
-    "softDeleteDescription": "PII removed. User cannot log in. Content authorship is preserved as \"Deleted user\". Cannot be reversed.",
+    "softDeleteDescription": "The account disappears for everyone else and keeps everything it holds. It is erased when the deployment's window ends, unless its holder signs back in or you restore it.",
     "hardDeleteTitle": "Hard delete (purge)",
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "blockersTitle": "Blockers",
@@ -775,7 +781,9 @@
     "deleting": "Deleting…",
     "deactivateButton": "Deactivate user",
     "deactivating": "Deactivating…",
-    "deleteError": "Unable to delete user"
+    "deleteError": "Unable to delete user",
+    "preferWindowLabel": "Delete with the recovery window instead",
+    "preferWindowHelp": "The account keeps everything and disappears for everyone else. It is erased at the end of the window unless somebody brings it back."
   },
   "accessGrants": {
     "title": "Access requests",
@@ -1434,13 +1442,26 @@
     "retention": {
       "title": "Keeping deleted communities",
       "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
-      "label": "Keep for (days)",
+      "label": "Keep communities for (days)",
       "placeholder": "Never destroy",
       "hint": "Counted from the moment each community was deleted, so changing this moves the date for ones already deleted.",
       "neverHint": "Nothing is destroyed on a timer. Deleted communities stay in the list below until somebody restores one.",
       "saved_one": "Deleted communities are kept for {{count}} day.",
       "saved_other": "Deleted communities are kept for {{count}} days.",
-      "savedNever": "Deleted communities are kept indefinitely."
+      "savedNever": "Deleted communities are kept indefinitely.",
+      "save": "Save how long communities are kept"
+    },
+    "accountRetention": {
+      "title": "Keeping deleted accounts",
+      "description": "A deleted account disappears for everyone else straight away and keeps everything it holds. It is erased when this window ends, unless its holder signs back in or an operator restores it.",
+      "label": "Keep accounts for (days)",
+      "placeholder": "Never erase",
+      "hint": "Counted from the moment each account was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is erased on a timer. Deleted accounts stay in the users table until somebody comes back or restores one.",
+      "saved_one": "Deleted accounts are kept for {{count}} day.",
+      "saved_other": "Deleted accounts are kept for {{count}} days.",
+      "savedNever": "Deleted accounts are kept indefinitely.",
+      "save": "Save how long accounts are kept"
     }
   },
   "account": {

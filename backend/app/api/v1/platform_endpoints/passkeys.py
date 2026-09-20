@@ -49,7 +49,7 @@ from app.core.messages import AuthMessages
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.db.session import get_admin_session, get_session
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.passkey import (
     PasskeyAuthenticationOptions,
@@ -514,7 +514,8 @@ async def finish_passkey_sign_in(
     account_id = outcome.passkey.user_id
 
     user = await admin_session.get(User, account_id)
-    if user is None or user.status != UserStatus.active:
+    # See SIGN_IN_STATUSES: a deletion is called off by its holder signing in.
+    if user is None or user.status not in SIGN_IN_STATUSES:
         # No session to open, so the counter the assertion moved goes back with
         # the transaction and the refusal is recorded on its own. The account
         # is read again because the rollback expired the row. The attempt

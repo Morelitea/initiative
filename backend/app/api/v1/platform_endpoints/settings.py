@@ -369,6 +369,7 @@ async def read_community_settings(
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 
@@ -421,6 +422,9 @@ async def update_community_settings(
         deleted_community_retention_days=payload.deleted_community_retention_days,
         retention_provided="deleted_community_retention_days"
         in payload.model_fields_set,
+        deleted_account_retention_days=payload.deleted_account_retention_days,
+        account_retention_provided="deleted_account_retention_days"
+        in payload.model_fields_set,
         actor_user_id=admin.id,
     )
     return CommunitySettingsResponse(
@@ -429,6 +433,7 @@ async def update_community_settings(
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 

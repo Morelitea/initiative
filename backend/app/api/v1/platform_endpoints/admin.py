@@ -307,6 +307,45 @@ async def reactivate_user(
     return await users_service.to_admin_read_one(user)
 
 
+@router.post("/users/{user_id}/restore", response_model=AdminUserRead)
+async def restore_deleted_user(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> AdminUserRead:
+    """Call off a pending erasure from the users table (``users.manage``).
+
+    The account's holder can do this themselves simply by signing in, which is
+    the ordinary way it happens. This is for when they cannot — the address is
+    gone, the phone is gone, they asked somebody — and for an operator undoing
+    a deletion they made on somebody's behalf.
+
+    Nothing is restored as such: the account never lost anything. It kept its
+    memberships, its initiative roles and the documents it owns for the whole
+    window, so this puts it back exactly where it was.
+
+    Separate from ``reactivate``, which is for a *deactivated* account and
+    gives back an account with no communities — the memberships that one
+    dropped are not coming back.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if user.status != UserStatus.deleted:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AdminMessages.USER_NOT_DELETED,
+        )
+    await users_service.cancel_account_deletion(
+        session, user_id, actor_user_id=current_user.id, via="operator"
+    )
+    await session.commit()
+    await session.refresh(user)
+    return await users_service.to_admin_read_one(user)
+
+
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_user_avatar(
     user_id: int,
@@ -790,13 +829,17 @@ async def delete_user(
         )
 
     if payload.action == "soft_delete":
-        await users_service.soft_delete_user(
+        # The same windowed deletion the account holder gets from their own
+        # danger zone. One meaning for the word on both surfaces, and the
+        # reversible action is the one that is easy to reach — ``hard_delete``
+        # below is the one that is not.
+        await users_service.request_account_deletion(
             session, user_id, actor_user_id=current_user.id
         )
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
-            message=f"User {user.username} has been anonymized",
+            message=f"User {user.username} has been deleted",
         )
 
     # hard_delete: ownership is released as the memberships go, and the

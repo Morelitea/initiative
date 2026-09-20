@@ -397,9 +397,9 @@
     "disconnectButton": "Desconectar",
     "deactivateTitle": "Desactivar cuenta",
     "deactivateDescription": "Desactiva temporalmente tu cuenta. Tu nombre, email y contenido se mantienen intactos, pero serás eliminado de todas las comunidades a los que perteneces; volver a unirte requiere una nueva invitación. Un administrador puede reactivar tu cuenta más tarde.",
-    "permanentDeleteTitle": "Eliminar cuenta permanentemente",
-    "permanentDeleteDescriptionText": "Elimina completamente tu cuenta del sistema. Los proyectos serán transferidos a otros usuarios. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\".",
-    "cannotBeUndone": "Esta acción no se puede deshacer.",
+    "permanentDeleteTitle": "Eliminar cuenta",
+    "permanentDeleteDescriptionText": "Tu cuenta desaparece de inmediato para los demás. Por ahora no se borra nada: si vuelves a iniciar sesión antes de que acabe el plazo, la eliminación se cancela, con tus comunidades y tu trabajo tal y como los dejaste. Después, los proyectos pasan a otras personas, y los comentarios y documentos se quedan pero muestran «[Usuario eliminado]».",
+    "cannotBeUndone": "Iniciar sesión es lo que la detiene.",
     "deactivateButton": "Desactivar cuenta",
     "deleteButton": "Eliminar cuenta"
   },
@@ -733,7 +733,13 @@
       "role": "Rol de plataforma",
       "roleLabel": "Rol",
       "roleHelp": "Lo que esta cuenta puede hacer en toda la instalación. No puedes conceder por encima de tu propio rol."
-    }
+    },
+    "deleted": "Eliminada",
+    "erasedOn": "Se borra el {{date}}",
+    "erasedNever": "Se conserva indefinidamente",
+    "restore": "Restaurar cuenta",
+    "restoreSuccess": "{{handle}} restaurada.",
+    "restoreError": "No se ha podido restaurar la cuenta. Inténtalo de nuevo."
   },
   "adminDeleteUser": {
     "subtitle": "Eliminar {{email}}",
@@ -745,7 +751,7 @@
     "stepType": "Elegir tipo de eliminación",
     "stepBlockers": "Resolver bloqueos",
     "softDeleteTitle": "Desactivar usuario",
-    "softDeleteDescription": "El usuario será desactivado. No podrá iniciar sesión, pero sus datos se conservarán. Puedes reactivar su cuenta más tarde.",
+    "softDeleteDescription": "La cuenta desaparece para los demás y conserva todo lo que tiene. Se borra al terminar el plazo de esta instalación, salvo que su titular vuelva a iniciar sesión o tú la restaures.",
     "hardDeleteTitle": "Eliminar usuario permanentemente",
     "hardDeleteDescription": "El usuario será eliminado permanentemente. Sus proyectos deben ser transferidos. Los comentarios mostrarán \"[Usuario eliminado]\".",
     "blockersTitle": "Bloqueos",
@@ -775,7 +781,9 @@
     "anonymizeButton": "Anonimizar usuario",
     "confirmDeactivate": "Desactivar a {{email}} — no podrá iniciar sesión pero sus datos se conservan.",
     "confirmDeactivateTitle": "Confirmar desactivación",
-    "confirmAnonymizeTitle": "Confirmar anonimización"
+    "confirmAnonymizeTitle": "Confirmar anonimización",
+    "preferWindowLabel": "Eliminar con plazo de recuperación en su lugar",
+    "preferWindowHelp": "La cuenta conserva todo y desaparece para los demás. Se borra al terminar el plazo, salvo que alguien la recupere."
   },
   "accessGrants": {
     "title": "Solicitudes de acceso",
@@ -1434,13 +1442,26 @@
     "retention": {
       "title": "Conservación de comunidades eliminadas",
       "description": "Una comunidad eliminada desaparece de inmediato para todos sus miembros, pero no se destruye nada hasta que termina este plazo. Hasta entonces, un operador puede restaurarla.",
-      "label": "Conservar durante (días)",
+      "label": "Conservar comunidades (días)",
       "placeholder": "No destruir nunca",
       "hint": "Se cuenta desde el momento en que se eliminó cada comunidad, así que cambiarlo mueve también la fecha de las ya eliminadas.",
       "neverHint": "No se destruye nada por plazo. Las comunidades eliminadas siguen en la lista de abajo hasta que alguien restaure una.",
       "saved_one": "Las comunidades eliminadas se conservan {{count}} día.",
       "saved_other": "Las comunidades eliminadas se conservan {{count}} días.",
-      "savedNever": "Las comunidades eliminadas se conservan indefinidamente."
+      "savedNever": "Las comunidades eliminadas se conservan indefinidamente.",
+      "save": "Guardar cuánto se conservan las comunidades"
+    },
+    "accountRetention": {
+      "title": "Conservación de cuentas eliminadas",
+      "description": "Una cuenta eliminada desaparece de inmediato para los demás y conserva todo lo que tiene. Se borra al terminar este plazo, salvo que su titular vuelva a iniciar sesión o un operador la restaure.",
+      "label": "Conservar cuentas (días)",
+      "placeholder": "No borrar nunca",
+      "hint": "Se cuenta desde el momento en que se eliminó cada cuenta, así que cambiarlo mueve también la fecha de las ya eliminadas.",
+      "neverHint": "No se borra nada por plazo. Las cuentas eliminadas siguen en la tabla de usuarios hasta que alguien vuelva o restaure una.",
+      "saved_one": "Las cuentas eliminadas se conservan {{count}} día.",
+      "saved_other": "Las cuentas eliminadas se conservan {{count}} días.",
+      "savedNever": "Las cuentas eliminadas se conservan indefinidamente.",
+      "save": "Guardar cuánto se conservan las cuentas"
     }
   },
   "account": {

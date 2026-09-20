@@ -29,6 +29,7 @@ vi.mock("@/hooks/useAdmin", () => ({
   useAdminClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
+  useAdminRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
@@ -175,5 +176,34 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     // writes to an account, so there is nothing to open.
     await screen.findByText("o***r@e***m");
     expect(screen.queryByRole("button", { name: /manage account/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("an account on its way out", () => {
+  const deleted = (purgeAt: string | null): AdminUserRead[] => {
+    const rows = masked();
+    rows[1] = { ...rows[1], status: "deleted", purge_at: purgeAt };
+    return rows;
+  };
+
+  it("is tagged, with the day it is erased", async () => {
+    renderRoster(deleted("2026-10-20T12:00:00Z"));
+
+    expect(await screen.findByText("Deleted")).toBeInTheDocument();
+    // An instant, not a calendar day, so it is drawn in the reader's own
+    // timezone — computed here the same way rather than written out.
+    const expected = new Date("2026-10-20T12:00:00Z").toLocaleDateString("en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    expect(screen.getByText(`Erased ${expected}`)).toBeInTheDocument();
+  });
+
+  it("says so plainly where the deployment erases nobody", async () => {
+    renderRoster(deleted(null));
+
+    expect(await screen.findByText("Deleted")).toBeInTheDocument();
+    expect(screen.getByText("Kept indefinitely")).toBeInTheDocument();
   });
 });
