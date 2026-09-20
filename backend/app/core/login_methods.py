@@ -31,10 +31,15 @@ class LoginMethod(str, Enum):
     #: a prompt instead of a typed password. Opens a session by itself, and is
     #: bound to this deployment's own domain.
     passkey = "passkey"
+    #: A one-time code sent to an address the account holds, typed back into
+    #: the page that asked for it. Opens a session by itself. Unlike every
+    #: other member it needs nothing of the account's: an address is enough,
+    #: which is why it is absent from :data:`DEFAULT_LOGIN_METHODS`.
+    email_otp = "email_otp"
 
 
-#: Mirrors the Postgres enum type created in migration 0284, extended in 0291
-#: and 0314. A value added to one has to be added to the other.
+#: Mirrors the Postgres enum type created in migration 0284, extended in 0291,
+#: 0314 and 0329. A value added to one has to be added to the other.
 LOGIN_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in LoginMethod)
 
 #: The methods that can start a session on their own.
@@ -47,10 +52,18 @@ PRIMARY_LOGIN_METHODS: tuple[LoginMethod, ...] = (
     LoginMethod.password,
     LoginMethod.sso,
     LoginMethod.passkey,
+    LoginMethod.email_otp,
 )
 
-#: What a deployment that has never chosen permits: everything it could.
-#: Also the column's server default, so an upgrade changes nobody's behaviour.
+#: What a deployment that has never chosen permits: everything that costs an
+#: account nothing until it opts in. Also the column's server default, so an
+#: upgrade changes nobody's behaviour.
+#:
+#: The rule used to read "everything it could", which was the same list while
+#: every method waited on the account to do something — register a key, enrol
+#: an authenticator, be linked to a provider. ``email_otp`` is the first that
+#: does not: every account holding an address can use it the moment it is
+#: permitted, so permitting it is an operator's decision rather than a default.
 DEFAULT_LOGIN_METHODS: tuple[LoginMethod, ...] = (
     LoginMethod.password,
     LoginMethod.sso,

@@ -3235,6 +3235,62 @@ export const EmailCadence = {
 } as const;
 
 /**
+ * Make the account a proved address earned.
+ */
+export interface EmailOtpRegister {
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  registration_ticket: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  username: string;
+  full_name?: string | null;
+  timezone?: string | null;
+  invite_code?: string | null;
+}
+
+/**
+ * Ask for a code at an address.
+ */
+export interface EmailOtpSend {
+  email: string;
+  captcha_token?: string | null;
+  invite_code?: string | null;
+  native?: boolean;
+}
+
+/**
+ * What asking always returns, whoever the address belongs to.
+ *
+ * ``challenge`` names the waiting code. It is the half of the proof that
+ * stays with the page that asked; the other half is in the mailbox.
+ */
+export interface EmailOtpSent {
+  status?: string;
+  challenge: string;
+}
+
+/**
+ * Answer a waiting code.
+ */
+export interface EmailOtpVerify {
+  /**
+   * @minLength 1
+   * @maxLength 256
+   */
+  challenge: string;
+  /**
+   * @minLength 1
+   * @maxLength 16
+   */
+  code: string;
+}
+
+/**
  * When this account reads its mail.
  */
 export interface EmailScheduleInput {
@@ -4950,6 +5006,7 @@ export const LoginMethod = {
   sso: "sso",
   totp: "totp",
   passkey: "passkey",
+  email_otp: "email_otp",
 } as const;
 
 /**

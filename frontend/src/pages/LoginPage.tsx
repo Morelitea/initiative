@@ -1,7 +1,7 @@
 import { Browser } from "@capacitor/browser";
 import { Device } from "@capacitor/device";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 import {
   type FormEvent,
   type ReactNode,
@@ -18,6 +18,7 @@ import type {
   LoginProviderEntry,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
+import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import { LogoIcon } from "@/components/LogoIcon";
@@ -102,7 +103,7 @@ export const LoginPage = () => {
     clearServerUrl,
     serverUrl,
   } = useServer();
-  const { passwordLoginEnabled, passkeyLoginEnabled } = useAppConfig();
+  const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +114,9 @@ export const LoginPage = () => {
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  // The emailed-code card takes the whole frame while it is open: it asks for
+  // one thing at a time, and the other ways in are not among them.
+  const [emailOtpOpen, setEmailOtpOpen] = useState(false);
   const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
     "loading"
@@ -379,6 +383,18 @@ export const LoginPage = () => {
     return <RegisterPage bootstrapMode />;
   }
 
+  if (emailOtpOpen) {
+    return (
+      <SignInFrame>
+        <EmailOtpCard
+          inviteCode={inviteCodeParam}
+          onCancel={() => setEmailOtpOpen(false)}
+          onSignedIn={goWhereTheySignedInFor}
+        />
+      </SignInFrame>
+    );
+  }
+
   return (
     <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
@@ -511,6 +527,17 @@ export const LoginPage = () => {
                 >
                   <KeyRound className="h-4 w-4" />
                   {passkeyBusy ? t("login.passkeyWorking") : t("login.passkey")}
+                </Button>
+              ) : null}
+              {emailOtpLoginEnabled ? (
+                <Button
+                  type="button"
+                  variant={passwordLoginEnabled ? "outline" : "default"}
+                  className="w-full"
+                  onClick={() => setEmailOtpOpen(true)}
+                >
+                  <Mail className="h-4 w-4" />
+                  {t("login.emailOtp")}
                 </Button>
               ) : null}
               {providers.map((provider) => (

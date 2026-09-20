@@ -62,6 +62,10 @@ class AuthMessages:
     #: out of attempts. One code for all four, so the client learns only that
     #: it has to begin again — the same shape as the refresh rejection above.
     TOTP_CHALLENGE_INVALID = "TOTP_CHALLENGE_INVALID"
+    #: The handle and code presented together are not a waiting sign-in.
+    EMAIL_OTP_INVALID = "EMAIL_OTP_INVALID"
+    #: A code was asked for while the deployment cannot send mail.
+    EMAIL_OTP_CANNOT_SEND = "EMAIL_OTP_CANNOT_SEND"
     #: Enrolling over a factor the account has already proved.
     TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
     #: The deployment does not offer the authenticator app.
@@ -539,6 +543,8 @@ class SettingsMessages:
     #: Withdrawing the last method that could answer the deployment's own
     #: second-factor requirement, while that requirement stands.
     LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+    #: Permitting the emailed code while the deployment cannot send mail.
+    LOGIN_METHODS_NO_EMAIL = "SETTINGS_LOGIN_METHODS_NO_EMAIL"
     # What the deployment asks of an account.
     #: Asking for a second factor while permitting nothing that presents one.
     FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"

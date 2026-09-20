@@ -82,5 +82,10 @@ export const useAppConfig = () => {
      *  button that turns up a moment late reads better than one that was there
      *  and then vanished, and the browser has its own say besides. */
     passkeyLoginEnabled: query.data?.login_methods?.includes("passkey") ?? false,
+    /** Whether this deployment permits a one-time code sent to an address.
+     *  False until the config loads, like the passkey button and for the same
+     *  reason — and false is the default here too: it is the one way in an
+     *  operator turns on rather than one they inherit. */
+    emailOtpLoginEnabled: query.data?.login_methods?.includes("email_otp") ?? false,
   };
 };

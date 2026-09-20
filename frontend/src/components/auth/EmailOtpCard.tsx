@@ -1,0 +1,240 @@
+/**
+ * Signing in — or up — with a code sent to an address.
+ *
+ * Three steps in one card, because the address box cannot know which of the
+ * two it is until the code comes back: the address, then the code, then (only
+ * for somebody new) the handle they want.
+ *
+ * The card holds the challenge and the ticket in memory and nowhere else.
+ * Neither is a credential on its own — the other half of each is in the
+ * mailbox — and neither outlives the card.
+ */
+
+import { type FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
+import { getErrorMessage } from "@/lib/errorMessage";
+
+type Step = "address" | "code" | "handle";
+
+interface Props {
+  /** Back to the other ways in. */
+  onCancel: () => void;
+  /** Where to go once there is a session. */
+  onSignedIn: () => void;
+  /** An invite this deployment asked for, carried from the URL. */
+  inviteCode?: string | null;
+}
+
+/** Strip the spaces a pasted code brings with it. */
+const compact = (value: string) => value.replace(/\s+/g, "");
+
+export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
+  const { t } = useTranslation("auth");
+  const { applyEmailOtpSignIn } = useAuth();
+
+  const [step, setStep] = useState<Step>("address");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const askForCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
+        email: email.toLowerCase().trim(),
+        ...(inviteCode ? { invite_code: inviteCode } : {}),
+      });
+      setChallenge(data.challenge);
+      setStep("code");
+    } catch (err) {
+      setError(getErrorMessage(err, "auth:emailOtp.sendError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const answerCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!challenge) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await apiClient.post<{
+        access_token?: string;
+        registration_ticket?: string;
+      }>("/auth/email-otp/verify", { challenge, code: compact(code) });
+      // 202 means the code was right and the address belongs to nobody yet,
+      // so what is left is to say who this is.
+      if (response.status === 202 && response.data.registration_ticket) {
+        setTicket(response.data.registration_ticket);
+        setStep("handle");
+        return;
+      }
+      if (response.data.access_token) {
+        await applyEmailOtpSignIn(response.data.access_token);
+        onSignedIn();
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "auth:emailOtp.codeError"));
+      setCode("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseHandle = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!ticket) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await apiClient.post<{ access_token: string }>("/auth/email-otp/register", {
+        registration_ticket: ticket,
+        username: username.trim(),
+        ...(fullName.trim() ? { full_name: fullName.trim() } : {}),
+        ...(inviteCode ? { invite_code: inviteCode } : {}),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      await applyEmailOtpSignIn(data.access_token);
+      onSignedIn();
+    } catch (err) {
+      setError(getErrorMessage(err, "auth:emailOtp.registerError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title =
+    step === "handle"
+      ? t("emailOtp.handleTitle")
+      : step === "code"
+        ? t("emailOtp.codeTitle")
+        : t("emailOtp.title");
+  const description =
+    step === "handle"
+      ? t("emailOtp.handleSubtitle")
+      : step === "code"
+        ? t("emailOtp.codeSubtitle", { email })
+        : t("emailOtp.subtitle");
+
+  return (
+    <Card className="w-full max-w-md shadow-lg">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="mb-4 text-destructive text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {step === "address" ? (
+          <form className="space-y-4" onSubmit={askForCode}>
+            <div className="space-y-2">
+              <Label htmlFor="email-otp-address">{t("emailOtp.addressLabel")}</Label>
+              <Input
+                id="email-otp-address"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder={t("emailOtp.addressPlaceholder")}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? t("login.submitting") : t("emailOtp.sendAction")}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full" onClick={onCancel}>
+              {t("emailOtp.back")}
+            </Button>
+          </form>
+        ) : null}
+
+        {step === "code" ? (
+          <form className="space-y-4" onSubmit={answerCode}>
+            <div className="space-y-2">
+              <Label htmlFor="email-otp-code">{t("emailOtp.codeLabel")}</Label>
+              <Input
+                id="email-otp-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+                required
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                placeholder={t("emailOtp.codePlaceholder")}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? t("login.submitting") : t("emailOtp.codeAction")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setStep("address");
+                setChallenge(null);
+                setCode("");
+                setError(null);
+              }}
+            >
+              {t("emailOtp.wrongAddress")}
+            </Button>
+          </form>
+        ) : null}
+
+        {step === "handle" ? (
+          <form className="space-y-4" onSubmit={chooseHandle}>
+            <div className="space-y-2">
+              <Label htmlFor="email-otp-username">{t("emailOtp.usernameLabel")}</Label>
+              <Input
+                id="email-otp-username"
+                autoComplete="username"
+                autoFocus
+                required
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder={t("emailOtp.usernamePlaceholder")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-otp-full-name">{t("emailOtp.fullNameLabel")}</Label>
+              <Input
+                id="email-otp-full-name"
+                autoComplete="name"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder={t("emailOtp.fullNamePlaceholder")}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? t("login.submitting") : t("emailOtp.registerAction")}
+            </Button>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};

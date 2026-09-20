@@ -5,12 +5,23 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
-from app.core.login_methods import LoginMethod, SecondFactorRequirement
+from app.core.login_methods import (
+    DEFAULT_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.models.platform.user_dm_settings import DmPolicy
 
 # Platform OIDC config lives on the provider registry row (``auth_providers``
 # slug ``oidc``), not here. Which ways in the deployment permits does — see
 # ``login_methods`` below and ``app.services.platform.auth_posture``.
+
+
+#: ``DEFAULT_LOGIN_METHODS`` as Postgres writes an array literal, so the set is
+#: stated once rather than here and in ``login_methods`` below. The migrations
+#: that moved this default keep their own copies: a migration is the record of
+#: what changed when, and is not read for what the default is now.
+_DEFAULT_LOGIN_METHODS_SQL = "{%s}" % ",".join(m.value for m in DEFAULT_LOGIN_METHODS)
 
 
 class AppSetting(SQLModel, table=True):
@@ -62,12 +73,11 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
     login_methods: list[str] = Field(
-        default_factory=lambda: [m.value for m in LoginMethod],
+        default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],
         sa_column=Column(
             ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
             nullable=False,
-            # Matches what migration 0315 sets on the column.
-            server_default="{password,sso,totp,passkey}",
+            server_default=_DEFAULT_LOGIN_METHODS_SQL,
         ),
     )
 

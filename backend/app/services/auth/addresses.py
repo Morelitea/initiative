@@ -110,6 +110,32 @@ async def account_holding(session: AsyncSession, email: str) -> User | None:
     ) or await account_awaiting_confirmation(session, email)
 
 
+async def row_for(session: AsyncSession, email: str) -> UserEmail | None:
+    """The address row itself, proved or not.
+
+    :func:`account_holding` answers who holds an address; this hands back the
+    row, for a caller that has to say something about that particular address
+    rather than about the account behind it.
+    """
+    return await _by_hash(session, hash_email(normalize(email)))
+
+
+async def mark_proved(
+    session: AsyncSession, *, address_id: int, now: datetime | None = None
+) -> bool:
+    """Record that this address has been proved, and say whether that is new.
+
+    ``False`` where it was already proved, so a caller can tell the first
+    proof from every later one. Staged in the caller's transaction.
+    """
+    result = await session.exec(
+        update(UserEmail)
+        .where(UserEmail.id == address_id, UserEmail.verified_at.is_(None))
+        .values(verified_at=now or datetime.now(timezone.utc))
+    )
+    return bool(result.rowcount)
+
+
 async def note_sign_in(
     session: AsyncSession, *, email: str, now: datetime | None = None
 ) -> None:

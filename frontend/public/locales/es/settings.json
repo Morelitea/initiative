@@ -620,6 +620,10 @@
       "passkey": {
         "label": "Clave de acceso",
         "help": "Una clave guardada en un dispositivo o en un gestor de contraseñas, que responde a una solicitud en lugar de a una contraseña. Cada persona las añade por su cuenta."
+      },
+      "email_otp": {
+        "label": "OTP por correo",
+        "help": "Un código de un solo uso enviado a una dirección de la cuenta, que se escribe en la página de inicio de sesión. Cualquier cuenta con una dirección puede usarlo, así que permanece desactivado hasta que lo actives."
       }
     },
     "sessionLifetime": {

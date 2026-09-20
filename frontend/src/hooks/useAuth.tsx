@@ -102,6 +102,7 @@ interface AuthContextValue {
   login: (payload: LoginPayload) => Promise<void>;
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
   applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
+  applyEmailOtpSignIn: (accessToken: string) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   stepUpWithPasskey: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
@@ -532,12 +533,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * ceremony runs in the system browser and comes back as a device token
    * through the callback page.
    */
-  const applyPasskeySignIn = useCallback(
-    async (result: PasskeySignInResult) => {
-      const accessToken = result.access_token;
-      if (!accessToken) {
-        throw new Error(t("login.passkeyFailed"));
-      }
+  const adoptBrowserSession = useCallback(
+    async (accessToken: string) => {
       removeItem(TOKEN_STORAGE_KEY);
       removeItem(DEVICE_TOKEN_KEY);
       clearRefreshToken();
@@ -547,7 +544,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await refreshUser();
       markJustSignedIn();
     },
-    [refreshUser, t]
+    [refreshUser]
+  );
+
+  const applyPasskeySignIn = useCallback(
+    async (result: PasskeySignInResult) => {
+      const accessToken = result.access_token;
+      if (!accessToken) {
+        throw new Error(t("login.passkeyFailed"));
+      }
+      await adoptBrowserSession(accessToken);
+    },
+    [adoptBrowserSession, t]
+  );
+
+  /**
+   * Adopt the session a code sent to an address produced.
+   *
+   * The same shape as the passkey one above and for the same reason: the
+   * server has already set the refresh cookie and handed back the access
+   * token, so what is left is to stop holding anything older and read the
+   * account it belongs to.
+   */
+  const applyEmailOtpSignIn = useCallback(
+    async (accessToken: string) => {
+      await adoptBrowserSession(accessToken);
+    },
+    [adoptBrowserSession]
   );
 
   /**
@@ -726,6 +749,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     login,
     completeSecondFactor,
     applyPasskeySignIn,
+    applyEmailOtpSignIn,
     stepUpWithFactor,
     stepUpWithPasskey,
     register,
