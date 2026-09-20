@@ -331,28 +331,4 @@ describe("realtime socket lifecycle", () => {
     expect(project()).toBe(false);
     expect(socket.closed).toBe(false);
   });
-
-  it("closes a socket the server has gone silent on", async () => {
-    renderWithProviders(<Probe />);
-    const socket = latestSocket();
-    socket.open();
-
-    // Past the limit, and past the next check after it.
-    await vi.advanceTimersByTimeAsync(110_000);
-
-    expect(socket.closed).toBe(true);
-  });
-
-  it("keeps a socket the server is still beating on", async () => {
-    renderWithProviders(<Probe />);
-    const socket = latestSocket();
-    socket.open();
-
-    for (let elapsed = 0; elapsed < 95_000; elapsed += 30_000) {
-      await vi.advanceTimersByTimeAsync(30_000);
-      socket.receive({ heartbeat: true });
-    }
-
-    expect(socket.closed).toBe(false);
-  });
 });

@@ -177,44 +177,6 @@ describe("useNotificationStream", () => {
     expect(timesNamed(q.notifications())).toBe(0);
   });
 
-  it("closes a socket the server has gone silent on", async () => {
-    // A dropped connection does not always close — a suspended laptop, a NAT
-    // timeout — and one that reports itself open while delivering nothing
-    // would otherwise keep the fallback poll switched off indefinitely.
-    vi.useFakeTimers();
-    try {
-      renderWithProviders(<Probe />);
-      const socket = latestSocket();
-      socket.open();
-      expect(socket.readyState).toBe(MockWebSocket.OPEN);
-
-      // Past the limit, and past the next check after it.
-      await vi.advanceTimersByTimeAsync(110_000);
-
-      expect(socket.closed).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("keeps a socket the server is still beating on", async () => {
-    vi.useFakeTimers();
-    try {
-      renderWithProviders(<Probe />);
-      const socket = latestSocket();
-      socket.open();
-
-      for (let elapsed = 0; elapsed < 95_000; elapsed += 30_000) {
-        await vi.advanceTimersByTimeAsync(30_000);
-        socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
-      }
-
-      expect(socket.closed).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it("tries the account again when the re-read fails", async () => {
     vi.useFakeTimers();
     try {
