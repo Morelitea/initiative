@@ -22,6 +22,7 @@ somebody named in it may have left since.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -120,3 +121,36 @@ async def guild_member_ids(
             )
         )
     )
+
+
+def initiative_member_id(
+    handle: str | None,
+    *,
+    people: PeopleMap,
+    member_handles: Mapping[str, int],
+    member_ids: frozenset[int],
+) -> int | None:
+    """Which member of the target initiative a source handle names.
+
+    Two ways to answer it, and the initiative's own roster gates both:
+
+    1. The account somebody mapped this handle to in the wizard's people step.
+    2. A member whose handle is the same string.
+
+    That gate is the whole difference between this and the rule authorship
+    follows (``_comment_author`` in ``services.tenant.project_import``). Being
+    quoted as the author of a comment is a fact about the past and can be
+    recorded about anybody the community knows; being assigned a task is a
+    statement about who is working on something here, now, and only the
+    initiative's roster can answer it. So the map says *which account* a
+    handle means — it never puts somebody into an initiative they are not in.
+
+    Returns ``None`` when neither answer lands, and the caller counts the
+    handle as unmatched.
+    """
+    if not handle:
+        return None
+    mapped = people.user_id(handle)
+    if mapped is not None and mapped in member_ids:
+        return mapped
+    return member_handles.get(handle_key(handle))

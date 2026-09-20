@@ -93,6 +93,11 @@ _RLS_SHARED_TABLES = {
     # WebAuthn credentials, on the same terms: forced with no policies, so
     # nothing but the system engine reads or writes one.
     "user_passkeys",
+    # One import job's credential for a foreign site, on the same terms:
+    # forced with no policies, because no request-path role ever reads one
+    # back — it is written by the connect request and read by the worker,
+    # both on the system engine.
+    "import_credentials",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

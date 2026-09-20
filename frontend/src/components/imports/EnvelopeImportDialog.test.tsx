@@ -26,6 +26,7 @@ vi.mock("@/hooks/useInitiativeAccess", () => ({
     permissionsFor: () => ({
       [Tool.queue]: { create: true },
       [Tool.document]: { create: true },
+      [Tool.project]: { create: true },
     }),
   }),
 }));
@@ -76,6 +77,60 @@ describe("EnvelopeImportDialog", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Restored Queue"))
     );
+  });
+
+  it("asks who the file's people are when the server stages it, then confirms", async () => {
+    // The envelope quotes somebody nobody here matched, so nothing is
+    // imported yet: the server hands back a staged job and the question.
+    const stagedJob = {
+      id: 42,
+      guild_id: 1,
+      created_by: 1,
+      source: "initiative-project",
+      params: {},
+      plan: {
+        people: [
+          {
+            handle: "stranger#4321",
+            name: "Alice Chen",
+            comment_count: 3,
+            suggested_user_id: null,
+          },
+        ],
+      },
+      result: null,
+      status: "staged",
+      error: null,
+      expires_at: null,
+      created_at: "2026-09-20T00:00:00Z",
+      updated_at: "2026-09-20T00:00:00Z",
+    };
+    let confirmed: Record<string, unknown> | null = null;
+    server.use(
+      guildHttp.post("/imports/envelope", () => HttpResponse.json(stagedJob, { status: 202 })),
+      guildHttp.post("/imports/jobs/42/confirm", async ({ request }) => {
+        confirmed = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...stagedJob, status: "queued" });
+      })
+    );
+
+    renderWithProviders(<EnvelopeImportDialog tool={Tool.project} open onOpenChange={() => {}} />);
+
+    selectFile({ type: "initiative-project", name: "Imported Board", schema_version: 1 });
+    const importBtn = await screen.findByRole("button", { name: /^import$/i });
+    await waitFor(() => expect(importBtn).not.toBeDisabled());
+    await userEvent.click(importBtn);
+
+    // The second step, with the person it could not place.
+    expect(await screen.findByText("Alice Chen")).toBeInTheDocument();
+    expect(screen.getByText("stranger#4321")).toBeInTheDocument();
+    // Nothing has been imported, so nothing is reported as imported.
+    expect(toast.success).not.toHaveBeenCalled();
+
+    // Leaving the row blank is a real answer: confirm with an empty map.
+    await userEvent.click(screen.getByRole("button", { name: /^import$/i }));
+    await waitFor(() => expect(confirmed).not.toBeNull());
+    expect(confirmed).toEqual({});
   });
 
   it("rejects a file whose type belongs to a different tool", async () => {

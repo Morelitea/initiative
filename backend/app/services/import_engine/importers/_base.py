@@ -5,7 +5,7 @@ attachment for envelopes that carry values without their definitions
 
 from __future__ import annotations
 
-from typing import Any, Type
+from typing import TYPE_CHECKING, Any, Type
 
 from pydantic import BaseModel, ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -27,6 +27,24 @@ from app.services.import_engine.common import (
     unique_property_name,
 )
 from app.services.import_engine.contract import ImportEngineError
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.tenant.backup_export import ManifestPerson
+
+
+class QuotesNobody:
+    """An envelope that names no people, which is most of them.
+
+    The people step exists to ask who the handles in an envelope are, and an
+    envelope carrying no handles has nothing to ask. Mixed in rather than
+    left to a default on the protocol, so "this one quotes nobody" is a
+    statement each importer makes rather than something it forgot to say —
+    the day a tool's envelope starts carrying comments, dropping this base
+    class is what makes the wizard notice.
+    """
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        return []
 
 
 def parse_envelope(model: Type[BaseModel], envelope: dict[str, Any]) -> BaseModel:

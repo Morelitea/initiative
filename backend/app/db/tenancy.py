@@ -179,6 +179,12 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
+        # The secret one import job needs to read a foreign site, held from
+        # the connect request until the worker picks the job up and deleted
+        # the moment that job is over. Written before any guild schema is
+        # routed into and read on the system engine, so it cannot live in one
+        # — it names a guild without being that guild's content.
+        "import_credentials",
         "notifications",  # per-user inbox spanning guilds; carries its own place
         # Billing write boundary (external billing service, initiative_billing role)
         "billing_event_log",  # idempotency claim + append-only audit; weak guild ref

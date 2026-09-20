@@ -23,6 +23,7 @@ from app.models.tenant.initiative import Initiative
 from app.schemas.base import SanitizedBaseModel
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.tenant.backup_export import ManifestPerson
     from app.services.import_engine.context import ImportContext
 
 
@@ -90,6 +91,20 @@ class EnvelopeImporter(Protocol):
     def count(self, validated: BaseModel) -> int:
         """Cheap in-memory row proxy for the inline-vs-job split and the
         hard ceiling (len(tasks), len(items), … — 1 for a lone document)."""
+        ...
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        """Everybody this envelope quotes, most-quoted first.
+
+        The same inventory a backup's manifest carries, read from one
+        envelope instead — it is what the wizard's people step asks about,
+        and what decides whether a lone envelope needs a confirm screen at
+        all (``engine.start_envelope_import``).
+
+        Most importers return nothing, and that is not a stub: an envelope
+        that names no people has nobody to ask about. Only the project
+        envelope carries comment authors today.
+        """
         ...
 
     async def apply(

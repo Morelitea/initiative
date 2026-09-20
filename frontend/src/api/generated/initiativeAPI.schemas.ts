@@ -9659,7 +9659,7 @@ export const ExportGuildApiV1GGuildIdExportsGuildGetMode = {
   report: "report",
 } as const;
 
-export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
+export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
   [key: string]: unknown;
 } | null;
 

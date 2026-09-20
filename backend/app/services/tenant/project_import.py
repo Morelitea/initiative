@@ -52,6 +52,7 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.people import PeopleMap, initiative_member_id
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -100,6 +101,10 @@ async def import_project(
     initiative_member_handles = await load_initiative_member_handles(
         session, initiative_id=target_initiative.id
     )
+    # The same roster read the other way round. Assignment is gated on
+    # membership however the handle was resolved, and a mapped account is
+    # known by its id rather than by a handle to look up.
+    initiative_member_ids = frozenset(initiative_member_handles.values())
     target_guild_id = target_initiative.guild_id
     if target_guild_id is None:
         # Initiatives are created with a guild (services/initiatives.py
@@ -225,6 +230,7 @@ async def import_project(
             tag_name_to_id=tag_name_to_id,
             prop_key_to_id=prop_key_to_id,
             initiative_member_handles=initiative_member_handles,
+            initiative_member_ids=initiative_member_ids,
             unmatched_handle_sink=unmatched_handles,
             context=context,
         )
@@ -283,6 +289,7 @@ async def _import_task(
     tag_name_to_id: dict[str, int],
     prop_key_to_id: dict[tuple[str, PropertyType], int],
     initiative_member_handles: dict[str, int],
+    initiative_member_ids: frozenset[int],
     unmatched_handle_sink: set[str],
     context: ImportContext | None = None,
 ) -> tuple[int, int]:
@@ -356,10 +363,18 @@ async def _import_task(
             tag_name_to_id[task_tag.name] = tid
         session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
 
-    # Assignees: match by handle against initiative members; drop misses
+    # Assignees: the account a person mapped the handle to, else a member
+    # whose handle is the same string — and a member of this initiative
+    # either way (see ``people.initiative_member_id``). Misses are dropped
+    # and counted.
     seen_user_ids: set[int] = set()
     for handle in envelope_task.assignee_handles:
-        uid = initiative_member_handles.get(handle_key(handle))
+        uid = initiative_member_id(
+            handle,
+            people=context.people if context is not None else PeopleMap(),
+            member_handles=initiative_member_handles,
+            member_ids=initiative_member_ids,
+        )
         if uid is None:
             unmatched_handle_sink.add(handle)
             continue

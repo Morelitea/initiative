@@ -29,6 +29,7 @@ from app.services.import_engine.common import ensure_tag, parse_datetime, unique
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    QuotesNobody,
     grant_ownership,
     parse_envelope,
 )
@@ -36,7 +37,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
 
 
-class WikiImporter:
+class WikiImporter(QuotesNobody):
     envelope_type = "initiative-wiki"
     permission = PermissionKey.create_wikis
 

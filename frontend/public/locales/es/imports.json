@@ -40,7 +40,7 @@
     },
     "people": {
       "prompt": "¿Quiénes son estas personas aquí?",
-      "note": "El archivo nombra a las personas con el identificador que tenían en su origen. Hemos rellenado aquellos cuyo identificador coincide exactamente con un miembro: revísalos e indica quiénes son los demás. Si dejas una fila en blanco, esos comentarios conservan el nombre con el que llegaron y no se atribuyen a ninguna cuenta.",
+      "note": "La exportación nombra a las personas con el identificador que tenían en su origen. Hemos rellenado aquellos cuyo identificador coincide exactamente con un miembro: revísalos e indica quiénes son los demás. Si dejas una fila en blanco, esos comentarios conservan el nombre con el que llegaron y no se atribuyen a ninguna cuenta.",
       "comments_one": "{{count}} comentario",
       "comments_other": "{{count}} comentarios",
       "unmapped": "Nadie aquí",

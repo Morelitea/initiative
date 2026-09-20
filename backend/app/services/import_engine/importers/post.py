@@ -27,6 +27,7 @@ from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    QuotesNobody,
     grant_ownership,
     parse_envelope,
 )
@@ -39,7 +40,7 @@ _MAX_NAME = 255
 _NAME_SUFFIX_ROOM = 8
 
 
-class PostImporter:
+class PostImporter(QuotesNobody):
     envelope_type = "initiative-post"
     permission = PermissionKey.create_posts
 

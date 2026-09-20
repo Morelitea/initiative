@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreatePostDialog } from "@/components/initiativeTools/posts/CreatePostDialog";
 import { PostCard } from "@/components/initiativeTools/posts/PostCard";
 import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/posts/PostsFilterBar";
@@ -137,6 +138,12 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   useRegisterPrimaryCreateAction(
     canCreatePosts ? { run: () => setCreateOpen(true), label: t("createPost") } : null
   );
+
+  const postImport = useToolImportAction({
+    tool: Tool.post,
+    canImport: canCreatePosts,
+    fixedInitiativeId,
+  });
 
   const posts = useMemo(
     () => postsQuery.data?.pages.flatMap((page) => page.items) ?? [],
@@ -288,7 +295,11 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
               </Button>
             ) : null
           }
+          menuItems={postImport.menuItem}
         />
+        {/* Outside the toolbar: a dropdown unmounts its content on close,
+            which would take a dialog nested inside it along too. */}
+        {postImport.dialog}
 
         <PostsFilterBar
           searchQuery={searchQuery}

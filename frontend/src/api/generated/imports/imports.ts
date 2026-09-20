@@ -22,7 +22,7 @@ import type {
 
 import type {
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
-  ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
+  ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
   HTTPValidationError,
   ImportJobRead,
@@ -634,9 +634,13 @@ export const useImportFromTicktickApiV1GGuildIdImportsTicktickPost = <
 /**
  * Import a previously-exported JSON envelope (any tool — the envelope's
  * ``type`` field selects the importer) into the chosen initiative. Requires
- * the tool's create permission there. Small envelopes apply immediately and
- * return ``201`` with the result; large ones return ``202`` with a queued
- * job to poll.
+ * the tool's create permission there.
+ *
+ * Small envelopes apply immediately and return ``201`` with the result.
+ * Anything else returns ``202`` with a job: ``queued`` for one that is
+ * merely large, or ``staged`` for one quoting people nobody here can place,
+ * whose ``plan`` names them and which starts on
+ * ``POST /imports/jobs/{id}/confirm``.
  * @summary Import Envelope
  */
 export const importEnvelopeApiV1GGuildIdImportsEnvelopePost = (
@@ -1250,22 +1254,28 @@ export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
   );
 };
 /**
- * Confirm a staged backup: flips it to ``queued`` for the worker.
+ * Confirm a staged import: flips it to ``queued`` for the worker.
  *
  * Optional body ``{"include": {tool: bool}}`` narrows which tools apply
- * (omitted tools default to included), and ``{"people_map": {handle: user
- * id}}`` says who each name the archive quotes is here — the answers to the
- * wizard's people step. Both are recorded on the job and read at apply time;
- * the mapping is re-checked against real membership there, because this
- * confirm may be hours old by then.
+ * (backup only; omitted tools default to included), and ``{"people_map":
+ * {handle: user id}}`` says who each name the archive quotes is here — the
+ * answers to the wizard's people step. Both are recorded on the job and read
+ * at apply time; the mapping is re-checked against real membership there,
+ * because this confirm may be hours old by then.
  *
- * Guild admins only — re-checked here and again at apply time.
- * @summary Confirm Backup Import
+ * Two kinds of job reach this, and they are gated differently because they
+ * were created differently. A **backup** creates initiatives and restores
+ * blobs, so it is guild admins only — re-checked here and again at apply
+ * time. A lone **envelope** is one thing its creator already had the create
+ * permission for when they dropped it; it is staged only to ask who the
+ * handles in it are, so that creator is the one who answers, and nobody
+ * else confirms on their behalf.
+ * @summary Confirm Import
  */
-export const confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (
+export const confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (
   guildId: number,
   jobId: number,
-  confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>,
+  confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1274,39 +1284,39 @@ export const confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (
       url: `/api/v1/g/${guildId}/imports/jobs/${jobId}/confirm`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
+      data: confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
       signal,
     },
     options
   );
 };
 
-export const getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions = <
+export const getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+    Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
     TError,
     {
       guildId: number;
       jobId: number;
-      data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+      data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
     },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
   TError,
   {
     guildId: number;
     jobId: number;
-    data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+    data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
   },
   TContext
 > => {
-  const mutationKey = ["confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost"];
+  const mutationKey = ["confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1314,16 +1324,16 @@ export const getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+    Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
     {
       guildId: number;
       jobId: number;
-      data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+      data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
     }
   > = (props) => {
     const { guildId, jobId, data } = props ?? {};
 
-    return confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost(
+    return confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost(
       guildId,
       jobId,
       data,
@@ -1334,30 +1344,30 @@ export const getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>
+export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>
 >;
-export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationBody =
-  | BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>
+export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationBody =
+  | BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>
   | undefined;
-export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationError =
+export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Confirm Backup Import
+ * @summary Confirm Import
  */
-export const useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = <
+export const useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+      Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
       TError,
       {
         guildId: number;
         jobId: number;
-        data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+        data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
       },
       TContext
     >;
@@ -1365,17 +1375,17 @@ export const useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
   TError,
   {
     guildId: number;
     jobId: number;
-    data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+    data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
   },
   TContext
 > => {
   return useMutation(
-    getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions(options),
+    getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions(options),
     queryClient
   );
 };

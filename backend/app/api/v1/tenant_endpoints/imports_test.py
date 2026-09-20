@@ -1889,10 +1889,15 @@ def _project_envelope_with_comment(author_handle: str, author_name: str) -> dict
 
 
 async def test_an_unmatched_author_keeps_their_name_and_no_account(
-    client, acting_user, session
+    client, acting_user, session, monkeypatch, role_session
 ):
     """Nobody here is somebody. The comment carries the name it arrived with
-    and is credited to no account — not to whoever ran the import."""
+    and is credited to no account — not to whoever ran the import.
+
+    The envelope quotes a stranger, so it is staged rather than applied and
+    the importer is asked who that is; leaving the row blank is the answer
+    this test gives, and it is a real one.
+    """
     from sqlmodel import select
 
     from app.models.tenant.comment import Comment
@@ -1901,7 +1906,17 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
 
     resp = await _import_envelope(client, a, envelope, a.initiative.id)
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
+    )
+    assert confirm.status_code == 200, confirm.text
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    await import_worker.process_import_jobs()
 
     comment = (
         await session.exec(
@@ -1912,6 +1927,131 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     assert comment.created_by == a.user.id
     # ...and the name rides beside it, which is what the reader sees.
     assert comment.imported_author_name == "Alice Chen"
+
+
+async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
+    client, acting_user, session
+):
+    """The people step for a lone envelope: nothing is written until somebody
+    has answered, and the plan is the question."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+    assert job["plan"]["people"] == [
+        {
+            "handle": "stranger#4321",
+            "name": "Alice Chen",
+            "comment_count": 1,
+            "suggested_user_id": None,
+        }
+    ]
+    # Staged means staged: the board does not exist yet.
+    assert not (
+        await session.exec(select(Project).where(Project.name == "Imported Board"))
+    ).all()
+
+
+async def test_an_envelope_whose_people_all_match_is_not_a_second_step(
+    client, acting_user, session
+):
+    """Asking somebody to agree with a screen full of correct answers is not
+    a step. Every handle matching a member exactly means there is nothing to
+    decide, so the file imports on one click, as it always did."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment(handle_of(b.user), "Someone Else")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+
+async def test_only_the_creator_answers_an_envelopes_people_step(
+    client, acting_user, session
+):
+    """A guild admin can SEE somebody else's staged job — RLS says so. Saying
+    who its people are on their behalf is a different thing."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+
+    resp = await _import_envelope(
+        client,
+        a,
+        _project_envelope_with_comment("stranger#4321", "Alice Chen"),
+        a.initiative.id,
+    )
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+
+    stolen = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=admin.headers, json={}
+    )
+    assert stolen.status_code == 403, stolen.text
+    assert stolen.json()["detail"] == "IMPORT_NOT_CONFIRMABLE"
+
+
+async def test_the_people_map_decides_who_an_envelopes_assignee_is(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An assignee goes through the map like an author does — but the
+    initiative's roster still has the last word, because being assigned
+    something is a statement about who is working here now."""
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task, TaskAssignee
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    inside = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    # In the community, not in this initiative — so the map may name them and
+    # the assignment still must not land.
+    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["assignee_handles"] = ["ghost#1111", "phantom#2222"]
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={
+            "people_map": {
+                "ghost#1111": inside.user.id,
+                "phantom#2222": outside.user.id,
+            }
+        },
+    )
+    assert confirm.status_code == 200, confirm.text
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    await import_worker.process_import_jobs()
+
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    assignees = (
+        await session.exec(select(TaskAssignee).where(TaskAssignee.task_id == task.id))
+    ).all()
+    assert [row.user_id for row in assignees] == [inside.user.id]
 
 
 async def test_an_exact_handle_match_makes_the_comment_theirs(

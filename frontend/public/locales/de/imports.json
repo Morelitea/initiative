@@ -40,7 +40,7 @@
     },
     "people": {
       "prompt": "Wer sind diese Personen hier?",
-      "note": "Das Archiv nennt Personen mit dem Handle, das sie an der Herkunft hatten. Wo ein Handle genau zu einem Mitglied passt, haben wir es eingetragen — prüfe diese und gib an, wer die Übrigen sind. Bleibt eine Zeile leer, behalten diese Kommentare den mitgebrachten Namen und werden keinem Konto zugeordnet.",
+      "note": "Der Export nennt Personen mit dem Handle, das sie an der Herkunft hatten. Wo ein Handle genau zu einem Mitglied passt, haben wir es eingetragen — prüfe diese und gib an, wer die Übrigen sind. Bleibt eine Zeile leer, behalten diese Kommentare den mitgebrachten Namen und werden keinem Konto zugeordnet.",
       "comments_one": "{{count}} Kommentar",
       "comments_other": "{{count}} Kommentare",
       "unmapped": "Niemand hier",
