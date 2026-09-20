@@ -345,6 +345,10 @@ class LoginMethodStatus(SanitizedBaseModel):
     #: derived from ``PRIMARY_LOGIN_METHODS`` here rather than listed again
     #: in the frontend.
     primary: bool
+    #: Whether this method can answer a second-factor requirement. Derived
+    #: from ``FACTOR_METHODS``, and orthogonal to ``primary``: a passkey is
+    #: both — a way in on its own, and an answer to being asked for a factor.
+    answers_factor: bool = False
     #: Accounts that can sign in today and could not if this method were
     #: withdrawn. Computed for every method, withdrawn or not, so the settings
     #: page can warn before the write rather than after a refusal — and so the
@@ -379,6 +383,13 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
     guilds_requiring_sign_in: int
+    #: Whether anything this deployment permits could answer a second-factor
+    #: requirement — the authenticator app or a passkey, either will do. False
+    #: means the requirement below cannot be raised, and the server refuses it
+    #: with ``SETTINGS_FACTOR_REQUIREMENT_NO_METHOD``. Answered here so the
+    #: surface can say so before the write, and so it never has to work out
+    #: which methods count.
+    factor_methods_permitted: bool = True
     #: How long somebody may stay signed in before signing in again, in hours.
     #: ``None`` asks for no limit, which is the default. A community held to
     #: the compliance standard overrides it downwards for its own members.

@@ -658,13 +658,15 @@
       "unmet": "Set up a second factor of your own first, then save.",
       "present": "Enter a code",
       "saved": "Saved. People this covers are asked at their next request.",
-      "error": "We couldn't save that."
+      "error": "We couldn't save that.",
+      "noMethod": "Permit the authenticator app or passkeys first — with neither offered there is nothing to ask people for."
     },
     "factorMethods": {
       "title": "Two-factor authentication",
       "description": "What this server offers as a second factor. Whether anybody has to hold one is the next setting.",
       "saved": "Two-factor authentication updated.",
-      "saveError": "Could not change two-factor authentication."
+      "saveError": "Could not change two-factor authentication.",
+      "followsWaysIn": "A passkey proves the device and the person in one go, so it answers this as well as opening a session. Whether passkeys are offered is decided under Ways in."
     }
   },
   "platformUsers": {

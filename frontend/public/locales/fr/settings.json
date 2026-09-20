@@ -658,13 +658,15 @@
       "unmet": "Configurez d'abord votre propre second facteur, puis enregistrez.",
       "present": "Saisir un code",
       "saved": "Enregistré. Les personnes concernées seront sollicitées à leur prochaine requête.",
-      "error": "Nous n'avons pas pu enregistrer cela."
+      "error": "Nous n'avons pas pu enregistrer cela.",
+      "noMethod": "Autorisez d'abord l'application d'authentification ou les clés d'accès : sans l'une ou l'autre, il n'y a rien à exiger."
     },
     "factorMethods": {
       "title": "Authentification à deux facteurs",
       "description": "Ce que ce serveur propose comme second facteur. Savoir si quelqu'un doit en détenir un est le réglage suivant.",
       "saved": "Authentification à deux facteurs mise à jour.",
-      "saveError": "Impossible de modifier l'authentification à deux facteurs."
+      "saveError": "Impossible de modifier l'authentification à deux facteurs.",
+      "followsWaysIn": "Une clé d'accès prouve l'appareil et la personne d'un seul geste : elle répond donc à ceci en plus d'ouvrir une session. L'activation des clés d'accès se décide sous « Moyens d'accès »."
     }
   },
   "platformUsers": {

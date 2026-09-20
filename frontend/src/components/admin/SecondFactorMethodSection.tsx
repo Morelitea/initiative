@@ -1,10 +1,15 @@
 /**
  * Platform → Security: which second factors this server offers.
  *
- * A second factor accompanies a sign-in rather than opening one, so it is not
- * one of the ways in — it belongs beside the rule that asks for it. Which
- * methods land here is the server's own `primary` flag, so a method added
- * later arrives in the right place without a list to update.
+ * Two things can answer being asked for one, and the server says which
+ * (`answers_factor`) rather than this keeping a list.
+ *
+ * A passkey is both a way in and an answer to being asked for a factor, so it
+ * appears here *and* under Ways in — but it is governed in one place only.
+ * Its row here reflects that decision and cannot be toggled from this side;
+ * two checkboxes writing one bit would let the page contradict itself. The
+ * authenticator app is nothing but a second factor, so this is where it is
+ * turned on and off.
  *
  * No acknowledgement dialog, unlike the ways in: withdrawing a second factor
  * strands nobody, because it was never anybody's only way to sign in. What it
@@ -34,7 +39,7 @@ export const SecondFactorMethodSection = () => {
   if (query.isLoading || !query.data) return null;
 
   const { methods } = query.data;
-  const factors = methods.filter((entry) => !entry.primary);
+  const factors = methods.filter((entry) => entry.answers_factor);
   if (factors.length === 0) return null;
 
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
@@ -51,28 +56,38 @@ export const SecondFactorMethodSection = () => {
       description={t("auth.factorMethods.description")}
     >
       <div className="space-y-4">
-        {factors.map((entry) => (
-          <div key={entry.method} className="flex items-start gap-3">
-            <Checkbox
-              id={`factor-method-${entry.method}`}
-              checked={entry.enabled}
-              disabled={busy}
-              onCheckedChange={(checked) => toggleMethod(entry.method, Boolean(checked))}
-              className="mt-0.5"
-            />
-            <div className="space-y-1">
-              <Label
-                htmlFor={`factor-method-${entry.method}`}
-                className="cursor-pointer font-medium"
-              >
-                {t(`auth.methods.${entry.method}.label`)}
-              </Label>
-              <p className="text-muted-foreground text-sm">
-                {t(`auth.methods.${entry.method}.help`)}
-              </p>
+        {factors.map((entry) => {
+          // Decided under Ways in, where it is a way in. Shown here so the
+          // answer to "what can answer this" is complete, and read-only so
+          // there is one place it is set.
+          const decidedElsewhere = entry.primary;
+          return (
+            <div key={entry.method} className="flex items-start gap-3">
+              <Checkbox
+                id={`factor-method-${entry.method}`}
+                checked={entry.enabled}
+                disabled={busy || decidedElsewhere}
+                onCheckedChange={(checked) =>
+                  !decidedElsewhere && toggleMethod(entry.method, Boolean(checked))
+                }
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor={`factor-method-${entry.method}`}
+                  className={decidedElsewhere ? "font-medium" : "cursor-pointer font-medium"}
+                >
+                  {t(`auth.methods.${entry.method}.label`)}
+                </Label>
+                <p className="text-muted-foreground text-sm">
+                  {decidedElsewhere
+                    ? t("auth.factorMethods.followsWaysIn")
+                    : t(`auth.methods.${entry.method}.help`)}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </SettingsSection>
   );

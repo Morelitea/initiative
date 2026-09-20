@@ -85,6 +85,7 @@ from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import (
+    FACTOR_METHODS,
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
     SecondFactorRequirement,
@@ -209,6 +210,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
                 method=method,
                 enabled=method in permitted,
                 primary=method in PRIMARY_LOGIN_METHODS,
+                answers_factor=method in FACTOR_METHODS,
                 would_strand=await auth_posture.stranded_between(
                     session, current=permitted, requested=permitted - {method}
                 ),
@@ -216,6 +218,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
         second_factor_requirement=auth_posture.requirement_from_row(row),
         accounts_without_factor=AccountsWithoutFactor(
