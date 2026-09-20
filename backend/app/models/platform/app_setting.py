@@ -5,7 +5,11 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
-from app.core.login_methods import LoginMethod, SecondFactorRequirement
+from app.core.login_methods import (
+    DEFAULT_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.models.platform.user_dm_settings import DmPolicy
 
 # Platform OIDC config lives on the provider registry row (``auth_providers``
@@ -62,7 +66,11 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
     login_methods: list[str] = Field(
-        default_factory=lambda: [m.value for m in LoginMethod],
+        # ``DEFAULT_LOGIN_METHODS``, not every member of the enum: the two
+        # coincided while every method waited on the account to do something,
+        # and the set is the one place that answers what a deployment starts
+        # with.
+        default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],
         sa_column=Column(
             ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
             nullable=False,

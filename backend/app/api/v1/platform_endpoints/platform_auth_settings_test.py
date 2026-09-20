@@ -28,6 +28,26 @@ async def _owner(session: AsyncSession):
     return owner, get_auth_headers(owner)
 
 
+async def _can_send_mail(session: AsyncSession) -> None:
+    """A deployment that can send, which the emailed code asks for."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
+    await session.commit()
+
+
+async def _cannot_send_mail(session: AsyncSession) -> None:
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = None
+    session.add(row)
+    await session.commit()
+
+
 async def _store_passkey(session: AsyncSession, user, *, credential_id: bytes) -> None:
     """Give the account a registered credential — a way in of its own."""
     from app.services.auth import passkeys as passkey_service
@@ -63,8 +83,16 @@ async def test_read_reports_every_method_and_its_cost(
         "sso",
         "totp",
         "passkey",
+        "email_otp",
     }
-    assert all(m["enabled"] for m in got.json()["methods"])
+    # Everything an account has to opt into is on; the emailed code, which
+    # every account with an address could use at once, waits to be turned on.
+    assert {m["method"] for m in got.json()["methods"] if m["enabled"]} == {
+        "password",
+        "sso",
+        "totp",
+        "passkey",
+    }
     assert got.json()["guilds_requiring_sign_in"] == 0
 
 
@@ -470,6 +498,112 @@ async def _enrol(session: AsyncSession, user) -> None:
 
     session.add(UserTotp(user_id=user.id, confirmed_at=datetime.now(timezone.utc)))
     await session.commit()
+
+
+async def test_the_emailed_code_needs_a_way_to_send_mail(
+    client: AsyncClient, session: AsyncSession
+):
+    """It is the one way in the deployment delivers itself, so it asks that
+    the deployment can send."""
+    _, headers = await _owner(session)
+
+    refused = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_NO_EMAIL"
+
+
+async def test_the_emailed_code_is_permitted_once_mail_works(
+    client: AsyncClient, session: AsyncSession
+):
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    assert put.status_code == 200, put.text
+    assert "email_otp" in {m["method"] for m in put.json()["methods"] if m["enabled"]}
+
+
+async def test_withdrawing_the_emailed_code_needs_no_mail_server(
+    client: AsyncClient, session: AsyncSession
+):
+    """The check is on the way up only: an operator who has since stopped
+    sending mail can still take the method back off."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+    await _cannot_send_mail(session)
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey"]},
+    )
+
+    assert put.status_code == 200, put.text
+    assert "email_otp" not in {
+        m["method"] for m in put.json()["methods"] if m["enabled"]
+    }
+
+
+async def test_an_address_is_a_way_in_once_the_code_is_permitted(
+    client: AsyncClient, session: AsyncSession
+):
+    """With the emailed code on, an account holding nothing but its address
+    still has a way in, so withdrawing the others strands nobody."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await create_user(session, hashed_password=None)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    put = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["email_otp"]}
+    )
+
+    assert put.status_code == 200, put.text
+    assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"email_otp"}
+
+
+async def test_withdrawing_the_emailed_code_reports_who_it_strands(
+    client: AsyncClient, session: AsyncSession
+):
+    """Taking it back off is the write that costs something: an account that
+    let its password go has nothing else."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await create_user(session, hashed_password=None)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    refused = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey"]},
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    assert refused.headers["X-Affected-Count"] == "1"
 
 
 async def test_the_read_says_who_is_asked_and_what_it_would_cost(

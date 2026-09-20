@@ -687,7 +687,7 @@
   "PASSKEY_SITE_UNSUPPORTED": "Passkeys brauchen für diese Seite einen richtigen Domainnamen und https. Beides fehlt noch, deshalb lassen sich hier keine anlegen.",
   "PASSKEY_SIGN_IN_INVALID": "Dieser Passkey hat nicht funktioniert. Versuche es erneut oder melde dich anders an.",
   "PASSKEY_NOT_PERMITTED": "Diese Seite bietet keine Passkeys an.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Passwort, Single Sign-on oder ein Passkey. Ein Authenticator-Code kommt dazu, nicht an deren Stelle.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Mindestens eine Möglichkeit, eine Anmeldung zu beginnen, muss bleiben – ein Passwort, Single Sign-on, ein Passkey oder ein per E-Mail gesendeter Code. Ein Authenticator-Code kommt dazu, nicht an deren Stelle.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Diese Community verlangt einen Code aus deiner Authenticator-App. Gib einen ein, um fortzufahren.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Diese Community verlangt einen Passkey. Lege einen vor, um fortzufahren.",
   "RECENT_PROOF_REQUIRED": "Für diese Änderung ist zuerst eine frische Anmeldung nötig.",
@@ -728,5 +728,6 @@
   "LEGAL_NOT_CONFIGURED": "Diese Installation hat keine eigenen Nutzungsbedingungen.",
   "LEGAL_PORTAL_UNAVAILABLE": "Nutzungsbedingungen und Datenschutzerklärung sind gerade nicht erreichbar. Bitte versuche es gleich noch einmal.",
   "LEGAL_DOCUMENT_NOT_FOUND": "Dieses Dokument gibt es nicht.",
-  "ACCESS_GRANT_PASSKEY_INVALID": "Dieser Passkey hat nicht geantwortet. Versuche es erneut oder nutze deinen Authenticator-Code."
+  "ACCESS_GRANT_PASSKEY_INVALID": "Dieser Passkey hat nicht geantwortet. Versuche es erneut oder nutze deinen Authenticator-Code.",
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Richte zuerst den E-Mail-Versand ein — der Code erreicht sonst niemanden."
 }

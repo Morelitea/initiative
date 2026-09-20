@@ -687,7 +687,7 @@
   "PASSKEY_SITE_UNSUPPORTED": "Passkeys need this site to have a proper domain name and https. It doesn't yet, so they can't be added here.",
   "PASSKEY_SIGN_IN_INVALID": "That passkey didn't work. Try again, or sign in another way.",
   "PASSKEY_NOT_PERMITTED": "This site doesn't offer passkeys.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — a password, single sign-on or a passkey. An authenticator code goes alongside one of those, not instead of one.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Keep at least one way of starting a sign-in — a password, single sign-on, a passkey or an emailed code. An authenticator code goes alongside one of those, not instead of one.",
   "GUILD_AUTH_FACTOR_REQUIRED": "This community asks for a code from your authenticator app. Enter one to carry on.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "This community asks for a passkey. Present one to carry on.",
   "RECENT_PROOF_REQUIRED": "This change needs a fresh sign-in first.",
@@ -728,5 +728,6 @@
   "LEGAL_NOT_CONFIGURED": "This deployment has no terms of its own.",
   "LEGAL_PORTAL_UNAVAILABLE": "The terms and privacy policy can't be reached right now. Please try again in a moment.",
   "LEGAL_DOCUMENT_NOT_FOUND": "That document doesn't exist.",
-  "ACCESS_GRANT_PASSKEY_INVALID": "That passkey did not answer. Try again, or use your authenticator code."
+  "ACCESS_GRANT_PASSKEY_INVALID": "That passkey did not answer. Try again, or use your authenticator code.",
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Set up email sending first — the code has no way to reach anybody."
 }

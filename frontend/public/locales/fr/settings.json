@@ -620,6 +620,10 @@
       "passkey": {
         "label": "Clé d'accès",
         "help": "Une clé conservée sur un appareil ou dans un gestionnaire de mots de passe, qui répond à une invite au lieu d'un mot de passe. Chacun les ajoute pour soi."
+      },
+      "email_otp": {
+        "label": "OTP par e-mail",
+        "help": "Un code à usage unique envoyé à une adresse du compte, à saisir sur la page de connexion. Tout compte disposant d'une adresse peut l'utiliser : il reste désactivé jusqu'à ce que vous l'activiez."
       }
     },
     "sessionLifetime": {

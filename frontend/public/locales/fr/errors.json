@@ -687,7 +687,7 @@
   "PASSKEY_SITE_UNSUPPORTED": "Les clés d'accès exigent que ce site ait un vrai nom de domaine et https. Ce n'est pas encore le cas, elles ne peuvent donc pas être ajoutées ici.",
   "PASSKEY_SIGN_IN_INVALID": "Cette clé d'accès n'a pas fonctionné. Réessayez ou connectez-vous autrement.",
   "PASSKEY_NOT_PERMITTED": "Ce site ne propose pas de clés d'accès.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un mot de passe, l'authentification unique ou une clé d'accès. Un code d'authentification s'y ajoute, il ne les remplace pas.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Gardez au moins un moyen de commencer une connexion : un mot de passe, l'authentification unique, une clé d'accès ou un code envoyé par e-mail. Un code d'authentification s'y ajoute, il ne les remplace pas.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Cette communauté demande un code de votre application d'authentification. Saisissez-en un pour continuer.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Cette communauté demande une clé d'accès. Présentez-en une pour continuer.",
   "RECENT_PROOF_REQUIRED": "Ce changement demande d'abord une connexion récente.",
@@ -728,5 +728,6 @@
   "LEGAL_NOT_CONFIGURED": "Cette installation n'a pas de conditions propres.",
   "LEGAL_PORTAL_UNAVAILABLE": "Les conditions d'utilisation et la politique de confidentialité sont injoignables pour le moment. Réessayez dans un instant.",
   "LEGAL_DOCUMENT_NOT_FOUND": "Ce document n'existe pas.",
-  "ACCESS_GRANT_PASSKEY_INVALID": "Cette clé d'accès n'a pas répondu. Réessayez ou utilisez votre code d'authentification."
+  "ACCESS_GRANT_PASSKEY_INVALID": "Cette clé d'accès n'a pas répondu. Réessayez ou utilisez votre code d'authentification.",
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configurez d'abord l'envoi d'e-mails : le code n'a aucun moyen d'atteindre qui que ce soit."
 }

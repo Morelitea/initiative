@@ -539,6 +539,8 @@ class SettingsMessages:
     #: Withdrawing the last method that could answer the deployment's own
     #: second-factor requirement, while that requirement stands.
     LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+    #: Permitting the emailed code while the deployment cannot send mail.
+    LOGIN_METHODS_NO_EMAIL = "SETTINGS_LOGIN_METHODS_NO_EMAIL"
     # What the deployment asks of an account.
     #: Asking for a second factor while permitting nothing that presents one.
     FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"

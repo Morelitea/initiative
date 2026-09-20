@@ -47,6 +47,7 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
 from app.services import audit as audit_service
 from app.services.auth.platform_provider import can_serve_login_clause
@@ -322,6 +323,16 @@ def _holds_login_ready_identity_clause():
     )
 
 
+def _holds_an_address_clause():
+    """Accounts holding an address a one-time code could be sent to.
+
+    Any address, confirmed or not: a code sent to an unconfirmed one proves it
+    on arrival, so both are ways in. This is the only credential an account
+    does not have to do anything to acquire.
+    """
+    return select(UserEmail.id).where(UserEmail.user_id == User.id).exists()
+
+
 #: What each way in is answered with, as a predicate on ``User``. The one
 #: place a method is paired with the credential that presents it: the counts
 #: below ask whether an account has any of them, :func:`ways_in` asks which.
@@ -331,6 +342,7 @@ _HELD_CLAUSES: dict[LoginMethod, Callable[[], Any]] = {
     LoginMethod.password: lambda: ~_no_usable_password_clause(),
     LoginMethod.sso: _holds_login_ready_identity_clause,
     LoginMethod.passkey: _holds_a_passkey_clause,
+    LoginMethod.email_otp: _holds_an_address_clause,
 }
 
 
@@ -394,7 +406,7 @@ async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:
 async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMethod]:
     """Which methods could start a session for this account today.
 
-    Three questions asked together, because the answer to each depends on both
+    Every question asked together, because the answer to each depends on both
     halves — what the account holds, and what the deployment permits. A
     credential the deployment no longer accepts is not a way in, and a method
     the deployment offers is not a way in for an account that holds nothing to

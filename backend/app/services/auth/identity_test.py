@@ -33,11 +33,20 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 #: What a deployment offering everything it could permits, and the same set
 #: with one method withdrawn. The counts take this explicitly, so a test says
 #: which posture it is asking about rather than writing the settings row.
+#: Every way in a deployment could offer.
 EVERYTHING = frozenset(LoginMethod)
+
+#: Everything an account has to acquire — a password, a link to a provider, a
+#: registered key. The emailed code is left out because it asks nothing of the
+#: account: every account holding an address can use it, so with it permitted
+#: no account's only way in is ever one of the others. The questions below are
+#: about the others, so they are asked in the posture where that is a question.
+#: :func:`test_an_address_is_a_way_in_on_its_own` covers the code itself.
+CREDENTIALS = EVERYTHING - {LoginMethod.email_otp}
 
 
 def _without(*methods: LoginMethod) -> frozenset[LoginMethod]:
-    return EVERYTHING - set(methods)
+    return CREDENTIALS - set(methods)
 
 
 async def _create_provider(session, *, allow_jit: bool = True) -> AuthProvider:
@@ -332,15 +341,15 @@ async def test_a_pkce_provider_counts_as_a_way_in(session):
     await create_federated_identity(session, member, provider=provider)
 
     # Their only way in is that provider, so withdrawing SSO concerns them.
-    assert await federated_only_user_count(session, permitted=EVERYTHING) == 1
+    assert await federated_only_user_count(session, permitted=CREDENTIALS) == 1
 
     # And somebody holding a password *and* that provider is not an account the
     # password is holding up. Measured as a delta: creating the guild above
     # made its own creator, who holds a password and no identity.
-    baseline = await password_only_user_count(session, permitted=EVERYTHING)
+    baseline = await password_only_user_count(session, permitted=CREDENTIALS)
     holder = await create_user(session)
     await create_federated_identity(session, holder, provider=provider)
-    assert await password_only_user_count(session, permitted=EVERYTHING) == baseline
+    assert await password_only_user_count(session, permitted=CREDENTIALS) == baseline
 
 
 # ---------------------------------------------------------------------------
@@ -373,12 +382,14 @@ async def test_a_password_holder_with_a_passkey_is_not_password_only(session):
     deployment stops permitting one, when the password is again all they have."""
     from app.services.auth.identity import password_only_user_count
 
-    baseline = await password_only_user_count(session, permitted=EVERYTHING)
+    baseline = await password_only_user_count(session, permitted=CREDENTIALS)
     holder = await create_user(session)
-    assert await password_only_user_count(session, permitted=EVERYTHING) == baseline + 1
+    assert (
+        await password_only_user_count(session, permitted=CREDENTIALS) == baseline + 1
+    )
 
     await _store_passkey(session, holder)
-    assert await password_only_user_count(session, permitted=EVERYTHING) == baseline
+    assert await password_only_user_count(session, permitted=CREDENTIALS) == baseline
 
     no_passkeys = _without(LoginMethod.passkey)
     assert (
@@ -393,10 +404,10 @@ async def test_a_passkey_keeps_a_federated_account_off_the_sso_count(session):
     provider = await create_auth_provider(session, slug="corp")
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
-    assert await federated_only_user_count(session, permitted=EVERYTHING) == 1
+    assert await federated_only_user_count(session, permitted=CREDENTIALS) == 1
 
     await _store_passkey(session, member)
-    assert await federated_only_user_count(session, permitted=EVERYTHING) == 0
+    assert await federated_only_user_count(session, permitted=CREDENTIALS) == 0
 
     no_passkeys = _without(LoginMethod.passkey)
     assert await federated_only_user_count(session, permitted=no_passkeys) == 1
@@ -413,7 +424,7 @@ async def test_a_passkey_survives_the_provider_it_signed_up_through(session):
     await create_federated_identity(session, member, provider=provider)
     assert (
         await sole_credential_user_count(
-            session, provider_id=provider.id, permitted=EVERYTHING
+            session, provider_id=provider.id, permitted=CREDENTIALS
         )
         == 1
     )
@@ -421,7 +432,7 @@ async def test_a_passkey_survives_the_provider_it_signed_up_through(session):
     await _store_passkey(session, member)
     assert (
         await sole_credential_user_count(
-            session, provider_id=provider.id, permitted=EVERYTHING
+            session, provider_id=provider.id, permitted=CREDENTIALS
         )
         == 0
     )
@@ -438,16 +449,16 @@ async def test_an_account_whose_only_way_in_is_a_passkey_is_counted(session):
     """What withdrawing the method would leave stranded."""
     from app.services.auth.identity import passkey_only_user_count
 
-    assert await passkey_only_user_count(session, permitted=EVERYTHING) == 0
+    assert await passkey_only_user_count(session, permitted=CREDENTIALS) == 0
 
     holder = await create_user(session, hashed_password=None)
     await _store_passkey(session, holder)
-    assert await passkey_only_user_count(session, permitted=EVERYTHING) == 1
+    assert await passkey_only_user_count(session, permitted=CREDENTIALS) == 1
 
     # A password beside it is another way in, so they are not.
     beside = await create_user(session)
     await _store_passkey(session, beside)
-    assert await passkey_only_user_count(session, permitted=EVERYTHING) == 1
+    assert await passkey_only_user_count(session, permitted=CREDENTIALS) == 1
 
     no_passkeys = _without(LoginMethod.passkey)
     assert await passkey_only_user_count(session, permitted=no_passkeys) == 0
@@ -462,7 +473,7 @@ async def test_a_federated_account_with_a_passkey_is_not_passkey_only(session):
     await create_federated_identity(session, member, provider=provider)
     await _store_passkey(session, member)
 
-    assert await passkey_only_user_count(session, permitted=EVERYTHING) == 0
+    assert await passkey_only_user_count(session, permitted=CREDENTIALS) == 0
 
 
 async def test_a_method_the_deployment_does_not_offer_strands_nobody(session):
@@ -516,20 +527,20 @@ async def test_two_ways_in_withdrawn_together_strand_the_account(session):
 
     assert (
         await stranded_between(
-            session, current=EVERYTHING, requested=_without(LoginMethod.password)
+            session, current=CREDENTIALS, requested=_without(LoginMethod.password)
         )
         == 0
     )
     assert (
         await stranded_between(
-            session, current=EVERYTHING, requested=_without(LoginMethod.passkey)
+            session, current=CREDENTIALS, requested=_without(LoginMethod.passkey)
         )
         == 0
     )
     assert (
         await stranded_between(
             session,
-            current=EVERYTHING,
+            current=CREDENTIALS,
             requested=_without(LoginMethod.password, LoginMethod.passkey),
         )
         == 1
@@ -590,4 +601,39 @@ async def test_an_account_holding_nothing_has_no_way_in(session):
     await _store_passkey(session, stranded)
     assert await ways_in(session, user_id=stranded.id) == frozenset(
         {LoginMethod.passkey}
+    )
+
+
+async def _permit_the_emailed_code(session) -> None:
+    """A deployment that offers it alongside the rest."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["password", "sso", "totp", "passkey", "email_otp"]
+    session.add(row)
+    await session.commit()
+
+
+async def test_an_address_is_a_way_in_on_its_own(session):
+    """The emailed code asks nothing of the account beyond an address, so an
+    account holding no other credential still has a way in once it is
+    permitted — and loses it when it is withdrawn."""
+    from app.core.login_methods import LoginMethod
+    from app.services.auth.identity import stranded_between, ways_in
+
+    holder = await create_user(session, hashed_password=None)
+    assert await ways_in(session, user_id=holder.id) == frozenset()
+
+    await _permit_the_emailed_code(session)
+    assert await ways_in(session, user_id=holder.id) == frozenset(
+        {LoginMethod.email_otp}
+    )
+
+    assert (
+        await stranded_between(
+            session,
+            current=EVERYTHING,
+            requested=EVERYTHING - {LoginMethod.email_otp},
+        )
+        == 1
     )

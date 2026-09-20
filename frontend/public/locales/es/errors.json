@@ -687,7 +687,7 @@
   "PASSKEY_SITE_UNSUPPORTED": "Las claves de acceso necesitan que este sitio tenga un nombre de dominio propio y https. Todavía no los tiene, así que no se pueden añadir aquí.",
   "PASSKEY_SIGN_IN_INVALID": "Esa clave de acceso no ha funcionado. Inténtalo de nuevo o inicia sesión de otra forma.",
   "PASSKEY_NOT_PERMITTED": "Este sitio no ofrece claves de acceso.",
-  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: una contraseña, el inicio de sesión único o una clave de acceso. Un código de autenticación las acompaña, no las sustituye.",
+  "SETTINGS_LOGIN_METHODS_NO_PRIMARY": "Deja al menos una forma de empezar un inicio de sesión: una contraseña, el inicio de sesión único, una clave de acceso o un código enviado por correo. Un código de autenticación las acompaña, no las sustituye.",
   "GUILD_AUTH_FACTOR_REQUIRED": "Esta comunidad pide un código de tu aplicación de autenticación. Introduce uno para continuar.",
   "GUILD_AUTH_PASSKEY_REQUIRED": "Esta comunidad pide una clave de acceso. Presenta una para continuar.",
   "RECENT_PROOF_REQUIRED": "Este cambio necesita antes un inicio de sesión reciente.",
@@ -728,5 +728,6 @@
   "LEGAL_NOT_CONFIGURED": "Esta instalación no tiene términos propios.",
   "LEGAL_PORTAL_UNAVAILABLE": "Ahora mismo no se puede acceder a los términos ni a la política de privacidad. Vuelve a intentarlo en un momento.",
   "LEGAL_DOCUMENT_NOT_FOUND": "Ese documento no existe.",
-  "ACCESS_GRANT_PASSKEY_INVALID": "Esa clave de acceso no respondió. Inténtalo de nuevo o usa tu código de autenticación."
+  "ACCESS_GRANT_PASSKEY_INVALID": "Esa clave de acceso no respondió. Inténtalo de nuevo o usa tu código de autenticación.",
+  "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configura antes el envío de correo: el código no tiene forma de llegar a nadie."
 }

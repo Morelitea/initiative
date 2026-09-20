@@ -620,6 +620,10 @@
       "passkey": {
         "label": "Passkey",
         "help": "Ein Schlüssel auf einem Gerät oder in einem Passwort-Manager, der eine Abfrage beantwortet statt eines Passworts. Jede Person fügt ihn selbst hinzu."
+      },
+      "email_otp": {
+        "label": "E-Mail-OTP",
+        "help": "Ein Einmalcode an eine Adresse des Kontos, der auf der Anmeldeseite eingegeben wird. Jedes Konto mit einer Adresse kann ihn nutzen, deshalb bleibt er aus, bis du ihn einschaltest."
       }
     },
     "sessionLifetime": {

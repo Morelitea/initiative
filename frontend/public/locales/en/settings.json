@@ -620,6 +620,10 @@
       "passkey": {
         "label": "Passkey",
         "help": "A key held by a device or a password manager, answering a prompt instead of a password. People add them for themselves."
+      },
+      "email_otp": {
+        "label": "Email OTP",
+        "help": "A one-time code sent to an address the account holds, typed back into the sign-in page. Every account with an address can use it, so it stays off until you turn it on."
       }
     },
     "sessionLifetime": {

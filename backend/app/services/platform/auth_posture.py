@@ -28,6 +28,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_totp import UserTotp
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import identity as identity_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
@@ -220,7 +221,9 @@ async def set_login_methods(
 
     At least one, which the column's own constraint also holds.
 
-    Two refusals, both 409. Withdrawing single sign-on while a guild requires
+    Three refusals, all 409. Permitting the emailed code asks that the
+    deployment can send mail, since that is how the code reaches anybody.
+    Withdrawing single sign-on while a guild requires
     one names the guilds instead: a requirement is enforced from its policy row
     and stands on its own, so it is lifted first and the withdrawal then goes
     through. And a write that leaves somebody with no way in is refused with
@@ -257,6 +260,19 @@ async def set_login_methods(
     row = await _locked_settings(session)
     current = methods_from_row(row)
     withdrawn = current - requested
+    added = requested - current
+
+    # The emailed code is the one way in the deployment delivers itself, so it
+    # needs somewhere to deliver from. Checked on the way up only: an operator
+    # who later clears the SMTP settings is not retrospectively refused here,
+    # and the send route reports it at the moment it cannot send.
+    if LoginMethod.email_otp in added and not await email_service.email_configured(
+        session
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=SettingsMessages.LOGIN_METHODS_NO_EMAIL,
+        )
 
     if LoginMethod.sso in withdrawn:
         requiring = await guilds_requiring_sign_in(session)
