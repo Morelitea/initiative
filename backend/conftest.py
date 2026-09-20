@@ -277,7 +277,10 @@ async def _set_db_statement_timeout() -> None:
 # ONE cluster-wide key space across the per-worker databases, so every worker
 # serializes on the same key. Each worker still migrates its OWN DB; only the
 # shared role operations are serialized.
-_MIGRATION_LOCK_KEY = 0x1417A7E5  # arbitrary, suite-specific; the app uses none
+# Arbitrary and suite-specific, and deliberately not the app's own
+# (``session.MIGRATION_LOCK_KEY``): this one is taken on the ``postgres``
+# database, across workers, for DDL that is cluster-global.
+_MIGRATION_LOCK_KEY = 0x1417A7E5
 
 
 def _alembic_config() -> Config:
