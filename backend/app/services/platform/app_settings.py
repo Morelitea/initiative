@@ -47,7 +47,12 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
         return GuildSetting(guild_id=guild_id)
     settings_row = GuildSetting(guild_id=guild_id)
     session.add(settings_row)
-    await session.commit()
+    # Flushed, not committed: a guild's settings row is normally seeded when the
+    # guild is made (``guilds.create_guild_settings``), so getting here means
+    # filling a gap in the middle of whatever the caller came to do. The INSERT
+    # joins their transaction and lands or unwinds with the rest of it. The two
+    # callers that own their transaction commit it themselves.
+    await session.flush()
     await session.refresh(settings_row)
     return settings_row
 
@@ -522,5 +527,6 @@ async def ensure_defaults(session: AsyncSession) -> None:
     await set_rls_context(session, guild_id=primary_guild_id)
     try:
         await _ensure_guild_setting(session, primary_guild_id)
+        await session.commit()
     finally:
         await set_rls_context(session)

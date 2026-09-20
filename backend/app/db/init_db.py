@@ -283,6 +283,7 @@ async def init() -> None:
         await app_settings_service.get_or_create_guild_settings(
             session, guild_id=primary_id
         )
+        await session.commit()
 
 
 if __name__ == "__main__":  # pragma: no cover
