@@ -76,7 +76,6 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
     User,
-    UserRole,
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
@@ -382,14 +381,12 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    # The satisfied-provider set the guild auth-policy gate reads. Legacy
-    # tokens (and every non-session credential, which never reaches this
-    # branch) leave it empty — fail-closed for policy-gated guilds.
+    # The satisfied-provider set the guild auth-policy gate reads. A
+    # non-session credential never reaches this branch and leaves it empty.
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # The marker the sign-in wrote when a code was presented. Absent on a
-    # legacy token and on every credential that is not a session, which is
-    # fail-closed for a community that asks for one.
+    # The marker the sign-in wrote when a code was presented. Absent on every
+    # credential that is not a session.
     set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
     # And which kind of key answered, where one did. A community asking for a
     # passkey is asking for that; a code presented after a password is not it.
@@ -571,25 +568,10 @@ async def get_active_user_exempt_from_factor(
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
 
-def require_roles(*roles: UserRole) -> Callable:
-    async def dependency(
-        current_user: Annotated[User, Depends(get_current_active_user)],
-    ) -> User:
-        if roles and current_user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-            )
-        return current_user
-
-    return dependency
-
-
 def require_capability(capability: Capability) -> Callable:
     """Dependency factory gating an endpoint on a platform capability.
 
-    Prefer this over ``require_roles`` for platform-level authorization so
-    access is expressed against the capability model rather than a hardcoded
+    Access is expressed against the capability model rather than a hardcoded
     role name (see ``app.core.capabilities``).
     """
 

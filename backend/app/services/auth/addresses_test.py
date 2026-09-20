@@ -1,9 +1,8 @@
 """An account's addresses, and the lookup that resolves one.
 
-Pins the shape the login now runs on: the address set is what signs somebody
-in, an account that predates the set still signs in through the fallback and
-says so in the log, and erasure takes every address rather than the one
-``users`` happens to carry.
+Pins the shape the login runs on: the address set is what signs somebody in,
+and erasure takes every address rather than the one an account was created
+with.
 """
 
 from __future__ import annotations
@@ -153,9 +152,8 @@ async def test_an_account_has_one_primary_address(session: AsyncSession):
 
 @pytest.mark.integration
 async def test_erasure_takes_every_address(session: AsyncSession):
-    """Erasing an account has to reach the whole set, not the one address
-    ``users`` happens to carry — and the fallback must not resolve what was
-    erased."""
+    """Erasing an account has to reach the whole set, not the one address it
+    was created with — and nothing resolves what was erased."""
     from app.services.platform import users as users_service
 
     user = await create_user(session, email="erase-me@example.com")

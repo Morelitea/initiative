@@ -328,17 +328,6 @@ class OIDCSettingsResponse(SanitizedBaseModel):
     scopes: List[str] = Field(default_factory=list)
 
 
-class OIDCSettingsUpdate(SanitizedBaseModel):
-    enabled: bool
-    issuer: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[RawTextStr] = None
-    redirect_uri: Optional[str] = None
-    post_login_redirect: Optional[str] = None
-    provider_name: Optional[str] = None
-    scopes: List[str] = Field(default_factory=list)
-
-
 class LoginMethodStatus(SanitizedBaseModel):
     """One way in, and what withdrawing it would cost."""
 
@@ -600,23 +589,11 @@ class OIDCClaimMappingRead(SanitizedBaseModel):
     initiative_role_name: Optional[str] = None
 
 
-class OIDCClaimPathUpdate(SanitizedBaseModel):
-    claim_path: Optional[str] = Field(default=None, max_length=500)
-
-
 class OIDCMappingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     claim_path: Optional[str] = None
     mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)
-
-
-class OIDCClaimPathResponse(SanitizedBaseModel):
-    """The role-claim path after an update (``None`` clears it)."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    claim_path: Optional[str] = None
 
 
 # The mapping form needs every guild, initiative, and initiative role to

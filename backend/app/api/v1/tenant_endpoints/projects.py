@@ -969,24 +969,6 @@ async def _require_project_membership(
     )
 
 
-GLOBAL_PROJECT_SORT_FIELDS = {
-    "name": func.lower(Project.name),
-    "updated_at": Project.updated_at,
-}
-
-
-def _apply_global_project_sort(
-    statement, sort_by: Optional[str], sort_dir: Optional[str]
-):
-    col = GLOBAL_PROJECT_SORT_FIELDS.get(sort_by) if sort_by else None
-    if col is not None:
-        order = col.desc() if sort_dir == "desc" else col.asc()
-        statement = statement.order_by(order.nulls_last(), Project.id.desc())
-    else:
-        statement = statement.order_by(Project.updated_at.desc(), Project.id.desc())
-    return statement
-
-
 async def _list_global_projects(
     session: SessionDep,
     current_user: User,

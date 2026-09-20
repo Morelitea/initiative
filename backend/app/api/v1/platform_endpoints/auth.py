@@ -1391,18 +1391,6 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     return RedirectResponse(url)
 
 
-async def _discard_provisioned_user(
-    admin_session: AsyncSession, *, user_id: int
-) -> None:
-    """Delete a user JIT-provisioned earlier in this same request that we then
-    couldn't admit to any guild. The federated-identity link and its secret
-    cascade off the row (ON DELETE CASCADE)."""
-    user = await admin_session.get(User, user_id)
-    if user is not None:
-        await admin_session.delete(user)
-        await admin_session.commit()
-
-
 async def _complete_provider_login(
     request: Request,
     session: AsyncSession,

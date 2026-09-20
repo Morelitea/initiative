@@ -5,12 +5,6 @@ is where they live, in the same two representations ``users`` has always used:
 a keyed HMAC for the equality lookup and a Fernet ciphertext for reading the
 address back.
 
-``users.email_hash`` / ``email_encrypted`` still hold the one address an
-account was created with, and a lookup falls back to them so an account whose
-row did not come across still signs in. Every fallback is logged with the
-account it resolved; the columns on ``users`` come off once that log has
-stayed quiet under real traffic.
-
 Runs on the system engine. ``user_emails`` carries no request-path grants for
 the same reason ``auth_sessions`` carries none: resolving an address happens
 before there is anybody to scope a policy to.
@@ -122,8 +116,6 @@ async def note_sign_in(
     """Stamp the address a sign-in resolved through.
 
     Staged in the caller's transaction, beside the session the sign-in opens.
-    An address that resolved through the fallback has no row to stamp, and the
-    statement matches nothing — which is the same thing the fallback log says.
     """
     await session.exec(
         update(UserEmail)
@@ -267,8 +259,7 @@ def record_address(
     """Stage an address for ``user_id`` in ``session``'s own transaction.
 
     Staged rather than committed so the address lands with whatever created the
-    account — an account that exists without its address would sign in only
-    through the fallback.
+    account.
     """
     row = _build_address(
         user_id=user_id,

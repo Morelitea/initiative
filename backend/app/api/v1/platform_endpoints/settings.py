@@ -122,31 +122,6 @@ _CLAIM_RULE_FIELDS: tuple[str, ...] = (
 )
 
 
-async def _record_settings_change(
-    session: AsyncSession,
-    *,
-    actor_user_id: int,
-    area: str,
-    before: dict[str, Any],
-    after: dict[str, Any],
-    extras: dict[str, Any] | None = None,
-) -> None:
-    """Record one area of the deployment's settings row, if it moved.
-
-    For the areas this module writes itself; staged for the caller's commit.
-    """
-    changed = audit_service.changed_fields(before, after)
-    if not changed["changed"] and not any((extras or {}).values()):
-        return
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-        actor_user_id=actor_user_id,
-        detail={"area": area, **changed, **(extras or {})},
-    )
-    await session.commit()
-
-
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 #: The guild roles a claim mapping may name, as the strings it stores them as.

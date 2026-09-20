@@ -166,18 +166,6 @@ def _apply_document_sort(statement, sort_by: Optional[str], sort_dir: Optional[s
     return statement
 
 
-def _grant_for_user(document: Document, user_id: int) -> ResourceGrant | None:
-    """Find a user's (non-role) document grant from the loaded grants."""
-    return next(
-        (
-            g
-            for g in (document.grants or [])
-            if g.user_id == user_id and g.role_id is None
-        ),
-        None,
-    )
-
-
 async def _get_initiative_or_404(
     session: SessionDep,
     *,

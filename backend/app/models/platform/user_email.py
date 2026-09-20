@@ -27,17 +27,6 @@ from sqlalchemy import (
 from sqlmodel import Field, Index, SQLModel
 
 
-class EmailSource(str):
-    """Where an address came from. Not an enum column — the value is a note for
-    whoever reads the row, and a new way to acquire an address should not need
-    a migration."""
-
-    signup = "signup"
-    added = "added"
-    oidc = "oidc"
-    synthetic = "synthetic"
-
-
 class UserEmail(SQLModel, table=True):
     """One address belonging to one account."""
 
@@ -94,7 +83,8 @@ class UserEmail(SQLModel, table=True):
     is_primary: bool = Field(
         sa_column=Column(Boolean, nullable=False, server_default=text("false"))
     )
-    # signup | added | oidc | synthetic — see EmailSource.
+    # signup | added | oidc | synthetic — a note for whoever reads the row, not an
+    # enum column, so a new way to acquire an address needs no migration.
     source: str = Field(sa_column=Column(Text, nullable=False))
 
     created_at: datetime = Field(

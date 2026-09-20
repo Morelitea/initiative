@@ -323,14 +323,6 @@ def pause_window(
     return since, until
 
 
-def is_paused(prefs: Mapping[str, Any] | None, *, now: datetime | None = None) -> bool:
-    window = pause_window(prefs)
-    if window is None:
-        return False
-    since, until = window
-    return since <= (now or datetime.now(timezone.utc)) < until
-
-
 def respects_presence(prefs: Mapping[str, Any] | None) -> bool:
     """Whether to hold off while the account is plainly already looking.
 
@@ -519,31 +511,6 @@ def _next_slot(
     elif slot <= local:
         slot += timedelta(days=1)
     return slot.astimezone(timezone.utc)
-
-
-def next_scheduled_send(
-    prefs: Mapping[str, Any] | None,
-    *,
-    tz_name: str | None,
-    now: datetime | None = None,
-) -> datetime:
-    """When this account's next scheduled mail goes out.
-
-    Read by the overdue reminder, which rides the same slot so somebody who
-    chose a weekly summary is not nudged daily about the same tasks. Under an
-    instant or hourly cadence there is no scheduled mail, so the clock stands
-    on its own and this is the next time it comes round.
-    """
-    schedule = email_schedule(prefs)
-    now = now or datetime.now(timezone.utc)
-    if schedule.cadence in (EmailCadence.instant, EmailCadence.hourly):
-        schedule = EmailSchedule(
-            cadence=EmailCadence.daily,
-            at=schedule.at,
-            weekday=schedule.weekday,
-            personal_instant=schedule.personal_instant,
-        )
-    return _next_slot(schedule, tz_name=tz_name, now=now)
 
 
 def email_due_at(
