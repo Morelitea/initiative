@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
+  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
   useUploadBackupApiV1GGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
@@ -52,7 +52,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
 
   const uploadMutation = useUploadBackupApiV1GGuildIdImportsBackupPost();
-  const confirmMutation = useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
+  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
   const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment

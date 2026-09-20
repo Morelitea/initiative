@@ -51,6 +51,7 @@ from app.core.encryption import (
     SALT_APP_SERVICE_SECRET,
     SALT_APP_CONFIG,
     SALT_EMAIL,
+    SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
     SALT_S3_SECRET_KEY,
@@ -82,6 +83,10 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The seed behind an account's authenticator factor, Fernet at rest like
     # the secrets above it and re-keyed with them.
     ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
+    # One import job's credential for a foreign site. Almost always empty —
+    # a row lives for the length of one fetch — but a rotation that lands
+    # mid-import must not be what fails it.
+    ("import_credentials", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     # Pre-existing gap, found by the catalog-driven completeness test below: a
     # rotation left the object-storage credential under the old key.

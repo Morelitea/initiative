@@ -105,6 +105,23 @@ class BackupImportPlan(SanitizedBaseModel):
     people: list[BackupPlanPerson] = []
 
 
+class EnvelopeImportPlan(SanitizedBaseModel):
+    """The confirm-screen summary for a lone envelope, persisted to
+    ``import_jobs.plan``.
+
+    Only people. A backup's plan has initiatives to name and tools to narrow;
+    one envelope is one thing going into one initiative the caller already
+    picked, so the only question left is who the handles in it are — and it
+    is only written when at least one of them has no obvious answer.
+    """
+
+    #: Everybody the envelope quotes, most-quoted first. The only thing in
+    #: here: the browser already parsed the file it is about, so a title in
+    #: the plan would be a second, guessable copy of something the step
+    #: already has.
+    people: list[BackupPlanPerson] = []
+
+
 class BackupImportResult(SanitizedBaseModel):
     """Terminal report for a backup import, persisted to
     ``import_jobs.result``."""

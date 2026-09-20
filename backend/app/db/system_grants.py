@@ -82,6 +82,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # invite redemption reads/creates/updates; row removal rides the FK cascade
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # One import's credential. Created by the connect request, read once by
+    # the worker, deleted when the job ends — all three on the system engine,
+    # and never updated, because a one-shot value is replaced by a new row
+    # rather than rotated in place.
+    "import_credentials": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Minted on first use, replaced by a re-issue, swept once the replaced
     # value stops resolving, and removed when the entity is erased.
     "identity_refs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -352,6 +357,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),
+    # Credentials are system-engine-only; no request-path role ever reads
+    # one back, which is why the table carries no policy either.
+    "import_credentials": None,
     # provider reads for the login page go via the system engine (AdminSessionDep),
     # not the bare login role
     "auth_providers": None,

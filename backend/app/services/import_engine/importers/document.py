@@ -28,6 +28,7 @@ from app.services.import_engine.contract import (
 )
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    QuotesNobody,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -42,7 +43,7 @@ _IMPORTABLE_TYPES = {
 }
 
 
-class DocumentImporter:
+class DocumentImporter(QuotesNobody):
     envelope_type = "initiative-document"
     permission = PermissionKey.create_documents
 

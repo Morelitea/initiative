@@ -25,12 +25,13 @@ from app.services.import_engine.common import unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    QuotesNobody,
     grant_ownership,
     parse_envelope,
 )
 
 
-class DashboardImporter:
+class DashboardImporter(QuotesNobody):
     envelope_type = "initiative-dashboard"
     permission = PermissionKey(Tool.dashboard.create_permission)
 
