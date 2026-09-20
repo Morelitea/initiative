@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
@@ -357,6 +358,13 @@ export function QueueDetailPage() {
           </div>
         )}
       </div>
+
+      <ToolRelationsPanel
+        tool={Tool.queue}
+        entity={queue}
+        canEdit={canEdit}
+        entityTitle={queue?.name}
+      />
 
       <ToolCommentsPanel tool={Tool.queue} entity={queue} canModerate={canEdit} />
 

@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import { ReactionTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import {
   emptyPollDraft,
@@ -195,7 +196,7 @@ export function PostDetailPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       <ToolBreadcrumb
         tool={Tool.post}
         initiativeId={post?.initiative_id}
@@ -321,110 +322,128 @@ export function PostDetailPage() {
       )}
 
       {post ? (
-        <div className="space-y-3">
-          <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-            <Editor
-              key={post.id}
-              // An empty object is not an empty editor state — Lexical refuses
-              // one whose root has no children, and a notice that is only a
-              // headline and a poll stores exactly that. Passing nothing lets
-              // the editor build its own empty document.
-              editorSerializedState={
-                hasBody(post.body) ? (post.body as unknown as SerializedEditorState) : undefined
-              }
-              onSerializedChange={setDraft}
-              readOnly={!canEdit}
-              showToolbar={canEdit}
-              initiativeId={post.initiative_id}
-              subject={referenceRef(SearchEntityType.post, post.id)}
-              supportsEntityMentions
-              variant="post"
-              maxLength={MAX_POST_TEXT_CHARS}
-              // A notice sits on a card wherever it is read — on the board,
-              // and here. Reading it, the padding comes from this box, because
-              // the editor's own is the little it needs between cards in a
-              // feed; writing it, the editor already reserves room for the
-              // toolbar and the caret at the end.
-              className={cn("rounded-lg border bg-card", !canEdit && "py-2")}
-            />
-          </Suspense>
-          {canEdit && draft !== null && (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                disabled={update.isPending}
-                onClick={() => update.mutate({ body: draft as unknown as Record<string, unknown> })}
-              >
-                {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {update.isPending ? t("saving") : t("common:save")}
-              </Button>
-            </div>
-          )}
-          {/* The question, under what was said about it. Every reader sees
-              it; only somebody who may edit the notice can change it, and
-              they do that in the editor below rather than in place — a poll
-              being answered and a poll being rewritten are different
-              things on the same rows. */}
-          {post.poll && pollDraft === null && <PostPoll post={post} />}
-          {canEdit && (
-            <div className="space-y-2">
-              {pollDraft === null ? (
+        /* What the notice SAYS on the left, what is asked and linked on the
+           right — the shape a task already uses. Sized by the column rather
+           than by a breakpoint, so a narrow window stacks them instead of
+           squeezing both. */
+        <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
+          <div className="min-w-0 space-y-3">
+            <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+              <Editor
+                key={post.id}
+                // An empty object is not an empty editor state — Lexical refuses
+                // one whose root has no children, and a notice that is only a
+                // headline and a poll stores exactly that. Passing nothing lets
+                // the editor build its own empty document.
+                editorSerializedState={
+                  hasBody(post.body) ? (post.body as unknown as SerializedEditorState) : undefined
+                }
+                onSerializedChange={setDraft}
+                readOnly={!canEdit}
+                showToolbar={canEdit}
+                initiativeId={post.initiative_id}
+                subject={referenceRef(SearchEntityType.post, post.id)}
+                supportsEntityMentions
+                variant="post"
+                maxLength={MAX_POST_TEXT_CHARS}
+                // A notice sits on a card wherever it is read — on the board,
+                // and here. Reading it, the padding comes from this box, because
+                // the editor's own is the little it needs between cards in a
+                // feed; writing it, the editor already reserves room for the
+                // toolbar and the caret at the end.
+                className={cn("rounded-lg border bg-card", !canEdit && "py-2")}
+              />
+            </Suspense>
+            {canEdit && draft !== null && (
+              <div className="flex justify-end">
                 <Button
-                  variant="outline"
                   size="sm"
+                  disabled={update.isPending}
                   onClick={() =>
-                    setPollDraft(post.poll ? pollDraftFromRead(post.poll) : emptyPollDraft())
+                    update.mutate({ body: draft as unknown as Record<string, unknown> })
                   }
-                  className="inline-flex items-center gap-2"
                 >
-                  <Vote className="h-4 w-4" aria-hidden />
-                  {post.poll ? t("poll.edit") : t("poll.add")}
+                  {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {update.isPending ? t("saving") : t("common:save")}
                 </Button>
-              ) : (
-                <>
-                  <PollEditor
-                    idPrefix="post-poll"
-                    value={pollDraft}
-                    onChange={setPollDraft}
-                    choicesLocked={pollAnswered}
-                    anonymityLocked={pollAnswered && (post.poll?.is_anonymous ?? false)}
-                    onRemove={post.poll ? () => removePoll.mutate() : undefined}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPollDraft(null)}>
-                      {t("common:cancel")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={savePoll.isPending || !isPollDraftValid(pollDraft)}
-                      onClick={() => savePoll.mutate(pollDraftToWrite(pollDraft))}
-                    >
-                      {savePoll.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {savePoll.isPending ? t("saving") : t("common:save")}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-          {/* Reacting is a read-level gesture — anyone who can see the
+              </div>
+            )}
+            {/* Reacting is a read-level gesture — anyone who can see the
               notice can react to it — so this is offered to every reader,
               not only to whoever may edit. A notice with reactions turned
               off shows none. */}
-          {post.reactions_enabled && (
-            <ReactionBar
-              targetType={ReactionTarget.post}
-              targetId={post.id}
-              groups={post.reactions}
+            {post.reactions_enabled && (
+              <ReactionBar
+                targetType={ReactionTarget.post}
+                targetId={post.id}
+                groups={post.reactions}
+              />
+            )}
+            {post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {post.tags.map((tag) => (
+                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            {/* The question, under what was said about it. Every reader sees
+                it; only somebody who may edit the notice can change it, and
+                they do that in the editor below rather than in place — a poll
+                being answered and a poll being rewritten are different
+                things on the same rows. */}
+            {post.poll && pollDraft === null && <PostPoll post={post} />}
+            {canEdit && (
+              <div className="space-y-2">
+                {pollDraft === null ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setPollDraft(post.poll ? pollDraftFromRead(post.poll) : emptyPollDraft())
+                    }
+                    className="inline-flex items-center gap-2"
+                  >
+                    <Vote className="h-4 w-4" aria-hidden />
+                    {post.poll ? t("poll.edit") : t("poll.add")}
+                  </Button>
+                ) : (
+                  <>
+                    <PollEditor
+                      idPrefix="post-poll"
+                      value={pollDraft}
+                      onChange={setPollDraft}
+                      choicesLocked={pollAnswered}
+                      anonymityLocked={pollAnswered && (post.poll?.is_anonymous ?? false)}
+                      onRemove={post.poll ? () => removePoll.mutate() : undefined}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setPollDraft(null)}>
+                        {t("common:cancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={savePoll.isPending || !isPollDraftValid(pollDraft)}
+                        onClick={() => savePoll.mutate(pollDraftToWrite(pollDraft))}
+                      >
+                        {savePoll.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {savePoll.isPending ? t("saving") : t("common:save")}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <ToolRelationsPanel
+              tool={Tool.post}
+              entity={post}
+              canEdit={canEdit}
+              entityTitle={post.name}
+              defaultLayout="rows"
             />
-          )}
-          {post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {post.tags.map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-              ))}
-            </div>
-          )}
+          </div>
         </div>
       ) : (
         <Skeleton className="h-40 w-full" />

@@ -3,7 +3,8 @@ import { CalendarDays, MapPin, SearchX, Settings, ShieldAlert, Trash2, Users } f
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type RSVPStatus, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type RSVPStatus, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -30,6 +31,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -344,6 +346,41 @@ export function EventDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Tags */}
+      {event.tags.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">{t("tags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {event.tags.map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="outline"
+                  style={{
+                    borderColor: tag.color,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* What it is connected to, between what it is labelled with and what
+          it records — the order the task page reads in. */}
+      <ToolRelationsPanel
+        tool={Tool.calendar}
+        entity={event}
+        target={{ type: SearchEntityType.calendar_event, id: parsedId }}
+        canEdit={hasWriteAccess(event.my_permission_level)}
+        entityTitle={event.title}
+      />
+
       {/* Custom Properties — read-only view; edits happen on the Settings page. */}
       {event.property_values.length > 0 && (
         <Card>
@@ -368,31 +405,6 @@ export function EventDetailPage() {
                 );
               })}
             </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tags */}
-      {event.tags.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">{t("tags")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {event.tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="outline"
-                  style={{
-                    borderColor: tag.color,
-                    color: tag.color,
-                  }}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}

@@ -33,7 +33,7 @@ import {
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
-import { RelationsSection } from "@/components/entities/RelationsSection";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
 import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
@@ -1566,12 +1566,11 @@ export const DocumentDetailPage = () => {
             list of projects and a read-only list of backlinks. The projects half
             was editable only from the project's side, which meant the same fact
             had two renderings and one of them could not be changed. */}
-        <RelationsSection
-          entity={{ type: SearchEntityType.document, id: parsedId }}
-          initiativeId={document.initiative_id}
-          anchorTool={{ tool: Tool.document, id: parsedId }}
+        <ToolRelationsPanel
+          tool={Tool.document}
+          entity={document}
           canEdit={canEditDocument}
-          collapseKey={`document:${parsedId}:relationsCollapsed`}
+          entityTitle={document.name}
         />
 
         {/* The thread, at the width of the document it is about — the same
