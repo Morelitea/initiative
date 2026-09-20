@@ -50,6 +50,8 @@ class BillingGuildTierApply(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
+    feature_keys: Optional[list[str]] = Field(default=None, max_length=64)
+    plan_is_free: Optional[bool] = None
 
     @model_validator(mode="after")
     def _support_source_is_storage_only(self) -> "BillingGuildTierApply":
@@ -81,6 +83,8 @@ class BillingGuildTierRead(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     status: GuildStatus
+    feature_keys: list[str] = Field(default_factory=list)
+    plan_is_free: Optional[bool] = None
     member_count: int
     applied: bool
 

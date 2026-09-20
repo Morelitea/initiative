@@ -359,6 +359,169 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
     assert event.actor is None
 
 
+async def test_a_capability_package_sets_the_switches_and_withdraws_them(
+    client: AsyncClient, session: AsyncSession
+):
+    """The package is what a plan includes, and it replaces rather than merges.
+
+    Nothing about a tier crosses this boundary — the names say *what this guild
+    may do*, and the app turns each one into the entitlement it already
+    enforces. Sending the whole list every time is what makes a downgrade a
+    single write: a capability missing from the package is withdrawn by the
+    same write that renamed the tier, in the same transaction.
+    """
+    guild = await create_guild(session)
+    administration = await guild_administration(session, guild)
+
+    granted = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            event_id="evt-package-1",
+            tier_name="gold",
+            feature_keys=[
+                "banner_image",
+                "help_requests",
+                "guild_sign_in",
+                "security_standards",
+            ],
+        ),
+    )
+    assert granted.status_code == 200, granted.text
+    await session.refresh(administration)
+    assert administration.banner_image_enabled is True
+    assert administration.support_enabled is True
+    assert sorted(administration.auth_options) == ["providers", "restrictions"]
+    assert sorted(granted.json()["feature_keys"]) == [
+        "banner_image",
+        "guild_sign_in",
+        "help_requests",
+        "security_standards",
+    ]
+
+    # A downgrade: one write, and everything the smaller plan does not include
+    # is gone. The banner survives because Copper still buys it.
+    withdrawn = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            event_id="evt-package-2",
+            tier_name="copper",
+            feature_keys=["banner_image"],
+        ),
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+    await session.refresh(administration)
+    assert administration.banner_image_enabled is True
+    assert administration.support_enabled is False
+    assert list(administration.auth_options) == []
+    assert withdrawn.json()["feature_keys"] == ["banner_image"]
+
+
+async def test_a_package_naming_something_this_build_cannot_enforce_is_ignored(
+    client: AsyncClient, session: AsyncSession
+):
+    """Billing may price a capability before an app can enforce it, and a name
+    this build has never heard of is not a reason to drop the caps travelling
+    beside it."""
+    guild = await create_guild(session)
+    administration = await guild_administration(session, guild)
+
+    response = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            event_id="evt-package-unknown",
+            max_storage_bytes=7 * 1024**3,
+            feature_keys=["banner_image", "teleportation"],
+        ),
+    )
+    assert response.status_code == 200, response.text
+    await session.refresh(administration)
+    assert administration.max_storage_bytes == 7 * 1024**3
+    assert administration.banner_image_enabled is True
+    # Reported back as what the guild actually holds, which cannot include a
+    # capability with nothing behind it.
+    assert response.json()["feature_keys"] == ["banner_image"]
+
+
+async def test_an_operator_may_lift_a_member_ceiling_and_never_impose_one(
+    client: AsyncClient, session: AsyncSession
+):
+    """The one field this app takes from an operator and not from support, and
+    the direction it takes it in.
+
+    A plan change sets whatever the plan says — a downgrade legitimately
+    tightens — but a human at the billing end typing a number may only move a
+    limit out of the way. Otherwise the lever that exists to *help* a community
+    that outgrew its plan is the same lever that silently stops one admitting
+    anybody.
+    """
+    guild = await create_guild(session)
+    administration = await guild_administration(session, guild)
+    administration.max_users = 250
+    session.add(administration)
+    await session.commit()
+
+    lifted = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            source="operator_manual",
+            actor="staff:7",
+            event_id="evt-ceiling-up",
+            max_users=5_000,
+        ),
+    )
+    assert lifted.status_code == 200, lifted.text
+    assert lifted.json()["max_users"] == 5_000
+
+    lowered = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            source="operator_manual",
+            actor="staff:7",
+            event_id="evt-ceiling-down",
+            max_users=100,
+        ),
+    )
+    assert lowered.status_code == 422
+    assert lowered.json()["detail"] == "BILLING_OPERATOR_CANNOT_LOWER_CEILING"
+
+    # Capping a guild that has no ceiling is the same move, and refused the
+    # same way: NULL is unlimited, which is the highest value there is.
+    administration.max_users = None
+    session.add(administration)
+    await session.commit()
+    capped = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(
+            guild.id,
+            source="operator_manual",
+            actor="staff:7",
+            event_id="evt-ceiling-cap",
+            max_users=10,
+        ),
+    )
+    assert capped.status_code == 422
+
+    # A plan change is not a human typing a number, and still moves it down.
+    downgraded = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(guild.id, event_id="evt-ceiling-plan", max_users=250),
+    )
+    assert downgraded.status_code == 200, downgraded.text
+    assert downgraded.json()["max_users"] == 250
+
+
 async def test_replayed_event_id_is_noop(client: AsyncClient, session: AsyncSession):
     """Same event id, fresh token: claimed once, second delivery changes
     nothing even though it carries different values."""

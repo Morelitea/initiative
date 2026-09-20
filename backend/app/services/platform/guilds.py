@@ -630,6 +630,28 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
+async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:
+    """Does this account already have the one free community it gets?"""
+    result = await session.exec(
+        select(GuildMembership.guild_id)
+        .join(
+            GuildAdministration,
+            GuildAdministration.guild_id == GuildMembership.guild_id,
+            isouter=True,
+        )
+        .where(
+            GuildMembership.user_id == user_id,
+            GuildMembership.role == GuildRole.superadmin,
+            or_(
+                GuildAdministration.plan_is_free.is_(None),
+                GuildAdministration.plan_is_free.is_(True),
+            ),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def create_guild(
     session: AsyncSession,
     *,

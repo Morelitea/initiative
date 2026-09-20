@@ -122,18 +122,34 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await _denied(s, f"SELECT description FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"SELECT created_by FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"UPDATE guilds SET name = 'pwned' WHERE id = {guild_a.id}")
-    # The administration row is billing's only where its own three columns are
-    # concerned: the sign-in entitlement shares the table and stays out of reach,
-    # as does creating or removing the row.
-    await _denied(
-        s,
-        f"SELECT auth_options FROM guild_administration WHERE guild_id = {guild_a.id}",
+    # The administration row is billing's where the caps and the capability
+    # switches are concerned — a plan decides what is included, and migration
+    # 0324 is what lets it say so (see ``app.core.billing_capabilities``).
+    capabilities = (
+        await s.exec(
+            text(
+                "SELECT banner_image_enabled, support_enabled, auth_options "
+                "FROM guild_administration WHERE guild_id = :gid"
+            ),
+            params={"gid": guild_a.id},
+        )
+    ).one()
+    assert capabilities.banner_image_enabled in (True, False)
+
+    package_written = await s.exec(
+        text(
+            "UPDATE guild_administration SET banner_image_enabled = false, "
+            "support_enabled = true, "
+            "auth_options = ARRAY['providers']::guild_auth_option[] "
+            "WHERE guild_id = :gid"
+        ),
+        params={"gid": guild_a.id},
     )
+    assert package_written.rowcount == 1
+
+    # What stays out of reach: the row's own identity, and its existence.
     await _denied(
-        s,
-        "UPDATE guild_administration "
-        "SET auth_options = ARRAY['providers']::guild_auth_option[] "
-        f"WHERE guild_id = {guild_a.id}",
+        s, f"SELECT id FROM guild_administration WHERE guild_id = {guild_a.id}"
     )
     await _denied(s, f"DELETE FROM guild_administration WHERE guild_id = {guild_a.id}")
     await _denied(s, "INSERT INTO guild_administration (guild_id) VALUES (999999)")

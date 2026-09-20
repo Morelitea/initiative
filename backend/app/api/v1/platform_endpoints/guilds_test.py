@@ -217,6 +217,111 @@ async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     assert response.json()["detail"] == "GUILD_NAME_REQUIRED"
 
 
+# --- one free community each ------------------------------------------------
+
+
+@pytest.fixture
+def billed(monkeypatch):
+    """A deployment with a billing service behind it. The gate below is skipped
+    entirely without one, which is every self-hosted install."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", "a-key")
+    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "a-secret")
+
+
+@pytest.mark.integration
+async def test_a_second_free_community_is_refused_before_it_is_made(
+    client: AsyncClient, session: AsyncSession, acting_user, billed
+):
+    """One free community per account, and the refusal comes first.
+
+    The old shape let the community be created and priced afterwards, which
+    handed somebody who wanted a free notebook a trial they never asked for.
+    Refusing here means nothing exists to undo: no guild, no membership, no
+    clock started on anybody's behalf, and a client that can send them to the
+    plan picker with the answer in hand.
+    """
+    a = await acting_user("member")
+    first = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+    )
+    assert first.status_code == 201, first.text
+
+    second = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "One more"}
+    )
+    assert second.status_code == 402
+    assert second.json()["detail"] == "FREE_COMMUNITY_ALREADY_HELD"
+    # Nothing was made on the way to that answer.
+    made = (await session.exec(select(Guild).where(Guild.name == "One more"))).all()
+    assert made == []
+
+
+@pytest.mark.integration
+async def test_a_paid_community_does_not_use_up_the_free_one(
+    client: AsyncClient, session: AsyncSession, acting_user, billed
+):
+    """The rule counts *free* communities, and billing is what says which are.
+
+    ``plan_is_free`` is the only money fact this app is told, and it is a
+    boolean rather than a tier name for a reason: nothing here has to know what
+    a plan is called, or what it costs, to answer this question.
+    """
+    a = await acting_user("member")
+    paid = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "Acme"}
+    )
+    assert paid.status_code == 201, paid.text
+
+    guild = await session.get(Guild, paid.json()["id"])
+    administration = await guild_administration(session, guild)
+    administration.plan_is_free = False
+    session.add(administration)
+    await session.commit()
+
+    free = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+    )
+    assert free.status_code == 201, free.text
+
+
+@pytest.mark.integration
+async def test_a_deployment_without_billing_never_counts_communities(
+    client: AsyncClient, acting_user
+):
+    """No billing service, no rule. A self-hosted install makes as many as it
+    likes, and nothing in this app has an opinion about how many that is."""
+    a = await acting_user("member")
+    for name in ("One", "Two", "Three"):
+        created = await client.post(
+            "/api/v1/guilds/", headers=a.headers, json={"name": name}
+        )
+        assert created.status_code == 201, created.text
+
+
+@pytest.mark.integration
+async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
+    client: AsyncClient, acting_user, billed
+):
+    """An enterprise onboarding is a community made for a customer who is about
+    to be invoiced, not a second free notebook — and the person it is for may
+    well already have one of those."""
+    staff = await acting_user(UserRole.owner)
+    customer = await acting_user("member")
+    theirs = await client.post(
+        "/api/v1/guilds/", headers=customer.headers, json={"name": "Their notebook"}
+    )
+    assert theirs.status_code == 201, theirs.text
+
+    for_them = await client.post(
+        "/api/v1/guilds/",
+        headers=staff.headers,
+        json={"name": "Acme", "owner_user_id": customer.user.id},
+    )
+    assert for_them.status_code == 201, for_them.text
+
+
 # --- creating a guild for another account ----------------------------------
 
 

@@ -97,6 +97,7 @@ from app.models.platform.access_grant import AccessGrantPurpose
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_claim
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
@@ -578,6 +579,16 @@ async def create_guild(
         )
 
     owner = await _resolve_guild_owner(session, guild_in, current_user)
+
+    if (
+        billing_service.billing_inbound_enabled()
+        and not user_has_capability(current_user, Capability.GUILDS_MANAGE)
+        and await guilds_service.holds_a_free_guild(session, user_id=owner.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=GuildMessages.FREE_COMMUNITY_ALREADY_HELD,
+        )
 
     # The guild's shared rows (guild + admin membership) live in public. Commit
     # them first so provisioning + the in-schema seed below run as a distinct,
