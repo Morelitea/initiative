@@ -87,6 +87,14 @@ class AuditEventType(str, Enum):
     ACCESS_GRANT_REQUESTED = "access_grant.requested"
     ACCESS_GRANT_DECIDED = "access_grant.decided"
     ACCESS_GRANT_SELF_ISSUED = "access_grant.self_issued"
+    #: One request served through a grant rather than through membership —
+    #: every one of them, read or write. The grant says what somebody was let
+    #: into; this says what they then did with it, which is the difference
+    #: between "an operator held this community for an hour" and "an operator
+    #: opened four hundred documents". It records the reach, so it is not a
+    #: write itself: a request that changed something records that separately,
+    #: under the event for what it changed.
+    PAM_REQUEST = "pam.request"
     #: Which ways in the deployment permits changed. Carries the count of
     #: accounts an operator acknowledged stranding, where they did.
     PLATFORM_LOGIN_METHODS_CHANGED = "platform.login_methods_changed"
@@ -324,6 +332,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.ACCESS_GRANT_SELF_ISSUED: AuditEventMeta(
         tier=1, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.PAM_REQUEST: AuditEventMeta(
+        tier=1, category=AuditCategory.AUTHORIZATION, is_write=False
     ),
     # Who may reach what.
     AuditEventType.GUILD_MEMBER_ADDED: AuditEventMeta(
