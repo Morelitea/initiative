@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,10 +17,13 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
+from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
+
+logger = logging.getLogger(__name__)
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
@@ -872,23 +876,75 @@ def migration_chain() -> tuple[frozenset[str], str | None]:
         return frozenset(), None
 
 
+def _missing_database_error() -> RuntimeError:
+    """What to raise when DATABASE_URL names a database that is not there.
+
+    The database itself is infrastructure's to make, not the app's: the
+    compose image creates it from POSTGRES_DB on first boot, and an existing
+    install has one already. Say so, rather than let a connection error
+    surface as forty frames of driver traceback — from whichever of the two
+    startup connections reaches it first.
+    """
+    name = _database_name(settings.DATABASE_URL)
+    return RuntimeError(
+        f"Database {name!r} does not exist. The compose image creates it "
+        f"from POSTGRES_DB the first time its volume is initialised, and "
+        f"only then — on a server that already has a volume, make it by "
+        f"hand as the superuser:\n"
+        f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
+        f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
+        f"The app does not create its own database; it takes ownership "
+        f"of an existing one at startup."
+    )
+
+
+#: The advisory-lock key a process holds while it migrates. Arbitrary and
+#: app-specific: all it has to be is the same number in every build, and a
+#: different one from the suite's (``conftest.py``).
+MIGRATION_LOCK_KEY = 0x1417A7E50D
+
+
+@asynccontextmanager
+async def migration_lock() -> AsyncGenerator[None, None]:
+    """Take the database's migration lock for the duration of the block.
+
+    Alembic runs in-process at startup, so instances sharing a database take
+    turns here rather than upgrading it at the same time. The lock rides a
+    connection of its own — opened for this, closed after, which is what
+    releases it — because the upgrade runs on connections alembic opens for
+    itself. AUTOCOMMIT keeps that connection merely idle, rather than idle in
+    a transaction, for however long the upgrade ahead of it takes.
+    """
+    lock_engine = create_async_engine(
+        settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
+    )
+    params = {"key": MIGRATION_LOCK_KEY}
+    try:
+        conn = await lock_engine.connect()
+    except InvalidCatalogNameError as exc:
+        await lock_engine.dispose()
+        raise _missing_database_error() from exc
+    try:
+        taken = await conn.scalar(text("SELECT pg_try_advisory_lock(:key)"), params)
+        if not taken:
+            logger.info(
+                "Another instance is migrating this database; waiting for it to finish."
+            )
+            waited_from = time.monotonic()
+            await conn.execute(text("SELECT pg_advisory_lock(:key)"), params)
+            logger.info(
+                "Migration lock acquired after %.0fs.", time.monotonic() - waited_from
+            )
+        yield
+    finally:
+        # Closing the connection is what gives the lock back.
+        await conn.close()
+        await lock_engine.dispose()
+
+
 async def run_migrations() -> None:
     config = _get_alembic_config()
     try:
         await asyncio.to_thread(command.upgrade, config, "head")
     except InvalidCatalogNameError as exc:
-        # The database itself is infrastructure's to make, not the app's: the
-        # compose image creates it from POSTGRES_DB on first boot, and an
-        # existing install has one already. Say so, rather than let a
-        # connection error surface as forty frames of driver traceback.
-        name = _database_name(settings.DATABASE_URL)
-        raise RuntimeError(
-            f"Database {name!r} does not exist. The compose image creates it "
-            f"from POSTGRES_DB the first time its volume is initialised, and "
-            f"only then — on a server that already has a volume, make it by "
-            f"hand as the superuser:\n"
-            f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
-            f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
-            f"The app does not create its own database; it takes ownership "
-            f"of an existing one at startup."
-        ) from exc
+        raise _missing_database_error() from exc

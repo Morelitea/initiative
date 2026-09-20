@@ -20,6 +20,7 @@ from app.db.schema_provisioning import (
 from app.db.session import (
     AdminSessionLocal,
     migration_chain,
+    migration_lock,
     run_migrations,
     set_rls_context,
 )
@@ -238,9 +239,20 @@ async def check_pre_baseline_db() -> None:
         await conn.close()
 
 
+async def migrate_database() -> None:
+    """Bring the database to head, one instance at a time.
+
+    The pre-baseline check reads — and on one path clears — the alembic stamp
+    that the upgrade then acts on, so the two share a lock rather than taking
+    one each.
+    """
+    async with migration_lock():
+        await check_pre_baseline_db()
+        await run_migrations()
+
+
 async def init() -> None:
-    await check_pre_baseline_db()
-    await run_migrations()
+    await migrate_database()
     # Name the three DB logins in the log and warn loudly on wiring that
     # collapses the role separation, before the heals act on those logins.
     await verify_engine_identities()

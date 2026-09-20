@@ -38,7 +38,7 @@ from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
-from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
+from app.db.session import AdminSessionLocal, get_admin_session
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
     lifespan is combined with this one via ``combine_lifespans`` in the mount
     block after ``include_router`` — so the MCP server boots alongside the API.
     """
-    from app.db.init_db import check_pre_baseline_db, init_owner
+    from app.db.init_db import init_owner, migrate_database
     from app.db.soft_delete_filter import install_soft_delete_filter
 
     # Surface the effective CORS allowlist so a misconfigured split-origin
@@ -120,8 +120,7 @@ async def lifespan(app: FastAPI):
     from app.db.schema_provisioning import reject_privileged_database_url
 
     await reject_privileged_database_url()
-    await check_pre_baseline_db()
-    await run_migrations()
+    await migrate_database()
     # The functions every guild policy defers to, from the module that owns
     # them (app.db.authorization). Before the back-fill below, so a schema
     # rendered in this same boot finds each one its policies name.
