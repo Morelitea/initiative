@@ -288,27 +288,28 @@ async def apply_backup(
     always-create policy makes partial progress durable and never re-run)."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
+    from app.models.platform.guild import GuildRole
     from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
     from app.services.tenant import initiatives as initiatives_service
 
     archive = open_backup_zip(payload)
     manifest = read_manifest(archive)
     result = BackupImportResult()
 
-    # Re-verify REAL guild adminship at apply time — enqueue-time authority
-    # can be gone by now, and creating an initiative is a guild admin's act.
-    # It is asked for only when something here actually creates one: a bundle
-    # that applies into initiatives somebody already runs is gated by the
-    # per-tool create permission in those initiatives instead (§8.2), which
-    # is the same gate a lone envelope passes.
+    # Re-verify the seat, held outright, at apply time — enqueue-time
+    # authority can be gone by now, and standing up a new initiative in the
+    # community is the seat's act. It is asked for only when something here
+    # actually creates one: a bundle that applies into initiatives somebody
+    # already runs is gated by the per-tool create permission in those
+    # initiatives instead (§8.2), which is the same gate a lone envelope
+    # passes.
     if any(mi.target_initiative_id is None for mi in manifest.initiatives):
         membership = await guilds_service.get_membership(
             session, guild_id=guild_id, user_id=user.id
         )
-        if membership is None or not is_guild_admin(membership.role):
+        if membership is None or membership.role is not GuildRole.superadmin:
             raise ImportEngineError(
-                ImportEngineMessages.IMPORT_ADMIN_REQUIRED, status_code=403
+                ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED, status_code=403
             )
 
     # Assets first, one chunk: written under their ORIGINAL storage keys so

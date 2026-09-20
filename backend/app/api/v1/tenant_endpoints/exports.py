@@ -11,6 +11,7 @@ rest of the guild must not reach.
 
 import json
 from datetime import datetime, timedelta, timezone
+from math import ceil
 from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -26,10 +27,13 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import ExportMessages
+from app.core.user_display import display_name
+from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.tenant.backup_export import BackupEstimate
-from app.schemas.tenant.export_job import ExportJobRead
+from app.schemas.tenant.export_job import ExportJobRead, GuildExportStatus
 from app.services import audit as audit_service
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
@@ -410,37 +414,44 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
     return value
 
 
-def _require_guild_admin(guild_context: GuildContext) -> None:
-    """Guild-scope exports are for guild admins — real membership, not a
-    break-glass stand-in (the adapter re-checks actual membership, so a
-    synthesized admin role would only fail later; reject it up front)."""
+def _require_guild_seat(guild_context: GuildContext) -> None:
+    """A whole community's archive belongs to the seat.
 
-    if guild_context.grant is not None or not guild_context.is_admin:
+    The community's every initiative in one file is not the same errand as
+    running the community, so it sits with the seat rather than with an
+    ordinary admin — beside the other things only that seat decides.
+
+    Held outright, too: a lent seat is not it, and neither is a break-glass
+    stand-in. The adapter re-checks the creator's own membership at render
+    time, so a synthesized role would only fail later; reject it up front.
+    """
+
+    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_ADMIN_REQUIRED,
+            detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED,
         )
 
 
-async def _require_guild_cooldown_elapsed(
-    session, guild_id: int, current_user: User
-) -> None:
-    """A whole community's content is not a thing to re-read on a loop.
+async def _guild_export_available_at(session) -> Optional[datetime]:
+    """When the next whole-community export may start — ``None`` for now.
 
-    The bound that actually matters for what this costs a deployment: one
-    community-wide export per ``EXPORT_GUILD_COOLDOWN_HOURS``, counted across
-    the community rather than per person, so a second admin does not reset it.
-    Failed and expired jobs do not hold the door — only work that was really
-    done counts.
+    A whole community's content is not a thing to re-read on a loop. The bound
+    that actually matters for what this costs a deployment: one community-wide
+    export per ``EXPORT_GUILD_COOLDOWN_HOURS``, counted across the community
+    rather than per person, so a second admin does not reset it. Failed and
+    expired jobs do not hold the door — only work that was really done counts.
+
+    One definition, asked twice: the gate below refuses on it and the status
+    endpoint reports it, so what the settings page says and what the door
+    does cannot come apart.
     """
     if settings.EXPORT_GUILD_COOLDOWN_HOURS <= 0:
-        return
-    since = datetime.now(timezone.utc) - timedelta(
-        hours=settings.EXPORT_GUILD_COOLDOWN_HOURS
-    )
-    recent = (
+        return None
+    window = timedelta(hours=settings.EXPORT_GUILD_COOLDOWN_HOURS)
+    started_at = (
         await session.exec(
-            select(ExportJob.id)
+            select(ExportJob.created_at)
             .where(
                 ExportJob.source == "guild",
                 ExportJob.status.in_(
@@ -450,16 +461,27 @@ async def _require_guild_cooldown_elapsed(
                         ExportJobStatus.done,
                     )
                 ),
-                ExportJob.created_at >= since,
+                ExportJob.created_at >= datetime.now(timezone.utc) - window,
             )
+            .order_by(ExportJob.created_at.desc())
             .limit(1)
         )
     ).first()
-    if recent is not None:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ExportMessages.EXPORT_COOLDOWN_ACTIVE,
-        )
+    return started_at + window if started_at is not None else None
+
+
+async def _require_guild_cooldown_elapsed(session) -> None:
+    """Refuse a community-wide export inside the cooldown, saying how long is
+    left — the same number the settings page counts down."""
+    available_at = await _guild_export_available_at(session)
+    if available_at is None:
+        return
+    seconds_left = (available_at - datetime.now(timezone.utc)).total_seconds()
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=ExportMessages.EXPORT_COOLDOWN_ACTIVE,
+        headers={"Retry-After": str(max(1, ceil(seconds_left)))},
+    )
 
 
 # NOTE: literal paths below must stay declared before the parametric
@@ -478,11 +500,11 @@ async def estimate_aggregate_export(
     """Pre-flight numbers for the export wizard: per-tool entity counts and
     the uploads footprint (approximate — embedded document images resolve at
     build time), plus the row/byte ceilings so the client can warn before
-    submitting. Guild scope requires guild admin."""
+    submitting. Guild scope requires the community's seat."""
     from app.services.export.adapters.backup import estimate_backup
 
     if scope == "guild":
-        _require_guild_admin(guild_context)
+        _require_guild_seat(guild_context)
     try:
         return await estimate_backup(
             session,
@@ -594,12 +616,12 @@ async def export_guild(
     ),
 ) -> Union[Response, JSONResponse]:
     """Export the whole guild — every initiative the same way
-    ``/exports/initiative`` exports one, in a single zip. Guild admins only
-    (real membership; the adapter re-checks at render time so revoked
-    adminship fails the job closed). Always returns ``202`` with a queued job
-    to poll and download."""
-    _require_guild_admin(guild_context)
-    await _require_guild_cooldown_elapsed(session, guild_context.guild_id, current_user)
+    ``/exports/initiative`` exports one, in a single zip. The community's seat
+    only (held outright; the adapter re-checks at render time so a vacated
+    seat fails the job closed), and once per cooldown window. Always returns
+    ``202`` with a queued job to poll and download."""
+    _require_guild_seat(guild_context)
+    await _require_guild_cooldown_elapsed(session)
     try:
         result = await start_export(
             session,
@@ -638,6 +660,42 @@ async def export_guild(
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.get("/guild/status", response_model=GuildExportStatus)
+async def read_guild_export_status(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GuildExportStatus:
+    """The state of this community's whole-community export, before anybody
+    opens the wizard: the last one taken — who took it, how it ended, and
+    whether its archive is still there — and when the next one may start.
+
+    Seat-only, like the export it describes. Two bounded reads: the newest
+    ``guild`` job, and the cooldown the create route enforces.
+    """
+    _require_guild_seat(guild_context)
+    latest = (
+        await session.exec(
+            select(ExportJob)
+            .where(ExportJob.source == "guild")
+            .order_by(ExportJob.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    # Read through the member view, so a community that renders handles gets a
+    # handle here as it does everywhere else. Empty where the account is gone;
+    # the page says who it was missing in its own words.
+    started_by = None
+    if latest is not None:
+        started_by = display_name(await session.get(MemberProfile, latest.created_by))
+    return GuildExportStatus(
+        cooldown_hours=settings.EXPORT_GUILD_COOLDOWN_HOURS,
+        next_available_at=await _guild_export_available_at(session),
+        latest=ExportJobRead.model_validate(latest) if latest is not None else None,
+        latest_started_by=started_by or None,
+    )
 
 
 @router.get("/", response_model=list[ExportJobRead])

@@ -83,9 +83,21 @@
     "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "open": "Exportieren…"
   },
+  "community": {
+    "lastExport": "Letzter Export",
+    "none": "Diese Community wurde noch nie exportiert.",
+    "startedBy": "Gestartet von {{name}}",
+    "startedByUnknown": "Gestartet von einem ehemaligen Mitglied",
+    "preparing": "Wird noch vorbereitet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
+    "expires": "Download läuft ab",
+    "delivered": "In den Exportordner des Servers geschrieben — bitte deine Serveradministration um die Datei.",
+    "expiredNote": "Das Archiv wurde inzwischen gelöscht.",
+    "failedNote": "Es wurde nichts exportiert.",
+    "nextAvailable": "Nächster Export möglich"
+  },
   "table": {
     "title": "Letzte Exporte",
-    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Community-Administratoren sehen die Exporte aller Mitglieder.",
+    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Diese Liste umfasst die Exporte aller Mitglieder.",
     "columns": {
       "export": "Export",
       "status": "Status",

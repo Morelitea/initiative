@@ -81,11 +81,18 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.trash"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
       },
-      {
-        value: "data",
-        label: t("guildLayout.tabs.data"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/data") : "/settings/data",
-      },
+      // Taking the community's every initiative out in one file, or putting
+      // one back, reaches as far as deleting it does — so it sits with the
+      // same seat. An ordinary admin runs the community; this one moves it.
+      ...(isSuperadmin
+        ? [
+            {
+              value: "data",
+              label: t("guildLayout.tabs.data"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/data") : "/settings/data",
+            },
+          ]
+        : []),
     ];
     // Danger zone lives last — destructive guild deletion is deliberately
     // tucked behind its own tab rather than the first screen — and only the

@@ -83,9 +83,21 @@
     "initiativeDescription": "Download this initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
     "open": "Export…"
   },
+  "community": {
+    "lastExport": "Last export",
+    "none": "Nobody has exported this community yet.",
+    "startedBy": "Started by {{name}}",
+    "startedByUnknown": "Started by a former member",
+    "preparing": "Still preparing — you'll get a notification when it's ready.",
+    "expires": "Download expires",
+    "delivered": "Written to the server's export folder — ask your server administrator for the file.",
+    "expiredNote": "The archive has been cleaned up.",
+    "failedNote": "Nothing was exported.",
+    "nextAvailable": "Next export available"
+  },
   "table": {
     "title": "Recent exports",
-    "description": "Finished exports can be re-downloaded until they expire (7 days). Community admins see every member's exports.",
+    "description": "Finished exports can be re-downloaded until they expire (7 days). This list covers every member's exports.",
     "columns": {
       "export": "Export",
       "status": "Status",

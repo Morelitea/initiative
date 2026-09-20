@@ -4273,6 +4273,21 @@ export interface GuildEntitlementsRead {
   banner_image_enabled: boolean;
 }
 
+/**
+ * What the community settings page knows about whole-community exports
+ * without opening the wizard.
+ *
+ * A community takes one of these at a time and rarely — so the page says
+ * who took the last one and how it ended, rather than leaving the next
+ * person to find out by being refused.
+ */
+export interface GuildExportStatus {
+  cooldown_hours: number;
+  next_available_at: string | null;
+  latest: ExportJobRead | null;
+  latest_started_by: string | null;
+}
+
 export interface GuildInviteAcceptRequest {
   code: string;
 }

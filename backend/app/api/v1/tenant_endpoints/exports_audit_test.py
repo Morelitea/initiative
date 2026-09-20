@@ -58,7 +58,7 @@ async def test_exporting_an_initiative_records_the_job_that_carries_it(
 async def test_exporting_a_guild_records_its_own_event(
     client: AsyncClient, acting_user, capfd
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     capfd.readouterr()
 
     response = await client.get(
@@ -93,11 +93,11 @@ async def test_exporting_a_guild_records_its_own_event(
 async def test_a_refused_guild_export_records_nothing(
     client: AsyncClient, acting_user, capfd
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
     capfd.readouterr()
 
-    response = await client.get(member.g("/exports/guild"), headers=member.headers)
+    response = await client.get(admin.g("/exports/guild"), headers=admin.headers)
     assert response.status_code == 403
 
     assert emitted(capfd, AuditEventType.GUILD_EXPORTED) == []

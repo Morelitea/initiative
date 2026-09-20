@@ -133,15 +133,15 @@ async def _resolve_scope(
     session: AsyncSession, user: User, guild_id: int, params: dict, *, scope_kind: str
 ):
     """The initiatives this export covers, authorization included: guild scope
-    demands a guild ADMIN creator (re-checked on worker replay); initiative
+    demands the community's seat (re-checked on worker replay); initiative
     scope demands the creator reach the requested initiative. Returns the
     Initiative rows (name/flags feed the manifest)."""
     from sqlmodel import select
 
     from app.models.tenant.initiative import Initiative
+    from app.models.platform.guild import GuildRole
     from app.services.membership import initiative_scope_clause
     from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     _validate_params(params, scope_kind=scope_kind)
 
@@ -149,8 +149,13 @@ async def _resolve_scope(
         membership = await guilds_service.get_membership(
             session, guild_id=guild_id, user_id=user.id
         )
-        if membership is None or not is_guild_admin(membership.role):
-            raise ExportError(ExportMessages.EXPORT_ADMIN_REQUIRED, status_code=403)
+        # The seat itself, held outright: the same rule the create endpoint
+        # applies, re-asked here so a job outlives the request under the
+        # authority it was started with and no other.
+        if membership is None or membership.role is not GuildRole.superadmin:
+            raise ExportError(
+                ExportMessages.EXPORT_SUPERADMIN_REQUIRED, status_code=403
+            )
         statement = (
             select(Initiative)
             .where(
