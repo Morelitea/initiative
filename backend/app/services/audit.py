@@ -33,7 +33,14 @@ from sqlalchemy.orm import Session, SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import audit_context
-from app.core.audit_events import SCHEMA_VERSION, SERVICE, AuditEventType, meta_for
+from app.core.audit_events import (
+    SCHEMA_VERSION,
+    SERVICE,
+    AuditCategory,
+    AuditEventMeta,
+    AuditEventType,
+    meta_for,
+)
 
 audit_logger = logging.getLogger("audit")
 
@@ -57,6 +64,18 @@ def _within(txn: SessionTransaction | None, ancestor: SessionTransaction) -> boo
             return True
         txn = txn.parent
     return False
+
+
+def _identifies_the_caller(meta: AuditEventMeta) -> bool:
+    """Whether this event's line carries where the request came from.
+
+    Two families need it: getting in, and reaching past the communities you
+    belong to. For a sign-in, the address is most of what tells one from
+    another; for privileged access, it is part of what the access is reviewed
+    against. Somebody making a document in their own community is not either
+    of those, and their line carries the request id alone.
+    """
+    return meta.category is AuditCategory.AUTHENTICATION or meta.tier == 1
 
 
 def _write(envelope: dict[str, Any]) -> None:
@@ -199,7 +218,7 @@ def _envelope(
         "tier": meta.tier,
         "category": meta.category.value,
         "is_write": meta.is_write,
-        "context": audit_context.envelope_context(),
+        "context": audit_context.envelope_context(caller=_identifies_the_caller(meta)),
         "detail": detail or {},
     }
 

@@ -3,7 +3,14 @@
 import json
 
 import pytest
-from app.core.audit_events import SCHEMA_VERSION, SERVICE, AuditCategory, AuditEventType
+from app.core import audit_context
+from app.core.audit_events import (
+    SCHEMA_VERSION,
+    SERVICE,
+    AuditCategory,
+    AuditEventType,
+    meta_for,
+)
 from app.core.logging_config import configure_logging
 from app.services import audit as audit_service
 from app.testing import create_user
@@ -181,3 +188,84 @@ def test_snapshot_reads_the_named_attributes():
         c = None
 
     assert audit_service.snapshot(Row(), ["a", "b"]) == {"a": 1, "b": "x"}
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        AuditEventType.AUTH_SIGNED_IN,
+        AuditEventType.AUTH_SIGN_IN_FAILED,
+        AuditEventType.ACCESS_GRANT_SELF_ISSUED,
+        AuditEventType.PAM_REQUEST,
+    ],
+)
+def test_getting_in_and_reaching_in_say_where_from(event_type):
+    """A sign-in and a privileged reach are the two the address is part of
+    the answer to."""
+    assert audit_service._identifies_the_caller(meta_for(event_type))
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        AuditEventType.SHARING_GRANT_CHANGED,
+        AuditEventType.INITIATIVE_MEMBER_ADDED,
+        AuditEventType.APP_INSTALLED,
+        AuditEventType.AI_REQUEST_SENT,
+        AuditEventType.USER_SUSPENDED,
+        AuditEventType.PLATFORM_SETTINGS_CHANGED,
+    ],
+)
+def test_everything_else_leaves_the_person_out_of_it(event_type):
+    """Somebody working in their own community is recorded as who and what,
+    not as where they were sitting."""
+    assert not audit_service._identifies_the_caller(meta_for(event_type))
+
+
+async def test_a_members_own_work_carries_the_request_and_no_address(session, capfd):
+    """The line says which request made the change; a filter can still put it
+    beside the deployment's own logs, and it holds nothing about the person
+    beyond the account that did it."""
+    actor = await create_user(session)
+    _, token = audit_context.begin(
+        request_id="req-1", source_ip="203.0.113.7", user_agent="Firefox/1"
+    )
+    try:
+        capfd.readouterr()
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.SHARING_GRANT_CHANGED,
+            actor_user_id=actor.id,
+            guild_id=1,
+        )
+        await session.commit()
+    finally:
+        audit_context.end(token)
+
+    (line,) = _audit_lines(capfd.readouterr().out)
+    assert line["context"] == {"request_id": "req-1"}
+    assert line["actor_user_id"] == actor.id
+
+
+async def test_a_sign_in_carries_where_it_came_from(session, capfd):
+    actor = await create_user(session)
+    _, token = audit_context.begin(
+        request_id="req-2", source_ip="203.0.113.7", user_agent="Firefox/1"
+    )
+    try:
+        capfd.readouterr()
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=actor.id,
+        )
+        await session.commit()
+    finally:
+        audit_context.end(token)
+
+    (line,) = _audit_lines(capfd.readouterr().out)
+    assert line["context"] == {
+        "request_id": "req-2",
+        "source_ip": "203.0.113.7",
+        "user_agent": "Firefox/1",
+    }

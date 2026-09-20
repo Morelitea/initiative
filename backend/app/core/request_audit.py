@@ -7,12 +7,18 @@ life:
   and into the ``context`` block of every audit line the request writes, so a
   line in this stream and a line in the deployment's own logs can be put
   beside each other. Behind a proxy an id that arrived with the request is
-  kept, so the name is the same all the way along.
+  kept, so the name is the same all the way along. A socket is named the same
+  way and keeps that name for as long as it is open.
 * **A request served through a grant is written down.** The guild-access gate
   records the grant on the request's context; when the response is finished
   this writes one ``pam.request`` line saying which grant, which route, and
   what it answered. The grant says somebody was let into a community; these
   say what they did while they were there.
+
+A socket has no response to be finished, so it gets no ``pam.request`` line.
+What it has instead is :func:`record_privileged_edit`, which the live editing
+socket calls the first time a grantee changes a body — the one thing about a
+socket that is worth the same kind of record.
 
 Pure ASGI rather than ``BaseHTTPMiddleware``: it runs on every request, and
 this way it costs no extra task and streams pass straight through.
@@ -88,7 +94,8 @@ class RequestAuditMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope.get("type") != "http":
+        kind = scope.get("type")
+        if kind not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
@@ -97,6 +104,16 @@ class RequestAuditMiddleware:
             source_ip=(scope.get("client") or (None,))[0],
             user_agent=_header(scope, "user-agent"),
         )
+        if kind == "websocket":
+            # Named and carrying its grant for as long as it is open; what it
+            # does with that is recorded by the socket itself, since there is
+            # no response here to hang a line on.
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                audit_context.end(token)
+            return
+
         answered: dict[str, int] = {}
 
         async def named_send(message: dict[str, Any]) -> None:
@@ -123,3 +140,25 @@ class RequestAuditMiddleware:
                     },
                 )
             audit_context.end(token)
+
+
+def record_privileged_edit(
+    *, guild_id: int, resource_type: str, resource_id: int, actor_user_id: int
+) -> bool:
+    """Write down that somebody serving a grant changed this body.
+
+    Returns whether a line was written, so the caller can record once per
+    session rather than once per keystroke. A socket opened by a member of the
+    community writes nothing.
+    """
+    context = audit_context.current()
+    if context is None or not context.is_privileged:
+        return False
+    audit_service.emit(
+        event_type=AuditEventType.PAM_CONTENT_EDITED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type=resource_type,
+        target_id=resource_id,
+    )
+    return True

@@ -95,6 +95,11 @@ class AuditEventType(str, Enum):
     #: write itself: a request that changed something records that separately,
     #: under the event for what it changed.
     PAM_REQUEST = "pam.request"
+    #: Somebody serving a grant changed a document's or a wiki page's body,
+    #: which happens over a live editing socket rather than through a request.
+    #: One line the first time they do it in a session: that they edited it is
+    #: the fact worth having, and a line per keystroke would bury it.
+    PAM_CONTENT_EDITED = "pam.content_edited"
     #: Which ways in the deployment permits changed. Carries the count of
     #: accounts an operator acknowledged stranding, where they did.
     PLATFORM_LOGIN_METHODS_CHANGED = "platform.login_methods_changed"
@@ -335,6 +340,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.PAM_REQUEST: AuditEventMeta(
         tier=1, category=AuditCategory.AUTHORIZATION, is_write=False
+    ),
+    AuditEventType.PAM_CONTENT_EDITED: AuditEventMeta(
+        tier=1, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     # Who may reach what.
     AuditEventType.GUILD_MEMBER_ADDED: AuditEventMeta(

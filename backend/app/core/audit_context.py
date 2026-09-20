@@ -1,10 +1,14 @@
 """What the log knows about the request a line came from.
 
 Every audit line carries a ``context`` block: the id this request is known by,
-where it arrived from, and — when the caller reached a community through a
-privileged-access grant rather than membership — which grant let them in. The
-id is the thread back to the deployment's own logs, which record the same
-request under the same name.
+and — when the caller reached a community through a privileged-access grant
+rather than membership — which grant let them in. The id is the thread back to
+the deployment's own logs, which record the same request under the same name.
+
+Where the request came from — the address, the agent — goes only on the lines
+that are about a person getting in or reaching past their own communities.
+Everywhere else a line says what was done and by which account, and leaves
+where they were sitting out of it. ``services.audit`` decides which is which.
 
 The value is a **mutable holder** in a ``contextvars.ContextVar``. The
 middleware that opens a request puts one there; the guild-access gate fills in
@@ -62,14 +66,19 @@ class RequestContext:
         membership."""
         return self.grant_id is not None or self.settings_grant_id is not None
 
-    def as_envelope(self) -> dict[str, Any]:
-        """The ``context`` block, with the grant half present only when there
-        is a grant."""
-        block: dict[str, Any] = {
-            "request_id": self.request_id,
-            "source_ip": self.source_ip,
-            "user_agent": self.user_agent,
-        }
+    def as_envelope(self, *, caller: bool) -> dict[str, Any]:
+        """The ``context`` block.
+
+        ``caller`` asks for the address and agent the request arrived from —
+        which say something about the person, not only about the request, so
+        they go on the lines that need them and not on the rest. The request
+        id is on every line either way: it names the request without naming
+        where anybody was sitting.
+        """
+        block: dict[str, Any] = {"request_id": self.request_id}
+        if caller:
+            block["source_ip"] = self.source_ip
+            block["user_agent"] = self.user_agent
         if self.is_privileged:
             block.update(
                 {
@@ -158,7 +167,7 @@ def note_grant(
     context.break_glass = break_glass
 
 
-def envelope_context() -> Optional[dict[str, Any]]:
+def envelope_context(*, caller: bool) -> Optional[dict[str, Any]]:
     """The ``context`` block for a line written now, or ``None``."""
     context = _request.get()
-    return context.as_envelope() if context is not None else None
+    return context.as_envelope(caller=caller) if context is not None else None
