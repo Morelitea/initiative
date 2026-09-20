@@ -69,6 +69,7 @@ from app.models.platform.access_grant import (
 )
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
+    LIVE_STATUS_VALUES,
     GUILD_ADMIN_ROLES,
     Guild,
     GuildMembership,
@@ -962,8 +963,9 @@ async def _load_guild_context(
             settings_grant=settings_grant,
         )
     membership, guild, policy, asked, age_gate_on = gate
-    # Membership access respects the guild's lifecycle status.
-    if guild.status == GuildStatus.suspended.value:
+    # Membership access respects the guild's lifecycle status: the statuses
+    # that serve members are named, and every other one is refused.
+    if guild.status not in LIVE_STATUS_VALUES:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
     # A listed community is open to anyone signed in, so the deployment's age

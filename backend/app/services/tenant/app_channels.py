@@ -40,7 +40,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import AppChannelMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
@@ -118,14 +118,15 @@ def owns_install(app: GuildApp, registration: AppServiceRegistration) -> bool:
 async def _guild_ids(session: AsyncSession) -> list[int]:
     """Every guild whose content this channel may reach, lowest id first.
 
-    Suspended guilds are left out: a suspended guild's content is frozen for
-    members and admins alike, and an app pulling for it would be reaching past
-    a hold the operator put there. It reappears when the guild does.
+    Guilds that are not live are left out: their content is frozen for
+    members and admins alike, and an app pulling for one would be reaching past
+    a hold the operator put there — or past a deletion. It reappears when the
+    guild does.
     """
     await set_rls_context(session)
     rows = await session.exec(
         select(Guild.id, Guild.status)
-        .where(Guild.status != GuildStatus.suspended.value)
+        .where(Guild.status.in_(LIVE_STATUS_VALUES))
         .order_by(Guild.id.asc())
     )
     return [row[0] for row in rows]
@@ -241,7 +242,7 @@ async def load_install(
     away with a reason rather than failing against a read-only database role.
     """
     guild = await _guild_row(session, guild_id)
-    if guild is None or guild.status == GuildStatus.suspended.value:
+    if guild is None or guild.status not in LIVE_STATUS_VALUES:
         raise AppChannelError(AppChannelMessages.INSTALL_NOT_FOUND, status_code=404)
 
     frozen = guild.status == GuildStatus.read_only.value

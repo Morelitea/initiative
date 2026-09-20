@@ -731,5 +731,9 @@
   "ACCESS_GRANT_PASSKEY_INVALID": "That passkey did not answer. Try again, or use your authenticator code.",
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Set up email sending first — the code has no way to reach anybody.",
   "EMAIL_OTP_INVALID": "That code didn't work, or it has expired. Ask for a new one.",
-  "EMAIL_OTP_CANNOT_SEND": "This server can't send email, so it can't send a code."
+  "EMAIL_OTP_CANNOT_SEND": "This server can't send email, so it can't send a code.",
+  "GUILD_NOT_DELETED": "That community has not been deleted, so there is nothing to restore.",
+  "GUILD_RESTORE_STATUS_INVALID": "Choose the state the community comes back in.",
+  "GUILD_RESTORE_SEAT_REQUIRED": "Choose who will run the community before restoring it.",
+  "GUILD_STATUS_NOT_SETTABLE": "A community is deleted from its own settings, not from here."
 }

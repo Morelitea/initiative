@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.email_masking import mask_email
@@ -272,10 +273,19 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = None
     # Max number of members for this guild. None means "unlimited".
     max_users: Optional[int] = None
-    # Operator-set lifecycle status (active / read_only / suspended). Surfaced
+    # Lifecycle status (active / read_only / suspended / deleted). Surfaced
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
+    # When a deleted guild is destroyed: its deletion time plus the retention
+    # window. Null unless ``status`` is ``deleted``. Computed from the two
+    # columns beside it rather than stored, so the window is stated in one
+    # place (``guild_purge.GUILD_RETENTION_DAYS``).
+    purge_at: Optional[datetime] = None
+    # Whether anybody left in the guild can still run it — a ``superadmin``
+    # seat. False after a deletion that cleared the roster, which is what makes
+    # a restore ask the operator to seat somebody.
+    has_seat: bool = True
     # Per-guild sign-in entitlements, set from the platform Guilds dashboard.
     auth_options: List[GuildAuthOption] = Field(default_factory=list)
     # Whether this guild may upload banner artwork (operator toggle). On by
@@ -285,6 +295,31 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Off by default: the deployment that receives them is the one that decides
     # it is staffing them.
     support_enabled: bool = False
+
+
+class PlatformGuildRestore(SanitizedBaseModel):
+    """Bring a deleted guild back (platform ``guilds.manage``).
+
+    ``status`` is what it returns at — the operator decides, because a
+    community suspended for nonpayment and then deleted should not come back
+    trading, and a column remembering what it used to be would be one more
+    thing to keep correct for a decision somebody is making anyway.
+
+    ``seat_user_id`` names the account that will run it, and is required only
+    when the guild's roster no longer holds a ``superadmin`` — which is what a
+    deletion that cleared the roster leaves behind. The endpoint re-checks
+    that rather than trusting the client's reading of it.
+    """
+
+    status: GuildStatus = GuildStatus.active
+    seat_user_id: Optional[int] = Field(default=None, ge=1)
+
+    @field_validator("status")
+    @classmethod
+    def _not_deleted(cls, value: GuildStatus) -> GuildStatus:
+        if value == GuildStatus.deleted:
+            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+        return value
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -300,6 +335,21 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
+
+    @field_validator("status")
+    @classmethod
+    def _status_is_settable(cls, value: GuildStatus | None) -> GuildStatus | None:
+        """``deleted`` is not an operator setting.
+
+        It is reached by deleting a guild and left by restoring one, both of
+        which do a good deal more than move this column: clearing the guild's
+        app grants as it goes, seating somebody who can run it as it returns.
+        Those two endpoints own the transition; this field does not.
+        """
+        if value == GuildStatus.deleted:
+            raise ValueError(GuildMessages.GUILD_STATUS_NOT_SETTABLE)
+        return value
+
     # Per-guild sign-in entitlements. Omit-to-skip; a sent list replaces the
     # set outright, and an empty one grants nothing.
     auth_options: Optional[List[GuildAuthOption]] = None

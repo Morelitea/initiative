@@ -34,7 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.image_headers import read_image_header
 from app.core.messages import GuildMessages
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
 from app.models.platform.guild_image import (
     IMAGE_CONTENT_TYPES,
     IMAGE_SPECS,
@@ -89,10 +89,10 @@ async def may_read_image(
         session, guild_id=guild_id, user_id=user_id
     )
     if membership is not None:
-        # A suspended guild is unreadable to its own members, matching the
-        # uploads route and the guild-context resolver.
+        # A guild that is not live is unreadable to its own members,
+        # matching the uploads route and the guild-context resolver.
         guild = await session.get(Guild, guild_id)
-        return guild is not None and guild.status != GuildStatus.suspended.value
+        return guild is not None and guild.status in LIVE_STATUS_VALUES
 
     grant = await access_grants_service.get_live_grant(
         session, user_id=user_id, guild_id=guild_id

@@ -731,5 +731,9 @@
   "ACCESS_GRANT_PASSKEY_INVALID": "Dieser Passkey hat nicht geantwortet. Versuche es erneut oder nutze deinen Authenticator-Code.",
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Richte zuerst den E-Mail-Versand ein — der Code erreicht sonst niemanden.",
   "EMAIL_OTP_INVALID": "Dieser Code hat nicht funktioniert oder ist abgelaufen. Fordere einen neuen an.",
-  "EMAIL_OTP_CANNOT_SEND": "Dieser Server kann keine E-Mails senden und daher auch keinen Code."
+  "EMAIL_OTP_CANNOT_SEND": "Dieser Server kann keine E-Mails senden und daher auch keinen Code.",
+  "GUILD_NOT_DELETED": "Diese Community wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
+  "GUILD_RESTORE_STATUS_INVALID": "Wählen Sie den Zustand, in dem die Community zurückkommt.",
+  "GUILD_RESTORE_SEAT_REQUIRED": "Wählen Sie vor dem Wiederherstellen, wer die Community leiten wird.",
+  "GUILD_STATUS_NOT_SETTABLE": "Eine Community wird in ihren eigenen Einstellungen gelöscht, nicht hier."
 }

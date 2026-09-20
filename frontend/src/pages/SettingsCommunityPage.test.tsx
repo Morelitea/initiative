@@ -19,6 +19,7 @@ const config = vi.hoisted(() => ({
   ageGate: true,
   defaultDmPolicy: "private" as "private" | "community" | "public",
   directMessages: true,
+  retentionDays: 90 as number | null,
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
@@ -38,6 +39,7 @@ vi.mock("@/hooks/useSettings", () => ({
       age_gate_enabled: config.ageGate,
       default_dm_policy: config.defaultDmPolicy,
       direct_messages_enabled: config.directMessages,
+      deleted_community_retention_days: config.retentionDays,
     },
   }),
 }));
@@ -58,6 +60,7 @@ describe("SettingsCommunityPage", () => {
     config.ageGate = true;
     config.defaultDmPolicy = "private";
     config.directMessages = true;
+    config.retentionDays = 90;
   });
 
   it("starts off, matching a deployment that has never turned it on", async () => {
@@ -208,5 +211,53 @@ describe("the policy new accounts start on", () => {
       community_directory_enabled: true,
       default_dm_policy: "community",
     });
+  });
+});
+
+describe("how long deleted communities are kept", () => {
+  beforeEach(() => {
+    updateMutate.mockClear();
+    config.communityDirectory = false;
+    config.retentionDays = 90;
+  });
+
+  it("shows the deployment's window and saves a new one", async () => {
+    config.communityDirectory = true;
+    renderPage();
+
+    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    expect(box.value).toBe("90");
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "30");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: true,
+      deleted_community_retention_days: 30,
+    });
+  });
+
+  it("takes a blank box as never destroy", async () => {
+    renderPage();
+
+    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    await userEvent.clear(box);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      deleted_community_retention_days: null,
+    });
+  });
+
+  it("shows a blank box where the deployment keeps them", async () => {
+    config.retentionDays = null;
+    renderPage();
+
+    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    expect(box.value).toBe("");
+    // Nothing to save until it is changed.
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 });

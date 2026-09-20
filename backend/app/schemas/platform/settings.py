@@ -4,6 +4,10 @@ from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.user_input_validators import validate_provider_slug
+from app.models.platform.app_setting import (
+    MAX_GUILD_RETENTION_DAYS,
+    MIN_GUILD_RETENTION_DAYS,
+)
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -444,6 +448,11 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: Whether this deployment offers direct messages at all. Also on
     #: ``GET /config``, which is where every signed-in page reads it.
     direct_messages_enabled: bool
+    #: How long a deleted community is kept before it is destroyed, in days.
+    #: ``None`` means it is never destroyed — a deployment that has undertaken
+    #: to keep what its members put in it. Owner-only, deployment-wide; a
+    #: community has no say in its own.
+    deleted_community_retention_days: Optional[int] = None
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -458,6 +467,16 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: as it was; it is independent of the directory, which a deployment can
     #: run with or without messaging.
     direct_messages_enabled: Optional[bool] = None
+    #: How long a deleted community is kept, in days. This one reads its
+    #: presence rather than its value, because ``null`` is an answer here
+    #: ("never destroy one") and not the absence of one: omit the field to
+    #: leave the window alone, send a number to set it, send ``null`` to turn
+    #: destruction off. The endpoint inspects ``model_fields_set``.
+    deleted_community_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
 
 
 class EmailSettingsResponse(SanitizedBaseModel):

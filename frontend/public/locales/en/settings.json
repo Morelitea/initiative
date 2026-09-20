@@ -969,7 +969,8 @@
     "status": {
       "active": "Active",
       "read_only": "Read-only",
-      "suspended": "Suspended"
+      "suspended": "Suspended",
+      "deleted": "Deleted"
     },
     "suspendConfirm": {
       "title": "Suspend {{name}}?",
@@ -1015,9 +1016,28 @@
       },
       "usersLabel": "Members",
       "storageLabel": "Storage limit",
-      "decidesForItself": "What it decides for itself"
+      "decidesForItself": "What it decides for itself",
+      "deleted": "Deleted"
     },
-    "unlimited": "No limit"
+    "unlimited": "No limit",
+    "restore": {
+      "open": "Restore community",
+      "purgesOn": "Deleted. Everything in it is destroyed on {{date}}.",
+      "purgesSoon": "Deleted. Everything in it is destroyed when the retention window ends.",
+      "retained": "Until then nothing has been removed — restoring brings the community back exactly as it was, apart from its app connections.",
+      "title": "Restore {{name}}",
+      "seatDescription": "Nobody is left who can run this community. Choose who takes it over.",
+      "seatLabel": "Who runs it",
+      "seatPlaceholder": "Choose an account",
+      "seatEmpty": "No accounts found.",
+      "seatHelp": "They become its superadmin: the seat that appoints others, reaches billing and sets sign-in.",
+      "statusDescription": "Choose what the community comes back as.",
+      "statusLabel": "Comes back as",
+      "appsNote": "Its app connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
+      "confirm": "Restore",
+      "done": "Restored {{name}}.",
+      "error": "Could not restore the community. Please try again."
+    }
   },
   "operatorDashboard": {
     "title": "Operator dashboard",
@@ -1412,7 +1432,18 @@
     "directMessagesOffBody": "My Messages will disappear for everyone here, and messages already on their way will not be delivered. Nothing is deleted, so turning it back on restores the conversations and connections people already had.",
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
-    "directMessagesDisabledToast": "Direct messages are off."
+    "directMessagesDisabledToast": "Direct messages are off.",
+    "retention": {
+      "title": "Keeping deleted communities",
+      "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
+      "label": "Keep for (days)",
+      "placeholder": "Never destroy",
+      "hint": "Counted from the moment each community was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is destroyed on a timer. Deleted communities stay in the list below until somebody restores one.",
+      "saved_one": "Deleted communities are kept for {{count}} day.",
+      "saved_other": "Deleted communities are kept for {{count}} days.",
+      "savedNever": "Deleted communities are kept indefinitely."
+    }
   },
   "account": {
     "identityTitle": "How you sign in",

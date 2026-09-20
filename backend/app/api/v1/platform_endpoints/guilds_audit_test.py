@@ -400,11 +400,14 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
     assert response.status_code == 204, response.text
 
     rows = emitted(capfd, AuditEventType.GUILD_DELETED)
-    # The record outlives the row it names — no foreign key follows the guild.
+    # The record outlives the row it names — no foreign key follows the guild,
+    # and the row itself is retained until the purge either way.
     assert [_where(row) for row in rows] == [
         (admin_id, None, guild_id, {"type": "guild", "id": guild_id})
     ]
-    assert rows[0]["detail"] == {"via": "admin"}
+    # One member, so the roster is the person deleting it and goes with it.
+    # A community with other people in it keeps theirs.
+    assert rows[0]["detail"] == {"via": "admin", "roster_cleared": True}
 
 
 async def test_a_refused_guild_deletion_records_nothing(

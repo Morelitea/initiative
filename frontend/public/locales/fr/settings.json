@@ -979,7 +979,8 @@
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
-      "suspended": "Suspendu"
+      "suspended": "Suspendu",
+      "deleted": "Supprimée"
     },
     "suspendConfirm": {
       "title": "Suspendre {{name}} ?",
@@ -1025,9 +1026,28 @@
       },
       "usersLabel": "Membres",
       "storageLabel": "Limite de stockage",
-      "decidesForItself": "Ce qu'elle décide elle-même"
+      "decidesForItself": "Ce qu'elle décide elle-même",
+      "deleted": "Supprimée"
     },
-    "unlimited": "Sans limite"
+    "unlimited": "Sans limite",
+    "restore": {
+      "open": "Restaurer la communauté",
+      "purgesOn": "Supprimée. Tout son contenu sera détruit le {{date}}.",
+      "purgesSoon": "Supprimée. Tout son contenu sera détruit à la fin de la période de conservation.",
+      "retained": "D'ici là, rien n'a été supprimé : la restauration ramène la communauté telle qu'elle était, à l'exception de ses connexions aux applications.",
+      "title": "Restaurer {{name}}",
+      "seatDescription": "Il ne reste personne pour diriger cette communauté. Choisissez qui la reprend.",
+      "seatLabel": "Qui la dirige",
+      "seatPlaceholder": "Choisir un compte",
+      "seatEmpty": "Aucun compte trouvé.",
+      "seatHelp": "Cette personne en devient le superadministrateur : le siège qui nomme les autres, accède à la facturation et définit la connexion.",
+      "statusDescription": "Choisissez l'état dans lequel la communauté revient.",
+      "statusLabel": "Revient en",
+      "appsNote": "Ses connexions aux applications ont pris fin lors de la suppression et ne reviennent pas. Ses administrateurs peuvent les rétablir.",
+      "confirm": "Restaurer",
+      "done": "{{name}} restaurée.",
+      "error": "Impossible de restaurer la communauté. Veuillez réessayer."
+    }
   },
   "storage": {
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
@@ -1412,7 +1432,18 @@
     "directMessagesOffBody": "Mes messages disparaîtra pour tout le monde ici, et les messages déjà en route ne seront pas remis. Rien n'est supprimé : en réactivant, les conversations et les connexions existantes réapparaissent.",
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
-    "directMessagesDisabledToast": "Les messages privés sont désactivés."
+    "directMessagesDisabledToast": "Les messages privés sont désactivés.",
+    "retention": {
+      "title": "Conservation des communautés supprimées",
+      "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",
+      "label": "Conserver pendant (jours)",
+      "placeholder": "Ne jamais détruire",
+      "hint": "Compté à partir du moment où chaque communauté a été supprimée : modifier ce délai déplace donc aussi la date de celles déjà supprimées.",
+      "neverHint": "Rien n'est détruit à l'échéance d'un délai. Les communautés supprimées restent dans la liste ci-dessous jusqu'à ce que quelqu'un en restaure une.",
+      "saved_one": "Les communautés supprimées sont conservées {{count}} jour.",
+      "saved_other": "Les communautés supprimées sont conservées {{count}} jours.",
+      "savedNever": "Les communautés supprimées sont conservées indéfiniment."
+    }
   },
   "account": {
     "identityTitle": "Comment vous vous connectez",

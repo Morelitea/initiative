@@ -718,7 +718,7 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import LIVE_STATUS_VALUES
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
 
@@ -733,11 +733,11 @@ async def serve_upload_file(
             raise HTTPException(status_code=404)
 
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if membership is not None and guild.status == GuildStatus.suspended.value:
-        # A suspended guild is unreadable to its members (mirrors the resolver
-        # gate in deps._load_guild_context; this route resolves access inline).
-        # The grant branch above deliberately skips the status — PAM overrides
-        # suspension. read_only needs nothing here: serving a file is a read.
+    if membership is not None and guild.status not in LIVE_STATUS_VALUES:
+        # A guild that is not live is unreadable to its members (mirrors the
+        # resolver gate in deps._load_guild_context; this route resolves access
+        # inline). The grant branch above deliberately skips the status — PAM
+        # overrides it. read_only needs nothing here: serving a file is a read.
         raise HTTPException(status_code=404)
     # And the same resolver's question about the credential, which binds
     # members and grantees alike. Asked once access is settled, so it is

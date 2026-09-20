@@ -979,7 +979,8 @@
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
-      "suspended": "Gesperrt"
+      "suspended": "Gesperrt",
+      "deleted": "Gelöscht"
     },
     "suspendConfirm": {
       "title": "{{name}} sperren?",
@@ -1025,9 +1026,28 @@
       },
       "usersLabel": "Mitglieder",
       "storageLabel": "Speicherlimit",
-      "decidesForItself": "Was sie selbst entscheidet"
+      "decidesForItself": "Was sie selbst entscheidet",
+      "deleted": "Gelöscht"
     },
-    "unlimited": "Unbegrenzt"
+    "unlimited": "Unbegrenzt",
+    "restore": {
+      "open": "Community wiederherstellen",
+      "purgesOn": "Gelöscht. Alle Inhalte werden am {{date}} endgültig entfernt.",
+      "purgesSoon": "Gelöscht. Alle Inhalte werden am Ende der Aufbewahrungsfrist endgültig entfernt.",
+      "retained": "Bis dahin wurde nichts entfernt — beim Wiederherstellen kommt die Community genau so zurück, wie sie war, bis auf ihre App-Verbindungen.",
+      "title": "{{name}} wiederherstellen",
+      "seatDescription": "Es ist niemand mehr da, der diese Community leiten kann. Wählen Sie, wer sie übernimmt.",
+      "seatLabel": "Wer leitet sie",
+      "seatPlaceholder": "Konto auswählen",
+      "seatEmpty": "Keine Konten gefunden.",
+      "seatHelp": "Die Person wird Superadmin: der Sitz, der andere ernennt, die Abrechnung erreicht und die Anmeldung festlegt.",
+      "statusDescription": "Wählen Sie, in welchem Zustand die Community zurückkommt.",
+      "statusLabel": "Kommt zurück als",
+      "appsNote": "Die App-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
+      "confirm": "Wiederherstellen",
+      "done": "{{name}} wiederhergestellt.",
+      "error": "Die Community konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+    }
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
@@ -1412,7 +1432,18 @@
     "directMessagesOffBody": "Meine Nachrichten verschwindet für alle hier, und bereits unterwegs befindliche Nachrichten werden nicht zugestellt. Es wird nichts gelöscht – beim Wiedereinschalten sind die bisherigen Unterhaltungen und Verbindungen wieder da.",
     "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
     "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
-    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert."
+    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert.",
+    "retention": {
+      "title": "Gelöschte Communitys aufbewahren",
+      "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",
+      "label": "Aufbewahren für (Tage)",
+      "placeholder": "Nie entfernen",
+      "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Communitys.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist entfernt. Gelöschte Communitys bleiben in der Liste unten, bis jemand eine wiederherstellt.",
+      "saved_one": "Gelöschte Communitys werden {{count}} Tag aufbewahrt.",
+      "saved_other": "Gelöschte Communitys werden {{count}} Tage aufbewahrt.",
+      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt."
+    }
   },
   "account": {
     "identityTitle": "Deine Anmeldung",

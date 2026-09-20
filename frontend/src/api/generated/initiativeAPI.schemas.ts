@@ -171,19 +171,37 @@ export const AccessGrantStatus = {
 } as const;
 
 /**
- * Operator-set lifecycle status of a guild (platform `guilds.manage`).
+ * Lifecycle status of a guild.
+ *
+ * The first three are operator-set from the platform Guilds tab (platform
+ * `guilds.manage`) and are freely interchangeable:
  *
  * - ``active``: normal operation.
  * - ``read_only``: members keep read access to content but writes are denied
  *   at the Postgres role level (routed into ``guild_<id>_ro``).
- * - ``suspended``: soft delete — members lose all content access and the
- *   guild vanishes from their guild list. Guild admins keep the settings
- *   surface (billing / data ownership / danger zone) under every status.
+ * - ``suspended``: members lose all content access and the guild vanishes
+ *   from their guild list. Guild admins keep the settings surface (billing /
+ *   data ownership / danger zone) under all three.
+ *
+ * The fourth is not:
+ *
+ * - ``deleted``: the guild has been deleted and is being retained for
+ *   :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
+ *   it is destroyed. Nobody in the guild reaches it — not even its admins,
+ *   whose settings carve-out is withdrawn, because a deleted guild has no
+ *   billing surface left to reach and its danger zone has already been used.
+ *   It is absent from every member's guild list.
+ *
+ *   Reached only through deletion and left only through restore, both of
+ *   which do more than move a column, so it is deliberately not offered in
+ *   the operator's status control and a PATCH that names it is refused.
  *
  * PAM/break-glass grants deliberately override all of this: a grantee
  * behaves exactly as against an active guild (the resolver's grant branch
- * never consults the status), so suspending a guild can never lock the
- * platform operators out. The status is not serialized to guild members.
+ * never consults the status), so no status can lock the platform operators
+ * out — which is what lets an operator look inside a deleted guild before
+ * deciding whether to bring it back. The status is not serialized to guild
+ * members.
  */
 export type GuildStatus = (typeof GuildStatus)[keyof typeof GuildStatus];
 
@@ -191,6 +209,7 @@ export const GuildStatus = {
   active: "active",
   read_only: "read_only",
   suspended: "suspended",
+  deleted: "deleted",
 } as const;
 
 export interface AccessGrantRead {
@@ -2124,6 +2143,7 @@ export interface CommunitySettingsResponse {
   age_gate_enabled: boolean;
   default_dm_policy: DmPolicy;
   direct_messages_enabled: boolean;
+  deleted_community_retention_days: number | null;
 }
 
 export interface CommunitySettingsUpdate {
@@ -2131,6 +2151,7 @@ export interface CommunitySettingsUpdate {
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
+  deleted_community_retention_days?: number | null;
 }
 
 /**
@@ -5856,6 +5877,24 @@ export interface PlatformAuthSettingsResponse {
 }
 
 /**
+ * Bring a deleted guild back (platform ``guilds.manage``).
+ *
+ * ``status`` is what it returns at — the operator decides, because a
+ * community suspended for nonpayment and then deleted should not come back
+ * trading, and a column remembering what it used to be would be one more
+ * thing to keep correct for a decision somebody is making anyway.
+ *
+ * ``seat_user_id`` names the account that will run it, and is required only
+ * when the guild's roster no longer holds a ``superadmin`` — which is what a
+ * deletion that cleared the roster leaves behind. The endpoint re-checks
+ * that rather than trusting the client's reading of it.
+ */
+export interface PlatformGuildRestore {
+  status?: GuildStatus;
+  seat_user_id?: number | null;
+}
+
+/**
  * Operator view of a guild's storage cap (platform settings → Guilds tab).
  *
  * Unlike :class:`GuildRead`, this carries no per-user membership fields
@@ -5871,6 +5910,8 @@ export interface PlatformGuildStorageRead {
   max_users: number | null;
   status: GuildStatus;
   status_changed_at: string | null;
+  purge_at: string | null;
+  has_seat: boolean;
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;

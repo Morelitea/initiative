@@ -1455,6 +1455,12 @@ export const useDeleteUserApiV1AdminUsersUserIdDelete = <
  * guild's own deletion only by breaking glass into its danger zone. This
  * endpoint backs the "delete the blocking guild" option in the user-deletion
  * dialog, gated on ``guilds.manage``.
+ *
+ * Deletes exactly the way the danger zone does: the community is retained
+ * and can be restored, and its roster is kept — these are other people's
+ * memberships, and this endpoint only fires where other people are in it.
+ * What unblocks the account is that a deleted community has no seat to
+ * protect, not that the seat was taken away.
  * @summary Admin Delete Guild
  */
 export const adminDeleteGuildApiV1AdminGuildsGuildIdDelete = (

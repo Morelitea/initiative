@@ -41,6 +41,7 @@ import type {
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
+  PlatformGuildRestore,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   SecondFactorRequirementUpdate,
@@ -1095,6 +1096,13 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * without a directory. Off, My Messages is not offered and every
  * direct-message route refuses; nothing is deleted, so turning it back on
  * restores the channels people already had.
+ *
+ * ``deleted_community_retention_days`` is the fifth: how long a deleted
+ * community is kept before it is destroyed. ``null`` means never, which is
+ * the answer for a deployment that has undertaken to keep what its members
+ * put in it, so this field reads its presence rather than its value — omit it
+ * to leave the window alone. The figure is the deployment's; a community has
+ * no say in its own.
  * @summary Update Community Settings
  */
 export const updateCommunitySettingsApiV1SettingsCommunityPut = (
@@ -2469,6 +2477,114 @@ export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
 > => {
   return useMutation(
     getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Bring a deleted guild back before its retention window runs out.
+ *
+ * Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+ * rows, the ``guild_<id>`` schema and the stored blobs all stay until
+ * ``guild_purge`` destroys them — so restoring is a status write plus, where
+ * the roster was emptied, seating somebody who can run the community again.
+ *
+ * The operator names the status it returns at, and must name a seat when the
+ * guild holds none. Both are re-checked in the service rather than trusted
+ * from the payload. What does *not* come back is the guild's app
+ * connections: those were revoked when it was deleted, and an admin
+ * reconnects them.
+ *
+ * Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
+ * ``guild_memberships``), so no guild-schema routing is needed.
+ * @summary Restore Platform Guild
+ */
+export const restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = (
+  guildId: number,
+  platformGuildRestore: BodyType<PlatformGuildRestore>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformGuildStorageRead>(
+    {
+      url: `/api/v1/settings/guilds/${guildId}/restore`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: platformGuildRestore,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+    TError,
+    { guildId: number; data: BodyType<PlatformGuildRestore> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+  TError,
+  { guildId: number; data: BodyType<PlatformGuildRestore> },
+  TContext
+> => {
+  const mutationKey = ["restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+    { guildId: number; data: BodyType<PlatformGuildRestore> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>
+>;
+export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationBody =
+  BodyType<PlatformGuildRestore>;
+export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Restore Platform Guild
+ */
+export const useRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+      TError,
+      { guildId: number; data: BodyType<PlatformGuildRestore> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+  TError,
+  { guildId: number; data: BodyType<PlatformGuildRestore> },
+  TContext
+> => {
+  return useMutation(
+    getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationOptions(options),
     queryClient
   );
 };

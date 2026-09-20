@@ -16,6 +16,7 @@ from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
+    LIVE_STATUS_VALUES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -561,11 +562,17 @@ async def list_memberships(
     for guild, membership in pairs:
         # A suspended guild disappears from its members' guild list; guild
         # ADMINS keep the entry so they can still reach the settings surface
-        # (billing / data ownership / danger zone stay theirs under any
-        # status). No status is serialized either way — the row is simply
-        # absent for members.
+        # (billing / data ownership / danger zone stay theirs while the guild
+        # is only suspended). No status is serialized either way — the row is
+        # simply absent for members.
+        #
+        # A DELETED guild disappears for everyone, admins included: there is no
+        # billing surface left to reach and the danger zone has already been
+        # used. Only a platform operator sees it, and only to restore it.
+        if guild.status == GuildStatus.deleted.value:
+            continue
         if (
-            guild.status == GuildStatus.suspended.value
+            guild.status not in LIVE_STATUS_VALUES
             and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
@@ -1218,6 +1225,149 @@ async def delete_guild(
     await session.exec(delete(Guild).where(Guild.id == guild_id))
 
 
+async def soft_delete_guild(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    actor_user_id: int | None = None,
+    via: str = "admin",
+    target_user_id: int | None = None,
+) -> Guild:
+    """Delete a guild by moving it to ``deleted``, keeping everything.
+
+    The guild stops existing for everybody in it — absent from their lists,
+    refused on every path, admins included — but nothing is destroyed. The
+    shared rows, the ``guild_<id>`` schema and the stored blobs all stay where
+    they are, so a platform operator can put the community back inside the
+    retention window. ``guild_purge`` is what eventually does the destroying,
+    and does exactly what :func:`delete_guild` does today.
+
+    ``status_changed_at`` is the deletion time and therefore what the purge
+    date is counted from, which is why this stamps it unconditionally rather
+    than through :func:`set_guild_status` (a guild deleted twice would keep the
+    first stamp and be purged early).
+
+    A community of **one** is the single case where the roster goes with it.
+    That roster is a single row describing the person doing the deleting, and
+    somebody clearing out a community of their own is often on their way to
+    closing their account as well; a restore of one is seated from the wizard
+    like any other. Every larger community keeps its roster, because those rows
+    describe other people, and bringing the community back without them would
+    make a restore into a different community with the same name.
+
+    Everyone is poked first, for the same reason :func:`delete_guild` does it:
+    by the time this returns, every one of those people has an account that
+    says something different.
+    """
+    guild_id = guild.id
+    await _signal_members_present(session, guild_id=guild_id, action="membership")
+    members = await count_members(session, guild_id=guild_id)
+    clear_roster = members <= 1
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_DELETED,
+            actor_user_id=actor_user_id,
+            target_user_id=target_user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"via": via, "roster_cleared": clear_roster},
+        )
+    if clear_roster:
+        await session.exec(
+            delete(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    guild.status = GuildStatus.deleted.value
+    guild.status_changed_at = datetime.now(timezone.utc)
+    session.add(guild)
+    await session.flush()
+    return guild
+
+
+async def guild_has_seat(session: AsyncSession, *, guild_id: int) -> bool:
+    """Whether anybody in this guild can still run it.
+
+    The ``superadmin`` seat, specifically: it holds the sign-in configuration
+    and the billing portal, and a community without one cannot be configured by
+    anybody who is in it. Read before a restore, because restoring a guild
+    nobody can administer produces one that is live and unreachable.
+    """
+    held = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).one()
+    return held > 0
+
+
+async def restore_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    status: GuildStatus,
+    seat_user_id: int | None = None,
+    actor_user_id: int,
+) -> Guild:
+    """Bring a deleted guild back at ``status``, seating ``seat_user_id``.
+
+    Raises :class:`ValueError` carrying a message code: the guild must be
+    ``deleted``, the status it returns at must not be, and a guild whose roster
+    no longer holds a seat must be given one — an account named here is made
+    its ``superadmin``.
+
+    The operator names the status rather than the guild remembering it. A
+    community suspended for nonpayment and then deleted should not come back
+    trading, and a column recording what it used to be would be one more thing
+    to keep correct for a decision somebody is making anyway.
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.status != GuildStatus.deleted.value:
+        raise ValueError(GuildMessages.GUILD_NOT_DELETED)
+    if status == GuildStatus.deleted:
+        raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+
+    await lock_guild_seats(session, guild_id)
+    seated: int | None = None
+    if not await guild_has_seat(session, guild_id=guild_id):
+        if seat_user_id is None:
+            raise ValueError(GuildMessages.GUILD_RESTORE_SEAT_REQUIRED)
+        user = await session.get(User, seat_user_id)
+        if user is None:
+            raise ValueError(GuildMessages.GUILD_OWNER_NOT_FOUND)
+        await ensure_membership(
+            session,
+            guild_id=guild_id,
+            user_id=seat_user_id,
+            role=GuildRole.superadmin,
+            force_role=True,
+            actor_user_id=actor_user_id,
+            via="restored",
+        )
+        seated = seat_user_id
+
+    guild.status = status.value
+    guild.status_changed_at = datetime.now(timezone.utc)
+    session.add(guild)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_RESTORED,
+        actor_user_id=actor_user_id,
+        target_user_id=seated,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"status": status.value, "seated": seated is not None},
+    )
+    await session.flush()
+    return guild
+
+
 async def get_invite_by_code(session: AsyncSession, *, code: str) -> GuildInvite | None:
     stmt = select(GuildInvite).where(GuildInvite.code == code)
     result = await session.exec(stmt)
@@ -1701,12 +1851,25 @@ async def must_keep_superadmin(
     enough that most guilds never held one. It is now every guild's, and it
     reaches further than sign-in.
 
+    A **deleted** community is exempt. The seat is held so that somebody can
+    always appoint another, reach the billing and change the sign-in — none of
+    which a deleted community has. Holding its seat therefore blocks nothing,
+    which is what lets somebody delete their community and then their account:
+    that sequence is the ordinary way out, and a rule written for live
+    communities must not stand in the middle of it.
+
     Call :func:`lock_guild_seats` first — this reads two things that have to
     agree with each other, and the lock is what makes the answer still true
     when the caller acts on it.
     """
     membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
     if membership is None or membership.role != GuildRole.superadmin:
+        return False
+
+    guild = (
+        await session.exec(select(Guild.status).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild == GuildStatus.deleted.value:
         return False
 
     others = (

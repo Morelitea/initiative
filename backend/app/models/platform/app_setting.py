@@ -24,6 +24,23 @@ from app.models.platform.user_dm_settings import DmPolicy
 _DEFAULT_LOGIN_METHODS_SQL = "{%s}" % ",".join(m.value for m in DEFAULT_LOGIN_METHODS)
 
 
+#: The retention window a deployment gets until it says otherwise, in days.
+#:
+#: The figure is the deployment's, not a community's: one answer for everybody
+#: on the server, set by whoever runs it. A community cannot shorten or extend
+#: its own, which is what makes the window mean something to the person
+#: deleting theirs.
+DEFAULT_GUILD_RETENTION_DAYS = 90
+
+#: The shortest window a deployment may set. A day, because a window measured
+#: in hours is not one somebody notices their mistake inside of.
+MIN_GUILD_RETENTION_DAYS = 1
+
+#: The longest. Past this, the answer being asked for is "never", which is what
+#: clearing the figure says.
+MAX_GUILD_RETENTION_DAYS = 3650
+
+
 class AppSetting(SQLModel, table=True):
     __tablename__ = "app_settings"
     __allow_unmapped__ = True
@@ -71,6 +88,23 @@ class AppSetting(SQLModel, table=True):
     session_max_hours: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, nullable=True),
+    )
+
+    # How long a deleted community is kept before it is destroyed, in days.
+    #
+    # NULL is not the default here, unlike the limit above: it means **never**
+    # destroy one. A deployment that has undertaken to keep what its members
+    # put in it — or that is holding everything pending something unresolved —
+    # says so by clearing this, and deleted communities then sit in the
+    # operator's list until somebody restores or purges one deliberately.
+    #
+    # 90 days on a fresh install and on every upgrade, because that is the
+    # figure the retention window shipped as.
+    deleted_community_retention_days: Optional[int] = Field(
+        default=DEFAULT_GUILD_RETENTION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_GUILD_RETENTION_DAYS)
+        ),
     )
     login_methods: list[str] = Field(
         default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],

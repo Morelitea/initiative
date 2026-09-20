@@ -154,6 +154,16 @@ class GuildMessages:
     GUILD_MEMBERSHIP_CREATE_FAILED = "GUILD_MEMBERSHIP_CREATE_FAILED"
     GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
     GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
+    #: Restore was asked for a guild that has not been deleted.
+    GUILD_NOT_DELETED = "GUILD_NOT_DELETED"
+    #: A guild cannot be restored *to* deleted.
+    GUILD_RESTORE_STATUS_INVALID = "GUILD_RESTORE_STATUS_INVALID"
+    #: The guild's roster no longer holds the seat that configures it, so the
+    #: restore has to name the account that will.
+    GUILD_RESTORE_SEAT_REQUIRED = "GUILD_RESTORE_SEAT_REQUIRED"
+    #: ``deleted`` is reached by deleting a guild and left by restoring it,
+    #: never by setting the status control to it.
+    GUILD_STATUS_NOT_SETTABLE = "GUILD_STATUS_NOT_SETTABLE"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or

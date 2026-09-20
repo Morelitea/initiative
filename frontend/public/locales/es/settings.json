@@ -979,7 +979,8 @@
     "status": {
       "active": "Activo",
       "read_only": "Solo lectura",
-      "suspended": "Suspendido"
+      "suspended": "Suspendido",
+      "deleted": "Eliminada"
     },
     "suspendConfirm": {
       "title": "¿Suspender {{name}}?",
@@ -1025,9 +1026,28 @@
       },
       "usersLabel": "Miembros",
       "storageLabel": "Límite de almacenamiento",
-      "decidesForItself": "Lo que decide por su cuenta"
+      "decidesForItself": "Lo que decide por su cuenta",
+      "deleted": "Eliminada"
     },
-    "unlimited": "Sin límite"
+    "unlimited": "Sin límite",
+    "restore": {
+      "open": "Restaurar comunidad",
+      "purgesOn": "Eliminada. Todo su contenido se destruirá el {{date}}.",
+      "purgesSoon": "Eliminada. Todo su contenido se destruirá al terminar el periodo de conservación.",
+      "retained": "Hasta entonces no se ha eliminado nada: al restaurarla, la comunidad vuelve tal y como estaba, salvo sus conexiones con aplicaciones.",
+      "title": "Restaurar {{name}}",
+      "seatDescription": "No queda nadie que pueda dirigir esta comunidad. Elige quién se hace cargo.",
+      "seatLabel": "Quién la dirige",
+      "seatPlaceholder": "Elige una cuenta",
+      "seatEmpty": "No se han encontrado cuentas.",
+      "seatHelp": "Pasa a ser su superadministrador: el puesto que nombra a los demás, accede a la facturación y define el inicio de sesión.",
+      "statusDescription": "Elige en qué estado vuelve la comunidad.",
+      "statusLabel": "Vuelve como",
+      "appsNote": "Sus conexiones con aplicaciones terminaron al eliminarla y no vuelven. Sus administradores pueden volver a conectarlas.",
+      "confirm": "Restaurar",
+      "done": "{{name}} restaurada.",
+      "error": "No se ha podido restaurar la comunidad. Inténtalo de nuevo."
+    }
   },
   "storage": {
     "adminOnly": "Solo los propietarios de la plataforma pueden configurar el almacenamiento.",
@@ -1412,7 +1432,18 @@
     "directMessagesOffBody": "Mis mensajes desaparecerá para todo el mundo aquí, y los mensajes que ya iban en camino no se entregarán. No se borra nada, así que al volver a activarlo se recuperan las conversaciones y conexiones que ya existían.",
     "directMessagesOffConfirm": "Desactivar los mensajes directos",
     "directMessagesEnabledToast": "Los mensajes directos están activados.",
-    "directMessagesDisabledToast": "Los mensajes directos están desactivados."
+    "directMessagesDisabledToast": "Los mensajes directos están desactivados.",
+    "retention": {
+      "title": "Conservación de comunidades eliminadas",
+      "description": "Una comunidad eliminada desaparece de inmediato para todos sus miembros, pero no se destruye nada hasta que termina este plazo. Hasta entonces, un operador puede restaurarla.",
+      "label": "Conservar durante (días)",
+      "placeholder": "No destruir nunca",
+      "hint": "Se cuenta desde el momento en que se eliminó cada comunidad, así que cambiarlo mueve también la fecha de las ya eliminadas.",
+      "neverHint": "No se destruye nada por plazo. Las comunidades eliminadas siguen en la lista de abajo hasta que alguien restaure una.",
+      "saved_one": "Las comunidades eliminadas se conservan {{count}} día.",
+      "saved_other": "Las comunidades eliminadas se conservan {{count}} días.",
+      "savedNever": "Las comunidades eliminadas se conservan indefinidamente."
+    }
   },
   "account": {
     "identityTitle": "Cómo inicias sesión",

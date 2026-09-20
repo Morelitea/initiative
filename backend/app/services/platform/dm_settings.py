@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlmodel import col, select
 
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
@@ -99,7 +99,7 @@ async def _rail_ordered_communities(
             .join(GuildMembership, GuildMembership.guild_id == Guild.id)
             .where(
                 GuildMembership.user_id == user_id,
-                Guild.status != GuildStatus.suspended.value,
+                Guild.status.in_(LIVE_STATUS_VALUES),
             )
             .order_by(col(GuildMembership.position).asc(), col(Guild.id).asc())
         )

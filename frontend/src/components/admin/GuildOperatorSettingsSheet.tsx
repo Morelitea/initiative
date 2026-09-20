@@ -19,8 +19,11 @@ import type {
   GuildAuthOption,
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { GuildRestoreWizard } from "@/components/admin/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -66,11 +69,12 @@ export const GuildOperatorSettingsSheet = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
 
   const [storageDraft, setStorageDraft] = useState("");
   const [usersDraft, setUsersDraft] = useState("");
   const [loadedFor, setLoadedFor] = useState<number | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   /** Show what is stored, so a box never presents an unsaved value as saved. */
   const syncDrafts = (row: { max_storage_bytes: number | null; max_users: number | null }) => {
@@ -131,6 +135,19 @@ export const GuildOperatorSettingsSheet = ({
       auth_options: checked ? [...options, option] : options.filter((held) => held !== option),
     });
 
+  // A deleted community is on its way out. Its caps and entitlements are
+  // settings for a community nobody can reach, so they are shown and frozen
+  // rather than hidden — what it was configured as is worth seeing when you
+  // are deciding whether to bring it back.
+  const deleted = guild.status === GuildStatus.deleted;
+  const purgeDate = guild.purge_at
+    ? new Date(guild.purge_at).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -143,6 +160,22 @@ export const GuildOperatorSettingsSheet = ({
         </SheetHeader>
 
         <div className="space-y-6 py-6">
+          {deleted ? (
+            <Section title={t("guilds.sheet.deleted")}>
+              <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+                <p className="text-sm">
+                  {purgeDate
+                    ? t("guilds.restore.purgesOn", { date: purgeDate })
+                    : t("guilds.restore.purgesSoon")}
+                </p>
+                <p className="text-muted-foreground text-xs">{t("guilds.restore.retained")}</p>
+                <Button size="sm" onClick={() => setRestoring(true)}>
+                  {t("guilds.restore.open")}
+                </Button>
+              </div>
+            </Section>
+          ) : null}
+
           <Section title={t("guilds.sheet.limits")}>
             <SettingRow
               label={t("guilds.sheet.usersLabel")}
@@ -163,7 +196,7 @@ export const GuildOperatorSettingsSheet = ({
                     if (event.key === "Enter") event.currentTarget.blur();
                   }}
                   placeholder={t("guilds.unlimitedPlaceholder")}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -187,7 +220,7 @@ export const GuildOperatorSettingsSheet = ({
                       if (event.key === "Enter") event.currentTarget.blur();
                     }}
                     placeholder={t("guilds.unlimitedPlaceholder")}
-                    disabled={update.isPending}
+                    disabled={update.isPending || deleted}
                   />
                   <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground text-xs">
                     GB
@@ -208,7 +241,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-providers"
                   checked={options.includes("providers")}
                   onCheckedChange={(checked) => toggleOption("providers", Boolean(checked))}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -221,7 +254,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-restrictions"
                   checked={options.includes("restrictions")}
                   onCheckedChange={(checked) => toggleOption("restrictions", Boolean(checked))}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -237,7 +270,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-banner-image"
                   checked={guild.banner_image_enabled}
                   onCheckedChange={(checked) => patch({ banner_image_enabled: Boolean(checked) })}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -250,13 +283,16 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-support"
                   checked={guild.support_enabled}
                   onCheckedChange={(checked) => patch({ support_enabled: Boolean(checked) })}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
           </Section>
         </div>
       </SheetContent>
+      {restoring ? (
+        <GuildRestoreWizard guild={guild} open={restoring} onOpenChange={setRestoring} />
+      ) : null}
     </Sheet>
   );
 };

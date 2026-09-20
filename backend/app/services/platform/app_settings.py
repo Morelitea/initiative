@@ -186,6 +186,7 @@ COMMUNITY_FIELDS: tuple[str, ...] = (
     "community_age_gate_enabled",
     "default_dm_policy",
     "direct_messages_enabled",
+    "deleted_community_retention_days",
 )
 EMAIL_FIELDS: tuple[str, ...] = (
     "smtp_host",
@@ -304,6 +305,8 @@ async def update_community_settings(
     community_age_gate_enabled: bool | None = None,
     default_dm_policy: "DmPolicy | None" = None,
     direct_messages_enabled: bool | None = None,
+    deleted_community_retention_days: int | None = None,
+    retention_provided: bool = False,
     actor_user_id: int | None = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
@@ -326,6 +329,13 @@ async def update_community_settings(
     deployment can run a directory without messaging and vice versa. Omitted,
     it is left alone. Switching it off keeps every channel, policy and queued
     message as it is, so switching it back on restores them.
+
+    ``deleted_community_retention_days`` is the fifth, and the only one where
+    ``None`` is an answer rather than an omission — it means deleted
+    communities are never destroyed — so the caller says which it meant with
+    ``retention_provided``. Changing it changes when everything already deleted
+    is destroyed, because the date is counted from each deletion rather than
+    stamped at the time.
     """
     settings_row = await _ensure_app_settings(session)
     before = audit_service.snapshot(settings_row, COMMUNITY_FIELDS)
@@ -336,6 +346,8 @@ async def update_community_settings(
         settings_row.default_dm_policy = default_dm_policy
     if direct_messages_enabled is not None:
         settings_row.direct_messages_enabled = bool(direct_messages_enabled)
+    if retention_provided:
+        settings_row.deleted_community_retention_days = deleted_community_retention_days
     session.add(settings_row)
     await _record_settings_area(
         session,
