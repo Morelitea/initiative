@@ -11,9 +11,6 @@
     "hopsN_one": "{{count}} hop",
     "hopsN_other": "{{count}} hops",
     "walking": "Looking further…",
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "reset": "Fit to the frame",
     "showTags": "Show tags"
   },
   "layout": {
@@ -52,37 +49,30 @@
     },
     "blockedBy": {
       "title": "Blocked by",
-      "empty": "Nothing is standing in the way.",
       "option": "Is blocked by"
     },
     "blocks": {
       "title": "Blocks",
-      "empty": "This is not holding anything up.",
       "option": "Blocks"
     },
     "partOf": {
       "title": "Part of",
-      "empty": "Not part of anything larger.",
       "option": "Is part of"
     },
     "parts": {
       "title": "Parts",
-      "empty": "Nothing belongs to this.",
       "option": "Has as a part"
     },
     "related": {
       "title": "Related",
-      "empty": "Nothing related yet.",
       "option": "Is related to"
     },
     "referencedBy": {
       "title": "Referenced by",
-      "empty": "Nothing mentions this.",
       "option": "References"
     },
     "tagged": {
       "title": "Tagged",
-      "empty": "No tags.",
       "option": "Is tagged"
     }
   },

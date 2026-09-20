@@ -13,8 +13,6 @@
   },
   "filters": {
     "heading": "Filtros",
-    "show": "Mostrar filtros",
-    "hide": "Ocultar filtros",
     "statusCategory": "Categoría de estado",
     "filterByStatusCategory": "Filtrar por categoría de estado",
     "allStatusCategories": "Todas las categorías de estado",
@@ -67,21 +65,10 @@
     "createdAt": "Creada {{time}}",
     "readOnlyNoAccess": "Solo tienes acceso de lectura a este proyecto, por lo que los campos de la tarea están deshabilitados.",
     "readOnlyArchived": "Este proyecto está archivado. Desarchívalo desde la configuración del proyecto para editar tareas.",
-    "titleLabel": "Título",
-    "titlePlaceholder": "Título de la tarea",
     "descriptionLabel": "Descripción",
     "aiGenerate": "Generar con IA",
     "descriptionPlaceholder": "Agrega contexto adicional o criterios de aceptación. Markdown soportado.",
     "noDescriptionReadOnly": "Aún no hay descripción.",
-    "statusLabel": "Estado",
-    "selectStatus": "Seleccionar estado",
-    "priorityLabel": "Prioridad",
-    "startDateLabel": "Fecha de inicio",
-    "dueDateLabel": "Fecha de vencimiento",
-    "assigneesLabel": "Asignados",
-    "assigneesEmptyMessage": "Aún no hay miembros de la iniciativa disponibles.",
-    "tagsLabel": "Etiquetas",
-    "tagsPlaceholder": "Agregar etiquetas...",
     "saving": "Guardando…",
     "saveTask": "Guardar tarea",
     "moveToProject": "Mover a proyecto",
@@ -102,7 +89,6 @@
     "taskUnarchived": "Tarea desarchivada",
     "moveSuccess": "Tarea movida a {{projectName}}.",
     "moveError": "No se pudo mover la tarea",
-    "archiveError": "No se pudo actualizar la tarea",
     "descriptionGenerated": "Descripción generada",
     "generateDescriptionError": "No se pudo generar la descripción",
     "commentsError": "No se pudieron cargar los comentarios en este momento.",
@@ -134,7 +120,6 @@
   "myTasks": {
     "title": "Mis tareas",
     "subtitle": "Todo lo asignado a ti en todos los proyectos.",
-    "addTask": "Agregar tarea",
     "noGuild": "Sin comunidad",
     "loadError": "No se pudieron cargar tus tareas.",
     "groupByDate": "Fecha",
@@ -142,10 +127,7 @@
   },
   "myCalendar": {
     "title": "Mi calendario",
-    "subtitle": "Tareas y eventos en todos tus comunidades.",
-    "loadError": "No se pudieron cargar los datos del calendario.",
-    "typeEvents": "Eventos",
-    "typeTasks": "Tareas"
+    "subtitle": "Tareas y eventos en todos tus comunidades."
   },
   "tagTasks": {
     "loadError": "No se pudieron cargar las tareas."
@@ -177,8 +159,7 @@
   },
   "prioritySelector": {
     "ariaLabel": "Prioridad: {{priority}}. Haz clic para cambiar.",
-    "changed": "Prioridad cambiada a {{priority}}",
-    "updateError": "No se pudo actualizar la prioridad."
+    "changed": "Prioridad cambiada a {{priority}}"
   },
   "statusSelector": {
     "invalidStatus": "Estado seleccionado no válido."
@@ -215,14 +196,12 @@
   },
   "createWizard": {
     "title": "Agregar tarea",
-    "description": "Selecciona un proyecto para crear una nueva tarea.",
     "lastUsed": "Último usado",
     "selectGuild": "Selecciona una comunidad",
     "selectInitiative": "Selecciona una iniciativa",
     "selectProject": "Selecciona un proyecto",
     "noInitiatives": "No se encontraron iniciativas en esta comunidad.",
     "noProjects": "No se encontraron proyectos en esta iniciativa.",
-    "loading": "Cargando…",
     "back": "Atrás",
     "searchProjects": "Buscar proyectos…",
     "loadMore": "Cargar más"
@@ -250,8 +229,7 @@
     "applyChanges": "Aplicar cambios",
     "selected": "{{count}} tarea seleccionada",
     "selected_other": "{{count}} tareas seleccionadas",
-    "editTags": "Editar etiquetas",
-    "archiving": "Archivando…"
+    "editTags": "Editar etiquetas"
   },
   "taskForm": {
     "titleLabel": "Título",

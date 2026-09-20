@@ -1,8 +1,7 @@
 {
   "job": {
     "succeeded": "Importación finalizada.",
-    "failed": "La importación falló.",
-    "queued": "Importación iniciada: recibirás una notificación cuando termine."
+    "failed": "La importación falló."
   },
   "wizard": {
     "title": "Importar una copia de seguridad",
@@ -16,8 +15,7 @@
       "hint": "Un .zip exportado desde una copia de seguridad de comunidad o iniciativa de Initiative.",
       "notZip": "Este archivo no es una copia de seguridad válida de Initiative.",
       "readFailed": "No se pudo leer este archivo de copia de seguridad. Puede estar dañado.",
-      "tooLarge": "Este archivo supera el límite de subida de {{limit}}.",
-      "reading": "Leyendo la copia de seguridad…"
+      "tooLarge": "Este archivo supera el límite de subida de {{limit}}."
     },
     "peek": {
       "source": "Copia de seguridad de {{name}}",
@@ -34,7 +32,6 @@
     "plan": {
       "prompt": "Revisa lo que se importará",
       "willCreate": "\"{{name}}\" se importará como una nueva iniciativa \"{{proposed}}\"",
-      "toolCount": "{{tool}}: {{count}}",
       "skipped_one": "El exportador dejó {{count}} elemento fuera de esta copia de seguridad",
       "skipped_other": "El exportador dejó {{count}} elementos fuera de esta copia de seguridad",
       "unknownTypes": "Se omitirán tipos de contenido desconocidos: {{types}}",
@@ -99,11 +96,11 @@
       "initiative-project": "Proyecto",
       "initiative-document": "Documento",
       "initiative-queue": "Cola",
-      "initiative-counter-group": "Grupo de contadores",
       "initiative-calendar": "Calendario",
       "initiative-post": "Publicación",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Galería"
+      "initiative-gallery": "Galería",
+      "initiative-counter-group": "Grupo de contadores"
     },
     "cancel": "Cancelar",
     "viewReport": "Ver informe",

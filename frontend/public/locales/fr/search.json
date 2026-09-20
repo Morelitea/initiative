@@ -2,7 +2,6 @@
   "title": "Recherche",
   "titleInGuild": "Rechercher dans {{guildName}}",
   "placeholder": "Rechercher dans {{guildName}}",
-  "seeAll": "Tout afficher",
   "prompt": {
     "title": "Rechercher dans cette communauté",
     "description": "Trouvez n’importe quoi par son nom ou par son contenu."

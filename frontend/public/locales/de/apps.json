@@ -41,12 +41,6 @@
     "adminOnly": "Bitte eine Community-Administratorin oder einen Community-Administrator, diese App hinzuzufügen.",
     "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
   },
-  "page": {
-    "notFound": "App nicht gefunden",
-    "notFoundDescription": "Sie wurde vielleicht entfernt oder abgeschaltet. Community-Admins können in den Community-Einstellungen nachsehen.",
-    "noSurface": "{{name}} hat hier nichts anzuzeigen",
-    "noSurfaceDescription": "Diese App hat keine eigene Seite."
-  },
   "connections": {
     "none": "Diese App verlangt keine Einrichtung.",
     "guildScope": "Zugangsdaten der Community",

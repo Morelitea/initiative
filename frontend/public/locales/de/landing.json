@@ -1,7 +1,6 @@
 {
   "nav": {
     "signIn": "Anmelden",
-    "getStarted": "Community gründen",
     "pricing": "Preise",
     "help": "Hilfe"
   },
@@ -129,8 +128,7 @@
   "cta": {
     "title": "Wann immer du bereit bist.",
     "description": "Melde dich an, wenn deine Gruppe schon hier ist. Gründe eine Community, wenn nicht.",
-    "signIn": "Anmelden",
-    "start": "Community gründen"
+    "signIn": "Anmelden"
   },
   "footer": {
     "copyright": "© {{year}} Initiative. Open Source, und das bleibt so.",

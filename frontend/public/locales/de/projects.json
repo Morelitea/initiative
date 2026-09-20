@@ -10,34 +10,12 @@
   "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
   "accessRestricted": "Zugriff eingeschränkt",
   "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
-  "myProjects": {
-    "title": "Meine Projekte",
-    "subtitle": "Projekte, auf die du in all deinen Communitys Zugriff hast.",
-    "empty": "Du bist noch in keinem Projekt.",
-    "loadError": "Deine Projekte konnten nicht geladen werden.",
-    "searchPlaceholder": "Projekte suchen...",
-    "filterByGuild": "Nach Community filtern",
-    "allGuilds": "Alle Communitys",
-    "noGuilds": "Keine Communitys verfügbar",
-    "columns": {
-      "guild": "Community",
-      "project": "Projekt",
-      "initiative": "Initiative",
-      "tasks": "Aufgaben",
-      "tags": "Tags",
-      "updated": "Aktualisiert"
-    },
-    "tasksDone": "{{completed}}/{{total}} erledigt",
-    "noTasks": "Keine Aufgaben"
-  },
   "view": {
     "grid": "Raster",
     "list": "Liste"
   },
   "filters": {
     "heading": "Filter",
-    "show": "Filter anzeigen",
-    "hide": "Filter ausblenden",
     "searchLabel": "Name oder Beschreibung",
     "searchProjects": "Projekte suchen",
     "selectedInitiative": "Ausgewählte Initiative",
@@ -79,7 +57,6 @@
     "presetNamePlaceholder": "z. B. Blockierte Aufgaben",
     "presetSetDefault": "Als Standard des Projekts festlegen",
     "presetSaved": "Voreinstellung gespeichert",
-    "presetDeleted": "Voreinstellung gelöscht",
     "presetUnavailable": "Diese Voreinstellung gibt es in diesem Projekt nicht mehr; stattdessen wird der Projektstandard angezeigt.",
     "presetSaveError": "Voreinstellung konnte nicht gespeichert werden",
     "presetDeleteError": "Voreinstellung konnte nicht gelöscht werden",
@@ -94,27 +71,16 @@
   "templates": {
     "loading": "Vorlagen werden geladen…",
     "loadError": "Vorlagen konnten nicht geladen werden.",
-    "initiativeLabel": "Initiative: {{name}}",
-    "lastUpdated": "Zuletzt aktualisiert: {{date}}",
-    "viewTemplate": "Vorlage anzeigen",
     "stopUsingAsTemplate": "Nicht mehr als Vorlage verwenden",
     "noTemplates": "Keine Vorlagen verfügbar",
-    "noTemplatesDescription": "Erstelle eine Vorlage aus jedem beliebigen Projekt in den Projekteinstellungen.",
-    "description": "Standardisiere bewährte Praktiken und starte schnell neue Initiativen mithilfe wiederverwendbarer Vorlagen."
+    "noTemplatesDescription": "Erstelle eine Vorlage aus jedem beliebigen Projekt in den Projekteinstellungen."
   },
   "archived": {
-    "title": "Archivierte Projekte",
-    "subtitle": "Öffne eine Initiative erneut, wenn die Arbeit wieder aufgenommen wird.",
     "loading": "Archivierte Projekte werden geladen…",
     "loadError": "Archivierte Projekte konnten nicht geladen werden.",
-    "initiativeLabel": "Initiative: {{name}}",
-    "archivedAt": "Archiviert am: {{date}}",
-    "archivedAtUnknown": "Unbekannt",
-    "viewDetails": "Details anzeigen",
     "unarchive": "Archivierung aufheben",
     "noArchived": "Keine archivierten Projekte",
     "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“.",
-    "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte.",
     "sharingUnavailable": "Die Freigabe eines archivierten Projekts kann nicht geändert werden."
   },
   "createDialog": {
@@ -138,7 +104,6 @@
     "saveAsTemplate": "Als Vorlage speichern",
     "saveAsTemplateHint": "Vorlagenprojekte befinden sich im Tab „Vorlagen“ und können wiederverwendet werden, um neue Arbeit zu starten.",
     "createError": "Projekt konnte nicht erstellt werden.",
-    "selectInitiativeError": "Wähle eine Initiative aus, bevor du ein Projekt erstellst",
     "creating": "Wird erstellt…",
     "createProject": "Projekt erstellen"
   },
@@ -190,21 +155,6 @@
     "description": "Füge zu erledigende Arbeit hinzu.",
     "archivedMessage": "Dieses Projekt ist archiviert. Hebe die Archivierung auf, um neue Aufgaben hinzuzufügen.",
     "noWriteAccess": "Du benötigst Schreibzugriff, um Aufgaben zu erstellen.",
-    "titleLabel": "Titel",
-    "titlePlaceholder": "Startplan entwerfen",
-    "advancedDetails": "Erweiterte Details",
-    "descriptionLabel": "Beschreibung (Markdown wird unterstützt)",
-    "descriptionPlaceholder": "Teile Kontext, Links oder Abnahmekriterien.",
-    "priorityLabel": "Priorität",
-    "priorityLow": "Niedrige Priorität",
-    "priorityMedium": "Mittlere Priorität",
-    "priorityHigh": "Hohe Priorität",
-    "priorityUrgent": "Dringend",
-    "assigneesLabel": "Zuständige Personen",
-    "assigneesEmptyMessage": "Lade Initiativmitglieder ein, um Arbeit zuzuweisen.",
-    "startDateLabel": "Startdatum",
-    "dueDateLabel": "Fälligkeitsdatum",
-    "optional": "Optional",
     "saving": "Wird gespeichert…",
     "createTask": "Aufgabe erstellen",
     "createError": "Aufgabe konnte nicht erstellt werden."
@@ -212,7 +162,6 @@
   "assignee": {
     "emptyMessage": "Lade Initiativmitglieder ein, um Aufgaben zuzuweisen.",
     "searchPlaceholder": "Mitglieder suchen",
-    "noAssignees": "Keine zuständigen Personen ausgewählt.",
     "removeAssignee": "{{name}} entfernen",
     "clearAssignees": "Zuständige Personen entfernen",
     "you": "Du"
@@ -264,10 +213,7 @@
     "unknownError": "Unbekannter Fehler"
   },
   "settings": {
-    "loading": "Projekteinstellungen werden geladen...",
-    "loadError": "Projekt konnte nicht geladen werden.",
     "title": "Projekteinstellungen",
-    "description": "Konfiguriere Zugriff, Eigentümerschaft und Archivierungsstatus für {{name}}.",
     "breadcrumbSettings": "Einstellungen",
     "tabTaskStatuses": "Aufgabenstatus",
     "details": {
@@ -291,7 +237,6 @@
       "scheduleDescription": "Lege fest, wann das Projekt beginnt und endet. Beide Angaben sind optional."
     },
     "access": {
-      "updated": "Zugriff aktualisiert",
       "updateError": "Zugriff konnte nicht aktualisiert werden"
     },
     "templateStatus": {
@@ -315,18 +260,6 @@
       "duplicateButton": "Projekt duplizieren",
       "noWriteAccess": "Du benötigst Schreibzugriff, um dieses Projekt zu duplizieren."
     },
-    "archiveStatus": {
-      "title": "Archivierungsstatus",
-      "isArchived": "Dieses Projekt ist archiviert.",
-      "isActive": "Dieses Projekt ist aktiv.",
-      "unarchive": "Archivierung des Projekts aufheben",
-      "archive": "Projekt archivieren",
-      "noWriteAccess": "Du benötigst Schreibzugriff, um den Archivierungsstatus zu ändern."
-    },
-    "danger": {
-      "title": "Gefahrenzone",
-      "description": "Beim Löschen eines Projekts werden es und seine Aufgaben in den Papierkorb verschoben. Sie können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden."
-    },
     "tabFilterPresets": "Ansichten",
     "filterPresetsHeading": "Filter-Voreinstellungen",
     "filterPresetsDescription": "Gespeicherte Filtersätze, aus denen alle in diesem Projekt wählen können. Der Standard bestimmt, womit das Projekt öffnet.",
@@ -341,62 +274,20 @@
     "presetMoveDown": "Voreinstellung nach unten"
   },
   "documents": {
-    "title": "Dokumente",
-    "description": "Hänge Initiativdokumente an, um den Kontext nah an der Projektarbeit zu halten.",
-    "attachDocument": "Dokument anhängen",
-    "createDocument": "Dokument erstellen",
-    "newDocument": "Neues Dokument",
-    "attachExisting": "Vorhandenes anhängen",
-    "noDocuments": "Noch keine Dokumente an dieses Projekt angehängt.",
-    "noDocumentsHint": "Hänge eins an, um relevante Briefings hervorzuheben.",
-    "expandDocuments": "Dokumente ausklappen",
-    "collapseDocuments": "Dokumente einklappen",
-    "attachDialogTitle": "Ein vorhandenes Dokument anhängen",
-    "attachDialogDescription": "Nur unter dieser Initiative erstellte Dokumente sind verfügbar.",
-    "selectDocument": "Dokument auswählen",
-    "noAvailableDocuments": "Keine Dokumente verfügbar",
-    "loadingDocuments": "Dokumente werden geladen…",
-    "chooseDocument": "Dokument auswählen",
-    "allAttached": "Alle Initiativdokumente sind bereits angehängt.",
-    "noMatchesFound": "Keine Treffer gefunden.",
-    "attachHint": "Benötigst du ein neues? Öffne Meine Initiativen und verwende den Tab „Dokumente“ der Initiative, um es zu erstellen, und kehre dann hierher zurück, um es anzuhängen.",
-    "attaching": "Wird angehängt…",
-    "attach": "Anhängen",
-    "attached": "Dokument angehängt.",
-    "attachError": "Dokument konnte nicht angehängt werden.",
-    "detached": "Dokument entfernt.",
-    "detachError": "Dokument konnte nicht entfernt werden.",
-    "detach": "Lösen",
-    "detachAriaLabel": "{{name}} lösen",
-    "detachDocument": "Dokument lösen",
-    "updatedAgo": "Aktualisiert vor {{time}}",
-    "attachedAgo": "Angehängt vor {{time}}"
+    "newDocument": "Neues Dokument"
   },
   "tasks": {
-    "title": "Aufgaben",
     "projectTasks": "Projektaufgaben",
     "addTask": "Aufgabe hinzufügen",
-    "selectView": "Ansicht auswählen",
     "enterTooltip": "Drücke „Enter“, um eine neue Aufgabe zu erstellen",
     "viewTable": "Tabelle",
     "viewKanban": "Kanban",
     "viewCalendar": "Kalender",
     "filtersHeading": "Filter",
-    "showFilters": "Filter anzeigen",
-    "hideFilters": "Filter ausblenden",
-    "groupBy": "Gruppieren nach",
-    "groupByNone": "Keine",
-    "groupByStatus": "Status",
-    "groupByPriority": "Priorität",
-    "groupByAssignee": "Zuständige Person",
-    "archiveSelected": "Ausgewählte archivieren",
     "archiveDoneTasks": "Erledigte Aufgaben archivieren",
     "archiveDialogTitle": "Aufgaben archivieren",
     "archiveDialogDescription": "Dadurch wird {{count}} Aufgabe archiviert. Archivierte Aufgaben sind standardmäßig ausgeblendet, können aber über den Filter angezeigt werden.",
     "archiveDialogDescription_other": "Dadurch werden {{count}} Aufgaben archiviert. Archivierte Aufgaben sind standardmäßig ausgeblendet, können aber über den Filter angezeigt werden.",
-    "archiveTitle": "{{count}} Aufgabe archivieren?",
-    "archiveTitle_other": "{{count}} Aufgaben archivieren?",
-    "archiveDescription": "Archivierte Aufgaben werden in der Standardansicht ausgeblendet, sind aber weiterhin über Filter zugänglich.",
     "archiveConfirm": "Archivieren",
     "archiving": "Wird archiviert…",
     "archivedSuccess": "{{count}} Aufgabe archiviert",
@@ -431,11 +322,8 @@
     "untagged": "Ohne Tag",
     "commentsColumn": "Kommentare",
     "statusColumn": "Status",
-    "sortHelp": "Klicke auf eine beliebige Spaltenüberschrift, um zu sortieren. Halte die Umschalttaste gedrückt, um nach mehreren Kriterien zu sortieren.",
-    "groupHelp": "Aufgaben werden nach {{field}} gruppiert. Sortiere und filtere innerhalb jeder Gruppe.",
     "filterPlaceholder": "Aufgaben filtern...",
     "reorderTask": "Aufgabe neu anordnen",
-    "noTasks": "Noch keine Aufgaben.",
     "manualSortDisabled": "Manuelle Sortierung deaktiviert, <1>setze Spaltensortierung und Zeilengruppierung zurück</1>, um neu anzuordnen."
   },
   "kanban": {
@@ -449,9 +337,7 @@
     "taskCount_one": "{{count}} Aufgabe",
     "taskCount_other": "{{count}} Aufgaben",
     "collapse": "{{name}} einklappen",
-    "expand": "{{name}} ausklappen",
-    "comments_one": "{{count}} Kommentar",
-    "comments_other": "{{count}} Kommentare"
+    "expand": "{{name}} ausklappen"
   },
   "recurrence": {
     "repeat": "Wiederholen",
@@ -519,15 +405,6 @@
       "everyNYears": "Alle {{count}} Jahre am {{day}}. {{month}}"
     }
   },
-  "calendarView": {
-    "subtitle": "Sieh Start- und Fälligkeitsdaten von Aufgaben auf einen Blick.",
-    "previousMonth": "Vorheriger Monat",
-    "nextMonth": "Nächster Monat",
-    "today": "Heute",
-    "start": "Start",
-    "due": "Fällig",
-    "more": "+{{count}} weitere"
-  },
   "progressLabel": "Projektfortschritt",
   "preview": {
     "updated": "Aktualisiert {{date}}",
@@ -551,29 +428,9 @@
     "description": "Lade dieses Projekt als portable JSON-Sicherung oder als formatierten Bericht (PDF, CSV oder Excel) herunter.",
     "detail": "Die JSON-Sicherung kann auf dieser oder jeder anderen Initiative-Installation wieder importiert werden — Verweise nutzen Namen und E-Mails, damit keine IDs aus dieser Datenbank durchsickern. Berichtsformate umfassen die nicht archivierten Aufgaben des Projekts.",
     "exportButton": "Exportieren",
-    "exporting": "Wird exportiert…",
     "noWriteAccess": "Du benötigst Schreibzugriff auf dieses Projekt, um es zu exportieren.",
     "success": "Projekt exportiert",
     "error": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut."
-  },
-  "import": {
-    "title": "Projekt importieren",
-    "description": "Erstelle ein neues Projekt aus einer zuvor exportierten JSON-Datei.",
-    "importButton": "Importieren",
-    "importing": "Wird importiert…",
-    "selectFile": "JSON-Datei des Projekts",
-    "parseError": "Das sieht nicht nach einem Initiative-Projektexport aus.",
-    "fileTooLarge": "Diese Datei ist ungewöhnlich groß. Wähle einen kleineren Export (≤50 MB).",
-    "previewProject": "Projekt",
-    "previewTaskCount": "Aufgaben",
-    "previewSchemaVersion": "Schemaversion",
-    "targetInitiative": "In Initiative importieren",
-    "selectInitiative": "Wähle eine Initiative",
-    "success": "„{{name}}“ importiert",
-    "warningUnmatchedAssignees_one": "Importiert, aber {{count}} zuständige Person, die nicht in dieser Initiative ist, wurde verworfen: {{emails}}",
-    "warningUnmatchedAssignees_other": "Importiert, aber {{count}} zuständige Personen, die nicht in dieser Initiative sind, wurden verworfen: {{emails}}",
-    "error": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut.",
-    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er abgeschlossen ist."
   },
   "status": {
     "label": "Anzeigen",

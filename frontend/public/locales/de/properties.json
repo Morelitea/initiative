@@ -71,7 +71,6 @@
     "addFilter": "Eigenschaftsfilter hinzufügen",
     "property": "Eigenschaft",
     "operator": "Op",
-    "value": "Wert",
     "remove": "Eigenschaftsfilter entfernen",
     "ops": {
       "eq": "ist",

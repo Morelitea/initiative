@@ -44,7 +44,6 @@
   },
   "update": {
     "available": "Versión {{version}} disponible",
-    "action": "Actualizar",
     "done": "Actualizado a {{version}}.",
     "failed": "No se pudo actualizar este panel."
   },

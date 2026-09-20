@@ -2,7 +2,7 @@
   "title": "Propriétés",
   "addProperty": "Ajouter une propriété",
   "noProperties": "Aucune propriété",
-  "saving": "Enregistrement\u2026",
+  "saving": "Enregistrement…",
   "saved": "Enregistré",
   "remove": "Supprimer la propriété",
   "types": {
@@ -17,7 +17,7 @@
     "user_reference": "Personne"
   },
   "picker": {
-    "placeholder": "Rechercher des propriétés\u2026",
+    "placeholder": "Rechercher des propriétés…",
     "empty": "Aucune propriété ne correspond",
     "createHeading": "Créer une nouvelle propriété",
     "namePlaceholder": "Nom de la propriété",
@@ -31,13 +31,13 @@
   "input": {
     "textPlaceholder": "Vide",
     "numberPlaceholder": "0",
-    "urlPlaceholder": "https://\u2026",
-    "selectPlaceholder": "Sélectionner\u2026",
+    "urlPlaceholder": "https://…",
+    "selectPlaceholder": "Sélectionner…",
     "multiSelectPlaceholder": "Sélectionner des options",
-    "userPlaceholder": "Assigner une personne\u2026",
+    "userPlaceholder": "Assigner une personne…",
     "unknownOption": "Option inconnue : {{value}}",
     "clear": "Effacer",
-    "searchOptions": "Rechercher ou créer une option\u2026",
+    "searchOptions": "Rechercher ou créer une option…",
     "createOption": "Créer « {{label}} »",
     "optionAdded": "Option ajoutée",
     "optionAddFailed": "Impossible d'ajouter l'option"
@@ -71,7 +71,6 @@
     "addFilter": "Ajouter un filtre de propriété",
     "property": "Propriété",
     "operator": "Op",
-    "value": "Valeur",
     "remove": "Supprimer le filtre de propriété",
     "ops": {
       "eq": "est",

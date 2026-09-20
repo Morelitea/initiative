@@ -9,7 +9,6 @@
   },
   "dialog": {
     "gotIt": "Verstanden",
-    "next": "Weiter",
     "more_one": "{{count}} weitere",
     "more_other": "{{count}} weitere",
     "back": "Zurück",

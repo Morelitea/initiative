@@ -2,7 +2,7 @@
   "title": "Propiedades",
   "addProperty": "Agregar propiedad",
   "noProperties": "Sin propiedades",
-  "saving": "Guardando\u2026",
+  "saving": "Guardando…",
   "saved": "Guardado",
   "remove": "Eliminar propiedad",
   "types": {
@@ -17,7 +17,7 @@
     "user_reference": "Persona"
   },
   "picker": {
-    "placeholder": "Buscar propiedades\u2026",
+    "placeholder": "Buscar propiedades…",
     "empty": "Ninguna propiedad coincide",
     "createHeading": "Crear nueva propiedad",
     "namePlaceholder": "Nombre de la propiedad",
@@ -31,13 +31,13 @@
   "input": {
     "textPlaceholder": "Vacío",
     "numberPlaceholder": "0",
-    "urlPlaceholder": "https://\u2026",
-    "selectPlaceholder": "Seleccionar\u2026",
+    "urlPlaceholder": "https://…",
+    "selectPlaceholder": "Seleccionar…",
     "multiSelectPlaceholder": "Seleccionar opciones",
-    "userPlaceholder": "Asignar persona\u2026",
+    "userPlaceholder": "Asignar persona…",
     "unknownOption": "Opción desconocida: {{value}}",
     "clear": "Limpiar",
-    "searchOptions": "Buscar o crear opción\u2026",
+    "searchOptions": "Buscar o crear opción…",
     "createOption": "Crear \"{{label}}\"",
     "optionAdded": "Opción agregada",
     "optionAddFailed": "No se pudo agregar la opción"
@@ -71,7 +71,6 @@
     "addFilter": "Agregar filtro de propiedad",
     "property": "Propiedad",
     "operator": "Op",
-    "value": "Valor",
     "remove": "Eliminar filtro de propiedad",
     "ops": {
       "eq": "es",

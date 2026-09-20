@@ -41,12 +41,6 @@
     "adminOnly": "Demandez à un administrateur de communauté d'ajouter cette application.",
     "unknownState": "Impossible de vérifier si cette application est déjà ajoutée."
   },
-  "page": {
-    "notFound": "Application introuvable",
-    "notFoundDescription": "Elle a peut-être été retirée ou désactivée. Les administrateurs de la communauté peuvent vérifier dans les paramètres de la communauté.",
-    "noSurface": "{{name}} n'a rien à afficher ici",
-    "noSurfaceDescription": "Cette application n'a pas de page qui lui soit propre."
-  },
   "connections": {
     "none": "Cette application ne demande aucune configuration.",
     "guildScope": "Identifiant de la communauté",

@@ -33,8 +33,6 @@
     "untitled": "Untitled",
     "titleLabel": "Title",
     "titlePlaceholder": "What this page is about",
-    "created": "Page created",
-    "saved": "Saved",
     "deleted": "Page moved to trash",
     "deleteTitle": "Delete this page?",
     "deleteDescription": "Its sub-pages go with it. You can restore them from the trash.",
@@ -43,13 +41,10 @@
     "createFirst": "Write the first page",
     "loading": "Loading page...",
     "notFound": "That page is not in this wiki",
-    "setHome": "Set as home page",
     "isHome": "Home page",
     "homeSet": "Home page set",
-    "noMatches": "No pages match that",
     "collapse": "Collapse",
     "expand": "Expand",
-    "moved": "Page moved",
     "draft": "Draft",
     "previous": "Previous",
     "next": "Next",
@@ -62,7 +57,6 @@
     "title": "Connections",
     "outgoing": "Links from this page",
     "incoming": "Linked from",
-    "none": "Nothing links here yet",
     "noneDescription": "Mention this page with [[ from anywhere and it will show up here.",
     "loading": "Loading connections..."
   },
@@ -75,13 +69,10 @@
     "heading": "Filters",
     "searchLabel": "Name or description",
     "searchWikis": "Search wikis...",
-    "noMatchingWikis": "No wikis match your filters.",
-    "tags": "Tags",
-    "anyTag": "Any tag"
+    "noMatchingWikis": "No wikis match your filters."
   },
   "settings": {
     "title": "Wiki settings",
-    "description": "What this wiki is for. Everything here applies to the whole wiki.",
     "order": "Page order",
     "orderDescription": "How pages sit under each other in the sidebar.",
     "orderManual": "The order you put them in",
@@ -96,7 +87,6 @@
     "contentsLevels_other": "{{count}} levels",
     "connections": "Show what links to a page",
     "connectionsHint": "The list at the foot of every page. Turn it off for a wiki nobody cross-references.",
-    "width": "Page width",
     "widthWide": "Full width",
     "widthWideHint": "Room for tables and screenshots.",
     "widthComfortable": "Reading width",
@@ -133,7 +123,6 @@
     "drafted": "Page marked as a draft"
   },
   "comments": "Comments",
-  "closeComments": "Close comments",
   "newPage": "New page",
   "viewMode": {
     "read": "View as a reader",

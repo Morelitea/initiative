@@ -1,8 +1,4 @@
 {
-  "backlinks": {
-    "title_one": "Enlazado desde {{count}} documento",
-    "title_other": "Enlazado desde {{count}} documentos"
-  },
   "bulk": {
     "delete": "Eliminar",
     "deleteConfirm_one": "¿Eliminar {{count}} documento?",
@@ -67,9 +63,7 @@
     "activeCollaborators": "Colaboradores activos:",
     "viewing": "(viendo)",
     "noCollaborators": "No hay otros colaboradores. Los cambios se sincronizan en tiempo real cuando otros se unan.",
-    "failedToConnect": "No se pudo conectar. Los cambios se guardarán localmente.",
-    "collaborators_one": "{{count}} colaborador",
-    "collaborators_other": "{{count}} colaboradores"
+    "failedToConnect": "No se pudo conectar. Los cambios se guardarán localmente."
   },
   "columns": {
     "title": "Título",
@@ -92,7 +86,6 @@
     "documentTypeText": "Documento de texto",
     "documentTypeWhiteboard": "Pizarra",
     "documentTypeSpreadsheet": "Hoja de cálculo",
-    "documentTypeSmartLink": "Enlace inteligente",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Pega un enlace",
     "smartLinkSupportedProviders": "Compatibles:",
@@ -122,9 +115,6 @@
     "createDocument": "Crear documento",
     "uploadingFile": "Subiendo…",
     "uploadDocument": "Subir documento",
-    "titleRequired": "El título del documento es obligatorio",
-    "initiativeRequired": "Por favor selecciona una iniciativa",
-    "fileRequired": "Por favor selecciona un archivo para subir",
     "createdAttached": "Documento creado y adjuntado.",
     "created": "Documento creado.",
     "uploadedAttached": "Documento subido y adjuntado.",
@@ -198,7 +188,6 @@
     "alignJustify": "Justificar",
     "alignLeft": "Alinear a la izquierda",
     "alignRight": "Alinear a la derecha",
-    "alignment": "Alineación",
     "background": "Fondo",
     "blockCode": "Bloque de código",
     "blockH1": "Encabezado 1",
@@ -210,7 +199,6 @@
     "bulletedList": "Lista con viñetas",
     "checklist": "Lista de verificación",
     "clearFormatting": "Limpiar formato",
-    "codeBlock": "Bloque de código",
     "colorBlack": "Negro",
     "colorBlue": "Azul",
     "colorDefault": "Predeterminado",
@@ -222,8 +210,6 @@
     "colorPurple": "Púrpura",
     "colorRed": "Rojo",
     "colorYellow": "Amarillo",
-    "columnLeft": "Columna izquierda",
-    "columnRight": "Columna derecha",
     "columnsLayout": "Diseño de columnas",
     "deleteColumn": "Eliminar columna",
     "deleteRow": "Eliminar fila",
@@ -231,20 +217,11 @@
     "dismiss": "Descartar",
     "embed": "Insertar",
     "embedContent": "Insertar {{contentName}}",
-    "errorImageOnly": "Solo se admiten archivos de imagen.",
-    "errorInsertColumn": "No se pudo insertar la columna de la tabla.",
-    "errorInsertRow": "No se pudo insertar la fila de la tabla.",
-    "errorTableCursor": "Coloca el cursor dentro de una tabla primero.",
-    "errorUpload": "No se pudo subir {{fileName}}.",
-    "errorYoutubeUrl": "No se pudo analizar la URL de YouTube.",
     "fontSize": "Tamaño de fuente",
     "format": "Formato",
-    "formatting": "Formato",
-    "history": "Historial",
     "horizontalRule": "Línea horizontal",
     "image": "Imagen",
     "indent": "Aumentar sangría",
-    "inlineCode": "Código",
     "insert": "Insertar",
     "insertColumnLeft": "Insertar columna a la izquierda",
     "insertColumnRight": "Insertar columna a la derecha",
@@ -258,17 +235,9 @@
     "moreFormatting": "Más formato",
     "numberedList": "Lista numerada",
     "outdent": "Disminuir sangría",
-    "promptColumns": "Número de columnas",
-    "promptRows": "Número de filas",
-    "promptUrl": "Ingresa una URL",
-    "promptYoutubeUrl": "URL de YouTube",
     "redo": "Rehacer",
-    "rowAbove": "Fila arriba",
-    "rowBelow": "Fila abajo",
     "selectLanguage": "Seleccionar idioma",
-    "selectTable": "Selecciona una tabla",
     "strikethrough": "Tachado",
-    "subSuperscript": "Subíndice y superíndice",
     "subscript": "Subíndice",
     "superscript": "Superíndice",
     "table": "Tabla",
@@ -280,23 +249,7 @@
     "tweet": "Tweet",
     "underline": "Subrayado",
     "undo": "Deshacer",
-    "youtubeEmbed": "Insertar YouTube",
     "youtubeVideo": "Video de YouTube"
-  },
-  "myDocuments": {
-    "title": "Mis documentos",
-    "subtitle": "Documentos que posees en todos tus comunidades.",
-    "empty": "Aún no has creado ningún documento.",
-    "loadError": "No se pudieron cargar tus documentos.",
-    "searchPlaceholder": "Buscar documentos...",
-    "filterByGuild": "Filtrar por comunidad",
-    "allGuilds": "Todas las comunidades",
-    "noGuilds": "No se encontraron comunidades",
-    "noGuild": "Sin comunidad",
-    "filters": "Filtros",
-    "showFilters": "Mostrar filtros",
-    "hideFilters": "Ocultar filtros",
-    "updating": "Actualizando..."
   },
   "outline": {
     "title": "Contenido",
@@ -317,8 +270,6 @@
     "viewGrid": "Cuadrícula",
     "viewList": "Lista",
     "filters": "Filtros",
-    "showFilters": "Mostrar filtros",
-    "hideFilters": "Ocultar filtros",
     "searchLabel": "Buscar",
     "searchPlaceholder": "Buscar documentos",
     "filterByTag": "Filtrar por etiqueta",
@@ -351,11 +302,9 @@
     "unavailable": "Esto ya no está disponible para ti"
   },
   "settings": {
-    "loading": "Cargando documento…",
     "notFound": "Documento no encontrado.",
     "title": "Configuración del documento",
     "subtitle": "Administra el acceso, estado de plantilla, duplicación y eliminación.",
-    "breadcrumb": "Configuración",
     "templateTitle": "Plantilla",
     "templateDescription": "Los documentos de plantilla están diseñados para ser duplicados en lugar de editados directamente.",
     "templateToggle": "Alternar estado de plantilla",
@@ -388,14 +337,9 @@
     "documentCopied": "Documento copiado a {{initiative}}",
     "duplicateError": "No se pudo duplicar el documento",
     "copyError": "No se pudo copiar el documento",
-    "templateUpdated": "Estado de plantilla actualizado",
-    "templateError": "No se pudo actualizar el estado de plantilla",
-    "tagsSaved": "Etiquetas actualizadas",
-    "tagsError": "No se pudieron actualizar las etiquetas"
+    "templateError": "No se pudo actualizar el estado de plantilla"
   },
   "sidePanel": {
-    "title": "Panel del documento",
-    "commentsTab": "Comentarios",
     "summaryTab": "Resumen"
   },
   "smartChips": {
@@ -502,12 +446,6 @@
       "inputLabel": "Barra de fórmulas: edita la fórmula o el valor de la celda activa"
     },
     "format": {
-      "scopeCell": "Celda",
-      "scopeColumn": "Columna",
-      "scopeRow": "Fila",
-      "scopeCellLabel": "Celda {{name}}",
-      "scopeColumnLabel": "Columna {{name}}",
-      "scopeRowLabel": "Fila {{name}}",
       "title": "Formato",
       "font": "Fuente",
       "colors": "Colores",
@@ -558,7 +496,6 @@
       "alignTop": "Alinear arriba",
       "alignMiddle": "Alinear al medio",
       "alignBottom": "Alinear abajo",
-      "numberOptions": "Opciones",
       "decimals": "Decimales",
       "thousandsSeparator": "Separador de miles",
       "negatives": "Números negativos",
@@ -588,7 +525,6 @@
       "hiddenCount_other": "{{count}} hojas ocultas",
       "unhideNamed": "Mostrar «{{name}}»",
       "import": "Importar un archivo",
-      "importing": "Leyendo el archivo…",
       "imported_one": "{{count}} hoja importada.",
       "imported_other": "{{count}} hojas importadas.",
       "importFailed": "No se pudo importar ese archivo.",
@@ -675,21 +611,6 @@
     "showRendered": "Ver renderizado"
   },
   "whiteboard": {
-    "loading": "Cargando pizarra…",
-    "syncing": "Sincronizando pizarra…",
-    "readOnly": "Tienes acceso de solo lectura a esta pizarra."
-  },
-  "wikilink": {
-    "title": "Crear documento",
-    "descriptionCanCreate": "El documento \"{{title}}\" aún no existe. ¿Te gustaría crearlo?",
-    "descriptionNoPermission": "El documento \"{{title}}\" no existe. No tienes permiso para crear documentos en esta iniciativa.",
-    "templateLabel": "Plantilla (opcional)",
-    "searchTemplates": "Buscar plantillas…",
-    "blankDocument": "Documento en blanco",
-    "noTemplates": "No hay plantillas disponibles",
-    "createDocument": "Crear documento",
-    "creating": "Creando…",
-    "created": "Documento creado",
-    "createError": "No se pudo crear el documento."
+    "syncing": "Sincronizando pizarra…"
   }
 }

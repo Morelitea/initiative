@@ -428,8 +428,7 @@
     "failed": "That status could not be saved."
   },
   "guilds": {
-    "title": "Communities",
-    "empty": "No public communities."
+    "title": "Communities"
   },
   "trophyRail": "Trophies"
 }

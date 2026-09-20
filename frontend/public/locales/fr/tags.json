@@ -44,7 +44,9 @@
     "existingTags": "Étiquettes existantes",
     "noTagsFound": "Aucune étiquette trouvée.",
     "createTag": "Créer « {{name}} »",
-    "selected": "{{count}} sélectionné(e)(s)"
+    "selected": "{{count}} sélectionné(e)(s)",
+    "filterLabel": "Tags",
+    "anyTag": "N'importe quel tag"
   },
   "tree": {
     "notTagged": "Non étiqueté",
@@ -59,6 +61,5 @@
   "createError": "Impossible de créer l'étiquette.",
   "updateError": "Impossible de mettre à jour l'étiquette.",
   "deleteError": "Impossible de supprimer l'étiquette.",
-  "taskTagsError": "Impossible de mettre à jour les étiquettes de la tâche.",
   "toolTagsError": "Impossible de mettre à jour les étiquettes."
 }

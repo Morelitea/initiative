@@ -1,8 +1,6 @@
 {
   "title": "Trash",
   "description": "Items here will be permanently deleted after the community's retention period. Restore at any time before then.",
-  "scopeGuild": "All in community",
-  "scopeMine": "Just mine",
   "empty": "Trash is empty.",
   "columnType": "Type",
   "columnName": "Name",
@@ -20,12 +18,6 @@
   "restoreError": "Couldn't restore that item.",
   "purgeSuccess": "Permanently deleted.",
   "purgeError": "Couldn't permanently delete that item.",
-  "reassignDialog": {
-    "title": "Pick a new owner",
-    "description": "The original owner of this {{type}} is no longer a member of the initiative. Pick someone to take ownership before restoring.",
-    "ownerLabel": "New owner",
-    "confirm": "Restore with new owner"
-  },
   "entityType": {
     "project": "Project",
     "task": "Task",
