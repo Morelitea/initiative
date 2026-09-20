@@ -432,3 +432,92 @@ async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
         label for label, _stmt in (await session.exec(text(_TRANSFER_STATEMENTS))).all()
     ]
     assert not any(SEARCH_MATCH_FUNCTION in label for label in labels)
+
+
+@pytest.mark.integration
+async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
+    """The outgoing owner need not be the login running the handover.
+
+    An install that has changed hands more than once holds objects belonging to
+    a login the bootstrap connection is neither, and those are exactly the ones
+    a migration's ``CREATE OR REPLACE`` then cannot touch. Read-only: the query
+    is asked what it would move, not told to move it.
+    """
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _TRANSFER_STATEMENTS
+    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+
+    from conftest import RUN_ID
+
+    provisioner = login_roles()[0].name
+    other = f"third_owner_{RUN_ID}"
+    table = f"third_owner_probe_{RUN_ID}"
+    await session.exec(text(f'CREATE ROLE "{other}"'))
+    try:
+        await session.exec(text("CREATE SCHEMA IF NOT EXISTS guild_template"))
+        await session.exec(text(f"CREATE TABLE guild_template.{table} (id int)"))
+        await session.exec(
+            text(f'ALTER TABLE guild_template.{table} OWNER TO "{other}"')
+        )
+        for key, value in (
+            ("app._bootstrap_role", provisioner),
+            ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+            ("app._bootstrap_functions", ""),
+        ):
+            await session.exec(
+                text("SELECT set_config(:key, :value, true)").bindparams(
+                    key=key, value=value
+                )
+            )
+        moves = {
+            row[0]: row[1]
+            for row in (await session.exec(text(_TRANSFER_STATEMENTS))).all()
+        }
+        label = f"table guild_template.{table}"
+        assert label in moves, (
+            f"a table owned by {other!r} was not claimed for {provisioner!r}: "
+            f"{sorted(moves)}"
+        )
+        assert f'OWNER TO "{provisioner}"' in moves[label] or (
+            f"OWNER TO {provisioner}" in moves[label]
+        )
+    finally:
+        await session.exec(text(f"DROP TABLE IF EXISTS guild_template.{table}"))
+        await session.exec(text(f'DROP ROLE IF EXISTS "{other}"'))
+
+
+@pytest.mark.integration
+async def test_the_handover_leaves_alone_what_the_target_already_owns(session):
+    """The provisioning login's own objects are not statements to run."""
+    from sqlalchemy import text
+
+    from app.db.bootstrap import _TRANSFER_STATEMENTS
+    from app.db.system_grants import GRANTABLE_SHARED_TABLES
+
+    from conftest import RUN_ID
+
+    provisioner = login_roles()[0].name
+    table = f"own_owner_probe_{RUN_ID}"
+    await session.exec(text("CREATE SCHEMA IF NOT EXISTS guild_template"))
+    await session.exec(text(f"CREATE TABLE guild_template.{table} (id int)"))
+    try:
+        await session.exec(
+            text(f'ALTER TABLE guild_template.{table} OWNER TO "{provisioner}"')
+        )
+        for key, value in (
+            ("app._bootstrap_role", provisioner),
+            ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
+            ("app._bootstrap_functions", ""),
+        ):
+            await session.exec(
+                text("SELECT set_config(:key, :value, true)").bindparams(
+                    key=key, value=value
+                )
+            )
+        labels = [
+            row[0] for row in (await session.exec(text(_TRANSFER_STATEMENTS))).all()
+        ]
+        assert f"table guild_template.{table}" not in labels
+    finally:
+        await session.exec(text(f"DROP TABLE IF EXISTS guild_template.{table}"))
