@@ -41,7 +41,7 @@ from app.services.import_engine.common import (
     unique_name,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.import_engine.links import LinkCollector
+from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
@@ -68,7 +68,7 @@ class CalendarImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
-        links: LinkCollector | None = None,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -127,7 +127,7 @@ class CalendarImporter:
                         importer=importer,
                         member_handles=member_handles,
                         unmatched_handles=unmatched_handles,
-                        links=links,
+                        context=context,
                     )
             except Exception:
                 failed += 1
@@ -171,7 +171,7 @@ class CalendarImporter:
         importer: User,
         member_handles: dict[str, int],
         unmatched_handles: set[str],
-        links: LinkCollector | None = None,
+        context: ImportContext | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
         end_at = parse_datetime(item.end_at)
@@ -199,8 +199,10 @@ class CalendarImporter:
         # tasks in it — so it joins the job's ref map like a task does. The
         # edges themselves are written by the deferred pass, because the
         # tasks naming this sprint are in a different envelope.
-        if links is not None:
-            links.register(item.external_ref, SearchEntityType.calendar_event, event.id)
+        if context is not None:
+            context.links.register(
+                item.external_ref, SearchEntityType.calendar_event, event.id
+            )
 
         attendees_matched = 0
         seen_user_ids: set[int] = set()

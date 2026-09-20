@@ -6,6 +6,7 @@
   "wizard": {
     "title": "Importer une sauvegarde",
     "back": "Retour",
+    "next": "Suivant",
     "close": "Fermer",
     "cancelUpload": "Annuler l'import",
     "upload": "Téléverser la sauvegarde",
@@ -36,6 +37,14 @@
       "skipped_other": "L'exportateur a laissé {{count}} éléments hors de cette sauvegarde",
       "unknownTypes": "Les types de contenu inconnus seront ignorés : {{types}}",
       "note": "Chaque initiative de la sauvegarde est créée à neuf — rien d'existant n'est modifié. L'import s'exécute en arrière-plan."
+    },
+    "people": {
+      "prompt": "Qui sont ces personnes ici ?",
+      "note": "L'archive désigne les personnes par l'identifiant qu'elles avaient à l'origine. Nous avons rempli ceux dont l'identifiant correspond exactement à un membre : vérifiez-les et indiquez qui sont les autres. Si vous laissez une ligne vide, ces commentaires gardent le nom avec lequel ils sont arrivés, sans être attribués à un compte.",
+      "comments_one": "{{count}} commentaire",
+      "comments_other": "{{count}} commentaires",
+      "unmapped": "Personne ici",
+      "pickerLabel": "Qui est {{name}} ici"
     },
     "progress": {
       "title": "Import en cours…",

@@ -1979,6 +1979,7 @@ export interface CommentRead {
   created_at: string;
   updated_at: string | null;
   author: CommentAuthor | null;
+  imported_author_name: string | null;
   project_id: number | null;
   reactions: ReactionGroup[];
 }

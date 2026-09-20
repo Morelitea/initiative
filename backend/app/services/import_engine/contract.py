@@ -23,7 +23,7 @@ from app.models.tenant.initiative import Initiative
 from app.schemas.base import SanitizedBaseModel
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from app.services.import_engine.links import LinkCollector
+    from app.services.import_engine.context import ImportContext
 
 
 class ImportEngineError(Exception):
@@ -99,16 +99,17 @@ class EnvelopeImporter(Protocol):
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
-        links: "LinkCollector | None" = None,
+        context: "ImportContext | None" = None,
     ) -> EnvelopeImportResult:
         """Insert the envelope's rows (importer becomes owner, owner grant
         synthesized). Flush-only — the caller commits.
 
-        ``links`` is the job's shared collector (``import_engine.links``).
-        An importer registers what it created under the refs its envelope
-        gave, and records the links it read; it never resolves anything
-        itself, because the far end is usually in another entry. Passed as
-        None when the caller has no use for edges — every importer must
-        accept it, and most do nothing with it.
+        ``context`` is what the job knows and the envelope does not
+        (``import_engine.context``): the link collector, where an importer
+        registers what it created under the refs its envelope gave and
+        records the links it read — never resolving any, because the far end
+        is usually in another entry — and the people map, which says who the
+        handles in it turned out to be. Every importer accepts it; most do
+        nothing with it.
         """
         ...

@@ -51,7 +51,7 @@ from app.schemas.tenant.project_export import (
     ProjectImportResult,
 )
 from app.schemas.tenant.task import mint_checklist_item_id
-from app.services.import_engine.links import LinkCollector
+from app.services.import_engine.context import ImportContext
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -69,7 +69,7 @@ async def import_project(
     envelope: ProjectExportEnvelope,
     target_initiative: Initiative,
     importer: User,
-    links: LinkCollector | None = None,
+    context: ImportContext | None = None,
 ) -> ProjectImportResult:
     """Materialize ``envelope`` as a new project under ``target_initiative``.
 
@@ -79,10 +79,12 @@ async def import_project(
     larger transaction (per-chunk backup commits). RLS context must
     already point at the target guild.
 
-    ``links`` is the job's collector. Each task registers itself under the
-    ``external_ref`` its envelope gave, and the links it asserts are recorded
-    for the deferred pass — nothing is resolved here, because the far end is
-    usually in an entry that has not been applied yet.
+    ``context`` is what the job knows and this envelope does not: the link
+    collector, which each task registers itself with under the
+    ``external_ref`` its envelope gave so the deferred pass can resolve the
+    links it asserts — nothing resolves here, because the far end is usually
+    in an entry that has not been applied yet — and the people map, which
+    says which account each handle in it turned out to be.
     """
     if not (MIN_SUPPORTED_IMPORT_VERSION <= envelope.schema_version <= SCHEMA_VERSION):
         raise HTTPException(
@@ -224,7 +226,7 @@ async def import_project(
             prop_key_to_id=prop_key_to_id,
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
-            links=links,
+            context=context,
         )
         assignee_match_count += matched
         comment_count += comments_made
@@ -282,7 +284,7 @@ async def _import_task(
     prop_key_to_id: dict[tuple[str, PropertyType], int],
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
-    links: LinkCollector | None = None,
+    context: ImportContext | None = None,
 ) -> tuple[int, int]:
     """Insert one task, its checklist, tags, assignees, property values and
     comments. Returns (assignees matched & linked, comments written).
@@ -382,22 +384,33 @@ async def _import_task(
     # What this task was called at the source, and what it says it points at.
     # Both are handed to the job's collector and resolved once every entry has
     # been applied — see ``import_engine.links``.
-    if links is not None:
-        links.register(envelope_task.external_ref, SearchEntityType.task, task.id)
+    if context is not None:
+        context.links.register(
+            envelope_task.external_ref, SearchEntityType.task, task.id
+        )
         for link in envelope_task.links:
-            links.link(envelope_task.external_ref, link.type, link.target_external_ref)
+            context.links.link(
+                envelope_task.external_ref, link.type, link.target_external_ref
+            )
 
     comment_count = 0
     for envelope_comment in envelope_task.comments:
-        body = _comment_body(envelope_comment)
+        body = (envelope_comment.body or "").strip()
         if not body:
             continue
+        author_id, source_name = _comment_author(
+            envelope_comment,
+            context=context,
+            initiative_member_handles=initiative_member_handles,
+            importer_id=importer_id,
+        )
         session.add(
             Comment(
                 task_id=task.id,
                 guild_id=guild_id,
                 content=body,
-                created_by=importer_id,
+                created_by=author_id,
+                imported_author_name=source_name,
                 created_at=envelope_comment.created_at or datetime.now(timezone.utc),
             )
         )
@@ -420,21 +433,43 @@ def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:
     return stamps
 
 
-def _comment_body(envelope_comment: ProjectExportComment) -> str:
-    """One imported comment's text, with its original author named in it.
+def _comment_author(
+    envelope_comment: ProjectExportComment,
+    *,
+    context: ImportContext | None,
+    initiative_member_handles: dict[str, int],
+    importer_id: int,
+) -> tuple[int, str | None]:
+    """Who this comment belongs to here, and whose name to show if nobody.
 
-    Authorship is deliberately NOT transferred — see the note on the
-    ``comments`` model. A comment is first-person speech, and an envelope is
-    text the importing user supplied, so matching a handle to a member of the
-    target initiative would let anyone who can craft an envelope put words in
-    that member's mouth. The row is therefore the importer's, and who actually
-    said it is recorded where it cannot be mistaken for the app's own claim:
-    in the comment, as the first line a reader sees.
+    Three answers, in the order they are worth anything:
+
+    1. **The account a person mapped this handle to**, in the import wizard's
+       people step. This is the only thing that moves authorship, and it moves
+       it because somebody read the name and said who it was.
+    2. **A member of the target initiative whose handle is the same string.**
+       Exact only, and only inside the initiative the comment is landing in —
+       a handle is one identifier, and a restore into the community it came
+       from is the case this covers.
+    3. **Nobody.** The row names the import that wrote it, because every
+       guild-content row names what wrote it, and the source's own answer
+       rides beside it as ``imported_author_name`` — a name, not an account,
+       so the comment shows no avatar and links to no profile.
+
+    What is deliberately missing is a fourth: a near match. A display name
+    that looks similar is how one person's words end up under another
+    person's face, and telling those two apart is the whole reason the
+    wizard asks.
     """
-    body = (envelope_comment.body or "").strip()
-    if not body:
-        return ""
-    who = (envelope_comment.author_name or envelope_comment.author_handle or "").strip()
-    if not who:
-        return body
-    return f"*Originally by {who}*\n\n{body}"
+    handle = envelope_comment.author_handle
+    mapped = context.people.user_id(handle) if context is not None else None
+    if mapped is not None:
+        return mapped, None
+    if handle:
+        member = initiative_member_handles.get(handle_key(handle))
+        if member is not None:
+            return member, None
+    source_name = (
+        envelope_comment.author_name or envelope_comment.author_handle or ""
+    ).strip()
+    return importer_id, source_name[:200] or None

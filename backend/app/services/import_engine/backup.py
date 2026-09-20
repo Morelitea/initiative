@@ -52,15 +52,16 @@ from app.schemas.tenant.import_job import (
     BackupImportPlan,
     BackupImportResult,
     BackupPlanInitiative,
+    BackupPlanPerson,
     EntryResult,
 )
 from app.services.import_engine import engine as import_engine
-from app.services.import_engine.common import unique_name
+from app.services.import_engine.common import handle_key, unique_name
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.links import LinkCollector
+from app.services.import_engine.context import ImportContext
 from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
@@ -183,10 +184,20 @@ def _reject_non_flat_asset_keys(manifest: BackupManifest) -> None:
 
 
 def plan_backup(
-    payload: bytes, *, existing_initiative_names: set[str]
+    payload: bytes,
+    *,
+    existing_initiative_names: set[str],
+    member_ids_by_handle: dict[str, int] | None = None,
 ) -> BackupImportPlan:
     """The confirm-screen summary. Reads only the manifest — cheap enough to
-    run synchronously inside the upload request."""
+    run synchronously inside the upload request.
+
+    ``member_ids_by_handle`` is the guild's own roster, normalised, and it is
+    what turns the archive's people into suggestions. It is passed in rather
+    than read here because this function holds no session: the plan is a
+    reading of one file, and the roster is a fact about the community it is
+    being read into.
+    """
     from app.services.import_engine.importers import IMPORTERS
 
     archive = open_backup_zip(payload)
@@ -219,6 +230,16 @@ def plan_backup(
                 entry_counts=counts,
             )
         )
+    roster = member_ids_by_handle or {}
+    people = [
+        BackupPlanPerson(
+            handle=person.handle,
+            name=person.name,
+            comment_count=person.comment_count,
+            suggested_user_id=roster.get(handle_key(person.handle)),
+        )
+        for person in manifest.people
+    ]
     return BackupImportPlan(
         source_guild_name=str((manifest.guild or {}).get("name") or ""),
         app_version=manifest.app_version,
@@ -229,6 +250,7 @@ def plan_backup(
         asset_bytes=sum(a.size_bytes for a in manifest.assets),
         skipped=[s.model_dump(mode="json") for s in manifest.skipped],
         unknown_types=unknown_types,
+        people=people,
     )
 
 
@@ -261,6 +283,7 @@ async def apply_backup(
     guild_id: int,
     payload: bytes,
     include: dict[str, bool] | None,
+    people_map: Any = None,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
@@ -304,10 +327,16 @@ async def apply_backup(
     since_refresh = 0
     from app.models.tenant.initiative import Initiative
 
-    # One collector for the whole bundle: an edge routinely crosses two
-    # entries applied by two different importers, so nothing resolves until
-    # the last of them has flushed.
-    collector = LinkCollector()
+    # One context for the whole bundle. Its collector matters because an edge
+    # routinely crosses two entries applied by two different importers, so
+    # nothing resolves until the last of them has flushed; its people map is
+    # what the confirm's mapping step recorded, re-checked against real
+    # membership here rather than trusted from the job row.
+    from app.services.import_engine.people import resolve_people_map
+
+    context = ImportContext(
+        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map)
+    )
 
     for mi in manifest.initiatives:
         # System sentinel: user-attributed job, gate passed at enqueue.
@@ -372,7 +401,7 @@ async def apply_backup(
                 importers=IMPORTERS,
                 assets_by_key=assets_by_key,
                 result=result,
-                links=collector,
+                context=context,
             )
             result.entries.append(outcome)
             bucket = result.per_tool.setdefault(
@@ -385,7 +414,7 @@ async def apply_backup(
     await establish_guild_access(
         session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
     )
-    resolution = await collector.resolve(session, created_by=user.id)
+    resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
     await session.commit()
@@ -466,7 +495,7 @@ async def _apply_entry(
     importers: dict,
     assets_by_key: dict[str, Any],
     result: BackupImportResult,
-    links: LinkCollector | None = None,
+    context: ImportContext | None = None,
 ) -> EntryResult:
     base = {
         "path": entry.path,
@@ -480,7 +509,7 @@ async def _apply_entry(
         outcome = await _apply_file_entry(
             session, entry, initiative, user, assets_by_key, base
         )
-        _record_entry(links, entry, outcome)
+        _record_entry(context, entry, outcome)
         return outcome
     importer = importers.get(entry.type)
     if importer is None:
@@ -494,7 +523,7 @@ async def _apply_entry(
                 envelope=validated,
                 target_initiative=initiative,
                 importer=user,
-                links=links,
+                context=context,
             )
     except ImportEngineError as exc:
         logger.warning(
@@ -515,12 +544,12 @@ async def _apply_entry(
         set(result.unmatched_handles) | set(detail.unmatched_handles)
     )
     outcome = EntryResult(**base, status="created", detail=detail)
-    _record_entry(links, entry, outcome)
+    _record_entry(context, entry, outcome)
     return outcome
 
 
 def _record_entry(
-    links: LinkCollector | None, entry: ManifestEntry, outcome: EntryResult
+    context: ImportContext | None, entry: ManifestEntry, outcome: EntryResult
 ) -> None:
     """Put a successfully applied entry into the job's ref map, and record
     what it said it is filed in.
@@ -529,19 +558,21 @@ def _record_entry(
     another entry that may not have been applied yet, and resolving it is the
     deferred pass's job.
     """
-    if links is None or outcome.status != "created":
+    if context is None or outcome.status != "created":
         return
     kind = _entry_kind(entry)
     entity_id = outcome.detail.entity_id if outcome.detail is not None else None
     if kind is None or entity_id is None:
         return
-    links.register(_entry_ref(entry.path), kind, entity_id)
+    context.links.register(_entry_ref(entry.path), kind, entity_id)
     if entry.attach_to is None:
         return
     relationship = _ATTACH_RELATIONSHIPS.get(entry.attach_to.kind)
     if relationship is None:
         return
-    links.link(_entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref))
+    context.links.link(
+        _entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref)
+    )
 
 
 async def _apply_file_entry(

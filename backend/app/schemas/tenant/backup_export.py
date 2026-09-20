@@ -59,6 +59,23 @@ class ManifestEntry(SanitizedBaseModel):
     attach_to: Optional[ManifestAttachTo] = None
 
 
+class ManifestPerson(SanitizedBaseModel):
+    """Somebody the archive quotes, and how often.
+
+    A comment names its author by handle, inside an envelope. The plan reads
+    only the manifest, so the people an importer will be asked about are
+    inventoried here rather than found by opening every file — the same reason
+    the entry list exists.
+
+    ``comment_count`` is what makes the question worth asking: it says how
+    much of the archive hangs on getting this one row right.
+    """
+
+    handle: str
+    name: Optional[str] = None
+    comment_count: int = 0
+
+
 class ManifestAsset(SanitizedBaseModel):
     """One upload blob under ``assets/``, keyed by its storage key (unique by
     construction); the original filename lives here, not in the entry name."""
@@ -106,6 +123,10 @@ class BackupManifest(SanitizedBaseModel):
     entries: list[ManifestEntry]
     assets: list[ManifestAsset]
     skipped: list[ManifestSkipped]
+    # Everyone the archive quotes. Absent in a backup taken before it was
+    # inventoried, which reads as "nobody to ask about" and leaves those
+    # comments to the exact-handle match.
+    people: list[ManifestPerson] = []
 
 
 class BackupToolEstimate(SanitizedBaseModel):

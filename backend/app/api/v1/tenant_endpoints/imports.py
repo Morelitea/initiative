@@ -501,9 +501,15 @@ async def upload_backup(
             )
         ).all()
     }
+    # The guild's own roster, so the plan can suggest who each name in the
+    # archive is. Read on the request's routed session, so it is the roster
+    # this user can actually see.
+    roster = await _guild_member_ids_by_handle(session, guild_id)
     try:
         plan = backup_service.plan_backup(
-            payload, existing_initiative_names=existing_names
+            payload,
+            existing_initiative_names=existing_names,
+            member_ids_by_handle=roster,
         )
         await count_active_jobs_locked(session, user=current_user)
         payload_ref = stage_payload(guild_id, payload, suffix="zip")
@@ -527,6 +533,30 @@ async def upload_backup(
     return job
 
 
+async def _guild_member_ids_by_handle(session, guild_id: int) -> dict[str, int]:
+    """Every member of this guild, keyed by normalised handle.
+
+    One query rather than a lookup per person: an archive can quote dozens of
+    names, and the answer for all of them is the same roster.
+    """
+    from app.core.user_display import handle_of
+    from app.models.platform.guild import GuildMembership
+    from app.models.platform.user_profile_view import MemberProfile
+    from app.services.import_engine.common import handle_key
+
+    # ``MemberProfile``, not ``users``: this runs on the guild-routed session,
+    # and the view is how guild content refers to a person. The table itself
+    # is the account holder's own business.
+    rows = (
+        await session.exec(
+            select(MemberProfile)
+            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+            .where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    return {handle_key(handle_of(row)): row.id for row in rows}
+
+
 @router.post("/jobs/{job_id}/confirm", response_model=ImportJobRead)
 async def confirm_backup_import(
     job_id: int,
@@ -536,9 +566,15 @@ async def confirm_backup_import(
     body: Optional[dict] = None,
 ) -> ImportJob:
     """Confirm a staged backup: flips it to ``queued`` for the worker.
+
     Optional body ``{"include": {tool: bool}}`` narrows which tools apply
-    (omitted tools default to included). Guild admins only — re-checked here
-    and again at apply time."""
+    (omitted tools default to included), and ``{"people_map": {handle: user
+    id}}`` says who each name the archive quotes is here — the answers to the
+    wizard's people step. Both are recorded on the job and read at apply time;
+    the mapping is re-checked against real membership there, because this
+    confirm may be hours old by then.
+
+    Guild admins only — re-checked here and again at apply time."""
     _require_real_guild_admin(guild_context)
     _require_writable(guild_context)
     job = await session.get(ImportJob, job_id)
@@ -576,6 +612,19 @@ async def confirm_backup_import(
                 detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
             )
         job.params = {**(job.params or {}), "include": include}
+    people_map = (body or {}).get("people_map")
+    if people_map is not None:
+        if not isinstance(people_map, dict) or not all(
+            isinstance(handle, str) and isinstance(user_id, int)
+            for handle, user_id in people_map.items()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
+            )
+        # Stored as given; the ids are proved to be members of this guild at
+        # apply time, on the session that will actually write the rows.
+        job.params = {**(job.params or {}), "people_map": people_map}
     job.status = ImportJobStatus.queued
     # Fresh TTL window: the confirmed job now waits on the worker, and a
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.

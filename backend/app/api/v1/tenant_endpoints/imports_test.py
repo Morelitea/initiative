@@ -1580,10 +1580,11 @@ async def test_project_envelope_carries_comments_dates_and_links(
             select(Comment).where(Comment.task_id == tasks["Pour the footings"].id)
         )
     ).one()
-    # The importer owns the row; the original author is named in the text.
+    # The author's handle is a member of the target initiative, so the comment
+    # is theirs — nothing is added to what they said.
     assert comment.created_by == a.user.id
-    assert "Frost delayed us" in comment.content
-    assert "Originally by" in comment.content
+    assert comment.content == "Frost delayed us"
+    assert comment.imported_author_name is None
 
     assert await relationships_service.related_ids(
         session,
@@ -1881,3 +1882,255 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
     assert (
         get_guild_storage(a.guild.id).open_readable("imports/half-written.json") is None
     )
+
+
+# ---------------------------------------------------------------------------
+# Who said what: matching a comment's author to an account here
+# ---------------------------------------------------------------------------
+
+
+def _project_envelope_with_comment(author_handle: str, author_name: str) -> dict:
+    """A one-task project whose task carries one comment by somebody else."""
+    return {
+        "type": "initiative-project",
+        "schema_version": 1,
+        "app_version": "0.0.0-test",
+        "exported_at": "2026-07-15T00:00:00+00:00",
+        "project": {"name": "Imported Board"},
+        "tags": [],
+        "task_statuses": [
+            {"name": "To Do", "category": "todo", "position": 0, "is_default": True}
+        ],
+        "property_definitions": [],
+        "tasks": [
+            {
+                "title": "Fit the door",
+                "status_name": "To Do",
+                "tags": [],
+                "assignee_handles": [],
+                "checklist": [],
+                "property_values": [],
+                "comments": [
+                    {
+                        "author_handle": author_handle,
+                        "author_name": author_name,
+                        "body": "The frame is out of true",
+                        "created_at": "2024-03-04T09:30:00+00:00",
+                    }
+                ],
+            }
+        ],
+    }
+
+
+async def test_an_unmatched_author_keeps_their_name_and_no_account(
+    client, acting_user, session
+):
+    """Nobody here is somebody. The comment carries the name it arrived with
+    and is credited to no account — not to whoever ran the import."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+    comment = (
+        await session.exec(
+            select(Comment).where(Comment.content == "The frame is out of true")
+        )
+    ).one()
+    # The row names what wrote it, because every guild-content row does...
+    assert comment.created_by == a.user.id
+    # ...and the name rides beside it, which is what the reader sees.
+    assert comment.imported_author_name == "Alice Chen"
+
+
+async def test_an_exact_handle_match_makes_the_comment_theirs(
+    client, acting_user, session
+):
+    """A handle that is already a member of the initiative it is landing in
+    needs nobody to confirm it: it is the same identifier."""
+    from sqlmodel import select
+
+    from app.core.user_display import handle_of
+    from app.models.tenant.comment import Comment
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment(handle_of(b.user), "Someone Else")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+    comment = (
+        await session.exec(
+            select(Comment).where(Comment.content == "The frame is out of true")
+        )
+    ).one()
+    assert comment.created_by == b.user.id
+    assert comment.imported_author_name is None
+
+
+async def test_the_plan_lists_the_people_and_suggests_the_exact_matches(
+    client, acting_user, session
+):
+    """The wizard's people step is rendered from the plan, so the plan has to
+    carry everyone the archive quotes — read from the manifest, because the
+    plan never opens an envelope."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, envelope = _queue_entry()
+    manifest = _minimal_manifest(entries=[entry])
+    manifest["people"] = [
+        {"handle": handle_of(a.user), "name": "The Importer", "comment_count": 4},
+        {"handle": "stranger#4321", "name": "Alice Chen", "comment_count": 1},
+    ]
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    people = resp.json()["plan"]["people"]
+    by_handle = {person["handle"]: person for person in people}
+
+    # A member of this guild, by exact handle — offered as the answer.
+    assert by_handle[handle_of(a.user)]["suggested_user_id"] == a.user.id
+    assert by_handle[handle_of(a.user)]["comment_count"] == 4
+    # A name nobody here answers to is left for a person to decide.
+    assert by_handle["stranger#4321"]["suggested_user_id"] is None
+
+
+async def test_the_confirmed_mapping_decides_who_a_comment_belongs_to(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The people step's whole purpose: a name that matches nobody becomes
+    somebody, because a person said so."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    entry = {
+        "path": "initiatives/1-restored/projects/1-board.initiative-project.json",
+        "tool": "project",
+        "type": "initiative-project",
+        "schema_version": 1,
+        "entity_id": 1,
+        "title": "Imported Board",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    manifest = _minimal_manifest(entries=[entry])
+    manifest["people"] = [
+        {"handle": "stranger#4321", "name": "Alice Chen", "comment_count": 1}
+    ]
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": b.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+
+    comment = (
+        await session.exec(
+            select(Comment).where(Comment.content == "The frame is out of true")
+        )
+    ).one()
+    assert comment.created_by == b.user.id
+    assert comment.imported_author_name is None
+
+
+async def test_a_mapping_naming_a_non_member_is_dropped(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The confirm may be hours old. Somebody named in it who has since left
+    the community does not get authorship of anything."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    outsider = await acting_user(guild_role=GuildRole.member)
+
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    entry = {
+        "path": "initiatives/1-restored/projects/1-board.initiative-project.json",
+        "tool": "project",
+        "type": "initiative-project",
+        "schema_version": 1,
+        "entity_id": 1,
+        "title": "Imported Board",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    manifest = _minimal_manifest(entries=[entry])
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    # An account in a different guild entirely — the map names them anyway.
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": outsider.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    comment = (
+        await session.exec(
+            select(Comment).where(Comment.content == "The frame is out of true")
+        )
+    ).one()
+    assert comment.created_by != outsider.user.id
+    assert comment.imported_author_name == "Alice Chen"
+
+
+async def test_confirm_refuses_a_malformed_people_map(client, acting_user, session):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, envelope = _queue_entry()
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+
+    bad = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": "not-an-id"}},
+    )
+    assert bad.status_code == 400
+    assert bad.json()["detail"] == "IMPORT_INVALID_PARAMS"

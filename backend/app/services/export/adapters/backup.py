@@ -382,6 +382,7 @@ async def _build_scope(
             entries=builder.entries,
             assets=builder.assets,
             skipped=builder.skipped,
+            people=builder.people(),
         )
         items = [
             RenderItem(
@@ -436,6 +437,11 @@ class _ScopeBuilder:
         self.entries: list = []
         self.assets: list = []
         self.skipped: list = []
+        # Handle -> (display name, comments seen). Accumulated as the project
+        # envelopes are built, because that is where comment authors are, and
+        # written into the manifest so the import plan can ask about them
+        # without opening a single envelope.
+        self._people: dict[str, tuple[str | None, int]] = {}
         self._asset_index: dict[str, Any] = {}
         self._asset_bytes = 0
         self._since_refresh = 0
@@ -493,6 +499,7 @@ class _ScopeBuilder:
                 project_id=project_id,
                 access="read",  # the aggregate-export relaxation
             )
+            self._record_people(envelope)
             item = build_project_item(envelope, fmt, self.user, self.now)
             path_stem = f"{folder}/projects/{_slug(project_id, envelope.project.name)}"
             if fmt == "json":
@@ -760,6 +767,33 @@ class _ScopeBuilder:
                 title=wiki.name,
                 initiative_id=initiative.id,
             )
+
+    def _record_people(self, envelope) -> None:
+        """Note everyone quoted in a project envelope, and how often.
+
+        Counted per handle across the whole archive rather than per project:
+        the importer answers "who is this" once, and one answer covers every
+        comment that name is on.
+        """
+        for task in envelope.tasks:
+            for comment in task.comments:
+                handle = (comment.author_handle or "").strip()
+                if not handle:
+                    continue
+                name, count = self._people.get(handle, (None, 0))
+                self._people[handle] = (name or comment.author_name, count + 1)
+
+    def people(self) -> list:
+        """The archive's people, most-quoted first — which is the order the
+        wizard should ask about them in."""
+        from app.schemas.tenant.backup_export import ManifestPerson
+
+        return [
+            ManifestPerson(handle=handle, name=name, comment_count=count)
+            for handle, (name, count) in sorted(
+                self._people.items(), key=lambda kv: (-kv[1][1], kv[0])
+            )
+        ]
 
     async def _link_wiki_documents(self, initiative) -> None:
         """Say which wiki each file document sits in, now that both entries
