@@ -45,8 +45,8 @@ What you searched and which shelf you're on live in the address, so a filtered d
 
 The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **16 or older** to join one. You're asked once, ever, and then never again.
 
-!!! info "It's this button, and nothing else"
-    The question guards joining from the directory. That's the whole of it. Communities you were invited to are yours whatever you answer, the rest of Initiative carries on exactly as it did, and you can close the box and go about your day.
+!!! info "It's about the community, not the button"
+    Anyone signed in can find a listed community, so joining one asks your age however you got there — the directory, or an invite into it. A community that hasn't listed itself never asks, whoever invites you. And nothing else on Initiative asks at all: close the box and the rest of the app carries on exactly as it did.
 
 !!! info "The date isn't kept"
     We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).

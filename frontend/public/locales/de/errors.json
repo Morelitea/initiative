@@ -486,6 +486,7 @@
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Bestätige, dass diese Community keine Inhalte für Erwachsene enthält, bevor du sie einträgst.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Eine als 18+ markierte Community kann nicht im Community-Verzeichnis eingetragen werden.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Community hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden.",
+  "GUILD_COMMUNITY_UNDER_AGE_MEMBERS": "In dieser Community ist jemand, der angegeben hat, unter 16 zu sein – sie kann daher nicht öffentlich gelistet werden.",
   "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis.",
   "GUILD_AGE_CONFIRMATION_REQUIRED": "Bestätige, dass du mindestens 16 bist, bevor du einer für alle auffindbaren Community beitrittst.",
   "GUILD_AGE_BELOW_MINIMUM": "Du hast angegeben, nicht alt genug für eine für alle auffindbare Community zu sein. Eine Administratorin oder ein Administrator kann die Frage zurücksetzen.",

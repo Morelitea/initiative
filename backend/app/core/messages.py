@@ -162,6 +162,11 @@ class GuildMessages:
     GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
     GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
     GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
+    # A guild on its way onto the shelf that holds somebody who has answered
+    # the age question as under the minimum. Only ever raised on the way in:
+    # an already-listed guild is not re-checked, so an unrelated edit never
+    # fails over who its members are.
+    GUILD_COMMUNITY_UNDER_AGE_MEMBERS = "GUILD_COMMUNITY_UNDER_AGE_MEMBERS"
     # The deployment runs no community directory: an owner has not switched it
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.

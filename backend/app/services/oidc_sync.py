@@ -12,6 +12,7 @@ from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildR
 from app.services import audit as audit_service
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
+from app.services.platform import guilds as guilds_service
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -218,6 +219,25 @@ async def sync_oidc_assignments(
                     session.add(membership)
                     result.guilds_updated.append(guild_id)
         else:
+            # A listed community is open to anyone signed in, so the age rule
+            # holds however somebody arrived — and this is the way in with
+            # nobody at a keyboard to be asked, so what counts is the answer
+            # already on the record. An account that has never been asked is
+            # admitted: not knowing is not the same as knowing they are too
+            # young, and a private guild never puts the question at all.
+            #
+            # The guild is asked first, so a private one — which is most of
+            # them, and which the rule does not touch — costs no lookup of
+            # the account.
+            if await guilds_service.is_listed_in_directory(
+                session, guild_id=guild_id
+            ) and await guilds_service.is_known_under_age(session, user_id=user_id):
+                logger.info(
+                    "guild %s is listed; the age answer on record keeps this "
+                    "account out of it",
+                    guild_id,
+                )
+                continue
             role = GuildRole(desired) if desired is not None else GuildRole.member
             await _create_guild_membership(
                 session,

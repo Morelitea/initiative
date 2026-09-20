@@ -240,6 +240,21 @@ async def ensure_membership(
     # blocked. SSO/OIDC provisioning uses a separate insert path
     # (oidc_sync._create_guild_membership) and is intentionally exempt.
     await _assert_member_capacity(session, guild_id=guild_id)
+    # A listed community never gains somebody who has answered the age question
+    # as under the minimum, by any route. The paths with a person at the
+    # keyboard ask the question first (``assert_age_confirmed``); this is the
+    # floor under the ones without — a group sync, an admin adding somebody —
+    # where refusing an unanswered account would refuse nearly everybody, but
+    # an answered one is a fact already on the record.
+    # The guild is asked first and the account only if the answer is yes: a
+    # private guild is every guild on most deployments, and the rule does not
+    # apply to one, so it should not cost a lookup. ``is_listed_in_directory``
+    # itself stops at the deployment switch, so a deployment with no directory
+    # pays a settings read and nothing else.
+    if await is_listed_in_directory(
+        session, guild_id=guild_id
+    ) and await is_known_under_age(session, user_id=user_id):
+        raise AgeConfirmationRequiredError(GuildMessages.AGE_BELOW_MINIMUM)
     next_position = await _next_membership_position(session, user_id=user_id)
     membership = GuildMembership(
         guild_id=guild_id,
@@ -1249,6 +1264,13 @@ async def redeem_invite_for_user(
     ):
         raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
+    # An invite into a listed community is still a way into a listed community.
+    # The rule belongs to the guild rather than to the route: anyone signed in
+    # can find it, so the deployment's age question applies however somebody
+    # arrived. A private guild asks nothing, which is every other invite.
+    if await is_listed_in_directory(session, guild_id=invite.guild_id):
+        await assert_age_confirmed(session, user=user)
+
     await ensure_membership(
         session,
         guild_id=invite.guild_id,
@@ -1369,6 +1391,60 @@ async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> boo
     for condition in community_listing_filters():
         statement = statement.where(condition)
     return bool((await session.exec(statement)).one())
+
+
+async def is_known_under_age(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether this account has answered the age question as under the minimum.
+
+    Positive knowledge only. An account that has never been asked answers
+    ``False`` here, because "we do not know" is not "too young" — most accounts
+    have never been asked, since a private community never puts the question.
+
+    Reads another account's ``users`` row, so it wants a session that can see
+    the table: the system engine, or the platform-tier session of the account
+    itself. A guild-routed session cannot, which is why the listing guard below
+    is asked before a request routes into its guild.
+    """
+    statement = (
+        select(User.id)
+        .where(User.id == user_id, User.age_below_minimum_at.is_not(None))
+        .limit(1)
+    )
+    return (await session.exec(statement)).first() is not None
+
+
+async def assert_may_list_with_members(session: AsyncSession, *, guild_id: int) -> None:
+    """Raise unless this guild may move onto the shelf with the members it has.
+
+    A listed community is open to anyone signed in, so the deployment's age
+    rule applies to it — and a guild that has been private until now collected
+    its members under no such rule. This is the one moment that can be
+    reconciled: on the way in, before it is listed.
+
+    Only accounts that have *answered* under the minimum count. An unanswered
+    account is not evidence of anything, and holding a listing until every
+    member has answered a question nobody has been asked would mean no private
+    guild could ever be listed.
+
+    **Asked on the transition only.** An already-listed guild is not re-checked,
+    so an admin editing a description never meets a failure about somebody
+    else's birthday, with nothing to do about it but remove them.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_age_gate_enabled(session):
+        return
+    statement = (
+        select(GuildMembership.user_id)
+        .join(User, User.id == GuildMembership.user_id)
+        .where(
+            GuildMembership.guild_id == guild_id,
+            User.age_below_minimum_at.is_not(None),
+        )
+        .limit(1)
+    )
+    if (await session.exec(statement)).first() is not None:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_UNDER_AGE_MEMBERS)
 
 
 async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:

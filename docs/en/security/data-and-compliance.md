@@ -85,7 +85,9 @@ Communities that list themselves in the community directory can be found by anyo
 
 **The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
 
-The question governs that join and nothing else. A private community — one that has not listed itself — never asks, an invite into one never asks, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
+The question belongs to the community rather than to the way in: every route into a listed one is covered, an invite included. A private community — one that has not listed itself — never asks, whoever brings somebody in, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
+
+A community that was private until now is refused a listing while it holds anybody who has answered under the minimum, since its members joined it under no such rule.
 
 If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. It closes the directory's Join button; it takes nothing away. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
 

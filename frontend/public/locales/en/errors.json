@@ -486,6 +486,7 @@
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirm this community contains no adult content before listing it.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "A community marked 18+ cannot be listed in the community directory.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "This community has room for only one person, so it cannot be listed in the community directory.",
+  "GUILD_COMMUNITY_UNDER_AGE_MEMBERS": "This community has a member who told us they're under 16, so it can't be listed where anyone can find it.",
   "COMMUNITY_DIRECTORY_DISABLED": "This deployment doesn't run a community directory.",
   "GUILD_AGE_CONFIRMATION_REQUIRED": "Confirm you are 16 or older before joining a community anyone can find.",
   "GUILD_AGE_BELOW_MINIMUM": "You told us you're not old enough to join a community anyone can find. An administrator can reset the question for you.",

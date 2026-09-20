@@ -70,7 +70,7 @@ describe("UserSettingsPrivacyPage", () => {
 
     renderPage(UserSettingsPrivacyPage);
 
-    expect(await screen.findByText(/13 and over/i)).toBeInTheDocument();
+    expect(await screen.findByText(/16 and over/i)).toBeInTheDocument();
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio).toBeDisabled();
     }

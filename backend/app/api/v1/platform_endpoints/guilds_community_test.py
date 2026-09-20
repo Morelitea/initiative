@@ -21,6 +21,7 @@ from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guilds as guilds_service
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -1093,6 +1094,161 @@ async def test_an_account_that_answered_under_age_keeps_its_communities(
 
     assert still_theirs.status_code == 200
     assert [g["id"] for g in still_theirs.json()] == [invited.id]
+
+
+# ---------------------------------------------------------------------------
+# The rule belongs to the community, not to the route in.
+# ---------------------------------------------------------------------------
+
+
+async def _invite_code(client: AsyncClient, guild: Guild, admin_headers) -> str:
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/invites", headers=admin_headers, json={}
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["code"]
+
+
+@pytest.mark.parametrize(
+    "listed,expected_status",
+    [
+        pytest.param(True, 403, id="an invite into a listed community asks"),
+        pytest.param(False, 200, id="an invite into a private one does not"),
+    ],
+)
+async def test_an_invite_asks_the_age_question_only_where_the_guild_is_listed(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    listed: bool,
+    expected_status: int,
+):
+    """Anyone signed in can find a listed community, so every way into one is a
+    way into a room full of strangers — an invite included. A private community
+    is its own to answer for and asks nothing, whoever turns up."""
+    guild, admin_headers = await _admin_of(session, acting_user, name="Open Table")
+    if listed:
+        await _list_as_community(session, guild)
+    code = await _invite_code(client, guild, admin_headers)
+    invitee = await acting_user("member", age_confirmed_at=None)
+
+    response = await client.post(
+        "/api/v1/guilds/invite/accept", headers=invitee.headers, json={"code": code}
+    )
+
+    assert response.status_code == expected_status, response.text
+    membership = await _membership_of(session, guild=guild, user_id=invitee.user.id)
+    assert (membership is None) is (expected_status != 200)
+
+
+async def test_an_answered_under_age_account_cannot_be_put_in_a_listed_guild(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The floor under the ways in that have nobody at a keyboard.
+
+    A group sync or an admin adding somebody never meets the question, so the
+    answer already on the record is what holds: an account that said it is
+    under the minimum does not land in a community anyone can find.
+    """
+    a = await acting_user("member", age_confirmed_at=None)
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=a.headers,
+    )
+    guild = await _a_listed_guild(session, name="Open Table")
+    await session.refresh(a.user)
+
+    with pytest.raises(guilds_service.AgeConfirmationRequiredError):
+        await guilds_service.ensure_membership(
+            session, guild_id=guild.id, user_id=a.user.id, via="sso"
+        )
+
+
+async def test_a_guild_holding_an_under_age_member_cannot_be_listed(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A private guild collected its members under no age rule, so the move
+    onto the shelf is the one moment that can be reconciled."""
+    guild, admin_headers = await _admin_of(session, acting_user, name="Just Us")
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=member.headers,
+    )
+
+    response = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin_headers,
+        json={
+            "is_community": True,
+            "categories": ["other"],
+            "has_adult_content": False,
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "GUILD_COMMUNITY_UNDER_AGE_MEMBERS"
+    await session.refresh(guild)
+    assert guild.is_community is False
+
+
+async def test_an_unanswered_member_does_not_stop_a_guild_being_listed(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """ "We have not asked" is not "too young".
+
+    A private guild never puts the question, so every one of them is full of
+    unanswered accounts. Holding a listing until they all answer would mean no
+    private guild could ever be listed at all.
+    """
+    guild, admin_headers = await _admin_of(session, acting_user, name="Just Us")
+    await acting_user(guild_role=GuildRole.member, guild=guild, age_confirmed_at=None)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin_headers,
+        json={
+            "is_community": True,
+            "categories": ["other"],
+            "has_adult_content": False,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    await session.refresh(guild)
+    assert guild.is_community is True
+
+
+async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The rule is a gate on the way in, not a standing condition.
+
+    Re-asking it on every edit would hand an admin a failure about somebody
+    else's birthday with nothing to do about it but remove them.
+    """
+    guild, admin_headers = await _admin_of(session, acting_user, name="Open Table")
+    await _list_as_community(session, guild)
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=member.headers,
+    )
+
+    response = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin_headers,
+        json={"description": "Now with a description"},
+    )
+
+    assert response.status_code == 200, response.text
 
 
 async def test_confirming_twice_keeps_the_first_answer(

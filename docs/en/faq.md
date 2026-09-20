@@ -62,17 +62,17 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ## The age question
 
 ??? question "Why am I being asked my date of birth?"
-    Because you clicked Join on a community that anyone signed in can find. Those are open to people you've never met, and you need to be **16 or older** to join one.
+    Because you're joining a community that anyone signed in can find — from the directory, or through an invite into one. Those are open to people you've never met, and you need to be **16 or older** to join one.
 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
     We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
 
-??? question "I'm not joining anything public. Then you shouldn't be asked."
-    Nothing else asks. Not an invite, not an admin adding you, not a group sync, not a community you're already in that lists itself later, and no other part of Initiative. Only the Join button in the directory.
+??? question "It was just an invite from a friend. Why was I asked?"
+    Because the community it leads to is a listed one — anyone signed in can find it. The question follows the community, not the way in.
 
-    If you're seeing the question anywhere else, that's worth reporting to whoever runs your server.
+    An invite to a community that hasn't listed itself never asks, and neither does anything else on Initiative.
 
 ??? question "My account can't reach anybody"
     <a id="my-account-cant-message-anyone"></a>
@@ -84,7 +84,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     | A date-of-birth box when you click Join | You haven't answered yet | Answer it. Once. |
     | A box saying you told us you're not old enough | Your account answered as under 16 | An admin can reset it — see below |
 
-    Either way, everything inside communities you were **invited** to still works, and so does the rest of Initiative. The only thing behind this question is the Join button.
+    Either way, everything inside the communities you already belong to still works, and so does the rest of Initiative. What the question stands in front of is joining a *listed* community.
 
     Extremely common, entirely fixable, and nobody is cross with you. Ask an administrator of your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
 
