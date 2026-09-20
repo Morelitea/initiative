@@ -160,13 +160,14 @@ describe("LandingCinematic", () => {
     expect(screen.getAllByRole("link", { name: landing.hero.ctaSignIn }).length).toBeGreaterThan(0);
   });
 
-  it("sends somebody already signed in to their tasks", async () => {
+  it("sends somebody already signed in into the app", async () => {
     const { router } = renderPage(LandingCinematic, {
       auth: { token: "test-token", loading: false },
     });
 
+    // The app home is My Tasks; the front door is /welcome.
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/tasks");
+      expect(router.state.location.pathname).toBe("/");
     });
   });
 

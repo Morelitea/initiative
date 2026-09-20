@@ -1,38 +1,3 @@
-import { redirect } from "@tanstack/react-router";
-
-import type { RouterContext } from "@/router";
-
-/**
- * beforeLoad for legacy non-guild paths: forward to the active guild's copy
- * of the route (search params included when the route has them), or home when
- * no guild is active.
- *
- * `extraSearch` is merged over the forwarded params, for a path whose guild-side
- * equivalent needs one — a bare `/projects` now lands on the guild home showing
- * the projects tool, which is a search param rather than a route of its own.
- */
-export function redirectToActiveGuild(to: string, extraSearch?: Record<string, unknown>) {
-  return ({
-    context,
-    search,
-  }: {
-    context: RouterContext;
-    search?: Record<string, unknown>;
-  }): void => {
-    const guildId = context.guilds?.activeGuildId;
-    if (guildId) {
-      throw redirect({
-        to,
-        params: { guildId: String(guildId) },
-        // A runtime `to` makes the router type `search` as the union of every
-        // route's schema; the forwarded object is already a valid subset.
-        search: { ...(search ?? {}), ...(extraSearch ?? {}) } as never,
-      });
-    }
-    throw redirect({ to: "/" });
-  };
-}
-
 /**
  * Keeps the layout route guards (`_serverRequired`, `_authenticated`) authoritative.
  *

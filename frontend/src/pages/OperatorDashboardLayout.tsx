@@ -56,9 +56,7 @@ export const OperatorDashboardLayout = () => {
   }, [t, user]);
 
   if (!canAccessOperatorDashboard(user)) {
-    return (
-      <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/settings"} replace />
-    );
+    return <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/"} replace />;
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";

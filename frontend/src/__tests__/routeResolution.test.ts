@@ -31,7 +31,6 @@ const INITIATIVE = `${GUILD}/i/$initiativeId`;
 
 describe("initiative route resolution", () => {
   it.each([
-    ["/c/1/i", `${GUILD}/i/`],
     ["/c/1/i/5", `${INITIATIVE}/`],
     ["/c/1/i/5/projects", `${INITIATIVE}/projects/`],
     ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
@@ -49,6 +48,12 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5/dashboards/5", `${INITIATIVE}/dashboards/$dashboardId/`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
+  });
+
+  // The initiatives list is the guild home, so the bare `/i` segment serves
+  // nothing of its own and falls back to the guild layout.
+  it("leaves the bare initiatives segment to the guild layout", () => {
+    expect(resolvedRouteId("/c/1/i")).toBe(GUILD);
   });
 
   // The tab routes are siblings of these; a tool segment that collided with
