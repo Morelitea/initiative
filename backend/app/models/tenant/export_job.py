@@ -57,7 +57,14 @@ class ExportJob(CreatedByMixin, table=True):
         sa_column=Column(String, nullable=False, index=True, server_default="queued"),
     )
     # Storage key relative to the guild prefix, e.g. "exports/{id}.pdf".
+    # Set when the app holds the artifact and will serve it.
     artifact_ref: Optional[str] = Field(default=None)
+    # Where a delivered archive was written, when it was too large to hand
+    # back over HTTP. Exactly one of this and ``artifact_ref`` is set on a
+    # finished job: the app either has the bytes or it does not, and a
+    # delivered archive lives under the operator's retention rather than the
+    # artifact GC's.
+    destination_ref: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
     # Artifact GC deadline — set when the artifact is written.
     expires_at: Optional[datetime] = Field(

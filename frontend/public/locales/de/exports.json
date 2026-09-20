@@ -46,7 +46,9 @@
       "disabled": "Nicht aktiviert",
       "estimateFailed": "Die Größenschätzung konnte nicht geladen werden.",
       "overRowLimit": "Dieser Export überschreitet das Größenlimit — schließe einige Werkzeuge aus, um fortzufahren.",
-      "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren."
+      "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren.",
+      "willBeDelivered": "Dieser Export ist größer als {{limit}} und wird daher in den Exportordner des Servers geschrieben statt heruntergeladen. Deine Serveradministration kann dir die Datei geben.",
+      "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte deine Serveradministration, einen einzurichten."
     },
     "report": {
       "documentNative": "Textdokumente",

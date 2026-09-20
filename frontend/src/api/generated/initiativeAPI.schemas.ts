@@ -1164,6 +1164,8 @@ export interface BackupEstimate {
   estimated_rows?: number;
   max_rows?: number;
   max_upload_bytes?: number;
+  max_download_bytes?: number;
+  delivery_available?: boolean;
 }
 
 /**
@@ -3386,6 +3388,11 @@ export interface ExportJobRead {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * The archive went to the operator's destination; there is nothing
+   * here to download.
+   */
+  readonly delivered: boolean;
 }
 
 /**

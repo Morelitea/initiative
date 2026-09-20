@@ -182,3 +182,10 @@ class BackupEstimate(SanitizedBaseModel):
     estimated_rows: int = 0
     max_rows: int = 0
     max_upload_bytes: int = 0
+    # Past this, the archive is written to the operator's destination rather
+    # than handed back as a download — so the wizard can say which of the two
+    # is going to happen before anybody submits.
+    max_download_bytes: int = 0
+    # Whether this deployment has a destination configured at all. Without
+    # one, an export over the download bound is refused instead of delivered.
+    delivery_available: bool = False

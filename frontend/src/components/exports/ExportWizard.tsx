@@ -89,6 +89,15 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     estimate != null &&
     includeUploads &&
     (estimate.uploads_bytes ?? 0) > (estimate.max_upload_bytes ?? Infinity);
+  // Past the download bound the archive is written to the server's export
+  // folder instead of being handed back. Say which of the two will happen
+  // before anybody starts a build that runs for an hour.
+  const overDownloadBound =
+    estimate != null &&
+    !overUploadLimit &&
+    (estimate.uploads_bytes ?? 0) > (estimate.max_download_bytes ?? Infinity);
+  const deliveryAvailable = estimate?.delivery_available === true;
+  const blockedForNoDestination = overDownloadBound && !deliveryAvailable;
 
   // A disabled tool's switch is locked showing "off" — the payload must say
   // the same (the backend would skip it anyway, but the manifest's
@@ -256,9 +265,29 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
               </span>
             </div>
           )}
+          {overDownloadBound && (
+            <div
+              className={
+                blockedForNoDestination
+                  ? "flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-destructive text-sm"
+                  : "flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-muted-foreground text-sm"
+              }
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {blockedForNoDestination
+                  ? t("wizard.backup.noDestination", {
+                      limit: formatBytes(estimate?.max_download_bytes ?? 0),
+                    })
+                  : t("wizard.backup.willBeDelivered", {
+                      limit: formatBytes(estimate?.max_download_bytes ?? 0),
+                    })}
+              </span>
+            </div>
+          )}
           <Button
             className="w-full"
-            disabled={!anyIncluded || overRowLimit || overUploadLimit}
+            disabled={!anyIncluded || overRowLimit || overUploadLimit || blockedForNoDestination}
             onClick={() => go("confirm")}
           >
             {t("wizard.next")}

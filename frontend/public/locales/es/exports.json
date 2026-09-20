@@ -46,7 +46,9 @@
       "disabled": "No habilitado",
       "estimateFailed": "No se pudo cargar la estimación de tamaño.",
       "overRowLimit": "Esta exportación supera el límite de tamaño — excluye algunas herramientas para continuar.",
-      "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar."
+      "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar.",
+      "willBeDelivered": "Esta exportación supera {{limit}}, así que se escribirá en la carpeta de exportación del servidor en lugar de descargarse. La administración del servidor puede darte el archivo.",
+      "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a la administración del servidor que configure una."
     },
     "report": {
       "documentNative": "Documentos de texto",

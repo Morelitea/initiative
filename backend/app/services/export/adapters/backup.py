@@ -54,6 +54,7 @@ from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.services.export.engine import ExportError
+from app.services.export import delivery
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 
@@ -1547,4 +1548,6 @@ async def estimate_backup(
         estimated_rows=estimated_rows,
         max_rows=settings.EXPORT_MAX_BACKUP_ROWS,
         max_upload_bytes=settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES,
+        max_download_bytes=settings.EXPORT_MAX_DOWNLOAD_BYTES,
+        delivery_available=delivery.is_configured(),
     )

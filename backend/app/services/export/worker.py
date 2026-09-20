@@ -109,7 +109,7 @@ async def _process_guild_jobs(
         # leaves a stale ``running`` row for the next pass, not a lost job.
         await session.commit()
         try:
-            artifact_ref = await _execute(session, job, guild_id=guild_id)
+            location = await _execute(session, job, guild_id=guild_id)
         except Exception as exc:  # fail closed: no partial artifact is served
             logger.exception(
                 "export job failed id=%s guild=%s source=%s",
@@ -121,10 +121,17 @@ async def _process_guild_jobs(
             job.error = _error_code(exc)
         else:
             job.status = ExportJobStatus.done
-            job.artifact_ref = artifact_ref
+            job.artifact_ref = location.artifact_ref
+            job.destination_ref = location.destination_ref
             job.error = None
-            job.expires_at = datetime.now(timezone.utc) + timedelta(
-                hours=settings.EXPORT_ARTIFACT_TTL_HOURS
+            # Only an artifact the app holds has a GC deadline. A delivered
+            # archive sits in the operator's destination under whatever
+            # retention they keep there, and is not ours to sweep up.
+            job.expires_at = (
+                datetime.now(timezone.utc)
+                + timedelta(hours=settings.EXPORT_ARTIFACT_TTL_HOURS)
+                if location.artifact_ref
+                else None
             )
         job.updated_at = datetime.now(timezone.utc)
         session.add(job)
@@ -149,8 +156,10 @@ async def _process_guild_jobs(
     return outcomes
 
 
-async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> str:
-    """Re-run the adapter query as the job's creator and render to storage."""
+async def _execute(
+    session: AsyncSession, job: ExportJob, *, guild_id: int
+) -> export_engine.ArtifactLocation:
+    """Re-run the adapter query as the job's creator and render it out."""
     from app.api.deps import establish_guild_access
 
     adapter = export_engine.get_adapter(job.source, job.format)
