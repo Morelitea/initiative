@@ -79,7 +79,19 @@ class TestMiddlewareRegistration:
 
     def test_slowapi_middleware_registered(self):
         registered = {m.cls for m in app.user_middleware}
-        assert SlowAPIMiddleware in registered
+        assert any(issubclass(cls, SlowAPIMiddleware) for cls in registered), registered
+
+    def test_the_probes_are_the_only_paths_it_skips(self):
+        """The subclass exists to let the liveness and readiness probes past,
+        and nothing else: an allowlist that grew would silently un-limit a real
+        route."""
+        from app.api.v1.platform_endpoints import health
+        from app.core.config import API_V1_STR
+        from app.main import _UNLIMITED_PATHS
+
+        assert _UNLIMITED_PATHS == {
+            f"{API_V1_STR}{path}" for path in health.PROBE_PATHS
+        }
 
     def test_app_uses_shared_limiter(self):
         assert app.state.limiter is rate_limit.limiter
