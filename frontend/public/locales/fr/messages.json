@@ -6,7 +6,7 @@
     "title": "Choisissez une conversation"
   },
   "nobodyYet": "Personne pour l'instant. Une conversation s'ouvre dès qu'une demande de message est acceptée.",
-  "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus, et ce compte n'a pas encore répondu à cette question.",
+  "ageLocked": "La messagerie est réservée aux personnes de 16 ans et plus, et ce compte n'a pas encore répondu à cette question.",
   "requests": {
     "heading": "Demandes",
     "asked": "Cette personne veut démarrer une conversation.",

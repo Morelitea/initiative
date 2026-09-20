@@ -70,9 +70,9 @@ class AppConfig(BaseModel):
     # control. Unlike the fields above this one is a database setting rather
     # than an env var, so it changes without a redeploy.
     community_directory_enabled: bool
-    # Whether this deployment asks an account to confirm it is 13 or older
-    # before it belongs to a listed guild. The SPA reads it to decide whether
-    # the directory's Join button asks first; the server refuses either way, so
+    # Whether this deployment asks an account to confirm it is 16 or older
+    # before it joins a listed guild. The SPA reads it to decide whether the
+    # directory's Join button asks first; the server refuses either way, so
     # this is which question gets asked and not whether the rule applies.
     community_age_gate_enabled: bool
     # Whether this deployment offers direct messages at all. The SPA hides My

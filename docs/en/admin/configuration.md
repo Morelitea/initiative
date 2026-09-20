@@ -40,9 +40,15 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one to confirm they're **13 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered — and only the parts of Initiative open to strangers ask at all. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
-The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
+**The rule belongs to the community, not to the way in.** Every route into a listed community is covered: the directory, an invite, and the group rules your identity provider drives. A community that hasn't listed itself asks nobody, whoever brings them in, and an unanswered question never costs somebody a membership they already have or holds up the rest of Initiative.
+
+Where nobody is at a keyboard to be asked — a group sync, say — what counts is the answer already on the account. Someone who has never been asked is let in; someone who answered under the minimum is not. The listed community then puts the question at its own door the first time they open it, which is the moment there is finally somebody there to answer. Until they do, that community is the only thing closed to them.
+
+A community that has been private until now collected its members under no such rule, so **listing it is refused while it holds anybody who has answered under the minimum**. That check runs on the way onto the shelf only: once listed, an ordinary edit is never failed over a member's answer.
+
+The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 16 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
 
 Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [operator dashboard](platform-roles.md#managing-platform-users).
 

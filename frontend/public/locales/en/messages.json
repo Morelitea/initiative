@@ -6,7 +6,7 @@
     "title": "Pick a conversation"
   },
   "nobodyYet": "Nobody yet. A conversation opens once a message request is accepted.",
-  "ageLocked": "Messaging is for people aged 13 and over, and this account has not answered that question yet.",
+  "ageLocked": "Messaging is for people aged 16 and over, and this account has not answered that question yet.",
   "requests": {
     "heading": "Requests",
     "asked": "They want to start a conversation.",

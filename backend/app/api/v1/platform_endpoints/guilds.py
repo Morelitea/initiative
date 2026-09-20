@@ -691,6 +691,7 @@ async def update_guild(
     guild_id: int,
     updates: GuildUpdate,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     membership = await _ensure_guild_admin(
@@ -698,6 +699,26 @@ async def update_guild(
         guild_id=guild_id,
         user_id=current_user.id,
     )
+    # Moving onto the shelf is measured against the roster the guild built
+    # while it was private, and only on the way in — asked before the request
+    # routes into its guild, because the answer lives in ``public.users``,
+    # which a guild-scoped role does not read. A guild already listed is not
+    # re-asked: the ways in keep it true from here, and failing an unrelated
+    # edit over a member's answer would leave an admin nothing to do but
+    # remove them.
+    if updates.is_community:
+        listed_before = (
+            await guilds_service.get_guild(admin_session, guild_id=guild_id)
+        ).is_community
+        if not listed_before:
+            try:
+                await guilds_service.assert_may_list_with_members(
+                    admin_session, guild_id=guild_id
+                )
+            except guilds_service.CommunityListingError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
@@ -1644,6 +1665,13 @@ async def accept_invite(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    except guilds_service.AgeConfirmationRequiredError as exc:
+        # The invite leads into a listed community, so the age question applies
+        # to it. Same code the directory's Join returns, so the SPA answers it
+        # the same way wherever the invite was opened.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc

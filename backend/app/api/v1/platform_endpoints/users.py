@@ -184,12 +184,6 @@ async def read_users_me(
         session, user_id=current_user.id
     )
     payload.has_password = has_usable_password(current_user.hashed_password)
-    # The standing age gate. Costs a query only for an account that has not
-    # confirmed on a deployment that asks — it short-circuits on the column
-    # for everyone else, and stops for good once they answer.
-    payload.age_confirmation_required = (
-        await guilds_service.age_confirmation_outstanding(session, user=current_user)
-    )
     # The hosted deployment's terms. Short-circuits on the deployment switch
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
@@ -757,7 +751,7 @@ async def claim_my_username(
 
 #: The age below which somebody may not take part in the parts of the platform
 #: that are open to people they have not met.
-MINIMUM_AGE_YEARS = 13
+MINIMUM_AGE_YEARS = 16
 
 #: A bound on what counts as a date somebody could have been born on. Not a
 #: judgement about anyone — it is what separates a real answer from a typo.
@@ -782,10 +776,16 @@ async def confirm_my_age(
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
 
-    Asked of every account that belongs to a community anyone on the deployment
-    can find. The answer lives on the account rather than per community: it is a
-    fact about the person, and the second listed community they join asks
-    nothing.
+    Asked where somebody is about to join a community anyone on the deployment
+    can find, and nowhere else. The answer lives on the account rather than per
+    community: it is a fact about the person, and the second listed community
+    they join asks nothing.
+
+    **It gates the directory, not the deployment.** A community somebody was
+    invited to is theirs and whoever runs it to answer for, so nothing here
+    stands between them and it — an account that has never answered, or
+    answered under age, keeps every private community it belongs to and
+    everything in them.
 
     **The date is not kept.** It is read here, compared against the minimum, and
     goes out of scope with the request — there is no column for it, nothing logs

@@ -799,7 +799,7 @@ def _asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequire
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
 ) -> (
-    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement]
+    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement, bool]
     | None
 ):
     """The four rows the gate needs about a member, in one query.
@@ -836,7 +836,13 @@ async def _read_membership_gate(
     membership, guild, policy, settings_row = row
     if guild is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return membership, guild, policy, _asked_of_an_account(settings_row)
+    # The age switch rides along for the same reason the factor requirement
+    # does: it is decided from this same row, and reading it separately would
+    # be a round trip on every guild request there is.
+    age_gate_on = bool(
+        settings_row is not None and settings_row.community_age_gate_enabled
+    )
+    return membership, guild, policy, _asked_of_an_account(settings_row), age_gate_on
 
 
 async def _read_grant_gate(
@@ -955,11 +961,25 @@ async def _load_guild_context(
             grant=grant,
             settings_grant=settings_grant,
         )
-    membership, guild, policy, asked = gate
+    membership, guild, policy, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status.
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
+    # A listed community is open to anyone signed in, so the deployment's age
+    # question is owed by the people in it — and the ways in that had nobody at
+    # a keyboard could not put it to them. It is put here instead: at the door
+    # of the community it is for, and nowhere else. A private community never
+    # asks, and neither does the rest of the platform.
+    #
+    # Free in the common case: it stops on the account's own column, which is
+    # already loaded, for everyone who has answered.
+    if current_user.age_confirmed_at is None and guild.is_community and age_gate_on:
+        raise GuildAccessError(
+            GuildMessages.AGE_BELOW_MINIMUM
+            if current_user.age_below_minimum_at is not None
+            else GuildMessages.AGE_CONFIRMATION_REQUIRED
+        )
     # And the deployment's own question, off the row the gate read carried.
     if await platform_factor_unmet(session, current_user, level=asked):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)

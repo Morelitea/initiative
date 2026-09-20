@@ -81,13 +81,15 @@ Actions that change who can reach what, how the deployment is configured, or whe
 
 ### Age, and what we ask for
 
-Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Taking a place in one asks your date of birth, once.
+Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Joining one from the directory asks your date of birth, once, and requires you to be 16 or older.
 
 **The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
 
-Only the parts of Initiative that are open to people outside your own communities ask at all. A private community — one that has not listed itself — never does, and neither does an invite into one.
+The question belongs to the community rather than to the way in: every route into a listed one is covered, an invite included. A private community — one that has not listed itself — never asks, whoever brings somebody in, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
 
-If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
+A community that was private until now is refused a listing while it holds anybody who has answered under the minimum, since its members joined it under no such rule.
+
+If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. It closes the directory's Join button; it takes nothing away. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
 
 Administrators of a deployment where every account is known to belong to an adult can switch the question off entirely, under **Settings › Admin › Community**.
 

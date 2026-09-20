@@ -74,6 +74,16 @@ export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
 /** A community wants a factor of the account's own on this session. */
 export const AUTH_FACTOR_REQUIRED_EVENT = "initiative:auth:factor-required";
 
+/** A listed community wants this account's answer to the age question before
+ *  it lets them in. Not the deployment's ask: everywhere else carries on. */
+export const AUTH_AGE_REQUIRED_EVENT = "initiative:auth:age-required";
+
+export interface AgeChallengeDetail {
+  /** True where the account already answered under the minimum. The dialog
+   *  explains instead of asking, because that answer stands. */
+  answerStands: boolean;
+}
+
 /** The factors a community can name as its own requirement. */
 export type GuildFactorKind = "totp" | "passkey";
 
@@ -382,6 +392,21 @@ const factorChallengeKind = (error: {
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
+  // A listed community asking its own members the age question. The session is
+  // fine, so like the challenges below this neither renews nor reads as signed
+  // out — and unlike the deployment's ask, it is one community's door rather
+  // than every request.
+  const ageDetail = error.response?.data?.detail;
+  if (ageDetail === "GUILD_AGE_CONFIRMATION_REQUIRED" || ageDetail === "GUILD_AGE_BELOW_MINIMUM") {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent<AgeChallengeDetail>(AUTH_AGE_REQUIRED_EVENT, {
+          detail: { answerStands: ageDetail === "GUILD_AGE_BELOW_MINIMUM" },
+        })
+      );
+    }
+    return Promise.reject(error);
+  }
   const factorKind = factorChallengeKind(error);
   if (factorKind) {
     if (typeof window !== "undefined") {

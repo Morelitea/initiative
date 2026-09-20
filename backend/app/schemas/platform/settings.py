@@ -448,9 +448,9 @@ class CommunitySettingsResponse(SanitizedBaseModel):
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
     community_directory_enabled: bool
-    #: Whether an account must confirm it is 13 or older to belong to a listed
-    #: guild. Omitted leaves it as it was — the two switches are separate
-    #: decisions and the directory one is written far more often.
+    #: Whether an account must confirm it is 16 or older to join a listed
+    #: guild from the directory. Omitted leaves it as it was — the two switches
+    #: are separate decisions and the directory one is written far more often.
     age_gate_enabled: Optional[bool] = None
     #: Omitted leaves it as it was, like the switch above.
     default_dm_policy: Optional[DmPolicy] = None

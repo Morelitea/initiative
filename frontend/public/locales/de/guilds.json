@@ -445,7 +445,7 @@
       "certifyDuty": "Du bist Admin dieser Community, also liegt die Durchsetzung bei dir. Von dir wird erwartet, dass du auf solche Inhalte achtest und sie entfernst. Eine Community, die das nicht mehr erfüllt, wird aus dem Verzeichnis entfernt.",
       "confirm": "Community eintragen"
     },
-    "ageGateBody": "Jede angemeldete Person kann die Communitys hier finden. Beim ersten Beitritt fragen wir daher einmal nach deinem Alter – danach nie wieder.",
+    "ageGateBody": "Jede angemeldete Person kann die hier gelisteten Communitys finden. Beim Beitritt fragen wir daher einmal nach deinem Alter – danach nie wieder, und Communitys mit Einladung fragen nie.",
     "ageGateConfirm": "Bestätigen und beitreten"
   },
   "nameDisplay": {

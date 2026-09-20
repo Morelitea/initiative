@@ -83,13 +83,13 @@ describe("SettingsCommunityPage", () => {
     expect(updateMutate).toHaveBeenCalledWith({ community_directory_enabled: false });
   });
 
-  const ageToggle = () => screen.getByLabelText("Ask members to confirm they are 13 or older");
+  const ageToggle = () => screen.getByLabelText("Ask members to confirm they are 16 or older");
 
   it("starts asking members their age", async () => {
     renderPage();
 
     expect(
-      await screen.findByLabelText("Ask members to confirm they are 13 or older")
+      await screen.findByLabelText("Ask members to confirm they are 16 or older")
     ).toBeChecked();
   });
 
