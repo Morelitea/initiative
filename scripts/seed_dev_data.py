@@ -946,19 +946,25 @@ async def _seat_community_superadmin(
     ids: IDTracker,
     user: User,
 ) -> int:
-    """Seat one account as ``superadmin`` of every community seeded in this run.
+    """Seat one account as ``superadmin`` of every community in the database.
 
-    Done as a pass over ``ids.data["guilds"]`` rather than an argument threaded
-    through each community's own membership call, so a community added later is
-    covered by having been seeded at all. Idempotent: a re-run that resumes
-    finds the rows it already wrote and leaves them.
+    Done as one pass rather than an argument threaded through each community's
+    own membership call, so a community added to this seeder later is covered by
+    existing. The list comes from ``public.guilds`` rather than from
+    ``ids.data["guilds"]`` for the same reason: the primary community is fetched
+    with ``get_primary_guild`` instead of being created here, so the tracker
+    never learns its id and a pass over the tracker would miss community 1.
+
+    Idempotent: a re-run finds the rows it already wrote and leaves them. Rows
+    it does write are tracked, so ``--clean`` takes them away again.
     """
     # A membership row carrying a role is a system-engine write, and the session
     # is still routed into the last community's schema at this point — reset to
     # the bare login-role baseline first, as the other membership writes do.
     await set_rls_context(session)
+    guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
     seated = 0
-    for guild_id in ids.data["guilds"]:
+    for guild_id in guild_ids:
         existing = (
             await session.exec(
                 select(GuildMembership).where(
