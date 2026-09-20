@@ -506,10 +506,15 @@ async def test_overdue_digest_pushes_when_email_opted_out(
         email="overdue-push-only@example.com",
         timezone="UTC",
     )
-    # The scheduled clock is a preference now; midnight is always past.
-    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
+    # The scheduled clock is a preference now; midnight is always past. One
+    # call, because the document is written whole: a second would replace it.
     await set_notification_prefs(
-        session, user, {"categories": {"due_dates": {"email": False}}}
+        session,
+        user,
+        {
+            "email": {"at": "00:00"},
+            "categories": {"due_dates": {"email": False}},
+        },
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
@@ -546,10 +551,15 @@ async def test_overdue_digest_skips_push_when_opted_out(
         email="overdue-email-only@example.com",
         timezone="UTC",
     )
-    # The scheduled clock is a preference now; midnight is always past.
-    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
+    # The scheduled clock is a preference now; midnight is always past. One
+    # call, because the document is written whole: a second would replace it.
     await set_notification_prefs(
-        session, user, {"categories": {"due_dates": {"push": False}}}
+        session,
+        user,
+        {
+            "email": {"at": "00:00"},
+            "categories": {"due_dates": {"push": False}},
+        },
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 

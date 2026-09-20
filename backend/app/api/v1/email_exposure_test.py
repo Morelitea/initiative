@@ -30,6 +30,7 @@ SELF_SHAPES = {
         "/api/v1/users/me/username",
         "/api/v1/users/me/age-confirmation",
         "/api/v1/users/me/avatar",
+        "/api/v1/users/me/legal-acceptance",
     },
     "UserEmailRead": {
         "/api/v1/users/me/emails",
@@ -81,6 +82,33 @@ def _reachable(node: Any, schemas: dict[str, Any]) -> set[str]:
     return seen
 
 
+def _is_address(node: Any) -> bool:
+    """Whether a property holds an address rather than merely being named for
+    one.
+
+    An address is text. A field called ``email`` that carries a shape — the
+    account's mail schedule, say — or a flag is something else entirely, and
+    the name alone cannot tell them apart.
+    """
+    branches = [
+        node,
+        *(node.get("anyOf") or node.get("oneOf") or node.get("allOf") or ()),
+    ]
+    return any(branch.get("type") == "string" for branch in branches)
+
+
+def test_a_shape_is_not_an_address() -> None:
+    """The narrowing above is what keeps the sweep on addresses.
+
+    A field named for one but holding a shape, or a flag, is not an address;
+    text is, however it is wrapped.
+    """
+    assert _is_address({"type": "string"})
+    assert _is_address({"anyOf": [{"type": "string"}, {"type": "null"}]})
+    assert not _is_address({"$ref": "#/components/schemas/EmailSchedule"})
+    assert not _is_address({"type": "boolean"})
+
+
 def test_the_walk_reaches_a_nested_shape() -> None:
     """The reachability walk is what the two tests below rest on.
 
@@ -121,7 +149,8 @@ def test_every_other_address_field_comes_from_a_masking_shape() -> None:
     """Any other address-shaped response field belongs to a shape that masks.
 
     Covers what the route check cannot: a new shape with an ``…_email`` field,
-    reached directly or nested inside another.
+    reached directly or nested inside another. A field is judged by what it
+    holds, so one named for an address without being one does not count.
     """
     spec = app.openapi()
     schemas = spec["components"]["schemas"]
@@ -133,8 +162,8 @@ def test_every_other_address_field_comes_from_a_masking_shape() -> None:
     carrying = {
         name
         for name in returned
-        for field in (schemas[name].get("properties") or {})
-        if "email" in field.lower() and field != "email_verified"
+        for field, node in (schemas[name].get("properties") or {}).items()
+        if "email" in field.lower() and _is_address(node)
     }
 
     unaccounted = carrying - MASKED_SHAPES - set(SELF_SHAPES)
