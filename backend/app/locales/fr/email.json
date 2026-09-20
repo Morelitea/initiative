@@ -342,5 +342,14 @@
     "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
     "fallbackText": "Si vous n'avez pas cherché à créer un compte, vous pouvez ignorer cet e-mail.",
     "textBody": "Votre code d'inscription Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
+  },
+  "accountErased": {
+    "subject": "Votre compte Initiative a été supprimé",
+    "title": "Votre compte a été supprimé",
+    "greeting": "Bonjour,",
+    "body": "Ceci confirme que le compte Initiative associé à cette adresse a été supprimé, ainsi que les données personnelles qui y étaient rattachées.",
+    "kept": "Certaines choses demeurent et ne vous nomment plus : ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé.",
+    "unexpected": "Si vous n'êtes pas à l'origine de cette demande, contactez au plus vite la personne qui administre votre serveur Initiative.",
+    "textBody": "Le compte Initiative associé à cette adresse a été supprimé, ainsi que les données personnelles qui y étaient rattachées. Ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé."
   }
 }
