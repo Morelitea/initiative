@@ -683,6 +683,103 @@ def _sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+#: The attribute words a declaration may use, and the ``pg_roles`` column that
+#: answers for each. A word outside this map is a typo in a declaration, and
+#: :func:`_declared_attributes` raises on it rather than verify nothing.
+_ROLE_ATTRIBUTE_COLUMNS = {
+    "BYPASSRLS": "rolbypassrls",
+    "CREATEDB": "rolcreatedb",
+    "CREATEROLE": "rolcreaterole",
+    "INHERIT": "rolinherit",
+    "LOGIN": "rolcanlogin",
+    "REPLICATION": "rolreplication",
+    "SUPERUSER": "rolsuper",
+}
+
+_ROLE_ATTRIBUTES_SQL = text(
+    "SELECT rolname, "
+    + ", ".join(_ROLE_ATTRIBUTE_COLUMNS.values())
+    + " FROM pg_roles WHERE rolname = ANY(:names)"
+)
+
+
+def _declared_attributes(attributes: str) -> tuple[frozenset[str], frozenset[str]]:
+    """``(must hold, must not hold)``, read out of one declaration string.
+
+    ``"LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS"`` requires LOGIN and
+    CREATEROLE and forbids SUPERUSER and BYPASSRLS. Reading both out of the
+    string :func:`_apply_roles` applies is what stops a check drifting from
+    what the apply set up.
+    """
+    required: set[str] = set()
+    forbidden: set[str] = set()
+    for word in attributes.split():
+        if word in _ROLE_ATTRIBUTE_COLUMNS:
+            required.add(word)
+        elif word.startswith("NO") and word[2:] in _ROLE_ATTRIBUTE_COLUMNS:
+            forbidden.add(word[2:])
+        else:
+            raise ValueError(
+                f"{word!r} is not an attribute this can verify; add it to "
+                "_ROLE_ATTRIBUTE_COLUMNS or fix the declaration."
+            )
+    return frozenset(required), frozenset(forbidden)
+
+
+async def _warn_on_attribute_drift(conn, roles: tuple[LoginRole, ...]) -> None:
+    """Hold the existing logins to the attributes they were declared with.
+
+    :func:`_apply_roles` applies ``LoginRole.attributes``; a deployment that
+    provisions its database out of band never runs it, and nothing read those
+    attributes back — existence was the whole check. This reads them, from the
+    same declaration, and names the ``ALTER ROLE`` that would settle any
+    difference.
+
+    Warns rather than refuses. The two attributes whose absence actually stops
+    the app have their own checks later in boot, and a deployment that is
+    working should not be stopped over a difference it can close at leisure.
+    """
+    rows = {
+        row[0]: row._mapping
+        for row in (
+            await conn.execute(
+                _ROLE_ATTRIBUTES_SQL, {"names": [role.name for role in roles]}
+            )
+        ).all()
+    }
+    for role in roles:
+        row = rows.get(role.name)
+        if row is None:
+            continue
+        required, forbidden = _declared_attributes(role.attributes)
+        if row["rolsuper"]:
+            # The apply deliberately leaves a role that is already a superuser
+            # holding these (``attributes_if_superuser``), so the verify does
+            # not report them.
+            forbidden = frozenset(
+                a for a in forbidden if f"NO{a}" not in _DEMOTING_CLAUSES
+            )
+
+        def holds(attribute: str) -> bool:
+            # A superuser is exempt from row security with or without the
+            # attribute, so it satisfies a declaration that asks for it.
+            return bool(row[_ROLE_ATTRIBUTE_COLUMNS[attribute]]) or (
+                attribute == "BYPASSRLS" and bool(row["rolsuper"])
+            )
+
+        clauses = [a for a in sorted(required) if not holds(a)]
+        clauses += [f"NO{a}" for a in sorted(forbidden) if holds(a)]
+        if clauses:
+            logger.warning(
+                "Login %r is not what it was declared as (%s). To settle it, "
+                'run as a role that may: ALTER ROLE "%s" WITH %s;',
+                role.name,
+                role.attributes,
+                role.name,
+                " ".join(clauses),
+            )
+
+
 def _repair_instructions(missing: list[str]) -> str:
     return (
         "The database is missing prerequisites the app cannot create as its "
@@ -715,6 +812,8 @@ async def _verify_only() -> BootstrapResult:
         for role in (provisioner, app_login, system):
             if role.name not in present:
                 missing.append(f"role {role.name}")
+        if not missing:
+            await _warn_on_attribute_drift(conn, (provisioner, app_login, system))
         search_ready = bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
     if missing:
         raise RuntimeError(_repair_instructions(missing))

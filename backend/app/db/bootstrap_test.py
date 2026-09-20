@@ -13,6 +13,8 @@ import pytest
 
 from app.db.bootstrap import (
     LoginRole,
+    _declared_attributes,
+    _warn_on_attribute_drift,
     bootstrap_sql,
     login_roles,
     search_operator_sql,
@@ -48,6 +50,109 @@ def test_role_attributes_are_the_documented_ones():
     assert "NOBYPASSRLS" in provisioner.attributes
     assert "NOINHERIT" in app_login.attributes
     assert "BYPASSRLS" in system.attributes
+
+
+# --- the declaration is read back, not just applied ---------------------------
+
+
+def test_every_declared_attribute_is_one_we_can_verify():
+    """A declaration the verify cannot read is a declaration nothing checks."""
+    for role in login_roles():
+        required, forbidden = _declared_attributes(role.attributes)
+        assert required or forbidden
+
+
+def test_declaration_splits_into_required_and_forbidden():
+    required, forbidden = _declared_attributes("LOGIN CREATEROLE NOSUPERUSER")
+    assert required == {"LOGIN", "CREATEROLE"}
+    assert forbidden == {"SUPERUSER"}
+
+
+def test_an_attribute_we_cannot_verify_is_refused():
+    """Silently verifying nothing is the failure this guards against."""
+    with pytest.raises(ValueError, match="CONNECTION"):
+        _declared_attributes("LOGIN CONNECTION LIMIT 5")
+
+
+class _Rows:
+    """Stands in for the pg_roles query, reporting fixed attributes."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def execute(self, *_args, **_kwargs):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _Row:
+    def __init__(self, name, **columns):
+        base = dict.fromkeys(
+            (
+                "rolbypassrls",
+                "rolcreatedb",
+                "rolcreaterole",
+                "rolinherit",
+                "rolcanlogin",
+                "rolreplication",
+                "rolsuper",
+            ),
+            False,
+        )
+        base.update(columns)
+        self._mapping = base
+        self._name = name
+
+    def __getitem__(self, index):
+        assert index == 0
+        return self._name
+
+
+async def _drift(caplog, role: LoginRole, **columns) -> str:
+    conn = _Rows([_Row(role.name, **columns)])
+    with caplog.at_level("WARNING", logger="app.db.bootstrap"):
+        await _warn_on_attribute_drift(conn, (role,))
+    return "\n".join(r.getMessage() for r in caplog.records)
+
+
+async def test_a_login_matching_its_declaration_says_nothing(caplog):
+    role = LoginRole("app_user", None, "LOGIN NOINHERIT")
+    assert await _drift(caplog, role, rolcanlogin=True, rolinherit=False) == ""
+
+
+async def test_a_declared_attribute_that_is_missing_is_named(caplog):
+    """NOINHERIT on the request login is declared and, until now, verified
+    nowhere."""
+    role = LoginRole("app_user", None, "LOGIN NOINHERIT")
+    said = await _drift(caplog, role, rolcanlogin=True, rolinherit=True)
+    assert "app_user" in said
+    assert 'ALTER ROLE "app_user" WITH NOINHERIT;' in said
+
+
+async def test_a_forbidden_attribute_that_is_held_is_named(caplog):
+    role = LoginRole("app_provisioner", None, "LOGIN CREATEROLE NOBYPASSRLS")
+    said = await _drift(
+        caplog, role, rolcanlogin=True, rolcreaterole=True, rolbypassrls=True
+    )
+    assert 'ALTER ROLE "app_provisioner" WITH NOBYPASSRLS;' in said
+
+
+async def test_a_superuser_keeps_what_the_apply_would_not_take_away(caplog):
+    """``attributes_if_superuser`` leaves a superuser role its privileges, so
+    reporting them would be reporting a difference by design."""
+    role = LoginRole("initiative", None, "LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS")
+    said = await _drift(
+        caplog, role, rolcanlogin=True, rolcreaterole=True, rolsuper=True
+    )
+    assert said == ""
+
+
+async def test_superuser_satisfies_a_declared_bypass(caplog):
+    role = LoginRole("app_admin", None, "LOGIN BYPASSRLS")
+    said = await _drift(caplog, role, rolcanlogin=True, rolsuper=True)
+    assert said == ""
 
 
 def test_a_url_without_credentials_falls_back_to_the_canonical_name(monkeypatch):
