@@ -147,7 +147,11 @@ Two streams come out of the container, and they are for different readers.
 
 **Standard output** is the audit stream: one JSON object per line, one line per recorded action — who did what, to which account or community, when — and nothing else on that stream. Every line carries `"stream": "audit"`, so a collector can route these and nothing else, and `"service": "initiative"`, so where the billing and automation services ship the same kind of line about the same community, a reader can tell whose it is. Whatever already ships your container's logs carries it, and a log platform reads it as records rather than text.
 
-That is where the record is kept, searched and alerted on. A filter on `event_type` is an alert; `guild_id` is on every line about a community. `LOG_LEVEL` has no say over any of it. Accounts appear as ids, and no line ever holds a secret, an address or a name.
+That is where the record is kept, searched and alerted on. A filter on `event_type` is an alert; `guild_id` is on every line about a community. `LOG_LEVEL` has no say over any of it.
+
+**Every line says which request it came from.** A `context` block carries the id that request is known by, the network address it arrived from, and what the browser or app called itself. The same id goes back to the caller as an `X-Request-Id` header, and behind a reverse proxy an id the proxy has already assigned is kept rather than replaced — so one request has one name in your proxy's log, your application log and the audit stream alike. People appear as account ids; no line holds a password, a key, an email address or anybody's name.
+
+**Somebody visiting a community they don't belong to is recorded request by request.** Support access and emergency break-glass both work by a grant, and while one is live every single request made under it is a line of its own — the route, the method, the answer, and which grant allowed it. Knowing an operator held the keys for an hour is not the same as knowing what they opened, and this is the difference.
 
 **What stays on the box.** Docker holds a container's output in a file that keeps growing until you say how much to keep. The example compose file says the last 50 MB per container, in five files it rotates through. Treat that as a buffer rather than the record: if the audit stream matters to you, ship it somewhere durable and let the buffer cover the stretch when the shipper is down.
 

@@ -9,6 +9,11 @@ transaction that performed the action commits, so the line and the action
 land together or not at all. It is written nowhere else: the platform that
 ships this process's logs is where the record is kept, queried, retained and
 alerted on. A record staged inside a savepoint goes with the savepoint.
+:func:`emit` is the other half: one line for something that has already
+happened and has no transaction to ride.
+
+Every line carries the ``context`` of the request it came from — the id that
+request is known by, and what let the caller in. See ``app.core.audit_context``.
 
 Identity is never in the line — ids only.
 """
@@ -27,6 +32,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session, SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import audit_context
 from app.core.audit_events import SCHEMA_VERSION, SERVICE, AuditEventType, meta_for
 
 audit_logger = logging.getLogger("audit")
@@ -53,16 +59,24 @@ def _within(txn: SessionTransaction | None, ancestor: SessionTransaction) -> boo
     return False
 
 
+def _write(envelope: dict[str, Any]) -> None:
+    """Put one envelope on the stream.
+
+    Best-effort: a logging handler that throws must not take down a
+    transaction that has already committed, nor a request that has already
+    been served.
+    """
+    try:
+        audit_logger.info(json.dumps(envelope, separators=(",", ":")))
+    except Exception:  # pragma: no cover - a broken handler, not our logic
+        logging.getLogger(__name__).exception("audit log line could not be emitted")
+
+
 @event.listens_for(Session, "after_commit")
 def _emit_committed_envelopes(session: Session) -> None:
     """Ship the lines for work that actually landed."""
     for _txn, envelope in session.info.pop(_PENDING, []):
-        # Best-effort: a logging handler that throws must not take down a
-        # transaction that has already committed.
-        try:
-            audit_logger.info(json.dumps(envelope, separators=(",", ":")))
-        except Exception:  # pragma: no cover - a broken handler, not our logic
-            logging.getLogger(__name__).exception("audit log line could not be emitted")
+        _write(envelope)
 
 
 @event.listens_for(Session, "after_soft_rollback")
@@ -106,8 +120,67 @@ async def record(
     caller owns the transaction, which is what makes the record and the thing
     it records land together.
     """
+    envelope = _envelope(
+        event_type=event_type,
+        actor_user_id=actor_user_id,
+        target_user_id=target_user_id,
+        guild_id=guild_id,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+    )
+    session.info.setdefault(_PENDING, []).append(
+        (_current_transaction(session), envelope)
+    )
+    return envelope
+
+
+def emit(
+    *,
+    event_type: AuditEventType,
+    actor_user_id: Optional[int],
+    target_user_id: Optional[int] = None,
+    guild_id: Optional[int] = None,
+    target_type: Optional[str] = None,
+    target_id: Optional[int] = None,
+    detail: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Write one line now, and return it.
+
+    For something already done by the time it is recorded — a request that has
+    been served — where there is no transaction for the line to ride and
+    nothing left to undo.
+    """
+    envelope = _envelope(
+        event_type=event_type,
+        actor_user_id=actor_user_id,
+        target_user_id=target_user_id,
+        guild_id=guild_id,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+    )
+    _write(envelope)
+    return envelope
+
+
+def _envelope(
+    *,
+    event_type: AuditEventType,
+    actor_user_id: Optional[int],
+    target_user_id: Optional[int],
+    guild_id: Optional[int],
+    target_type: Optional[str],
+    target_id: Optional[int],
+    detail: Optional[dict[str, Any]],
+) -> dict[str, Any]:
+    """The line, as both halves write it.
+
+    The request context is read here rather than when the line goes out, so a
+    record staged now and committed later says where it came from.
+    """
     meta = meta_for(event_type)
-    envelope: dict[str, Any] = {
+    return {
         # The key a collector routes on: this line is the audit stream, and
         # the application's own logs are not.
         "stream": "audit",
@@ -126,12 +199,9 @@ async def record(
         "tier": meta.tier,
         "category": meta.category.value,
         "is_write": meta.is_write,
+        "context": audit_context.envelope_context(),
         "detail": detail or {},
     }
-    session.info.setdefault(_PENDING, []).append(
-        (_current_transaction(session), envelope)
-    )
-    return envelope
 
 
 _OMITTED = object()

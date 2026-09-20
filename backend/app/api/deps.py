@@ -28,6 +28,7 @@ from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
 from app.services.platform import auth_posture
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
+from app.core import audit_context
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -594,13 +595,20 @@ class GuildContext:
     membership: GuildMembership
     # The live content grant used when the caller is not a member.
     grant: Optional[AccessGrant] = None
-    # The live settings rung, independent of content access.
-    settings_level: Optional[SettingsLevel] = None
+    # The live settings grant, independent of content access.
+    settings_grant: Optional[AccessGrant] = None
     # True when the guild is in ``read_only`` status and access is via real
     # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
     # Postgres role so content writes are denied at the role level. Never set
     # on the grant branch — a grant carries its own read/write level.
     content_read_only: bool = False
+
+    @property
+    def settings_level(self) -> Optional[SettingsLevel]:
+        """The rung the settings grant confers, read off the grant itself."""
+        if self.settings_grant is None:
+            return None
+        return SettingsLevel(self.settings_grant.access_level)
 
     def settings_rung_reaches(self, role: GuildRole) -> bool:
         """Whether the settings grant includes ``role``'s authority."""
@@ -947,9 +955,7 @@ async def _load_guild_context(
             guild=guild,
             membership=synthetic,
             grant=grant,
-            settings_level=(
-                SettingsLevel(settings_grant.access_level) if settings_grant else None
-            ),
+            settings_grant=settings_grant,
         )
     membership, guild, policy, asked = gate
     # Membership access respects the guild's lifecycle status.
@@ -1119,6 +1125,31 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
     return dependency
 
 
+def _note_privileged_request(current_user: User, guild_context: GuildContext) -> None:
+    """Record on the request's own context which grant is serving it.
+
+    Read back when the response is finished, to write the one line that says
+    what this request did with the grant (``app.core.request_audit``).
+    """
+    grant, settings_grant = guild_context.grant, guild_context.settings_grant
+    issued = grant or settings_grant
+    audit_context.note_grant(
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        grant_id=grant.id if grant is not None else None,
+        access_level=grant.access_level if grant is not None else None,
+        settings_grant_id=settings_grant.id if settings_grant is not None else None,
+        settings_level=(
+            settings_grant.access_level if settings_grant is not None else None
+        ),
+        break_glass=(
+            issued.requested_by_id == issued.approved_by_id
+            if issued is not None
+            else None
+        ),
+    )
+
+
 async def _apply_guild_session_context(
     session: AsyncSession,
     current_user: User,
@@ -1130,6 +1161,7 @@ async def _apply_guild_session_context(
     PAM-scoped when access is via a grant."""
 
     if guild_context.is_settings_only:
+        _note_privileged_request(current_user, guild_context)
         set_active_grant(None, None)
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
@@ -1146,6 +1178,7 @@ async def _apply_guild_session_context(
         return session
 
     if guild_context.is_pam:
+        _note_privileged_request(current_user, guild_context)
         # Apply a content grant at its recorded access level.
         grant = guild_context.grant
         access_level = (

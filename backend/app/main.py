@@ -34,6 +34,7 @@ from app.core.security import (
 )
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
+from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
@@ -672,6 +673,11 @@ app.add_middleware(
     # (cross-origin) app, web is same-origin and sees it regardless.
     expose_headers=["Content-Disposition"],
 )
+
+# Added last, so it sits outside the rest: every request gets its id here,
+# whatever answers it, and a request served through a privileged-access grant
+# is written down once its response is finished. See app/core/request_audit.py.
+app.add_middleware(RequestAuditMiddleware)
 
 
 @app.get("/uploads/{guild_id}/{filename:path}", include_in_schema=False)
