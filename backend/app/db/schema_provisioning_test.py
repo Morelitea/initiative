@@ -6,14 +6,12 @@ the owning role (the ``engine`` fixture), which has DDL privileges.
 """
 
 import re
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
-from app.core.config import settings
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_template_rls,
@@ -1271,7 +1269,6 @@ async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes,
     both stop the boot. The message names which was found, because the operator
     has to know which to remove."""
     _fake_provisioning_engine(monkeypatch, **attributes)
-    monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_UNTIL", None)
 
     with pytest.raises(SystemExit) as exit_info:
         await schema_provisioning.reject_privileged_database_url()
@@ -1282,42 +1279,6 @@ async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes,
     # stated remedy.
     assert "DATABASE_URL_BOOTSTRAP" in message
     assert "app_provisioner" in message
-    assert "ALLOW_PRIVILEGED_DATABASE_UNTIL" in message
-
-
-@pytest.mark.parametrize("offset", [timedelta(microseconds=-1), timedelta(0)])
-async def test_privileged_database_deadline_fails_closed_when_reached(
-    monkeypatch, offset
-):
-    now = datetime(2030, 4, 5, 7, 0, tzinfo=timezone.utc)
-    _fake_provisioning_engine(monkeypatch, rolsuper=True)
-    monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_UNTIL", now + offset)
-
-    with pytest.raises(SystemExit) as exit_info:
-        await schema_provisioning.reject_privileged_database_url(now=now)
-
-    message = str(exit_info.value)
-    assert "ALLOW_PRIVILEGED_DATABASE_UNTIL" in message
-    assert "expired" in message
-
-
-async def test_future_privileged_database_deadline_boots_and_warns(monkeypatch, caplog):
-    """Before the deadline the warning identifies both the boundary and expiry."""
-    now = datetime(2030, 4, 5, 7, 0, tzinfo=timezone.utc)
-    deadline = now + timedelta(minutes=5)
-    _fake_provisioning_engine(monkeypatch, rolsuper=True)
-    monkeypatch.setattr(settings, "ALLOW_PRIVILEGED_DATABASE_UNTIL", deadline)
-
-    with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
-        await schema_provisioning.reject_privileged_database_url(now=now)
-
-    joined = "\n".join(r.getMessage() for r in caplog.records)
-    assert "ALLOW_PRIVILEGED_DATABASE_UNTIL" in joined
-    assert deadline.isoformat() in joined
-    # The check runs at startup, so the deadline stops the NEXT boot -- a
-    # process already running when it passes keeps serving. The warning has to
-    # say that, or an operator reads "expires automatically" as "this shuts
-    # itself off" and schedules nothing.
-    assert "next start" in joined.lower()
-    assert "SECURITY.md" in joined
-    assert "NOT\nin force" in joined or "NOT in force" in joined
+    # Both ways to make the roles, so neither the operator who wants the app to
+    # do it nor the one who wants the SQL has to go looking for the other.
+    assert "python -m app.db.bootstrap --print-sql" in message
