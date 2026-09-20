@@ -6,6 +6,7 @@
   "wizard": {
     "title": "Backup importieren",
     "back": "Zurück",
+    "next": "Weiter",
     "close": "Schließen",
     "cancelUpload": "Import abbrechen",
     "upload": "Backup hochladen",
@@ -36,6 +37,14 @@
       "skipped_other": "{{count}} Elemente wurden vom Exporteur aus diesem Backup ausgelassen",
       "unknownTypes": "Unbekannte Inhaltstypen werden übersprungen: {{types}}",
       "note": "Jede Initiative im Backup wird neu erstellt — Bestehendes wird nicht verändert. Der Import läuft im Hintergrund."
+    },
+    "people": {
+      "prompt": "Wer sind diese Personen hier?",
+      "note": "Das Archiv nennt Personen mit dem Handle, das sie an der Herkunft hatten. Wo ein Handle genau zu einem Mitglied passt, haben wir es eingetragen — prüfe diese und gib an, wer die Übrigen sind. Bleibt eine Zeile leer, behalten diese Kommentare den mitgebrachten Namen und werden keinem Konto zugeordnet.",
+      "comments_one": "{{count}} Kommentar",
+      "comments_other": "{{count}} Kommentare",
+      "unmapped": "Niemand hier",
+      "pickerLabel": "Wer {{name}} hier ist"
     },
     "progress": {
       "title": "Wird importiert…",

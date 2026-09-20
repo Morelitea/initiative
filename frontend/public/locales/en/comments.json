@@ -7,6 +7,7 @@
   "deleteComment": "Delete",
   "editPlaceholder": "Edit your comment...",
   "edited": "(edited)",
+  "importedAuthor": "imported",
   "empty": "No comments yet. Be the first to contribute.",
   "formattingSyntax": "Formatting",
   "insertEntityMention": "Link anything in this initiative",

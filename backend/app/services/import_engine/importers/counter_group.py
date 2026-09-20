@@ -17,7 +17,7 @@ from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import CounterGroupEnvelope
 from app.services.import_engine.common import unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.import_engine.links import LinkCollector
+from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
@@ -42,7 +42,7 @@ class CounterGroupImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
-        links: LinkCollector | None = None,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: CounterGroupEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id

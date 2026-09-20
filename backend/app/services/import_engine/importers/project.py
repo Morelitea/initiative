@@ -18,7 +18,7 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.links import LinkCollector
+from app.services.import_engine.context import ImportContext
 
 
 class ProjectImporter:
@@ -63,7 +63,7 @@ class ProjectImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
-        links: LinkCollector | None = None,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         from app.services.tenant.project_import import import_project
 
@@ -73,7 +73,7 @@ class ProjectImporter:
                 envelope=envelope,
                 target_initiative=target_initiative,
                 importer=importer,
-                links=links,
+                context=context,
             )
         except HTTPException as exc:
             # The service speaks HTTP; the engine speaks ImportEngineError so

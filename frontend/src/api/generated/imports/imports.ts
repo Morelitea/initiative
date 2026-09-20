@@ -1251,9 +1251,15 @@ export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
 };
 /**
  * Confirm a staged backup: flips it to ``queued`` for the worker.
+ *
  * Optional body ``{"include": {tool: bool}}`` narrows which tools apply
- * (omitted tools default to included). Guild admins only — re-checked here
- * and again at apply time.
+ * (omitted tools default to included), and ``{"people_map": {handle: user
+ * id}}`` says who each name the archive quotes is here — the answers to the
+ * wizard's people step. Both are recorded on the job and read at apply time;
+ * the mapping is re-checked against real membership there, because this
+ * confirm may be hours old by then.
+ *
+ * Guild admins only — re-checked here and again at apply time.
  * @summary Confirm Backup Import
  */
 export const confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (

@@ -236,6 +236,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                 guild_id=guild_id,
                 payload=payload,
                 include=(job.params or {}).get("include"),
+                people_map=(job.params or {}).get("people_map"),
             )
         return backup_result.model_dump(mode="json")
 
@@ -258,12 +259,13 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
             importer=importer,
             user=user,
         )
-        result = await import_engine.apply_with_links(
+        result = await import_engine.apply_one_envelope(
             user_session,
             importer=importer,
             envelope=envelope,
             target_initiative=initiative,
             user=user,
+            people_map=(job.params or {}).get("people_map"),
         )
         await user_session.commit()
     return result.model_dump(mode="json")

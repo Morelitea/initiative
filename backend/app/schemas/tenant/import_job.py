@@ -70,6 +70,22 @@ class BackupPlanInitiative(SanitizedBaseModel):
     entry_counts: dict[str, int]  # tool -> entries in the zip
 
 
+class BackupPlanPerson(SanitizedBaseModel):
+    """One name the archive quotes, and our best guess at who that is here.
+
+    ``suggested_user_id`` is filled only by an **exact** handle match against
+    the guild's own roster. Anything looser is left empty on purpose: a
+    display name that looks similar is how one person's words end up under
+    another person's face, and the wizard is asking precisely so that nobody
+    has to guess.
+    """
+
+    handle: str
+    name: Optional[str] = None
+    comment_count: int = 0
+    suggested_user_id: Optional[int] = None
+
+
 class BackupImportPlan(SanitizedBaseModel):
     """The confirm-screen summary, persisted to ``import_jobs.plan`` —
     counts and names only, never envelope content."""
@@ -83,6 +99,10 @@ class BackupImportPlan(SanitizedBaseModel):
     asset_bytes: int = 0
     skipped: list[dict[str, Any]] = []
     unknown_types: list[str] = []
+    # Everyone the archive quotes, most-quoted first — the rows the wizard's
+    # people step asks about. Empty for a backup taken before people were
+    # inventoried, and for one that quotes nobody.
+    people: list[BackupPlanPerson] = []
 
 
 class BackupImportResult(SanitizedBaseModel):

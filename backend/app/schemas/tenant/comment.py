@@ -136,6 +136,11 @@ class CommentRead(CommentBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     author: Optional[CommentAuthor] = None
+    # Who said this where it came from, when an import could not match them
+    # to an account here. Display text: the client shows this name instead of
+    # the author's, with no avatar and no profile link, because it names a
+    # person rather than an account. Null on everything written in this app.
+    imported_author_name: Optional[str] = None
     # The project this comment lives under: its own for a comment ON a
     # project, the task's for a task comment (filled by the service's
     # serializer).

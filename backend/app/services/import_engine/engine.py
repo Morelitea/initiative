@@ -152,7 +152,7 @@ async def start_envelope_import(
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
 
     if rows <= settings.IMPORT_INLINE_MAX_ROWS:
-        result = await apply_with_links(
+        result = await apply_one_envelope(
             session,
             importer=importer,
             envelope=validated,
@@ -183,13 +183,14 @@ async def start_envelope_import(
     return job
 
 
-async def apply_with_links(
+async def apply_one_envelope(
     session: AsyncSession,
     *,
     importer: EnvelopeImporter,
     envelope: Any,
     target_initiative: Initiative,
     user: User,
+    people_map: Any = None,
 ) -> "EnvelopeImportResult":
     """Apply one envelope and then resolve the links it asserted.
 
@@ -198,18 +199,28 @@ async def apply_with_links(
     at, and resolves the pairs where both ends happened to be in the same
     file. Every ref naming something outside it is counted as unresolved —
     which is the honest answer, and the same one a backup gives.
-    """
-    from app.services.import_engine.links import LinkCollector
 
-    collector = LinkCollector()
+    ``people_map`` is whatever a confirm recorded. A lone envelope usually
+    arrives without one — there is no step in that flow to ask — and then
+    the handles in it are matched against the target initiative's own
+    members, or carried as names.
+    """
+    from app.services.import_engine.context import ImportContext
+    from app.services.import_engine.people import resolve_people_map
+
+    context = ImportContext(
+        people=await resolve_people_map(
+            session, guild_id=target_initiative.guild_id, raw=people_map
+        )
+    )
     result = await importer.apply(
         session,
         envelope=envelope,
         target_initiative=target_initiative,
         importer=user,
-        links=collector,
+        context=context,
     )
-    resolution = await collector.resolve(session, created_by=user.id)
+    resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
     return result
