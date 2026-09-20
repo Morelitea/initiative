@@ -103,6 +103,16 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
 
+    # And the other half: the longest a session may be left alone. NULL keeps
+    # ``AUTH_REFRESH_TTL_DAYS``, which is where this question was answered
+    # before and still is for a deployment that says nothing. A figure here
+    # narrows it; a community held to the compliance standard narrows it
+    # further. Whichever is strictest binds, which is what a limit means.
+    session_idle_minutes: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+
     # How long a deleted community is kept before it is destroyed, in days.
     #
     # NULL is not the default here, unlike the limit above: it means **never**

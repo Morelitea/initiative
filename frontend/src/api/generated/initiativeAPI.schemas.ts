@@ -5879,6 +5879,7 @@ export interface PlatformAuthSettingsResponse {
   guilds_requiring_sign_in: number;
   factor_methods_permitted: boolean;
   session_max_hours: number | null;
+  session_idle_minutes: number | null;
   second_factor_requirement: SecondFactorRequirement;
   accounts_without_factor: AccountsWithoutFactor;
 }
@@ -7251,6 +7252,7 @@ export interface SecondFactorStepUpAnswer {
  */
 export interface SessionLifetimeUpdate {
   session_max_hours?: number | null;
+  session_idle_minutes?: number | null;
 }
 
 /**

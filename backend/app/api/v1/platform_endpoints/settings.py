@@ -107,7 +107,10 @@ BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 # Which columns of the settings singleton this page moves itself; the other
 # areas are recorded by the service that writes them. A value rides along in
 # the record only where its type rules out a secret.
-_SESSION_LIFETIME_FIELDS: tuple[str, ...] = ("session_max_hours",)
+_SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
+    "session_max_hours",
+    "session_idle_minutes",
+)
 
 #: What the operator's caps and entitlements for one community consist of.
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
@@ -220,6 +223,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
         factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
+        session_idle_minutes=row.session_idle_minutes,
         second_factor_requirement=auth_posture.requirement_from_row(row),
         accounts_without_factor=AccountsWithoutFactor(
             platform_roles=await auth_posture.accounts_without_factor(
@@ -308,6 +312,7 @@ async def update_session_lifetime(
     row = await app_settings_service.get_app_settings(session)
     before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
     row.session_max_hours = payload.session_max_hours
+    row.session_idle_minutes = payload.session_idle_minutes
     session.add(row)
     await session.flush()
     # A device token carries its deadline in its own expiry, so the new figure

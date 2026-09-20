@@ -66,7 +66,7 @@ Turn it off and no key reaches this community, including keys that already exist
 
 Twelve, rather than a number you pick: somebody in two communities that both ask for this gets one answer instead of a comparison. Shorter still wins, so a server that signs people out sooner keeps doing that.
 
-The same switch also ends a session that is **left alone for fifteen minutes**. Twelve hours is the longest a session may last; fifteen minutes is the longest it may sit untouched. Both are needed to meet the automatic-logoff expectations these communities are usually holding themselves to, and both come from the one switch rather than two.
+The same switch also ends a session that is **left alone for fifteen minutes**, or sooner if the server sets a shorter idle window of its own. Twelve hours is the longest a session may last; fifteen minutes is the longest it may sit untouched. Both are needed to meet the automatic-logoff expectations these communities are usually holding themselves to, and both come from the one switch rather than two.
 
 Using the app counts as touching it — the app renews its own session in the background while it is open, so the fifteen minutes only run down once somebody actually stops. What they see when they come back is the sign-in page.
 

@@ -633,7 +633,10 @@
       "placeholder": "No limit",
       "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
       "saved": "Session limit saved.",
-      "error": "We couldn't save the session limit."
+      "error": "We couldn't save the session limit.",
+      "idleLabel": "Idle minutes",
+      "idlePlaceholder": "No limit",
+      "idleHint": "How long a session may sit untouched before it ends. Leave blank to keep the window set when the server was deployed. Using the app counts as touching it, so this only runs down once somebody has stopped. A community held to the compliance standard shortens it further for its own members."
     },
     "secondFactorRequirement": {
       "title": "Two-factor authentication",
