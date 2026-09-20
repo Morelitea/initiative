@@ -21,9 +21,6 @@ import {
   SiAuth0,
   SiAuthelia,
   SiAuthentik,
-  SiDiscord,
-  SiGitea,
-  SiGitlab,
   SiGoogle,
   SiKeycloak,
   SiOkta,
@@ -44,11 +41,6 @@ export const PROVIDER_ICONS: Record<string, ProviderMarkIcon> = {
   keycloak: SiKeycloak,
   authentik: SiAuthentik,
   authelia: SiAuthelia,
-  gitlab: SiGitlab,
-  // Forgejo has a mark of its own, but the preset is one entry covering both
-  // and Gitea's is the one people recognise on it.
-  gitea: SiGitea,
-  discord: SiDiscord,
   // The generic mark for the standard itself, which is what "any OIDC
   // provider" is choosing.
   custom: SiOpenid,
