@@ -8,6 +8,12 @@ Two different questions, deliberately kept apart:
   pushes forward. It is what a deployment sets when it has to say "everybody
   signs in again at least this often".
 
+It also answers the *idle* half for a community held to the compliance
+standard, which is the same question asked of a shorter window: not "how long
+may this session last" but "how long may it sit untouched". Both are windows
+on a session rather than checks on a request, which is what keeps
+authentication off the per-request path.
+
 The answer is stamped on the chain when the sign-in happens and carried
 through every rotation unchanged, so renewing a session costs no extra read.
 One consequence, and it is the right one: joining a community that asks for
@@ -47,6 +53,17 @@ def _window(hours: int):
 #: reauthentication limit land on the same number, so one constant serves both.
 COMPLIANCE_SESSION_HOURS = 12
 
+#: How long a session of theirs may sit untouched. PCI DSS 8.2.8 names fifteen
+#: minutes and HIPAA's automatic-logoff expectation is satisfied by the same
+#: number, so one constant serves both here too.
+#:
+#: Carried by the session's own two clocks rather than by a check on each
+#: request: the refresh row expires this far out and the access token is minted
+#: no longer-lived than that, so a session left alone lapses on its own. That
+#: keeps the cost of the control at one sign-in rather than one database read
+#: per request, which is the arrangement the rest of this design rests on.
+COMPLIANCE_IDLE_MINUTES = 15
+
 
 async def _belongs_to_a_compliance_guild(
     session: AsyncSession, *, user_id: int
@@ -83,6 +100,29 @@ async def resolve_max_hours(session: AsyncSession, *, user_id: int) -> int | Non
     if platform_hours is None:
         return COMPLIANCE_SESSION_HOURS
     return min(COMPLIANCE_SESSION_HOURS, platform_hours)
+
+
+async def resolve_idle_minutes(session: AsyncSession, *, user_id: int) -> int | None:
+    """How long this account's session may sit untouched, in minutes.
+
+    ``None`` where nothing narrows it, which is every account outside a
+    community held to the compliance standard: the ordinary idle window is
+    ``AUTH_REFRESH_TTL_DAYS``, and this returns a number only when something
+    asks for less.
+
+    The same single-standard rule the absolute bound follows — one answer
+    rather than a number per community, so belonging to two of them is not a
+    comparison.
+    """
+    if not await _belongs_to_a_compliance_guild(session, user_id=user_id):
+        return None
+    return COMPLIANCE_IDLE_MINUTES
+
+
+async def idle_window(session: AsyncSession, *, user_id: int) -> timedelta | None:
+    """:func:`resolve_idle_minutes` as a window, or ``None``."""
+    minutes = await resolve_idle_minutes(session, user_id=user_id)
+    return timedelta(minutes=minutes) if minutes is not None else None
 
 
 async def chain_deadline(

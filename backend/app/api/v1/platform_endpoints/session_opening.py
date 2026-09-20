@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, Request, Response, status
@@ -37,6 +37,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
+from app.core.config import settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
 from app.core.rate_limit import get_inet_client_ip
@@ -159,6 +160,23 @@ async def record_sign_in_failure(
     await admin_session.commit()
 
 
+def access_ttl_for(row: AuthSession, *, now: datetime) -> timedelta | None:
+    """How long an access token for this session may live.
+
+    ``None`` leaves the deployment's own ``AUTH_ACCESS_TTL_MINUTES`` in place,
+    which is every ordinary session. Where the refresh row ends sooner than
+    that — a community held to the compliance standard narrows it — the token
+    ends with it: a token outliving the session it names would be the one gap
+    in a control the row's own expiry otherwise keeps.
+
+    Read off the row rather than resolved again, so the two clocks cannot
+    disagree and no path pays a second query for the answer.
+    """
+    standard = timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
+    remaining = row.expires_at - now
+    return remaining if remaining < standard else None
+
+
 async def open_session(
     request: Request,
     response: Response,
@@ -223,6 +241,7 @@ async def open_session(
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
         provider_auth=issued.session.provider_auth,
+        expires_in=access_ttl_for(issued.session, now=issued.session.created_at),
     )
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)

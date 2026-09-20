@@ -261,3 +261,126 @@ async def test_a_communitys_standard_reaches_its_members_device_tokens(session):
     assert row.expires_at <= row.created_at + timedelta(
         hours=session_lifetime.COMPLIANCE_SESSION_HOURS
     )
+
+
+# ---------------------------------------------------------------------------
+# The idle half: how long a session may sit untouched
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_an_ordinary_session_keeps_the_deployments_idle_window(session):
+    """Nothing asks for less, so the refresh row stands the usual length."""
+    from app.core.config import settings as app_config
+
+    user = await create_user(session, email="sl-idle-none@example.com")
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+
+    assert issued.session.expires_at == _AT + timedelta(
+        days=app_config.AUTH_REFRESH_TTL_DAYS
+    )
+
+
+@pytest.mark.integration
+async def test_a_community_holds_its_members_to_an_idle_window(session):
+    """Belonging to one shortens how long a session may be left alone, the
+    same way it shortens how long the session may last at all."""
+    user = await create_user(session, email="sl-idle@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    await _hold_to_the_standard(session, guild)
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+
+    assert issued.session.expires_at == _AT + timedelta(
+        minutes=session_lifetime.COMPLIANCE_IDLE_MINUTES
+    )
+
+
+@pytest.mark.integration
+async def test_renewing_keeps_the_narrow_idle_window(session):
+    """The window travels with the chain. A rotation that read the
+    deployment's own figure would widen a narrowed session on its first
+    renewal, which is the whole thing this control is for."""
+    user = await create_user(session, email="sl-idle-renew@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    await _hold_to_the_standard(session, guild)
+    first = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+
+    later = _AT + timedelta(minutes=5)
+    result = await session_service.rotate_session(
+        session, raw_refresh_token=first.refresh_token, now=later
+    )
+
+    assert result.issued is not None
+    assert result.issued.session.expires_at == later + timedelta(
+        minutes=session_lifetime.COMPLIANCE_IDLE_MINUTES
+    )
+
+
+@pytest.mark.integration
+async def test_the_idle_window_never_outlasts_the_chain(session):
+    """Both clocks bind and the earlier one wins.
+
+    Reached the only way it can be: by renewing. A narrow idle window means a
+    session that lives to the end of its chain got there one rotation at a
+    time, and the last of them is the one that would overshoot.
+    """
+    user = await create_user(session, email="sl-idle-chain@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    await _hold_to_the_standard(session, guild)
+    await _set_platform_hours(session, 1)
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+    chain_end = issued.session.chain_expires_at
+    window = timedelta(minutes=session_lifetime.COMPLIANCE_IDLE_MINUTES)
+
+    # Renewed inside the window each time, up to the last few minutes of the
+    # chain — where the window would reach past it.
+    for minutes in (14, 28, 42, 56):
+        at = _AT + timedelta(minutes=minutes)
+        result = await session_service.rotate_session(
+            session, raw_refresh_token=issued.refresh_token, now=at
+        )
+        assert result.issued is not None, f"refused at +{minutes}m"
+        issued = result.issued
+        assert issued.session.expires_at == min(at + window, chain_end)
+
+    assert issued.session.expires_at == chain_end
+
+
+@pytest.mark.unit
+def test_an_access_token_does_not_outlive_the_session_it_names():
+    """Where the row ends sooner than the deployment's access-token life, the
+    token takes the row's remaining time instead."""
+    from types import SimpleNamespace
+
+    from app.api.v1.platform_endpoints.session_opening import access_ttl_for
+    from app.core.config import settings as app_config
+
+    standard = timedelta(minutes=app_config.AUTH_ACCESS_TTL_MINUTES)
+
+    roomy = SimpleNamespace(expires_at=_AT + timedelta(days=30))
+    assert access_ttl_for(roomy, now=_AT) is None
+
+    narrow = SimpleNamespace(expires_at=_AT + timedelta(minutes=2))
+    assert access_ttl_for(narrow, now=_AT) == timedelta(minutes=2)
+
+    exact = SimpleNamespace(expires_at=_AT + standard)
+    assert access_ttl_for(exact, now=_AT) is None
