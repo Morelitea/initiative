@@ -83,9 +83,6 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/schema_provisioning.py::_shared_grants_intact": (
         "table/role names from the system_grants registry constants"
     ),
-    "app/db/local_upload_migration.py::_build_filename_guild_map": (
-        "admin one-shot migration; schema name is int-derived guild_<id>"
-    ),
     "app/db/backfill_uploads_to_s3.py::_guild_upload_meta": (
         "admin backfill job; schema name is int-derived guild_<id>"
     ),
