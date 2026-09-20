@@ -17,6 +17,7 @@ import { Trans, useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
+import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import {
   collectTagsByName,
@@ -719,6 +720,7 @@ const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
         </div>
         <TaskChecklistProgress progress={task.checklist_progress} className="mt-2 max-w-[200px]" />
       </div>
+      <TaskBlockersHoverCard task={task} />
       <TaskDescriptionHoverCard task={task} />
     </div>
   );

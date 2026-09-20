@@ -26,13 +26,23 @@ from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.testing.factories import (
     checklist_items,
+    create_counter,
+    create_counter_group,
+    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
+    create_relationship,
+    create_task,
+    create_task_status,
     create_user,
 )
 
@@ -1743,3 +1753,198 @@ async def test_my_tasks_unassigned_is_vacuous_not_an_error(
 
     assert response.status_code == 200
     assert response.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# What is still holding a task up
+# ---------------------------------------------------------------------------
+
+
+async def test_blocked_by_open_count_counts_only_what_is_unfinished(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A done blocker stops being one, without anybody taking the link back."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    still_going = await create_task(
+        session, a.project, status_category=TaskStatusCategory.todo
+    )
+    finished = await create_task(
+        session, a.project, status_category=TaskStatusCategory.done
+    )
+    for blocker in (still_going, finished):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.task, task.id),
+            target=(SearchEntityType.task, blocker.id),
+            relationship_type=RelationshipType.depends_on,
+            created_by=a.user.id,
+        )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 1
+
+
+async def test_blocked_by_open_count_spans_kinds(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Anything with a reading of "finished" can hold a task up, not just a task."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    blocker = await create_task(session, a.project)
+    group = await create_counter_group(session, a.initiative, a.user)
+    short = await create_counter(session, group, count=1, max=5)
+
+    for kind, entity_id in (
+        (SearchEntityType.task, blocker.id),
+        (SearchEntityType.counter, short.id),
+    ):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.task, task.id),
+            target=(kind, entity_id),
+            relationship_type=RelationshipType.depends_on,
+            created_by=a.user.id,
+        )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 2
+
+
+async def test_a_project_blocks_until_the_work_in_it_is_done(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Waiting on a whole project is waiting on the tasks in it."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    blocking_project = await create_project(session, a.initiative, a.user)
+    todo = await create_task(
+        session, blocking_project, status_category=TaskStatusCategory.todo
+    )
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.project, blocking_project.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 1
+
+    # Finish the work and the project stops holding anything up.
+    await route_session_to_guild(session, a.guild.id)
+    done = await create_task_status(
+        session, blocking_project, category=TaskStatusCategory.done
+    )
+    todo.task_status_id = done.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    todo.completed_at = datetime.now(timezone.utc)
+    session.add(todo)
+    await session.commit()
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_a_document_is_not_counted_as_a_blocker(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Nothing on a document says when it stops holding something up, so it is
+    shown as a link and left out of the count rather than blocking forever."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    doc = await create_document(session, a.initiative, a.user)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.document, doc.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_blocking_the_other_way_round_is_not_counted(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The source of a dependency is the end that waits, so a task this one
+    holds up is not something holding IT up."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    waiting_on_us = await create_task(session, a.project)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, waiting_on_us.id),
+        target=(SearchEntityType.task, task.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_a_blocker_the_reader_cannot_open_is_not_counted(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The relationships policy clears both ends, so a blocker in an initiative
+    the reader is not in is invisible — and an invisible blocker must not show
+    up as a number they cannot account for."""
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, owner.project)
+    elsewhere = await create_initiative(session, owner.guild, owner.user)
+    hidden_project = await create_project(session, elsewhere, owner.user)
+    hidden = await create_task(session, hidden_project)
+    await create_relationship(
+        session,
+        owner.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.task, hidden.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=owner.user.id,
+    )
+
+    # The project is shared with the whole initiative, so the reader can open
+    # the task itself: what is being tested is the far end of its blocker.
+    await route_session_to_guild(session, owner.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=owner.project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=owner.guild.id,
+            initiative_id=owner.initiative.id,
+        )
+    )
+    await session.commit()
+
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    response = await client.get(owner.g(f"/tasks/{task.id}"), headers=reader.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0

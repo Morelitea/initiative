@@ -1,10 +1,10 @@
 {
-  "title": "Beziehungen",
-  "description": "Verknüpfe dies mit allem anderen in der Initiative und sag, wie beides zusammenhängt.",
+  "title": "Verknüpft mit",
+  "description": "Alles, womit dies verbunden ist — und wie.",
   "untitled": "Ohne Titel",
-  "empty": "Hiermit ist noch nichts verknüpft.",
-  "loadFailed": "Beziehungen antworten nicht. Versuche es in einem Moment erneut.",
-  "add": "Beziehung hinzufügen",
+  "empty": "Noch nichts verknüpft.",
+  "loadFailed": "Verknüpfungen antworten nicht. Versuch es gleich noch einmal.",
+  "add": "Verknüpfung hinzufügen",
   "graph": {
     "alt": "{{title}} und die {{count}} damit verknüpften Dinge",
     "hops": "Schritte",
@@ -25,13 +25,14 @@
   "added": "Verknüpft.",
   "removed": "Verknüpfung entfernt.",
   "dialog": {
-    "title": "Beziehung hinzufügen",
-    "description": "Gib an, wie die beiden zusammenhängen, und wähle dann das Objekt.",
-    "relationship": "Beziehung",
+    "title": "Verknüpfung hinzufügen",
+    "description": "Such zuerst das Objekt, sag dann, wie die beiden zusammenhängen.",
     "entity": "Objekt",
     "entityPlaceholder": "Nach Namen suchen…",
     "noResults": "Keine Treffer.",
-    "submit": "Beziehung hinzufügen",
+    "relationship": "Beziehung",
+    "sentenceLabel": "Wie die beiden zusammenhängen",
+    "submit": "Verknüpfung hinzufügen",
     "submitting": "Wird hinzugefügt…",
     "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen."
   },
@@ -45,36 +46,67 @@
     "attached": {
       "title": "Angehängt",
       "empty": "Noch nichts angehängt.",
-      "option": "Ist angehängt an"
+      "option": "ist angehängt an"
     },
     "blockedBy": {
       "title": "Blockiert von",
-      "option": "Wird blockiert von"
+      "option": "wird blockiert von"
     },
     "blocks": {
       "title": "Blockiert",
-      "option": "Blockiert"
+      "option": "blockiert"
     },
     "partOf": {
       "title": "Teil von",
-      "option": "Ist Teil von"
+      "option": "ist Teil von"
     },
     "parts": {
-      "title": "Teile",
-      "option": "Hat als Teil"
+      "title": "Besteht aus",
+      "option": "besteht aus"
     },
     "related": {
-      "title": "Verwandt",
-      "option": "Ist verwandt mit"
+      "title": "Siehe auch",
+      "option": "hängt zusammen mit"
     },
     "referencedBy": {
-      "title": "Erwähnt von",
-      "option": "Verweist auf"
+      "title": "Erwähnt in",
+      "option": "wird erwähnt in"
     },
     "tagged": {
       "title": "Markiert",
-      "option": "Ist markiert"
+      "option": "ist markiert"
     }
   },
-  "loading": "Wird geladen…"
+  "loading": "Wird geladen…",
+  "title_task": "Verbindungen",
+  "title_document": "Verbindungen",
+  "title_project": "Angehängt & verknüpft",
+  "empty_task": "Noch nichts verknüpft. Verknüpfe das Dokument, das diese Aufgabe beschreibt, oder die Aufgabe, von der sie blockiert wird.",
+  "empty_document": "Noch nichts verknüpft. Verknüpfe das Projekt, das dies erklärt, oder die Aufgabe, aus der es entstanden ist.",
+  "empty_project": "Noch nichts verknüpft. Häng die Dokumente und Dateien an, auf denen dieses Projekt aufbaut.",
+  "count": "{{count}}",
+  "openOf": "{{open}} von {{total}} noch offen",
+  "help": {
+    "title": "Was eine Verknüpfung ist",
+    "body": "Eine Verknüpfung hält fest, wie zwei Dinge zusammenhängen — worauf eine Aufgabe wartet, welches Dokument ein Projekt erklärt, was was erwähnt.",
+    "derived": "Manche Verknüpfungen schreiben sich selbst: # und [[ ]] im Text werden zu „Erwähnt in“.",
+    "learnMore": "Mehr erfahren"
+  },
+  "anchor": {
+    "generic": "Dies",
+    "task": "Diese Aufgabe",
+    "document": "Dieses Dokument",
+    "project": "Dieses Projekt",
+    "wiki_page": "Diese Seite",
+    "calendar_event": "Dieser Termin",
+    "counter": "Dieser Zähler",
+    "queue_item": "Dieser Eintrag",
+    "post": "Dieser Beitrag",
+    "gallery_image": "Dieses Bild"
+  },
+  "blockers": {
+    "label_one": "{{count}} Sache hält dies auf",
+    "label_other": "{{count}} Sachen halten dies auf",
+    "icon": "Was dies aufhält"
+  }
 }

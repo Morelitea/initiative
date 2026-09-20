@@ -347,6 +347,7 @@
       "assignee": "Assignee",
       "due": "Due date",
       "priority": "Priority",
+      "progress": "Progress",
       "status": "Status",
       "value": "Value",
       "when": "Date"
@@ -359,6 +360,7 @@
     "none": "None",
     "nothingYet": "Nothing in this initiative to point at yet.",
     "openHint": "Click to open",
+    "projectProgress": "Project progress",
     "recent": "Recently edited",
     "scopeHint": "Only this document’s initiative can be named here.",
     "searchPlaceholder": "Search for something to show",

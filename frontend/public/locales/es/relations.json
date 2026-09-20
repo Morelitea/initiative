@@ -1,10 +1,10 @@
 {
-  "title": "Relaciones",
-  "description": "Conecta esto con cualquier otra cosa de la iniciativa y di cómo se relacionan.",
+  "title": "Se relaciona con",
+  "description": "Todo con lo que esto está conectado, y cómo.",
   "untitled": "Sin título",
-  "empty": "Todavía no hay nada conectado con esto.",
-  "loadFailed": "Las relaciones no responden. Inténtalo de nuevo en un momento.",
-  "add": "Añadir relación",
+  "empty": "Aún no hay nada enlazado.",
+  "loadFailed": "Los enlaces no responden. Inténtalo de nuevo en un momento.",
+  "add": "Añadir enlace",
   "graph": {
     "alt": "{{title}} y las {{count}} cosas con las que está conectado",
     "hops": "Saltos",
@@ -25,15 +25,16 @@
   "added": "Enlazado.",
   "removed": "Enlace eliminado.",
   "dialog": {
-    "title": "Añadir una relación",
-    "description": "Di cómo se conectan las dos cosas y luego elige el elemento.",
-    "relationship": "Relación",
-    "entity": "Elemento",
+    "title": "Añadir un enlace",
+    "description": "Busca primero la cosa y luego di cómo se relacionan.",
+    "entity": "Cosa",
     "entityPlaceholder": "Buscar por nombre…",
     "noResults": "No hay coincidencias.",
-    "submit": "Añadir relación",
+    "relationship": "Relación",
+    "sentenceLabel": "Cómo se relacionan",
+    "submit": "Añadir enlace",
     "submitting": "Añadiendo…",
-    "readOnlyTarget": "Algunos vínculos solo pueden crearse desde algo que puedas cambiar, y eso solo puedes leerlo."
+    "readOnlyTarget": "Algunos enlaces solo pueden crearse desde algo que puedas cambiar, y esto solo puedes leerlo."
   },
   "card": {
     "kindLinked": "{{kind}} · enlazado {{date}}",
@@ -44,37 +45,68 @@
   "groups": {
     "attached": {
       "title": "Adjunto",
-      "empty": "Todavía no hay nada adjunto.",
-      "option": "Está adjunto a"
+      "empty": "Aún no hay nada adjunto.",
+      "option": "está adjunto a"
     },
     "blockedBy": {
       "title": "Bloqueado por",
-      "option": "Está bloqueado por"
+      "option": "está bloqueado por"
     },
     "blocks": {
       "title": "Bloquea",
-      "option": "Bloquea"
+      "option": "bloquea"
     },
     "partOf": {
       "title": "Parte de",
-      "option": "Es parte de"
+      "option": "es parte de"
     },
     "parts": {
-      "title": "Partes",
-      "option": "Tiene como parte"
+      "title": "Se compone de",
+      "option": "se compone de"
     },
     "related": {
-      "title": "Relacionado",
-      "option": "Está relacionado con"
+      "title": "Véase también",
+      "option": "está relacionado con"
     },
     "referencedBy": {
-      "title": "Mencionado por",
-      "option": "Hace referencia a"
+      "title": "Mencionado en",
+      "option": "se menciona en"
     },
     "tagged": {
       "title": "Etiquetado",
-      "option": "Está etiquetado"
+      "option": "está etiquetado"
     }
   },
-  "loading": "Cargando…"
+  "loading": "Cargando…",
+  "title_task": "Conexiones",
+  "title_document": "Conexiones",
+  "title_project": "Adjuntos y enlaces",
+  "empty_task": "Aún no hay nada enlazado. Enlaza el documento que describe esta tarea, o la tarea que la bloquea.",
+  "empty_document": "Aún no hay nada enlazado. Enlaza el proyecto que esto explica, o la tarea de la que surgió.",
+  "empty_project": "Aún no hay nada enlazado. Adjunta los documentos y archivos en los que se apoya este proyecto.",
+  "count": "{{count}}",
+  "openOf": "{{open}} de {{total}} siguen abiertos",
+  "help": {
+    "title": "Qué es un enlace",
+    "body": "Un enlace registra cómo se relacionan dos cosas: qué espera una tarea, qué documento explica un proyecto, qué menciona qué.",
+    "derived": "Algunos enlaces se escriben solos: # y [[ ]] en un texto se convierten en «Mencionado en».",
+    "learnMore": "Más información"
+  },
+  "anchor": {
+    "generic": "Esto",
+    "task": "Esta tarea",
+    "document": "Este documento",
+    "project": "Este proyecto",
+    "wiki_page": "Esta página",
+    "calendar_event": "Este evento",
+    "counter": "Este contador",
+    "queue_item": "Este elemento",
+    "post": "Esta publicación",
+    "gallery_image": "Esta imagen"
+  },
+  "blockers": {
+    "label_one": "{{count}} cosa está frenando esto",
+    "label_other": "{{count}} cosas están frenando esto",
+    "icon": "Qué está frenando esto"
+  }
 }

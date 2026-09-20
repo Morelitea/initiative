@@ -3,7 +3,14 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Archive, ChevronLeft, ChevronRight, MessageSquare, SquareCheckBig } from "lucide-react";
+import {
+  Archive,
+  Ban,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  SquareCheckBig,
+} from "lucide-react";
 import type { IconName } from "lucide-react/dynamic";
 import { memo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -289,6 +296,7 @@ const KanbanCardContent = memo(
     canOpenTask,
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
+    const { t: tRelations } = useTranslation("relations");
     const gp = useGuildPath();
 
     const recurrenceSummary = task.recurrence
@@ -305,6 +313,7 @@ const KanbanCardContent = memo(
     const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
     const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
     const commentCount = task.comment_count ?? 0;
+    const blockedCount = task.blocked_by_open_count ?? 0;
 
     return (
       <>
@@ -343,6 +352,19 @@ const KanbanCardContent = memo(
             <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
               <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
               {commentCount}
+            </Badge>
+          ) : null}
+          {/* The signal the retired Blocked column used to give, back on the
+              card and keeping itself current: it goes when the last thing
+              holding this up is finished, with nobody moving anything. */}
+          {blockedCount > 0 ? (
+            <Badge
+              variant="outline"
+              className="inline-flex items-center gap-1 text-xs"
+              title={tRelations("blockers.label", { count: blockedCount })}
+            >
+              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+              {blockedCount}
             </Badge>
           ) : null}
           {task.tags &&

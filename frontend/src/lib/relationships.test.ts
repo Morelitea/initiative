@@ -9,9 +9,11 @@ import {
 import {
   ASSERTABLE_GROUPS,
   canAssert,
+  defaultGroupFor,
   edgeFor,
   groupEdges,
   groupOf,
+  groupOrderFor,
   idsByKind,
   RELATION_GROUP_ORDER,
   RELATION_GROUPS,
@@ -206,5 +208,74 @@ describe("comparing sets of links", () => {
 
   it("spells a reference the way the API does", () => {
     expect(refKey({ type: SearchEntityType.task, id: 12 })).toBe("task:12");
+  });
+
+  describe("what the dialog proposes once something is picked", () => {
+    it("reads a document or a picture as something attached", () => {
+      expect(defaultGroupFor(SearchEntityType.task, SearchEntityType.document)).toBe("attached");
+      expect(defaultGroupFor(SearchEntityType.document, SearchEntityType.task)).toBe("attached");
+      expect(defaultGroupFor(SearchEntityType.project, SearchEntityType.gallery_image)).toBe(
+        "attached"
+      );
+    });
+
+    it("reads two things of one kind as merely related", () => {
+      expect(defaultGroupFor(SearchEntityType.task, SearchEntityType.task)).toBe("related");
+      expect(defaultGroupFor(SearchEntityType.project, SearchEntityType.project)).toBe("related");
+    });
+
+    it("NEVER proposes a dependency", () => {
+      // "Blocked by" shows on the board, counts, and says somebody is waiting.
+      // It is not a claim to make on a reader's behalf because they picked a
+      // task, and a sentence that is visibly not quite right is what teaches
+      // them the verb is theirs to change.
+      const kinds = Object.values(SearchEntityType);
+      for (const anchor of kinds) {
+        for (const picked of kinds) {
+          const proposed = defaultGroupFor(anchor, picked);
+          expect(proposed).not.toBe("blockedBy");
+          expect(proposed).not.toBe("blocks");
+        }
+      }
+    });
+
+    it("proposes something a reader is actually offered", () => {
+      const assertable = ASSERTABLE_GROUPS.map((group) => group.key);
+      for (const anchor of Object.values(SearchEntityType)) {
+        for (const picked of Object.values(SearchEntityType)) {
+          expect(assertable).toContain(defaultGroupFor(anchor, picked));
+        }
+      }
+    });
+  });
+
+  describe("the order the links are offered in", () => {
+    it("promotes the dependency pair for two things of one kind", () => {
+      const ordered = groupOrderFor(
+        SearchEntityType.task,
+        SearchEntityType.task,
+        ASSERTABLE_GROUPS
+      );
+      expect(ordered.slice(0, 2).map((group) => group.key)).toEqual(["blockedBy", "blocks"]);
+    });
+
+    it("leaves a mixed pair in the order the surface set", () => {
+      const ordered = groupOrderFor(
+        SearchEntityType.task,
+        SearchEntityType.document,
+        ASSERTABLE_GROUPS
+      );
+      expect(ordered.map((group) => group.key)).toEqual(
+        ASSERTABLE_GROUPS.map((group) => group.key)
+      );
+    });
+
+    it("takes nothing away, whatever the pair", () => {
+      const every = new Set(ASSERTABLE_GROUPS.map((group) => group.key));
+      for (const anchor of Object.values(SearchEntityType)) {
+        const ordered = groupOrderFor(anchor, SearchEntityType.task, ASSERTABLE_GROUPS);
+        expect(new Set(ordered.map((group) => group.key))).toEqual(every);
+      }
+    });
   });
 });

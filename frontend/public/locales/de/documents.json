@@ -347,6 +347,7 @@
       "assignee": "Zuständige Person",
       "due": "Fälligkeitsdatum",
       "priority": "Priorität",
+      "progress": "Fortschritt",
       "status": "Status",
       "value": "Wert",
       "when": "Datum"
@@ -359,6 +360,7 @@
     "none": "Keine",
     "nothingYet": "In dieser Initiative gibt es noch nichts, worauf verwiesen werden kann.",
     "openHint": "Zum Öffnen klicken",
+    "projectProgress": "Projektfortschritt",
     "recent": "Zuletzt bearbeitet",
     "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
     "searchPlaceholder": "Suche etwas zum Anzeigen",
