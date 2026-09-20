@@ -735,5 +735,6 @@
   "GUILD_NOT_DELETED": "That community has not been deleted, so there is nothing to restore.",
   "GUILD_RESTORE_STATUS_INVALID": "Choose the state the community comes back in.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Choose who will run the community before restoring it.",
-  "GUILD_STATUS_NOT_SETTABLE": "A community is deleted from its own settings, not from here."
+  "GUILD_STATUS_NOT_SETTABLE": "A community is deleted from its own settings, not from here.",
+  "ADMIN_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore."
 }
