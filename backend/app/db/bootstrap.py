@@ -618,6 +618,81 @@ async def _apply_search_operator(conn) -> bool:
     return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
 
 
+#: A signal, not a work list: does anything in the app's own schemas belong to
+#: a login other than the one declared to own them? Deliberately coarse —
+#: tables and sequences only — because the remedy it points at moves
+#: everything, and the authoritative description of what "everything" is stays
+#: in :data:`_TRANSFER_STATEMENTS`. The owner is passed in rather than read
+#: from ``current_user`` so the answer does not depend on which connection
+#: asks.
+_FOREIGN_OWNERS = text(
+    "SELECT DISTINCT pg_get_userbyid(c.relowner) AS owner "
+    "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+    " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S') "
+    "   AND c.relowner <> CAST(:owner AS regrole) "
+    "   AND (n.nspname ~ '^guild_([0-9]+|template)$' "
+    "        OR (n.nspname = 'public' AND c.relname = ANY(:tables)))"
+)
+
+
+async def warn_if_ownership_was_never_handed_over() -> None:
+    """Say so when the app's objects still belong to an earlier login.
+
+    The handover runs as part of the bootstrap, so a deployment that still sets
+    ``DATABASE_URL_BOOTSTRAP`` — which the compose file does, and removing it is
+    only ever described as optional — has already had this done and reads
+    nothing here. A deployment that removed it, or that made its roles by hand
+    and never set it, has no path that moves ownership: the app can ask for
+    this repair but cannot make it, because taking an object from another login
+    needs rights over that login which a least-privilege provisioner does not
+    have.
+
+    Untreated it is not fatal and not silent either: `CREATE OR REPLACE` on the
+    app's functions and the per-community schema refresh both fail, once per
+    community, on every start. This turns that into one line that names the
+    remedy.
+    """
+    from app.db import session as db_session
+
+    provisioner, _app_login, _system = login_roles()
+    try:
+        async with db_session.provisioning_engine.connect() as conn:
+            owners = sorted(
+                row[0]
+                for row in (
+                    await conn.execute(
+                        _FOREIGN_OWNERS,
+                        {
+                            "owner": provisioner.name,
+                            "tables": sorted(GRANTABLE_SHARED_TABLES),
+                        },
+                    )
+                ).all()
+            )
+    except Exception:  # noqa: BLE001 — a diagnostic must never hold up boot
+        logger.debug("ownership check could not run", exc_info=True)
+        return
+    if not owners:
+        return
+
+    logger.warning(
+        "\n%s\n"
+        "The app's tables still belong to %s, not to %r. Ownership moves as\n"
+        "part of the bootstrap, and this deployment\n"
+        "has no DATABASE_URL_BOOTSTRAP for it to move under. Left alone,\n"
+        "refreshing the app's functions and each community's schema fails on\n"
+        "every start.\n\n"
+        "To repair: set DATABASE_URL_BOOTSTRAP to a connection URL for the\n"
+        "database owner and start once. It moves every object and logs what\n"
+        "it moved; the line can come out again afterwards.\n"
+        "%s",
+        "=" * 70,
+        " and ".join(repr(owner) for owner in owners),
+        provisioner.name,
+        "=" * 70,
+    )
+
+
 def _executing(query: str) -> str:
     """Wrap a ``(label, stmt)`` query in a block that RUNS what it returns.
 

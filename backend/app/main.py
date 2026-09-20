@@ -113,6 +113,12 @@ async def lifespan(app: FastAPI):
     from app.db.bootstrap import ensure_database_bootstrap
 
     await ensure_database_bootstrap()
+    # A deployment that removed DATABASE_URL_BOOTSTRAP (or never set it) has no
+    # path that moves object ownership to the provisioning login, and every
+    # boot heal below that rewrites a function or a community schema needs it.
+    from app.db.bootstrap import warn_if_ownership_was_never_handed_over
+
+    await warn_if_ownership_was_never_handed_over()
     # Before any DDL runs: check the connection is the least-privilege
     # provisioning login. Ahead of the migrations rather than beside the other
     # heals below, so a misconfigured connection is caught before it reshapes
