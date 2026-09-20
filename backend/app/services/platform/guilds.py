@@ -1262,7 +1262,7 @@ async def _deletion_notice(
         await session.exec(
             select(GuildMembership.user_id).where(
                 GuildMembership.guild_id == guild.id,
-                GuildMembership.role.in_([GuildRole.admin, GuildRole.superadmin]),
+                GuildMembership.role == GuildRole.superadmin,
             )
         )
     ).all()

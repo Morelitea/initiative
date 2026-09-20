@@ -88,12 +88,17 @@ export const GuildSettingsLayout = () => {
       },
     ];
     // Danger zone lives last — destructive guild deletion is deliberately
-    // tucked behind its own tab rather than the first screen.
-    tabs.push({
-      value: "danger-zone",
-      label: t("guildLayout.tabs.dangerZone"),
-      path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
-    });
+    // tucked behind its own tab rather than the first screen — and only the
+    // seat sees it. Deleting a community is the one action an admin could not
+    // undo and could not have undone for them; it belongs with the seat a
+    // restore needs, which is also the seat the receipt is written to.
+    if (isSuperadmin) {
+      tabs.push({
+        value: "danger-zone",
+        label: t("guildLayout.tabs.dangerZone"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
+      });
+    }
     return tabs;
   }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin]);
 

@@ -1520,7 +1520,11 @@ async def delete_guild(
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(
+    # The seat, not an ordinary admin. Deleting a community is the one action
+    # an admin cannot undo and cannot be undone for them — only an operator
+    # can, and only inside the retention window — so it sits with the seat
+    # that is told about it and that a restore needs (``guild_has_seat``).
+    await _ensure_guild_superadmin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,

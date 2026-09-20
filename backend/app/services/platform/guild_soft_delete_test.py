@@ -478,24 +478,19 @@ async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_deleting_a_community_writes_to_the_people_who_ran_it(
-    session, monkeypatch
-):
-    """Admins hear; ordinary members learn from it leaving their lists."""
+async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(session):
+    """The superadmin seat hears. An ordinary admin cannot ask for a restore,
+    and members learn from it leaving their lists."""
     from app.models.platform.guild import GuildRole
-    from app.services import email as email_service
     from app.services.platform import guilds as guilds_service
     from app.testing import create_guild_membership, create_user
 
-    sent: list[tuple[list[str], str]] = []
-
-    async def _capture(session_, notice, *, locale="en"):
-        sent.append((list(notice.recipients), notice.community_name))
-
-    monkeypatch.setattr(email_service, "announce_community_deleted", _capture)
-
+    seat = await create_user(session, email="gd-seat@example.com")
+    guild = await create_guild(session, creator=seat, name="Allotment Society")
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
     boss = await create_user(session, email="gd-admin@example.com")
-    guild = await create_guild(session, creator=boss, name="Allotment Society")
     await create_guild_membership(session, user=boss, guild=guild, role=GuildRole.admin)
     hand = await create_user(session, email="gd-member@example.com")
     await create_guild_membership(
@@ -503,12 +498,11 @@ async def test_deleting_a_community_writes_to_the_people_who_ran_it(
     )
 
     notice = await guilds_service.soft_delete_guild(
-        session, guild, actor_user_id=boss.id
+        session, guild, actor_user_id=seat.id
     )
 
     assert notice.community_name == "Allotment Society"
-    assert "gd-admin@example.com" in notice.recipients
-    assert "gd-member@example.com" not in notice.recipients
+    assert notice.recipients == ["gd-seat@example.com"]
 
 
 @pytest.mark.integration
@@ -522,7 +516,7 @@ async def test_the_notice_is_gathered_before_the_roster_goes(session):
     alone = await create_user(session, email="gd-solo@example.com")
     guild = await create_guild(session, creator=alone, name="Just Me")
     await create_guild_membership(
-        session, user=alone, guild=guild, role=GuildRole.admin
+        session, user=alone, guild=guild, role=GuildRole.superadmin
     )
 
     notice = await guilds_service.soft_delete_guild(

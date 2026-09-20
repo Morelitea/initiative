@@ -471,6 +471,28 @@ async def test_update_guild_as_admin(
 
 
 @pytest.mark.integration
+async def test_an_ordinary_admin_cannot_delete_the_community(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Deleting a community is the seat's, not an admin's. It is the one
+    action an admin could not undo and could not have undone for them."""
+    guild = await create_guild(session, name="Not Yours To End")
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+
+    refused = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin.headers,
+        json={
+            "password": "testpassword123",
+            "confirmation_text": "DELETE NOT YOURS TO END",
+        },
+    )
+
+    assert refused.status_code == 403, refused.text
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "password,confirmation,expected_status,expected_detail",
     [
@@ -509,7 +531,7 @@ async def test_deleting_a_guild_asks_for_the_password_and_the_phrase(
     """Both answers have to be right. A refusal is 400 rather than 401, which
     is the status the SPA reads as a session ending."""
     guild = await create_guild(session, name="To Delete")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
 
     response = await client.request(
         "DELETE",
@@ -570,7 +592,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     """An identity link is not the question: an account can hold both, and one
     that holds a password confirms with it."""
     guild = await create_guild(session, name="To Delete")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
     await create_federated_identity(session, admin.user, subject="linked-admin-1")
 
     response = await client.request(
