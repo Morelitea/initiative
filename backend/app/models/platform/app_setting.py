@@ -32,8 +32,21 @@ _DEFAULT_LOGIN_METHODS_SQL = "{%s}" % ",".join(m.value for m in DEFAULT_LOGIN_ME
 #: deleting theirs.
 DEFAULT_GUILD_RETENTION_DAYS = 90
 
-#: The shortest window a deployment may set. A day, because a window measured
-#: in hours is not one somebody notices their mistake inside of.
+#: The window a deployment gets for a deleted **account**, in days.
+#:
+#: Shorter than the community one by default: a community's window protects a
+#: body of work that several people made, an account's protects one person
+#: from a decision they made in a moment, and thirty days is what somebody
+#: takes to change their mind.
+#:
+#: It is a separate figure from the community's rather than one setting for
+#: both, because they answer to different things — what a deployment owes the
+#: people in it, and what it owes the person leaving.
+DEFAULT_ACCOUNT_RETENTION_DAYS = 30
+
+#: The shortest window a deployment may set, for either. A day, because a
+#: window measured in hours is not one somebody notices their mistake inside
+#: of.
 MIN_GUILD_RETENTION_DAYS = 1
 
 #: The longest. Past this, the answer being asked for is "never", which is what
@@ -90,6 +103,16 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
 
+    # And the other half: the longest a session may be left alone. NULL keeps
+    # ``AUTH_REFRESH_TTL_DAYS``, which is where this question was answered
+    # before and still is for a deployment that says nothing. A figure here
+    # narrows it; a community held to the compliance standard narrows it
+    # further. Whichever is strictest binds, which is what a limit means.
+    session_idle_minutes: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+
     # How long a deleted community is kept before it is destroyed, in days.
     #
     # NULL is not the default here, unlike the limit above: it means **never**
@@ -100,6 +123,19 @@ class AppSetting(SQLModel, table=True):
     #
     # 90 days on a fresh install and on every upgrade, because that is the
     # figure the retention window shipped as.
+    # How long a deleted account is kept before it is erased, in days.
+    #
+    # NULL means never, as it does above: the deployment keeps the account and
+    # nothing erases it on a timer. That is the answer for one required to keep
+    # accounts rather than to remove them, and the reason this is a setting at
+    # all rather than the constant it started as.
+    deleted_account_retention_days: Optional[int] = Field(
+        default=DEFAULT_ACCOUNT_RETENTION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_ACCOUNT_RETENTION_DAYS)
+        ),
+    )
+
     deleted_community_retention_days: Optional[int] = Field(
         default=DEFAULT_GUILD_RETENTION_DAYS,
         sa_column=Column(

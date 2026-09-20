@@ -225,12 +225,14 @@ describe("how long deleted communities are kept", () => {
     config.communityDirectory = true;
     renderPage();
 
-    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    const box = (await screen.findByLabelText("Keep communities for (days)")) as HTMLInputElement;
     expect(box.value).toBe("90");
 
     await userEvent.clear(box);
     await userEvent.type(box, "30");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save how long communities are kept" })
+    );
 
     expect(updateMutate).toHaveBeenCalledWith({
       community_directory_enabled: true,
@@ -241,9 +243,11 @@ describe("how long deleted communities are kept", () => {
   it("takes a blank box as never destroy", async () => {
     renderPage();
 
-    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    const box = (await screen.findByLabelText("Keep communities for (days)")) as HTMLInputElement;
     await userEvent.clear(box);
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save how long communities are kept" })
+    );
 
     expect(updateMutate).toHaveBeenCalledWith({
       community_directory_enabled: false,
@@ -255,9 +259,11 @@ describe("how long deleted communities are kept", () => {
     config.retentionDays = null;
     renderPage();
 
-    const box = (await screen.findByLabelText("Keep for (days)")) as HTMLInputElement;
+    const box = (await screen.findByLabelText("Keep communities for (days)")) as HTMLInputElement;
     expect(box.value).toBe("");
     // Nothing to save until it is changed.
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save how long communities are kept" })
+    ).toBeDisabled();
   });
 });

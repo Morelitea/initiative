@@ -397,9 +397,9 @@
     "disconnectButton": "Disconnect",
     "deactivateTitle": "Deactivate Account",
     "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. An administrator can reactivate your account later.",
-    "permanentDeleteTitle": "Permanently Delete Account",
-    "permanentDeleteDescriptionText": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\".",
-    "cannotBeUndone": "This cannot be undone.",
+    "permanentDeleteTitle": "Delete Account",
+    "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
+    "cannotBeUndone": "Signing in is what stops it.",
     "deactivateButton": "Deactivate Account",
     "deleteButton": "Delete Account"
   },
@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
       "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
       "totp": {
-        "label": "Authenticator app",
-        "help": "A code from an app, asked for after a password. People turn it on for themselves."
+        "label": "Enable two-factor authentication",
+        "help": "Let people protect their account with a code from an authenticator app. Each person turns it on for themselves; this is whether the server offers it at all."
       },
       "passkey": {
         "label": "Passkey",
@@ -633,7 +633,10 @@
       "placeholder": "No limit",
       "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
       "saved": "Session limit saved.",
-      "error": "We couldn't save the session limit."
+      "error": "We couldn't save the session limit.",
+      "idleLabel": "Idle minutes",
+      "idlePlaceholder": "No limit",
+      "idleHint": "How long a session may sit untouched before it ends. Leave blank to keep the window set when the server was deployed. Using the app counts as touching it, so this only runs down once somebody has stopped. A community held to the compliance standard shortens it further for its own members."
     },
     "secondFactorRequirement": {
       "title": "Two-factor authentication",
@@ -658,7 +661,15 @@
       "unmet": "Set up a second factor of your own first, then save.",
       "present": "Enter a code",
       "saved": "Saved. People this covers are asked at their next request.",
-      "error": "We couldn't save that."
+      "error": "We couldn't save that.",
+      "noMethod": "Permit the authenticator app or passkeys first — with neither offered there is nothing to ask people for."
+    },
+    "factorMethods": {
+      "title": "Two-factor authentication",
+      "description": "What this server offers as a second factor. Whether anybody has to hold one is the next setting.",
+      "saved": "Two-factor authentication updated.",
+      "saveError": "Could not change two-factor authentication.",
+      "followsWaysIn": "A passkey proves the device and the person in one go, so it answers this as well as opening a session. Whether passkeys are offered is decided under Ways in."
     }
   },
   "platformUsers": {
@@ -669,7 +680,6 @@
     "filterPlaceholder": "Filter by handle…",
     "columnId": "User ID",
     "columnHandle": "Handle",
-    "columnEmail": "Email",
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
@@ -677,16 +687,16 @@
     "anonymized": "Anonymized",
     "suspended": "Suspended",
     "resetPassword": "Reset password",
-    "resetDescription": "This will send a password reset email to {{email}}.",
+    "resetDescription": "Send a password reset to {{handle}}? They'll get a link at the address they signed up with.",
     "reactivate": "Reactivate",
     "exportUser": "Export",
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
     "roleChangeError": "Unable to change user role",
-    "resetSuccess": "Password reset email sent to {{email}}",
+    "resetSuccess": "Password reset sent for {{handle}}.",
     "resetError": "Unable to send password reset",
-    "reactivateSuccess": "{{email}} has been reactivated",
+    "reactivateSuccess": "{{handle}} can sign in again.",
     "reactivateError": "Unable to reactivate user",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
@@ -733,7 +743,13 @@
       "role": "Platform role",
       "roleLabel": "Role",
       "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
-    }
+    },
+    "deleted": "Deleted",
+    "erasedOn": "Erased {{date}}",
+    "erasedNever": "Kept indefinitely",
+    "restore": "Restore account",
+    "restoreSuccess": "Restored {{handle}}.",
+    "restoreError": "Could not restore the account. Please try again."
   },
   "adminDeleteUser": {
     "subtitle": "Delete {{email}}",
@@ -747,7 +763,7 @@
     "deactivateTitle": "Deactivate",
     "deactivateDescription": "User cannot log in. PII preserved. Reversible from the users page.",
     "softDeleteTitle": "Anonymize (soft delete)",
-    "softDeleteDescription": "PII removed. User cannot log in. Content authorship is preserved as \"Deleted user\". Cannot be reversed.",
+    "softDeleteDescription": "The account disappears for everyone else and keeps everything it holds. It is erased when the deployment's window ends, unless its holder signs back in or you restore it.",
     "hardDeleteTitle": "Hard delete (purge)",
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "blockersTitle": "Blockers",
@@ -775,7 +791,9 @@
     "deleting": "Deleting…",
     "deactivateButton": "Deactivate user",
     "deactivating": "Deactivating…",
-    "deleteError": "Unable to delete user"
+    "deleteError": "Unable to delete user",
+    "preferWindowLabel": "Delete with the recovery window instead",
+    "preferWindowHelp": "The account keeps everything and disappears for everyone else. It is erased at the end of the window unless somebody brings it back."
   },
   "accessGrants": {
     "title": "Access requests",
@@ -1335,10 +1353,8 @@
       "authentik": "The application slug, not the provider name — the issuer follows the application.",
       "authelia": "Paste the plaintext client secret, not the hash you put in the YAML.",
       "pocketId": "Passkey-only, so your sign-ins inherit passkeys with nothing further to do.",
-      "gitlab": "Your own GitLab or gitlab.com — the address is the instance root either way. Add an Application under User settings or Admin, with the callback URL below.",
-      "gitea": "Also Forgejo and Codeberg. Add an OAuth2 application in settings, and pick groups as the Groups claim to sort people by their teams.",
-      "discord": "Works, but Discord doesn't document it, so it could change without warning. Worth knowing before you make it the only way in.",
       "salesforce": "Sandboxes and My Domain orgs each sign in at their own address, so use the one your people actually use rather than the generic login host.",
+      "dex": "The address ends with whatever your Dex config sets as its issuer — /dex by convention. It has to match that exactly.",
       "custom": "Any provider that speaks OpenID Connect. Paste its issuer address — a .well-known URL works too."
     }
   },
@@ -1412,8 +1428,8 @@
     "title": "Community directory",
     "description": "Let communities list themselves where anyone signed in can find them and join without an invite.",
     "toggleLabel": "Run a community directory",
-    "helpText": "While this is on, an admin can list their community from its settings, and “Join a community” appears beside everyone's own. While it is off, there is nothing to browse and nothing can list itself.",
-    "reversibleNote": "Turning this off hides the directory; it does not un-list the communities that opted in. Turn it back on and the same communities are listed again.",
+    "helpText": "Turns on the public community directory: a browsable list of the communities that have chosen to be found. People search it and ask to join, and “Join a community” appears beside their own. Each community lists itself from its own settings.",
+    "reversibleNote": "Turning it off closes the directory. Communities that listed themselves stay listed, and appear again when you turn it back on.",
     "enabledToast": "The community directory is on.",
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
@@ -1436,13 +1452,26 @@
     "retention": {
       "title": "Keeping deleted communities",
       "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
-      "label": "Keep for (days)",
+      "label": "Keep communities for (days)",
       "placeholder": "Never destroy",
       "hint": "Counted from the moment each community was deleted, so changing this moves the date for ones already deleted.",
       "neverHint": "Nothing is destroyed on a timer. Deleted communities stay in the list below until somebody restores one.",
       "saved_one": "Deleted communities are kept for {{count}} day.",
       "saved_other": "Deleted communities are kept for {{count}} days.",
-      "savedNever": "Deleted communities are kept indefinitely."
+      "savedNever": "Deleted communities are kept indefinitely.",
+      "save": "Save how long communities are kept"
+    },
+    "accountRetention": {
+      "title": "Keeping deleted accounts",
+      "description": "A deleted account disappears for everyone else straight away and keeps everything it holds. It is erased when this window ends, unless its holder signs back in or an operator restores it.",
+      "label": "Keep accounts for (days)",
+      "placeholder": "Never erase",
+      "hint": "Counted from the moment each account was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is erased on a timer. Deleted accounts stay in the users table until somebody comes back or restores one.",
+      "saved_one": "Deleted accounts are kept for {{count}} day.",
+      "saved_other": "Deleted accounts are kept for {{count}} days.",
+      "savedNever": "Deleted accounts are kept indefinitely.",
+      "save": "Save how long accounts are kept"
     }
   },
   "account": {

@@ -339,6 +339,16 @@ class LoginMethodStatus(SanitizedBaseModel):
 
     method: LoginMethod
     enabled: bool
+    #: Whether this method can begin a session on its own. False for a second
+    #: factor, which accompanies a sign-in rather than opening one — the one
+    #: distinction that decides where the surface asks about it, so it is
+    #: derived from ``PRIMARY_LOGIN_METHODS`` here rather than listed again
+    #: in the frontend.
+    primary: bool
+    #: Whether this method can answer a second-factor requirement. Derived
+    #: from ``FACTOR_METHODS``, and orthogonal to ``primary``: a passkey is
+    #: both — a way in on its own, and an answer to being asked for a factor.
+    answers_factor: bool = False
     #: Accounts that can sign in today and could not if this method were
     #: withdrawn. Computed for every method, withdrawn or not, so the settings
     #: page can warn before the write rather than after a refusal — and so the
@@ -373,10 +383,21 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
     guilds_requiring_sign_in: int
+    #: Whether anything this deployment permits could answer a second-factor
+    #: requirement — the authenticator app or a passkey, either will do. False
+    #: means the requirement below cannot be raised, and the server refuses it
+    #: with ``SETTINGS_FACTOR_REQUIREMENT_NO_METHOD``. Answered here so the
+    #: surface can say so before the write, and so it never has to work out
+    #: which methods count.
+    factor_methods_permitted: bool = True
     #: How long somebody may stay signed in before signing in again, in hours.
     #: ``None`` asks for no limit, which is the default. A community held to
     #: the compliance standard overrides it downwards for its own members.
     session_max_hours: Optional[int] = None
+    #: How long a session may be left alone before it lapses, in minutes.
+    #: ``None`` leaves the deployment's configured refresh window. A community
+    #: held to the compliance standard narrows it further for its members.
+    session_idle_minutes: Optional[int] = None
     #: Who this deployment asks to hold a second factor.
     second_factor_requirement: SecondFactorRequirement = SecondFactorRequirement.nobody
     #: What each level would ask for, as things stand.
@@ -393,6 +414,10 @@ class SessionLifetimeUpdate(SanitizedBaseModel):
     """
 
     session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
+    #: The idle window, in minutes. ``None`` asks for no limit of its own and
+    #: leaves ``AUTH_REFRESH_TTL_DAYS``. Floored at a minute — anything less
+    #: ends a session while somebody is still reading the page.
+    session_idle_minutes: Optional[int] = Field(default=None, ge=1, le=525600)
 
 
 class SecondFactorRequirementUpdate(SanitizedBaseModel):
@@ -453,6 +478,11 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: to keep what its members put in it. Owner-only, deployment-wide; a
     #: community has no say in its own.
     deleted_community_retention_days: Optional[int] = None
+    #: How long a deleted account is kept before it is erased, in days. Its own
+    #: figure rather than the one above: what a deployment owes the people in a
+    #: community and what it owes the person leaving are different questions.
+    #: ``None`` means never, for a deployment required to keep accounts.
+    deleted_account_retention_days: Optional[int] = None
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -473,6 +503,13 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: leave the window alone, send a number to set it, send ``null`` to turn
     #: destruction off. The endpoint inspects ``model_fields_set``.
     deleted_community_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
+    #: The account window, read the same way: omit to leave it alone, send a
+    #: number to set it, send ``null`` to stop erasing on a timer.
+    deleted_account_retention_days: Optional[int] = Field(
         default=None,
         ge=MIN_GUILD_RETENTION_DAYS,
         le=MAX_GUILD_RETENTION_DAYS,

@@ -189,6 +189,12 @@ class AuditEventType(str, Enum):
     USER_ANONYMIZED = "user.anonymized"
     #: The account and everything it left, removed outright.
     USER_DELETED = "user.deleted"
+    #: The holder asked for the account to go. It is kept for the deployment's
+    #: window, and erased at the end of it unless somebody comes back.
+    USER_DELETION_SCHEDULED = "user.deletion_scheduled"
+    #: Called off inside the window — by the holder signing in, or by an
+    #: operator restoring it.
+    USER_DELETION_CANCELLED = "user.deletion_cancelled"
     GUILD_CREATED = "guild.created"
     #: Deleted and kept: the community stops existing for everyone in it, and
     #: is retained for the restore window before the purge below destroys it.
@@ -492,6 +498,12 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_DELETED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.USER_DELETION_SCHEDULED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.USER_DELETION_CANCELLED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.GUILD_CREATED: AuditEventMeta(

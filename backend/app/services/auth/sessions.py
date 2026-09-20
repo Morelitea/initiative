@@ -84,6 +84,21 @@ def _generate_refresh_token() -> str:
     return secrets.token_urlsafe(_REFRESH_TOKEN_BYTES)
 
 
+async def _narrowed_ttl(
+    session: AsyncSession, *, user_id: int, requested: timedelta | None
+) -> timedelta:
+    """How long the refresh row may stand.
+
+    The deployment's own window unless the caller named one, narrowed by what
+    a community held to the compliance standard asks of its members. Resolved
+    here rather than by each caller: a rotation learns whose session it is
+    from the token it was handed, so there is one place that knows.
+    """
+    ttl = requested or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    idle = await session_lifetime.idle_window(session, user_id=user_id)
+    return min(ttl, idle) if idle is not None else ttl
+
+
 def _hash_refresh_token(raw: str) -> bytes:
     """SHA-256 of the raw token — *deterministic* so a presented token maps to
     exactly one session by an indexed lookup. The token is 256-bit random, so a
@@ -188,9 +203,17 @@ async def create_session(
     auth-policy gate and step-up read them locally. ``provider_auth`` carries
     each satisfied provider's own account of its authentication event (see
     ``services.auth.assurance``).
+
+    **Opening a session calls off a pending deletion.** Somebody whose account
+    is waiting out its erasure window has just proved they are its holder and
+    that they want it, which is the whole of what cancelling asks for. It
+    happens here rather than at each of the ways in, because every one of them
+    ends at this function and a rule spread over eight of them is a rule with
+    seven places to forget it. It lands in the same transaction as the session,
+    so a sign-in that fails leaves the deletion exactly where it was.
     """
     issued = now or _now()
-    ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    ttl = await _narrowed_ttl(session, user_id=user_id, requested=refresh_ttl)
     # The end of the whole chain, read once here and carried forward from now
     # on. ``expires_at`` is the idle window and never outlives it.
     chain_ends = await session_lifetime.chain_deadline(
@@ -212,6 +235,13 @@ async def create_session(
     )
     session.add(row)
     await session.flush()
+    # Imported here: ``users`` reaches back into the auth package, and the two
+    # would import each other at module scope.
+    from app.services.platform import users as users_service
+
+    await users_service.cancel_account_deletion(
+        session, user_id, actor_user_id=user_id, via="sign_in"
+    )
     return IssuedSession(session=row, refresh_token=raw)
 
 
@@ -246,7 +276,6 @@ async def rotate_session(
     are persisted regardless of how the request ends.
     """
     issued = now or _now()
-    ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
     presented_hash = _hash_refresh_token(raw_refresh_token)
 
     row = (
@@ -287,6 +316,11 @@ async def rotate_session(
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
+
+    # Whose session this is only becomes known here, from the token that was
+    # presented, so the window it may stand for is worked out now rather than
+    # by a caller that could not have known.
+    ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
 
     raw = _generate_refresh_token()
     child = AuthSession(

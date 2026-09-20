@@ -84,7 +84,12 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
-from app.core.login_methods import LoginMethod, SecondFactorRequirement
+from app.core.login_methods import (
+    FACTOR_METHODS,
+    PRIMARY_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
@@ -102,7 +107,10 @@ BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 # Which columns of the settings singleton this page moves itself; the other
 # areas are recorded by the service that writes them. A value rides along in
 # the record only where its type rules out a secret.
-_SESSION_LIFETIME_FIELDS: tuple[str, ...] = ("session_max_hours",)
+_SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
+    "session_max_hours",
+    "session_idle_minutes",
+)
 
 #: What the operator's caps and entitlements for one community consist of.
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
@@ -204,6 +212,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             LoginMethodStatus(
                 method=method,
                 enabled=method in permitted,
+                primary=method in PRIMARY_LOGIN_METHODS,
+                answers_factor=method in FACTOR_METHODS,
                 would_strand=await auth_posture.stranded_between(
                     session, current=permitted, requested=permitted - {method}
                 ),
@@ -211,7 +221,9 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
+        session_idle_minutes=row.session_idle_minutes,
         second_factor_requirement=auth_posture.requirement_from_row(row),
         accounts_without_factor=AccountsWithoutFactor(
             platform_roles=await auth_posture.accounts_without_factor(
@@ -300,6 +312,7 @@ async def update_session_lifetime(
     row = await app_settings_service.get_app_settings(session)
     before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
     row.session_max_hours = payload.session_max_hours
+    row.session_idle_minutes = payload.session_idle_minutes
     session.add(row)
     await session.flush()
     # A device token carries its deadline in its own expiry, so the new figure
@@ -369,6 +382,7 @@ async def read_community_settings(
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 
@@ -421,6 +435,9 @@ async def update_community_settings(
         deleted_community_retention_days=payload.deleted_community_retention_days,
         retention_provided="deleted_community_retention_days"
         in payload.model_fields_set,
+        deleted_account_retention_days=payload.deleted_account_retention_days,
+        account_retention_provided="deleted_account_retention_days"
+        in payload.model_fields_set,
         actor_user_id=admin.id,
     )
     return CommunitySettingsResponse(
@@ -429,6 +446,7 @@ async def update_community_settings(
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 

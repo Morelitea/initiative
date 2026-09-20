@@ -38,6 +38,9 @@ const base: PlatformAuthSettingsResponse = {
   session_max_hours: null,
   second_factor_requirement: "nobody",
   accounts_without_factor: { platform_roles: 2, everyone: 9 },
+  // Something can answer the requirement; the case where nothing can has its
+  // own test below.
+  factor_methods_permitted: true,
 };
 
 /** The server refusing because this account does not meet the rule itself. */
@@ -113,5 +116,18 @@ describe("SecondFactorRequirementSection", () => {
 
     expect(screen.getByText(/set up a second factor of your own/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enter a code/i })).toBeInTheDocument();
+  });
+
+  it("cannot be raised while nothing could answer it", async () => {
+    settings = { ...base, factor_methods_permitted: false };
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    // The server refuses this write; the page says so rather than offering it.
+    expect(
+      await screen.findByText(/permit the authenticator app or passkeys first/i)
+    ).toBeInTheDocument();
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toBeDisabled();
+    }
   });
 });

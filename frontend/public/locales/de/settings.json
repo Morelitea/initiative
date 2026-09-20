@@ -397,9 +397,9 @@
     "disconnectButton": "Trennen",
     "deactivateTitle": "Konto deaktivieren",
     "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
-    "permanentDeleteTitle": "Konto dauerhaft löschen",
-    "permanentDeleteDescriptionText": "Entferne dein Konto vollständig aus dem System. Projekte werden an andere Benutzer übertragen. Kommentare und Dokumente bleiben erhalten, zeigen aber „[Gelöschter Benutzer]“ an.",
-    "cannotBeUndone": "Dies kann nicht rückgängig gemacht werden.",
+    "permanentDeleteTitle": "Konto löschen",
+    "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
+    "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
     "deactivateButton": "Konto deaktivieren",
     "deleteButton": "Konto löschen"
   },
@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
       "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
       "totp": {
-        "label": "Authenticator-App",
-        "help": "Ein Code aus einer App, nach dem Passwort abgefragt. Jede Person aktiviert ihn selbst."
+        "label": "Zwei-Faktor-Authentifizierung aktivieren",
+        "help": "Lass Leute ihr Konto mit einem Code aus einer Authenticator-App schützen. Einschalten tut das jede Person für sich; hier geht es darum, ob der Server es überhaupt anbietet."
       },
       "passkey": {
         "label": "Passkey",
@@ -633,7 +633,10 @@
       "placeholder": "Kein Limit",
       "hint": "Leer lassen für kein Limit. Ein Wert unterhalb des Inaktivitätsfensters wird zum einzigen, was eine Sitzung beendet. Bereits offene Web-Sitzungen behalten ihre ursprünglichen Bedingungen; Telefone unterliegen einem verkürzten Limit sofort.",
       "saved": "Sitzungslimit gespeichert.",
-      "error": "Das Sitzungslimit konnte nicht gespeichert werden."
+      "error": "Das Sitzungslimit konnte nicht gespeichert werden.",
+      "idleLabel": "Leerlauf (Minuten)",
+      "idlePlaceholder": "Kein Limit",
+      "idleHint": "Wie lange eine Sitzung unberührt bleiben darf, bevor sie endet. Leer lassen, um das beim Deployment gesetzte Fenster zu behalten. Die App zu benutzen zählt als Berührung, die Zeit läuft also erst, wenn jemand aufhört. Eine Community, die dem Compliance-Standard folgt, verkürzt es für ihre Mitglieder weiter."
     },
     "secondFactorRequirement": {
       "title": "Zwei-Faktor-Authentifizierung",
@@ -658,7 +661,15 @@
       "unmet": "Richte zuerst selbst einen zweiten Faktor ein, dann speichern.",
       "present": "Code eingeben",
       "saved": "Gespeichert. Betroffene werden bei ihrer nächsten Anfrage gefragt.",
-      "error": "Das konnte nicht gespeichert werden."
+      "error": "Das konnte nicht gespeichert werden.",
+      "noMethod": "Erlaube zuerst die Authenticator-App oder Passkeys — ohne eines von beiden gibt es nichts zu verlangen."
+    },
+    "factorMethods": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Was dieser Server als zweiten Faktor anbietet. Ob ihn jemand haben muss, ist die nächste Einstellung.",
+      "saved": "Zwei-Faktor-Authentifizierung aktualisiert.",
+      "saveError": "Zwei-Faktor-Authentifizierung konnte nicht geändert werden.",
+      "followsWaysIn": "Ein Passkey weist Gerät und Person in einem Schritt nach und beantwortet dies daher ebenso, wie er eine Sitzung eröffnet. Ob Passkeys angeboten werden, wird unter „Zugangswege“ entschieden."
     }
   },
   "platformUsers": {
@@ -669,7 +680,6 @@
     "filterPlaceholder": "Nach Handle filtern…",
     "columnId": "Benutzer-ID",
     "columnHandle": "Handle",
-    "columnEmail": "E-Mail",
     "columnStatus": "Status",
     "columnActions": "Aktionen",
     "active": "Aktiv",
@@ -677,16 +687,16 @@
     "anonymized": "Anonymisiert",
     "suspended": "Gesperrt",
     "resetPassword": "Passwort zurücksetzen",
-    "resetDescription": "Dadurch wird eine E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet.",
+    "resetDescription": "Passwort-Zurücksetzung an {{handle}} senden? Die Person erhält einen Link an die Adresse, mit der sie sich registriert hat.",
     "reactivate": "Wieder aktivieren",
     "exportUser": "Exportieren",
     "exportAll": "Alle als CSV exportieren",
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "deleteUser": "Benutzer löschen",
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
-    "resetSuccess": "E-Mail zum Zurücksetzen des Passworts an {{email}} gesendet",
+    "resetSuccess": "Passwort-Zurücksetzung für {{handle}} gesendet.",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
-    "reactivateSuccess": "{{email}} wurde wieder aktiviert",
+    "reactivateSuccess": "{{handle}} kann sich wieder anmelden.",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
     "roles": {
@@ -733,7 +743,13 @@
       "role": "Plattformrolle",
       "roleLabel": "Rolle",
       "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
-    }
+    },
+    "deleted": "Gelöscht",
+    "erasedOn": "Löschung am {{date}}",
+    "erasedNever": "Unbegrenzt aufbewahrt",
+    "restore": "Konto wiederherstellen",
+    "restoreSuccess": "{{handle}} wiederhergestellt.",
+    "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
   },
   "adminDeleteUser": {
     "subtitle": "{{email}} löschen",
@@ -747,7 +763,7 @@
     "deactivateTitle": "Deaktivieren",
     "deactivateDescription": "Benutzer kann sich nicht anmelden. Personenbezogene Daten bleiben erhalten. Über die Benutzerseite reversibel.",
     "softDeleteTitle": "Anonymisieren (Soft-Delete)",
-    "softDeleteDescription": "Personenbezogene Daten werden entfernt. Benutzer kann sich nicht anmelden. Die Inhaltsurheberschaft bleibt als „Gelöschter Benutzer“ erhalten. Kann nicht rückgängig gemacht werden.",
+    "softDeleteDescription": "Das Konto verschwindet für alle anderen und behält alles, was es hält. Am Ende der Frist dieser Installation wird es gelöscht, sofern sich die Person nicht wieder anmeldet oder Sie es wiederherstellen.",
     "hardDeleteTitle": "Endgültig löschen (bereinigen)",
     "hardDeleteDescription": "Alle Benutzerdaten werden aus der Datenbank entfernt. Von diesem Benutzer verfasste Kommentare, Aufgaben und andere Inhalte werden per Kaskade gelöscht. Kann nicht rückgängig gemacht werden.",
     "blockersTitle": "Blockierungen",
@@ -775,7 +791,9 @@
     "deleting": "Wird gelöscht…",
     "deactivateButton": "Benutzer deaktivieren",
     "deactivating": "Wird deaktiviert…",
-    "deleteError": "Benutzer konnte nicht gelöscht werden"
+    "deleteError": "Benutzer konnte nicht gelöscht werden",
+    "preferWindowLabel": "Stattdessen mit Wiederherstellungsfrist löschen",
+    "preferWindowHelp": "Das Konto behält alles und verschwindet für alle anderen. Am Ende der Frist wird es gelöscht, sofern es niemand zurückholt."
   },
   "accessGrants": {
     "title": "Zugriffsanfragen",
@@ -1335,10 +1353,8 @@
       "authentik": "Der Application-Slug, nicht der Provider-Name — der Issuer folgt der Application.",
       "authelia": "Füge das Client-Secret im Klartext ein, nicht den Hash aus der YAML-Datei.",
       "pocketId": "Nur Passkeys, damit eure Anmeldungen Passkeys ohne weiteres Zutun übernehmen.",
-      "gitlab": "Dein eigenes GitLab oder gitlab.com — die Adresse ist in beiden Fällen die Instanz-Wurzel. Lege unter Benutzereinstellungen oder Admin eine Anwendung mit der Callback-URL unten an.",
-      "gitea": "Auch Forgejo und Codeberg. Lege in den Einstellungen eine OAuth2-Anwendung an und wähle groups als Gruppen-Claim, um Leute nach ihren Teams einzuordnen.",
-      "discord": "Funktioniert, ist von Discord aber nicht dokumentiert und kann sich ohne Vorwarnung ändern. Gut zu wissen, bevor es der einzige Zugangsweg wird.",
       "salesforce": "Sandboxes und My-Domain-Organisationen melden sich jeweils unter ihrer eigenen Adresse an. Nimm die, die deine Leute tatsächlich nutzen, statt des allgemeinen Login-Hosts.",
+      "dex": "Die Adresse endet mit dem, was in deiner Dex-Konfiguration als issuer steht — üblicherweise /dex. Sie muss exakt damit übereinstimmen.",
       "custom": "Jeder Anbieter, der OpenID Connect spricht. Füge dessen Issuer-Adresse ein — eine .well-known-URL funktioniert auch."
     }
   },
@@ -1412,8 +1428,8 @@
     "title": "Community-Verzeichnis",
     "description": "Erlaube Communitys, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
     "toggleLabel": "Community-Verzeichnis betreiben",
-    "helpText": "Solange dies aktiv ist, können Community-Administratoren ihre Community in den Community-Einstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Communitys aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Community kann sich eintragen.",
-    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Communitys bleiben bestehen. Wird es wieder aktiviert, sind dieselben Communitys erneut gelistet.",
+    "helpText": "Schaltet das öffentliche Community-Verzeichnis ein: eine durchsuchbare Liste der Communitys, die gefunden werden möchten. Leute durchsuchen sie und bitten um Aufnahme, und „Einer Community beitreten“ erscheint neben ihren eigenen. Jede Community trägt sich in ihren eigenen Einstellungen ein.",
+    "reversibleNote": "Ausschalten schließt das Verzeichnis. Eingetragene Communitys bleiben eingetragen und erscheinen wieder, sobald du es erneut einschaltest.",
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
@@ -1436,13 +1452,26 @@
     "retention": {
       "title": "Gelöschte Communitys aufbewahren",
       "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",
-      "label": "Aufbewahren für (Tage)",
+      "label": "Communitys aufbewahren für (Tage)",
       "placeholder": "Nie entfernen",
       "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Communitys.",
       "neverHint": "Nichts wird nach Ablauf einer Frist entfernt. Gelöschte Communitys bleiben in der Liste unten, bis jemand eine wiederherstellt.",
       "saved_one": "Gelöschte Communitys werden {{count}} Tag aufbewahrt.",
       "saved_other": "Gelöschte Communitys werden {{count}} Tage aufbewahrt.",
-      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt."
+      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt.",
+      "save": "Aufbewahrungsdauer für Communitys speichern"
+    },
+    "accountRetention": {
+      "title": "Gelöschte Konten aufbewahren",
+      "description": "Ein gelöschtes Konto verschwindet sofort für alle anderen und behält alles, was es hält. Es wird am Ende dieser Frist gelöscht, sofern sich die Person nicht wieder anmeldet oder ein Betreiber es wiederherstellt.",
+      "label": "Konten aufbewahren für (Tage)",
+      "placeholder": "Nie löschen",
+      "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Konten.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist gelöscht. Gelöschte Konten bleiben in der Nutzertabelle, bis jemand zurückkommt oder eines wiederherstellt.",
+      "saved_one": "Gelöschte Konten werden {{count}} Tag aufbewahrt.",
+      "saved_other": "Gelöschte Konten werden {{count}} Tage aufbewahrt.",
+      "savedNever": "Gelöschte Konten werden unbegrenzt aufbewahrt.",
+      "save": "Aufbewahrungsdauer für Konten speichern"
     }
   },
   "account": {

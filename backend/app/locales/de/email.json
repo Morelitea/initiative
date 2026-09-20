@@ -342,5 +342,14 @@
     "expiry": "Der Code gilt {{minutes}} Minuten und kann einmal verwendet werden.",
     "fallbackText": "Wenn du kein Konto erstellen wolltest, kannst du diese E-Mail ignorieren.",
     "textBody": "Dein Initiative-Registrierungscode lautet {{code}}. Er gilt {{minutes}} Minuten und kann einmal verwendet werden."
+  },
+  "accountErased": {
+    "subject": "Dein Initiative-Konto wurde gelöscht",
+    "title": "Dein Konto wurde gelöscht",
+    "greeting": "Hallo,",
+    "body": "Hiermit bestätigen wir, dass das Initiative-Konto zu dieser Adresse gelöscht wurde, zusammen mit den dazu gespeicherten personenbezogenen Daten.",
+    "kept": "Einiges bleibt und nennt dich nicht mehr: Beiträge, die du zu einer Community geleistet hast, verbleiben dort und sind einem gelöschten Konto zugeordnet.",
+    "unexpected": "Wenn du das nicht veranlasst hast, wende dich so bald wie möglich an die Betreiber deines Initiative-Servers.",
+    "textBody": "Das Initiative-Konto zu dieser Adresse wurde gelöscht, zusammen mit den dazu gespeicherten personenbezogenen Daten. Beiträge zu einer Community verbleiben dort und sind einem gelöschten Konto zugeordnet."
   }
 }

@@ -342,5 +342,14 @@
     "expiry": "The code works for {{minutes}} minutes and can be used once.",
     "fallbackText": "If you didn't try to create an account, you can ignore this email.",
     "textBody": "Your Initiative sign-up code is {{code}}. It works for {{minutes}} minutes and can be used once."
+  },
+  "accountErased": {
+    "subject": "Your Initiative account has been deleted",
+    "title": "Your account has been deleted",
+    "greeting": "Hello,",
+    "body": "This is confirmation that the Initiative account at this address has been deleted, along with the personal information held with it.",
+    "kept": "Some things stay, and they no longer name you: work you contributed to a community remains with that community, attributed to a deleted account.",
+    "unexpected": "If you did not ask for this, reply to whoever runs your Initiative server as soon as you can.",
+    "textBody": "Your Initiative account at this address has been deleted, along with the personal information held with it. Work you contributed to a community remains with that community, attributed to a deleted account."
   }
 }

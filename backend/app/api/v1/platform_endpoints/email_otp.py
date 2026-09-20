@@ -31,7 +31,7 @@ from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
 from app.db.session import get_admin_session, get_session
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
 from app.schemas.platform.email_otp import (
     EmailOtpRegister,
@@ -159,7 +159,7 @@ async def send_sign_in_code(
     user = await addresses.account_holding(admin_session, address)
     # An account that cannot sign in is not one to send a code to, and reads
     # from here exactly like an address nobody holds.
-    recipient = user if user is not None and user.status == UserStatus.active else None
+    recipient = user if user is not None and user.status in SIGN_IN_STATUSES else None
     row = (
         await addresses.row_for(admin_session, address)
         if recipient is not None
@@ -257,7 +257,7 @@ async def verify_sign_in_code(
 
     user_id = challenge.user_id
     user = await admin_session.get(User, user_id)
-    if user is None or user.status != UserStatus.active:
+    if user is None or user.status not in SIGN_IN_STATUSES:
         await record_sign_in_failure(
             admin_session, user, method="email_otp", reason="inactive"
         )

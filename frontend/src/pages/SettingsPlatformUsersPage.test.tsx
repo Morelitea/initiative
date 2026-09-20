@@ -29,6 +29,7 @@ vi.mock("@/hooks/useAdmin", () => ({
   useAdminClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
+  useAdminRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
@@ -64,14 +65,16 @@ describe("SettingsPlatformUsersPage", () => {
     state.roster = [];
   });
 
-  it("shows each account as the server sent it: masked address, handle, and no name", async () => {
+  it("identifies an account by its handle, and shows no address or name", async () => {
     const rows = masked();
     rows[1].full_name = "Wilhelmina Fitzgerald";
     renderRoster(rows);
 
-    expect(await screen.findByText("o***r@e***m")).toBeInTheDocument();
-    expect(screen.getByText("u***1@e***m")).toBeInTheDocument();
-    // Nothing on the page reassembles a real address from what arrived.
+    await screen.findByText("owner");
+    // Not even the shortened form the server still sends: an operator does
+    // not administer an account by its address.
+    expect(screen.queryByText("o***r@e***m")).not.toBeInTheDocument();
+    expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
     expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
     // A row is identified by handle, which is what the filter box searches.
     expect(screen.getByText("owner")).toBeInTheDocument();
@@ -92,16 +95,17 @@ describe("SettingsPlatformUsersPage", () => {
     // match nothing here, while still looking right for a typed prefix.
     await userEvent.type(box, whole);
 
-    expect(screen.getByText("o***r@e***m")).toBeInTheDocument();
-    expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
+    expect(screen.getByText("owner")).toBeInTheDocument();
+    expect(screen.queryByText("member-one")).not.toBeInTheDocument();
   });
 
   it("offers a sort control on every identifying column, and only those", async () => {
     renderRoster(masked());
 
-    for (const label of [/^User ID/, /^Handle/, /^Email/, /^Status/]) {
+    for (const label of [/^User ID/, /^Handle/, /^Status/]) {
       expect(await screen.findByRole("button", { name: label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: /^Email/ })).not.toBeInTheDocument();
     // The role is decided in the sheet now, so it is not a column to sort by;
     // neither is the actions column something you can order rows by.
     expect(screen.queryByRole("button", { name: /^Role/ })).not.toBeInTheDocument();
@@ -173,7 +177,36 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     // Support can read the roster — that is ``users.read`` — and nothing here
     // writes to an account, so there is nothing to open.
-    await screen.findByText("o***r@e***m");
+    await screen.findByText("owner");
     expect(screen.queryByRole("button", { name: /manage account/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("an account on its way out", () => {
+  const deleted = (purgeAt: string | null): AdminUserRead[] => {
+    const rows = masked();
+    rows[1] = { ...rows[1], status: "deleted", purge_at: purgeAt };
+    return rows;
+  };
+
+  it("is tagged, with the day it is erased", async () => {
+    renderRoster(deleted("2026-10-20T12:00:00Z"));
+
+    expect(await screen.findByText("Deleted")).toBeInTheDocument();
+    // An instant, not a calendar day, so it is drawn in the reader's own
+    // timezone — computed here the same way rather than written out.
+    const expected = new Date("2026-10-20T12:00:00Z").toLocaleDateString("en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    expect(screen.getByText(`Erased ${expected}`)).toBeInTheDocument();
+  });
+
+  it("says so plainly where the deployment erases nobody", async () => {
+    renderRoster(deleted(null));
+
+    expect(await screen.findByText("Deleted")).toBeInTheDocument();
+    expect(screen.getByText("Kept indefinitely")).toBeInTheDocument();
   });
 });

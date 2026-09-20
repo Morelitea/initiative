@@ -397,9 +397,9 @@
     "disconnectButton": "Desconectar",
     "deactivateTitle": "Desactivar cuenta",
     "deactivateDescription": "Desactiva temporalmente tu cuenta. Tu nombre, email y contenido se mantienen intactos, pero serás eliminado de todas las comunidades a los que perteneces; volver a unirte requiere una nueva invitación. Un administrador puede reactivar tu cuenta más tarde.",
-    "permanentDeleteTitle": "Eliminar cuenta permanentemente",
-    "permanentDeleteDescriptionText": "Elimina completamente tu cuenta del sistema. Los proyectos serán transferidos a otros usuarios. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\".",
-    "cannotBeUndone": "Esta acción no se puede deshacer.",
+    "permanentDeleteTitle": "Eliminar cuenta",
+    "permanentDeleteDescriptionText": "Tu cuenta desaparece de inmediato para los demás. Por ahora no se borra nada: si vuelves a iniciar sesión antes de que acabe el plazo, la eliminación se cancela, con tus comunidades y tu trabajo tal y como los dejaste. Después, los proyectos pasan a otras personas, y los comentarios y documentos se quedan pero muestran «[Usuario eliminado]».",
+    "cannotBeUndone": "Iniciar sesión es lo que la detiene.",
     "deactivateButton": "Desactivar cuenta",
     "deleteButton": "Eliminar cuenta"
   },
@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
       "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio.",
       "totp": {
-        "label": "Aplicación de autenticación",
-        "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
+        "label": "Activar la autenticación en dos pasos",
+        "help": "Permite que la gente proteja su cuenta con un código de una aplicación de autenticación. Cada persona la activa por su cuenta; esto decide si el servidor la ofrece siquiera."
       },
       "passkey": {
         "label": "Clave de acceso",
@@ -633,7 +633,10 @@
       "placeholder": "Sin límite",
       "hint": "Déjalo en blanco para no poner límite. Una cifra menor que la ventana de inactividad pasa a ser lo único que cierra una sesión. Las sesiones web ya abiertas mantienen sus condiciones originales; los teléfonos pasan a un límite más corto de inmediato.",
       "saved": "Límite de sesión guardado.",
-      "error": "No hemos podido guardar el límite de sesión."
+      "error": "No hemos podido guardar el límite de sesión.",
+      "idleLabel": "Minutos de inactividad",
+      "idlePlaceholder": "Sin límite",
+      "idleHint": "Cuánto puede estar una sesión sin tocarse antes de terminar. Déjalo en blanco para conservar la ventana fijada al desplegar el servidor. Usar la aplicación cuenta como tocarla, así que solo corre cuando alguien para. Una comunidad sujeta al estándar de cumplimiento lo acorta aún más para sus miembros."
     },
     "secondFactorRequirement": {
       "title": "Autenticación en dos pasos",
@@ -658,7 +661,15 @@
       "unmet": "Configura antes tu propio segundo factor y luego guarda.",
       "present": "Introducir un código",
       "saved": "Guardado. A quien le afecte se le pedirá en su siguiente petición.",
-      "error": "No hemos podido guardarlo."
+      "error": "No hemos podido guardarlo.",
+      "noMethod": "Permite antes la aplicación de autenticación o las claves de acceso: sin ninguna de las dos no hay nada que exigir."
+    },
+    "factorMethods": {
+      "title": "Autenticación en dos pasos",
+      "description": "Lo que este servidor ofrece como segundo factor. Si alguien está obligado a tenerlo es el ajuste siguiente.",
+      "saved": "Autenticación en dos pasos actualizada.",
+      "saveError": "No se ha podido cambiar la autenticación en dos pasos.",
+      "followsWaysIn": "Una clave de acceso demuestra el dispositivo y la persona a la vez, así que responde a esto además de abrir sesión. Si se ofrecen claves de acceso se decide en «Formas de entrar»."
     }
   },
   "platformUsers": {
@@ -669,21 +680,20 @@
     "filterPlaceholder": "Filtrar por identificador…",
     "columnId": "ID de usuario",
     "columnHandle": "Identificador",
-    "columnEmail": "Email",
     "columnStatus": "Estado",
     "columnActions": "Acciones",
     "active": "Activo",
     "resetPassword": "Restablecer contraseña",
-    "resetDescription": "Esto enviará un email de restablecimiento de contraseña a {{email}}.",
+    "resetDescription": "¿Enviar un restablecimiento de contraseña a {{handle}}? Recibirá un enlace en la dirección con la que se registró.",
     "reactivate": "Reactivar",
     "exportUser": "Exportar",
     "exportAll": "Exportar todo como CSV",
     "exportError": "No se pudo exportar los usuarios.",
     "deleteUser": "Eliminar usuario",
     "roleChangeError": "No se pudo cambiar el rol del usuario",
-    "resetSuccess": "Email de restablecimiento de contraseña enviado a {{email}}",
+    "resetSuccess": "Restablecimiento de contraseña enviado para {{handle}}.",
     "resetError": "No se pudo enviar el restablecimiento de contraseña",
-    "reactivateSuccess": "{{email}} ha sido reactivado",
+    "reactivateSuccess": "{{handle}} puede volver a iniciar sesión.",
     "reactivateError": "No se pudo reactivar al usuario",
     "permissionRequired": "No tienes permiso para ver los usuarios de la plataforma.",
     "roles": {
@@ -733,7 +743,13 @@
       "role": "Rol de plataforma",
       "roleLabel": "Rol",
       "roleHelp": "Lo que esta cuenta puede hacer en toda la instalación. No puedes conceder por encima de tu propio rol."
-    }
+    },
+    "deleted": "Eliminada",
+    "erasedOn": "Se borra el {{date}}",
+    "erasedNever": "Se conserva indefinidamente",
+    "restore": "Restaurar cuenta",
+    "restoreSuccess": "{{handle}} restaurada.",
+    "restoreError": "No se ha podido restaurar la cuenta. Inténtalo de nuevo."
   },
   "adminDeleteUser": {
     "subtitle": "Eliminar {{email}}",
@@ -745,7 +761,7 @@
     "stepType": "Elegir tipo de eliminación",
     "stepBlockers": "Resolver bloqueos",
     "softDeleteTitle": "Desactivar usuario",
-    "softDeleteDescription": "El usuario será desactivado. No podrá iniciar sesión, pero sus datos se conservarán. Puedes reactivar su cuenta más tarde.",
+    "softDeleteDescription": "La cuenta desaparece para los demás y conserva todo lo que tiene. Se borra al terminar el plazo de esta instalación, salvo que su titular vuelva a iniciar sesión o tú la restaures.",
     "hardDeleteTitle": "Eliminar usuario permanentemente",
     "hardDeleteDescription": "El usuario será eliminado permanentemente. Sus proyectos deben ser transferidos. Los comentarios mostrarán \"[Usuario eliminado]\".",
     "blockersTitle": "Bloqueos",
@@ -775,7 +791,9 @@
     "anonymizeButton": "Anonimizar usuario",
     "confirmDeactivate": "Desactivar a {{email}} — no podrá iniciar sesión pero sus datos se conservan.",
     "confirmDeactivateTitle": "Confirmar desactivación",
-    "confirmAnonymizeTitle": "Confirmar anonimización"
+    "confirmAnonymizeTitle": "Confirmar anonimización",
+    "preferWindowLabel": "Eliminar con plazo de recuperación en su lugar",
+    "preferWindowHelp": "La cuenta conserva todo y desaparece para los demás. Se borra al terminar el plazo, salvo que alguien la recupere."
   },
   "accessGrants": {
     "title": "Solicitudes de acceso",
@@ -1335,10 +1353,8 @@
       "authentik": "El slug de la aplicación, no el nombre del proveedor: el issuer sigue a la aplicación.",
       "authelia": "Pega el secreto de cliente en texto plano, no el hash que pusiste en el YAML.",
       "pocketId": "Solo passkeys, así que vuestros inicios de sesión heredan passkeys sin hacer nada más.",
-      "gitlab": "Tu propio GitLab o gitlab.com: en ambos casos la dirección es la raíz de la instancia. Crea una aplicación en los ajustes de usuario o de administración, con la URL de retorno de abajo.",
-      "gitea": "También Forgejo y Codeberg. Crea una aplicación OAuth2 en los ajustes y elige groups como reclamación de grupos para ordenar a la gente por sus equipos.",
-      "discord": "Funciona, pero Discord no lo documenta, así que podría cambiar sin avisar. Conviene saberlo antes de dejarlo como única forma de entrar.",
       "salesforce": "Los sandboxes y las organizaciones con My Domain entran cada uno por su propia dirección, así que usa la que use tu gente en lugar del host de acceso genérico.",
+      "dex": "La dirección termina con lo que tu configuración de Dex indique como issuer: /dex por convención. Tiene que coincidir exactamente.",
       "custom": "Cualquier proveedor que hable OpenID Connect. Pega su dirección de issuer; una URL .well-known también funciona."
     }
   },
@@ -1412,8 +1428,8 @@
     "title": "Directorio de comunidades",
     "description": "Permite que las comunidades se publiquen donde cualquier persona con sesión iniciada pueda encontrarlos y unirse sin invitación.",
     "toggleLabel": "Ofrecer un directorio de comunidades",
-    "helpText": "Mientras esté activado, quien administre una comunidad puede publicarla desde la configuración de la comunidad y «Unirse a una comunidad» aparece junto a las comunidades de todo el mundo. Mientras esté desactivado, no hay nada que explorar y ninguna comunidad puede publicarse.",
-    "reversibleNote": "Desactivarlo oculta el directorio; no retira a las comunidades que se publicaron. Al volver a activarlo, aparecen las mismas comunidades.",
+    "helpText": "Activa el directorio público de comunidades: una lista navegable de las comunidades que han decidido dejarse encontrar. La gente la explora y pide entrar, y «Unirse a una comunidad» aparece junto a las suyas. Cada comunidad se apunta desde sus propios ajustes.",
+    "reversibleNote": "Desactivarlo cierra el directorio. Las comunidades apuntadas siguen apuntadas y reaparecen cuando vuelvas a activarlo.",
     "enabledToast": "El directorio de comunidades está activado.",
     "disabledToast": "El directorio de comunidades está desactivado.",
     "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",
@@ -1436,13 +1452,26 @@
     "retention": {
       "title": "Conservación de comunidades eliminadas",
       "description": "Una comunidad eliminada desaparece de inmediato para todos sus miembros, pero no se destruye nada hasta que termina este plazo. Hasta entonces, un operador puede restaurarla.",
-      "label": "Conservar durante (días)",
+      "label": "Conservar comunidades (días)",
       "placeholder": "No destruir nunca",
       "hint": "Se cuenta desde el momento en que se eliminó cada comunidad, así que cambiarlo mueve también la fecha de las ya eliminadas.",
       "neverHint": "No se destruye nada por plazo. Las comunidades eliminadas siguen en la lista de abajo hasta que alguien restaure una.",
       "saved_one": "Las comunidades eliminadas se conservan {{count}} día.",
       "saved_other": "Las comunidades eliminadas se conservan {{count}} días.",
-      "savedNever": "Las comunidades eliminadas se conservan indefinidamente."
+      "savedNever": "Las comunidades eliminadas se conservan indefinidamente.",
+      "save": "Guardar cuánto se conservan las comunidades"
+    },
+    "accountRetention": {
+      "title": "Conservación de cuentas eliminadas",
+      "description": "Una cuenta eliminada desaparece de inmediato para los demás y conserva todo lo que tiene. Se borra al terminar este plazo, salvo que su titular vuelva a iniciar sesión o un operador la restaure.",
+      "label": "Conservar cuentas (días)",
+      "placeholder": "No borrar nunca",
+      "hint": "Se cuenta desde el momento en que se eliminó cada cuenta, así que cambiarlo mueve también la fecha de las ya eliminadas.",
+      "neverHint": "No se borra nada por plazo. Las cuentas eliminadas siguen en la tabla de usuarios hasta que alguien vuelva o restaure una.",
+      "saved_one": "Las cuentas eliminadas se conservan {{count}} día.",
+      "saved_other": "Las cuentas eliminadas se conservan {{count}} días.",
+      "savedNever": "Las cuentas eliminadas se conservan indefinidamente.",
+      "save": "Guardar cuánto se conservan las cuentas"
     }
   },
   "account": {

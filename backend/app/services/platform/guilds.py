@@ -28,7 +28,7 @@ from app.models.platform.guild import (
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.platform import billing_ping
@@ -1876,10 +1876,17 @@ async def must_keep_superadmin(
         await session.exec(
             select(func.count())
             .select_from(GuildMembership)
+            .join(User, User.id == GuildMembership.user_id)
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id != user_id,
                 GuildMembership.role == GuildRole.superadmin,
+                # A seat held by an account on its way out is not one. That
+                # account keeps its membership for its whole window, so
+                # counting the row would let two seat holders each leave in
+                # turn — each one counting the other — and leave the community
+                # with nobody who can run it.
+                User.status != UserStatus.deleted,
             )
         )
     ).one()
