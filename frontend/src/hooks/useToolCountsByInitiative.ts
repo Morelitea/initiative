@@ -2,25 +2,20 @@
  * How much of each tool lives in each initiative, for every tool at once.
  *
  * Every tool exposes the same `counts-by-initiative` shape (initiative id →
- * count), so this calls all six hooks unconditionally (hook rules) behind one
- * shared `enabled` and keys the results by `Tool`. Callers then render whatever
+ * count), so this reads the one each declares in `TOOL_HOOKS` and runs the lot
+ * behind one shared `enabled`, keyed by `Tool`. Callers then render whatever
  * the registry declares rather than naming tools by hand — a new tool shows up
- * in every consumer as soon as it has a counts endpoint, and the `Record<Tool,
- * …>` below fails to build until it does.
+ * in every consumer as soon as it has a counts endpoint, and the table it is
+ * read from fails to build until it does.
  *
- * Shaped after `useGuildToolRows`, which fans out over the same six tools.
+ * Shaped after `useGuildToolRows`, which fans out over the same tools.
  */
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
-import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
-import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
-import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
-import { useGalleryCountsByInitiative } from "@/hooks/useGalleries";
-import { usePostCountsByInitiative } from "@/hooks/usePosts";
-import { useProjectCountsByInitiative } from "@/hooks/useProjects";
-import { useQueueCountsByInitiative } from "@/hooks/useQueues";
-import { useWikiCountsByInitiative } from "@/hooks/useWikis";
+import { useQueries } from "@tanstack/react-query";
+
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { TOOLS } from "@/lib/tools";
 
 /** One tool's counts, by initiative id. */
@@ -52,36 +47,20 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
     staleTime: options?.staleTime ?? 30_000,
   };
 
-  const projects = useProjectCountsByInitiative(queryOptions);
-  const documents = useDocumentCountsByInitiative(queryOptions);
-  const queues = useQueueCountsByInitiative(queryOptions);
-  const counterGroups = useCounterGroupCountsByInitiative(queryOptions);
-  const calendars = useCalendarCountsByInitiative(queryOptions);
-  const dashboards = useDashboardCountsByInitiative(queryOptions);
-  const posts = usePostCountsByInitiative(queryOptions);
-  const galleries = useGalleryCountsByInitiative(queryOptions);
-  const wikis = useWikiCountsByInitiative(queryOptions);
+  // One `useQueries` rather than a hook per tool: the list comes from the
+  // registry, so it is the same length and the same order on every render, and
+  // a tool joins the fan-out by existing.
+  const guildId = useActiveGuildId();
+  const results = useQueries({
+    queries: TOOLS.map((tool) => ({ ...TOOL_HOOKS[tool].countsQuery(guildId), ...queryOptions })),
+  });
 
-  // Exhaustive by construction: a new Tool member fails to compile here until
-  // it names the query that counts it.
-  const queries: Record<Tool, { data?: { counts: Record<string, number> }; isLoading: boolean }> = {
-    [Tool.project]: projects,
-    [Tool.document]: documents,
-    [Tool.queue]: queues,
-    [Tool.counter_group]: counterGroups,
-    [Tool.calendar]: calendars,
-    [Tool.dashboard]: dashboards,
-    [Tool.post]: posts,
-    [Tool.gallery]: galleries,
-    [Tool.wiki]: wikis,
-  };
-
-  // One small map per tool, read during render only — cheap enough to rebuild
-  // rather than memoize against query results that change identity on their own.
-  return Object.fromEntries(
-    TOOLS.map((tool) => [
-      tool,
-      { counts: toCountMap(queries[tool].data?.counts), isLoading: queries[tool].isLoading },
-    ])
-  ) as ToolCountsByInitiative;
+  // One small map per tool, built during render rather than memoized against
+  // query results that change identity on their own.
+  const byTool = {} as ToolCountsByInitiative;
+  TOOLS.forEach((tool, index) => {
+    const query = results[index];
+    byTool[tool] = { counts: toCountMap(query.data?.counts), isLoading: query.isLoading };
+  });
+  return byTool;
 }

@@ -47,25 +47,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
-import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
-import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
-import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
-import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
-import { useGalleryCountsByInitiative } from "@/hooks/useGalleries";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
-import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
-import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
-import { useWikiCountsByInitiative } from "@/hooks/useWikis";
+import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
 import { guildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { toolDetailRoute } from "@/lib/tools";
+import { TOOLS, toolDetailRoute } from "@/lib/tools";
 
 export const AppSidebar = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -157,10 +150,24 @@ export const AppSidebar = () => {
     staleTime: 60_000,
   });
 
-  const documentCountsQuery = useDocumentCountsByInitiative({
+  // Every tool's per-initiative counts in one fan-out, keyed by `Tool`, so
+  // the badges follow the registry rather than a list kept in step by hand.
+  const toolCounts = useToolCountsByInitiative({
     enabled: guildTreeEnabled,
     staleTime: 60_000,
   });
+
+  // One tool's badge per initiative, in the registry's terms. Projects count
+  // the list that expands directly beneath that row rather than the server's
+  // total, so the badge and the rows under it agree.
+  const countsFor = (initiativeId: number, projectCount: number): Record<Tool, number> => {
+    const counts = {} as Record<Tool, number>;
+    for (const tool of TOOLS) {
+      counts[tool] = toolCounts[tool].counts.get(initiativeId) ?? 0;
+    }
+    counts[Tool.project] = projectCount;
+    return counts;
+  };
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, ProjectRead[]>();
@@ -173,99 +180,6 @@ export const AppSidebar = () => {
     });
     return map;
   }, [projectsQuery.data]);
-
-  const documentCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(documentCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [documentCountsQuery.data]);
-
-  const queueCountsQuery = useQueueCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-
-  const queueCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(queueCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [queueCountsQuery.data]);
-
-  const counterGroupCountsQuery = useCounterGroupCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const counterGroupCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(counterGroupCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [counterGroupCountsQuery.data]);
-
-  const calendarCountsQuery = useCalendarCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const calendarCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(calendarCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [calendarCountsQuery.data]);
-
-  const dashboardCountsQuery = useDashboardCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const dashboardCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(dashboardCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [dashboardCountsQuery.data]);
-
-  const postCountsQuery = usePostCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const postCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(postCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [postCountsQuery.data]);
-
-  const galleryCountsQuery = useGalleryCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const galleryCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(galleryCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [galleryCountsQuery.data]);
-
-  const wikiCountsQuery = useWikiCountsByInitiative({
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
-  const wikiCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    Object.entries(wikiCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
-      map.set(Number(initiativeId), count);
-    });
-    return map;
-  }, [wikiCountsQuery.data]);
 
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
@@ -559,23 +473,7 @@ export const AppSidebar = () => {
                                       access={getUserPermissions(initiative)}
                                       apps={initiativeApps}
                                       isGuildAdmin={isGuildAdmin}
-                                      counts={{
-                                        [Tool.project]: projects.length,
-                                        [Tool.document]:
-                                          documentCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.queue]:
-                                          queueCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.counter_group]:
-                                          counterGroupCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.calendar]:
-                                          calendarCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.dashboard]:
-                                          dashboardCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.post]: postCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.gallery]:
-                                          galleryCountsByInitiative.get(initiative.id) ?? 0,
-                                        [Tool.wiki]: wikiCountsByInitiative.get(initiative.id) ?? 0,
-                                      }}
+                                      counts={countsFor(initiative.id, projects.length)}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}
                                     />

@@ -27,6 +27,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { describePasskeyPromptError } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 import { returnPath } from "@/lib/returnPath";
+import { compactCode } from "@/lib/secondFactorAnswer";
 
 /**
  * Global handler for a community that requires a factor of the account's own.
@@ -131,7 +132,7 @@ export const SecondFactorStepUpDialog = () => {
     try {
       const entered = code.trim();
       await stepUpWithFactor(
-        useRecoveryCode ? { recoveryCode: entered } : { code: entered.replace(/\s+/g, "") }
+        useRecoveryCode ? { recoveryCode: entered } : { code: compactCode(entered) }
       );
       await settle();
     } catch (err) {

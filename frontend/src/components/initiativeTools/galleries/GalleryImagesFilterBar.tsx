@@ -41,7 +41,7 @@ export const GalleryImagesFilterBar = ({
   activeCount,
   onClear,
 }: GalleryImagesFilterBarProps) => {
-  const { t } = useTranslation("galleries");
+  const { t } = useTranslation(["galleries", "tags"]);
 
   return (
     <ToolFilterPanel
@@ -72,14 +72,14 @@ export const GalleryImagesFilterBar = ({
             htmlFor="gallery-image-tags"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.tags")}
+            {t("tags:picker.filterLabel")}
           </Label>
           <TagPicker
             id="gallery-image-tags"
             variant="filter"
             selectedTags={tags}
             onChange={onTagsChange}
-            placeholder={t("filters.anyTag")}
+            placeholder={t("tags:picker.anyTag")}
           />
         </div>
         <div className="w-full space-y-2 sm:w-44">

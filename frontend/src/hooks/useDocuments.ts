@@ -9,17 +9,10 @@ import {
   duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost,
   getDocumentCountsApiV1GGuildIdDocumentsCountsGet,
-  getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet,
   getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey,
-  getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
-  getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
   getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey,
-  getListMyDocumentsApiV1MeDocumentsGetQueryKey,
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
-  listDocumentsApiV1GGuildIdDocumentsGet,
   listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet,
-  listMyDocumentsApiV1MeDocumentsGet,
-  readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
   setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut,
   updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch,
   uploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
@@ -36,21 +29,36 @@ import type {
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
-  InitiativeGroupedCountsResponse,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
   ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { relate } from "@/api/relationships";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
+
+// ── The standard four ───────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires. A document's list hook,
+// create and update are its own, and are written out below — the list's query
+// still comes from the table, so the key is named in one place.
+
+const documents = TOOL_HOOKS[Tool.document];
+export const useDocument = documents.useDetail;
+/**
+ * Single-document delete — the shape every tool's delete hook takes, so the
+ * shared settings page needs no per-tool adapter. Bulk selection deletes go
+ * through {@link useDeleteDocuments}.
+ */
+export const useDeleteDocument = documents.useDelete;
+export const useSetDocumentGrants = documents.useSetGrants;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -60,22 +68,9 @@ export const useDocumentsList = (
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<DocumentListResponse>({
-    queryKey: getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, params),
-    // page_size=0 walks the server's fetch-all windows for the complete set.
-    queryFn: () => fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, params),
+    ...documents.listQuery(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
-  });
-};
-
-export const useDocument = (documentId: number | null, options?: QueryOpts<DocumentRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<DocumentRead>({
-    queryKey: getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId!),
-    queryFn: () => readDocumentApiV1GGuildIdDocumentsDocumentIdGet(guildId, documentId!),
-    enabled: documentId !== null && Number.isFinite(documentId) && userEnabled,
-    ...rest,
   });
 };
 
@@ -87,19 +82,6 @@ export const useDocumentCounts = (
   return useQuery<DocumentCountsResponse>({
     queryKey: getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey(guildId, params),
     queryFn: () => getDocumentCountsApiV1GGuildIdDocumentsCountsGet(guildId, params),
-    ...options,
-  });
-};
-
-export const useDocumentCountsByInitiative = (
-  options?: QueryOpts<InitiativeGroupedCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey:
-      getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () =>
-      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(guildId),
     ...options,
   });
 };
@@ -127,8 +109,7 @@ export const useGlobalDocuments = (
   options?: QueryOpts<DocumentListResponse>
 ) => {
   return useQuery<DocumentListResponse>({
-    queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
-    queryFn: () => listMyDocumentsApiV1MeDocumentsGet(params),
+    ...documents.myListQuery(params),
     ...options,
   });
 };
@@ -139,9 +120,10 @@ export const usePrefetchDocumentsList = () => {
   const qc = useQueryClient();
   const guildId = useActiveGuildId();
   return (params: ListDocumentsApiV1GGuildIdDocumentsGetParams) => {
+    // The same query the list hook runs, so the row it warms is the row that
+    // hook then finds in the cache.
     return qc.prefetchQuery({
-      queryKey: getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, params),
-      queryFn: () => fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, params),
+      ...documents.listQuery(guildId, params),
       staleTime: 30_000,
     });
   };
@@ -439,22 +421,6 @@ export const useUpdateDocument = (
   });
 };
 
-/**
- * Single-document delete — the shape every tool's delete hook takes, so the
- * shared settings page needs no per-tool adapter. Bulk selection deletes go
- * through {@link useDeleteDocuments}.
- */
-export const useDeleteDocument = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: (guildId, documentId) =>
-        deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete(guildId, documentId),
-      invalidate: () => invalidate(q.allDocuments()),
-      errorKey: "documents:bulk.deleteError",
-    },
-    options
-  );
-
 export const useDeleteDocuments = (
   options?: MutationOpts<void, number[]> & {
     /** If true, the default "X documents deleted" success toast is skipped so the caller can show its own. */
@@ -559,20 +525,6 @@ export const useGenerateDocumentSummary = (
     {
       mutationFn: (guildId) =>
         generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost(guildId, documentId),
-    },
-    options
-  );
-
-export const useSetDocumentGrants = (
-  documentId: number,
-  options?: MutationOpts<DocumentRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<DocumentRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, documentId, grants),
-      invalidate: () => invalidate(q.document(documentId), q.allDocuments()),
-      errorKey: "documents:settings.updateAccessError",
     },
     options
   );

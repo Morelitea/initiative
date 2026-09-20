@@ -1,33 +1,28 @@
 /**
  * One guild-wide page of whatever tool the guild home is showing.
  *
- * The six list endpoints already agree on a shape — `{ items, total_count,
- * has_next }` keyed by `page`/`page_size` — so this hook calls all six and
- * gates every one but the selected tool with `enabled: false`. That keeps the
- * calls unconditional (hook rules) while exactly one request is in flight.
+ * The nine list endpoints already agree on a shape — `{ items, total_count,
+ * has_next }` keyed by `page`/`page_size` — so this asks every tool the same
+ * question at once and gates every one but the selected tool off. That keeps
+ * the calls unconditional (hook rules) while exactly one request is in flight.
+ * Which query lists a tool comes from `TOOL_HOOKS`, so a new tool joins this
+ * table by existing rather than by being named here.
  *
  * Turning the answer into rows is `lib/toolRows`, shared with the cross-guild
  * twin of this hook (`useMyToolRows`), so both tables say the same thing about
  * a tool.
  */
 
-import { keepPreviousData } from "@tanstack/react-query";
+import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useCalendarsList } from "@/hooks/useCalendars";
-import { useCounterGroupsList } from "@/hooks/useCounters";
-import { useDashboardsList } from "@/hooks/useDashboards";
-import { useDocumentsList } from "@/hooks/useDocuments";
-import { useGalleriesList } from "@/hooks/useGalleries";
-import { usePostsList } from "@/hooks/usePosts";
-import { useProjects } from "@/hooks/useProjects";
-import { useQueuesList } from "@/hooks/useQueues";
-import { useWikisList } from "@/hooks/useWikis";
-import type { ToolResponses, ToolRow } from "@/lib/toolRows";
-import { buildToolRows } from "@/lib/toolRows";
+import type { ToolRow } from "@/lib/toolRows";
+import { buildToolRows, oneToolResponse } from "@/lib/toolRows";
+import { TOOLS } from "@/lib/tools";
 
 /** How the guild home's one table is narrowed and ordered, in the terms every
  *  tool's list endpoint accepts. */
@@ -63,66 +58,27 @@ export function useGuildToolRows(
     ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),
     ...(view.archived ? { archived: true } : {}),
   };
-  // Only the selected tool fetches; the rest stay mounted but idle. The
+
+  // Only the selected tool fetches; the rest stay observed but idle. The
   // selected one keeps the rows it already has while a new page, search or
   // order is in flight — otherwise the table (and the search box in its
   // toolbar) would be replaced by a loading line on every keystroke.
-  const only = (candidate: Tool) => ({
-    enabled: candidate === tool,
-    placeholderData: keepPreviousData,
+  //
+  // One `useQueries` rather than a hook per tool: the list comes from the
+  // registry, so it is the same length and the same order on every render.
+  const results = useQueries({
+    queries: TOOLS.map((candidate) => ({
+      ...TOOL_HOOKS[candidate].listQuery(guildId, params),
+      enabled: candidate === tool,
+      placeholderData: keepPreviousData,
+    })),
   });
+  const query = results[TOOLS.indexOf(tool)];
 
-  const projects = useProjects(params, only(Tool.project));
-  const documents = useDocumentsList(params, only(Tool.document));
-  const queues = useQueuesList(params, only(Tool.queue));
-  const counterGroups = useCounterGroupsList(params, only(Tool.counter_group));
-  const calendars = useCalendarsList(params, only(Tool.calendar));
-  const dashboards = useDashboardsList(params, only(Tool.dashboard));
-  const posts = usePostsList(params, only(Tool.post));
-  const galleries = useGalleriesList(params, only(Tool.gallery));
-  const wikis = useWikisList(params, only(Tool.wiki));
-
-  // Exhaustive by construction: a new Tool member fails to compile here until
-  // it names the query that lists it.
-  const query = {
-    [Tool.project]: projects,
-    [Tool.document]: documents,
-    [Tool.queue]: queues,
-    [Tool.counter_group]: counterGroups,
-    [Tool.calendar]: calendars,
-    [Tool.dashboard]: dashboards,
-    [Tool.post]: posts,
-    [Tool.gallery]: galleries,
-    [Tool.wiki]: wikis,
-  }[tool];
-
-  const rows = useMemo<ToolRow[]>(() => {
-    const responses: ToolResponses = {
-      [Tool.project]: projects.data,
-      [Tool.document]: documents.data,
-      [Tool.queue]: queues.data,
-      [Tool.counter_group]: counterGroups.data,
-      [Tool.calendar]: calendars.data,
-      [Tool.dashboard]: dashboards.data,
-      [Tool.post]: posts.data,
-      [Tool.gallery]: galleries.data,
-      [Tool.wiki]: wikis.data,
-    };
-    return buildToolRows(tool, responses, t, guildId);
-  }, [
-    tool,
-    t,
-    guildId,
-    projects.data,
-    documents.data,
-    queues.data,
-    counterGroups.data,
-    calendars.data,
-    dashboards.data,
-    posts.data,
-    galleries.data,
-    wikis.data,
-  ]);
+  const rows = useMemo<ToolRow[]>(
+    () => buildToolRows(tool, oneToolResponse(tool, query.data), t, guildId),
+    [tool, query.data, t, guildId]
+  );
 
   return {
     rows,

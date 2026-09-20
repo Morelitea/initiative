@@ -44,6 +44,7 @@ import {
   signInWithPasskey,
 } from "@/lib/passkeys";
 import { returnPath } from "@/lib/returnPath";
+import { compactCode } from "@/lib/secondFactorAnswer";
 
 import { RegisterPage } from "./RegisterPage";
 
@@ -337,7 +338,7 @@ export const LoginPage = () => {
       const entered = code.trim();
       await completeSecondFactor({
         challenge,
-        ...(useRecoveryCode ? { recoveryCode: entered } : { code: entered }),
+        ...(useRecoveryCode ? { recoveryCode: entered } : { code: compactCode(entered) }),
       });
       goWhereTheySignedInFor();
     } catch (err) {

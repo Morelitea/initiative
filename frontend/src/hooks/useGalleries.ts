@@ -2,91 +2,50 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-qu
 
 import {
   bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost,
-  createGalleryApiV1GGuildIdGalleriesPost,
-  deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete,
   deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete,
   deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete,
-  getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet,
   getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet,
-  getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey,
   getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey,
-  getListGalleriesApiV1GGuildIdGalleriesGetQueryKey,
   getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryKey,
   getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey,
-  getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey,
-  listGalleriesApiV1GGuildIdGalleriesGet,
   listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet,
   listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet,
-  readGalleryApiV1GGuildIdGalleriesGalleryIdGet,
-  setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut,
-  updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch,
   updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch,
   uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost,
   uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
 } from "@/api/generated/galleries/galleries";
 import type {
-  GalleryCreate,
   GalleryImageBulkDelete,
   GalleryImageBulkDeleteResponse,
   GalleryImageListResponse,
   GalleryImageRead,
   GalleryImageUpdate,
   GalleryImageVersionRead,
-  GalleryListResponse,
-  GalleryRead,
-  GalleryUpdate,
   GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
-  InitiativeGroupedCountsResponse,
-  ListGalleriesApiV1GGuildIdGalleriesGetParams,
   ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
-  ResourceGrantSchema,
   TimelineResponse,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
-import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── Queries ─────────────────────────────────────────────────────────────────
+// ── The standard seven ──────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires.
 
-/** Visible-gallery counts per initiative, for the sidebar badges. */
-export const useGalleryCountsByInitiative = (
-  options?: QueryOpts<InitiativeGroupedCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey:
-      getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet(guildId),
-    ...options,
-  });
-};
+const galleries = TOOL_HOOKS[Tool.gallery];
+export const useGalleriesList = galleries.useList;
+export const useGallery = galleries.useDetail;
+export const useCreateGallery = galleries.useCreate;
+export const useUpdateGallery = galleries.useUpdate;
+export const useDeleteGallery = galleries.useDelete;
+export const useSetGalleryGrants = galleries.useSetGrants;
 
-export const useGalleriesList = (
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
-  options?: QueryOpts<GalleryListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<GalleryListResponse>({
-    queryKey: getListGalleriesApiV1GGuildIdGalleriesGetQueryKey(guildId, params),
-    queryFn: () => listGalleriesApiV1GGuildIdGalleriesGet(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-export const useGallery = (galleryId: number | null, options?: QueryOpts<GalleryRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<GalleryRead>({
-    queryKey: getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey(guildId, galleryId!),
-    queryFn: () => readGalleryApiV1GGuildIdGalleriesGalleryIdGet(guildId, galleryId!),
-    enabled: galleryId !== null && Number.isFinite(galleryId) && userEnabled,
-    ...rest,
-  });
-};
+// ── Pictures ────────────────────────────────────────────────────────────────
 
 /** The filters a gallery's picture list takes, without the page. */
 export type GalleryImagesParams = Omit<
@@ -179,75 +138,10 @@ export const useGalleryImageVersions = (
   });
 };
 
-// ── Mutations ───────────────────────────────────────────────────────────────
-
-const invalidateGalleryAndList = (galleryId: number) =>
-  invalidate(q.gallery(galleryId), q.allGalleries());
-
 /** A picture changed, so the wall, the rail, and the gallery's own count and
  *  cover are all stale. */
 const invalidateImages = (galleryId: number) =>
   invalidate(q.galleryImages(galleryId), q.gallery(galleryId), q.allGalleries());
-
-export const useCreateGallery = (options?: MutationOpts<GalleryRead, GalleryCreate>) =>
-  useGuildMutation<GalleryRead, GalleryCreate>(
-    {
-      mutationFn: (guildId, data) => createGalleryApiV1GGuildIdGalleriesPost(guildId, data),
-      invalidate: () => invalidate(q.allGalleries()),
-      errorKey: "galleries:error",
-    },
-    options
-  );
-
-export const useUpdateGallery = (
-  galleryId: number,
-  options?: MutationOpts<GalleryRead, GalleryUpdate>
-) => {
-  const guildId = useActiveGuildId();
-  return useGuildMutation<GalleryRead, GalleryUpdate>(
-    {
-      mutationFn: (guildId, data) =>
-        updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch(guildId, galleryId, data),
-      invalidate: (updated) => {
-        // The PATCH answers with the row a refetch would fetch, so seed it.
-        queryClient.setQueryData(
-          getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey(guildId, galleryId),
-          updated
-        );
-        return invalidateGalleryAndList(galleryId);
-      },
-      errorKey: "galleries:error",
-    },
-    options
-  );
-};
-
-export const useDeleteGallery = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: (guildId, galleryId) =>
-        deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete(guildId, galleryId),
-      invalidate: () => invalidate(q.allGalleries()),
-      errorKey: "galleries:error",
-    },
-    options
-  );
-
-export const useSetGalleryGrants = (
-  galleryId: number,
-  options?: MutationOpts<GalleryRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<GalleryRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut(guildId, galleryId, grants),
-      invalidate: () => invalidateGalleryAndList(galleryId),
-      errorKey: "galleries:error",
-    },
-    options
-  );
-
-// ── Pictures ────────────────────────────────────────────────────────────────
 
 export interface UploadGalleryImageVariables {
   file: File;

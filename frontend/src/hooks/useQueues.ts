@@ -1,131 +1,52 @@
-import {
-  keepPreviousData,
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type {
-  InitiativeGroupedCountsResponse,
-  ListQueuesApiV1GGuildIdQueuesGetParams,
-  QueueCreate,
   QueueItemCreate,
   QueueItemRead,
   QueueItemUpdate,
-  QueueListResponse,
   QueueRead,
-  QueueUpdate,
-  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost,
   advanceTurnApiV1GGuildIdQueuesQueueIdNextPost,
-  createQueueApiV1GGuildIdQueuesPost,
-  deleteQueueApiV1GGuildIdQueuesQueueIdDelete,
   deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete,
-  getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey,
-  getListQueuesApiV1GGuildIdQueuesGetQueryKey,
-  getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet,
   getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey,
   holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost,
-  listQueuesApiV1GGuildIdQueuesGet,
   previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost,
-  readQueueApiV1GGuildIdQueuesQueueIdGet,
   releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost,
   resetQueueApiV1GGuildIdQueuesQueueIdResetPost,
   setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost,
-  setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut,
   setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut,
   startQueueApiV1GGuildIdQueuesQueueIdStartPost,
   stopQueueApiV1GGuildIdQueuesQueueIdStopPost,
-  updateQueueApiV1GGuildIdQueuesQueueIdPatch,
   updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
 import { invalidate, q } from "@/api/query-keys";
 import { setRelated } from "@/api/relationships";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { idsByKind, type LinkedRef, sameIds } from "@/lib/relationships";
 import type { MutationOpts } from "@/types/mutation";
-import type { QueryOpts } from "@/types/query";
 
-// ── Queries ─────────────────────────────────────────────────────────────────
+// ── The standard seven ──────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires.
 
-export const useQueuesList = (
-  params: ListQueuesApiV1GGuildIdQueuesGetParams,
-  options?: QueryOpts<QueueListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<QueueListResponse>({
-    queryKey: getListQueuesApiV1GGuildIdQueuesGetQueryKey(guildId, params),
-    queryFn: () => listQueuesApiV1GGuildIdQueuesGet(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
+const queues = TOOL_HOOKS[Tool.queue];
 
-export const useQueueCountsByInitiative = (
-  options?: QueryOpts<InitiativeGroupedCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey:
-      getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet(guildId),
-    ...options,
-  });
-};
+export const useQueuesList = queues.useList;
+export const useQueue = queues.useDetail;
+export const useCreateQueue = queues.useCreate;
+export const useUpdateQueue = queues.useUpdate;
+export const useDeleteQueue = queues.useDelete;
+export const useSetQueueGrants = queues.useSetGrants;
 
-export const useQueue = (queueId: number | null, options?: QueryOpts<QueueRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<QueueRead>({
-    queryKey: getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, queueId!),
-    queryFn: () => readQueueApiV1GGuildIdQueuesQueueIdGet(guildId, queueId!),
-    enabled: queueId !== null && Number.isFinite(queueId) && userEnabled,
-    ...rest,
-  });
-};
-
-// ── Mutations ───────────────────────────────────────────────────────────────
-
+/** An item changed, so the queue it belongs to and every list of it are stale. */
 const invalidateQueueAndList = (queueId: number) => invalidate(q.queue(queueId), q.allQueues());
-
-export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) =>
-  useGuildMutation<QueueRead, QueueCreate>(
-    {
-      mutationFn: (guildId, data) => createQueueApiV1GGuildIdQueuesPost(guildId, data),
-      invalidate: () => invalidate(q.allQueues()),
-      errorKey: "queues:error",
-    },
-    options
-  );
-
-export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead, QueueUpdate>) =>
-  useGuildMutation<QueueRead, QueueUpdate>(
-    {
-      mutationFn: (guildId, data) =>
-        updateQueueApiV1GGuildIdQueuesQueueIdPatch(guildId, queueId, data),
-      invalidate: () => invalidateQueueAndList(queueId),
-      errorKey: "queues:error",
-    },
-    options
-  );
-
-export const useDeleteQueue = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: (guildId, queueId) =>
-        deleteQueueApiV1GGuildIdQueuesQueueIdDelete(guildId, queueId),
-      invalidate: () => invalidate(q.allQueues()),
-      errorKey: "queues:error",
-    },
-    options
-  );
 
 // ── Item Mutations ──────────────────────────────────────────────────────────
 
@@ -703,22 +624,6 @@ export const useSetQueueItemLinks = (
           await setRelated(guildId, { type: SearchEntityType.queue_item, id: itemId }, kind, next);
         }
       },
-      invalidate: () => invalidateQueueAndList(queueId),
-      errorKey: "queues:error",
-    },
-    options
-  );
-
-// ── Grants Mutation (unified resource sharing) ──────────────────────────────
-
-export const useSetQueueGrants = (
-  queueId: number,
-  options?: MutationOpts<QueueRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<QueueRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut(guildId, queueId, grants),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
     },

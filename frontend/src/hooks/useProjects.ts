@@ -2,37 +2,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
-  InitiativeGroupedCountsResponse,
   ListMyProjectsApiV1MeProjectsGetParams,
   ListProjectsApiV1GGuildIdProjectsGetParams,
   ProjectListResponse,
   ProjectRead,
-  ResourceGrantSchema,
   TaskStatusCreate,
   TaskStatusDeleteRequest,
   TaskStatusRead,
   TaskStatusReorderRequest,
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createProjectApiV1GGuildIdProjectsPost,
-  deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
   duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
   favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey,
-  getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey,
-  getListMyProjectsApiV1MeProjectsGetQueryKey,
   getListProjectsApiV1GGuildIdProjectsGetQueryKey,
   getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey,
-  getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet,
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
-  listMyProjectsApiV1MeProjectsGet,
-  listProjectsApiV1GGuildIdProjectsGet,
   listWritableProjectsApiV1GGuildIdProjectsWritableGet,
-  readProjectApiV1GGuildIdProjectsProjectIdGet,
   reorderProjectsApiV1GGuildIdProjectsReorderPost,
-  setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut,
   unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1GGuildIdProjectsProjectIdPatch,
 } from "@/api/generated/projects/projects";
@@ -45,33 +35,40 @@ import {
   updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
+// ── The standard five ───────────────────────────────────────────────────────
+// Built in `toolHooks.ts` from the generated client; see there for the keys
+// each one reads and the invalidation each one fires. A project's list hook and
+// update are its own, and are written out below — the list's query still comes
+// from the table, so the key is named in one place.
+
+const projects = TOOL_HOOKS[Tool.project];
+export const useProject = projects.useDetail;
+export const useCreateProject = projects.useCreate;
+export const useDeleteProject = projects.useDelete;
+export const useSetProjectGrants = projects.useSetGrants;
+
 // ── Queries ─────────────────────────────────────────────────────────────────
 
+/**
+ * One page of the guild's projects.
+ *
+ * Read straight, without the placeholder rows every other tool's list keeps:
+ * the status-count queries below read only `total_count`, and holding the
+ * previous count on screen would show the wrong badge while a filter changes.
+ */
 export const useProjects = (
   params?: ListProjectsApiV1GGuildIdProjectsGetParams,
   options?: QueryOpts<ProjectListResponse>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<ProjectListResponse>({
-    queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, params),
-    queryFn: () => listProjectsApiV1GGuildIdProjectsGet(guildId, params),
-    ...options,
-  });
-};
-
-export const useProjectCountsByInitiative = (
-  options?: QueryOpts<InitiativeGroupedCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<InitiativeGroupedCountsResponse>({
-    queryKey:
-      getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () => getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet(guildId),
+    ...projects.listQuery(guildId, params),
     ...options,
   });
 };
@@ -101,17 +98,6 @@ export const useProjectStatusCounts = (initiativeId?: number | null) => {
 
 export const useTemplateProjects = (initiativeId?: number | null) => {
   return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
-};
-
-export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<ProjectRead>({
-    queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId!),
-    queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId!),
-    enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
-    ...rest,
-  });
 };
 
 export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
@@ -163,25 +149,12 @@ export const useGlobalProjects = (
   options?: QueryOpts<ProjectListResponse>
 ) => {
   return useQuery<ProjectListResponse>({
-    queryKey: getListMyProjectsApiV1MeProjectsGetQueryKey(params),
-    queryFn: () => listMyProjectsApiV1MeProjectsGet(params),
+    ...projects.myListQuery(params),
     ...options,
   });
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-export const useCreateProject = (
-  options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>
-) =>
-  useGuildMutation<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>(
-    {
-      mutationFn: (guildId, data) => createProjectApiV1GGuildIdProjectsPost(guildId, data),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:createDialog.createError",
-    },
-    options
-  );
 
 type ProjectPatch = Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
 
@@ -212,17 +185,6 @@ export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, num
         }),
       invalidate: () => invalidate(q.allProjects()),
       errorKey: "projects:settings.details.updateError",
-    },
-    options
-  );
-
-export const useDeleteProject = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: (guildId, projectId) =>
-        deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:detail.loadError",
     },
     options
   );
@@ -404,22 +366,6 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
     onSettled,
   });
 };
-
-// ── Project Grants Mutation (unified resource sharing) ──────────────────────
-
-export const useSetProjectGrants = (
-  projectId: number,
-  options?: MutationOpts<ProjectRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<ProjectRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(guildId, projectId, grants),
-      invalidate: () => invalidate(q.project(projectId), q.allProjects()),
-      errorKey: "projects:settings.access.updateError",
-    },
-    options
-  );
 
 // ── Project Document Mutations ──────────────────────────────────────────────
 
