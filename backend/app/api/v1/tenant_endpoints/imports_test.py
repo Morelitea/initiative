@@ -762,7 +762,9 @@ async def test_backup_import_end_to_end_with_assets(
 
     from app.testing.factories import create_upload
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     payload = b"%PDF-restored-handout"
     # The blob and its uploads row already exist in this guild (the re-import
     # case) — the restore must dedupe on the storage key, not overwrite.
@@ -873,20 +875,27 @@ async def test_backup_import_end_to_end_with_assets(
     assert file_doc.original_filename == "Handout.pdf"
 
 
-async def test_backup_requires_real_admin(client, acting_user, session):
-    member = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+async def test_backup_belongs_to_the_seat(client, acting_user, session):
+    """Restoring a community's backup sits with the seat that exports one —
+    an ordinary admin is refused, as a member is."""
+    seat = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
     )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
     zip_bytes = _make_backup_zip(_minimal_manifest())
-    denied = await _upload_backup(client, member, zip_bytes)
-    assert denied.status_code == 403
-    assert denied.json()["detail"] == "IMPORT_ADMIN_REQUIRED"
+    for caller in (admin, member):
+        denied = await _upload_backup(client, caller, zip_bytes)
+        assert denied.status_code == 403, caller.membership.role
+        assert denied.json()["detail"] == "IMPORT_SUPERADMIN_REQUIRED"
 
 
 async def test_backup_rejects_invalid_and_bomb_zips(
     client, acting_user, session, monkeypatch
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     garbage = await _upload_backup(client, a, b"not a zip at all")
     assert garbage.status_code == 400
@@ -927,7 +936,9 @@ async def test_backup_rejects_asset_key_with_path_components(
     from app.testing import route_session_to_guild
     from app.testing.factories import create_upload
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     original = b"%PDF-original"
     get_guild_storage(a.guild.id).write(
         "keep.pdf", original, content_type="application/pdf"
@@ -1028,7 +1039,9 @@ def test_reject_non_flat_asset_keys_unit():
 async def test_backup_confirm_include_map_skips_tools(
     client, acting_user, session, monkeypatch, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
         _minimal_manifest(entries=[entry]),
@@ -1055,7 +1068,9 @@ async def test_backup_corrupt_entry_fails_alone(
 ):
     """One corrupt member fails its entry; the rest of the backup restores
     and the job completes with a per-entry report."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     good_entry, good_envelope = _queue_entry()
     bad_entry = dict(good_entry)
     bad_entry["path"] = "initiatives/1-restored/queues/2-bad.initiative-queue.json"
@@ -1087,10 +1102,12 @@ async def test_backup_corrupt_entry_fails_alone(
     assert statuses == {"Restored Queue": "created", "Bad Queue": "failed"}
 
 
-async def test_backup_admin_revoked_before_apply_fails_closed(
+async def test_backup_seat_vacated_before_apply_fails_closed(
     client, acting_user, session, monkeypatch, role_session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
         _minimal_manifest(entries=[entry]),
@@ -1110,7 +1127,7 @@ async def test_backup_admin_revoked_before_apply_fails_closed(
     await _run_import_worker(monkeypatch, role_session)
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
-    assert job["error"] == "IMPORT_ADMIN_REQUIRED"
+    assert job["error"] == "IMPORT_SUPERADMIN_REQUIRED"
 
 
 async def test_backup_quota_exceeded_fails_job(
@@ -1120,7 +1137,9 @@ async def test_backup_quota_exceeded_fails_job(
 
     from app.models.platform.guild import Guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
     await guild_administration(session, guild, max_storage_bytes=1)
 
@@ -1157,7 +1176,9 @@ async def test_backup_staged_expiry_and_cancel(
     confirmed."""
     from datetime import datetime, timedelta, timezone
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     zip_bytes = _make_backup_zip(_minimal_manifest())
 
     staged = await _upload_backup(client, a, zip_bytes)
@@ -1215,7 +1236,9 @@ async def test_backup_restores_fresh_assets_into_storage(
 
     from app.models.tenant.upload import Upload
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     payload = b"%PDF-brand-new-blob"
     file_entry = {
         "path": "assets/from-elsewhere.pdf",
@@ -1282,7 +1305,9 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
 
     from app.models.platform.guild import Guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
     await guild_administration(session, guild, max_storage_bytes=10_000)
 
@@ -1622,7 +1647,9 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
     from app.services.tenant.relationships import Endpoint
     from app.testing.factories import create_upload
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     payload = b"%PDF-field-notes"
     get_guild_storage(a.guild.id).write(
         "field-notes.pdf", payload, content_type="application/pdf"
@@ -1729,7 +1756,9 @@ async def test_backup_applies_into_an_existing_initiative(
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.queue import Queue
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     target = await _second_initiative(session, a)
     before = len((await session.exec(select(Initiative.id))).all())
 
@@ -1768,7 +1797,9 @@ async def test_backup_into_an_unreachable_initiative_fails_the_job(
 ):
     """An initiative the importer cannot reach is indistinguishable from one
     that is not there, and neither is a place to write to."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     entry, envelope = _queue_entry()
     manifest = _minimal_manifest(entries=[entry])
@@ -2093,7 +2124,9 @@ async def test_the_plan_lists_the_people_and_suggests_the_exact_matches(
     plan never opens an envelope."""
     from app.core.user_display import handle_of
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, envelope = _queue_entry()
     manifest = _minimal_manifest(entries=[entry])
     manifest["people"] = [
@@ -2125,7 +2158,9 @@ async def test_the_confirmed_mapping_decides_who_a_comment_belongs_to(
 
     from app.models.tenant.comment import Comment
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
@@ -2182,7 +2217,9 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
     from app.models.tenant.comment import Comment
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     outsider = await acting_user(guild_role=GuildRole.member)
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
@@ -2223,7 +2260,9 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
 
 async def test_confirm_refuses_a_malformed_people_map(client, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
         _minimal_manifest(entries=[entry]),
@@ -2273,7 +2312,9 @@ async def test_backup_restores_property_definitions_in_full(
 
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, payload = _structural_entry(
         "initiative-properties",
         {
@@ -2324,7 +2365,9 @@ async def test_backup_restores_roles_and_places_members(
     from app.core.user_display import handle_of
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     handle = handle_of(other.user)
 
@@ -2393,7 +2436,9 @@ async def test_backup_structure_never_overwrites_what_is_already_there(
 
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     entry, payload = _structural_entry(
         "initiative-structure",
         {

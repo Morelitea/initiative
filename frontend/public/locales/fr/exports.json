@@ -83,9 +83,21 @@
     "initiativeDescription": "Téléchargez les données de cette initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
     "open": "Exporter…"
   },
+  "community": {
+    "lastExport": "Dernier export",
+    "none": "Personne n'a encore exporté cette communauté.",
+    "startedBy": "Lancé par {{name}}",
+    "startedByUnknown": "Lancé par un ancien membre",
+    "preparing": "Toujours en préparation — vous recevrez une notification dès que ce sera prêt.",
+    "expires": "Le téléchargement expire",
+    "delivered": "Écrit dans le dossier d'exportation du serveur — demandez le fichier à l'administration du serveur.",
+    "expiredNote": "L'archive a été supprimée depuis.",
+    "failedNote": "Rien n'a été exporté.",
+    "nextAvailable": "Prochain export possible"
+  },
   "table": {
     "title": "Exports récents",
-    "description": "Les exports terminés peuvent être retéléchargés jusqu’à leur expiration (7 jours). Les administrateurs de communauté voient les exports de tous les membres.",
+    "description": "Les exports terminés peuvent être retéléchargés jusqu’à leur expiration (7 jours). Cette liste couvre les exports de tous les membres.",
     "columns": {
       "export": "Export",
       "status": "Statut",

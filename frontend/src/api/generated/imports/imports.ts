@@ -1157,7 +1157,7 @@ export const useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = <
  * Upload a backup zip and get its pre-flight plan. The zip is staged in
  * guild storage and the job parked as ``staged`` (nothing is imported yet);
  * ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
- * backups expire after IMPORT_STAGED_TTL_HOURS. Guild admins only.
+ * backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only.
  * @summary Upload Backup
  */
 export const uploadBackupApiV1GGuildIdImportsBackupPost = (
@@ -1264,12 +1264,12 @@ export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
  * because this confirm may be hours old by then.
  *
  * Two kinds of job reach this, and they are gated differently because they
- * were created differently. A **backup** creates initiatives and restores
- * blobs, so it is guild admins only — re-checked here and again at apply
- * time. A lone **envelope** is one thing its creator already had the create
- * permission for when they dropped it; it is staged only to ask who the
- * handles in it are, so that creator is the one who answers, and nobody
- * else confirms on their behalf.
+ * were created differently. A **backup** puts a whole community back, so it
+ * is the seat only — re-checked here and again at apply time. A lone
+ * **envelope** is one thing its creator already had the create permission
+ * for when they dropped it; it is staged only to ask who the handles in it
+ * are, so that creator is the one who answers, and nobody else confirms on
+ * their behalf.
  * @summary Confirm Import
  */
 export const confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (

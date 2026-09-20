@@ -1,8 +1,8 @@
-import { FileDown, FileUp } from "lucide-react";
+import { FileUp } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ExportWizard } from "@/components/exports/ExportWizard";
+import { CommunityExportCard } from "@/components/exports/CommunityExportCard";
 import { DataJobsTable } from "@/components/imports/DataJobsTable";
 import { ImportWizard } from "@/components/imports/ImportWizard";
 import { Button } from "@/components/ui/button";
@@ -10,25 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export const SettingsGuildDataPage = () => {
   const { t } = useTranslation(["exports", "imports"]);
-  const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
-  // The whole guild settings section is admin-gated by GuildSettingsLayout,
-  // and the backend re-checks guild adminship at request AND apply time.
+  // The tab is offered to the seat alone, and the backend re-checks it at
+  // request AND apply time — taking the whole community out in one file, or
+  // putting one back, is not an errand an ordinary admin runs.
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("exports:entry.guildTitle")}</CardTitle>
-          <CardDescription>{t("exports:entry.guildDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => setExportOpen(true)}>
-            <FileDown className="h-4 w-4" />
-            {t("exports:entry.open")}
-          </Button>
-        </CardContent>
-      </Card>
+      <CommunityExportCard />
       <Card>
         <CardHeader>
           <CardTitle>{t("imports:dataTab.importTitle")}</CardTitle>
@@ -50,9 +39,8 @@ export const SettingsGuildDataPage = () => {
           <DataJobsTable />
         </CardContent>
       </Card>
-      {/* Mounted outside the open checks so jobs started in either wizard
-          keep polling (and deliver their outcome) after the dialogs close. */}
-      <ExportWizard scope="guild" open={exportOpen} onOpenChange={setExportOpen} />
+      {/* Mounted outside the open check so a job started in the wizard keeps
+          polling (and delivers its outcome) after the dialog closes. */}
       <ImportWizard open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );

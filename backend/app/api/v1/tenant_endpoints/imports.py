@@ -15,6 +15,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
+from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative
@@ -467,15 +468,18 @@ from app.services.tenant.attachments import (  # noqa: E402
 )
 
 
-def _require_real_guild_admin(guild_context: GuildContext) -> None:
-    """Backup import creates initiatives and restores blobs — guild admins
-    only, and REAL membership at that: a break-glass grant synthesizes an
-    admin role, but the worker re-checks actual membership at apply time, so
-    a stand-in would only fail later. Reject it up front."""
-    if guild_context.grant is not None or not guild_context.is_admin:
+def _require_guild_seat(guild_context: GuildContext) -> None:
+    """Restoring a backup creates initiatives and writes blobs back into the
+    community, so it sits with the seat that exports one.
+
+    Held outright, too: a break-glass grant synthesizes an admin role, but the
+    worker re-checks real membership at apply time, so a stand-in would only
+    fail later. Reject it up front.
+    """
+    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportEngineMessages.IMPORT_ADMIN_REQUIRED,
+            detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED,
         )
 
 
@@ -491,8 +495,8 @@ async def upload_backup(
     """Upload a backup zip and get its pre-flight plan. The zip is staged in
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
-    backups expire after IMPORT_STAGED_TTL_HOURS. Guild admins only."""
-    _require_real_guild_admin(guild_context)
+    backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only."""
+    _require_guild_seat(guild_context)
     _require_writable(guild_context)
     guild_id = guild_context.guild_id
 
@@ -591,12 +595,12 @@ async def confirm_import(
     because this confirm may be hours old by then.
 
     Two kinds of job reach this, and they are gated differently because they
-    were created differently. A **backup** creates initiatives and restores
-    blobs, so it is guild admins only — re-checked here and again at apply
-    time. A lone **envelope** is one thing its creator already had the create
-    permission for when they dropped it; it is staged only to ask who the
-    handles in it are, so that creator is the one who answers, and nobody
-    else confirms on their behalf."""
+    were created differently. A **backup** puts a whole community back, so it
+    is the seat only — re-checked here and again at apply time. A lone
+    **envelope** is one thing its creator already had the create permission
+    for when they dropped it; it is staged only to ask who the handles in it
+    are, so that creator is the one who answers, and nobody else confirms on
+    their behalf."""
     _require_writable(guild_context)
     job = await session.get(ImportJob, job_id)
     if job is None:
@@ -605,7 +609,7 @@ async def confirm_import(
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
     if job.source == "backup":
-        _require_real_guild_admin(guild_context)
+        _require_guild_seat(guild_context)
     elif job.created_by != current_user.id:
         # RLS lets a guild admin read the row; answering somebody else's
         # people step is a different thing from being able to see it.

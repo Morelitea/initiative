@@ -1948,14 +1948,23 @@ async def test_aggregate_export_hides_dac_invisible_rows(
     assert "Their Secret" not in dumped and "Their Queue" not in dumped
 
 
-async def test_guild_export_requires_admin(client: AsyncClient, acting_user, session):
-    member = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+async def test_guild_export_belongs_to_the_seat(
+    client: AsyncClient, acting_user, session
+):
+    """Running a community is an admin's job; taking every initiative it has
+    in one file is the seat's. An ordinary admin is refused, as a member is."""
+    seat = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
     )
-    for source, params in (("guild", {}), ("estimate", {"scope": "guild"})):
-        resp = await _export(client, member, source, **params)
-        assert resp.status_code == 403, source
-        assert resp.json()["detail"] == "EXPORT_ADMIN_REQUIRED"
+    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    for caller in (admin, member):
+        for source, params in (("guild", {}), ("estimate", {"scope": "guild"})):
+            resp = await _export(
+                client, caller, source, headers=caller.headers, **params
+            )
+            assert resp.status_code == 403, (caller.membership.role, source)
+            assert resp.json()["detail"] == "EXPORT_SUPERADMIN_REQUIRED"
 
 
 async def test_guild_backup_spans_initiatives_and_refreshes_access(
@@ -1964,7 +1973,9 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
     """A guild backup is the initiative backup repeated per initiative, in one
     zip — and the builder re-validates the creator's access per chunk (the
     staleness rule for long builds)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     await _populate_initiative(session, a, a.initiative)
     second = await create_initiative(session, a.guild, a.user, name="Second Front")
     await _populate_initiative(session, a, second)
@@ -2275,17 +2286,20 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     assert tools["calendar"] == "disabled"
 
 
-async def test_guild_export_admin_revoked_fails_closed(
+async def test_guild_export_seat_vacated_fails_closed(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """Adminship revoked between request and render: the worker's re-check
-    fails the job instead of shipping a guild dump to a former admin."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    """The seat left between request and render: the worker's re-check fails
+    the job instead of shipping a community dump to whoever used to hold it.
+    Stepping down to ordinary admin is enough — the archive is the seat's."""
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     resp = await _export(client, a, "guild")
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
-    a.membership.role = GuildRole.member
+    a.membership.role = GuildRole.admin
     session.add(a.membership)
     await session.commit()
 
@@ -2293,7 +2307,7 @@ async def test_guild_export_admin_revoked_fails_closed(
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
-    assert body["error"] == "EXPORT_ADMIN_REQUIRED"
+    assert body["error"] == "EXPORT_SUPERADMIN_REQUIRED"
     dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
 
@@ -2308,7 +2322,9 @@ async def test_guild_backup_carries_the_community_itself(
 ):
     """A community backup covers the community, not only the work done inside
     it: its configuration, its tag vocabulary and its roster."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     await create_tag(session, a.guild, name="worldbuilding", color="#ff0000")
 
     resp = await _export(client, a, "guild")
@@ -2392,7 +2408,9 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
     """Assets otherwise ride with the entity referencing them, so a file
     nobody currently points at is the one thing a full backup would drop
     without saying so."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     orphan_key = "orphan-upload-xyz.bin"
     get_guild_storage(a.guild.id).write(orphan_key, b"orphan-bytes")
     await create_upload(
@@ -2457,7 +2475,9 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
 ):
     """One app-derived dashboard must not fail a whole community's backup —
     and the archive states that it existed rather than quietly omitting it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     mine = await create_dashboard(session, a.initiative, a.user, name="Mine")
     theirs = await create_dashboard(session, a.initiative, a.user, name="Theirs")
     theirs.listing_uid = "notbuiltin123"
@@ -2487,7 +2507,9 @@ async def test_guild_backup_records_apps_it_does_not_carry(
     """An app published by somebody else is restored by installing it in the
     destination, not by unpacking a copy — so the archive names it in
     ``skipped`` rather than passing over it in silence."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
     app = await create_guild_app(
         session,
         a.guild,
@@ -2550,7 +2572,9 @@ async def test_whole_community_export_has_a_cooldown(
 ):
     """A community's entire content is not a thing to re-read on a loop, and
     the cooldown is counted across the community rather than per person."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     first = await _export(client, a, "guild")
     assert first.status_code == 202, first.text
@@ -2559,8 +2583,8 @@ async def test_whole_community_export_has_a_cooldown(
     assert again.status_code == 429
     assert again.json()["detail"] == "EXPORT_COOLDOWN_ACTIVE"
 
-    # A second admin does not get a fresh allowance.
-    b = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    # A second holder of the seat does not get a fresh allowance.
+    b = await acting_user(guild_role=GuildRole.superadmin, guild=a.guild)
     theirs = await _export(client, b, "guild", headers=b.headers)
     assert theirs.status_code == 429
 
@@ -2569,9 +2593,90 @@ async def test_cooldown_can_be_switched_off(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
     monkeypatch.setattr(settings, "EXPORT_GUILD_COOLDOWN_HOURS", 0)
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "guild")).status_code == 202
+
+
+async def test_guild_export_status_says_who_took_the_last_one_and_when(
+    client: AsyncClient, acting_user, session
+):
+    """What the community settings page asks before anybody opens the wizard.
+
+    Nobody should learn that a colleague already exported the community by
+    being refused when they try it themselves.
+    """
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+
+    quiet = await client.get(a.g("/exports/guild/status"), headers=a.headers)
+    assert quiet.status_code == 200, quiet.text
+    body = quiet.json()
+    assert body["latest"] is None
+    assert body["latest_started_by"] is None
+    assert body["next_available_at"] is None
+    assert body["cooldown_hours"] == settings.EXPORT_GUILD_COOLDOWN_HOURS
+
+    started = await _export(client, a, "guild")
+    assert started.status_code == 202, started.text
+    job_id = started.json()["id"]
+
+    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    assert body["latest"]["id"] == job_id
+    assert body["latest"]["status"] == ExportJobStatus.queued.value
+    assert body["latest_started_by"] == (
+        a.user.full_name or f"{a.user.username}#{a.user.discriminator:04d}"
+    )
+
+    # The countdown the page shows and the door the create route shuts are the
+    # same number, read from the same job.
+    created_at = datetime.fromisoformat(body["latest"]["created_at"])
+    available_at = datetime.fromisoformat(body["next_available_at"])
+    assert available_at == created_at + timedelta(
+        hours=settings.EXPORT_GUILD_COOLDOWN_HOURS
+    )
+
+    refused = await _export(client, a, "guild")
+    assert refused.status_code == 429
+    left = (available_at - datetime.now(timezone.utc)).total_seconds()
+    assert abs(int(refused.headers["Retry-After"]) - left) <= 5
+
+
+async def test_guild_export_status_is_the_seats(
+    client: AsyncClient, acting_user, session
+):
+    """It reports the seat's own actions to the seat."""
+    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+
+    resp = await client.get(admin.g("/exports/guild/status"), headers=admin.headers)
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "EXPORT_SUPERADMIN_REQUIRED"
+
+
+async def test_a_failed_export_is_reported_but_holds_no_door(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Only work that was really done counts against the wait — and a failure
+    is still the thing the page has to report, or the next person tries the
+    same export and it fails the same way."""
+    monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
+    monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", None)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+
+    job_id = (await _export(client, a, "guild")).json()["id"]
+    await _run_worker(monkeypatch, role_session)
+
+    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    assert body["latest"]["id"] == job_id
+    assert body["latest"]["status"] == ExportJobStatus.failed.value
+    assert body["next_available_at"] is None
     assert (await _export(client, a, "guild")).status_code == 202
 
 
@@ -2582,7 +2687,9 @@ async def test_an_archive_over_the_download_bound_is_delivered(
     to the operator's destination and the job says so."""
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     resp = await _export(client, a, "guild")
     assert resp.status_code == 202, resp.text
@@ -2611,7 +2718,9 @@ async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
     carries no GC deadline of ours."""
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     resp = await _export(client, a, "guild")
     job_id = resp.json()["id"]
@@ -2628,7 +2737,9 @@ async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
     thing the operator can actually do about it."""
     monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", None)
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     resp = await _export(client, a, "guild")
     job_id = resp.json()["id"]
@@ -2644,7 +2755,9 @@ async def test_estimate_reports_the_download_bound_and_whether_delivery_exists(
 ):
     """So the wizard can say which of the two is going to happen before
     anybody submits."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
 
     resp = await _export(client, a, "estimate", scope="guild")
     assert resp.status_code == 200, resp.text
