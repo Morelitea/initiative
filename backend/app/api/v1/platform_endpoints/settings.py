@@ -84,7 +84,11 @@ from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import platform_provider as platform_provider_service
-from app.core.login_methods import LoginMethod, SecondFactorRequirement
+from app.core.login_methods import (
+    PRIMARY_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
@@ -204,6 +208,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             LoginMethodStatus(
                 method=method,
                 enabled=method in permitted,
+                primary=method in PRIMARY_LOGIN_METHODS,
                 would_strand=await auth_posture.stranded_between(
                     session, current=permitted, requested=permitted - {method}
                 ),

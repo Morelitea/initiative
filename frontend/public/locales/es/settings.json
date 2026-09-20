@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} comunidad exige iniciar sesión mediante un proveedor propio.",
       "guildsRequire_other": "{{count}} comunidades exigen iniciar sesión mediante un proveedor propio.",
       "totp": {
-        "label": "Aplicación de autenticación",
-        "help": "Un código de una aplicación, pedido después de la contraseña. Cada persona la activa por su cuenta."
+        "label": "Activar la autenticación en dos pasos",
+        "help": "Permite que la gente proteja su cuenta con un código de una aplicación de autenticación. Cada persona la activa por su cuenta; esto decide si el servidor la ofrece siquiera."
       },
       "passkey": {
         "label": "Clave de acceso",
@@ -659,6 +659,12 @@
       "present": "Introducir un código",
       "saved": "Guardado. A quien le afecte se le pedirá en su siguiente petición.",
       "error": "No hemos podido guardarlo."
+    },
+    "factorMethods": {
+      "title": "Autenticación en dos pasos",
+      "description": "Lo que este servidor ofrece como segundo factor. Si alguien está obligado a tenerlo es el ajuste siguiente.",
+      "saved": "Autenticación en dos pasos actualizada.",
+      "saveError": "No se ha podido cambiar la autenticación en dos pasos."
     }
   },
   "platformUsers": {
@@ -1418,8 +1424,8 @@
     "title": "Directorio de comunidades",
     "description": "Permite que las comunidades se publiquen donde cualquier persona con sesión iniciada pueda encontrarlos y unirse sin invitación.",
     "toggleLabel": "Ofrecer un directorio de comunidades",
-    "helpText": "Mientras esté activado, quien administre una comunidad puede publicarla desde la configuración de la comunidad y «Unirse a una comunidad» aparece junto a las comunidades de todo el mundo. Mientras esté desactivado, no hay nada que explorar y ninguna comunidad puede publicarse.",
-    "reversibleNote": "Desactivarlo oculta el directorio; no retira a las comunidades que se publicaron. Al volver a activarlo, aparecen las mismas comunidades.",
+    "helpText": "Activa el directorio público de comunidades: una lista navegable de las comunidades que han decidido dejarse encontrar. La gente la explora y pide entrar, y «Unirse a una comunidad» aparece junto a las suyas. Cada comunidad se apunta desde sus propios ajustes.",
+    "reversibleNote": "Desactivarlo cierra el directorio. Las comunidades apuntadas siguen apuntadas y reaparecen cuando vuelvas a activarlo.",
     "enabledToast": "El directorio de comunidades está activado.",
     "disabledToast": "El directorio de comunidades está desactivado.",
     "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",

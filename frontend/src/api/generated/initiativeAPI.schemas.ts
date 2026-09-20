@@ -5040,6 +5040,7 @@ export const LoginMethod = {
 export interface LoginMethodStatus {
   method: LoginMethod;
   enabled: boolean;
+  primary: boolean;
   would_strand: number;
 }
 
