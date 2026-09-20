@@ -962,6 +962,7 @@ async def create_device_token(
             admin_session,
             user_id=user_id,
             device_name=device_name,
+            amr=["pwd"],
             commit=False,
         )
         issued = await session_service.create_session(
@@ -1021,10 +1022,13 @@ async def exchange_device_token(
     until the client stops sending it, and the build that stops is the one that
     decides when.
 
-    The session carries **no** factors. A device token does not record what was
-    presented when it was minted, and a session that claimed otherwise would be
-    asserting assurance nobody established — so this satisfies no guild
-    sign-in requirement, exactly as the device token itself does not.
+    The session carries what the sign-in that minted the token recorded, and
+    only across the handoff: the relay sign-ins hand the app a token instead of
+    a session, so the first exchange inside the window is the rest of that
+    sign-in. After it — a later launch, a chain that lapsed — the app is
+    resuming on a string it has been keeping, and the session it gets records
+    nothing, which satisfies no community's sign-in requirement. See
+    ``user_tokens.claim_handoff_amr``.
     """
     record = await user_tokens.get_device_token(session, token=payload.device_token)
     if record is None:
@@ -1043,10 +1047,14 @@ async def exchange_device_token(
 
     user_id, token_version = user.id, user.token_version
     try:
+        # The write runs on the admin session, so the row that records the
+        # handoff and the session that took it commit together; ``record`` is
+        # only read for its values, and the update carries its own condition.
+        handed_over = await user_tokens.claim_handoff_amr(admin_session, record=record)
         issued = await session_service.create_session(
             admin_session,
             user_id=user_id,
-            amr=[],
+            amr=handed_over,
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
@@ -1598,6 +1606,11 @@ async def _complete_provider_login(
             session,
             user_id=user.id,
             device_name=device_name,
+            # What the provider said about this authentication, kept for the
+            # exchange the app makes next. The same handoff the relay passkey
+            # sign-in takes, for the same reason: this branch answers with a
+            # redirect, so there is no session here to carry it.
+            amr=session_amr(provider_row.slug, read_assurance(completion.claims)),
         )
         # No session alongside this one: it answers with a redirect, and a
         # refresh token does not belong in a URL. ``POST /auth/device-token/

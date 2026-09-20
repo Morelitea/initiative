@@ -1011,6 +1011,8 @@ async def test_a_phone_is_handed_a_device_token(
     given the address the app is waiting at, carrying a device token."""
     from app.services.platform import user_tokens
 
+    from app.core.security import decode_session_token
+
     user = await _account(session, "pk-mobile@example.com")
     user_id = user.id
     await create_passkey(session, user)
@@ -1037,12 +1039,26 @@ async def test_a_phone_is_handed_a_device_token(
     assert record is not None
     assert record.user_id == user_id
     assert record.device_name == "Pixel 9"
+    # What the ceremony proved rides across with the token. Read before the
+    # expire below, which would make this a load of its own.
+    assert sorted(record.amr) == ["hwk", "mfa"]
 
     # No session in the relay browser, and nothing set on it either.
     session.expire_all()
     assert (
         await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
     ).all() == []
+
+    # So the session the app trades it for is the one this sign-in earned — a
+    # community asking for a passkey is answered by the phone that just
+    # presented one.
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange",
+        json={"device_token": handed["token"][0]},
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    opened = decode_session_token(exchanged.json()["access_token"])
+    assert sorted(opened["amr"]) == ["hwk", "mfa"]
     assert SESSION_COOKIE_NAME not in response.cookies
     assert REFRESH_COOKIE_NAME not in response.cookies
 

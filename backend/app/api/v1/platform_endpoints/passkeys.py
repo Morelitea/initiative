@@ -548,6 +548,10 @@ async def finish_passkey_sign_in(
             admin_session,
             user_id=user_id,
             device_name=device_name,
+            # What this ceremony proved, kept for the exchange the app makes
+            # next: the relay is a sign-in that hands back a token instead of
+            # a session, and the session is opened a moment later.
+            amr=passkey_amr(backed_up=backed_up),
             commit=False,
         )
         await audit_service.record(
