@@ -740,6 +740,58 @@ async def send_sign_up_code_email(
     )
 
 
+async def send_account_erased_email(
+    session: AsyncSession, *, recipients: list[str], locale: str = "en"
+) -> None:
+    """Tell an account that it is gone, at the addresses it proved.
+
+    The recipients are passed in rather than read from the account, because by
+    the time this is worth sending there is no account to read them from —
+    the caller captures them before the erasure and hands them over after it
+    commits.
+
+    No name and no link: the person it names has been unnamed, and there is
+    nowhere left for them to go.
+    """
+    settings_obj, accent = await _email_context(session)
+    body = f"""
+    <p>{email_t("accountErased.greeting", locale=locale)}</p>
+    <p>{email_t("accountErased.body", locale=locale)}</p>
+    <p>{email_t("accountErased.kept", locale=locale)}</p>
+    <p>{email_t("accountErased.unexpected", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("accountErased.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t("accountErased.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t("accountErased.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_account_erased(
+    session: AsyncSession, *, recipients: list[str], locale: str = "en"
+) -> None:
+    """Send the receipt, and never fail the erasure because it could not go.
+
+    By the time this runs the account is gone and committed. A deployment with
+    no mail configured still erased it, and answering the request with a
+    failure would say otherwise.
+    """
+    if not recipients:
+        return
+    try:
+        await send_account_erased_email(session, recipients=recipients, locale=locale)
+    except EmailNotConfiguredError:
+        logger.info("no mail configured; erasure not acknowledged by letter")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the erasure receipt")
+
+
 async def send_second_factor_changed_email(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:

@@ -8,6 +8,7 @@
 
 import { useTranslation } from "react-i18next";
 
+import { SecondFactorMethodSection } from "@/components/admin/SecondFactorMethodSection";
 import { SecondFactorRequirementSection } from "@/components/admin/SecondFactorRequirementSection";
 import { SessionLifetimeSection } from "@/components/admin/SessionLifetimeSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,8 @@ export const SettingsPlatformSecurityPage = () => {
         <p className="text-muted-foreground text-sm">{t("platformSecurity.description")}</p>
       </div>
       <SessionLifetimeSection />
+      {/* Offered first, then required: a rule needs something to answer it. */}
+      <SecondFactorMethodSection />
       <SecondFactorRequirementSection />
     </div>
   );

@@ -614,8 +614,8 @@
       "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
       "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
       "totp": {
-        "label": "Authenticator app",
-        "help": "A code from an app, asked for after a password. People turn it on for themselves."
+        "label": "Enable two-factor authentication",
+        "help": "Let people protect their account with a code from an authenticator app. Each person turns it on for themselves; this is whether the server offers it at all."
       },
       "passkey": {
         "label": "Passkey",
@@ -659,6 +659,12 @@
       "present": "Enter a code",
       "saved": "Saved. People this covers are asked at their next request.",
       "error": "We couldn't save that."
+    },
+    "factorMethods": {
+      "title": "Two-factor authentication",
+      "description": "What this server offers as a second factor. Whether anybody has to hold one is the next setting.",
+      "saved": "Two-factor authentication updated.",
+      "saveError": "Could not change two-factor authentication."
     }
   },
   "platformUsers": {
@@ -1417,8 +1423,8 @@
     "title": "Community directory",
     "description": "Let communities list themselves where anyone signed in can find them and join without an invite.",
     "toggleLabel": "Run a community directory",
-    "helpText": "While this is on, an admin can list their community from its settings, and “Join a community” appears beside everyone's own. While it is off, there is nothing to browse and nothing can list itself.",
-    "reversibleNote": "Turning this off hides the directory; it does not un-list the communities that opted in. Turn it back on and the same communities are listed again.",
+    "helpText": "Turns on the public community directory: a browsable list of the communities that have chosen to be found. People search it and ask to join, and “Join a community” appears beside their own. Each community lists itself from its own settings.",
+    "reversibleNote": "Turning it off closes the directory. Communities that listed themselves stay listed, and appear again when you turn it back on.",
     "enabledToast": "The community directory is on.",
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
