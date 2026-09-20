@@ -288,17 +288,16 @@ _TRANSFER_STATEMENTS = """
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
 ), target AS (
-    -- Empty when the bootstrap connects as the provisioning role itself, which
-    -- makes every branch below return no rows: it already owns what it owns.
+    -- The login every statement below moves an object to. Each branch excludes
+    -- what it already owns, so a re-run on a moved database returns no rows.
     SELECT current_setting('app._bootstrap_role') AS role
-     WHERE current_setting('app._bootstrap_role') <> current_user
 )
 SELECT format('table %I.%I', n.nspname, c.relname) AS label,
        format('ALTER TABLE %I.%I OWNER TO %I', n.nspname, c.relname, target.role) AS stmt
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind IN ('r', 'v', 'm', 'p')
-   AND c.relowner = current_user::regrole
+   AND pg_get_userbyid(c.relowner) <> target.role
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
    AND (n.nspname ~ '^guild_([0-9]+|template)$'
         OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
@@ -308,7 +307,7 @@ SELECT format('sequence %I.%I', n.nspname, c.relname),
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind = 'S'
-   AND c.relowner = current_user::regrole
+   AND pg_get_userbyid(c.relowner) <> target.role
    AND n.nspname ~ '^guild_([0-9]+|template)$'
    AND NOT EXISTS (
        SELECT 1 FROM pg_depend d
@@ -319,7 +318,7 @@ SELECT format('type public.%I', t.typname),
   FROM pg_type t, target
  WHERE t.typnamespace = 'public'::regnamespace
    AND t.typtype = 'e'
-   AND t.typowner = current_user::regrole
+   AND pg_get_userbyid(t.typowner) <> target.role
    AND EXISTS (
        SELECT 1 FROM pg_attribute a
          JOIN pg_class c2 ON c2.oid = a.attrelid
@@ -333,7 +332,7 @@ SELECT format('function %s', p.oid::regprocedure),
        format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, target.role)
   FROM pg_proc p, target
  WHERE p.pronamespace = 'public'::regnamespace
-   AND p.proowner = current_user::regrole
+   AND pg_get_userbyid(p.proowner) <> target.role
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
    -- Every function the outgoing login left in ``public``, less the ones the
    -- bootstrap keeps. What calls a function is not something the catalog can
@@ -347,7 +346,7 @@ SELECT format('schema %I', n.nspname),
        format('ALTER SCHEMA %I OWNER TO %I', n.nspname, target.role)
   FROM pg_namespace n, target
  WHERE n.nspname ~ '^guild_([0-9]+|template)$'
-   AND n.nspowner = current_user::regrole
+   AND pg_get_userbyid(n.nspowner) <> target.role
 """
 
 
@@ -584,6 +583,13 @@ async def _transfer_ownership(conn) -> None:
     Nothing to do on a fresh install, where the provisioning role creates them,
     or on any later start. A database that has been running under another login
     moves once, and what moved is logged.
+
+    The move is described by who owns an object, not by who is asking: the
+    bootstrap connection is whichever login the deployment named, and on an
+    install that has changed hands more than once the objects can belong to a
+    login it is neither. Claiming them needs rights over their current owner,
+    which is why this runs from the bootstrap connection and not from the
+    provisioning one.
     """
     await _set_local(
         conn, "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
@@ -675,20 +681,31 @@ async def warn_if_ownership_was_never_handed_over() -> None:
     if not owners:
         return
 
+    if settings.DATABASE_URL_BOOTSTRAP:
+        remedy = (
+            "DATABASE_URL_BOOTSTRAP is set, so the move was attempted and\n"
+            "found nothing it could take. Point it at a login with rights\n"
+            "over %s -- the owner of the database, or a superuser -- and\n"
+            "start once.\n" % (" and ".join(repr(owner) for owner in owners),)
+        )
+    else:
+        remedy = (
+            "This deployment has no DATABASE_URL_BOOTSTRAP for the move to\n"
+            "run under. Set it to a connection URL for the database owner and\n"
+            "start once. It moves every object and logs what it moved; the\n"
+            "line can come out again afterwards.\n"
+        )
     logger.warning(
         "\n%s\n"
         "The app's tables still belong to %s, not to %r. Ownership moves as\n"
-        "part of the bootstrap, and this deployment\n"
-        "has no DATABASE_URL_BOOTSTRAP for it to move under. Left alone,\n"
-        "refreshing the app's functions and each community's schema fails on\n"
-        "every start.\n\n"
-        "To repair: set DATABASE_URL_BOOTSTRAP to a connection URL for the\n"
-        "database owner and start once. It moves every object and logs what\n"
-        "it moved; the line can come out again afterwards.\n"
+        "part of the bootstrap. Left alone, refreshing the app's functions and\n"
+        "each community's schema fails on every start.\n\n"
+        "%s"
         "%s",
         "=" * 70,
         " and ".join(repr(owner) for owner in owners),
         provisioner.name,
+        remedy,
         "=" * 70,
     )
 
@@ -701,11 +718,11 @@ def _executing(query: str) -> str:
     the same rows executed rather than displayed. Both forms are built from the
     one query, so they cannot come to describe different work.
 
-    Every statement is collected before any of them runs: the query reads
-    ``pg_class`` for objects the current user owns, and altering an owner
-    part-way through a scan of the catalog it is filtering on is not something
-    to leave to chance. That is also exactly what the app path does — fetch
-    all, then execute.
+    Every statement is collected before any of them runs: the query filters
+    ``pg_class`` on who owns each object, and altering an owner part-way
+    through a scan of the catalog it is filtering on is not something to leave
+    to chance. That is also exactly what the app path does — fetch all, then
+    execute.
     """
     return (
         "DO $handover$\n"
