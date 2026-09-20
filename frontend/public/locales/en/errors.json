@@ -23,6 +23,7 @@
   "GUILD_PERMISSION_REQUIRED": "Community permission required",
   "GUILD_ADMIN_REQUIRED": "Community admin role required",
   "GUILD_CREATION_DISABLED": "Community creation is disabled",
+  "FREE_COMMUNITY_ALREADY_HELD": "You already have a free community. Another one needs a plan — pick one and we'll set it up.",
   "GUILD_NAME_REQUIRED": "Community name is required",
   "GUILD_OWNER_REQUIRES_CAPABILITY": "Only platform staff can create a community owned by someone else",
   "GUILD_OWNER_NOT_FOUND": "That account doesn't exist or can't be given a community",

@@ -29,6 +29,7 @@
   "GUILD_PERMISSION_REQUIRED": "Community-Berechtigung erforderlich",
   "GUILD_ADMIN_REQUIRED": "Administratorrolle der Community erforderlich",
   "GUILD_CREATION_DISABLED": "Das Erstellen von Communitys ist deaktiviert",
+  "FREE_COMMUNITY_ALREADY_HELD": "Du hast bereits eine kostenlose Community. Eine weitere braucht einen Tarif — wähle einen aus, dann richten wir sie ein.",
   "GUILD_NAME_REQUIRED": "Community-Name ist erforderlich",
   "GUILD_OWNER_REQUIRES_CAPABILITY": "Nur Plattform-Personal kann eine Community für jemand anderen erstellen",
   "GUILD_OWNER_NOT_FOUND": "Dieses Konto existiert nicht oder kann keine Community erhalten",

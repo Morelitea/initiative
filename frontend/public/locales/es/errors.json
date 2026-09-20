@@ -29,6 +29,7 @@
   "GUILD_PERMISSION_REQUIRED": "Se requiere permiso de la comunidad",
   "GUILD_ADMIN_REQUIRED": "Se requiere rol de administrador de la comunidad",
   "GUILD_CREATION_DISABLED": "La creación de comunidades está deshabilitada",
+  "FREE_COMMUNITY_ALREADY_HELD": "Ya tienes una comunidad gratuita. Otra necesita un plan: elige uno y la creamos.",
   "GUILD_NAME_REQUIRED": "El nombre de la comunidad es obligatorio",
   "GUILD_OWNER_REQUIRES_CAPABILITY": "Solo el personal de la plataforma puede crear una comunidad para otra persona",
   "GUILD_OWNER_NOT_FOUND": "Esa cuenta no existe o no puede recibir una comunidad",
