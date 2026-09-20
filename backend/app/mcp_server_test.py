@@ -137,6 +137,8 @@ async def test_mcp_tools_are_curated():
         # The edges between them, which belong to no one tool.
         "relationship",
         "widget",
+        # And the way in when a caller knows a name rather than an id.
+        "search",
         *(tool.value for tool in Tool),
         *(tool.plural for tool in Tool),
     )
@@ -197,6 +199,24 @@ async def test_comment_reads_are_exposed():
     assert "read_comment" in names
     assert "recent_comments" not in names
     assert "search_mentionables" not in names
+
+
+@pytest.mark.unit
+async def test_search_is_exposed_without_the_picker_routes():
+    """The general search, and only it, out of the search router's three GETs.
+
+    ``search`` is deliberately not a READ_TAG: ``recent`` and ``suggest`` both
+    describe a text field's behaviour — what to offer before anything is typed,
+    and titles to jump to while it is — rather than answering a question, so
+    they fall through the default-deny catch-all.
+    """
+    names = {
+        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
+    }
+
+    assert "search_guild" in names
+    assert "recent_guild" not in names
+    assert "suggest_guild" not in names
 
 
 @pytest.mark.unit
