@@ -658,13 +658,15 @@
       "unmet": "Configura antes tu propio segundo factor y luego guarda.",
       "present": "Introducir un código",
       "saved": "Guardado. A quien le afecte se le pedirá en su siguiente petición.",
-      "error": "No hemos podido guardarlo."
+      "error": "No hemos podido guardarlo.",
+      "noMethod": "Permite antes la aplicación de autenticación o las claves de acceso: sin ninguna de las dos no hay nada que exigir."
     },
     "factorMethods": {
       "title": "Autenticación en dos pasos",
       "description": "Lo que este servidor ofrece como segundo factor. Si alguien está obligado a tenerlo es el ajuste siguiente.",
       "saved": "Autenticación en dos pasos actualizada.",
-      "saveError": "No se ha podido cambiar la autenticación en dos pasos."
+      "saveError": "No se ha podido cambiar la autenticación en dos pasos.",
+      "followsWaysIn": "Una clave de acceso demuestra el dispositivo y la persona a la vez, así que responde a esto además de abrir sesión. Si se ofrecen claves de acceso se decide en «Formas de entrar»."
     }
   },
   "platformUsers": {

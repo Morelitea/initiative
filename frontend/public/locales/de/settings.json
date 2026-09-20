@@ -658,13 +658,15 @@
       "unmet": "Richte zuerst selbst einen zweiten Faktor ein, dann speichern.",
       "present": "Code eingeben",
       "saved": "Gespeichert. Betroffene werden bei ihrer nächsten Anfrage gefragt.",
-      "error": "Das konnte nicht gespeichert werden."
+      "error": "Das konnte nicht gespeichert werden.",
+      "noMethod": "Erlaube zuerst die Authenticator-App oder Passkeys — ohne eines von beiden gibt es nichts zu verlangen."
     },
     "factorMethods": {
       "title": "Zwei-Faktor-Authentifizierung",
       "description": "Was dieser Server als zweiten Faktor anbietet. Ob ihn jemand haben muss, ist die nächste Einstellung.",
       "saved": "Zwei-Faktor-Authentifizierung aktualisiert.",
-      "saveError": "Zwei-Faktor-Authentifizierung konnte nicht geändert werden."
+      "saveError": "Zwei-Faktor-Authentifizierung konnte nicht geändert werden.",
+      "followsWaysIn": "Ein Passkey weist Gerät und Person in einem Schritt nach und beantwortet dies daher ebenso, wie er eine Sitzung eröffnet. Ob Passkeys angeboten werden, wird unter „Zugangswege“ entschieden."
     }
   },
   "platformUsers": {

@@ -38,6 +38,7 @@ export const SecondFactorRequirementSection = () => {
     <SecondFactorRequirementForm
       saved={query.data.second_factor_requirement}
       withoutFactor={query.data.accounts_without_factor}
+      answerable={query.data.factor_methods_permitted}
     />
   );
 };
@@ -45,9 +46,14 @@ export const SecondFactorRequirementSection = () => {
 const SecondFactorRequirementForm = ({
   saved,
   withoutFactor,
+  answerable,
 }: {
   saved: SecondFactorRequirement;
   withoutFactor: { platform_roles: number; everyone: number };
+  /** Whether anything permitted could answer the requirement. With neither
+   *  the authenticator app nor passkeys offered there is nothing to ask for,
+   *  and the server refuses the write — so the controls say so first. */
+  answerable: boolean;
 }) => {
   const { t } = useTranslation(["settings", "common"]);
   const [choice, setChoice] = useState<SecondFactorRequirement>(saved);
@@ -91,10 +97,16 @@ const SecondFactorRequirementForm = ({
       title={t("auth.secondFactorRequirement.title")}
       description={t("auth.secondFactorRequirement.description")}
     >
+      {!answerable && (
+        <p className="text-muted-foreground text-sm">
+          {t("auth.secondFactorRequirement.noMethod")}
+        </p>
+      )}
       <RadioGroup
         value={choice}
         onValueChange={(value) => change(value as SecondFactorRequirement)}
         className="gap-3"
+        disabled={!answerable}
       >
         {LEVELS.map((level) => (
           <div key={level} className="flex items-start gap-3 rounded-md border px-3 py-3">
@@ -145,7 +157,7 @@ const SecondFactorRequirementForm = ({
 
       <div className="flex justify-end">
         <Button
-          disabled={choice === saved || update.isPending}
+          disabled={choice === saved || update.isPending || !answerable}
           onClick={() => update.mutate({ level: choice })}
         >
           {update.isPending ? t("common:submitting") : t("common:save")}

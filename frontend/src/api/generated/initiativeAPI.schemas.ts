@@ -5041,6 +5041,7 @@ export interface LoginMethodStatus {
   method: LoginMethod;
   enabled: boolean;
   primary: boolean;
+  answers_factor: boolean;
   would_strand: number;
 }
 
@@ -5876,6 +5877,7 @@ export const SecondFactorRequirement = {
 export interface PlatformAuthSettingsResponse {
   methods: LoginMethodStatus[];
   guilds_requiring_sign_in: number;
+  factor_methods_permitted: boolean;
   session_max_hours: number | null;
   second_factor_requirement: SecondFactorRequirement;
   accounts_without_factor: AccountsWithoutFactor;
