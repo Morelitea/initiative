@@ -12,6 +12,7 @@ capabilities + ownership, mirroring the ``/admin/*`` endpoints.
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from webauthn.helpers import bytes_to_base64url
 
 from app.api.deps import get_current_active_user, require_capability
 from app.core.capabilities import Capability, user_has_capability
@@ -31,7 +32,10 @@ from app.schemas.platform.access_grant import (
     BreakGlassCreate,
     BreakGlassRequirements,
 )
+from app.schemas.platform.passkey import PasskeyAuthenticationOptions
 from app.services import audit as audit_service
+from app.services.auth import challenges as challenge_service
+from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.platform import access_grants as service
 from app.services.stream_authz import authority as stream_authority
@@ -129,33 +133,74 @@ async def create_access_request(
     return read
 
 
+_BREAK_GLASS_PURPOSES = (challenge_service.ChallengePurpose.break_glass,)
+
+
+async def _answers_with_a_passkey(
+    session: AsyncSession, *, actor: User, credential: dict
+) -> bool:
+    """Whether the assertion in this request answers for this account.
+
+    The challenge it is held against was issued to the account by the begin
+    route below and is spent here, so what it proves belongs to this request
+    rather than to the session the request was made on — the same rule the
+    code follows.
+    """
+    presented = await passkey_service.present_against_challenge(
+        session,
+        user_id=actor.id,
+        credential=credential,
+        purposes=_BREAK_GLASS_PURPOSES,
+    )
+    if isinstance(presented, passkey_service.PresentationRefused):
+        if not presented.keep:
+            await session.rollback()
+        return False
+    return True
+
+
 async def _check_second_factor(
     session: AsyncSession, *, actor: User, payload: BreakGlassCreate
 ) -> None:
     """Take the account's own factor before the glass breaks.
 
     Asked for the way turning the factor off asks: against the request rather
-    than against what the session remembers, so the code is presented at the
-    moment the grant is issued. A recovery code answers it too — an operator
-    whose phone is gone is exactly who needs to reach a community.
+    than against what the session remembers, so what answers is presented at
+    the moment the grant is issued. Three things answer — a code from the
+    authenticator, a recovery code, or one of the account's passkeys. The
+    recovery code is there because an operator whose phone is gone is exactly
+    who needs to reach a community; the passkey, because a holder who signs in
+    with one has no reason to keep an authenticator app as well.
     """
     if not await service.demands_second_factor(session):
         return
 
-    if not await totp_service.is_enrolled(session, user_id=actor.id):
+    # Read once: a refused assertion may put the transaction back, and the row
+    # this came from is not this function's to re-read afterwards.
+    actor_id = actor.id
+
+    if not (
+        await totp_service.is_enrolled(session, user_id=actor_id)
+        or await passkey_service.count_for_user(session, user_id=actor_id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AccessGrantMessages.SECOND_FACTOR_ENROLMENT_REQUIRED,
         )
 
-    if payload.recovery_code:
+    if payload.passkey is not None:
+        accepted = await _answers_with_a_passkey(
+            session, actor=actor, credential=payload.passkey
+        )
+        method, refusal = "passkey", AccessGrantMessages.PASSKEY_INVALID
+    elif payload.recovery_code:
         accepted = await totp_service.consume_recovery_code(
-            session, user_id=actor.id, code=payload.recovery_code
+            session, user_id=actor_id, code=payload.recovery_code
         )
         method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
     elif payload.code:
         accepted = await totp_service.verify_code(
-            session, user_id=actor.id, code=payload.code
+            session, user_id=actor_id, code=payload.code
         )
         method, refusal = "totp", AuthMessages.TOTP_INVALID
     else:
@@ -168,7 +213,7 @@ async def _check_second_factor(
         await audit_service.record(
             session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
-            actor_user_id=actor.id,
+            actor_user_id=actor_id,
             detail={"method": method, "during": "break_glass"},
         )
         await session.commit()
@@ -188,8 +233,41 @@ async def break_glass_requirements(
     required = await service.demands_second_factor(session)
     return BreakGlassRequirements(
         second_factor_required=required,
-        enrolled=await totp_service.is_enrolled(session, user_id=current_user.id),
+        totp_enrolled=await totp_service.is_enrolled(session, user_id=current_user.id),
+        passkey_enrolled=bool(
+            await passkey_service.count_for_user(session, user_id=current_user.id)
+        ),
     )
+
+
+@router.post("/break-glass/passkey", response_model=PasskeyAuthenticationOptions)
+async def begin_break_glass_passkey(
+    session: AdminSessionDep,
+    current_user: BreakGlassDep,
+) -> PasskeyAuthenticationOptions:
+    """Options for answering a break-glass request with one of this account's
+    passkeys.
+
+    The challenge is bound to the account and to this purpose, and the request
+    that carries the assertion spends it. Presenting a key here adds nothing to
+    the session it was made on: what it answers for is the grant.
+    """
+    credentials = await passkey_service.list_for_user(session, user_id=current_user.id)
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.PASSKEY_NOT_FOUND,
+        )
+
+    ceremony = passkey_service.begin_authentication(credentials=credentials)
+    await challenge_service.create(
+        session,
+        user_id=current_user.id,
+        purpose=challenge_service.ChallengePurpose.break_glass,
+        value=bytes_to_base64url(ceremony.challenge),
+    )
+    await session.commit()
+    return PasskeyAuthenticationOptions(options=ceremony.options)
 
 
 @router.post(

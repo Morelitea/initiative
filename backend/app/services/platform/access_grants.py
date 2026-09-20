@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -33,6 +33,7 @@ from app.models.platform.access_grant import (
 from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_totp import UserTotp
 from app.schemas.platform.access_grant import (
     AccessGrantCreate,
@@ -324,25 +325,47 @@ async def demands_second_factor(session: AsyncSession) -> bool:
     deployment offers the authenticator app, and some active ``data.bypass``
     holder has confirmed one.
 
-    The pair is what keeps the rule answerable. A holder who has not enrolled
-    is refused until they do, and the way back is their own Security page — so
-    the rule may only ask while that page can actually give them one. A
-    deployment that has withdrawn ``totp`` refuses new enrolments, which is why
-    it stops asking here too, rather than asking for something it will not let
-    anybody obtain.
+    The pair is what keeps the rule answerable. A holder who has neither is
+    refused until they set one up, and the way back is their own Security page
+    — so the rule may only ask while that page can actually give them one. A
+    deployment that has withdrawn a method refuses new enrolments of it, which
+    is why both have to be gone before it stops asking, rather than it asking
+    for something it will not let anybody obtain.
+
+    Either method answers, so either keeps the rule alive: an authenticator
+    code or an assertion from one of the account's passkeys.
     """
-    if not await auth_posture.login_method_allowed(session, LoginMethod.totp):
+    offered = [
+        method
+        for method in (LoginMethod.totp, LoginMethod.passkey)
+        if await auth_posture.login_method_allowed(session, method)
+    ]
+    if not offered:
         return False
+
+    # Only a factor held in a method still offered keeps the rule alive: one
+    # the deployment has withdrawn is not a way back for the holder who has
+    # nothing.
+    held = []
+    if LoginMethod.totp in offered:
+        held.append(
+            select(UserTotp.user_id)
+            .where(UserTotp.user_id == User.id, UserTotp.confirmed_at.is_not(None))
+            .exists()
+        )
+    if LoginMethod.passkey in offered:
+        held.append(
+            select(UserPasskey.user_id).where(UserPasskey.user_id == User.id).exists()
+        )
 
     roles = list(roles_with_capability(Capability.DATA_BYPASS))
     found = (
         await session.exec(
-            select(UserTotp.user_id)
-            .join(User, User.id == UserTotp.user_id)
+            select(User.id)
             .where(
                 User.role.in_(roles),
                 User.status == UserStatus.active,
-                UserTotp.confirmed_at.is_not(None),
+                or_(*held),
             )
             .limit(1)
         )

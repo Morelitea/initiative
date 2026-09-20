@@ -612,6 +612,8 @@ class AccessGrantMessages:
     # not set one up, whose way on is their own Security page.
     SECOND_FACTOR_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
     SECOND_FACTOR_ENROLMENT_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
+    # The assertion presented against a break-glass request did not answer.
+    PASSKEY_INVALID = "ACCESS_GRANT_PASSKEY_INVALID"
 
 
 class PasswordMessages:

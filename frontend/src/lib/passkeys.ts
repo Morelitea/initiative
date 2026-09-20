@@ -98,6 +98,24 @@ export const stepUpWithPasskey = async (): Promise<Token> => {
   return finished.data;
 };
 
+/**
+ * Present a passkey against a break-glass request.
+ *
+ * Unlike the step-up above, nothing is added to the session: the challenge is
+ * issued for the request that will spend it, so what the key proves belongs to
+ * the grant being issued rather than to the browser holding it. The assertion
+ * goes back in the break-glass body, beside the reason and the guild.
+ */
+export const assertForBreakGlass = async (): Promise<Record<string, unknown>> => {
+  const begun = await apiClient.post<PasskeyAuthenticationOptions>(
+    "/access-grants/break-glass/passkey"
+  );
+  const credential = await startAuthentication({
+    optionsJSON: begun.data.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+  });
+  return credential as unknown as Record<string, unknown>;
+};
+
 /** Put down whatever prompt is currently waiting. Only one ceremony runs at a
  *  time, so the quiet one has to go before a button's can start. */
 export const cancelPendingPasskeyPrompt = (): void => WebAuthnAbortService.cancelCeremony();

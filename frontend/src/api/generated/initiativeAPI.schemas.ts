@@ -1270,6 +1270,8 @@ export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
   file: Blob;
 }
 
+export type BreakGlassCreatePasskey = { [key: string]: unknown } | null;
+
 /**
  * A self-approved, time-bound break-glass grant to one guild.
  *
@@ -1291,6 +1293,7 @@ export interface BreakGlassCreate {
   reason: string;
   code?: string | null;
   recovery_code?: string | null;
+  passkey?: BreakGlassCreatePasskey;
 }
 
 /**
@@ -1301,7 +1304,8 @@ export interface BreakGlassCreate {
  */
 export interface BreakGlassRequirements {
   second_factor_required: boolean;
-  enrolled: boolean;
+  totp_enrolled: boolean;
+  passkey_enrolled: boolean;
 }
 
 export type ResourceGrantSchemaLevel =

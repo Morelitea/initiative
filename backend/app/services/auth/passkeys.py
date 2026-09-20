@@ -16,6 +16,7 @@ reported rather than what was asked for.
 from __future__ import annotations
 
 import ipaddress
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -402,6 +403,111 @@ async def finish_authentication(
     session.add(row)
     await session.flush()
     return Assertion(passkey=row, user_verified=bool(verified.user_verified))
+
+
+def challenge_in(credential: dict[str, Any]) -> str | None:
+    """The challenge the browser signed, read back out of its own client data.
+
+    The ceremony's response carries the challenge inside the bytes the
+    authenticator signed over, so that is where it is read from. ``None`` where
+    the response is not shaped like one.
+    """
+    response = credential.get("response")
+    if not isinstance(response, dict):
+        return None
+    encoded = response.get("clientDataJSON")
+    if not isinstance(encoded, str) or not encoded:
+        return None
+    try:
+        client_data = json.loads(webauthn.base64url_to_bytes(encoded))
+    except Exception:
+        return None
+    challenge = client_data.get("challenge") if isinstance(client_data, dict) else None
+    if isinstance(challenge, str) and challenge:
+        return challenge
+    return None
+
+
+@dataclass(frozen=True)
+class PresentedPasskey:
+    """A credential of the named account, verified against a challenge that
+    account was issued."""
+
+    passkey_id: str
+    backed_up: bool
+
+
+@dataclass(frozen=True)
+class PresentationRefused:
+    """An assertion that proved nothing.
+
+    ``reason`` is what to write down about the account where the refusal says
+    something about it, and ``None`` where it does not. ``keep`` is how the
+    caller ends the transaction: ``True`` to stand by what the attempt already
+    wrote — the attempt counted against the challenge, the credential's
+    signature counter — and ``False`` to put it back with the answer it bought.
+    """
+
+    reason: str | None
+    keep: bool
+
+
+async def present_against_challenge(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    credential: dict[str, Any],
+    purposes: Sequence[Any],
+) -> PresentedPasskey | PresentationRefused:
+    """Take one of ``user_id``'s credentials against a challenge issued to them.
+
+    The whole of "this account answered with its own key, once": the challenge
+    is found from what the browser signed, claimed, checked to belong to this
+    account, the assertion verified, the credential checked to belong to the
+    same account, and the challenge spent. One sequence, because both places
+    that ask for a passkey against an account already open — the session
+    step-up and the break-glass request — have to ask it the same way.
+
+    The caller commits or rolls back (see :class:`PresentationRefused`) and
+    decides what the proof is worth; nothing here opens or upgrades anything.
+    """
+    from app.services.auth import challenges as challenge_service
+
+    value = challenge_in(credential)
+    if value is None:
+        return PresentationRefused(reason=None, keep=False)
+
+    challenge = await challenge_service.claim_attempt(
+        session, value=value, purposes=purposes
+    )
+    if challenge is None or challenge.user_id != user_id:
+        # The attempt is counted whether or not the answer was any good, so
+        # what it wrote stands.
+        return PresentationRefused(reason=None, keep=True)
+
+    outcome = await finish_authentication(
+        session,
+        credential=credential,
+        expected_challenge=webauthn.base64url_to_bytes(value),
+    )
+    if isinstance(outcome, AssertionRefusal):
+        return PresentationRefused(reason=outcome.reason, keep=True)
+    if outcome.passkey.user_id != user_id:
+        # A credential that verified, belonging to somebody else. It is this
+        # account's key that was asked for.
+        return PresentationRefused(reason="other_account", keep=True)
+
+    # Read off the row while it is attached: the caller may roll back, which
+    # expires its attributes.
+    presented = PresentedPasskey(
+        passkey_id=str(outcome.passkey.id), backed_up=bool(outcome.passkey.backed_up)
+    )
+
+    if not await challenge_service.consume(session, challenge):
+        # Spent between the claim and here, so what it bought is not this
+        # request's to take a second time.
+        return PresentationRefused(reason=None, keep=False)
+    return presented
 
 
 async def rename(

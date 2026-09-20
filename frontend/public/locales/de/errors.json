@@ -721,5 +721,6 @@
   "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED": "Dieser Server verlangt weiterhin einen zweiten Faktor. Hebe diese Anforderung zuerst auf.",
   "LEGAL_NOT_CONFIGURED": "Diese Installation hat keine eigenen Nutzungsbedingungen.",
   "LEGAL_PORTAL_UNAVAILABLE": "Nutzungsbedingungen und Datenschutzerklärung sind gerade nicht erreichbar. Bitte versuche es gleich noch einmal.",
-  "LEGAL_DOCUMENT_NOT_FOUND": "Dieses Dokument gibt es nicht."
+  "LEGAL_DOCUMENT_NOT_FOUND": "Dieses Dokument gibt es nicht.",
+  "ACCESS_GRANT_PASSKEY_INVALID": "Dieser Passkey hat nicht geantwortet. Versuche es erneut oder nutze deinen Authenticator-Code."
 }

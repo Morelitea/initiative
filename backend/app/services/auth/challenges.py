@@ -65,6 +65,10 @@ class ChallengePurpose(str, Enum):
     #: to what that session has proved. Like a registration the row names the
     #: account, because there already is one.
     passkey_step_up = "passkey_step_up"
+    #: A passkey is being presented to break glass. Its own purpose rather than
+    #: the step-up's: what it answers for is the request that spends it, not
+    #: the session, so one may not be taken for the other.
+    break_glass = "break_glass"
 
 
 @dataclass(frozen=True)
