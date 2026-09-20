@@ -405,9 +405,9 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
     assert [_where(row) for row in rows] == [
         (admin_id, None, guild_id, {"type": "guild", "id": guild_id})
     ]
-    # The danger zone keeps the roster: restoring brings the community's
-    # members back with it.
-    assert rows[0]["detail"] == {"via": "admin", "roster_cleared": False}
+    # One member, so the roster is the person deleting it and goes with it.
+    # A community with other people in it keeps theirs.
+    assert rows[0]["detail"] == {"via": "admin", "roster_cleared": True}
 
 
 async def test_a_refused_guild_deletion_records_nothing(

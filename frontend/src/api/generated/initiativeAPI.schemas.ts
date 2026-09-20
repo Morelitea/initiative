@@ -2143,6 +2143,7 @@ export interface CommunitySettingsResponse {
   age_gate_enabled: boolean;
   default_dm_policy: DmPolicy;
   direct_messages_enabled: boolean;
+  deleted_community_retention_days: number | null;
 }
 
 export interface CommunitySettingsUpdate {
@@ -2150,6 +2151,7 @@ export interface CommunitySettingsUpdate {
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
+  deleted_community_retention_days?: number | null;
 }
 
 /**

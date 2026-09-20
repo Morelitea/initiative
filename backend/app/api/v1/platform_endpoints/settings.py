@@ -368,6 +368,7 @@ async def read_community_settings(
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
+        deleted_community_retention_days=settings_obj.deleted_community_retention_days,
     )
 
 
@@ -403,6 +404,13 @@ async def update_community_settings(
     without a directory. Off, My Messages is not offered and every
     direct-message route refuses; nothing is deleted, so turning it back on
     restores the channels people already had.
+
+    ``deleted_community_retention_days`` is the fifth: how long a deleted
+    community is kept before it is destroyed. ``null`` means never, which is
+    the answer for a deployment that has undertaken to keep what its members
+    put in it, so this field reads its presence rather than its value — omit it
+    to leave the window alone. The figure is the deployment's; a community has
+    no say in its own.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
@@ -410,6 +418,9 @@ async def update_community_settings(
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
         direct_messages_enabled=payload.direct_messages_enabled,
+        deleted_community_retention_days=payload.deleted_community_retention_days,
+        retention_provided="deleted_community_retention_days"
+        in payload.model_fields_set,
         actor_user_id=admin.id,
     )
     return CommunitySettingsResponse(
@@ -417,6 +428,7 @@ async def update_community_settings(
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
+        deleted_community_retention_days=settings_obj.deleted_community_retention_days,
     )
 
 
@@ -638,16 +650,19 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
-def _guild_purge_at(guild: Guild) -> datetime | None:
-    """When this guild is destroyed, or None if it has not been deleted.
+def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
+    """When this guild is destroyed, or None if nothing will destroy it.
 
     ``status_changed_at`` is the deletion time for a deleted guild, so the date
-    is derived from the two columns already loaded rather than stored — the
-    retention window is stated once, in ``guild_purge``.
+    is derived from the columns already loaded rather than stored. ``retention``
+    is the deployment's window; None there means it keeps deleted communities,
+    and a community that is never destroyed has no date to show.
     """
     if guild.status != GuildStatus.deleted.value or guild.status_changed_at is None:
         return None
-    return guild_purge.purge_at(guild.status_changed_at)
+    if retention is None:
+        return None
+    return guild_purge.purge_at(guild.status_changed_at, retention)
 
 
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
@@ -684,6 +699,7 @@ async def list_platform_guild_storage(
             )
         ).all()
     )
+    retention = await guild_purge.retention_days(session)
     # Which guilds still hold the seat that configures them. One grouped query
     # beside the member counts rather than a per-guild check, for the same
     # reason: this list is every guild on the deployment.
@@ -702,7 +718,7 @@ async def list_platform_guild_storage(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
-            purge_at=_guild_purge_at(g),
+            purge_at=_guild_purge_at(g, retention),
             has_seat=g.id in seated,
             tier_name=administration.tier_name if administration else None,
             max_storage_bytes=(
@@ -821,7 +837,7 @@ async def update_platform_guild_storage(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild),
+        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
         auth_options=sorted(administration.auth_options),
         banner_image_enabled=administration.banner_image_enabled,
@@ -885,7 +901,7 @@ async def restore_platform_guild(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild),
+        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
         auth_options=sorted(administration.auth_options),
         banner_image_enabled=administration.banner_image_enabled,

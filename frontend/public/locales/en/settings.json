@@ -1428,7 +1428,18 @@
     "directMessagesOffBody": "My Messages will disappear for everyone here, and messages already on their way will not be delivered. Nothing is deleted, so turning it back on restores the conversations and connections people already had.",
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
-    "directMessagesDisabledToast": "Direct messages are off."
+    "directMessagesDisabledToast": "Direct messages are off.",
+    "retention": {
+      "title": "Keeping deleted communities",
+      "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
+      "label": "Keep for (days)",
+      "placeholder": "Never destroy",
+      "hint": "Counted from the moment each community was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is destroyed on a timer. Deleted communities stay in the list below until somebody restores one.",
+      "saved_one": "Deleted communities are kept for {{count}} day.",
+      "saved_other": "Deleted communities are kept for {{count}} days.",
+      "savedNever": "Deleted communities are kept indefinitely."
+    }
   },
   "account": {
     "identityTitle": "How you sign in",

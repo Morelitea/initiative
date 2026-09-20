@@ -13,6 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages
+from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
 from app.models.platform.guild import (
     LIVE_STATUSES,
     OPERATOR_SETTABLE_STATUSES,
@@ -106,6 +107,30 @@ async def test_deleting_keeps_the_row_the_roster_and_the_content(
     assert len(roster) == 2, "the roster is what a restore brings back"
 
 
+async def test_a_community_of_one_takes_its_roster_with_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """The single case where memberships go.
+
+    That roster is one row describing the person doing the deleting. Every
+    larger community keeps its own, because those rows are other people's.
+    """
+    admin, guild = await _seated_guild(session)
+
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+
+    session.expunge_all()
+    roster = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild.id)
+        )
+    ).all()
+    assert roster == []
+    # ...and what comes back therefore has to be seated.
+    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+    assert row.status == GuildStatus.deleted.value
+
+
 async def test_a_deleted_community_is_gone_for_its_admin_too(
     client: AsyncClient, session: AsyncSession
 ):
@@ -116,6 +141,9 @@ async def test_a_deleted_community_is_gone_for_its_admin_too(
     its danger zone has already been used, so it leaves every list.
     """
     admin, guild = await _seated_guild(session)
+    # A second member, so the roster survives the delete and this is genuinely
+    # testing the carve-out rather than an empty list.
+    await create_guild_membership(session, user=await create_user(session), guild=guild)
     headers = get_auth_headers(admin)
 
     listed = await client.get("/api/v1/guilds/", headers=headers)
@@ -167,6 +195,9 @@ async def test_restore_brings_it_back_at_the_status_the_operator_names(
 ):
     operator = await acting_user("owner")
     admin, guild = await _seated_guild(session)
+    # Two members, so the roster — and with it the seat — survives the delete
+    # and the restore has nothing to ask about.
+    await create_guild_membership(session, user=await create_user(session), guild=guild)
     await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
 
     response = await client.post(
@@ -220,8 +251,10 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
     operator = await acting_user("owner")
     _admin, guild = await _seated_guild(session)
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+    # A community of one takes its roster with it, which is what leaves a
+    # restore with nobody to run it.
     await guilds_service.soft_delete_guild(
-        session, row, actor_user_id=operator.user.id, via="operator", clear_roster=True
+        session, row, actor_user_id=operator.user.id, via="operator"
     )
     await session.commit()
     session.expunge_all()
@@ -289,14 +322,16 @@ async def test_the_purge_waits_out_the_whole_window(
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
     deleted_at = row.status_changed_at
     assert deleted_at is not None
-    assert guild_purge.purge_at(deleted_at) == deleted_at + timedelta(
-        days=guild_purge.GUILD_RETENTION_DAYS
-    )
+    assert guild_purge.purge_at(
+        deleted_at, DEFAULT_GUILD_RETENTION_DAYS
+    ) == deleted_at + timedelta(days=DEFAULT_GUILD_RETENTION_DAYS)
 
     session.expunge_all()
     assert (
         await guild_purge.purge_due_guilds(
-            session, now=guild_purge.purge_at(deleted_at) - timedelta(minutes=1)
+            session,
+            now=guild_purge.purge_at(deleted_at, DEFAULT_GUILD_RETENTION_DAYS)
+            - timedelta(minutes=1),
         )
         == 0
     )
@@ -307,13 +342,117 @@ async def test_the_purge_waits_out_the_whole_window(
     session.expunge_all()
     assert (
         await guild_purge.purge_due_guilds(
-            session, now=guild_purge.purge_at(deleted_at) + timedelta(minutes=1)
+            session,
+            now=guild_purge.purge_at(deleted_at, DEFAULT_GUILD_RETENTION_DAYS)
+            + timedelta(minutes=1),
         )
         == 1
     )
     assert (
         await session.exec(select(Guild).where(Guild.id == guild.id))
     ).one_or_none() is None
+
+
+async def test_the_window_is_the_deployments_to_set(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """One figure for the whole server, set by whoever runs it."""
+    operator = await acting_user("owner")
+    admin, guild = await _seated_guild(session)
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+
+    response = await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "deleted_community_retention_days": 7,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["deleted_community_retention_days"] == 7
+
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+    deleted_at = row.status_changed_at
+    assert deleted_at is not None
+
+    # The window is counted from each deletion rather than stamped at the time,
+    # so shortening it moves what is already deleted.
+    session.expunge_all()
+    assert (
+        await guild_purge.purge_due_guilds(session, now=deleted_at + timedelta(days=6))
+        == 0
+    )
+    session.expunge_all()
+    assert (
+        await guild_purge.purge_due_guilds(session, now=deleted_at + timedelta(days=8))
+        == 1
+    )
+
+
+async def test_a_deployment_can_keep_deleted_communities_forever(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Clearing the figure means never destroy one.
+
+    For a deployment that has undertaken to keep what its members put in it:
+    deleted communities sit in the operator's list until somebody acts.
+    """
+    operator = await acting_user("owner")
+    admin, guild = await _seated_guild(session)
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+
+    response = await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "deleted_community_retention_days": None,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["deleted_community_retention_days"] is None
+
+    session.expunge_all()
+    assert (
+        await guild_purge.purge_due_guilds(
+            session, now=datetime.now(timezone.utc) + timedelta(days=3650)
+        )
+        == 0
+    )
+    assert (
+        await session.exec(select(Guild).where(Guild.id == guild.id))
+    ).one_or_none() is not None
+
+    # And the operator's list says there is no date, rather than inventing one.
+    listed = await client.get("/api/v1/settings/guilds", headers=operator.headers)
+    entry = next(g for g in listed.json() if g["id"] == guild.id)
+    assert entry["status"] == "deleted"
+    assert entry["purge_at"] is None
+
+
+async def test_omitting_the_window_leaves_it_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``null`` is an answer here, so only sending the field counts as one."""
+    operator = await acting_user("owner")
+
+    await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "deleted_community_retention_days": 30,
+        },
+    )
+    response = await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={"community_directory_enabled": True},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["deleted_community_retention_days"] == 30
 
 
 async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):

@@ -840,12 +840,11 @@ async def admin_delete_guild(
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
 
-    Deletes the way the danger zone does — the community is retained and can
-    be restored — but **also clears the roster**, because leaving it would
-    leave the account still holding the seat that blocked its deletion, and
-    this endpoint exists to unblock it. What comes back is therefore a
-    community with nobody in it, which is why restore asks an operator to seat
-    somebody before it is reachable again.
+    Deletes exactly the way the danger zone does: the community is retained
+    and can be restored, and its roster is kept — these are other people's
+    memberships, and this endpoint only fires where other people are in it.
+    What unblocks the account is that a deleted community has no seat to
+    protect, not that the seat was taken away.
     """
     await guilds_service.lock_guild_seats(session, guild_id)
     if not await guilds_service.would_strand_guild(
@@ -871,18 +870,15 @@ async def admin_delete_guild(
         )
 
     # Mirrors the member-facing DELETE /guilds/{id}: the guild moves to
-    # ``deleted`` and everything is kept — shared rows, the guild_<id> schema,
-    # the stored blobs — until guild_purge destroys it at the end of the
-    # retention window. ``clear_roster`` is the one difference, and the reason
-    # this endpoint exists: the membership being removed is what unblocks the
-    # user deletion this call is resolving.
+    # ``deleted`` and everything is kept — shared rows, roster, the guild_<id>
+    # schema, the stored blobs — until guild_purge destroys it at the end of
+    # the retention window.
     await guilds_service.soft_delete_guild(
         session,
         guild,
         actor_user_id=_current_user.id,
         via="operator",
         target_user_id=blocked_user_id,
-        clear_roster=True,
     )
     await session.commit()
     # See soft_delete_guild: these live on another connection, so they go after

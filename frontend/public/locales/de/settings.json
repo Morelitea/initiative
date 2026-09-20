@@ -1428,7 +1428,18 @@
     "directMessagesOffBody": "Meine Nachrichten verschwindet für alle hier, und bereits unterwegs befindliche Nachrichten werden nicht zugestellt. Es wird nichts gelöscht – beim Wiedereinschalten sind die bisherigen Unterhaltungen und Verbindungen wieder da.",
     "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
     "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
-    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert."
+    "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert.",
+    "retention": {
+      "title": "Gelöschte Communitys aufbewahren",
+      "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",
+      "label": "Aufbewahren für (Tage)",
+      "placeholder": "Nie entfernen",
+      "hint": "Gerechnet ab dem Zeitpunkt der jeweiligen Löschung — eine Änderung verschiebt also auch das Datum bereits gelöschter Communitys.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist entfernt. Gelöschte Communitys bleiben in der Liste unten, bis jemand eine wiederherstellt.",
+      "saved_one": "Gelöschte Communitys werden {{count}} Tag aufbewahrt.",
+      "saved_other": "Gelöschte Communitys werden {{count}} Tage aufbewahrt.",
+      "savedNever": "Gelöschte Communitys werden unbegrenzt aufbewahrt."
+    }
   },
   "account": {
     "identityTitle": "Deine Anmeldung",

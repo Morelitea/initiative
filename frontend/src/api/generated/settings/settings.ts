@@ -1096,6 +1096,13 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * without a directory. Off, My Messages is not offered and every
  * direct-message route refuses; nothing is deleted, so turning it back on
  * restores the channels people already had.
+ *
+ * ``deleted_community_retention_days`` is the fifth: how long a deleted
+ * community is kept before it is destroyed. ``null`` means never, which is
+ * the answer for a deployment that has undertaken to keep what its members
+ * put in it, so this field reads its presence rather than its value — omit it
+ * to leave the window alone. The figure is the deployment's; a community has
+ * no say in its own.
  * @summary Update Community Settings
  */
 export const updateCommunitySettingsApiV1SettingsCommunityPut = (

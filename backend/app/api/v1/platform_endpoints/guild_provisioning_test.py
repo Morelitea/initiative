@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.api.v1.platform_endpoints.guilds as guilds_endpoint
 from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
 from app.services.platform import guild_purge
 from app.testing.factories import (
     create_user,
@@ -25,6 +26,9 @@ from app.testing.factories import (
 )
 
 pytestmark = pytest.mark.integration
+
+#: A fresh test database carries the shipped window.
+RETENTION = DEFAULT_GUILD_RETENTION_DAYS
 
 
 async def _schema_exists(engine: AsyncEngine, schema: str) -> bool:
@@ -110,7 +114,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     assert deleted_at is not None
     assert (
         await guild_purge.purge_due_guilds(
-            session, now=guild_purge.purge_at(deleted_at) - timedelta(days=1)
+            session, now=guild_purge.purge_at(deleted_at, RETENTION) - timedelta(days=1)
         )
         == 0
     )
@@ -119,7 +123,8 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     session.expunge_all()
     assert (
         await guild_purge.purge_due_guilds(
-            session, now=guild_purge.purge_at(deleted_at) + timedelta(seconds=1)
+            session,
+            now=guild_purge.purge_at(deleted_at, RETENTION) + timedelta(seconds=1),
         )
         == 1
     )

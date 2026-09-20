@@ -1428,7 +1428,18 @@
     "directMessagesOffBody": "Mes messages disparaîtra pour tout le monde ici, et les messages déjà en route ne seront pas remis. Rien n'est supprimé : en réactivant, les conversations et les connexions existantes réapparaissent.",
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
-    "directMessagesDisabledToast": "Les messages privés sont désactivés."
+    "directMessagesDisabledToast": "Les messages privés sont désactivés.",
+    "retention": {
+      "title": "Conservation des communautés supprimées",
+      "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",
+      "label": "Conserver pendant (jours)",
+      "placeholder": "Ne jamais détruire",
+      "hint": "Compté à partir du moment où chaque communauté a été supprimée : modifier ce délai déplace donc aussi la date de celles déjà supprimées.",
+      "neverHint": "Rien n'est détruit à l'échéance d'un délai. Les communautés supprimées restent dans la liste ci-dessous jusqu'à ce que quelqu'un en restaure une.",
+      "saved_one": "Les communautés supprimées sont conservées {{count}} jour.",
+      "saved_other": "Les communautés supprimées sont conservées {{count}} jours.",
+      "savedNever": "Les communautés supprimées sont conservées indéfiniment."
+    }
   },
   "account": {
     "identityTitle": "Comment vous vous connectez",

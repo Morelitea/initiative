@@ -256,14 +256,15 @@ async def test_admin_delete_guild_is_scoped_to_a_genuine_blocker(
     session.expunge_all()
     row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
     assert (row.status == GuildStatus.deleted.value) is deleted
-    # This is the one deletion that empties the roster: the membership it
-    # removes is what was blocking the account deletion it resolves.
+    # The roster is kept either way. This endpoint only fires where somebody
+    # else is in the community, and those rows are theirs — what unblocks the
+    # account is that a deleted community has no seat to protect.
     remaining = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.guild_id == guild.id)
         )
     ).all()
-    assert (len(remaining) == 0) is deleted
+    assert len(remaining) == 2
 
 
 async def test_admin_delete_guild_requires_blocked_user_id(

@@ -35,28 +35,35 @@ logger = logging.getLogger(__name__)
 
 GUILD_PURGE_POLL_SECONDS = 3600
 
-#: How long a deleted community is kept before it is destroyed.
-#:
-#: A flat floor, deliberately: not a deployment setting, not a per-guild
-#: column, not something an operator can shorten for one community. What it
-#: protects against is somebody being talked into deleting a community, or
-#: doing it by mistake, and a window that can be argued down is not a window.
-GUILD_RETENTION_DAYS = 90
 
-
-def purge_at(deleted_at: datetime) -> datetime:
+def purge_at(deleted_at: datetime, retention_days: int) -> datetime:
     """When a guild deleted at ``deleted_at`` is destroyed."""
-    return deleted_at + timedelta(days=GUILD_RETENTION_DAYS)
+    return deleted_at + timedelta(days=retention_days)
 
 
-async def _due_guild_ids(session: AsyncSession, *, now: datetime) -> list[int]:
+async def retention_days(session: AsyncSession) -> int | None:
+    """This deployment's window, or None where it keeps deleted communities.
+
+    Read per sweep rather than cached: an operator who has just turned the
+    window off is asking for the next sweep to destroy nothing, and a figure
+    read at import would destroy something first.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    return row.deleted_community_retention_days
+
+
+async def _due_guild_ids(
+    session: AsyncSession, *, now: datetime, retention: int
+) -> list[int]:
     """Guilds whose retention has run out, oldest deletion first.
 
     A ``deleted`` row with no ``status_changed_at`` cannot happen — the delete
     stamps it in the same write — and is skipped rather than treated as
     infinitely old, because "no deletion time" must never read as "purge now".
     """
-    cutoff = now - timedelta(days=GUILD_RETENTION_DAYS)
+    cutoff = now - timedelta(days=retention)
     rows = await session.exec(
         select(Guild.id, Guild.status_changed_at)
         .where(
@@ -69,7 +76,7 @@ async def _due_guild_ids(session: AsyncSession, *, now: datetime) -> list[int]:
     return [row[0] for row in rows]
 
 
-async def _purge_one(session: AsyncSession, guild_id: int) -> None:
+async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) -> None:
     """Destroy one guild. Mirrors the sequence the delete endpoint used to run.
 
     The row goes first and is committed on its own: that is the reliable part,
@@ -86,7 +93,7 @@ async def _purge_one(session: AsyncSession, guild_id: int) -> None:
         guild_id=guild_id,
         target_type="guild",
         target_id=guild_id,
-        detail={"retention_days": GUILD_RETENTION_DAYS},
+        detail={"retention_days": retention},
     )
     await session.exec(delete(Guild).where(Guild.id == guild_id))
     await session.commit()
@@ -111,11 +118,16 @@ async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:
     session and a chosen ``now``.
     """
     await set_rls_context(session)
-    guild_ids = await _due_guild_ids(session, now=now)
+    retention = await retention_days(session)
+    if retention is None:
+        # This deployment keeps deleted communities. Nothing is ever destroyed
+        # on a timer; restoring and purging are both somebody's decision.
+        return 0
+    guild_ids = await _due_guild_ids(session, now=now, retention=retention)
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
-        await _purge_one(session, guild_id)
+        await _purge_one(session, guild_id, retention=retention)
     if guild_ids:
         logger.info("guild purge: destroyed %d guild(s)", len(guild_ids))
     return len(guild_ids)

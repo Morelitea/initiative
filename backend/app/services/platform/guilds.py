@@ -1232,7 +1232,6 @@ async def soft_delete_guild(
     actor_user_id: int | None = None,
     via: str = "admin",
     target_user_id: int | None = None,
-    clear_roster: bool = False,
 ) -> Guild:
     """Delete a guild by moving it to ``deleted``, keeping everything.
 
@@ -1248,11 +1247,13 @@ async def soft_delete_guild(
     than through :func:`set_guild_status` (a guild deleted twice would keep the
     first stamp and be purged early).
 
-    ``clear_roster`` hard-deletes the memberships while keeping the content.
-    It is for the one deletion that exists to unblock deleting a user: leaving
-    the roster would leave the account still holding the seat that blocked it.
-    What comes back is then a community with nobody in it, which is why restore
-    asks an operator to seat one.
+    A community of **one** is the single case where the roster goes with it.
+    That roster is a single row describing the person doing the deleting, and
+    somebody clearing out a community of their own is often on their way to
+    closing their account as well; a restore of one is seated from the wizard
+    like any other. Every larger community keeps its roster, because those rows
+    describe other people, and bringing the community back without them would
+    make a restore into a different community with the same name.
 
     Everyone is poked first, for the same reason :func:`delete_guild` does it:
     by the time this returns, every one of those people has an account that
@@ -1260,6 +1261,8 @@ async def soft_delete_guild(
     """
     guild_id = guild.id
     await _signal_members_present(session, guild_id=guild_id, action="membership")
+    members = await count_members(session, guild_id=guild_id)
+    clear_roster = members <= 1
     if actor_user_id is not None:
         await audit_service.record(
             session,
