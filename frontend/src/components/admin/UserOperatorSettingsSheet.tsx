@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import {
   useAdminRemoveAvatar,
   useAdminSetSuspension,
@@ -232,16 +233,21 @@ export const UserOperatorSettingsSheet = ({
                     label={t("platformUsers.sheet.avatarLabel")}
                     help={t("platformUsers.sheet.avatarHelp")}
                     control={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAvatarConfirm(true)}
-                        disabled={removeAvatar.isPending}
-                      >
-                        <ImageOff className="h-4 w-4" />
-                        {t("platformUsers.sheet.avatarRemove")}
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        {/* The picture itself, because deciding whether it
+                            should go is looking at it. */}
+                        <ProfileAvatar user={user} hidePresence className="size-10" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAvatarConfirm(true)}
+                          disabled={removeAvatar.isPending}
+                        >
+                          <ImageOff className="h-4 w-4" />
+                          {t("platformUsers.sheet.avatarRemove")}
+                        </Button>
+                      </div>
                     }
                   />
                 )}

@@ -65,14 +65,16 @@ describe("SettingsPlatformUsersPage", () => {
     state.roster = [];
   });
 
-  it("shows each account as the server sent it: masked address, handle, and no name", async () => {
+  it("identifies an account by its handle, and shows no address or name", async () => {
     const rows = masked();
     rows[1].full_name = "Wilhelmina Fitzgerald";
     renderRoster(rows);
 
-    expect(await screen.findByText("o***r@e***m")).toBeInTheDocument();
-    expect(screen.getByText("u***1@e***m")).toBeInTheDocument();
-    // Nothing on the page reassembles a real address from what arrived.
+    await screen.findByText("owner");
+    // Not even the shortened form the server still sends: an operator does
+    // not administer an account by its address.
+    expect(screen.queryByText("o***r@e***m")).not.toBeInTheDocument();
+    expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
     expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
     // A row is identified by handle, which is what the filter box searches.
     expect(screen.getByText("owner")).toBeInTheDocument();
@@ -93,16 +95,17 @@ describe("SettingsPlatformUsersPage", () => {
     // match nothing here, while still looking right for a typed prefix.
     await userEvent.type(box, whole);
 
-    expect(screen.getByText("o***r@e***m")).toBeInTheDocument();
-    expect(screen.queryByText("u***1@e***m")).not.toBeInTheDocument();
+    expect(screen.getByText("owner")).toBeInTheDocument();
+    expect(screen.queryByText("member-one")).not.toBeInTheDocument();
   });
 
   it("offers a sort control on every identifying column, and only those", async () => {
     renderRoster(masked());
 
-    for (const label of [/^User ID/, /^Handle/, /^Email/, /^Status/]) {
+    for (const label of [/^User ID/, /^Handle/, /^Status/]) {
       expect(await screen.findByRole("button", { name: label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: /^Email/ })).not.toBeInTheDocument();
     // The role is decided in the sheet now, so it is not a column to sort by;
     // neither is the actions column something you can order rows by.
     expect(screen.queryByRole("button", { name: /^Role/ })).not.toBeInTheDocument();
@@ -174,7 +177,7 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     // Support can read the roster — that is ``users.read`` — and nothing here
     // writes to an account, so there is nothing to open.
-    await screen.findByText("o***r@e***m");
+    await screen.findByText("owner");
     expect(screen.queryByRole("button", { name: /manage account/i })).not.toBeInTheDocument();
   });
 });
