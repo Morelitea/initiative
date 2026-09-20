@@ -2538,3 +2538,197 @@ async def test_backup_carries_property_definitions(
     assert region["type"] == PropertyType.select.value
     # The whole option list, not just what happens to be in use.
     assert [o["label"] for o in region["options"]] == ["North", "South"]
+
+
+# ---------------------------------------------------------------------------
+# Large exports: delivered to the operator's destination, not downloaded
+# ---------------------------------------------------------------------------
+
+
+async def test_whole_community_export_has_a_cooldown(
+    client: AsyncClient, acting_user, session
+):
+    """A community's entire content is not a thing to re-read on a loop, and
+    the cooldown is counted across the community rather than per person."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    first = await _export(client, a, "guild")
+    assert first.status_code == 202, first.text
+
+    again = await _export(client, a, "guild")
+    assert again.status_code == 429
+    assert again.json()["detail"] == "EXPORT_COOLDOWN_ACTIVE"
+
+    # A second admin does not get a fresh allowance.
+    b = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    theirs = await _export(client, b, "guild", headers=b.headers)
+    assert theirs.status_code == 429
+
+
+async def test_cooldown_can_be_switched_off(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    monkeypatch.setattr(settings, "EXPORT_GUILD_COOLDOWN_HOURS", 0)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "guild")).status_code == 202
+
+
+async def test_an_archive_over_the_download_bound_is_delivered(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session, tmp_path
+):
+    """Past the bound the app neither holds the archive nor serves it: it goes
+    to the operator's destination and the job says so."""
+    monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
+    monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await _export(client, a, "guild")
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_worker(monkeypatch, role_session)
+
+    body = await _job(client, a, job_id)
+    assert body["status"] == ExportJobStatus.done.value, body.get("error")
+    assert body["delivered"] is True
+    # The path stays server-side; the client is told that it was delivered.
+    assert "destination_ref" not in body
+
+    delivered = list((tmp_path / f"guild_{a.guild.id}").iterdir())
+    assert len(delivered) == 1 and delivered[0].suffix == ".zip"
+
+    # Nothing to download, and the job says why rather than reading as unready.
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 409
+    assert dl.json()["detail"] == "EXPORT_DELIVERED"
+
+
+async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session, tmp_path
+):
+    """It lives in the operator's destination under their retention, so it
+    carries no GC deadline of ours."""
+    monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
+    monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await _export(client, a, "guild")
+    job_id = resp.json()["id"]
+    await _run_worker(monkeypatch, role_session)
+
+    body = await _job(client, a, job_id)
+    assert body["expires_at"] is None
+
+
+async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Refused rather than produced with nowhere to go, and the code names the
+    thing the operator can actually do about it."""
+    monkeypatch.setattr(settings, "EXPORT_MAX_DOWNLOAD_BYTES", 1)
+    monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", None)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await _export(client, a, "guild")
+    job_id = resp.json()["id"]
+    await _run_worker(monkeypatch, role_session)
+
+    body = await _job(client, a, job_id)
+    assert body["status"] == ExportJobStatus.failed.value
+    assert body["error"] == "EXPORT_DESTINATION_REQUIRED"
+
+
+async def test_estimate_reports_the_download_bound_and_whether_delivery_exists(
+    client: AsyncClient, acting_user, session, monkeypatch, tmp_path
+):
+    """So the wizard can say which of the two is going to happen before
+    anybody submits."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await _export(client, a, "estimate", scope="guild")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["max_download_bytes"] == settings.EXPORT_MAX_DOWNLOAD_BYTES
+    assert body["delivery_available"] is False
+
+    monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
+    again = await _export(client, a, "estimate", scope="guild")
+    assert again.json()["delivery_available"] is True
+
+
+async def test_download_redirects_when_storage_can_sign_a_url(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Where the operator has turned it on and the object store can sign a
+    URL, the bytes travel from it to the client rather than through this
+    process for the whole download. The RLS-gated job lookup is still what
+    decided it — the URL is minted only after that passed."""
+    monkeypatch.setattr(settings, "EXPORT_PRESIGNED_DOWNLOADS", True)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    # An aggregate export is always a job, so this needs no inline coaxing.
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_worker(monkeypatch, role_session)
+    assert (await _job(client, a, job_id))["status"] == ExportJobStatus.done.value
+
+    import app.api.v1.tenant_endpoints.exports as exports_module
+
+    real_storage = exports_module.get_guild_storage
+
+    class Signing:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+        def presign_get(self, key, *, ttl, filename=None):
+            return f"https://objects.example/{key}?sig=x"
+
+    monkeypatch.setattr(
+        exports_module, "get_guild_storage", lambda gid: Signing(real_storage(gid))
+    )
+    dl = await client.get(
+        a.g(f"/exports/{job_id}/download"),
+        headers=a.headers,
+        follow_redirects=False,
+    )
+    assert dl.status_code == 307
+    assert dl.headers["location"].startswith("https://objects.example/")
+
+
+async def test_download_stays_proxied_unless_the_operator_turns_it_on(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Opt-in: a deployment that has not allowed this app's origin on its
+    bucket keeps the proxied response rather than finding out on a redirect."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    job_id = resp.json()["id"]
+    await _run_worker(monkeypatch, role_session)
+
+    import app.api.v1.tenant_endpoints.exports as exports_module
+
+    real_storage = exports_module.get_guild_storage
+
+    class Signing:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+        def presign_get(self, key, *, ttl, filename=None):
+            return f"https://objects.example/{key}?sig=x"
+
+    monkeypatch.setattr(
+        exports_module, "get_guild_storage", lambda gid: Signing(real_storage(gid))
+    )
+    monkeypatch.setattr(settings, "EXPORT_PRESIGNED_DOWNLOADS", False)
+    dl = await client.get(
+        a.g(f"/exports/{job_id}/download"), headers=a.headers, follow_redirects=False
+    )
+    assert dl.status_code == 200
+    assert dl.headers["content-type"] == "application/zip"

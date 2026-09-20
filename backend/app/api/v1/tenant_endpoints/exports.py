@@ -10,10 +10,11 @@ rest of the guild must not reach.
 """
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlmodel import select
 
 from app.api.deps import (
@@ -23,6 +24,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.audit_events import AuditEventType
+from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -420,6 +422,46 @@ def _require_guild_admin(guild_context: GuildContext) -> None:
         )
 
 
+async def _require_guild_cooldown_elapsed(
+    session, guild_id: int, current_user: User
+) -> None:
+    """A whole community's content is not a thing to re-read on a loop.
+
+    The bound that actually matters for what this costs a deployment: one
+    community-wide export per ``EXPORT_GUILD_COOLDOWN_HOURS``, counted across
+    the community rather than per person, so a second admin does not reset it.
+    Failed and expired jobs do not hold the door — only work that was really
+    done counts.
+    """
+    if settings.EXPORT_GUILD_COOLDOWN_HOURS <= 0:
+        return
+    since = datetime.now(timezone.utc) - timedelta(
+        hours=settings.EXPORT_GUILD_COOLDOWN_HOURS
+    )
+    recent = (
+        await session.exec(
+            select(ExportJob.id)
+            .where(
+                ExportJob.source == "guild",
+                ExportJob.status.in_(
+                    (
+                        ExportJobStatus.queued,
+                        ExportJobStatus.running,
+                        ExportJobStatus.done,
+                    )
+                ),
+                ExportJob.created_at >= since,
+            )
+            .limit(1)
+        )
+    ).first()
+    if recent is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ExportMessages.EXPORT_COOLDOWN_ACTIVE,
+        )
+
+
 # NOTE: literal paths below must stay declared before the parametric
 # ``/{job_id}`` routes, or "estimate" would be parsed as a job id.
 @router.get("/estimate", response_model=BackupEstimate)
@@ -557,6 +599,7 @@ async def export_guild(
     adminship fails the job closed). Always returns ``202`` with a queued job
     to poll and download."""
     _require_guild_admin(guild_context)
+    await _require_guild_cooldown_elapsed(session, guild_context.guild_id, current_user)
     try:
         result = await start_export(
             session,
@@ -644,16 +687,15 @@ async def download_export_artifact(
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
     if job.status != ExportJobStatus.done or not job.artifact_ref:
+        # A delivered job is finished and has nothing to download — it was
+        # written to the operator's destination, which the job row names.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=ExportMessages.EXPORT_NOT_READY,
+            detail=ExportMessages.EXPORT_DELIVERED
+            if job.destination_ref
+            else ExportMessages.EXPORT_NOT_READY,
         )
-    blob = get_guild_storage(guild_context.guild_id).open_readable(job.artifact_ref)
-    if blob is None:  # GC'd or missing — fail closed
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
-        )
+    storage = get_guild_storage(guild_context.guild_id)
     # Recover the download name from the artifact key. A named artifact
     # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;
     # strip the `{job_id}-` prefix back off. A generic artifact is
@@ -666,4 +708,32 @@ async def download_export_artifact(
         filename = basename[len(named_prefix) :]
     else:
         filename = f"{job.source}-{job.id}.{job.format}"
+
+    # Where the operator has turned it on and the backend can sign a URL,
+    # redirect to it: the bytes then travel from the object store to the
+    # client instead of through this process for the length of the download.
+    # The authorization is unchanged — the RLS-gated lookup above is what
+    # decided this, and the URL is minted only after it passed. A filesystem
+    # backend signs nothing and returns None, so those deployments keep the
+    # proxied response whatever the setting says.
+    signed = (
+        storage.presign_get(
+            job.artifact_ref,
+            ttl=settings.EXPORT_DOWNLOAD_URL_TTL_SECONDS,
+            filename=filename,
+        )
+        if settings.EXPORT_PRESIGNED_DOWNLOADS
+        else None
+    )
+    if signed:
+        return RedirectResponse(
+            url=signed, status_code=status.HTTP_307_TEMPORARY_REDIRECT
+        )
+
+    blob = storage.open_readable(job.artifact_ref)
+    if blob is None:  # GC'd or missing — fail closed
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
+        )
     return build_upload_response(blob, filename=filename)

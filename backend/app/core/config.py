@@ -579,6 +579,35 @@ class Settings(BaseSettings):
     # builds, so it stays — an order of magnitude higher, but a real bound.
     EXPORT_MAX_BACKUP_ROWS: int = 500_000
     EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 10_737_418_240  # 10 GiB
+    # The line between an archive the app hands back over HTTP and one it
+    # writes to the operator's destination. A download is served by this
+    # process for as long as the client's connection lasts, so this is a bound
+    # on how long one request may hold a worker, not on anything about size in
+    # itself. Past it the archive is delivered instead.
+    EXPORT_MAX_DOWNLOAD_BYTES: int = 2_147_483_648  # 2 GiB
+    # Where a delivered archive is written: an absolute directory on this
+    # host, which may be any mount the operator can write to. Unset (the
+    # default) means delivery is not configured, and an archive over the
+    # download bound is refused rather than produced with nowhere to go.
+    EXPORT_DESTINATION_DIR: str | None = None
+    # How long a community must wait between whole-community exports. The one
+    # control that actually bounds what this costs a deployment: a community's
+    # entire content is not a thing to re-read on a loop.
+    EXPORT_GUILD_COOLDOWN_HOURS: int = 48
+    # Hand a finished export's download off to the object store: the endpoint
+    # redirects to a signed URL and the bytes travel from the store to the
+    # client instead of through this process for the whole download.
+    #
+    # Off by default, and opt-in rather than automatic, because the browser
+    # fetches the download with XHR: the bucket has to allow this app's origin
+    # in its CORS rules for the redirected request to be readable. A
+    # deployment that has not set that up would see downloads start failing
+    # the moment it switched storage over. Filesystem storage signs nothing,
+    # so this does nothing there whatever it is set to.
+    EXPORT_PRESIGNED_DOWNLOADS: bool = False
+    # Lifetime of a signed download URL. Short: it only has to outlive the
+    # redirect and the start of the transfer.
+    EXPORT_DOWNLOAD_URL_TTL_SECONDS: int = 300
     # Artifact retention: expires_at = render time + this; the GC pass then
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days

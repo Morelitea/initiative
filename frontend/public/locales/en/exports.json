@@ -46,7 +46,9 @@
       "disabled": "Not enabled",
       "estimateFailed": "Couldn't load the size estimate.",
       "overRowLimit": "This export exceeds the size limit — exclude some tools to continue.",
-      "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue."
+      "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue.",
+      "willBeDelivered": "This export is over {{limit}}, so it will be written to the server's export folder instead of downloaded. Your server administrator can give you the file.",
+      "noDestination": "This export is over {{limit}} and this server has no export folder set up, so it can't be downloaded. Ask your server administrator to configure one."
     },
     "report": {
       "documentNative": "Text documents",
