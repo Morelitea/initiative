@@ -19,6 +19,9 @@ Seeded logins (all password "changeme"):
 - owner@/operator@/moderator@/support@/member@example.com — one user per
   platform tier, plus seeded PAM access-grant rows (pending / live / denied /
   expired / break-glass) to exercise the privileged-access flows.
+- superadmin@example.com — the community compliance seat, held in EVERY seeded
+  community (platform tier: member, so the community seat is testable on its
+  own rather than alongside a platform tier).
 
 Every community also seeds template projects and archived projects (with a spread of
 archive dates, tags, and tasks) so the Templates and Archive tabs have the same
@@ -936,6 +939,50 @@ def _expunge_guild_scoped(session: AsyncSession) -> None:
         # it) — skip anything no longer in the session.
         if obj in sync and getattr(obj, "__tablename__", None) in GUILD_SCOPED_TABLES:
             sync.expunge(obj)
+
+
+async def _seat_community_superadmin(
+    session: AsyncSession,
+    ids: IDTracker,
+    user: User,
+) -> int:
+    """Seat one account as ``superadmin`` of every community seeded in this run.
+
+    Done as a pass over ``ids.data["guilds"]`` rather than an argument threaded
+    through each community's own membership call, so a community added later is
+    covered by having been seeded at all. Idempotent: a re-run that resumes
+    finds the rows it already wrote and leaves them.
+    """
+    # A membership row carrying a role is a system-engine write, and the session
+    # is still routed into the last community's schema at this point — reset to
+    # the bare login-role baseline first, as the other membership writes do.
+    await set_rls_context(session)
+    seated = 0
+    for guild_id in ids.data["guilds"]:
+        existing = (
+            await session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.guild_id == guild_id,
+                    GuildMembership.user_id == user.id,
+                )
+            )
+        ).first()
+        if existing is not None:
+            if existing.role != GuildRole.superadmin:
+                existing.role = GuildRole.superadmin
+                session.add(existing)
+            continue
+        session.add(
+            GuildMembership(
+                guild_id=guild_id,
+                user_id=user.id,
+                role=GuildRole.superadmin,
+            )
+        )
+        ids.add("guild_memberships", {"guild_id": guild_id, "user_id": user.id})
+        seated += 1
+    await session.flush()
+    return seated
 
 
 async def _create_guild(
@@ -3485,6 +3532,17 @@ async def seed() -> None:
                     "role": UserRole.member,
                     "color_theme": "strahd",
                 },
+                # The community compliance seat, in every community this run
+                # creates (see ``_seat_community_superadmin``). Platform tier
+                # stays `member`: the seat is a community role, orthogonal to
+                # the platform ladder, and seeding it as a plain account is
+                # what keeps the two axes separable here.
+                {
+                    "email": "superadmin@example.com",
+                    "full_name": "Community Superadmin",
+                    "role": UserRole.member,
+                    "color_theme": "displacer",
+                },
             ],
         )
 
@@ -3527,6 +3585,7 @@ async def seed() -> None:
         p_moderator = new_users["Platform Moderator"]
         p_support = new_users["Platform Support"]
         p_member = new_users["Platform Member"]
+        g_superadmin = new_users["Community Superadmin"]
 
         # ==============================================================
         # GUILD 1: Primary community — "Curse of Strahd" TTRPG campaign
@@ -11348,6 +11407,10 @@ async def seed() -> None:
             ],
         )
         await _apply_deferred_archives(session, admin_user)
+        # Last, so it covers every community the run created — including the
+        # directory fillers, which are seeded after communities 1-3.
+        seated = await _seat_community_superadmin(session, ids, g_superadmin)
+        print(f"  Seated the community superadmin in {seated} communities")
         await session.commit()
 
     _save_state(ids.data)
@@ -11416,6 +11479,8 @@ async def seed() -> None:
     print("  Platform-role users (password: changeme):")
     print("    owner@example.com, operator@example.com, moderator@example.com,")
     print("    support@example.com, member@example.com")
+    print("  Community superadmin: superadmin@example.com / changeme")
+    print("    (the compliance seat, in every seeded community)")
 
 
 # ---------------------------------------------------------------------------
