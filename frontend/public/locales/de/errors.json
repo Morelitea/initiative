@@ -736,5 +736,6 @@
   "GUILD_RESTORE_STATUS_INVALID": "Wählen Sie den Zustand, in dem die Community zurückkommt.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Wählen Sie vor dem Wiederherstellen, wer die Community leiten wird.",
   "GUILD_STATUS_NOT_SETTABLE": "Eine Community wird in ihren eigenen Einstellungen gelöscht, nicht hier.",
-  "ADMIN_USER_NOT_DELETED": "Dieses Konto wurde nicht gelöscht, es gibt also nichts wiederherzustellen."
+  "ADMIN_USER_NOT_DELETED": "Dieses Konto wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
+  "CONNECTION_NEEDS_NARROWING": "Gib an, welche Konten bei diesem Anbieter deine sind, bevor du die Verbindung einschaltest."
 }

@@ -1186,8 +1186,8 @@
       "providerLabel": "Fournisseur",
       "providerPlaceholder": "Choisissez-en un",
       "claimLabel": "Quels comptes comptent comme les vôtres",
-      "claimHelp": "Un fournisseur comme Google se porte garant de toute personne ayant un compte : dites donc lesquels de ses comptes sont les vôtres — un domaine Workspace, ou un tenant. Laissez vide si le fournisseur ne couvre déjà que vos gens.",
-      "claimPlaceholder": "Vide pour toute personne dont il se porte garant",
+      "claimHelp": "Les communautés sont distinctes ici : indiquez quels comptes de ce fournisseur sont les vôtres — un domaine Google Workspace, un locataire Entra, un groupe. Seules ces personnes comptent comme votre communauté.",
+      "claimPlaceholder": "Choisissez ce qui identifie vos membres",
       "claimValuesLabel": "Valeurs acceptées",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Les ajouter à cette communauté",
@@ -1197,10 +1197,13 @@
         "hd": "Domaine Google Workspace",
         "tid": "Locataire Microsoft Entra",
         "groups": "Appartenance à un groupe",
-        "domain": "Domaine"
+        "domain": "Domaine",
+        "other": "Une autre revendication…"
       },
       "inherited": "Du déploiement",
-      "makeItOurs": "En faire la nôtre"
+      "makeItOurs": "En faire la nôtre",
+      "claimNameLabel": "Nom de la revendication",
+      "claimNamePlaceholder": "p. ex. org, realm"
     },
     "rules": {
       "title": "Où arrivent vos membres",
@@ -1252,7 +1255,7 @@
         },
         "narrowing": {
           "title": "Quelles personnes",
-          "prompt": "Indiquez quels comptes chez lui sont les vôtres, ou passez cette étape s'il ne réunit déjà que vos gens."
+          "prompt": "Indiquez quels comptes y comptent comme les vôtres."
         },
         "landing": {
           "title": "Où ils arrivent",

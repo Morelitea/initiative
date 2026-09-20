@@ -117,7 +117,7 @@ async def test_the_picker_says_nothing_a_sign_in_page_does_not(
     assert set(row) == {"id", "display_name", "icon", "login_ready"}
 
 
-async def test_a_narrowing_is_both_halves_or_neither(
+async def test_an_enabled_connection_says_who_counts(
     client: AsyncClient, session: AsyncSession
 ):
     admin, guild = await _seat(session)
@@ -133,12 +133,24 @@ async def test_a_narrowing_is_both_halves_or_neither(
     assert half.status_code == 422, half.text
     assert half.json()["detail"] == AuthProviderMessages.CONNECTION_HALF_NARROWED
 
-    # Neither half is the unnarrowed connection, which is allowed.
-    whole = await client.post(
+    # And neither half is refused too, while the connection is on:
+    # communities here are separate tenants, so a provider vouching for
+    # somebody is not the same as them belonging to this one.
+    neither = await client.post(
         _base(guild.id), headers=headers, json={"provider_id": provider.id}
     )
-    assert whole.status_code == 201, whole.text
-    assert whole.json()["claim"] is None
+    assert neither.status_code == 422, neither.text
+    assert neither.json()["detail"] == AuthProviderMessages.CONNECTION_NEEDS_NARROWING
+
+    # Off, it may name nobody: that is how a community declines the
+    # deployment's answer for a provider, and it admits nobody by being off.
+    declined = await client.post(
+        _base(guild.id),
+        headers=headers,
+        json={"provider_id": provider.id, "enabled": False},
+    )
+    assert declined.status_code == 201, declined.text
+    assert declined.json()["claim"] is None
 
 
 async def test_a_community_connects_to_a_provider_once(
@@ -151,7 +163,11 @@ async def test_a_community_connects_to_a_provider_once(
     again = await client.post(
         _base(guild.id),
         headers=get_auth_headers(admin),
-        json={"provider_id": provider.id},
+        json={
+            "provider_id": provider.id,
+            "claim": "hd",
+            "claim_values": ["example.com"],
+        },
     )
 
     # Two narrowings of one provider would be two answers to one question.
@@ -172,7 +188,13 @@ async def test_an_ordinary_admin_reads_but_does_not_connect(
 
     assert (await client.get(_base(guild.id), headers=headers)).status_code == 200
     refused = await client.post(
-        _base(guild.id), headers=headers, json={"provider_id": provider.id}
+        _base(guild.id),
+        headers=headers,
+        json={
+            "provider_id": provider.id,
+            "claim": "hd",
+            "claim_values": ["example.com"],
+        },
     )
     assert refused.status_code == 403, refused.text
 

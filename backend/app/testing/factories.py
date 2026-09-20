@@ -2174,15 +2174,17 @@ async def create_guild_provider_connection(
 ) -> GuildProviderConnection:
     """Connect a community to one of the operator's providers.
 
-    Unnarrowed by default, which is the shape a community bringing its own
-    identity provider has: it admits whoever that provider vouched for. Pass
-    ``claim`` and ``claim_values`` for the Google-Workspace shape.
+    Narrowed by default, because an enabled connection has to be: communities
+    here are separate tenants, so a provider vouching for somebody is not the
+    same as them belonging to one. Pass ``claim=None, claim_values=None`` with
+    ``enabled=False`` for the row a community writes to decline the
+    deployment's answer for a provider.
     """
     defaults = {
         "guild_id": guild.id,
         "provider_id": provider.id,
-        "claim": None,
-        "claim_values": None,
+        "claim": "hd",
+        "claim_values": ["example.com"],
         "enabled": True,
     }
     connection = GuildProviderConnection(**{**defaults, **overrides})

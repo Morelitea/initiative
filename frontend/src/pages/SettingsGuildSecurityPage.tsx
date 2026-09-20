@@ -157,10 +157,10 @@ export const SettingsGuildSecurityPage = () => {
         })),
     [connectionsQuery.data]
   );
-  // Nothing connected at all — a community that has not started yet, rather
-  // than one whose connections are all switched off.
-  const hasNoConnections = (connectionsQuery.data ?? []).length === 0;
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Set when the wizard is opened to take over a provider the deployment
+  // answered for, so it opens on that one rather than on the picker.
+  const [wizardStartOn, setWizardStartOn] = useState<number | null>(null);
 
   // Chosen here, saved by the button below — a refetch in between must not
   // undo the choice.
@@ -413,28 +413,21 @@ export const SettingsGuildSecurityPage = () => {
             {t("guildAuth.sections.whoGetsIn")}
           </h2>
 
-          {hasNoConnections ? (
-            <Card className="border-dashed shadow-sm">
-              <CardHeader>
-                <CardTitle>{t("guildAuth.emptyState.title")}</CardTitle>
-                <CardDescription>{t("guildAuth.emptyState.body")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button type="button" onClick={() => setWizardOpen(true)}>
-                  {t("guildAuth.emptyState.button")}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
           <ConnectSignInWizard
             guildId={guildId}
             open={wizardOpen}
             onOpenChange={setWizardOpen}
             canRequire={mayConfigureProviders}
+            startOn={wizardStartOn}
           />
 
-          <GuildAuthProvidersSection guildId={guildId} />
+          <GuildAuthProvidersSection
+            guildId={guildId}
+            onConnect={(providerId) => {
+              setWizardStartOn(providerId ?? null);
+              setWizardOpen(true);
+            }}
+          />
 
           <GuildClaimRulesSection guildId={guildId} />
 

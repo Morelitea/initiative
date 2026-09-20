@@ -52,6 +52,12 @@ const render = (canRequire = true) =>
     { auth: { user: buildUser() } }
   );
 
+/** Answer the narrowing step's claim select. */
+const pickClaim = async (user: ReturnType<typeof userEvent.setup>, label: RegExp) => {
+  await user.click(await screen.findByRole("combobox"));
+  await user.click(await screen.findByRole("option", { name: label }));
+};
+
 describe("ConnectSignInWizard", () => {
   beforeEach(() => {
     connections = [];
@@ -105,24 +111,17 @@ describe("ConnectSignInWizard", () => {
     });
   });
 
-  it("sends no narrowing at all when the step is skipped", async () => {
+  it("will not connect without saying who on the provider counts", async () => {
     const user = userEvent.setup();
     render();
 
     await user.click(screen.getByRole("button", { name: /entra/i }));
-    await user.click(await screen.findByRole("button", { name: /skip this/i }));
-    await user.click(await screen.findByRole("button", { name: /^next$/i }));
-    await user.click(await screen.findByRole("button", { name: /connect provider/i }));
 
-    expect(connect).toHaveBeenCalledWith({
-      provider_id: 11,
-      claim: null,
-      claim_values: null,
-      auto_join: false,
-      enabled: true,
-    });
-    // Nothing was typed in the optional rule, so no rule was written.
-    expect(createRule).not.toHaveBeenCalled();
+    // Communities here are separate tenants, so a provider vouching for
+    // somebody is not the same as them belonging to this one. There is no
+    // way past this step that leaves the question unanswered.
+    expect(await screen.findByRole("button", { name: /^next$/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /skip this/i })).not.toBeInTheDocument();
   });
 
   it("will not go on from half a narrowing", async () => {
@@ -130,8 +129,9 @@ describe("ConnectSignInWizard", () => {
     render();
 
     await user.click(screen.getByRole("button", { name: /entra/i }));
-    await user.type(await screen.findByLabelText(/values that count/i), "acme-tenant");
+    await pickClaim(user, /microsoft entra tenant/i);
 
+    // A claim with nothing counting against it reads on nobody.
     expect(screen.getByRole("button", { name: /^next$/i })).toBeDisabled();
   });
 
@@ -140,7 +140,9 @@ describe("ConnectSignInWizard", () => {
     render(false);
 
     await user.click(screen.getByRole("button", { name: /entra/i }));
-    await user.click(await screen.findByRole("button", { name: /skip this/i }));
+    await pickClaim(user, /microsoft entra tenant/i);
+    await user.type(await screen.findByLabelText(/values that count/i), "acme-tenant");
+    await user.click(await screen.findByRole("button", { name: /^next$/i }));
 
     expect(await screen.findByText("Where they land")).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();

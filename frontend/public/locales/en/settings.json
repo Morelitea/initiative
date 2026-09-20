@@ -1186,8 +1186,8 @@
       "providerLabel": "Provider",
       "providerPlaceholder": "Choose one",
       "claimLabel": "Whose accounts count as yours",
-      "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
-      "claimPlaceholder": "Leave blank for anyone it vouches for",
+      "claimHelp": "Communities here are separate, so say which accounts on this provider are yours — a Google Workspace domain, an Entra tenant, a group. Only those people count as your community's.",
+      "claimPlaceholder": "Pick what identifies your people",
       "claimValuesLabel": "Values that count",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Join them to this community",
@@ -1197,10 +1197,13 @@
         "hd": "Google Workspace domain",
         "tid": "Microsoft Entra tenant",
         "groups": "Group membership",
-        "domain": "Domain"
+        "domain": "Domain",
+        "other": "Another claim…"
       },
       "inherited": "From the deployment",
-      "makeItOurs": "Make it ours"
+      "makeItOurs": "Make it ours",
+      "claimNameLabel": "Claim name",
+      "claimNamePlaceholder": "e.g. org, realm"
     },
     "rules": {
       "title": "Where your people land",
@@ -1252,7 +1255,7 @@
         },
         "narrowing": {
           "title": "Whose people",
-          "prompt": "Say which accounts on it count as yours, or skip this where it already holds only your people."
+          "prompt": "Say which accounts on it count as yours."
         },
         "landing": {
           "title": "Where they land",
