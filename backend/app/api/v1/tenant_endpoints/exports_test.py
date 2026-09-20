@@ -36,6 +36,7 @@ from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
 from app.services.export import worker as export_worker
@@ -50,8 +51,10 @@ from app.testing.factories import (
     create_comment,
     create_counter,
     create_counter_group,
+    create_dashboard,
     create_document,
     create_document_property_value,
+    create_guild_app,
     create_initiative,
     create_post,
     create_project,
@@ -1836,14 +1839,18 @@ async def test_initiative_backup_zip_layout_and_manifest(
         # whether or not anybody has written in it yet.
         "wiki": "included",
         "gallery": "included",
+        "dashboard": "included",
     }
 
-    # Every manifest entry is in the archive, and vice versa (minus manifest).
+    # Every file in the archive is accounted for by the manifest, and vice
+    # versa: tool envelopes and the initiative's own shape as entries, the
+    # community's own files as guild_sections.
     entry_paths = {e["path"] for e in manifest["entries"]}
-    assert entry_paths == names - {"manifest.json"}
+    section_paths = {s["path"] for s in manifest["guild_sections"]}
+    assert entry_paths | section_paths == names - {"manifest.json"}
     assert manifest["assets"] == [] and manifest["skipped"] == []
 
-    folder = next(n for n in names if n != "manifest.json").split("/")[1]
+    folder = next(n for n in names if n.startswith("initiatives/")).split("/")[1]
     assert folder.startswith(f"{a.initiative.id}-")
     by_type = {e["type"]: e for e in manifest["entries"]}
     assert set(by_type) == {
@@ -1853,6 +1860,9 @@ async def test_initiative_backup_zip_layout_and_manifest(
         "initiative-counter-group",
         "initiative-calendar",
         "initiative-post",
+        # The initiative's own shape rides as an entry too: it is applied by
+        # the same loop, ahead of the content that refers to it.
+        "initiative-structure",
     }
 
     # Spot-check envelopes round-trip through the archive paths.
@@ -2212,6 +2222,7 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         "post": 1,
         "wiki": 0,  # the tool is on; nobody has made one
         "gallery": 0,  # likewise
+        "dashboard": 0,  # likewise
     }
     assert not any(t["disabled"] for t in body["tools"].values())
     assert body["uploads_count"] == 1
@@ -2236,8 +2247,13 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
 async def test_empty_initiative_backup_is_manifest_only_zip(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """Zero entities still yields an importable zip (manifest only), with
-    never-enabled tools marked disabled in the inventory."""
+    """Zero CONTENT still yields an importable zip, with never-enabled tools
+    marked disabled in the inventory.
+
+    "Empty" is the content, not the initiative: it has roles and a creator
+    from the moment it exists, so its ``structure.json`` rides along. An
+    archive that dropped it would restore a pile of nothing with nobody in
+    it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     # The factory switches every tool on; turn two off so the inventory has
     # deliberately disabled ones to report.
@@ -2248,9 +2264,11 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
-    assert archive.namelist() == ["manifest.json"]
+    names = archive.namelist()
+    assert "manifest.json" in names
     manifest = json.loads(archive.read("manifest.json"))
-    assert manifest["entries"] == []
+    # No CONTENT, so every entry is the initiative's own shape.
+    assert {e["type"] for e in manifest["entries"]} == {"initiative-structure"}
     tools = manifest["initiatives"][0]["tools"]
     assert tools["project"] == "included"  # core tools have no off switch
     assert tools["queue"] == "disabled"
@@ -2278,3 +2296,245 @@ async def test_guild_export_admin_revoked_fails_closed(
     assert body["error"] == "EXPORT_ADMIN_REQUIRED"
     dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# What a community owns outside its initiatives
+# ---------------------------------------------------------------------------
+
+
+async def test_guild_backup_carries_the_community_itself(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A community backup covers the community, not only the work done inside
+    it: its configuration, its tag vocabulary and its roster."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_tag(session, a.guild, name="worldbuilding", color="#ff0000")
+
+    resp = await _export(client, a, "guild")
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    names = set(archive.namelist())
+    assert {"guild/settings.json", "guild/tags.json", "guild/members.json"} <= names
+
+    settings_payload = json.loads(archive.read("guild/settings.json"))
+    assert settings_payload["type"] == "guild-settings"
+    assert settings_payload["name"] == a.guild.name
+
+    tags = json.loads(archive.read("guild/tags.json"))["tags"]
+    # The colour is the point: envelopes reference tags by name alone, so the
+    # definition is what a round trip would otherwise lose.
+    assert {"worldbuilding"} <= {t["name"] for t in tags}
+    assert [t for t in tags if t["name"] == "worldbuilding"][0]["color"] == "#ff0000"
+
+    members = json.loads(archive.read("guild/members.json"))["members"]
+    assert a.user.id in {m["user_id"] for m in members}
+    # Named the way the rest of the app names people: handles and display
+    # names, the same shape a byline or a mention renders.
+    assert all(m.get("handle") for m in members)
+    assert not any("@" in json.dumps(m) for m in members)
+
+    manifest = json.loads(archive.read("manifest.json"))
+    assert {s["key"] for s in manifest["guild_sections"]} >= {
+        "settings",
+        "tags",
+        "members",
+    }
+
+
+async def test_initiative_backup_omits_community_wide_sections(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """An initiative export carries the initiative. The community's roster,
+    configuration and installed apps belong to the community-scoped export.
+    The tag vocabulary does ride along, because it is part of the content the
+    archive carries."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_tag(session, a.guild, name="npc")
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    names = set(archive.namelist())
+    assert "guild/tags.json" in names
+    assert "guild/members.json" not in names
+    assert "guild/settings.json" not in names
+    assert "guild/apps.json" not in names
+
+
+async def test_backup_carries_initiative_roles_and_members(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Tool envelopes carry content; none of them carries the access structure
+    the content sat inside. Without it a restored initiative is a pile of work
+    with nobody in it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    path = next(
+        e["path"] for e in manifest["entries"] if e["type"] == "initiative-structure"
+    )
+    structure = json.loads(archive.read(path))
+
+    assert structure["type"] == "initiative-structure"
+    assert structure["initiative_id"] == a.initiative.id
+    assert a.user.id in {m["user_id"] for m in structure["members"]}
+    # Roles and memberships travel by NAME: an id means nothing in whatever
+    # instance the archive is opened in.
+    role_names = {r["name"] for r in structure["roles"]}
+    assert role_names
+    assert {m["role"] for m in structure["members"]} <= role_names | {None}
+
+
+async def test_guild_backup_bundles_blobs_nothing_points_at(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Assets otherwise ride with the entity referencing them, so a file
+    nobody currently points at is the one thing a full backup would drop
+    without saying so."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    orphan_key = "orphan-upload-xyz.bin"
+    get_guild_storage(a.guild.id).write(orphan_key, b"orphan-bytes")
+    await create_upload(
+        session,
+        a.guild,
+        a.user,
+        filename=orphan_key,
+        size_bytes=len(b"orphan-bytes"),
+        content_type="application/octet-stream",
+    )
+
+    resp = await _export(client, a, "guild", include_uploads=True)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    assert f"assets/{orphan_key}" in archive.namelist()
+    assert archive.read(f"assets/{orphan_key}") == b"orphan-bytes"
+
+
+# ---------------------------------------------------------------------------
+# Dashboards: exportable, minus what belongs to somebody else's app
+# ---------------------------------------------------------------------------
+
+
+async def test_hand_built_dashboard_exports(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A dashboard somebody built here is ordinary content."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    dashboard = await create_dashboard(
+        session, a.initiative, a.user, name="Campaign Health"
+    )
+
+    resp = await _export(client, a, "dashboard", dashboard_id=dashboard.id)
+    assert resp.status_code == 200, resp.text
+    envelope = json.loads(resp.content)
+    assert envelope["type"] == "initiative-dashboard"
+    assert envelope["name"] == "Campaign Health"
+    assert envelope["listing_uid"] is None
+    assert "definition" in envelope
+
+
+async def test_dashboard_from_a_third_party_app_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    """Its definition belongs to its publisher; the way to have it elsewhere
+    is to install that app there."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    dashboard = await create_dashboard(
+        session, a.initiative, a.user, name="GitHub Overview"
+    )
+    dashboard.listing_uid = "notbuiltin123"
+    dashboard.listing_version = "1.0.0"
+    session.add(dashboard)
+    await session.commit()
+
+    resp = await _export(client, a, "dashboard", dashboard_id=dashboard.id)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "EXPORT_THIRD_PARTY_APP"
+
+
+async def test_backup_skips_third_party_dashboards_and_says_so(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """One app-derived dashboard must not fail a whole community's backup —
+    and the archive states that it existed rather than quietly omitting it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    mine = await create_dashboard(session, a.initiative, a.user, name="Mine")
+    theirs = await create_dashboard(session, a.initiative, a.user, name="Theirs")
+    theirs.listing_uid = "notbuiltin123"
+    theirs.listing_version = "1.0.0"
+    session.add(theirs)
+    await session.commit()
+
+    resp = await _export(client, a, "guild")
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    exported = {e["entity_id"] for e in manifest["entries"] if e["tool"] == "dashboard"}
+    assert mine.id in exported
+    assert theirs.id not in exported
+
+    skipped = {
+        s["entity_id"]: s["reason"]
+        for s in manifest["skipped"]
+        if s["tool"] == "dashboard"
+    }
+    assert skipped.get(theirs.id) == "third_party_app"
+
+
+async def test_guild_backup_records_apps_it_does_not_carry(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """An app published by somebody else is restored by installing it in the
+    destination, not by unpacking a copy — so the archive names it in
+    ``skipped`` rather than passing over it in silence."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    app = await create_guild_app(
+        session,
+        a.guild,
+        a.user,
+        definition={"kind": "widget", "widgets": []},
+        listing_uid="NOTBUILTIN0001",
+        name="GitHub",
+    )
+
+    resp = await _export(client, a, "guild")
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    assert "guild/apps.json" not in archive.namelist()
+    skipped = {
+        s["entity_id"]: s["reason"] for s in manifest["skipped"] if s["tool"] == "app"
+    }
+    assert skipped.get(app.id) == "third_party_app"
+
+
+async def test_backup_carries_property_definitions(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Envelopes carry property VALUES by name and type. Without the
+    definitions an import rebuilds one from the first value it sees, so a
+    select arrives holding only the options somebody happened to use."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_property_definition(
+        session,
+        a.initiative,
+        name="Region",
+        type=PropertyType.select,
+        options=[
+            {"id": "n", "label": "North", "color": "#112233"},
+            {"id": "s", "label": "South", "color": "#445566"},
+        ],
+    )
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    path = next(
+        e["path"] for e in manifest["entries"] if e["type"] == "initiative-properties"
+    )
+    payload = json.loads(archive.read(path))
+
+    region = next(p for p in payload["properties"] if p["name"] == "Region")
+    assert region["type"] == PropertyType.select.value
+    # The whole option list, not just what happens to be in use.
+    assert [o["label"] for o in region["options"]] == ["North", "South"]

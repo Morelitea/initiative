@@ -22,6 +22,7 @@ import type {
   EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
   ExportCalendarsApiV1GGuildIdExportsCalendarGetParams,
   ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
   ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
   ExportGuildApiV1GGuildIdExportsGuildGetParams,
   ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
@@ -926,6 +927,186 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportCounterGroupApiV1GGuildIdExportsCounterGroupGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Export a dashboard as an importable envelope: its presentation spec and
+ * canvas config. A dashboard owns no child content — the data it displays
+ * belongs to the tools it points at — so there is no report format. Read
+ * access suffices. A dashboard built on an app this build does not ship
+ * cannot be exported; install that app where you want it instead. Small
+ * selections return the file inline; large ones return ``202`` with a queued
+ * job to poll and download.
+ * @summary Export Dashboard
+ */
+export const exportDashboardApiV1GGuildIdExportsDashboardGet = (
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/dashboard`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportDashboardApiV1GGuildIdExportsDashboardGetQueryKey = (
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/dashboard`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportDashboardApiV1GGuildIdExportsDashboardGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getExportDashboardApiV1GGuildIdExportsDashboardGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>
+  > = ({ signal }) =>
+    exportDashboardApiV1GGuildIdExportsDashboardGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportDashboardApiV1GGuildIdExportsDashboardGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>
+>;
+export type ExportDashboardApiV1GGuildIdExportsDashboardGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useExportDashboardApiV1GGuildIdExportsDashboardGet<
+  TData = Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportDashboardApiV1GGuildIdExportsDashboardGet<
+  TData = Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportDashboardApiV1GGuildIdExportsDashboardGet<
+  TData = Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Dashboard
+ */
+
+export function useExportDashboardApiV1GGuildIdExportsDashboardGet<
+  TData = Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportDashboardApiV1GGuildIdExportsDashboardGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDashboardApiV1GGuildIdExportsDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportDashboardApiV1GGuildIdExportsDashboardGetQueryOptions(
     guildId,
     params,
     options

@@ -134,7 +134,7 @@ async def start_envelope_import(
     auto-select delivery — apply in-request at/under IMPORT_INLINE_MAX_ROWS,
     else stage the payload and persist a queued ImportJob for the worker,
     which re-validates and applies under the creator's RLS session."""
-    envelope_type = envelope.get("type") or envelope.get("kind")
+    envelope_type = envelope.get("type")
     if not isinstance(envelope_type, str):
         raise ImportEngineError(ImportEngineMessages.IMPORT_UNKNOWN_TYPE)
     importer = get_importer(envelope_type)

@@ -143,6 +143,26 @@ async def load_initiative_member_handles(
     return {handle_key(handle_of(member)): member.id for member in members}
 
 
+async def load_guild_member_handles(
+    session: AsyncSession, *, guild_id: int
+) -> dict[str, int]:
+    """Map ``handle → user_id`` for everybody in the target community.
+
+    Wider than :func:`load_initiative_member_handles` for one job: restoring
+    an initiative's roster places people who are in the community but not yet
+    in that initiative, which is exactly the set the narrower map excludes.
+    An archive names people; it never creates accounts, so a handle nobody
+    here answers to resolves to nothing and is passed over.
+
+    Reads ``GuildMember``, the projection already narrowed to the routed
+    guild's members.
+    """
+    from app.models.platform.user_profile_view import GuildMember
+
+    members = (await session.exec(select(GuildMember))).all()
+    return {handle_key(handle_of(member)): member.id for member in members}
+
+
 def handle_key(handle: str | None) -> str:
     """A handle as it is looked up: trimmed, and lowercased on the name part."""
     return (handle or "").strip().lower()

@@ -82,6 +82,11 @@ _REPORT_TEMPLATES = {
     "document": "document",
 }
 
+# The ``tool`` an initiative's own files carry. Not a Tool: they describe the
+# initiative rather than anything made inside it, which is also why the import
+# side applies them ahead of every real tool.
+_STRUCTURAL_TOOL = "initiative"
+
 _MIB = 1_048_576
 # Refresh the routed session's authorization context this often during a long
 # build (see module docstring).
@@ -103,7 +108,9 @@ class InitiativeExportAdapter:
         scope = await _resolve_scope(
             session, user, guild_id, params, scope_kind=self.source
         )
-        return await _count_scope(session, user, guild_id, params, scope)
+        return await _count_scope(
+            session, user, guild_id, params, scope, scope_kind=self.source
+        )
 
     async def build(self, session, *, user, guild_id, params, format) -> RenderRequest:
         scope = await _resolve_scope(
@@ -222,6 +229,7 @@ async def _enumerate(
     """Per tool, per initiative: the entity ids the creator may export."""
     from app.services.tenant.calendars import list_calendar_ids_for_export
     from app.services.tenant.counters import list_counter_group_ids_for_export
+    from app.services.tenant.dashboards import list_dashboard_ids_for_export
     from app.services.tenant.documents import list_document_ids_for_export
     from app.services.tenant.posts import list_post_ids_for_export
     from app.services.tenant.project_export import list_project_ids_for_export
@@ -252,6 +260,9 @@ async def _enumerate(
         "gallery": lambda iids: list_gallery_ids_for_export(
             session, user, guild_id, initiative_ids=iids
         ),
+        "dashboard": lambda iids: list_dashboard_ids_for_export(
+            session, user, guild_id, initiative_ids=iids
+        ),
     }
     for initiative in initiatives:
         for tool, enumerate_ids in per_initiative_tools.items():
@@ -266,11 +277,22 @@ async def _enumerate(
 
 
 async def _count_scope(
-    session: AsyncSession, user: User, guild_id: int, params: dict, initiatives
+    session: AsyncSession,
+    user: User,
+    guild_id: int,
+    params: dict,
+    initiatives,
+    *,
+    scope_kind: str = "initiative",
 ) -> int:
     """Row proxy: entities + tasks + (uploads MiB when they ride). Also
     enforces the uploads byte cap up front so an oversized backup 400s before
-    a job row exists."""
+    a job row exists.
+
+    Guild scope measures the WHOLE blob store, because that is what it bundles
+    — the blobs documents reference plus the ones nothing points at. Counting
+    only the referenced ones here would let an over-cap export through to the
+    worker and fail it there instead of answering now."""
     from sqlalchemy import func
     from sqlmodel import select
 
@@ -291,8 +313,15 @@ async def _count_scope(
             )
         ).one()
 
-    if _included(params, "document") and _include_uploads(params):
-        upload_bytes = await _known_upload_bytes(session, ids["document"])
+    if _include_uploads(params) and (
+        scope_kind == "guild" or _included(params, "document")
+    ):
+        if scope_kind == "guild":
+            from app.services.tenant.attachments import get_guild_storage_usage
+
+            upload_bytes = await get_guild_storage_usage(session)
+        else:
+            upload_bytes = await _known_upload_bytes(session, ids["document"])
         if upload_bytes > settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
@@ -341,6 +370,7 @@ async def _build_scope(
     from app.schemas.tenant.backup_export import (
         BACKUP_SCHEMA_VERSION,
         BackupManifest,
+        ManifestGuild,
         ManifestInitiative,
     )
 
@@ -356,6 +386,10 @@ async def _build_scope(
     )
     for initiative in initiatives:
         await builder.add_initiative(initiative)
+    # The community itself, after its initiatives: what it owns directly.
+    await builder.add_guild_sections(scope_kind)
+    if scope_kind == "guild":
+        await builder.add_remaining_uploads()
 
     items = builder.items
     if mode == "backup":
@@ -367,7 +401,12 @@ async def _build_scope(
             exported_at=datetime.now(timezone.utc),
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
-            guild={"id": guild_id, "name": guild.name if guild else ""},
+            guild=ManifestGuild(
+                id=guild_id,
+                name=guild.name if guild else "",
+                description=guild.description if guild else None,
+                is_community=bool(guild.is_community) if guild else False,
+            ),
             include_uploads=_include_uploads(params),
             initiatives=[
                 ManifestInitiative(
@@ -379,6 +418,7 @@ async def _build_scope(
                 )
                 for i in initiatives
             ],
+            guild_sections=builder.guild_sections,
             entries=builder.entries,
             assets=builder.assets,
             skipped=builder.skipped,
@@ -418,6 +458,12 @@ def _initiative_tool_states(params: dict, initiative) -> dict[str, str]:
     return states
 
 
+def _permission_key(permission) -> str:
+    """The permission's name — the enum's value, not its repr."""
+    key = permission.permission_key
+    return str(getattr(key, "value", key))
+
+
 def _slug(entity_id: int, title: str) -> str:
     return f"{entity_id}-{safe_filename_component(title).lower() or 'untitled'}"
 
@@ -437,6 +483,7 @@ class _ScopeBuilder:
         self.entries: list = []
         self.assets: list = []
         self.skipped: list = []
+        self.guild_sections: list = []
         # Handle -> (display name, comments seen). Accumulated as the project
         # envelopes are built, because that is where comment authors are, and
         # written into the manifest so the import plan can ask about them
@@ -476,6 +523,9 @@ class _ScopeBuilder:
         await self._add_posts(initiative, folder)
         await self._add_wikis(initiative, folder)
         await self._add_galleries(initiative, folder)
+        await self._add_dashboards(initiative, folder)
+        await self._add_initiative_structure(initiative, folder)
+        await self._add_initiative_properties(initiative, folder)
         await self._link_wiki_documents(initiative)
 
     # -- per-tool chunks -----------------------------------------------------
@@ -991,6 +1041,309 @@ class _ScopeBuilder:
         value = formats.get("document")
         return dict(value) if isinstance(value, dict) else {}
 
+    async def _add_dashboards(self, initiative, folder: str) -> None:
+        """Dashboards, minus any built on an app this build does not ship.
+
+        ``list_dashboard_ids_for_export`` applies the provenance filter, so
+        the skipped ones are recovered here separately in order to record
+        them: an archive that just omitted them would not say they existed.
+        Report mode has no dashboard format — a dashboard is a live canvas,
+        not a document — so it carries the envelope in both modes.
+        """
+        if not _included(self.params, "dashboard"):
+            return
+        if not getattr(initiative, "dashboards_enabled", False):
+            return
+        from sqlmodel import select
+
+        from app.models.tenant.dashboard import Dashboard
+        from app.schemas.tenant.backup_export import ManifestSkipped
+        from app.services.export.adapters.dashboard import build_dashboard_item
+        from app.services.export.provenance import THIRD_PARTY_REASON
+        from app.services.tenant.dashboards import (
+            get_dashboard_for_export,
+            list_dashboard_ids_for_export,
+        )
+
+        exportable = await list_dashboard_ids_for_export(
+            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
+        )
+        for dashboard_id in exportable:
+            await self._refresh_access()
+            dashboard = await get_dashboard_for_export(
+                self.session, self.user, self.guild_id, dashboard_id=dashboard_id
+            )
+            item = build_dashboard_item(dashboard, self.now.strftime("%Y-%m-%d"))
+            path = (
+                f"{folder}/dashboards/"
+                f"{_slug(dashboard_id, dashboard.name)}.initiative-dashboard.json"
+            )
+            self._append_backup(
+                item,
+                path=path,
+                tool="dashboard",
+                type="initiative-dashboard",
+                schema_version=1,
+                entity_id=dashboard_id,
+                title=dashboard.name,
+                initiative_id=initiative.id,
+            )
+        if self.mode != "backup":
+            return
+        kept = set(exportable)
+        rows = await self.session.exec(
+            select(Dashboard.id, Dashboard.name).where(
+                Dashboard.initiative_id == initiative.id
+            )
+        )
+        for dashboard_id, name in rows:
+            if dashboard_id in kept:
+                continue
+            self.skipped.append(
+                ManifestSkipped(
+                    tool="dashboard",
+                    entity_id=dashboard_id,
+                    title=name,
+                    initiative_id=initiative.id,
+                    reason=THIRD_PARTY_REASON,
+                )
+            )
+
+    async def _add_initiative_structure(self, initiative, folder: str) -> None:
+        """The initiative itself: who was in it, the roles they held, and what
+        each role could do.
+
+        Tool envelopes carry content and name people by handle; none of them
+        carries the access structure the content sat inside. Without it a
+        restored initiative is a pile of work with nobody in it.
+
+        Report mode skips this — it renders content for people to read, and a
+        role matrix is not a report.
+        """
+        if self.mode != "backup":
+            return
+        from sqlmodel import select
+
+        from app.core.user_display import handle_of
+        from app.models.platform.user_profile_view import GuildMember
+        from app.models.tenant.initiative import (
+            InitiativeMember,
+            InitiativeRoleModel,
+            InitiativeRolePermission,
+        )
+
+        roles = list(
+            await self.session.exec(
+                select(InitiativeRoleModel)
+                .where(InitiativeRoleModel.initiative_id == initiative.id)
+                .order_by(InitiativeRoleModel.position.asc())
+            )
+        )
+        permissions: dict[int, list] = {}
+        if roles:
+            rows = await self.session.exec(
+                select(InitiativeRolePermission).where(
+                    InitiativeRolePermission.initiative_role_id.in_(
+                        [r.id for r in roles]
+                    )
+                )
+            )
+            for permission in rows:
+                permissions.setdefault(permission.initiative_role_id, []).append(
+                    permission
+                )
+
+        members = list(
+            await self.session.exec(
+                select(InitiativeMember)
+                .where(InitiativeMember.initiative_id == initiative.id)
+                .order_by(InitiativeMember.user_id.asc())
+            )
+        )
+        profiles = {}
+        if members:
+            # The projection already narrowed to this guild's members; an
+            # initiative's roster is a subset of it.
+            profiles = {
+                profile.id: profile
+                for profile in await self.session.exec(select(GuildMember))
+            }
+        if not roles and not members:
+            return
+
+        role_names = {role.id: role.name for role in roles}
+        payload = {
+            "type": "initiative-structure",
+            "schema_version": 1,
+            "initiative_id": initiative.id,
+            "name": initiative.name,
+            "roles": [
+                {
+                    "name": role.name,
+                    "display_name": role.display_name,
+                    "is_builtin": role.is_builtin,
+                    "is_manager": role.is_manager,
+                    "override_share_restrictions": role.override_share_restrictions,
+                    "position": role.position,
+                    # Permission keys by name, enabled-only: a role is what it
+                    # CAN do, and a disabled row is the default restated.
+                    "permissions": sorted(
+                        _permission_key(p)
+                        for p in permissions.get(role.id, [])
+                        if p.enabled
+                    ),
+                }
+                for role in roles
+            ],
+            "members": [
+                {
+                    "user_id": member.user_id,
+                    "handle": handle_of(profiles[member.user_id])
+                    if member.user_id in profiles
+                    else None,
+                    "name": getattr(profiles.get(member.user_id), "full_name", None),
+                    # By role NAME: role ids are per-initiative and mean
+                    # nothing once the archive is opened somewhere else.
+                    "role": role_names.get(member.role_id),
+                    "joined_at": member.joined_at.isoformat()
+                    if member.joined_at
+                    else None,
+                }
+                for member in members
+            ],
+        }
+        path = f"{folder}/structure.json"
+        self._append_backup(
+            RenderItem(key=path, data=payload, filename=path, format="json"),
+            path=path,
+            tool=_STRUCTURAL_TOOL,
+            type="initiative-structure",
+            schema_version=1,
+            entity_id=initiative.id,
+            title=initiative.name,
+            initiative_id=initiative.id,
+        )
+
+    async def _add_initiative_properties(self, initiative, folder: str) -> None:
+        """The initiative's property definitions.
+
+        Envelopes carry property VALUES by name and type; the definitions are
+        what say a property exists at all, what a select may be set to, and
+        what order they read in. Without them an import rebuilds a definition
+        from the first value it sees, so a select arrives holding only the
+        options somebody happened to use.
+        """
+        if self.mode != "backup":
+            return
+        from sqlmodel import select
+
+        from app.models.tenant.property import PropertyDefinition
+
+        rows = list(
+            await self.session.exec(
+                select(PropertyDefinition)
+                .where(PropertyDefinition.initiative_id == initiative.id)
+                .order_by(PropertyDefinition.position.asc())
+            )
+        )
+        if not rows:
+            return
+        payload = {
+            "type": "initiative-properties",
+            "schema_version": 1,
+            "initiative_id": initiative.id,
+            "properties": [
+                {
+                    "name": row.name,
+                    "type": row.type.value,
+                    "position": float(row.position),
+                    "color": row.color,
+                    "options": list(row.options or []),
+                }
+                for row in rows
+            ],
+        }
+        path = f"{folder}/properties.json"
+        self._append_backup(
+            RenderItem(key=path, data=payload, filename=path, format="json"),
+            path=path,
+            tool=_STRUCTURAL_TOOL,
+            type="initiative-properties",
+            schema_version=1,
+            entity_id=initiative.id,
+            title=initiative.name,
+            initiative_id=initiative.id,
+        )
+
+    async def add_guild_sections(self, scope_kind: str) -> None:
+        """What the community owns outside any initiative.
+
+        Backup mode only, and gated by each section's own scope — see
+        ``guild_sections.GuildSection.scopes``.
+        """
+        if self.mode != "backup":
+            return
+        from app.schemas.tenant.backup_export import ManifestGuildSection
+        from app.services.export.guild_sections import SectionContext, sections_for
+
+        # The manifest's own list, so anything a section leaves out is
+        # reported beside everything else that was.
+        ctx = SectionContext(
+            session=self.session,
+            user=self.user,
+            guild_id=self.guild_id,
+            skipped=self.skipped,
+        )
+        for section in sections_for(scope_kind):
+            await self._refresh_access()
+            built = await section.build(ctx)
+            if built is None:  # nothing of this kind — absent reads as none
+                continue
+            payload, count = built
+            self.items.append(
+                RenderItem(
+                    key=section.path,
+                    data=payload,
+                    filename=section.path,
+                    format="json",
+                )
+            )
+            self.guild_sections.append(
+                ManifestGuildSection(key=section.key, path=section.path, count=count)
+            )
+
+    async def add_remaining_uploads(self) -> None:
+        """Every blob in the guild's store that nothing already pulled in.
+
+        Assets otherwise ride with the entity that references them, so a file
+        nobody currently points at — an image removed from a page, anything
+        uploaded and not yet placed — would be the one thing a "full backup"
+        silently dropped. Guild scope only: the store is guild-wide, and an
+        initiative export has no claim on it.
+        """
+        if self.mode != "backup" or not _include_uploads(self.params):
+            return
+        from sqlmodel import select
+
+        from app.models.tenant.upload import Upload
+
+        rows = await self.session.exec(
+            select(Upload.filename, Upload.size_bytes, Upload.content_type).order_by(
+                Upload.id.asc()
+            )
+        )
+        for storage_key, size_bytes, content_type in rows:
+            if storage_key in self._asset_index:
+                continue
+            await self._refresh_access()
+            self._register_asset(
+                storage_key,
+                original_filename=None,
+                content_type=content_type,
+                size_bytes=int(size_bytes or 0),
+                referenced_by=None,
+            )
+
     def _append_backup(self, item: RenderItem, *, path: str, **entry_kwargs) -> None:
         self.items.append(replace(item, filename=path, format="json"))
         if self.mode == "backup":
@@ -1064,14 +1417,14 @@ class _ScopeBuilder:
         original_filename,
         content_type,
         size_bytes: int,
-        referenced_by: str,
+        referenced_by: str | None,
     ) -> str:
         from app.schemas.tenant.backup_export import ManifestAsset
 
         path = f"assets/{storage_key}"
         existing = self._asset_index.get(storage_key)
         if existing is not None:
-            if referenced_by not in existing.referenced_by:
+            if referenced_by and referenced_by not in existing.referenced_by:
                 existing.referenced_by.append(referenced_by)
             return path
         self._asset_bytes += size_bytes
@@ -1083,7 +1436,7 @@ class _ScopeBuilder:
             original_filename=original_filename,
             content_type=content_type,
             size_bytes=size_bytes,
-            referenced_by=[referenced_by],
+            referenced_by=[referenced_by] if referenced_by else [],
         )
         self._asset_index[storage_key] = record
         if self.mode == "backup":

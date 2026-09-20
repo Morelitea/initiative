@@ -566,10 +566,19 @@ class Settings(BaseSettings):
     EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
     # Aggregate (initiative/guild) exports: their own row ceiling — a guild
     # dump legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included
-    # uploads (the archive assembles in memory; the cap keeps peak usage
-    # bounded until streaming assembly lands).
-    EXPORT_MAX_BACKUP_ROWS: int = 50_000
-    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
+    # uploads.
+    #
+    # The archive now assembles on disk, one rendered artifact at a time
+    # (``engine._stream_zip_to_storage``), so peak memory no longer scales
+    # with how much a community has. The byte cap is therefore about how long
+    # a job may run and how much scratch disk it may use, not about what fits
+    # in RAM — which is why it is measured in gigabytes now rather than the
+    # 256 MiB that in-memory assembly could afford.
+    #
+    # The row ceiling still bounds the enumeration the adapter holds while it
+    # builds, so it stays — an order of magnitude higher, but a real bound.
+    EXPORT_MAX_BACKUP_ROWS: int = 500_000
+    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 10_737_418_240  # 10 GiB
     # Artifact retention: expires_at = render time + this; the GC pass then
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days

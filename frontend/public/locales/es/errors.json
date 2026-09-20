@@ -285,6 +285,7 @@
   "EXPORT_JOB_NOT_FOUND": "Exportación no encontrada.",
   "EXPORT_NOT_READY": "Esta exportación aún no está lista para descargar.",
   "EXPORT_ADMIN_REQUIRED": "Solo los administradores de la comunidad pueden exportar todo la comunidad.",
+  "EXPORT_THIRD_PARTY_APP": "Los paneles creados a partir de una aplicación instalada no se pueden exportar. En su lugar, instala esa aplicación donde la necesites.",
   "AI_INVALID_BASE_URL": "La URL base no está permitida. Use un nombre de host público.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama solo se puede configurar a nivel de plataforma.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo.",

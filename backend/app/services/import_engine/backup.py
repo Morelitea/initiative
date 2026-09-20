@@ -70,6 +70,14 @@ from app.services.tenant import tags as tags_service
 # exported into an envelope this refuses to read back.
 _TOOL_ORDER = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
+# An initiative's own files: what it is shaped like, rather than anything made
+# inside it. They carry no Tool and no registry importer — like ``file``
+# entries, they are applied here — and they go FIRST, because the content
+# behind them refers to what they establish: a value binds to a property
+# definition, and a member holds a role.
+_STRUCTURAL_TOOL = "initiative"
+_STRUCTURAL_TYPES = frozenset({"initiative-structure", "initiative-properties"})
+
 # Refresh the routed session's authorization context this often (see the
 # export backup adapter's identical constant).
 _REFRESH_EVERY = 25
@@ -114,13 +122,6 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-def _normalize_type_field(data: dict[str, Any]) -> dict[str, Any]:
-    """0.56.0-era backups spell the discriminator ``kind``."""
-    if isinstance(data, dict) and "type" not in data and "kind" in data:
-        data = {**data, "type": data["kind"]}
-    return data
-
-
 def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
     """Open + bound-check a backup zip. Raises IMPORT_ZIP_INVALID /
     IMPORT_TOO_LARGE before anything beyond the central directory is read."""
@@ -149,11 +150,6 @@ def read_manifest(archive: zipfile.ZipFile) -> BackupManifest:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
-    if isinstance(raw, dict):
-        raw = _normalize_type_field(raw)
-        raw["entries"] = [
-            _normalize_type_field(e) for e in raw.get("entries", []) or []
-        ]
     try:
         manifest = BackupManifest.model_validate(raw)
     except Exception as exc:
@@ -207,7 +203,9 @@ def plan_backup(
         {
             entry.type
             for entry in manifest.entries
-            if entry.type != "file" and entry.type not in IMPORTERS
+            if entry.type != "file"
+            and entry.type not in _STRUCTURAL_TYPES
+            and entry.type not in IMPORTERS
         }
     )
     # Suffix previews compound: two imported initiatives can collide with
@@ -241,7 +239,7 @@ def plan_backup(
         for person in manifest.people
     ]
     return BackupImportPlan(
-        source_guild_name=str((manifest.guild or {}).get("name") or ""),
+        source_guild_name=manifest.guild.name,
         app_version=manifest.app_version,
         exported_at=manifest.exported_at.isoformat(),
         schema_version=manifest.schema_version,
@@ -374,7 +372,11 @@ async def apply_backup(
         entries = sorted(
             entries_here,
             key=lambda e: (
-                _TOOL_ORDER.index(e.tool) if e.tool in _TOOL_ORDER else len(_TOOL_ORDER)
+                -1
+                if e.tool == _STRUCTURAL_TOOL
+                else _TOOL_ORDER.index(e.tool)
+                if e.tool in _TOOL_ORDER
+                else len(_TOOL_ORDER)
             ),
         )
         for entry in entries:
@@ -511,12 +513,16 @@ async def _apply_entry(
         )
         _record_entry(context, entry, outcome)
         return outcome
+    if entry.type in _STRUCTURAL_TYPES:
+        return await _apply_structural_entry(
+            session, archive, entry, initiative, user, base
+        )
     importer = importers.get(entry.type)
     if importer is None:
         return EntryResult(**base, status="skipped", error="IMPORT_UNKNOWN_TYPE")
     try:
         raw = json.loads(archive.read(entry.path))
-        validated = importer.validate(_normalize_type_field(raw))
+        validated = importer.validate(raw)
         async with session.begin_nested():
             detail = await importer.apply(
                 session,
@@ -573,6 +579,180 @@ def _record_entry(
     context.links.link(
         _entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref)
     )
+
+
+async def _apply_structural_entry(
+    session: AsyncSession,
+    archive: zipfile.ZipFile,
+    entry: ManifestEntry,
+    initiative,
+    user: User,
+    base: dict,
+) -> EntryResult:
+    """An initiative's own shape: its property definitions, or its roles and
+    members.
+
+    Both are **additive**. They create what the target does not have and leave
+    what it does alone: a definition or role of the same name is the target's
+    answer, not the archive's, and nobody is removed or demoted by an import.
+    """
+    try:
+        payload = json.loads(archive.read(entry.path))
+    except Exception:
+        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+    if not isinstance(payload, dict):
+        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+    try:
+        async with session.begin_nested():
+            if entry.type == "initiative-properties":
+                created = await _apply_property_definitions(
+                    session, initiative, payload
+                )
+            else:
+                created = await _apply_initiative_structure(
+                    session, initiative, user, payload
+                )
+    except Exception:
+        logger.exception("backup import: structural entry %s failed", entry.path)
+        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+    return EntryResult(
+        **base,
+        status="created",
+        detail=EnvelopeImportResult(
+            entity_id=initiative.id, entity_title=initiative.name, created=created
+        ),
+    )
+
+
+async def _apply_property_definitions(session, initiative, payload: dict) -> dict:
+    """Create the definitions the target does not already have, by name."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import PropertyDefinition, PropertyType
+
+    existing = {
+        name
+        for name in await session.exec(
+            select(PropertyDefinition.name).where(
+                PropertyDefinition.initiative_id == initiative.id
+            )
+        )
+    }
+    created = 0
+    for raw in payload.get("properties") or []:
+        name = str(raw.get("name") or "").strip()
+        if not name or name in existing:
+            continue
+        try:
+            prop_type = PropertyType(raw.get("type"))
+        except ValueError:
+            continue  # a type this build has no column for
+        options = raw.get("options")
+        session.add(
+            PropertyDefinition(
+                initiative_id=initiative.id,
+                name=name,
+                type=prop_type,
+                position=float(raw.get("position") or 0),
+                color=raw.get("color"),
+                options=options if isinstance(options, list) else None,
+            )
+        )
+        existing.add(name)
+        created += 1
+    await session.flush()
+    return {"property_definitions": created}
+
+
+async def _apply_initiative_structure(session, initiative, user: User, payload) -> dict:
+    """Create the roles the target lacks, then place people it can name.
+
+    A member is placed only where the handle resolves to somebody already in
+    this community — an archive names people, it does not create accounts —
+    and never over a membership that already exists.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.initiative import (
+        InitiativeMember,
+        InitiativeRoleModel,
+        InitiativeRolePermission,
+        PermissionKey,
+    )
+    from app.services.import_engine.common import load_guild_member_handles
+
+    roles = {
+        role.name: role
+        for role in await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative.id
+            )
+        )
+    }
+    roles_created = 0
+    for raw in payload.get("roles") or []:
+        name = str(raw.get("name") or "").strip()
+        if not name or name in roles:
+            continue
+        role = InitiativeRoleModel(
+            initiative_id=initiative.id,
+            name=name,
+            display_name=str(raw.get("display_name") or name),
+            # Built-in-ness is this build's answer, not the archive's: a role
+            # the target did not ship with is a custom one here.
+            is_builtin=False,
+            is_manager=bool(raw.get("is_manager")),
+            override_share_restrictions=bool(raw.get("override_share_restrictions")),
+            position=int(raw.get("position") or 0),
+            created_by=user.id,
+        )
+        session.add(role)
+        await session.flush()
+        for key in raw.get("permissions") or []:
+            try:
+                permission_key = PermissionKey(key)
+            except ValueError:
+                continue  # a permission this build does not have
+            session.add(
+                InitiativeRolePermission(
+                    initiative_role_id=role.id,
+                    permission_key=permission_key,
+                    enabled=True,
+                )
+            )
+        roles[name] = role
+        roles_created += 1
+
+    placed = 0
+    members = payload.get("members") or []
+    if members:
+        handles = await load_guild_member_handles(session, guild_id=initiative.guild_id)
+        already = {
+            row
+            for row in await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative.id
+                )
+            )
+        }
+        for raw in members:
+            handle = (raw.get("handle") or "").strip().lower()
+            user_id = handles.get(handle)
+            if user_id is None or user_id in already:
+                continue
+            role = roles.get(raw.get("role") or "")
+            session.add(
+                InitiativeMember(
+                    initiative_id=initiative.id,
+                    user_id=user_id,
+                    guild_id=initiative.guild_id,
+                    role_id=role.id if role is not None else None,
+                )
+            )
+            already.add(user_id)
+            placed += 1
+    await session.flush()
+    return {"initiative_roles": roles_created, "initiative_members": placed}
 
 
 async def _apply_file_entry(

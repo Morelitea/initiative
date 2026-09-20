@@ -15,6 +15,7 @@ neutralization in ``app/services/platform/csv_export.py``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 
@@ -79,3 +80,13 @@ class RenderBackend(Protocol):
     implementation of this same interface — nothing else changes."""
 
     async def render(self, req: RenderRequest) -> list[RenderedArtifact]: ...
+
+    def render_stream(self, req: RenderRequest) -> AsyncIterator[RenderedArtifact]:
+        """The same batch, one artifact at a time.
+
+        Optional: ``engine.render_artifacts`` falls back to ``render`` for a
+        backend that does not implement it. An aggregate export uses it so the
+        archive assembles on disk from one artifact at a time, which is what
+        lets a whole community's export exceed what fits in memory.
+        """
+        ...

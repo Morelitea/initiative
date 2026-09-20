@@ -134,13 +134,14 @@ RECENTABLE_TOOLS = tuple(Tool)
 # default is "a new tool is exportable": the adapter-coverage test then fails
 # until the tool either has an adapter or is listed here deliberately. An
 # inclusion list would instead let a new tool silently ship with no export.
-NON_EXPORTABLE_TOOLS = frozenset(
-    {
-        # Export/import ships with the marketplace, which owns the definition
-        # envelope format.
-        Tool.dashboard,
-    }
-)
+#
+# Empty, and that is the point: every tool has an export source. What used to
+# sit here (``Tool.dashboard``) is now handled where it belongs — an entity
+# built on an app this build does not ship is filtered by provenance in
+# ``services.export.provenance``, which is a property of the ROW, not of the
+# tool. A whole tool is the wrong unit for that rule: most dashboards are
+# hand-built here and are ordinary content.
+NON_EXPORTABLE_TOOLS: frozenset[Tool] = frozenset()
 
 # Tools with an export-engine source (single-entity + bulk selection export).
 # The engine's source name / endpoint segment is the KEBAB SINGULAR of the

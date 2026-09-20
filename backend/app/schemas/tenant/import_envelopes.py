@@ -6,9 +6,8 @@ with ``extra="ignore"``: informational export fields (queue member/document/
 task display text, event ids and timestamps, linked document titles) parse
 and drop — they reference guild-local state an import cannot rebind.
 
-Versioning is per envelope type: ``MIN_SUPPORTED_IMPORT_VERSION`` ..
-``CURRENT_SCHEMA_VERSION`` (both 1 today). Early 0.56.0 exports spelled the
-discriminator ``kind``; the validators accept both spellings.
+Every envelope is schema version 1. There is no support for reading an
+earlier shape: the app imports what this build exports, and nothing else.
 """
 
 from __future__ import annotations
@@ -28,14 +27,6 @@ class _EnvelopeBase(SanitizedBaseModel):
     model_config = ConfigDict(extra="ignore")
 
     schema_version: int = CURRENT_SCHEMA_VERSION
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_legacy_kind(cls, data: Any) -> Any:
-        # 0.56.0-era exports used `kind`; fill `type` from it when absent.
-        if isinstance(data, dict) and "type" not in data and "kind" in data:
-            data = {**data, "type": data["kind"]}
-        return data
 
 
 class EnvelopePropertyValue(SanitizedBaseModel):
@@ -60,15 +51,6 @@ class DocumentEnvelope(_EnvelopeBase):
     content: dict[str, Any] = {}
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_legacy_title(cls, data: Any) -> Any:
-        # Exports from before the documents.name rename spelled it `title`;
-        # fill `name` from it when absent (same shape as `kind` above).
-        if isinstance(data, dict) and "name" not in data and "title" in data:
-            data = {**data, "name": data["title"]}
-        return data
 
 
 class WikiPageEnvelope(SanitizedBaseModel):
@@ -193,6 +175,30 @@ class CounterGroupEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     counters: list[CounterEnvelopeItem] = []
+
+
+class DashboardEnvelope(_EnvelopeBase):
+    """A dashboard as a backup carries it: a presentation spec and its canvas
+    config, and no content of its own.
+
+    ``definition`` is ``dict`` here rather than a modelled shape on purpose —
+    it is re-validated on import by
+    ``dashboard_definition.normalize_dashboard_definition``, which is the same
+    check the create endpoint runs. A file is not a trusted source, and there
+    is no second definition validator.
+    """
+
+    type: Literal["initiative-dashboard"]
+    name: str
+    description: Optional[str] = None
+    # Present only for a dashboard built on a built-in app. Dropped on import
+    # when the destination has no such listing, so the dashboard arrives as an
+    # ordinary one rather than pointing at nothing.
+    listing_uid: Optional[str] = None
+    listing_version: Optional[str] = None
+    definition: dict[str, Any] = {}
+    config: dict[str, Any] = {}
+    tags: list[str] = []
 
 
 class PostPollEnvelope(SanitizedBaseModel):

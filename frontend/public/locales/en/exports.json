@@ -108,7 +108,8 @@
       "initiative": "Initiative",
       "guild": "Community",
       "gallery": "Gallery",
-      "counter-group": "Counter group"
+      "counter-group": "Counter group",
+      "dashboard": "Dashboard"
     },
     "download": "Download",
     "empty": "No exports yet.",
