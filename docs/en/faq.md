@@ -74,6 +74,11 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
     An invite to a community that hasn't listed itself never asks, and neither does anything else on Initiative.
 
+??? question "I've been in this community for months and it's only asking now"
+    Then nobody ever put the question to you: an admin added you, your workplace sign-in did, or the community listed itself after you joined. None of those had anyone at a keyboard to ask.
+
+    So it asks at the door instead, once. Everything else — your other communities, the rest of Initiative — stays open while you decide.
+
 ??? question "My account can't reach anybody"
     <a id="my-account-cant-message-anyone"></a>
 

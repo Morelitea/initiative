@@ -29,10 +29,14 @@ export const AgeConfirmationDialog = ({
   open,
   onOpenChange,
   onConfirmed,
+  answerStands,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmed: () => void;
+  /** Override for a caller the server has just told. Omitted, the account's
+   *  own record answers it, which is what the directory's card reads. */
+  answerStands?: boolean;
 }) => {
   const { t } = useTranslation(["guilds", "auth", "common"]);
   const { user } = useAuth();
@@ -55,20 +59,22 @@ export const AgeConfirmationDialog = ({
   // again would invite it to be re-answered until it came out right, which is
   // the thing recording it exists to stop — so this says what happened and
   // where to go, and offers no second attempt.
-  const answerStands = Boolean(user?.age_below_minimum_at);
+  const showsExplanation = answerStands ?? Boolean(user?.age_below_minimum_at);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {answerStands ? t("auth:confirmAge.blockedTitle") : t("auth:confirmAge.title")}
+            {showsExplanation ? t("auth:confirmAge.blockedTitle") : t("auth:confirmAge.title")}
           </DialogTitle>
           <DialogDescription>
-            {answerStands ? t("auth:confirmAge.blockedBody") : t("guilds:community.ageGateBody")}
+            {showsExplanation
+              ? t("auth:confirmAge.blockedBody")
+              : t("guilds:community.ageGateBody")}
           </DialogDescription>
         </DialogHeader>
-        {answerStands ? (
+        {showsExplanation ? (
           <>
             <p className="text-muted-foreground text-sm">{t("auth:confirmAge.blockedHelp")}</p>
             <DialogFooter>

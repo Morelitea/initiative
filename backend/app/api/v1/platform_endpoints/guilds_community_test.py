@@ -1251,6 +1251,97 @@ async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
     assert response.status_code == 200, response.text
 
 
+@pytest.mark.parametrize(
+    "listed,answer,expected_status,expected_detail",
+    [
+        pytest.param(
+            True,
+            "unanswered",
+            403,
+            "GUILD_AGE_CONFIRMATION_REQUIRED",
+            id="a listed community asks at its own door",
+        ),
+        pytest.param(
+            True,
+            "under age",
+            403,
+            "GUILD_AGE_BELOW_MINIMUM",
+            id="and tells an answer that stands apart from a question",
+        ),
+        pytest.param(True, "confirmed", 200, None, id="an answered account walks in"),
+        pytest.param(
+            False, "unanswered", 200, None, id="a private community asks nothing"
+        ),
+    ],
+)
+async def test_a_listed_community_asks_its_own_members_before_letting_them_in(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    listed: bool,
+    answer: str,
+    expected_status: int,
+    expected_detail: str | None,
+):
+    """The ways in with nobody at a keyboard could not put the question, so the
+    community puts it at its own door.
+
+    Not the platform's door: an account that has not answered keeps the rest of
+    Initiative and every private community it belongs to. What it cannot do is
+    walk into the listed one until it answers.
+    """
+    guild = (
+        await _a_listed_guild(session, name="Open Table")
+        if listed
+        else await create_guild(session, name="Just Us")
+    )
+    a = await acting_user(
+        guild_role=GuildRole.member, guild=guild, age_confirmed_at=None
+    )
+    if answer != "unanswered":
+        await client.post(
+            "/api/v1/users/me/age-confirmation",
+            json={
+                "birthdate": (
+                    ADULT_BIRTHDATE if answer == "confirmed" else _birthdate_for_age(9)
+                )
+            },
+            headers=a.headers,
+        )
+
+    response = await client.get(a.g("/initiatives/"), headers=a.headers)
+
+    assert response.status_code == expected_status, response.text
+    if expected_detail is not None:
+        assert response.json()["detail"] == expected_detail
+
+
+async def test_being_asked_by_one_community_does_not_close_another(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The question is the listed community's, not the platform's.
+
+    Somebody a group sync put in a listed community owes it an answer. The
+    private community they have been using for months is not part of that
+    bargain and stays open while they decide.
+    """
+    listed = await _a_listed_guild(session, name="Open Table")
+    a = await acting_user(
+        guild_role=GuildRole.member, guild=listed, age_confirmed_at=None
+    )
+    private = await create_guild(session, name="Just Us")
+    await create_guild_membership(session, user=a.user, guild=private)
+
+    refused = await client.get(a.g("/initiatives/"), headers=a.headers)
+    still_open = await client.get(
+        f"/api/v1/g/{private.id}/initiatives/", headers=a.headers
+    )
+
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+    assert still_open.status_code == 200, still_open.text
+
+
 async def test_confirming_twice_keeps_the_first_answer(
     client: AsyncClient, acting_user
 ):
