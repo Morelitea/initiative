@@ -7,6 +7,8 @@ import type {
   GalleryImageVersionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -41,6 +43,8 @@ import { cn } from "@/lib/utils";
 
 interface GalleryImageSheetProps {
   galleryId: number;
+  /** The gallery's initiative — links are only made inside one. */
+  initiativeId: number | null;
   image: GalleryImageRead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +66,7 @@ interface GalleryImageSheetProps {
  */
 export const GalleryImageSheet = ({
   galleryId,
+  initiativeId,
   image,
   open,
   onOpenChange,
@@ -278,6 +283,18 @@ export const GalleryImageSheet = ({
               </Button>
             )}
           </div>
+
+          {/* Narrow column, so rows rather than tiles — the same call the
+              task form's column makes. */}
+          <ToolRelationsPanel
+            tool={Tool.gallery}
+            entity={{ id: galleryId, initiative_id: initiativeId }}
+            target={{ type: SearchEntityType.gallery_image, id: image.id }}
+            canEdit={canEdit}
+            entityTitle={image.title ?? undefined}
+            defaultLayout="rows"
+            className="space-y-3"
+          />
 
           {/* The history. */}
           <section className="space-y-2">

@@ -23,8 +23,11 @@ import {
   eventRoute,
   INITIATIVES_ROUTE,
   initiativeRoute,
+  NO_RELATIONS_PANEL,
   NON_EXPORTABLE_TOOLS,
+  PARENT_TOOL,
   SIDEBAR_TOOLS,
+  showsRelations,
   singularOf,
   TOGGLEABLE_TOOLS,
   TOOL_ICONS,
@@ -62,6 +65,26 @@ const guildRouteFiles = Object.keys(
   import.meta.glob("../routes/_serverRequired/_authenticated/c/$guildId/**/*.tsx")
 );
 const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId";
+// Every page and component, as source text. Read rather than rendered: what
+// is being asked is which tool a surface WIRES UP, and mounting nine detail
+// pages to find out would cost more than the drift it catches.
+const componentSources = import.meta.glob("../{pages,components}/**/*.tsx", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+/** Which tools something renders a `ToolRelationsPanel` for. */
+const toolsWithRelationsPanel = (): Set<string> => {
+  const found = new Set<string>();
+  for (const source of Object.values(componentSources)) {
+    for (const [, tool] of source.matchAll(/<ToolRelationsPanel[^>]*?tool=\{Tool\.(\w+)\}/gs)) {
+      found.add(tool);
+    }
+  }
+  return found;
+};
+
 // Locale namespace files across every shipped language.
 const localeFiles = Object.keys(import.meta.glob("../../public/locales/*/*.json"));
 const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];
@@ -337,6 +360,38 @@ describe("tool surfaces", () => {
         `entityResolver cannot address a ${tool}`
       ).toBe(true);
     }
+  });
+});
+
+describe("tool relations", () => {
+  it("every tool shows what it is connected to, unless it says why not", () => {
+    // Relations are a default surface, like a comment thread: a tool that does
+    // not offer them has to be named in NO_RELATIONS_PANEL with its reason,
+    // rather than simply never having been wired up.
+    const wired = toolsWithRelationsPanel();
+    const missing = TOOLS.filter((tool) => showsRelations(tool) && !wired.has(tool));
+    expect(missing, `no ToolRelationsPanel wired for ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("does not wire a panel for a tool that opted out", () => {
+    const wired = toolsWithRelationsPanel();
+    for (const tool of NO_RELATIONS_PANEL) {
+      expect(wired.has(tool), `${tool} opted out of relations but renders a panel`).toBe(false);
+    }
+  });
+
+  it("names a parent tool for every entity that is not one", () => {
+    // A link is cached against a tool, so a child entity has to say which one
+    // answers for it — otherwise a write leaves the container's copy stale.
+    expect(Object.values(PARENT_TOOL).every((tool) => TOOLS.includes(tool))).toBe(true);
+    expect(Object.keys(PARENT_TOOL).sort()).toEqual([
+      "calendar_event",
+      "counter",
+      "gallery_image",
+      "queue_item",
+      "task",
+      "wiki_page",
+    ]);
   });
 });
 

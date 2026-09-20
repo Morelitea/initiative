@@ -347,6 +347,7 @@ export function CounterDetailPage() {
             if (!open) setEditing(null);
           }}
           groupId={groupId}
+          initiativeId={initiativeId}
           counter={editing}
         />
       )}

@@ -2,9 +2,9 @@ import { FilePlus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
-import { RelationsSection } from "@/components/entities/RelationsSection";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { Button } from "@/components/ui/button";
 
 type ProjectDocumentsSectionProps = {
@@ -41,12 +41,10 @@ export const ProjectDocumentsSection = ({
 
   return (
     <>
-      <RelationsSection
-        entity={{ type: SearchEntityType.project, id: projectId }}
-        initiativeId={initiativeId}
-        anchorTool={{ tool: Tool.project, id: projectId }}
+      <ToolRelationsPanel
+        tool={Tool.project}
+        entity={{ id: projectId, initiative_id: initiativeId }}
         canEdit={canAttach}
-        collapseKey={`project:${projectId}:documentsCollapsed`}
         entityTitle={projectName}
         /* The shelf this section has always been. A project's attachments are
            browsed along rather than read down, and a carousel says "there is

@@ -8,6 +8,8 @@ import type {
   CounterUpdate,
   CounterViewMode,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
@@ -34,6 +36,8 @@ import type { DialogProps } from "@/types/dialog";
 
 type CounterFormDialogProps = DialogProps & {
   groupId: number;
+  /** The group's initiative — links are only made inside one. */
+  initiativeId?: number | null;
   /** Existing counter to edit; if omitted, this is an add dialog. */
   counter?: CounterRead;
   /** Default position for newly added counters (e.g. lastPosition + 1). */
@@ -44,6 +48,7 @@ export const CounterFormDialog = ({
   open,
   onOpenChange,
   groupId,
+  initiativeId,
   counter,
   defaultPosition,
 }: CounterFormDialogProps) => {
@@ -239,6 +244,22 @@ export const CounterFormDialog = ({
           </div>
 
           {error && <p className="text-destructive text-sm">{error}</p>}
+
+          {/* Only for a counter that exists: there is nothing to link to a row
+              that has not been added yet. A link is written the moment it is
+              made, the way it is everywhere else — the form's Save is about the
+              counter, not about what it is connected to. */}
+          {counter && (
+            <ToolRelationsPanel
+              tool={Tool.counter_group}
+              entity={{ id: groupId, initiative_id: initiativeId ?? null }}
+              target={{ type: SearchEntityType.counter, id: counter.id }}
+              canEdit
+              entityTitle={counter.name}
+              defaultLayout="rows"
+              className="space-y-3 border-t pt-4"
+            />
+          )}
         </div>
 
         <DialogFooter>
