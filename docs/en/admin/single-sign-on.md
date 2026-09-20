@@ -51,10 +51,26 @@ At the top of the Authentication page is the list of ways people may sign in to 
 |---|---|
 | **Password** | An email address and a password held here — the sign-in form, registration, and password reset, together. |
 | **Single sign-on** | Every provider on this page, and every provider a community has of its own. |
+| **Passkey** | Signing in with a key held by a device or a password manager, and making an account with one. |
+| **Authenticator app** | The six-digit code from an app, asked for after something else. It can't start a sign-in on its own, so it never counts as the last one standing. |
+| **Email OTP** | A code sent to the address somebody types. See below. |
 
 Untick something people are using and Initiative tells you how many accounts sign in only that way, and asks you to confirm that number before it goes through. Nobody is signed out either way — an open session runs to its normal end, on the web and on a phone, and app credentials carry on working. This is about opening a new session, not ending existing ones.
 
 Turning off single sign-on waits if any community still requires one. Lift the requirement there first; the page names how many are in the way.
+
+## Codes by email
+
+**Email OTP** signs somebody in with a six-digit code sent to their address. No password, no app, no key.
+
+It is the one way in that arrives switched off, and stays off until you tick it. The others wait for somebody to do something first — register a key, be linked to a provider — so switching them on changes nothing until people act. This one is live for every account with an email address the moment it is permitted, which makes it your decision rather than something an upgrade hands you.
+
+It needs [email](email.md) configured. Tick it without that and the page refuses and says so.
+
+The same box also takes people who don't have an account. An address nobody holds gets a code, then a prompt for a username, and that's a new account with its address already confirmed — no verification letter, because the code was one. Your registration settings still apply: invite-only stays invite-only, and a server that isn't taking sign-ups sends nothing.
+
+!!! note "Accounts that never confirmed their address"
+    Some accounts are sitting on an address nobody ever proved — signed up before you had email working, usually. When somebody proves that address with a code, the password that account was carrying is retired and they set a new one from their settings. The account keeps its name, its memberships and everything in it.
 
 ## Letting a community use a provider
 

@@ -16,6 +16,16 @@ You land on your home screen. Initiative keeps you signed in on that device, so 
 
 ![Signing in with email and password](../images/getting-started/login-form.png)
 
+## A code by email
+
+If your group's Initiative offers it, there's an **Email me a code** button. Type your address, and a six-digit code turns up in your inbox. Type that in. You're in.
+
+No password anywhere in that. Nothing to remember, nothing to reset, nothing on a sticky note under the keyboard.
+
+The code lasts ten minutes and works once. Get it wrong five times and it gives up rather than letting you keep going — ask for a fresh one and carry on.
+
+Haven't got an account yet? Same button. The code confirms your address, it asks you to pick a username, and that's the whole thing.
+
 ## Single sign-on
 
 If your work or school set this up, there's a button saying something like **Continue with Single Sign-On**. Click it, log in the way you already do everywhere else, done. No extra Initiative password to forget.
