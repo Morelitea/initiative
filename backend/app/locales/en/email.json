@@ -351,5 +351,14 @@
     "kept": "Some things stay, and they no longer name you: work you contributed to a community remains with that community, attributed to a deleted account.",
     "unexpected": "If you did not ask for this, reply to whoever runs your Initiative server as soon as you can.",
     "textBody": "Your Initiative account at this address has been deleted, along with the personal information held with it. Work you contributed to a community remains with that community, attributed to a deleted account."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} has been deleted",
+    "title": "{{community}} has been deleted",
+    "greeting": "Hello,",
+    "body": "The community <strong>{{community}}</strong> has been deleted. Its members no longer see it, and nothing in it can be reached.",
+    "recoverable": "Nothing has been destroyed yet. Until <strong>{{date}}</strong>, whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
+    "recoverableNoDate": "Nothing has been destroyed. Whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
+    "textBody": "The community {{community}} has been deleted. Its members no longer see it. Nothing has been destroyed yet, and whoever runs this server can put it back."
   }
 }

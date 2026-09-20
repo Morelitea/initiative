@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
@@ -1225,6 +1226,61 @@ async def delete_guild(
     await session.exec(delete(Guild).where(Guild.id == guild_id))
 
 
+@dataclass(frozen=True)
+class CommunityDeletionNotice:
+    """What to write to whom after a community is deleted.
+
+    Gathered before the deletion rather than after: a community of one loses
+    its roster on the way out, so the people to tell have to be read while
+    they are still there.
+
+    ``purge_at`` is ``None`` where the deployment keeps deleted communities
+    indefinitely — then there is no date to name, only the fact that an
+    operator can put it back.
+    """
+
+    community_name: str
+    recipients: list[str]
+    purge_at: datetime | None
+
+
+async def _deletion_notice(
+    session: AsyncSession, guild: Guild
+) -> CommunityDeletionNotice:
+    """Who to tell that this community is gone, and by when it stops being
+    recoverable.
+
+    The people who run it. They are the ones who can ask an operator to put it
+    back, and the ones a community's own news belongs to; its members are told
+    by the community disappearing from their lists, which is what they can act
+    on. Proved addresses only, as account mail is.
+    """
+    from app.services.auth import addresses
+    from app.services.platform import guild_purge
+
+    running_it = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.role.in_([GuildRole.admin, GuildRole.superadmin]),
+            )
+        )
+    ).all()
+    recipients: list[str] = []
+    for user_id in running_it:
+        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+
+    days = await guild_purge.retention_days(session)
+    deleted_at = datetime.now(timezone.utc)
+    return CommunityDeletionNotice(
+        community_name=guild.name,
+        # Sorted and de-duplicated: somebody holding two addresses gets one
+        # letter at each, and two admins are not two letters to the same box.
+        recipients=sorted(set(recipients)),
+        purge_at=guild_purge.purge_at(deleted_at, days) if days else None,
+    )
+
+
 async def soft_delete_guild(
     session: AsyncSession,
     guild: Guild,
@@ -1232,8 +1288,13 @@ async def soft_delete_guild(
     actor_user_id: int | None = None,
     via: str = "admin",
     target_user_id: int | None = None,
-) -> Guild:
+) -> CommunityDeletionNotice:
     """Delete a guild by moving it to ``deleted``, keeping everything.
+
+    The guild is mutated in place, so a caller holding it keeps it. What comes
+    back is the letter to write once the deletion is committed — gathered here
+    rather than by each call site, because a community of one loses its roster
+    on the way out and there would be nobody left to address.
 
     The guild stops existing for everybody in it — absent from their lists,
     refused on every path, admins included — but nothing is destroyed. The
@@ -1260,6 +1321,8 @@ async def soft_delete_guild(
     says something different.
     """
     guild_id = guild.id
+    # Read while the roster is still there: a community of one loses it below.
+    notice = await _deletion_notice(session, guild)
     await _signal_members_present(session, guild_id=guild_id, action="membership")
     members = await count_members(session, guild_id=guild_id)
     clear_roster = members <= 1
@@ -1282,7 +1345,7 @@ async def soft_delete_guild(
     guild.status_changed_at = datetime.now(timezone.utc)
     session.add(guild)
     await session.flush()
-    return guild
+    return notice
 
 
 async def guild_has_seat(session: AsyncSession, *, guild_id: int) -> bool:

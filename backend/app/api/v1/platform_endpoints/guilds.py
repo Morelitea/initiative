@@ -47,6 +47,7 @@ from app.db.session import (
 )
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     assignable_roles,
@@ -1577,10 +1578,12 @@ async def delete_guild(
     # From here the guild is gone as far as everybody in it is concerned:
     # absent from their guild lists and refused on every path, admins included.
     guild_row = await guilds_service.get_guild(admin_session, guild_id=guild_id)
-    await guilds_service.soft_delete_guild(
+    notice = await guilds_service.soft_delete_guild(
         admin_session, guild_row, actor_user_id=current_user.id, via="admin"
     )
     await admin_session.commit()
+    # The receipt, once the deletion is a fact. Never allowed to fail it.
+    await email_service.announce_community_deleted(admin_session, notice)
     # See soft_delete_guild: these live on another connection, so they go after
     # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)

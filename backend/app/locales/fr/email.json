@@ -351,5 +351,14 @@
     "kept": "Certaines choses demeurent et ne vous nomment plus : ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé.",
     "unexpected": "Si vous n'êtes pas à l'origine de cette demande, contactez au plus vite la personne qui administre votre serveur Initiative.",
     "textBody": "Le compte Initiative associé à cette adresse a été supprimé, ainsi que les données personnelles qui y étaient rattachées. Ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} a été supprimée",
+    "title": "{{community}} a été supprimée",
+    "greeting": "Bonjour,",
+    "body": "La communauté <strong>{{community}}</strong> a été supprimée. Ses membres ne la voient plus et rien de son contenu n'est accessible.",
+    "recoverable": "Rien n'a encore été détruit. Jusqu'au <strong>{{date}}</strong>, la personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
+    "recoverableNoDate": "Rien n'a été détruit. La personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
+    "textBody": "La communauté {{community}} a été supprimée. Ses membres ne la voient plus. Rien n'a encore été détruit et la personne qui administre ce serveur peut la rétablir."
   }
 }
