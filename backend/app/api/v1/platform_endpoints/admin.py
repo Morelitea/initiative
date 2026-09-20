@@ -11,7 +11,6 @@ from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
 from app.db.session import get_admin_session, set_rls_context
-from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -840,6 +839,13 @@ async def admin_delete_guild(
     guild's own deletion only by breaking glass into its danger zone. This
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
+
+    Deletes the way the danger zone does — the community is retained and can
+    be restored — but **also clears the roster**, because leaving it would
+    leave the account still holding the seat that blocked its deletion, and
+    this endpoint exists to unblock it. What comes back is therefore a
+    community with nobody in it, which is why restore asks an operator to seat
+    somebody before it is reachable again.
     """
     await guilds_service.lock_guild_seats(session, guild_id)
     if not await guilds_service.would_strand_guild(
@@ -864,31 +870,24 @@ async def admin_delete_guild(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
-    # Delete the shared guild row (cascades clear the roster), then drop the
-    # guild's schema — its content lives entirely in guild_<id> and is NOT
-    # removed by the row delete (no cross-schema FKs). Without the deprovision
-    # the schema is orphaned: every initiative/project/document/task for the
-    # guild stays on disk, reachable by id if the schema name is ever reused.
-    # Mirrors the member-facing DELETE /guilds/{id} endpoint.
-    await guilds_service.delete_guild(
+    # Mirrors the member-facing DELETE /guilds/{id}: the guild moves to
+    # ``deleted`` and everything is kept — shared rows, the guild_<id> schema,
+    # the stored blobs — until guild_purge destroys it at the end of the
+    # retention window. ``clear_roster`` is the one difference, and the reason
+    # this endpoint exists: the membership being removed is what unblocks the
+    # user deletion this call is resolving.
+    await guilds_service.soft_delete_guild(
         session,
         guild,
         actor_user_id=_current_user.id,
         via="operator",
         target_user_id=blocked_user_id,
+        clear_roster=True,
     )
     await session.commit()
-    # See delete_guild: these live on another connection, so they go after the
-    # commit that made the deletion real.
+    # See soft_delete_guild: these live on another connection, so they go after
+    # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)
-    try:
-        await deprovision_guild(guild_id)
-    except Exception:
-        logger.exception(
-            "admin guild deletion: schema deprovision failed for guild %s "
-            "(row already deleted; schema orphaned, reclaimed on retry)",
-            guild_id,
-        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

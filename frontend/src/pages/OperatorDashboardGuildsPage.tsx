@@ -6,6 +6,7 @@ import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
 import { GuildOperatorSettingsSheet } from "@/components/admin/GuildOperatorSettingsSheet";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -22,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { OPERATOR_SETTABLE_STATUSES } from "@/lib/guildStatus";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 
@@ -87,19 +89,17 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
-// Ordered least → most restrictive for the dropdown.
-const GUILD_STATUS_ORDER: GuildStatus[] = [
-  GuildStatus.active,
-  GuildStatus.read_only,
-  GuildStatus.suspended,
-];
-
 /**
- * Lifecycle-status control for one guild. Changing to `suspended` (a soft
- * delete — members lose all access) is gated behind a confirm dialog; the
- * lighter transitions apply immediately. The change saves via the same
- * platform-guilds mutation and the list invalidates on success, so the Select
- * reflects the persisted status.
+ * Lifecycle-status control for one guild. Changing to `suspended` (members
+ * lose all access) is gated behind a confirm dialog; the lighter transitions
+ * apply immediately. The change saves via the same platform-guilds mutation
+ * and the list invalidates on success, so the Select reflects the persisted
+ * status.
+ *
+ * A deleted community has no control at all — it shows a tag instead. Deleted
+ * is not a status you set: it is reached by deleting the community and left by
+ * restoring it, both of which do more than move this field, so the only way
+ * back is the wizard under Manage.
  */
 const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const { t } = useTranslation(["settings", "common"]);
@@ -131,6 +131,10 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     apply(next);
   };
 
+  if (guild.status === GuildStatus.deleted) {
+    return <Badge variant="destructive">{t("guilds.status.deleted")}</Badge>;
+  }
+
   return (
     <>
       <Select value={guild.status} onValueChange={handleChange} disabled={update.isPending}>
@@ -141,7 +145,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {GUILD_STATUS_ORDER.map((status) => (
+          {OPERATOR_SETTABLE_STATUSES.map((status) => (
             <SelectItem key={status} value={status}>
               {t(`guilds.status.${status}`)}
             </SelectItem>

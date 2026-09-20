@@ -979,7 +979,8 @@
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
-      "suspended": "Gesperrt"
+      "suspended": "Gesperrt",
+      "deleted": "Gelöscht"
     },
     "suspendConfirm": {
       "title": "{{name}} sperren?",
@@ -1025,9 +1026,28 @@
       },
       "usersLabel": "Mitglieder",
       "storageLabel": "Speicherlimit",
-      "decidesForItself": "Was sie selbst entscheidet"
+      "decidesForItself": "Was sie selbst entscheidet",
+      "deleted": "Gelöscht"
     },
-    "unlimited": "Unbegrenzt"
+    "unlimited": "Unbegrenzt",
+    "restore": {
+      "open": "Community wiederherstellen",
+      "purgesOn": "Gelöscht. Alle Inhalte werden am {{date}} endgültig entfernt.",
+      "purgesSoon": "Gelöscht. Alle Inhalte werden am Ende der Aufbewahrungsfrist endgültig entfernt.",
+      "retained": "Bis dahin wurde nichts entfernt — beim Wiederherstellen kommt die Community genau so zurück, wie sie war, bis auf ihre App-Verbindungen.",
+      "title": "{{name}} wiederherstellen",
+      "seatDescription": "Es ist niemand mehr da, der diese Community leiten kann. Wählen Sie, wer sie übernimmt.",
+      "seatLabel": "Wer leitet sie",
+      "seatPlaceholder": "Konto auswählen",
+      "seatEmpty": "Keine Konten gefunden.",
+      "seatHelp": "Die Person wird Superadmin: der Sitz, der andere ernennt, die Abrechnung erreicht und die Anmeldung festlegt.",
+      "statusDescription": "Wählen Sie, in welchem Zustand die Community zurückkommt.",
+      "statusLabel": "Kommt zurück als",
+      "appsNote": "Die App-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
+      "confirm": "Wiederherstellen",
+      "done": "{{name}} wiederhergestellt.",
+      "error": "Die Community konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+    }
   },
   "storage": {
     "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",

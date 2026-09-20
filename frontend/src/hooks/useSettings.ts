@@ -35,6 +35,7 @@ import type {
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
+  PlatformGuildRestore,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
@@ -69,6 +70,7 @@ import {
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
+  restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost,
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
@@ -420,6 +422,18 @@ export const useStartStorageBackfill = (
   useApiMutation<StorageBackfillStatusResponse, void>(
     {
       mutationFn: () => startStorageBackfillApiV1SettingsStorageBackfillPost(),
+    },
+    options
+  );
+
+export const useRestoreGuild = (
+  options?: MutationOpts<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>
+) =>
+  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>(
+    {
+      mutationFn: ({ guildId, data }) =>
+        restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost(guildId, data),
+      invalidate: () => invalidate(q.platformGuilds()),
     },
     options
   );

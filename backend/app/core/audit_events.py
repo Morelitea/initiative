@@ -190,7 +190,15 @@ class AuditEventType(str, Enum):
     #: The account and everything it left, removed outright.
     USER_DELETED = "user.deleted"
     GUILD_CREATED = "guild.created"
+    #: Deleted and kept: the community stops existing for everyone in it, and
+    #: is retained for the restore window before the purge below destroys it.
     GUILD_DELETED = "guild.deleted"
+    #: Brought back inside the window by a platform operator, who named the
+    #: status it returns at and, where the roster was emptied, who runs it.
+    GUILD_RESTORED = "guild.restored"
+    #: The retention window ran out. What the deletion kept is now gone: the
+    #: shared rows, the guild's schema, and its stored blobs.
+    GUILD_PURGED = "guild.purged"
     GUILD_STATUS_CHANGED = "guild.status_changed"
     #: A whole community handed over as a bundle.
     GUILD_EXPORTED = "guild.exported"
@@ -490,6 +498,12 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.GUILD_DELETED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.GUILD_RESTORED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.GUILD_PURGED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.GUILD_STATUS_CHANGED: AuditEventMeta(

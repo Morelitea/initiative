@@ -979,7 +979,8 @@
     "status": {
       "active": "Activo",
       "read_only": "Solo lectura",
-      "suspended": "Suspendido"
+      "suspended": "Suspendido",
+      "deleted": "Eliminada"
     },
     "suspendConfirm": {
       "title": "¿Suspender {{name}}?",
@@ -1025,9 +1026,28 @@
       },
       "usersLabel": "Miembros",
       "storageLabel": "Límite de almacenamiento",
-      "decidesForItself": "Lo que decide por su cuenta"
+      "decidesForItself": "Lo que decide por su cuenta",
+      "deleted": "Eliminada"
     },
-    "unlimited": "Sin límite"
+    "unlimited": "Sin límite",
+    "restore": {
+      "open": "Restaurar comunidad",
+      "purgesOn": "Eliminada. Todo su contenido se destruirá el {{date}}.",
+      "purgesSoon": "Eliminada. Todo su contenido se destruirá al terminar el periodo de conservación.",
+      "retained": "Hasta entonces no se ha eliminado nada: al restaurarla, la comunidad vuelve tal y como estaba, salvo sus conexiones con aplicaciones.",
+      "title": "Restaurar {{name}}",
+      "seatDescription": "No queda nadie que pueda dirigir esta comunidad. Elige quién se hace cargo.",
+      "seatLabel": "Quién la dirige",
+      "seatPlaceholder": "Elige una cuenta",
+      "seatEmpty": "No se han encontrado cuentas.",
+      "seatHelp": "Pasa a ser su superadministrador: el puesto que nombra a los demás, accede a la facturación y define el inicio de sesión.",
+      "statusDescription": "Elige en qué estado vuelve la comunidad.",
+      "statusLabel": "Vuelve como",
+      "appsNote": "Sus conexiones con aplicaciones terminaron al eliminarla y no vuelven. Sus administradores pueden volver a conectarlas.",
+      "confirm": "Restaurar",
+      "done": "{{name}} restaurada.",
+      "error": "No se ha podido restaurar la comunidad. Inténtalo de nuevo."
+    }
   },
   "storage": {
     "adminOnly": "Solo los propietarios de la plataforma pueden configurar el almacenamiento.",

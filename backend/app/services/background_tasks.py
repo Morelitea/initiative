@@ -55,6 +55,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_post_publications,
     )
     from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
+    from app.services.platform.guild_purge import (
+        GUILD_PURGE_POLL_SECONDS,
+        process_guild_purges,
+    )
     from app.services.tenant.app_updates import (
         AUTO_UPDATE_POLL_SECONDS,
         process_app_auto_updates,
@@ -168,6 +172,9 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_trash_purges, PURGE_POLL_SECONDS, "trash-purge")
+        ),
+        asyncio.create_task(
+            _loop_worker(process_guild_purges, GUILD_PURGE_POLL_SECONDS, "guild-purge")
         ),
         asyncio.create_task(
             _loop_worker(

@@ -12,6 +12,7 @@ const GIB = 1024 ** 3;
 // edits and user-limit edits are told apart by the `data` payload they send
 // ({ max_storage_bytes } vs { max_users }).
 const mutate = vi.fn();
+const restore = vi.fn();
 
 const guildsData = [
   {
@@ -23,6 +24,8 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
+    purge_at: null,
+    has_seat: true,
     auth_options: ["providers", "restrictions"],
     banner_image_enabled: true,
     support_enabled: false,
@@ -36,6 +39,8 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
+    purge_at: null,
+    has_seat: true,
     auth_options: ["providers"],
     banner_image_enabled: true,
     support_enabled: true,
@@ -49,8 +54,25 @@ const guildsData = [
     max_users: 10,
     status: "suspended",
     status_changed_at: "2026-07-05T00:00:00Z",
+    purge_at: null,
+    has_seat: true,
     auth_options: [],
     banner_image_enabled: false,
+    support_enabled: false,
+  },
+  {
+    id: 10,
+    name: "Gone Community",
+    member_count: 4,
+    tier_name: null,
+    max_storage_bytes: null,
+    max_users: null,
+    status: "deleted",
+    status_changed_at: "2026-09-01T00:00:00Z",
+    purge_at: "2026-11-30T00:00:00Z",
+    has_seat: true,
+    auth_options: [],
+    banner_image_enabled: true,
     support_enabled: false,
   },
 ];
@@ -87,6 +109,11 @@ vi.mock("@/hooks/useSettings", () => ({
     updateCallbacks = options ?? {};
     return { mutate, isPending: false };
   },
+  useRestoreGuild: () => ({ mutate: restore, isPending: false }),
+}));
+
+vi.mock("@/hooks/useAdmin", () => ({
+  usePlatformUsers: () => ({ data: [], isLoading: false }),
 }));
 
 import { OperatorDashboardGuildsPage } from "./OperatorDashboardGuildsPage";
@@ -124,6 +151,7 @@ const typeAndLeave = (input: HTMLInputElement, value: string) => {
 describe("OperatorDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
+    restore.mockClear();
     mintHandoff.mockReset();
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
   });
@@ -404,6 +432,56 @@ describe("OperatorDashboardGuildsPage", () => {
       expect(tab.location.href).toBe("");
 
       openSpy.mockRestore();
+    });
+  });
+
+  describe("a deleted community", () => {
+    it("shows a tag instead of the status control", async () => {
+      renderPage();
+
+      expect(await screen.findByText("Gone Community")).toBeInTheDocument();
+      expect(screen.getByText("Deleted")).toBeInTheDocument();
+      // No control at all: deleted is not a status you pick, so the row that
+      // holds it offers nothing to pick with.
+      expect(screen.queryByLabelText("Status for Gone Community")).not.toBeInTheDocument();
+      // ...while a live community still has its dropdown.
+      expect(screen.getByLabelText("Status for Capped Community")).toBeInTheDocument();
+    });
+
+    it("offers a restore with the date everything is destroyed on", async () => {
+      await openSheet("Gone Community");
+
+      // The purge date is an instant, not a calendar day, so it is drawn in
+      // the reader's own timezone — computed here the same way rather than
+      // written out, which would only pass in the timezone it was written in.
+      const expected = new Date("2026-11-30T00:00:00Z").toLocaleDateString("en", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      expect(
+        screen.getByText(`Deleted. Everything in it is destroyed on ${expected}.`)
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Restore community" })).toBeInTheDocument();
+      // Its caps are shown but frozen — worth seeing while you decide, not
+      // worth setting on a community nobody can reach.
+      expect(userLimitInput()).toBeDisabled();
+      expect(storageInput()).toBeDisabled();
+    });
+
+    it("restores it at the status the operator picks", async () => {
+      const user = await openSheet("Gone Community");
+      await user.click(screen.getByRole("button", { name: "Restore community" }));
+
+      // This community still has somebody to run it, so the seat step is
+      // skipped and the only question is what it comes back as.
+      expect(screen.getByText("Choose what the community comes back as.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Restore" }));
+
+      expect(restore).toHaveBeenCalledWith({
+        guildId: 10,
+        data: { status: "active", seat_user_id: null },
+      });
     });
   });
 });

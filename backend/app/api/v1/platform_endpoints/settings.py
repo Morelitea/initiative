@@ -62,6 +62,7 @@ from app.schemas.platform.settings import (
 )
 from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
+    PlatformGuildRestore,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
@@ -87,6 +88,7 @@ from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -636,6 +638,18 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
+def _guild_purge_at(guild: Guild) -> datetime | None:
+    """When this guild is destroyed, or None if it has not been deleted.
+
+    ``status_changed_at`` is the deletion time for a deleted guild, so the date
+    is derived from the two columns already loaded rather than stored — the
+    retention window is stated once, in ``guild_purge``.
+    """
+    if guild.status != GuildStatus.deleted.value or guild.status_changed_at is None:
+        return None
+    return guild_purge.purge_at(guild.status_changed_at)
+
+
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
     session: AdminSessionDep,
@@ -670,11 +684,26 @@ async def list_platform_guild_storage(
             )
         ).all()
     )
+    # Which guilds still hold the seat that configures them. One grouped query
+    # beside the member counts rather than a per-guild check, for the same
+    # reason: this list is every guild on the deployment.
+    seated = {
+        row
+        for row in (
+            await session.exec(
+                select(GuildMembership.guild_id)
+                .where(GuildMembership.role == GuildRole.superadmin)
+                .distinct()
+            )
+        ).all()
+    }
     return [
         PlatformGuildStorageRead(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
+            purge_at=_guild_purge_at(g),
+            has_seat=g.id in seated,
             tier_name=administration.tier_name if administration else None,
             max_storage_bytes=(
                 administration.max_storage_bytes if administration else None
@@ -792,7 +821,75 @@ async def update_platform_guild_storage(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
+        purge_at=_guild_purge_at(guild),
+        has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
         auth_options=sorted(administration.auth_options),
+        banner_image_enabled=administration.banner_image_enabled,
+        support_enabled=administration.support_enabled,
+    )
+
+
+@router.post("/guilds/{guild_id}/restore", response_model=PlatformGuildStorageRead)
+async def restore_platform_guild(
+    guild_id: int,
+    payload: PlatformGuildRestore,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> PlatformGuildStorageRead:
+    """Bring a deleted guild back before its retention window runs out.
+
+    Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    rows, the ``guild_<id>`` schema and the stored blobs all stay until
+    ``guild_purge`` destroys them — so restoring is a status write plus, where
+    the roster was emptied, seating somebody who can run the community again.
+
+    The operator names the status it returns at, and must name a seat when the
+    guild holds none. Both are re-checked in the service rather than trusted
+    from the payload. What does *not* come back is the guild's app
+    connections: those were revoked when it was deleted, and an admin
+    reconnects them.
+
+    Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
+    ``guild_memberships``), so no guild-schema routing is needed.
+    """
+    try:
+        guild = await guilds_service.restore_guild(
+            session,
+            guild_id=guild_id,
+            status=payload.status,
+            seat_user_id=payload.seat_user_id,
+            actor_user_id=admin.id,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == GuildMessages.GUILD_NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=code
+            ) from exc
+        if code == GuildMessages.GUILD_NOT_DELETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=code
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=code
+        ) from exc
+    logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
+    await session.commit()
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    return PlatformGuildStorageRead(
+        id=guild.id,
+        name=guild.name,
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
+        tier_name=administration.tier_name,
+        max_storage_bytes=administration.max_storage_bytes,
+        max_users=administration.max_users,
+        status=GuildStatus(guild.status),
+        status_changed_at=guild.status_changed_at,
+        purge_at=_guild_purge_at(guild),
+        has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
+        auth_options=sorted(administration.auth_options),
+        banner_image_enabled=administration.banner_image_enabled,
+        support_enabled=administration.support_enabled,
     )
 
 
