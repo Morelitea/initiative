@@ -17,8 +17,8 @@ ever reads a row back — and the schema's default grants come straight off the
 two base roles. The table is new and empty, so there is nothing to backfill
 and no DML to order against the lockdown.
 
-Revision ID: 20260920_0337
-Revises: 20260920_0336
+Revision ID: 20260920_0338
+Revises: 20260920_0337
 Create Date: 2026-09-20
 """
 
@@ -29,8 +29,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20260920_0337"
-down_revision = "20260920_0336"
+revision = "20260920_0338"
+down_revision = "20260920_0337"
 branch_labels = None
 depends_on = None
 
