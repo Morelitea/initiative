@@ -1,4 +1,4 @@
-"""The platform settings singleton: where it comes from, and what reading it costs."""
+"""Settings rows: where they come from, and what asking for one costs."""
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -9,8 +9,10 @@ from app.services.platform.app_settings import (
     GLOBAL_SETTINGS_ID,
     ensure_settings_row,
     get_app_settings,
+    get_or_create_guild_settings,
     seed_app_settings,
 )
+from app.testing import create_guild, route_session_to_guild
 
 
 async def _stored_ids(session: AsyncSession) -> list[int]:
@@ -66,3 +68,24 @@ async def test_settings_row_for_a_writer_joins_the_transaction(session: AsyncSes
     # Still one row, and the same one, when a second caller asks.
     assert (await ensure_settings_row(session)).id == GLOBAL_SETTINGS_ID
     assert await _stored_ids(session) == [GLOBAL_SETTINGS_ID]
+
+
+async def test_guild_settings_gap_fill_joins_the_transaction(session: AsyncSession):
+    """A guild missing its settings row gets one inside the caller's transaction.
+
+    A guild is normally given the row when it is made, so this is the gap-fill
+    path. Stated as the transaction id, the same way the platform singleton's
+    is: whoever asked still has the transaction they asked from.
+    """
+    guild = await create_guild(session)  # the factory seeds no settings row
+    await route_session_to_guild(session, guild.id)
+
+    started = (await session.exec(text("SELECT txid_current()"))).one()
+    row = await get_or_create_guild_settings(session, guild.id)
+    assert row.guild_id == guild.id
+    assert row.id is not None
+    assert (await session.exec(text("SELECT txid_current()"))).one() == started
+
+    # Asking again answers with the row already there, same transaction still.
+    assert (await get_or_create_guild_settings(session, guild.id)).id == row.id
+    assert (await session.exec(text("SELECT txid_current()"))).one() == started
