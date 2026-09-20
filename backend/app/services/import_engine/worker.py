@@ -12,6 +12,11 @@ NEVER re-claimed and re-applied. Exports re-render idempotently (same
 artifact key); an interrupted import has already committed rows under the
 always-create policy, so a re-run would duplicate them. Stale running rows
 are failed closed with ``IMPORT_INTERRUPTED``.
+
+A stale ``fetching`` row is the one exception, and for the reason that makes
+the rule above right: a fetch writes no content row at all, only a payload in
+storage. There is nothing committed to duplicate, so the partial payload is
+thrown away and the job goes back in the queue to start over.
 """
 
 from __future__ import annotations
@@ -43,6 +48,12 @@ IMPORT_GC_POLL_SECONDS = 3600
 # A ``running`` row untouched this long is a crashed apply. Unlike exports it
 # is NOT re-claimed (see module docstring) — it is failed closed.
 STALE_RUNNING = timedelta(minutes=15)
+
+# A ``fetching`` row untouched this long is a crashed fetch. Longer than the
+# apply bound because reading somebody else's API under a rate limit is
+# legitimately slow, and re-claiming one that was still working would start a
+# second conversation with the same site.
+STALE_FETCHING = timedelta(minutes=60)
 
 
 def _open_user_session() -> AsyncSession:
@@ -112,6 +123,31 @@ async def _process_guild_jobs(
         session.add(job)
         outcomes.append(_outcome(job, guild_id))
     if stale:
+        await session.commit()
+
+    # Re-claim abandoned fetches. Nothing content-side was written, so the
+    # partial payload is discarded and the job queues again from the start.
+    abandoned = list(
+        await session.exec(
+            select(ImportJob).where(
+                ImportJob.status == ImportJobStatus.fetching,
+                ImportJob.updated_at < now - STALE_FETCHING,
+            )
+        )
+    )
+    for job in abandoned:
+        logger.warning(
+            "import fetch re-claimed id=%s guild=%s source=%s",
+            job.id,
+            guild_id,
+            job.source,
+        )
+        import_engine.delete_payload(guild_id, job.payload_ref)
+        job.payload_ref = None
+        job.status = ImportJobStatus.queued
+        job.updated_at = now
+        session.add(job)
+    if abandoned:
         await session.commit()
 
     jobs = list(
@@ -222,11 +258,12 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
             importer=importer,
             user=user,
         )
-        result = await importer.apply(
+        result = await import_engine.apply_with_links(
             user_session,
+            importer=importer,
             envelope=envelope,
             target_initiative=initiative,
-            importer=user,
+            user=user,
         )
         await user_session.commit()
     return result.model_dump(mode="json")
@@ -265,7 +302,11 @@ async def process_import_gc() -> None:
                 await session.exec(
                     select(ImportJob).where(
                         ImportJob.status.in_(
-                            (ImportJobStatus.staged, ImportJobStatus.queued)
+                            (
+                                ImportJobStatus.staged,
+                                ImportJobStatus.fetching,
+                                ImportJobStatus.queued,
+                            )
                         ),
                         ImportJob.expires_at.is_not(None),
                         ImportJob.expires_at < now,

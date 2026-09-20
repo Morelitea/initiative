@@ -29,6 +29,7 @@ from app.models.tenant.initiative import Initiative
 from app.core.tools import tool_for_create_permission
 from app.services.import_engine.contract import (
     EnvelopeImporter,
+    EnvelopeImportResult,
     ImportEngineError,
     InlineImport,
 )
@@ -40,6 +41,9 @@ _JOB_CAP_LOCK_NS = 0x494D50  # "IMP"
 # Statuses that count against the per-user active-job cap.
 _ACTIVE_STATUSES = (
     ImportJobStatus.staged,
+    # A fetch is the slowest thing a job does and the one most worth
+    # capping — it is somebody else's API being read on our schedule.
+    ImportJobStatus.fetching,
     ImportJobStatus.queued,
     ImportJobStatus.running,
 )
@@ -148,11 +152,12 @@ async def start_envelope_import(
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
 
     if rows <= settings.IMPORT_INLINE_MAX_ROWS:
-        result = await importer.apply(
+        result = await apply_with_links(
             session,
+            importer=importer,
             envelope=validated,
             target_initiative=initiative,
-            importer=user,
+            user=user,
         )
         await session.commit()
         return InlineImport(result=result)
@@ -176,6 +181,38 @@ async def start_envelope_import(
     await session.commit()
     await session.refresh(job)
     return job
+
+
+async def apply_with_links(
+    session: AsyncSession,
+    *,
+    importer: EnvelopeImporter,
+    envelope: Any,
+    target_initiative: Initiative,
+    user: User,
+) -> "EnvelopeImportResult":
+    """Apply one envelope and then resolve the links it asserted.
+
+    A lone envelope is the degenerate case of the deferred pass, not a
+    different path: it registers what it created, records what it pointed
+    at, and resolves the pairs where both ends happened to be in the same
+    file. Every ref naming something outside it is counted as unresolved —
+    which is the honest answer, and the same one a backup gives.
+    """
+    from app.services.import_engine.links import LinkCollector
+
+    collector = LinkCollector()
+    result = await importer.apply(
+        session,
+        envelope=envelope,
+        target_initiative=target_initiative,
+        importer=user,
+        links=collector,
+    )
+    resolution = await collector.resolve(session, created_by=user.id)
+    result.links_created = resolution.created
+    result.links_unresolved = resolution.unresolved
+    return result
 
 
 async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None:

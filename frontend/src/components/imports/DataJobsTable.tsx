@@ -29,12 +29,13 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { queryClient } from "@/lib/queryClient";
 
-const ACTIVE = new Set(["staged", "queued", "running"]);
+const ACTIVE = new Set(["staged", "fetching", "queued", "running"]);
 const POLL_MS = 5000;
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   done: "default",
   staged: "secondary",
+  fetching: "secondary",
   queued: "secondary",
   running: "secondary",
   failed: "destructive",

@@ -4466,6 +4466,7 @@ export type ImportJobStatus = (typeof ImportJobStatus)[keyof typeof ImportJobSta
 
 export const ImportJobStatus = {
   staged: "staged",
+  fetching: "fetching",
   queued: "queued",
   running: "running",
   done: "done",

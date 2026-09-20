@@ -84,6 +84,7 @@
     },
     "status": {
       "staged": "Esperando confirmación",
+      "fetching": "Leyendo el origen",
       "queued": "En cola",
       "running": "En curso",
       "done": "Finalizado",

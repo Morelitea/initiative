@@ -100,4 +100,9 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         "is_draft": page.is_draft,
         "content": page.content or {},
         "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
+        # When it was written, and when it was last edited. A restore that
+        # dated every page to the day it was restored lost the one thing a
+        # wiki's reading order is usually checked against.
+        "created_at": page.created_at.isoformat() if page.created_at else None,
+        "updated_at": page.updated_at.isoformat() if page.updated_at else None,
     }

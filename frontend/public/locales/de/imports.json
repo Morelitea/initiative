@@ -84,6 +84,7 @@
     },
     "status": {
       "staged": "Wartet auf Bestätigung",
+      "fetching": "Quelle wird gelesen",
       "queued": "In Warteschlange",
       "running": "Läuft",
       "done": "Fertig",

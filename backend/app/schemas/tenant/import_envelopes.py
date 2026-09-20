@@ -88,6 +88,11 @@ class WikiPageEnvelope(SanitizedBaseModel):
     is_draft: bool = False
     content: dict[str, Any] = {}
     tags: list[str] = []
+    #: When the page was written and when it was last edited. Absent in an
+    #: export taken before they were carried, and absent is not "now" — the
+    #: importer only uses a value it was actually given.
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class WikiEnvelope(_EnvelopeBase):
@@ -292,6 +297,13 @@ class EventEnvelopeItem(SanitizedBaseModel):
     attendees: list[EventEnvelopeAttendee] = []
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
+    #: What this event was called where it came from. An event is a thing
+    #: other entries point at — a sprint with its tasks in it — so it needs a
+    #: name the job's deferred link pass can resolve, exactly as a task does.
+    external_ref: Optional[str] = None
+    #: When the event was written down (not when it happens — that is
+    #: ``start_at``). The export has always emitted it; it is read now.
+    created_at: Optional[str] = None
 
 
 class CalendarEnvelope(_EnvelopeBase):

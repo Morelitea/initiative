@@ -1495,3 +1495,389 @@ async def test_importing_a_long_headline_trims_rather_than_fails(
     body = response.json()
     assert len(body["result"]["entity_title"]) <= 255
     assert any("shortened" in w.lower() for w in body["result"]["warnings"])
+
+
+# ---------------------------------------------------------------------------
+# What a project envelope now carries: when things happened, what was said on
+# them, and what they point at
+# ---------------------------------------------------------------------------
+
+
+async def test_project_envelope_carries_comments_dates_and_links(
+    client, acting_user, session
+):
+    """Export a project whose tasks have comments, real creation dates and an
+    edge between them; import it somewhere else and find all three.
+
+    This is the round trip the whole deferred pass exists for: the edge is
+    between two tasks written by the same entry, so it resolves; the dates are
+    the ones the source had, not the moment of the restore; and the comment
+    arrives attributed to the person who ran the import, with its original
+    author named in the text rather than impersonated.
+    """
+    from datetime import datetime, timezone
+
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+    from app.testing.factories import create_comment
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    written_at = datetime(2024, 3, 4, 9, 30, tzinfo=timezone.utc)
+    blocker = await create_task(
+        session, a.project, title="Pour the footings", created_at=written_at
+    )
+    blocked = await create_task(session, a.project, title="Raise the frame")
+    await create_comment(session, a.user, task=blocker, content="Frost delayed us")
+    await relationships_service.create(
+        session,
+        source=Endpoint(kind=SearchEntityType.task, id=blocked.id),
+        relationship_type=RelationshipType.depends_on,
+        target=Endpoint(kind=SearchEntityType.task, id=blocker.id),
+        created_by=a.user.id,
+    )
+    await session.commit()
+
+    envelope = await _export_json(
+        client, a, "/exports/project", {"project_id": a.project.id}
+    )
+    by_title = {task["title"]: task for task in envelope["tasks"]}
+    assert by_title["Pour the footings"]["created_at"].startswith("2024-03-04")
+    assert by_title["Pour the footings"]["comments"][0]["body"] == "Frost delayed us"
+    assert by_title["Raise the frame"]["links"] == [
+        {
+            "type": "depends_on",
+            "target_external_ref": f"task:{blocker.id}",
+        }
+    ]
+
+    target = await _second_initiative(session, a)
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 201, resp.text
+    result = resp.json()["result"]
+    assert result["created"]["comments"] == 1
+    assert (result["links_created"], result["links_unresolved"]) == (1, 0)
+
+    project = (
+        await session.exec(select(Project).where(Project.initiative_id == target.id))
+    ).one()
+    tasks = {
+        task.title: task
+        for task in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    assert tasks["Pour the footings"].created_at == written_at
+
+    comment = (
+        await session.exec(
+            select(Comment).where(Comment.task_id == tasks["Pour the footings"].id)
+        )
+    ).one()
+    # The importer owns the row; the original author is named in the text.
+    assert comment.created_by == a.user.id
+    assert "Frost delayed us" in comment.content
+    assert "Originally by" in comment.content
+
+    assert await relationships_service.related_ids(
+        session,
+        Endpoint(kind=SearchEntityType.task, id=tasks["Raise the frame"].id),
+        relationship_type=RelationshipType.depends_on,
+        other_kind=SearchEntityType.task,
+    ) == [tasks["Pour the footings"].id]
+
+
+async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, session):
+    """A link whose far end is not in this envelope is ordinary — a number in
+    the report, not a refusal."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = {
+        "type": "initiative-project",
+        "schema_version": 1,
+        "app_version": "0.0.0-test",
+        "exported_at": "2026-07-15T00:00:00+00:00",
+        "project": {"name": "Imported Board"},
+        "tags": [],
+        "task_statuses": [
+            {"name": "To Do", "category": "todo", "position": 0, "is_default": True}
+        ],
+        "property_definitions": [],
+        "tasks": [
+            {
+                "title": "Fit the door",
+                "status_name": "To Do",
+                "external_ref": "jira:ACME-1",
+                "tags": [],
+                "assignee_handles": [],
+                "checklist": [],
+                "property_values": [],
+                "links": [
+                    {"type": "related_to", "target_external_ref": "jira:OTHER-9"}
+                ],
+            }
+        ],
+    }
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+    result = resp.json()["result"]
+    assert (result["links_created"], result["links_unresolved"]) == (0, 1)
+
+
+# ---------------------------------------------------------------------------
+# What a backup manifest now says: where an entry is filed, and where the
+# bundle should land
+# ---------------------------------------------------------------------------
+
+
+async def test_backup_attach_to_files_a_document_in_its_wiki(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A file document that sat in a wiki still sits in it after a restore.
+
+    The edge names two rows whose ids the archive cannot carry, so it crosses
+    as ``attach_to`` on the document's entry, pointing at the wiki's entry
+    path. Both are applied as ordinary entries and the edge is written once
+    the pass runs — which is why the document entry can come first.
+    """
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.initiative import Initiative
+    from app.models.tenant.wiki import Wiki
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+    from app.testing.factories import create_upload
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    payload = b"%PDF-field-notes"
+    get_guild_storage(a.guild.id).write(
+        "field-notes.pdf", payload, content_type="application/pdf"
+    )
+    await create_upload(
+        session,
+        a.guild,
+        a.user,
+        filename="field-notes.pdf",
+        size_bytes=len(payload),
+        content_type="application/pdf",
+    )
+
+    wiki_path = "initiatives/1-restored/wikis/7-handbook.initiative-wiki.json"
+    wiki_envelope = {
+        "type": "initiative-wiki",
+        "schema_version": 1,
+        "name": "Handbook",
+        "pages": [],
+    }
+    wiki_entry = {
+        "path": wiki_path,
+        "tool": "wiki",
+        "type": "initiative-wiki",
+        "schema_version": 1,
+        "entity_id": 7,
+        "title": "Handbook",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    file_entry = {
+        "path": "assets/field-notes.pdf",
+        "tool": "document",
+        "type": "file",
+        "schema_version": None,
+        "entity_id": 3,
+        "title": "Field notes",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": "assets/field-notes.pdf",
+        "attach_to": {"kind": "wiki", "ref": wiki_path},
+    }
+    manifest = _minimal_manifest(entries=[file_entry, wiki_entry])
+    manifest["initiatives"][0]["tools"]["wiki"] = "included"
+    zip_bytes = _make_backup_zip(
+        manifest,
+        {
+            wiki_path: json.dumps(wiki_envelope).encode(),
+            "assets/field-notes.pdf": payload,
+        },
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["links_created"] == 1
+
+    restored = (
+        await session.exec(select(Initiative).where(Initiative.name == "Restored"))
+    ).one()
+    wiki = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == restored.id))
+    ).one()
+    document = (
+        await session.exec(
+            select(Document).where(
+                Document.initiative_id == restored.id,
+                Document.document_type == DocumentType.file,
+            )
+        )
+    ).one()
+    assert await relationships_service.related_ids(
+        session,
+        Endpoint(kind=SearchEntityType.document, id=document.id),
+        relationship_type=RelationshipType.part_of,
+        other_kind=SearchEntityType.wiki,
+    ) == [wiki.id]
+
+
+async def test_backup_applies_into_an_existing_initiative(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A bundle naming ``target_initiative_id`` lands in an initiative
+    somebody already runs, instead of creating one.
+
+    This is what a foreign source needs: a Jira project belongs on a board in
+    an initiative that exists, and choosing that is the importer's call, not
+    ours. No new initiative appears, and nothing about the target's name or
+    tool switches is touched.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.initiative import Initiative
+    from app.models.tenant.queue import Queue
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    target = await _second_initiative(session, a)
+    before = len((await session.exec(select(Initiative.id))).all())
+
+    entry, envelope = _queue_entry()
+    manifest = _minimal_manifest(entries=[entry])
+    manifest["initiatives"][0]["target_initiative_id"] = target.id
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["initiatives"][0]["initiative_id"] == target.id
+
+    assert len((await session.exec(select(Initiative.id))).all()) == before
+    assert (
+        await session.exec(select(Initiative).where(Initiative.name == "Restored"))
+    ).one_or_none() is None
+
+    queue = (
+        await session.exec(select(Queue).where(Queue.initiative_id == target.id))
+    ).one()
+    assert queue.name == "Restored Queue"
+
+
+async def test_backup_into_an_unreachable_initiative_fails_the_job(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An initiative the importer cannot reach is indistinguishable from one
+    that is not there, and neither is a place to write to."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    entry, envelope = _queue_entry()
+    manifest = _minimal_manifest(entries=[entry])
+    manifest["initiatives"][0]["target_initiative_id"] = 10_000_000
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_INVALID_PARAMS"
+
+
+# ---------------------------------------------------------------------------
+# The fetching status
+# ---------------------------------------------------------------------------
+
+
+async def test_a_stale_fetch_is_re_claimed_not_failed(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A crashed fetch goes back in the queue; a crashed apply does not.
+
+    The difference is what is already in the database. An apply has committed
+    rows under the always-create policy, so re-running it would duplicate
+    them. A fetch has written nothing but a payload in storage, so there is
+    nothing to duplicate — the partial payload is thrown away and the job
+    starts over.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from sqlmodel import select
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
+    job = ImportJob(
+        guild_id=a.guild.id,
+        created_by=a.user.id,
+        source="atlassian",
+        params={"initiative_id": a.initiative.id},
+        payload_ref="imports/half-written.json",
+        status=ImportJobStatus.fetching,
+    )
+    session.add(job)
+    await session.commit()
+    # updated_at is stamped on write, so age it afterwards.
+    await session.exec(
+        ImportJob.__table__.update()
+        .where(ImportJob.__table__.c.id == job.id)
+        .values(updated_at=long_ago)
+    )
+    await session.commit()
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    session.expunge_all()
+    reclaimed = (
+        await session.exec(select(ImportJob).where(ImportJob.id == job.id))
+    ).one()
+    # It left ``fetching`` and its half-written payload is gone, so the fetch
+    # can start clean. It is NOT the apply path's fail-closed outcome, which
+    # is the distinction this rule exists to make. (The same pass then picks
+    # the queued row up and stops, because no fetcher exists yet — that is
+    # P1, and it is why the status lands on failed rather than done.)
+    assert reclaimed.status is not ImportJobStatus.fetching
+    assert reclaimed.error != "IMPORT_INTERRUPTED"
+    assert reclaimed.payload_ref != "imports/half-written.json"
+    assert (
+        get_guild_storage(a.guild.id).open_readable("imports/half-written.json") is None
+    )

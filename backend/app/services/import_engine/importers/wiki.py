@@ -13,6 +13,7 @@ creates.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -24,8 +25,9 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.import_envelopes import WikiEnvelope, WikiPageEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import ensure_tag, parse_datetime, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
+from app.services.import_engine.links import LinkCollector
 from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
@@ -53,6 +55,7 @@ class WikiImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        links: LinkCollector | None = None,
     ) -> EnvelopeImportResult:
         env: WikiEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -118,6 +121,10 @@ class WikiImporter:
                 is_draft=page_env.is_draft,
                 content=page_env.content or {},
                 created_by=importer.id,
+                # When it was written, where the envelope says so. Absent
+                # leaves the model's own default — the moment of the import,
+                # which is the only time this row can honestly claim.
+                **_page_timestamps(page_env),
             )
             session.add(row)
             await session.flush()
@@ -153,6 +160,24 @@ class WikiImporter:
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+def _page_timestamps(page_env: WikiPageEnvelope) -> dict[str, datetime]:
+    """The page's own times, where the envelope carried them.
+
+    Returned as kwargs so an absent or unparseable stamp falls through to the
+    model default rather than overwriting it — a restore that could not read a
+    date is not a restore that should claim the page has none.
+    """
+    stamps: dict[str, datetime] = {}
+    for field_name, raw in (
+        ("created_at", page_env.created_at),
+        ("updated_at", page_env.updated_at),
+    ):
+        parsed = parse_datetime(raw)
+        if parsed is not None:
+            stamps[field_name] = parsed
+    return stamps
 
 
 def _assign_slugs(pages: list[WikiPageEnvelope]) -> list[str]:

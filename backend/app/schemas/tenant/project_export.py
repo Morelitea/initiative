@@ -15,6 +15,7 @@ from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel
 
+from app.core.relationships import RelationshipType
 from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 
@@ -90,6 +91,40 @@ class ProjectExportChecklistItem(SanitizedBaseModel):
     done: bool = False
 
 
+class ProjectExportComment(SanitizedBaseModel):
+    """One thing somebody said on a task.
+
+    The author crosses as a **handle and a display name, never an id** — the
+    rule every envelope follows for people. Both are carried because they
+    answer different questions on the far side: the handle is what an importer
+    can match against the target initiative's roster, and the name is what a
+    reader sees when nothing matched.
+
+    Matching the handle does **not** transfer authorship. A comment is
+    first-person speech, and an envelope is text the importer supplies, so an
+    imported comment is attributed to the person doing the import with the
+    original author named in it. See ``project_import._comment_body``.
+    """
+
+    author_handle: Optional[str] = None
+    author_name: Optional[str] = None
+    body: str
+    created_at: Optional[datetime] = None
+
+
+class ProjectExportTaskLink(SanitizedBaseModel):
+    """An edge this task asserts, named by the far end's ``external_ref``.
+
+    Refs rather than ids because the far end may not exist yet — it can be in
+    a later entry of the same backup, or in a different envelope entirely. The
+    job's deferred pass resolves every ref once the last entry has flushed
+    (``import_engine.links``), so the order entries apply in does not matter.
+    """
+
+    type: RelationshipType
+    target_external_ref: str
+
+
 class ProjectExportTask(SanitizedBaseModel):
     title: str
     description: Optional[str] = None
@@ -105,6 +140,16 @@ class ProjectExportTask(SanitizedBaseModel):
     # importer derives it from the restored status in that case.
     completed_at: Optional[datetime] = None
     status_name: str
+    # When the work was written down, and when it was last touched. Optional
+    # because an export taken before these existed carries neither; the
+    # importer falls back to the moment of the import, which is the only
+    # honest answer it has.
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # What this task was called where it came from — ``"jira:ACME-123"``, or a
+    # backup's own ``"task:41"``. It is the name ``links`` point at, and it is
+    # never written to a column: it lives for the length of one job.
+    external_ref: Optional[str] = None
     # Lists are required (no default_factory): pydantic 2.x splits the
     # OpenAPI schema into ``-Input``/``-Output`` whenever a field has a
     # different presence in validation vs serialization, and
@@ -114,6 +159,11 @@ class ProjectExportTask(SanitizedBaseModel):
     assignee_handles: List[str]
     checklist: List[ProjectExportChecklistItem]
     property_values: List[ProjectExportPropertyValue]
+    # Both default to empty: an envelope written before they existed is a
+    # task with nothing said on it and nothing pointing anywhere, which is
+    # exactly what an absent field means here.
+    links: List[ProjectExportTaskLink] = []
+    comments: List[ProjectExportComment] = []
 
 
 class ProjectExportEnvelope(SanitizedBaseModel):
@@ -158,3 +208,4 @@ class ProjectImportResult(SanitizedBaseModel):
     property_rename_count: int = 0
     assignee_match_count: int = 0
     assignee_unmatched_handles: List[str] = Field(default_factory=list)
+    comment_count: int = 0

@@ -11,12 +11,14 @@ in the envelope are informational and dropped."""
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
@@ -39,6 +41,7 @@ from app.services.import_engine.common import (
     unique_name,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
+from app.services.import_engine.links import LinkCollector
 from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
@@ -65,6 +68,7 @@ class CalendarImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        links: LinkCollector | None = None,
     ) -> EnvelopeImportResult:
         env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -123,6 +127,7 @@ class CalendarImporter:
                         importer=importer,
                         member_handles=member_handles,
                         unmatched_handles=unmatched_handles,
+                        links=links,
                     )
             except Exception:
                 failed += 1
@@ -166,6 +171,7 @@ class CalendarImporter:
         importer: User,
         member_handles: dict[str, int],
         unmatched_handles: set[str],
+        links: LinkCollector | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
         end_at = parse_datetime(item.end_at)
@@ -182,9 +188,19 @@ class CalendarImporter:
             all_day=item.all_day,
             recurrence=json.dumps(item.recurrence) if item.recurrence else None,
             created_by=importer.id,
+            # When the event was written down, not when it happens. Absent
+            # leaves the model default: the moment of the import.
+            **_created_at(item),
         )
         session.add(event)
         await session.flush()
+
+        # An event is something other entries point at — a sprint with its
+        # tasks in it — so it joins the job's ref map like a task does. The
+        # edges themselves are written by the deferred pass, because the
+        # tasks naming this sprint are in a different envelope.
+        if links is not None:
+            links.register(item.external_ref, SearchEntityType.calendar_event, event.id)
 
         attendees_matched = 0
         seen_user_ids: set[int] = set()
@@ -248,3 +264,11 @@ class CalendarImporter:
             "props_matched": attached.matched,
             "attendees_matched": attendees_matched,
         }
+
+
+def _created_at(item: EventEnvelopeItem) -> dict[str, datetime]:
+    """The event's own creation time, where the envelope carried a readable
+    one. Returned as kwargs so an absent or unparseable stamp falls through
+    to the model default rather than overwriting it."""
+    parsed = parse_datetime(item.created_at)
+    return {"created_at": parsed} if parsed is not None else {}

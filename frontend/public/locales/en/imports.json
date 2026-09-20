@@ -84,6 +84,7 @@
     },
     "status": {
       "staged": "Awaiting confirmation",
+      "fetching": "Reading the source",
       "queued": "Queued",
       "running": "Running",
       "done": "Finished",
