@@ -80,6 +80,7 @@ _RLS_SHARED_TABLES = {
     "user_avatars",
     "user_decorations",
     "user_dm_guild_optouts",
+    "user_cookie_consent",
     "user_dm_settings",
     "user_emails",
     "user_email_assertions",

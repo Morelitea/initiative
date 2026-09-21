@@ -70,6 +70,17 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
     )
 
+    # Whether an arriving visitor is asked what this deployment may keep in
+    # their browser. Off by default: most deployments are a group's own server,
+    # reached by people who were sent a link, and a question nobody needed is
+    # just something in the way. An owner running a public front door turns it
+    # on. The answer itself lives in that browser and never reaches here —
+    # there is no account behind a landing-page visitor to attach it to.
+    cookie_consent_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # What this deployment is running, and what it was running before that.
     # A notice that only matters to somebody upgrading past a given release has
     # no way to know that from a publication date — a fresh install of 0.70 was

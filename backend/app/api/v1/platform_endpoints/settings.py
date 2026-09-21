@@ -344,6 +344,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
     )
 
 
@@ -353,15 +354,17 @@ async def update_interface_settings(
     session: UserSessionDep,
     admin: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
-    settings_obj = await app_settings_service.update_interface_colors(
+    settings_obj = await app_settings_service.update_interface_settings(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
+        cookie_consent_enabled=payload.cookie_consent_enabled,
         actor_user_id=admin.id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
     )
 
 

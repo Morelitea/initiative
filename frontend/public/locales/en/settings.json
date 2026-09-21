@@ -507,6 +507,13 @@
         "errorPrefix": "It failed: {{message}}"
       },
       "dismissAll": "dismiss all"
+    },
+    "cookieConsent": {
+      "title": "Cookie choices",
+      "description": "Ask arriving visitors what this deployment may keep in their browser.",
+      "toggleLabel": "Ask arriving visitors about cookies",
+      "helpText": "A chooser along the bottom of the page the first time somebody arrives: what is essential, and a switch for anything that isn't. Turn it on if this deployment has a public front door; leave it off for a server your group reaches by invitation, where it is only something in the way.",
+      "scopeNote": "Off is not a way to skip the question — it is for a deployment where nobody arrives who was not sent. With it off, everything optional stays off, because nothing may be switched on that was never agreed to."
     }
   },
   "email": {
@@ -1570,6 +1577,14 @@
       "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
       "empty": "You are not ignoring anyone.",
       "stop": "Stop ignoring"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "You haven't answered the cookie question in this browser yet. Until you do, nothing optional is switched on.",
+      "noneAllowed": "Nothing optional is switched on in this browser.",
+      "allowed": "Switched on in this browser: {{categories}}.",
+      "perBrowser": "Your answer follows your account, so a new browser or device won't ask again. Answered before you signed in, it stays in that browser until you do.",
+      "change": "Change"
     }
   },
   "twoFactor": {

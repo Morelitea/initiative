@@ -13,5 +13,34 @@
     "subtitle": "Votre compte a été créé via votre fournisseur d'identité : vous n'avez donc pas encore vu ces documents. Lisez-les, puis acceptez pour continuer.",
     "submit": "J'accepte",
     "signOut": "Se déconnecter"
+  },
+  "cookies": {
+    "label": "Cookies",
+    "title": "À propos des cookies",
+    "body": "{{appName}} conserve quelques éléments dans ce navigateur pour fonctionner : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert.",
+    "nothingOptional": "C'est tout. Rien d'autre n'est conservé, et rien ne vous suit sur d'autres sites.",
+    "optionalIntro": "Au-delà, c'est vous qui décidez.",
+    "spamCheck": "Si vous créez un compte, le formulaire d'inscription charge une vérification anti-spam de {{provider}}, qui dépose son propre cookie.",
+    "readMore": "Ce qui est conservé",
+    "alwaysOn": "Toujours actifs",
+    "rejectAll": "Refuser les optionnels",
+    "acceptAll": "Tout accepter",
+    "choose": "Choisir",
+    "save": "Enregistrer mes choix",
+    "acknowledge": "Compris",
+    "categories": {
+      "necessary": {
+        "name": "Essentiels",
+        "description": "La connexion, vos préférences et ce que vous aviez ouvert. Il n'existe pas de version d'Initiative sans eux."
+      },
+      "analytics": {
+        "name": "Mesure d'audience",
+        "description": "Quelles pages servent et où les gens bloquent, compté globalement pour savoir quoi corriger."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Le lien qui vous a amené ici, et la possibilité de vous parler d'Initiative ailleurs."
+      }
+    }
   }
 }

@@ -29,6 +29,8 @@ import type {
   ApiKeyListResponse,
   BodyUploadMyAvatarApiV1UsersMeAvatarPut,
   CommunityGuildRead,
+  CookieConsentRead,
+  CookieConsentUpdate,
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
@@ -1323,6 +1325,108 @@ export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
 > => {
   return useMutation(
     getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Record what this account allows to be kept in a browser.
+ *
+ * The browser it was answered in keeps its own copy — a visitor who has not
+ * signed in has no account to attach one to, and the answer is about that
+ * browser either way. This is what carries it to a browser that has never
+ * been asked, and carries a change of mind back to one that has.
+ *
+ * Replaces rather than appends: the question is what applies now. Sending it
+ * again with the same answer is a no-op apart from the stamp, which is what
+ * two browsers compare to tell whose answer is the later one.
+ * @summary Set Cookie Consent
+ */
+export const setCookieConsentApiV1UsersMeCookieConsentPut = (
+  cookieConsentUpdate: BodyType<CookieConsentUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CookieConsentRead>(
+    {
+      url: `/api/v1/users/me/cookie-consent`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: cookieConsentUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+    TError,
+    { data: BodyType<CookieConsentUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+  TError,
+  { data: BodyType<CookieConsentUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setCookieConsentApiV1UsersMeCookieConsentPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+    { data: BodyType<CookieConsentUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setCookieConsentApiV1UsersMeCookieConsentPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>
+>;
+export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationBody =
+  BodyType<CookieConsentUpdate>;
+export type SetCookieConsentApiV1UsersMeCookieConsentPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Cookie Consent
+ */
+export const useSetCookieConsentApiV1UsersMeCookieConsentPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+      TError,
+      { data: BodyType<CookieConsentUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setCookieConsentApiV1UsersMeCookieConsentPut>>,
+  TError,
+  { data: BodyType<CookieConsentUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetCookieConsentApiV1UsersMeCookieConsentPutMutationOptions(options),
     queryClient
   );
 };

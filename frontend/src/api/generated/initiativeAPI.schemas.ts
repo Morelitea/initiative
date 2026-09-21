@@ -397,6 +397,15 @@ export const UserRole = {
 } as const;
 
 /**
+ * What an account allows to be kept in a browser, and when it said so.
+ */
+export interface CookieConsentRead {
+  granted: string[];
+  version: number;
+  decided_at: string;
+}
+
+/**
  * What a person is up to, in their own words.
  *
  * One object, stored in one column, because it is one thing a person sets
@@ -492,6 +501,7 @@ export interface AdminUserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;
@@ -772,6 +782,8 @@ export interface AppConfig {
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
   direct_messages_enabled: boolean;
+  cookie_consent_enabled: boolean;
+  cookie_categories: string[];
   login_methods: string[];
   min_native_version: string;
 }
@@ -2358,6 +2370,27 @@ export const ControlKind = {
   number: "number",
   text: "text",
 } as const;
+
+/**
+ * A kind of optional storage a visitor can be asked about.
+ *
+ * The vocabulary, not the offer — see the module docstring. Frontend labels
+ * are keyed on these values and a drift test keeps the two in step.
+ */
+export type CookieCategory = (typeof CookieCategory)[keyof typeof CookieCategory];
+
+export const CookieCategory = {
+  analytics: "analytics",
+  marketing: "marketing",
+} as const;
+
+/**
+ * An answer given in one browser, for the account to carry to the rest.
+ */
+export interface CookieConsentUpdate {
+  granted?: CookieCategory[];
+  version: number;
+}
 
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
 
@@ -5092,11 +5125,13 @@ export interface IntakeSettingsRead {
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
+  cookie_consent_enabled: boolean;
 }
 
 export interface InterfaceSettingsUpdate {
   light_accent_color: string;
   dark_accent_color: string;
+  cookie_consent_enabled?: boolean | null;
 }
 
 /**
@@ -8195,6 +8230,7 @@ export interface UserRead {
   age_confirmed_at: string | null;
   age_below_minimum_at: string | null;
   legal_acceptance_required: boolean;
+  cookie_consent: CookieConsentRead | null;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;

@@ -507,6 +507,13 @@
         "errorPrefix": "Échec : {{message}}"
       },
       "dismissAll": "tout fermer"
+    },
+    "cookieConsent": {
+      "title": "Choix de cookies",
+      "description": "Demander aux personnes qui arrivent ce que cette instance peut conserver dans leur navigateur.",
+      "toggleLabel": "Interroger les personnes qui arrivent sur les cookies",
+      "helpText": "Un sélecteur en bas de page la première fois que quelqu'un arrive : ce qui est essentiel, et un interrupteur pour le reste. Activez-le si cette instance a une porte d'entrée publique ; laissez-le désactivé pour un serveur où votre groupe arrive sur invitation, où il ne fait qu'encombrer.",
+      "scopeNote": "Le désactiver n'est pas un moyen d'éviter la question : c'est pour une instance où personne n'arrive sans y avoir été invité. Désactivé, tout ce qui est optionnel reste désactivé, car rien ne peut être activé sans accord."
     }
   },
   "email": {
@@ -1570,6 +1577,14 @@
       "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
       "empty": "Vous n'ignorez personne.",
       "stop": "Ne plus ignorer"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "Vous n'avez pas encore répondu à la question des cookies dans ce navigateur. D'ici là, rien d'optionnel n'est activé.",
+      "noneAllowed": "Rien d'optionnel n'est activé dans ce navigateur.",
+      "allowed": "Activé dans ce navigateur : {{categories}}.",
+      "perBrowser": "Votre réponse suit votre compte : un autre navigateur ou appareil ne repose pas la question. Donnée avant votre connexion, elle reste dans ce navigateur jusque-là.",
+      "change": "Modifier"
     }
   },
   "twoFactor": {

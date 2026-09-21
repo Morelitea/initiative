@@ -149,6 +149,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # written on the request path by the account holder; the system engine only
     # reads them for the guild-lifecycle sweeps and clears them on erasure.
     "user_dm_settings": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # An account's own payload is built on the system engine during
+    # registration, which is the SELECT. DELETE is for erasure sweeps; the FK
+    # cascade off ``users`` covers the ordinary case. The answer itself is
+    # written on the request path by the account holder, so no INSERT or
+    # UPDATE.
+    "user_cookie_consent": frozenset({"SELECT", "DELETE"}),
     # Seeded when an account is created, read on every fan-out to decide who
     # wants what, and updated by the settings endpoint.
     "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -324,6 +330,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # Read and written on the authenticated platform-tier path, never before a
     # session is routed.
     "user_dm_settings": None,
+    # Read and written by an account about itself, after its session is routed.
+    # A visitor who has not signed in keeps their answer in their own browser
+    # and asks the server for nothing.
+    "user_cookie_consent": None,
     # Read under the account's own role after routing, never before it.
     "user_notification_prefs": None,
     # Written by a routed request for its recipient, never before routing and

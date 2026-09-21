@@ -507,6 +507,13 @@
         "errorPrefix": "Fehlgeschlagen: {{message}}"
       },
       "dismissAll": "alle schließen"
+    },
+    "cookieConsent": {
+      "title": "Cookie-Einstellungen",
+      "description": "Ankommende Besucher fragen, was diese Installation in ihrem Browser speichern darf.",
+      "toggleLabel": "Ankommende Besucher nach Cookies fragen",
+      "helpText": "Eine Auswahl am unteren Rand der Seite, wenn jemand zum ersten Mal ankommt: was notwendig ist, und ein Schalter für alles andere. Schalten Sie sie ein, wenn diese Installation öffentlich erreichbar ist; lassen Sie sie aus bei einem Server, zu dem Ihre Gruppe nur per Einladung kommt – dort steht sie nur im Weg.",
+      "scopeNote": "Aus ist kein Weg, die Frage zu überspringen – es ist für eine Installation, bei der niemand ungebeten ankommt. Ist sie aus, bleibt alles Optionale aus, denn eingeschaltet werden darf nur, wofür es eine Zustimmung gibt."
     }
   },
   "email": {
@@ -1570,6 +1577,14 @@
       "description": "Du wirst nicht benachrichtigt, wenn diese Konten dich erwähnen, dir antworten oder reagieren, und nichts, was sie dir senden, kommt an — Nachrichten, Nachrichtenanfragen, Verbindungsanfragen. Ihr seht weiterhin die Aktivitäten des anderen in gemeinsamen Communities und könnt alle Werkzeuge normal nutzen.",
       "empty": "Du ignorierst niemanden.",
       "stop": "Nicht mehr ignorieren"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "Sie haben die Cookie-Frage in diesem Browser noch nicht beantwortet. Bis dahin ist nichts Optionales aktiv.",
+      "noneAllowed": "In diesem Browser ist nichts Optionales aktiv.",
+      "allowed": "In diesem Browser aktiv: {{categories}}.",
+      "perBrowser": "Ihre Antwort folgt Ihrem Konto, ein neuer Browser oder ein neues Gerät fragt also nicht erneut. Vor der Anmeldung gegeben, bleibt sie bis dahin in diesem Browser.",
+      "change": "Ändern"
     }
   },
   "twoFactor": {

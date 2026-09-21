@@ -7,7 +7,7 @@ import { legalDocumentPath, useLegalIndex } from "@/hooks/useLegalDocuments";
  *  A plain anchor rather than a router link: it opens in its own tab, so the
  *  form somebody is halfway through filling in is still there when they come
  *  back, and nothing about reading a policy belongs to the signup route. */
-const DocumentLink = ({ slug, children }: { slug: string; children?: React.ReactNode }) => (
+export const DocumentLink = ({ slug, children }: { slug: string; children?: React.ReactNode }) => (
   <a
     href={legalDocumentPath(slug)}
     target="_blank"

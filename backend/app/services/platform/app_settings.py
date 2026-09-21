@@ -228,7 +228,11 @@ async def get_app_settings(session: AsyncSession) -> AppSetting:
 # Which columns of the settings singleton each area of the owner's settings
 # page can move. A record names the ones that actually moved; a value rides
 # along only where its type rules out a secret.
-INTERFACE_FIELDS: tuple[str, ...] = ("light_accent_color", "dark_accent_color")
+INTERFACE_FIELDS: tuple[str, ...] = (
+    "light_accent_color",
+    "dark_accent_color",
+    "cookie_consent_enabled",
+)
 COMMUNITY_FIELDS: tuple[str, ...] = (
     "community_directory_enabled",
     "community_age_gate_enabled",
@@ -288,17 +292,25 @@ async def _record_settings_area(
     )
 
 
-async def update_interface_colors(
+async def update_interface_settings(
     session: AsyncSession,
     *,
     light_accent_color: str,
     dark_accent_color: str,
+    cookie_consent_enabled: bool | None = None,
     actor_user_id: int | None = None,
 ) -> AppSetting:
+    """The two accent colours, and whether arriving visitors are asked about cookies.
+
+    ``cookie_consent_enabled`` is an independent decision and is left alone when
+    omitted, so saving a colour does not silently answer it.
+    """
     settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, INTERFACE_FIELDS)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
+    if cookie_consent_enabled is not None:
+        settings_row.cookie_consent_enabled = bool(cookie_consent_enabled)
     session.add(settings_row)
     await _record_settings_area(
         session,

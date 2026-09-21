@@ -52,6 +52,53 @@ If we host it, your data lives where our service runs. For a group with a reside
 - **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including an administrator of the server they passed through. See [Private messages](private-messages.md).
 - **Access control:** everything else is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
 
+## What is kept in your browser
+
+Initiative stores a small amount on the device you use it from. What's essential is there to run what you asked for; anything beyond that is yours to switch on or off.
+
+### Essential
+
+Always present, because there is no version of Initiative without it.
+
+| What | Where | Why |
+|---|---|---|
+| Your sign-in session | A cookie the page's own scripts can't read | Keeps you signed in between page loads. |
+| A renewal token | A cookie sent only to the sign-in routes | Renews the session without asking for your password again. |
+| Your theme, language and layout | Local storage | Your preferences, kept where you set them. |
+| What you had open, and unsent drafts | Local storage | So a reload doesn't lose your place or your typing. |
+| Recently read pages, on the mobile app | The device's own storage | So the app has something to show with no signal. |
+
+Signing out clears the session and renewal cookies. Clearing your browser's site data clears the rest; you'll land back on the sign-in page with default preferences.
+
+### Optional
+
+Initiative knows two: **analytics** — which pages get used and where people get stuck, counted in aggregate — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+
+**You are only asked about the ones your deployment actually uses.** Both ship switched off, so a server run by a group for itself uses neither and never asks about either. Where a deployment has configured one, it gets a switch, and that switch starts off. Ignoring the question, closing the chooser, or never being asked all leave everything optional off.
+
+### The cookie chooser
+
+A deployment can put the question to arriving visitors. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**.
+
+Where it is on and the deployment uses something optional, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click; **Choose** opens a switch per category. Where the deployment uses nothing optional, there is nothing to decide, so it says what is kept and offers a single acknowledgement.
+
+You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
+
+Your answer is kept in the browser you gave it in, which is what decides what that browser loads. Answered before you sign in, it stays there and goes nowhere — somebody reading the landing page has no account to attach it to.
+
+Once you're signed in it also belongs to your **account**, so a browser or device that has never asked you takes your existing answer instead of asking again, and changing your mind on one device reaches the others. Where the two disagree, an answer you have just given wins over one carried from elsewhere. Your account keeps only the categories you allowed, the date, and which version of the question it answered.
+
+If the categories change, you're asked again.
+
+### The one outside company
+
+Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The chooser names the vendor where it applies.
+
+Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
+
+!!! info "If you host it yourself"
+    The tables above describe Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
+
 ## Your data rights
 
 ### Getting your data out
