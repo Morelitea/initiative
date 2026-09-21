@@ -1,15 +1,20 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   ConsentCategory,
   getConsentState,
   hasConsent,
-  OPTIONAL_CONSENT_CATEGORIES,
+  KNOWN_CONSENT_CATEGORIES,
   recordConsent,
   reopenConsent,
   subscribeToConsent,
 } from "@/lib/consent";
 import { removeItem, setItem } from "@/lib/storage";
+
+const LOCALES_DIR = path.resolve(__dirname, "../../public/locales");
 
 const stored = (record: unknown) => setItem("cookie-consent", JSON.stringify(record));
 const answer = (granted: string[], version = 1) => ({
@@ -23,8 +28,35 @@ describe("what a browser arrives holding", () => {
 
   it("counts a browser that has never answered as having refused", () => {
     expect(getConsentState().record).toBeNull();
-    for (const category of OPTIONAL_CONSENT_CATEGORIES) {
+    for (const category of KNOWN_CONSENT_CATEGORIES) {
       expect(hasConsent(category)).toBe(false);
+    }
+  });
+
+  it("knows the same categories the backend can offer", () => {
+    // Mirrored by backend/app/core/cookie_categories_test.py. The server says
+    // which of these a deployment actually uses; this is the vocabulary both
+    // sides have to agree on.
+    expect([...KNOWN_CONSENT_CATEGORIES]).toEqual(["analytics", "marketing"]);
+  });
+
+  it("can name and describe every category it knows, in every locale", () => {
+    const locales = fs
+      .readdirSync(LOCALES_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    expect(locales.length).toBeGreaterThan(0);
+
+    for (const locale of locales) {
+      const legal = JSON.parse(
+        fs.readFileSync(path.join(LOCALES_DIR, locale, "legal.json"), "utf-8")
+      ) as { cookies: { categories: Record<string, { name?: string; description?: string }> } };
+
+      for (const category of KNOWN_CONSENT_CATEGORIES) {
+        const entry = legal.cookies.categories[category];
+        expect(entry?.name, `${locale}: ${category} has no name`).toBeTruthy();
+        expect(entry?.description, `${locale}: ${category} has no description`).toBeTruthy();
+      }
     }
   });
 
@@ -90,7 +122,7 @@ describe("answering", () => {
   });
 
   it("says what an answer took back, so the caller can act on it", () => {
-    recordConsent(OPTIONAL_CONSENT_CATEGORIES);
+    recordConsent(KNOWN_CONSENT_CATEGORIES);
 
     expect(recordConsent([ConsentCategory.analytics]).revoked).toEqual([ConsentCategory.marketing]);
     expect(recordConsent([ConsentCategory.analytics]).revoked).toEqual([]);

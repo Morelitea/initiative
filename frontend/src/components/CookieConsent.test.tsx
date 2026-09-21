@@ -6,7 +6,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import {
   ConsentCategory,
   hasConsent,
-  OPTIONAL_CONSENT_CATEGORIES,
+  KNOWN_CONSENT_CATEGORIES,
   reopenConsent,
 } from "@/lib/consent";
 import { removeItem, setItem } from "@/lib/storage";
@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   config: {
     captcha: null as { provider: string; site_key: string } | null,
     cookieConsentEnabled: true,
+    cookieCategories: ["analytics", "marketing"] as string[],
     isLoading: false,
   },
   legal: { enabled: false, documents: [] as { slug: string; title: string }[] },
@@ -32,7 +33,7 @@ vi.mock("@/hooks/useLegalDocuments", async (importOriginal) => ({
   useLegalIndex: () => ({ ...mocks.legal, required: [], isLoading: false }),
 }));
 
-const chooser = () => screen.queryByRole("region", { name: /cookie choices/i });
+const chooser = () => screen.queryByRole("region", { name: /^cookies$/i });
 
 /**
  * Mount the chooser against a browser holding `stored` — no answer by default.
@@ -54,7 +55,12 @@ const answered = (granted: string[]) =>
 
 describe("CookieConsent", () => {
   beforeEach(() => {
-    mocks.config = { captcha: null, cookieConsentEnabled: true, isLoading: false };
+    mocks.config = {
+      captcha: null,
+      cookieConsentEnabled: true,
+      cookieCategories: ["analytics", "marketing"],
+      isLoading: false,
+    };
     mocks.legal = { enabled: false, documents: [] };
   });
 
@@ -80,7 +86,7 @@ describe("CookieConsent", () => {
     await user.click(screen.getByRole("button", { name: /reject optional/i }));
 
     expect(chooser()).not.toBeInTheDocument();
-    for (const category of OPTIONAL_CONSENT_CATEGORIES) {
+    for (const category of KNOWN_CONSENT_CATEGORIES) {
       expect(hasConsent(category)).toBe(false);
     }
   });
@@ -91,7 +97,7 @@ describe("CookieConsent", () => {
 
     await user.click(screen.getByRole("button", { name: /accept all/i }));
 
-    for (const category of OPTIONAL_CONSENT_CATEGORIES) {
+    for (const category of KNOWN_CONSENT_CATEGORIES) {
       expect(hasConsent(category)).toBe(true);
     }
   });
@@ -140,7 +146,7 @@ describe("CookieConsent", () => {
 
     reopenConsent();
 
-    expect(await screen.findByRole("region", { name: /cookie choices/i })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /^cookies$/i })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: /analytics/i })).toBeChecked();
     expect(screen.getByRole("switch", { name: /marketing/i })).not.toBeChecked();
   });
@@ -149,7 +155,7 @@ describe("CookieConsent", () => {
     const user = userEvent.setup();
     mount({ stored: answered(["analytics"]) });
     reopenConsent();
-    await screen.findByRole("region", { name: /cookie choices/i });
+    await screen.findByRole("region", { name: /^cookies$/i });
 
     await user.click(screen.getByRole("button", { name: /close/i }));
 
@@ -161,6 +167,53 @@ describe("CookieConsent", () => {
     mount();
 
     expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+  });
+
+  it("offers a switch only for what the deployment actually uses", async () => {
+    mocks.config = { ...mocks.config, cookieCategories: ["analytics"] };
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /^choose$/i }));
+
+    expect(screen.getByRole("switch", { name: /analytics/i })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /marketing/i })).not.toBeInTheDocument();
+  });
+
+  it("accepting grants what is in use and nothing else", async () => {
+    mocks.config = { ...mocks.config, cookieCategories: ["analytics"] };
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /accept all/i }));
+
+    expect(hasConsent(ConsentCategory.analytics)).toBe(true);
+    expect(hasConsent(ConsentCategory.marketing)).toBe(false);
+  });
+
+  it("asks nothing where the deployment uses nothing optional", async () => {
+    mocks.config = { ...mocks.config, cookieCategories: [] };
+    const user = userEvent.setup();
+    mount();
+
+    // A question with no answers is not a question: it says what is kept, and
+    // the one button agrees to nothing.
+    expect(screen.queryByRole("button", { name: /accept all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^choose$/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /got it/i }));
+
+    expect(chooser()).not.toBeInTheDocument();
+    for (const category of KNOWN_CONSENT_CATEGORIES) {
+      expect(hasConsent(category)).toBe(false);
+    }
+  });
+
+  it("shows no essential row where there is nothing to contrast it with", async () => {
+    mocks.config = { ...mocks.config, cookieCategories: [] };
+    mount();
+
+    expect(screen.queryByText(/always on/i)).not.toBeInTheDocument();
   });
 
   it("says nothing where the deployment has not asked it to", async () => {

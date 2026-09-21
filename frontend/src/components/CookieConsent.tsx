@@ -11,12 +11,7 @@ import { useConsent } from "@/hooks/useConsent";
 import { useLegalIndex } from "@/hooks/useLegalDocuments";
 import { useServer } from "@/hooks/useServer";
 import { captchaProvider } from "@/lib/captchaProviders";
-import {
-  type ConsentCategory,
-  dismissReopenedConsent,
-  OPTIONAL_CONSENT_CATEGORIES,
-  recordConsent,
-} from "@/lib/consent";
+import { type ConsentCategory, dismissReopenedConsent, recordConsent } from "@/lib/consent";
 import { COOKIE_DOCS_URL } from "@/lib/links";
 
 /**
@@ -31,6 +26,11 @@ import { COOKIE_DOCS_URL } from "@/lib/links";
  * no switch because it has no alternative — the sign-in session, the theme,
  * what you had open — and a switch that cannot move would suggest otherwise.
  *
+ * The optional switches are the ones the server says this deployment actually
+ * uses. A deployment using none of them — the ordinary case for somebody
+ * running this on their own server — is not shown switches for things it does
+ * not do, and gets the statement with one way to close it.
+ *
  * Off unless the deployment turned it on (``cookie_consent_enabled``), since
  * most deployments are a group's own server reached by people who were sent a
  * link. Mounted once at the root, like the step-up dialogs: a first arrival is
@@ -39,7 +39,7 @@ import { COOKIE_DOCS_URL } from "@/lib/links";
 export const CookieConsent = () => {
   const { t } = useTranslation(["legal", "common"]);
   const { isNativePlatform } = useServer();
-  const { captcha, cookieConsentEnabled, isLoading } = useAppConfig();
+  const { captcha, cookieCategories, cookieConsentEnabled, isLoading } = useAppConfig();
   const { enabled: hasLegalDocuments } = useLegalIndex();
   const { unanswered, reopened, granted } = useConsent();
 
@@ -66,7 +66,9 @@ export const CookieConsent = () => {
   }
 
   const spamCheck = captcha ? captchaProvider(captcha.provider) : undefined;
-  const showingSwitches = choosing || reopened;
+  const offered = cookieCategories;
+  const nothingOptional = offered.length === 0;
+  const showingSwitches = !nothingOptional && (choosing || reopened);
 
   const decide = (categories: readonly ConsentCategory[]) => {
     const { revoked } = recordConsent(categories);
@@ -98,7 +100,10 @@ export const CookieConsent = () => {
           <div className="min-w-0 flex-1 space-y-1">
             <p className="font-medium text-sm">{t("legal:cookies.title")}</p>
             <p className="text-muted-foreground text-sm">
-              {t("legal:cookies.body", { appName: t("common:appName") })}
+              {t("legal:cookies.body", { appName: t("common:appName") })}{" "}
+              {nothingOptional
+                ? t("legal:cookies.nothingOptional")
+                : t("legal:cookies.optionalIntro")}
             </p>
             {spamCheck ? (
               <p className="text-muted-foreground text-sm">
@@ -152,7 +157,7 @@ export const CookieConsent = () => {
               </span>
             </div>
 
-            {OPTIONAL_CONSENT_CATEGORIES.map((category) => (
+            {offered.map((category) => (
               <div key={category} className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label htmlFor={`consent-${category}`} className="font-medium text-sm">
@@ -173,27 +178,37 @@ export const CookieConsent = () => {
           </div>
         ) : null}
 
-        {/* Refuse and accept are the same size and the same weight, side by
-            side, so neither is the path of least resistance. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => decide([])} className="flex-1 sm:flex-none">
-            {t("legal:cookies.rejectAll")}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => decide(OPTIONAL_CONSENT_CATEGORIES)}
-            className="flex-1 sm:flex-none"
-          >
-            {t("legal:cookies.acceptAll")}
-          </Button>
-          {showingSwitches ? (
-            <Button variant="ghost" onClick={() => decide(draft)}>
-              {t("legal:cookies.save")}
+          {/* With nothing optional in use there is no question, so there is
+              one button and it agrees to nothing. */}
+          {nothingOptional ? (
+            <Button variant="outline" onClick={() => decide([])}>
+              {t("legal:cookies.acknowledge")}
             </Button>
           ) : (
-            <Button variant="ghost" onClick={() => setChoosing(true)}>
-              {t("legal:cookies.choose")}
-            </Button>
+            <>
+              {/* Refuse and accept are the same size and the same weight, side
+                  by side, so neither is the path of least resistance. */}
+              <Button variant="outline" onClick={() => decide([])} className="flex-1 sm:flex-none">
+                {t("legal:cookies.rejectAll")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => decide(offered)}
+                className="flex-1 sm:flex-none"
+              >
+                {t("legal:cookies.acceptAll")}
+              </Button>
+              {showingSwitches ? (
+                <Button variant="ghost" onClick={() => decide(draft)}>
+                  {t("legal:cookies.save")}
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => setChoosing(true)}>
+                  {t("legal:cookies.choose")}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </section>

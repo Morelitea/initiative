@@ -39,13 +39,20 @@ export const ConsentCategory = {
 export type ConsentCategory = (typeof ConsentCategory)[keyof typeof ConsentCategory];
 
 /**
- * The categories somebody can actually answer, in the order they are offered.
+ * Every optional category Initiative has a name for.
+ *
+ * The vocabulary, not the offer. Which of these a visitor is actually asked
+ * about comes from the server (`AppConfig.cookie_categories`), because a
+ * category is only worth a switch on a deployment that uses it — see
+ * `backend/app/core/cookie_categories.py`. This list exists so a stored answer
+ * naming something we retired can be dropped, and so the labels can be checked
+ * against the backend's enum.
  *
  * `necessary` is deliberately absent: it is the app working, there is no
  * version of Initiative without it, and a switch that cannot move is a switch
  * that pretends a choice exists.
  */
-export const OPTIONAL_CONSENT_CATEGORIES = [
+export const KNOWN_CONSENT_CATEGORIES = [
   ConsentCategory.analytics,
   ConsentCategory.marketing,
 ] as const;
@@ -143,8 +150,8 @@ export const hasConsent = (category: ConsentCategory): boolean => {
 export const recordConsent = (
   granted: readonly ConsentCategory[]
 ): { revoked: ConsentCategory[] } => {
-  const kept = OPTIONAL_CONSENT_CATEGORIES.filter((category) => granted.includes(category));
-  const revoked = OPTIONAL_CONSENT_CATEGORIES.filter(
+  const kept = KNOWN_CONSENT_CATEGORIES.filter((category) => granted.includes(category));
+  const revoked = KNOWN_CONSENT_CATEGORIES.filter(
     (category) => hasConsent(category) && !kept.includes(category)
   );
   const record: ConsentRecord = {

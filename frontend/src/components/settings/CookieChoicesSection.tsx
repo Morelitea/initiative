@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useConsent } from "@/hooks/useConsent";
 import { useServer } from "@/hooks/useServer";
-import { OPTIONAL_CONSENT_CATEGORIES, reopenConsent } from "@/lib/consent";
+import { reopenConsent } from "@/lib/consent";
 
 /**
  * What this browser is currently allowing, and the way to change it.
@@ -19,14 +19,16 @@ import { OPTIONAL_CONSENT_CATEGORIES, reopenConsent } from "@/lib/consent";
 export const CookieChoicesSection = () => {
   const { t } = useTranslation(["settings", "legal"]);
   const { isNativePlatform } = useServer();
-  const { cookieConsentEnabled } = useAppConfig();
+  const { cookieCategories, cookieConsentEnabled } = useAppConfig();
   const { unanswered, granted } = useConsent();
 
-  if (isNativePlatform || !cookieConsentEnabled) {
+  // Nothing to change where the deployment uses nothing optional: there is no
+  // answer being held that could be different.
+  if (isNativePlatform || !cookieConsentEnabled || cookieCategories.length === 0) {
     return null;
   }
 
-  const allowed = OPTIONAL_CONSENT_CATEGORIES.filter((category) => granted.includes(category));
+  const allowed = cookieCategories.filter((category) => granted.includes(category));
 
   return (
     <SettingsSection title={t("settings:privacy.cookies.title")}>

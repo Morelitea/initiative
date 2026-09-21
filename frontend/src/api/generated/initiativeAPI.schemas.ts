@@ -773,6 +773,7 @@ export interface AppConfig {
   community_age_gate_enabled: boolean;
   direct_messages_enabled: boolean;
   cookie_consent_enabled: boolean;
+  cookie_categories: string[];
   login_methods: string[];
   min_native_version: string;
 }

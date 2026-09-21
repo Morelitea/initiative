@@ -15,9 +15,11 @@
     "signOut": "Sign out"
   },
   "cookies": {
-    "label": "Cookie choices",
-    "title": "Your cookie choices",
-    "body": "{{appName}} needs a few things in this browser to work at all — what keeps you signed in, the theme you picked, what you had open. Beyond that, it's up to you.",
+    "label": "Cookies",
+    "title": "About cookies",
+    "body": "{{appName}} keeps a few things in this browser to work at all — what keeps you signed in, the theme you picked, what you had open.",
+    "nothingOptional": "That's the lot. Nothing else is kept, and nothing follows you to other sites.",
+    "optionalIntro": "Anything beyond that is yours to decide.",
     "spamCheck": "If you make an account, the sign-up form loads a spam check from {{provider}}, which sets a cookie of its own.",
     "readMore": "What's kept",
     "alwaysOn": "Always on",
@@ -25,6 +27,7 @@
     "acceptAll": "Accept all",
     "choose": "Choose",
     "save": "Save choices",
+    "acknowledge": "Got it",
     "categories": {
       "necessary": {
         "name": "Essential",

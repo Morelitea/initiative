@@ -14,6 +14,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.api.deps import SessionDep
+from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
 from app.core.version import get_min_native_version
@@ -85,6 +86,12 @@ class AppConfig(BaseModel):
     # question is put to somebody who has not signed in and may never do so. A
     # database setting like the three above, so it changes without a redeploy.
     cookie_consent_enabled: bool
+    # The optional cookie categories this deployment actually uses, which is
+    # what the chooser offers a switch for. Empty where it uses none, and the
+    # chooser then states what is essential rather than asking about nothing.
+    # Derived from configuration at request time, not stored -- see
+    # ``app.core.cookie_categories``.
+    cookie_categories: list[str]
     # The ways in this deployment permits. The login page reads it to decide
     # whether to render the password form at all; the server refuses either
     # way, so this only decides what is offered. Unauthenticated by necessity —
@@ -137,6 +144,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
         cookie_consent_enabled=app_settings.cookie_consent_enabled,
+        cookie_categories=[c.value for c in active_cookie_categories(settings)],
         login_methods=sorted(
             m.value for m in auth_posture.methods_from_row(app_settings)
         ),

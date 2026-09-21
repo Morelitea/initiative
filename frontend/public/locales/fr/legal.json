@@ -15,9 +15,11 @@
     "signOut": "Se déconnecter"
   },
   "cookies": {
-    "label": "Vos choix de cookies",
-    "title": "Vos choix de cookies",
-    "body": "{{appName}} a besoin de quelques éléments dans ce navigateur pour fonctionner : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert. Au-delà, c'est vous qui décidez.",
+    "label": "Cookies",
+    "title": "À propos des cookies",
+    "body": "{{appName}} conserve quelques éléments dans ce navigateur pour fonctionner : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert.",
+    "nothingOptional": "C'est tout. Rien d'autre n'est conservé, et rien ne vous suit sur d'autres sites.",
+    "optionalIntro": "Au-delà, c'est vous qui décidez.",
     "spamCheck": "Si vous créez un compte, le formulaire d'inscription charge une vérification anti-spam de {{provider}}, qui dépose son propre cookie.",
     "readMore": "Ce qui est conservé",
     "alwaysOn": "Toujours actifs",
@@ -25,6 +27,7 @@
     "acceptAll": "Tout accepter",
     "choose": "Choisir",
     "save": "Enregistrer mes choix",
+    "acknowledge": "Compris",
     "categories": {
       "necessary": {
         "name": "Essentiels",

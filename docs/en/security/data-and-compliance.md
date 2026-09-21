@@ -72,15 +72,17 @@ Signing out clears the session and renewal cookies. Clearing your browser's site
 
 ### Optional
 
-**Analytics** — which pages get used and where people get stuck, counted in aggregate. **Marketing** — which link brought you here, and reaching you about Initiative elsewhere.
+Initiative knows two: **analytics** — which pages get used and where people get stuck, counted in aggregate — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
 
-Both are **off until you switch them on**, and never switched on for you. Ignoring the question, closing the chooser, or never being asked all leave them off.
+**You are only asked about the ones your deployment actually uses.** Both ship switched off, so a server run by a group for itself uses neither and never asks about either. Where a deployment has configured one, it gets a switch, and that switch starts off. Ignoring the question, closing the chooser, or never being asked all leave everything optional off.
 
 ### The cookie chooser
 
-A deployment can ask arriving visitors which of the optional categories it may use. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**. With it off, nothing optional is used at all, since nothing may be switched on that nobody agreed to.
+A deployment can put the question to arriving visitors. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**.
 
-Where it is on, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click. You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
+Where it is on and the deployment uses something optional, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click; **Choose** opens a switch per category. Where the deployment uses nothing optional, there is nothing to decide, so it says what is kept and offers a single acknowledgement.
+
+You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
 
 Your answer is kept in your own browser, with the date and which version of the question it answered, and is never sent to the server — somebody reading the landing page has no account to attach it to. It applies to that browser, so a different browser or device asks again rather than inheriting it. If the categories change, you're asked again.
 
