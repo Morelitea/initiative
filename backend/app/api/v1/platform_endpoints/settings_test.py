@@ -32,6 +32,7 @@ from app.testing import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_user,
     guild_administration,
 )
 from sqlmodel import select
@@ -1204,9 +1205,10 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     The same two halves the operator's Intake page writes: the pointer on the
     settings singleton, and a binding inside the guild it names.
     """
-    staff = await create_guild(session)
-    initiative = await create_initiative(session, staff, staff.creator)
-    project = await create_project(session, initiative, staff.creator)
+    staff_user = await create_user(session)
+    staff = await create_guild(session, creator=staff_user)
+    initiative = await create_initiative(session, staff, staff_user)
+    project = await create_project(session, initiative, staff_user)
 
     await set_rls_context(session)
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
