@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An import asks who its people are before it writes their words down** — dropping an exported project on a board imported its comments straight away, and anybody the file quoted who was not already a member here lost their account: the words landed under their old name, with no face and no profile. The file now stops and asks who each of them is on this server, listing how many comments each wrote — the step a whole-community restore already had. Exact matches are filled in, and leaving a row blank is a real answer: those comments keep the name they arrived with. It only asks when there is something to ask, so a file quoting nobody still imports on one click. Your answers decide who a task is assigned to as well, though an assignment still only lands on somebody who is in the initiative it is going into.
 - **Notices can be imported from the board that lists them** — every other tool's list page took an exported file; the bulletin board did not, so a notice's own export had nowhere in the app to go back in. Its overflow menu now offers the import like the rest of them.
 
+### Fixed
+
+- **Signing in no longer lands you in somebody else's community** — a browser remembered one community for everybody who used it, and a sign-in resumed whatever page it was last interrupted on, whoever that was. Each account now keeps its own last community, and a page inside a community is only resumed for somebody who is in it. Signing in after being interrupted still takes you back where you were headed.
+
 ### Changed
 
 - **Help requests can only be switched on once there is somewhere to send them** — the operator's per-community **Help requests** switch offered a community's members a form even where the deployment had bound no support stream, so anything written in it had nowhere to land. The switch is now held until **Settings → Admin → Intake** routes support into a project, and says so where it sits. Turning it off is unaffected.
