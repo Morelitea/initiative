@@ -12,9 +12,11 @@ import { reopenConsent } from "@/lib/consent";
  *
  * Here because a landing-page footer is no use to somebody already signed in
  * and three pages deep, and taking an answer back has to stay as easy as
- * giving one. It reads the browser rather than the account: the answer was
- * given by a browser and applies to that browser, so signing in on a second
- * one asks again rather than inheriting a decision made somewhere else.
+ * giving one.
+ *
+ * It reads this browser, which is what governs what loads here. The answer
+ * also belongs to the account (see `useConsentSync`), so changing it here
+ * reaches the other browsers this account signs in from.
  */
 export const CookieChoicesSection = () => {
   const { t } = useTranslation(["settings", "legal"]);

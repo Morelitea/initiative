@@ -57,12 +57,15 @@ from app.models.platform.guild import (
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
+from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
     CommunityGuildRead,
     GuildBannerRead,
     GuildCategory,
 )
 from app.schemas.platform.user import (
+    CookieConsentRead,
+    CookieConsentUpdate,
     UserEmailCreate,
     UserEmailListResponse,
     UserEmailRead,
@@ -115,6 +118,7 @@ from app.services.tenant import app_delegations as app_delegations_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
+from app.services.platform import cookie_consent as cookie_consent_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
@@ -188,6 +192,12 @@ async def read_users_me(
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
         session, user=current_user
+    )
+    # Own-row read on the routed session. Null where this account has never
+    # answered, which is what lets a browser tell "never asked" from "asked,
+    # and allowed nothing".
+    payload.cookie_consent = _cookie_consent_read(
+        await cookie_consent_service.get_consent(session, user_id=current_user.id)
     )
     return payload
 
@@ -840,6 +850,38 @@ async def confirm_my_age(
         await session.refresh(current_user)
 
     return await users_service.to_self_read(current_user)
+
+
+def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | None:
+    return None if row is None else CookieConsentRead.model_validate(row)
+
+
+@router.put("/me/cookie-consent", response_model=CookieConsentRead)
+async def set_cookie_consent(
+    payload: CookieConsentUpdate,
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> CookieConsentRead:
+    """Record what this account allows to be kept in a browser.
+
+    The browser it was answered in keeps its own copy — a visitor who has not
+    signed in has no account to attach one to, and the answer is about that
+    browser either way. This is what carries it to a browser that has never
+    been asked, and carries a change of mind back to one that has.
+
+    Replaces rather than appends: the question is what applies now. Sending it
+    again with the same answer is a no-op apart from the stamp, which is what
+    two browsers compare to tell whose answer is the later one.
+    """
+    row = await cookie_consent_service.record_consent(
+        session,
+        user_id=current_user.id,
+        granted=payload.granted,
+        version=payload.version,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return CookieConsentRead.model_validate(row)
 
 
 @router.post("/me/legal-acceptance", response_model=UserRead)

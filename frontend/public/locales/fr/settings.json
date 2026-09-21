@@ -1583,7 +1583,7 @@
       "unanswered": "Vous n'avez pas encore répondu à la question des cookies dans ce navigateur. D'ici là, rien d'optionnel n'est activé.",
       "noneAllowed": "Rien d'optionnel n'est activé dans ce navigateur.",
       "allowed": "Activé dans ce navigateur : {{categories}}.",
-      "perBrowser": "La réponse vaut par navigateur, pas par compte : un autre navigateur ou appareil pose à nouveau la question plutôt que d'hériter de celle-ci.",
+      "perBrowser": "Votre réponse suit votre compte : un autre navigateur ou appareil ne repose pas la question. Donnée avant votre connexion, elle reste dans ce navigateur jusque-là.",
       "change": "Modifier"
     }
   },

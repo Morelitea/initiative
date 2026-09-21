@@ -1583,7 +1583,7 @@
       "unanswered": "You haven't answered the cookie question in this browser yet. Until you do, nothing optional is switched on.",
       "noneAllowed": "Nothing optional is switched on in this browser.",
       "allowed": "Switched on in this browser: {{categories}}.",
-      "perBrowser": "Answered per browser, not per account — a different browser or device asks again rather than inheriting this.",
+      "perBrowser": "Your answer follows your account, so a new browser or device won't ask again. Answered before you signed in, it stays in that browser until you do.",
       "change": "Change"
     }
   },

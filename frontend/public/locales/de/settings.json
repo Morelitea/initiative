@@ -1583,7 +1583,7 @@
       "unanswered": "Sie haben die Cookie-Frage in diesem Browser noch nicht beantwortet. Bis dahin ist nichts Optionales aktiv.",
       "noneAllowed": "In diesem Browser ist nichts Optionales aktiv.",
       "allowed": "In diesem Browser aktiv: {{categories}}.",
-      "perBrowser": "Pro Browser beantwortet, nicht pro Konto – ein anderer Browser oder ein anderes Gerät fragt erneut, statt dies zu übernehmen.",
+      "perBrowser": "Ihre Antwort folgt Ihrem Konto, ein neuer Browser oder ein neues Gerät fragt also nicht erneut. Vor der Anmeldung gegeben, bleibt sie bis dahin in diesem Browser.",
       "change": "Ändern"
     }
   },

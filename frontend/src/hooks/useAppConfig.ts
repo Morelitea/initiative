@@ -5,7 +5,7 @@ import {
   getGetAppConfigApiV1ConfigGetQueryKey,
 } from "@/api/generated/config/config";
 import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
-import type { ConsentCategory } from "@/lib/consent";
+import type { OptionalConsentCategory } from "@/lib/consent";
 
 /**
  * Runtime config fetched once at boot.
@@ -74,7 +74,7 @@ export const useAppConfig = () => {
      *  what the chooser offers a switch for. Empty until the config loads, and
      *  empty is also the common answer — a deployment that uses none of them
      *  asks about none of them. */
-    cookieCategories: (query.data?.cookie_categories ?? []) as ConsentCategory[],
+    cookieCategories: (query.data?.cookie_categories ?? []) as OptionalConsentCategory[],
     /** Whether this deployment offers direct messages at all. True until the
      *  config loads, and true is also the default — messaging is what most
      *  deployments have, and hiding My Messages for a moment on every boot

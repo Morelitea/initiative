@@ -57,12 +57,28 @@ export const KNOWN_CONSENT_CATEGORIES = [
   ConsentCategory.marketing,
 ] as const;
 
+/** A category that can actually be granted or refused — everything except
+ *  `necessary`. An answer is made of these and only these, which is a rule
+ *  worth having the type state rather than the code enforce twice. */
+export type OptionalConsentCategory = (typeof KNOWN_CONSENT_CATEGORIES)[number];
+
 export interface ConsentRecord {
   /** Which {@link CONSENT_VERSION} was answered. */
   readonly version: number;
   /** When, so the deployment can say what was agreed and when. */
   readonly decidedAt: string;
-  readonly granted: readonly ConsentCategory[];
+  readonly granted: readonly OptionalConsentCategory[];
+  /**
+   * The account stamp this browser has already reconciled with, or null where
+   * the answer was given here and has not reached the account yet — which is
+   * what an answer given before signing in looks like.
+   *
+   * Comparing this against the account's own stamp is how a browser tells
+   * "the account changed somewhere else" from "this is the answer I sent".
+   * Both sides of the comparison are the server's clock, so two devices are
+   * never comparing their own.
+   */
+  readonly syncedAt: string | null;
 }
 
 interface ConsentState {
@@ -72,8 +88,11 @@ interface ConsentState {
   readonly reopened: boolean;
 }
 
-const isCategory = (value: unknown): value is ConsentCategory =>
-  typeof value === "string" && value in ConsentCategory;
+/** A stored value that is still one of the categories somebody can answer.
+ *  `necessary` fails this too: it is the app working rather than a choice, so
+ *  it is not something an answer can be made of. */
+const isGrantable = (value: unknown): value is OptionalConsentCategory =>
+  typeof value === "string" && (KNOWN_CONSENT_CATEGORIES as readonly string[]).includes(value);
 
 /** A stored answer, or null where there is none, it is unreadable, or it
  *  answered an older version of the question. */
@@ -82,10 +101,15 @@ const parseRecord = (raw: string | null): ConsentRecord | null => {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
-    const { version, decidedAt, granted } = parsed as Partial<ConsentRecord>;
+    const { version, decidedAt, granted, syncedAt } = parsed as Partial<ConsentRecord>;
     if (version !== CONSENT_VERSION || typeof decidedAt !== "string") return null;
     if (!Array.isArray(granted)) return null;
-    return { version, decidedAt, granted: granted.filter(isCategory) };
+    return {
+      version,
+      decidedAt,
+      granted: granted.filter(isGrantable),
+      syncedAt: typeof syncedAt === "string" ? syncedAt : null,
+    };
   } catch {
     // Unreadable reads as unanswered, which puts the question rather than
     // assuming an answer nobody can produce.
@@ -149,7 +173,7 @@ export const hasConsent = (category: ConsentCategory): boolean => {
  */
 export const recordConsent = (
   granted: readonly ConsentCategory[]
-): { revoked: ConsentCategory[] } => {
+): { revoked: OptionalConsentCategory[] } => {
   const kept = KNOWN_CONSENT_CATEGORIES.filter((category) => granted.includes(category));
   const revoked = KNOWN_CONSENT_CATEGORIES.filter(
     (category) => hasConsent(category) && !kept.includes(category)
@@ -158,11 +182,40 @@ export const recordConsent = (
     version: CONSENT_VERSION,
     decidedAt: new Date().toISOString(),
     granted: kept,
+    // Not yet the account's. Somebody answering before they sign in has no
+    // account to tell, and somebody answering after it still has to be told.
+    syncedAt: null,
   };
   setItem(STORAGE_KEY, JSON.stringify(record));
   reopened = false;
   announce();
   return { revoked };
+};
+
+/** Take the account's answer as this browser's, having never been asked here
+ *  or having been overtaken by an answer given somewhere else. */
+export const adoptConsent = (account: {
+  granted: readonly OptionalConsentCategory[];
+  version: number;
+  decidedAt: string;
+}): void => {
+  const record: ConsentRecord = {
+    version: CONSENT_VERSION,
+    decidedAt: account.decidedAt,
+    granted: KNOWN_CONSENT_CATEGORIES.filter((category) => account.granted.includes(category)),
+    syncedAt: account.decidedAt,
+  };
+  setItem(STORAGE_KEY, JSON.stringify(record));
+  announce();
+};
+
+/** Note that this browser's answer is now the account's too, stamped as the
+ *  server stamped it. */
+export const markConsentSynced = (decidedAt: string): void => {
+  const current = getConsentState().record;
+  if (current === null) return;
+  setItem(STORAGE_KEY, JSON.stringify({ ...current, syncedAt: decidedAt }));
+  announce();
 };
 
 /** Put the question again, from a footer link or the settings page. Taking an

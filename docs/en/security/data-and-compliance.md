@@ -84,7 +84,11 @@ Where it is on and the deployment uses something optional, **Reject optional** a
 
 You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
 
-Your answer is kept in your own browser, with the date and which version of the question it answered, and is never sent to the server — somebody reading the landing page has no account to attach it to. It applies to that browser, so a different browser or device asks again rather than inheriting it. If the categories change, you're asked again.
+Your answer is kept in the browser you gave it in, which is what decides what that browser loads. Answered before you sign in, it stays there and goes nowhere — somebody reading the landing page has no account to attach it to.
+
+Once you're signed in it also belongs to your **account**, so a browser or device that has never asked you takes your existing answer instead of asking again, and changing your mind on one device reaches the others. Where the two disagree, an answer you have just given wins over one carried from elsewhere. Your account keeps only the categories you allowed, the date, and which version of the question it answered.
+
+If the categories change, you're asked again.
 
 ### The one outside company
 

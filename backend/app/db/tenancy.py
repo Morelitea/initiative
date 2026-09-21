@@ -91,6 +91,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # cross-guild, like the starred list above, and none of them is any
         # guild's business.
         "user_dm_settings",
+        # What an account allows to be kept in a browser. Per-account and
+        # cross-guild like the rest here: the question is about the deployment,
+        # not about any one community.
+        "user_cookie_consent",
         "user_dm_guild_optouts",
         "contact_grants",
         "user_ignores",

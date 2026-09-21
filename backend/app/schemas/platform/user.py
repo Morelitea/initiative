@@ -13,6 +13,7 @@ from pydantic import (
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
 from app.core.profile_decorations import (
@@ -488,6 +489,29 @@ class UserEmailListResponse(SanitizedBaseModel):
     items: List[UserEmailRead]
 
 
+class CookieConsentRead(SanitizedBaseModel):
+    """What an account allows to be kept in a browser, and when it said so."""
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    granted: List[str]
+    #: Which version of the question was answered. A client holding an answer
+    #: to an older one treats it as unanswered and asks again.
+    version: int
+    #: The server's clock, not the client's, so two browsers comparing their
+    #: answers compare one clock.
+    decided_at: datetime
+
+
+class CookieConsentUpdate(SanitizedBaseModel):
+    """An answer given in one browser, for the account to carry to the rest."""
+
+    granted: List[CookieCategory] = Field(default_factory=list)
+    version: int
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -517,6 +541,11 @@ class UserRead(UserBase):
     #: screen the way ``username_chosen`` false routes to the handle screen.
     #: Populated by ``/users/me``; defaults false elsewhere.
     legal_acceptance_required: bool = False
+    #: This account's cookie answer, so a browser it has never been asked in
+    #: can adopt it instead of asking again. Null where it has never answered,
+    #: which is different from having answered and allowed nothing. Populated
+    #: by ``/users/me``; null elsewhere.
+    cookie_consent: Optional["CookieConsentRead"] = None
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see
     #: ``services.platform.users.to_read``) — the ``users`` row carries neither.

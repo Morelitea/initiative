@@ -7,6 +7,7 @@ import { SecondFactorStepUpDialog } from "@/components/auth/SecondFactorStepUpDi
 import { StepUpDialog } from "@/components/auth/StepUpDialog";
 import { CookieConsent } from "@/components/CookieConsent";
 import { useColorTheme } from "@/hooks/useColorTheme";
+import { useConsentSync } from "@/hooks/useConsentSync";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useSafeArea } from "@/hooks/useSafeArea";
@@ -28,6 +29,7 @@ const RootComponent = () => {
   // Global hooks
   useInterfaceColors();
   useColorTheme();
+  useConsentSync();
   useSafeArea();
   useDeepLinks();
 
