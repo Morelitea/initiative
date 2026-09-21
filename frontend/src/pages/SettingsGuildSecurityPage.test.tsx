@@ -34,6 +34,11 @@ let connections = [
   connection(1, 11, "corp", "Corp SSO"),
   connection(2, 12, "contractors", "Contractors"),
 ];
+/** What the deployment offers this community to connect to. Empty is a state of
+ *  its own: nothing to connect means a different answer than nothing connected. */
+let connectable: { id: number; slug: string; display_name: string }[] = [
+  { id: 11, slug: "corp", display_name: "Corp SSO" },
+];
 let policy: {
   policy: "open" | "required";
   provider_id: number | null;
@@ -84,7 +89,7 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
-  useConnectableProviders: () => ({ data: [], isLoading: false }),
+  useConnectableProviders: () => ({ data: connectable, isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
   useConnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateProviderConnection: () => ({ mutate: vi.fn(), isPending: false }),
@@ -148,6 +153,7 @@ describe("SettingsGuildSecurityPage", () => {
       connection(1, 11, "corp", "Corp SSO"),
       connection(2, 12, "contractors", "Contractors"),
     ];
+    connectable = [{ id: 11, slug: "corp", display_name: "Corp SSO" }];
     grantedAuthSettings = {
       auth_options: ["restrictions", "providers"],
       allow_api_keys: true,
@@ -203,25 +209,31 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("a community that has connected nothing", () => {
-    it("leads with a prompt to set sign-in up", () => {
+    // The prompt used to be a card of its own above the sections. It is now the
+    // connections card saying so, with the way in beside it.
+    it("says so where the connections would be, and offers the way in", () => {
       connections = [];
       render();
 
-      const prompt = screen.getByText(/nothing connected yet/i);
-      const button = screen.getByRole("button", { name: /set up sign-in/i });
-      expect(prompt).toBeInTheDocument();
-      const text = document.body.textContent ?? "";
-      expect(text.indexOf("Nothing connected yet")).toBeLessThan(
-        text.indexOf("Which sign-ins are yours")
-      );
-      expect(button).toBeEnabled();
+      expect(screen.getByText(/no providers connected yet/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /connect a provider/i })).toBeEnabled();
     });
 
-    it("drops the prompt once something is connected", () => {
+    it("says the deployment offers none, rather than inviting a choice of none", () => {
+      connections = [];
+      connectable = [];
       render();
 
-      expect(screen.queryByText(/nothing connected yet/i)).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /set up sign-in/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/has not offered any providers/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /connect a provider/i })).toBeDisabled();
+    });
+
+    it("says nothing about it once something is connected", () => {
+      render();
+
+      expect(screen.queryByText(/no providers connected yet/i)).not.toBeInTheDocument();
+      // The way in stays: a community may connect a second provider.
+      expect(screen.getByRole("button", { name: /connect a provider/i })).toBeInTheDocument();
     });
   });
 
