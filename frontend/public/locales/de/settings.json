@@ -507,6 +507,13 @@
         "errorPrefix": "Fehlgeschlagen: {{message}}"
       },
       "dismissAll": "alle schließen"
+    },
+    "cookieNotice": {
+      "title": "Cookie-Hinweis",
+      "description": "Ankommenden Besuchern sagen, was diese Installation in ihrem Browser speichert.",
+      "toggleLabel": "Ankommenden Besuchern einen Cookie-Hinweis zeigen",
+      "helpText": "Ein kurzer Hinweis am unteren Rand der Seite, wenn jemand zum ersten Mal ankommt: was in seinem Browser gespeichert wird und warum. Schalten Sie ihn ein, wenn diese Installation öffentlich erreichbar ist; lassen Sie ihn aus bei einem Server, zu dem Ihre Gruppe nur per Einladung kommt – dort steht er nur im Weg.",
+      "scopeNote": "Er erklärt, statt zu fragen. Alles Gespeicherte wird gebraucht, damit das läuft, wofür jemand gekommen ist. Das Wegklicken ändert also nichts, und dieser Schalter auch nicht – er bestimmt, was gesagt wird, nicht was funktioniert."
     }
   },
   "email": {

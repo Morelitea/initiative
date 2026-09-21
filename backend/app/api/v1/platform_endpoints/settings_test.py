@@ -1273,3 +1273,64 @@ async def test_help_requests_can_always_be_switched_off(client, session, owner):
 
     assert response.status_code == 200, response.text
     assert (await guild_administration(session, guild)).support_enabled is False
+
+
+INTERFACE = "/api/v1/settings/interface"
+
+_COLOURS = {"light_accent_color": "#123456", "dark_accent_color": "#abcdef"}
+
+
+@pytest.mark.integration
+async def test_the_cookie_notice_starts_off(client, owner):
+    """A deployment nobody arrives at uninvited is not asked to explain itself
+    to arrivals. An owner running a public front door turns it on."""
+    response = await client.get(INTERFACE, headers=owner.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["cookie_notice_enabled"] is False
+
+
+@pytest.mark.integration
+async def test_an_owner_turns_the_cookie_notice_on_and_off(client, owner):
+    on = await client.put(
+        INTERFACE,
+        json={**_COLOURS, "cookie_notice_enabled": True},
+        headers=owner.headers,
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["cookie_notice_enabled"] is True
+
+    off = await client.put(
+        INTERFACE,
+        json={**_COLOURS, "cookie_notice_enabled": False},
+        headers=owner.headers,
+    )
+    assert off.status_code == 200, off.text
+    assert off.json()["cookie_notice_enabled"] is False
+
+
+@pytest.mark.integration
+async def test_saving_a_colour_leaves_the_cookie_notice_alone(client, owner):
+    """The two live on one page and one payload; they are still two decisions,
+    so the colour form must not answer the other one by omission."""
+    await client.put(
+        INTERFACE,
+        json={**_COLOURS, "cookie_notice_enabled": True},
+        headers=owner.headers,
+    )
+
+    response = await client.put(INTERFACE, json=_COLOURS, headers=owner.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["cookie_notice_enabled"] is True
+
+
+@pytest.mark.integration
+async def test_the_cookie_notice_is_owner_only(client, operator):
+    response = await client.put(
+        INTERFACE,
+        json={**_COLOURS, "cookie_notice_enabled": True},
+        headers=operator.headers,
+    )
+
+    assert response.status_code == 403

@@ -13,5 +13,13 @@
     "subtitle": "Dein Konto wurde über deinen Identitätsanbieter erstellt, du hast diese Dokumente also noch nicht gesehen. Lies sie durch und stimme zu, um fortzufahren.",
     "submit": "Ich stimme zu",
     "signOut": "Abmelden"
+  },
+  "cookies": {
+    "label": "Über Cookies und Browser-Speicher",
+    "title": "Kurz zu den Cookies",
+    "body": "{{appName}} speichert ein paar Dinge in diesem Browser: was Sie angemeldet hält, das gewählte Design und was Sie zuletzt offen hatten. Mehr nicht – keine Werbung, keine Analyse und nichts, was Ihnen über andere Websites folgt.",
+    "spamCheck": "Das Registrierungsformular lädt eine Spam-Prüfung von {{provider}}, die dabei ein eigenes Cookie setzt.",
+    "readMore": "Was gespeichert wird",
+    "acknowledge": "Verstanden"
   }
 }

@@ -70,6 +70,18 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
     )
 
+    # Whether an arriving visitor is shown the notice about what this
+    # deployment keeps in their browser. Off by default: most deployments are
+    # a group's own server, reached by people who were sent a link, and a
+    # notice nobody needs is just something in the way. An owner running a
+    # public front door turns it on. It is an acknowledgement and not a gate —
+    # nothing here is withheld until it is dismissed — so the switch changes
+    # what is said, never what works.
+    cookie_notice_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # What this deployment is running, and what it was running before that.
     # A notice that only matters to somebody upgrading past a given release has
     # no way to know that from a publication date — a fresh install of 0.70 was

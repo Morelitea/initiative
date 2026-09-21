@@ -13,5 +13,13 @@
     "subtitle": "Your account was created through your identity provider, so you haven't seen these yet. Have a read, then agree to carry on.",
     "submit": "I agree",
     "signOut": "Sign out"
+  },
+  "cookies": {
+    "label": "About cookies and browser storage",
+    "title": "A quick word about cookies",
+    "body": "{{appName}} keeps a few things in this browser: what keeps you signed in, the theme you picked, what you had open. That's the lot — no advertising, no analytics, and nothing following you around other sites.",
+    "spamCheck": "The sign-up form loads a spam check from {{provider}}, which sets a cookie of its own while you're on it.",
+    "readMore": "What's kept",
+    "acknowledge": "Got it"
   }
 }

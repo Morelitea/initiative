@@ -13,5 +13,13 @@
     "subtitle": "Votre compte a été créé via votre fournisseur d'identité : vous n'avez donc pas encore vu ces documents. Lisez-les, puis acceptez pour continuer.",
     "submit": "J'accepte",
     "signOut": "Se déconnecter"
+  },
+  "cookies": {
+    "label": "À propos des cookies et du stockage du navigateur",
+    "title": "Un mot sur les cookies",
+    "body": "{{appName}} conserve quelques éléments dans ce navigateur : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert. C'est tout — aucune publicité, aucune analyse, et rien qui vous suive sur d'autres sites.",
+    "spamCheck": "Le formulaire d'inscription charge une vérification anti-spam de {{provider}}, qui dépose son propre cookie pendant que vous y êtes.",
+    "readMore": "Ce qui est conservé",
+    "acknowledge": "Compris"
   }
 }

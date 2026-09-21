@@ -288,7 +288,9 @@ export const useUpdateInterfaceSettings = (
         updateInterfaceSettingsApiV1SettingsInterfacePut(
           data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
         ),
-      invalidate: () => invalidate(q.interfaceSettings()),
+      // The cookie-notice switch shares this endpoint and is also on the boot
+      // config, which is where the notice itself reads it.
+      invalidate: () => invalidate(q.appConfig(), q.interfaceSettings()),
     },
     options
   );

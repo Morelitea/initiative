@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Code2,
   Compass,
+  Cookie,
   HelpCircle,
   KeyRound,
   Layers,
@@ -39,7 +40,7 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useTheme } from "@/hooks/useTheme";
-import { CHANGELOG_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
+import { CHANGELOG_URL, COOKIE_NOTICE_DOCS_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOL_ICONS, TOOLS, toolCamelPlural, toolNavLabelKey } from "@/lib/tools";
 
 import { DownloadSection } from "./DownloadSection";
@@ -146,7 +147,7 @@ export const LandingCinematic = () => {
   const { t: tNav } = useTranslation("nav");
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
-  const { billing, config } = useAppConfig();
+  const { billing, config, cookieNoticeEnabled } = useAppConfig();
   // Owned here rather than inside the section: the header only offers Pricing
   // once there is a price book to scroll to.
   const catalog = useBillingCatalog(billing?.url);
@@ -911,6 +912,20 @@ export const LandingCinematic = () => {
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 {t("footer.changelog")}
               </a>
+              {/* The way back to what the notice said, once it has been
+                  dismissed. Only where the deployment shows one at all — with
+                  the notice off this is a link to an answer nobody asked for. */}
+              {cookieNoticeEnabled ? (
+                <a
+                  href={COOKIE_NOTICE_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Cookie className="h-4 w-4" aria-hidden="true" />
+                  {t("footer.cookies")}
+                </a>
+              ) : null}
             </nav>
             <p className="text-muted-foreground text-sm">
               {t("footer.copyright", { year: new Date().getFullYear() })}

@@ -507,6 +507,13 @@
         "errorPrefix": "Falló: {{message}}"
       },
       "dismissAll": "descartar todo"
+    },
+    "cookieNotice": {
+      "title": "Aviso de cookies",
+      "description": "Decir a quien llega qué guarda esta instalación en su navegador.",
+      "toggleLabel": "Mostrar un aviso de cookies a quien llega",
+      "helpText": "Un aviso breve en la parte inferior de la página la primera vez que alguien llega, que dice qué se guarda en su navegador y por qué. Actívalo si esta instalación tiene una puerta pública; déjalo desactivado en un servidor al que tu grupo llega por invitación, donde solo estorba.",
+      "scopeNote": "Explica en lugar de preguntar. Todo lo que se guarda hace falta para que funcione aquello a lo que alguien vino, así que descartarlo no cambia nada, y este interruptor tampoco: decide qué se dice, no qué funciona."
     }
   },
   "email": {

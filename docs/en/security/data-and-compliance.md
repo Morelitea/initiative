@@ -52,6 +52,35 @@ If we host it, your data lives where our service runs. For a group with a reside
 - **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including an administrator of the server they passed through. See [Private messages](private-messages.md).
 - **Access control:** everything else is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
 
+## What is kept in your browser
+
+Initiative stores a small amount on the device you use it from. All of it is there to run what you asked for, and none of it is advertising, analytics, or anything that follows you to another site.
+
+| What | Where | Why |
+|---|---|---|
+| Your sign-in session | A cookie the page's own scripts can't read | Keeps you signed in between page loads. |
+| A renewal token | A cookie sent only to the sign-in routes | Renews the session without asking for your password again. |
+| Your theme, language and layout | Local storage | Your preferences, kept where you set them. |
+| What you had open, and unsent drafts | Local storage | So a reload doesn't lose your place or your typing. |
+| Recently read pages, on the mobile app | The device's own storage | So the app has something to show with no signal. |
+
+Signing out clears the session and renewal cookies. Clearing your browser's site data clears the rest; you'll land back on the sign-in page with default preferences.
+
+### The cookie notice
+
+A deployment can show arriving visitors a short notice saying the above. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**. It suits a deployment with a public front door.
+
+The notice explains rather than asks. Nothing listed above is optional, so dismissing it changes nothing and no part of Initiative waits on it. It appears once per browser.
+
+### The one outside company
+
+Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The cookie notice names the vendor where it applies.
+
+There is nothing else. Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
+
+!!! info "If you host it yourself"
+    The table above describes Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
+
 ## Your data rights
 
 ### Getting your data out

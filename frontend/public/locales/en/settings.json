@@ -507,6 +507,13 @@
         "errorPrefix": "It failed: {{message}}"
       },
       "dismissAll": "dismiss all"
+    },
+    "cookieNotice": {
+      "title": "Cookie notice",
+      "description": "Tell people arriving what this deployment keeps in their browser.",
+      "toggleLabel": "Show a cookie notice to arriving visitors",
+      "helpText": "A short notice along the bottom of the page the first time somebody arrives, saying what is kept in their browser and why. Turn it on if this deployment has a public front door; leave it off for a server your group reaches by invitation, where it is only something in the way.",
+      "scopeNote": "It explains rather than asks. Everything kept is needed to run what somebody came for, so dismissing it changes nothing, and neither does this switch — it decides what is said, not what works."
     }
   },
   "email": {

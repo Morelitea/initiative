@@ -13,5 +13,13 @@
     "subtitle": "Tu cuenta se creó a través de tu proveedor de identidad, así que aún no has visto estos documentos. Léelos y acéptalos para continuar.",
     "submit": "Acepto",
     "signOut": "Cerrar sesión"
+  },
+  "cookies": {
+    "label": "Sobre las cookies y el almacenamiento del navegador",
+    "title": "Un apunte sobre las cookies",
+    "body": "{{appName}} guarda algunas cosas en este navegador: lo que mantiene tu sesión, el tema que elegiste y lo que tenías abierto. Nada más: sin publicidad, sin analítica y sin nada que te siga por otros sitios.",
+    "spamCheck": "El formulario de registro carga una comprobación antispam de {{provider}}, que coloca una cookie propia mientras estás en él.",
+    "readMore": "Qué se guarda",
+    "acknowledge": "Entendido"
   }
 }

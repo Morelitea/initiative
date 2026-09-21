@@ -772,6 +772,7 @@ export interface AppConfig {
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
   direct_messages_enabled: boolean;
+  cookie_notice_enabled: boolean;
   login_methods: string[];
   min_native_version: string;
 }
@@ -5092,11 +5093,13 @@ export interface IntakeSettingsRead {
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
+  cookie_notice_enabled: boolean;
 }
 
 export interface InterfaceSettingsUpdate {
   light_accent_color: string;
   dark_accent_color: string;
+  cookie_notice_enabled?: boolean | null;
 }
 
 /**

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
@@ -39,6 +40,17 @@ export const SettingsBrandingPage = () => {
   const updateInterface = useUpdateInterfaceSettings({
     onSuccess: () => toast.success(t("branding.interfaceSuccess")),
   });
+
+  // The notice is the other half of what a visitor meets before they sign in,
+  // which is why it is set here. It saves on the switch rather than with the
+  // colours: one decision, answered by moving it.
+  const cookieNoticeEnabled = interfaceQuery.data?.cookie_notice_enabled ?? false;
+  const setCookieNotice = (enabled: boolean) =>
+    updateInterface.mutate({
+      light_accent_color: form.values.light,
+      dark_accent_color: form.values.dark,
+      cookie_notice_enabled: enabled,
+    });
 
   const handleInterfaceSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +116,28 @@ export const SettingsBrandingPage = () => {
               </CardFooter>
             </form>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("branding.cookieNotice.title")}</CardTitle>
+          <CardDescription>{t("branding.cookieNotice.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="cookie-notice-enabled"
+              checked={cookieNoticeEnabled}
+              disabled={interfaceQuery.isLoading || updateInterface.isPending}
+              onCheckedChange={(checked) => setCookieNotice(Boolean(checked))}
+            />
+            <Label htmlFor="cookie-notice-enabled">{t("branding.cookieNotice.toggleLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("branding.cookieNotice.helpText")}</p>
+          {/* An owner weighing the switch is entitled to know it changes what
+              is said and not what works, before they touch it rather than after. */}
+          <p className="text-muted-foreground text-xs">{t("branding.cookieNotice.scopeNote")}</p>
         </CardContent>
       </Card>
 

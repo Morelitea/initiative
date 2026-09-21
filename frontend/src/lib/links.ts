@@ -15,6 +15,13 @@ export const DOCS_URL = "https://morelitea.github.io/initiative/en/";
  *  leading slash; a fragment carries through untouched. */
 export const docsUrl = (path = ""): string => `${DOCS_URL}${path.replace(/^\//, "")}`;
 
+/** What a deployment keeps in a visitor's browser, and why. Where the cookie
+ *  notice and the landing page's footer both send a reader who wants the long
+ *  version. */
+export const COOKIE_NOTICE_DOCS_URL = docsUrl(
+  "security/data-and-compliance/#what-is-kept-in-your-browser"
+);
+
 /**
  * The Android app attached to one release. CI names the file after the
  * version and attaches it only to a release whose native shell changed, which
