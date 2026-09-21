@@ -415,6 +415,14 @@ def _run_test_migrations() -> None:
     asyncio.run(_bootstrap_under_lock())
     if not asyncio.run(_test_db_is_at_head()):
         asyncio.run(_migrate_under_lock())
+        # A deployment migrates as the provisioning role, so its objects belong
+        # to that role the moment they are created. The suite migrates as its
+        # own superuser instead, which leaves every table the migration made
+        # owned by that login -- so the bootstrap runs a second time, and its
+        # handover moves them. Without it a freshly created database is shaped
+        # unlike any real one, with the app's tables owned by a login the app
+        # never connects as.
+        asyncio.run(_bootstrap_under_lock())
     asyncio.run(_refresh_template_rls())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
