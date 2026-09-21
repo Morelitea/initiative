@@ -2202,6 +2202,10 @@ async def create_guild_provider_connection(
     same as them belonging to one. Pass ``claim=None, claim_values=None`` with
     ``enabled=False`` for the row a community writes to decline the
     deployment's answer for a provider.
+
+    Its narrowing is agreed by default too, so a connection this makes joins
+    people on arrival where it says to. ``narrowing_approved_at=None`` is the
+    state a community's own new connection starts in.
     """
     defaults = {
         "guild_id": guild.id,
@@ -2209,6 +2213,10 @@ async def create_guild_provider_connection(
         "claim": NARROWED_CLAIM,
         "claim_values": [NARROWED_VALUE],
         "enabled": True,
+        # Agreed, like the narrowing itself: this makes a connection that
+        # works, so a test about what happens before somebody agrees says
+        # ``narrowing_approved_at=None`` and means it.
+        "narrowing_approved_at": datetime.now(timezone.utc),
     }
     connection = GuildProviderConnection(**{**defaults, **overrides})
     session.add(connection)

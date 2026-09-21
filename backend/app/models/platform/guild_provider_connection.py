@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -97,6 +98,27 @@ class GuildProviderConnection(SQLModel, table=True):
     auto_join: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
+    #: When somebody outside the community agreed that these values are its
+    #: to claim, and who. A community names its own ``claim_values`` and
+    #: nothing here can tell whether it holds the domain or tenant they
+    #: describe, so the answer comes from the deployment: support, through a
+    #: case it raises, or the operator on the community's own page.
+    #:
+    #: Tied to the values rather than to the row — changing ``claim`` or
+    #: ``claim_values`` clears it, so an agreement is always an agreement about
+    #: what is written here now. ``auto_join`` waits for it; admitting people
+    #: the community already has does not.
+    narrowing_approved_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    narrowing_approved_by: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
     )
 
     created_at: datetime = Field(

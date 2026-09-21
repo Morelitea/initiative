@@ -34,7 +34,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
-import { useUpdateGuildStorage } from "@/hooks/useSettings";
+import {
+  useAgreeGuildNarrowing,
+  useGuildNarrowings,
+  useUpdateGuildStorage,
+} from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -273,6 +277,8 @@ export const GuildOperatorSettingsSheet = ({
             />
           </Section>
 
+          <NarrowingsSection guildId={guild.id} disabled={deleted} />
+
           <Section title={t("guilds.sheet.features")}>
             <SettingRow
               label={t("guilds.sheet.bannerLabel")}
@@ -316,5 +322,71 @@ export const GuildOperatorSettingsSheet = ({
         <GuildRestoreWizard guild={guild} open={restoring} onOpenChange={setRestoring} />
       ) : null}
     </Sheet>
+  );
+};
+
+/**
+ * What a community says its own arrivals look like, and whether anybody has
+ * agreed.
+ *
+ * A community writes its own claim values and nothing in the app can tell
+ * whether it holds the domain or tenant they name, so the answer is the
+ * deployment's. Support answers through the case raised when they are
+ * written; this is the same question where a deployment runs no intake, and
+ * where an answer is withdrawn either way.
+ */
+const NarrowingsSection = ({ guildId, disabled }: { guildId: number; disabled: boolean }) => {
+  const { t } = useTranslation("settings");
+  const narrowings = useGuildNarrowings(guildId);
+  const agree = useAgreeGuildNarrowing(guildId, {
+    onError: (err: unknown) =>
+      toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),
+  });
+
+  const rows = narrowings.data ?? [];
+  if (narrowings.isLoading || rows.length === 0) return null;
+
+  return (
+    <Section title={t("guilds.sheet.narrowings.title")}>
+      <p className="text-muted-foreground text-sm">{t("guilds.sheet.narrowings.help")}</p>
+      <ul className="space-y-3">
+        {rows.map((row) => (
+          <li
+            key={row.connection_id}
+            className="flex items-start justify-between gap-3 rounded-md border px-3 py-3"
+          >
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium text-sm">
+                {t("guilds.sheet.narrowings.claims", {
+                  provider: row.provider_display_name,
+                  claim: row.claim,
+                  values: row.claim_values.join(", "),
+                })}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {row.auto_join
+                  ? t("guilds.sheet.narrowings.joinsOnArrival")
+                  : t("guilds.sheet.narrowings.admitsOnly")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={row.agreed ? "outline" : "default"}
+              disabled={disabled || agree.isPending}
+              onClick={() =>
+                agree.mutate({
+                  connectionId: row.connection_id,
+                  agreed: !row.agreed,
+                })
+              }
+            >
+              {row.agreed
+                ? t("guilds.sheet.narrowings.withdraw")
+                : t("guilds.sheet.narrowings.agree")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Section>
   );
 };

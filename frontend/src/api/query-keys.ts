@@ -393,6 +393,11 @@ const authSettings = (): Spec => ({ personalExact: ["/api/v1/settings/auth"] });
 
 const authProviders = (): Spec => ({ personalExact: ["/api/v1/settings/auth/providers/"] });
 
+/** What one community says its own arrivals look like, and who has agreed. */
+const guildNarrowings = (guildId: number): Spec => ({
+  personalExact: [`/api/v1/settings/guilds/${guildId}/narrowings`],
+});
+
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
 
 // The community-directory switch is written under /settings but read from the
@@ -671,6 +676,7 @@ export const q = {
   appServices,
   apps,
   authProviders,
+  guildNarrowings,
   authSettings,
   calendar,
   calendarEvent,

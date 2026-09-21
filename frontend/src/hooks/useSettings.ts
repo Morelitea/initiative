@@ -25,6 +25,7 @@ import type {
   EmailSettingsUpdate,
   FCMConfigResponse,
   GetChangelogApiV1ChangelogGetParams,
+  GuildNarrowingPending,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   LoginMethodsUpdate,
@@ -48,6 +49,7 @@ import type {
   StorageTestResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
+  agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
   createOidcMappingApiV1SettingsOidcMappingsPost,
   deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
   getEmailSettingsApiV1SettingsEmailGet,
@@ -67,9 +69,11 @@ import {
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
+  getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
+  readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet,
   restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost,
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
@@ -111,6 +115,36 @@ export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) =
     ...options,
   });
 };
+
+/** What a community says its own arrivals look like, for the operator. */
+export const useGuildNarrowings = (
+  guildId: number,
+  options?: QueryOpts<GuildNarrowingPending[]>
+) => {
+  return useQuery<GuildNarrowingPending[]>({
+    queryKey: getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId),
+    queryFn: () => readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet(guildId),
+    ...options,
+  });
+};
+
+/** Agree that a community's claim values are its own, or withdraw that. */
+export const useAgreeGuildNarrowing = (
+  guildId: number,
+  options?: MutationOpts<GuildNarrowingPending, { connectionId: number; agreed: boolean }>
+) =>
+  useApiMutation<GuildNarrowingPending, { connectionId: number; agreed: boolean }>(
+    {
+      mutationFn: ({ connectionId, agreed }) =>
+        agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+          guildId,
+          connectionId,
+          { agreed }
+        ),
+      invalidate: () => invalidate(q.guildNarrowings(guildId)),
+    },
+    options
+  );
 
 export const useOidcMappings = () => {
   return useQuery<OIDCMappingsResponse>({

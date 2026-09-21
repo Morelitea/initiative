@@ -125,7 +125,9 @@ export const GuildAuthProvidersSection = ({
                     </p>
                     {row.auto_join && (
                       <p className="text-muted-foreground text-xs">
-                        {t("guildAuth.connections.joinsOnArrival")}
+                        {row.narrowing_approved
+                          ? t("guildAuth.connections.joinsOnArrival")
+                          : t("guildAuth.connections.joinsOnceAgreed")}
                       </p>
                     )}
                   </div>

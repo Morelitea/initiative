@@ -30,6 +30,8 @@ import type {
   EmailTestRequest,
   EmailTestResponse,
   FCMConfigResponse,
+  GuildNarrowingAgreement,
+  GuildNarrowingPending,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
@@ -2477,6 +2479,296 @@ export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
 > => {
   return useMutation(
     getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * What this community says its own arrivals look like, and whether
+ * anybody has agreed.
+ *
+ * Admin/owner (``guilds.manage``). The community writes these values itself
+ * and nothing here can tell whether it holds the domain or tenant they name,
+ * so the answer is the deployment's. Support answers through the case raised
+ * when they are written; this is the same question where a deployment runs
+ * no intake, and the place to withdraw an answer either way.
+ * @summary Read Guild Narrowings
+ */
+export const readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildNarrowingPending[]>(
+    { url: `/api/v1/settings/guilds/${guildId}/narrowings`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/settings/guilds/${guildId}/narrowings`] as const;
+};
+
+export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+  > = ({ signal }) =>
+    readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+>;
+export type ReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
+  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
+  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
+  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Guild Narrowings
+ */
+
+export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
+  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Agree that these values are this community's, or withdraw that.
+ *
+ * Agreeing lets arrivals it counts as its own join on sight where the
+ * community asked for that. Withdrawing leaves the connection and its values
+ * as they are; what stops is joining people on arrival.
+ * @summary Agree Guild Narrowing
+ */
+export const agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut = (
+  guildId: number,
+  connectionId: number,
+  guildNarrowingAgreement: BodyType<GuildNarrowingAgreement>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildNarrowingPending>(
+    {
+      url: `/api/v1/settings/guilds/${guildId}/narrowings/${connectionId}`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildNarrowingAgreement,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+      >,
+      TError,
+      { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+    >,
+    TError,
+    { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> },
+    TContext
+  > => {
+    const mutationKey = ["agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+      >,
+      { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> }
+    > = (props) => {
+      const { guildId, connectionId, data } = props ?? {};
+
+      return agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+        guildId,
+        connectionId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+    >
+  >;
+export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationBody =
+  BodyType<GuildNarrowingAgreement>;
+export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Agree Guild Narrowing
+ */
+export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+      >,
+      TError,
+      { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+  >,
+  TError,
+  { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> },
+  TContext
+> => {
+  return useMutation(
+    getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationOptions(
+      options
+    ),
     queryClient
   );
 };

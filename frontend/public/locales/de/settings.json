@@ -1050,7 +1050,17 @@
       "usersLabel": "Mitglieder",
       "storageLabel": "Speicherlimit",
       "decidesForItself": "Was sie selbst entscheidet",
-      "deleted": "Gelöscht"
+      "deleted": "Gelöscht",
+      "narrowings": {
+        "title": "Wen sie als ihre Leute zählt",
+        "help": "Diese Community gibt an, welche Anmeldungen über einen Anbieter zu ihr gehören. Sie benennt die Werte selbst; erst Ihre Zustimmung erlaubt den automatischen Beitritt — bis dahin funktioniert die Verbindung nur für vorhandene Mitglieder.",
+        "claims": "{{provider}}: {{claim}} ist {{values}}",
+        "joinsOnArrival": "Bittet darum, dass passende Ankommende sofort beitreten.",
+        "admitsOnly": "Lässt passende Ankommende herein, fügt aber niemanden hinzu.",
+        "agree": "Zustimmen",
+        "withdraw": "Zurückziehen",
+        "error": "Die Antwort konnte nicht gespeichert werden."
+      }
     },
     "unlimited": "Unbegrenzt",
     "restore": {
@@ -1208,7 +1218,8 @@
       "inherited": "Von der Installation",
       "makeItOurs": "Zu unserer machen",
       "claimNameLabel": "Claim-Name",
-      "claimNamePlaceholder": "z. B. org, realm"
+      "claimNamePlaceholder": "z. B. org, realm",
+      "joinsOnceAgreed": "Passende Ankommende treten sofort bei, sobald die Serverbetreiberin bestätigt, dass diese Werte Ihnen gehören. Bis dahin werden sie hereingelassen, und der Beitritt erfolgt per Einladung."
     },
     "rules": {
       "title": "Wo eure Leute landen",

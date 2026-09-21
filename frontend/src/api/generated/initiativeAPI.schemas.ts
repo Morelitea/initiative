@@ -4405,6 +4405,27 @@ export interface GuildMembershipUpdate {
   role: GuildRole;
 }
 
+/**
+ * Whether these values are this community's to claim.
+ */
+export interface GuildNarrowingAgreement {
+  agreed: boolean;
+}
+
+/**
+ * One community's claim, waiting to be answered.
+ */
+export interface GuildNarrowingPending {
+  connection_id: number;
+  guild_id: number;
+  guild_name: string;
+  provider_display_name: string;
+  claim: string;
+  claim_values: string[];
+  auto_join: boolean;
+  agreed: boolean;
+}
+
 export type GuildNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
 
 /**
@@ -4463,6 +4484,7 @@ export interface GuildProviderConnectionRead {
   claim_values: string[];
   enabled: boolean;
   auto_join: boolean;
+  narrowing_approved: boolean;
   login_ready: boolean;
 }
 

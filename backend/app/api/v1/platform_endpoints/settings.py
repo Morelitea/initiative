@@ -35,6 +35,8 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    GuildNarrowingAgreement,
+    GuildNarrowingPending,
     CommunitySettingsResponse,
     CommunitySettingsUpdate,
     EmailSettingsResponse,
@@ -83,6 +85,7 @@ from app.core.security import (
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
+from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import (
     FACTOR_METHODS,
@@ -867,6 +870,50 @@ async def update_platform_guild_storage(
         auth_options=sorted(administration.auth_options),
         banner_image_enabled=administration.banner_image_enabled,
         support_enabled=administration.support_enabled,
+    )
+
+
+@router.get("/guilds/{guild_id}/narrowings", response_model=list[GuildNarrowingPending])
+async def read_guild_narrowings(
+    guild_id: int,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> list[GuildNarrowingPending]:
+    """What this community says its own arrivals look like, and whether
+    anybody has agreed.
+
+    Admin/owner (``guilds.manage``). The community writes these values itself
+    and nothing here can tell whether it holds the domain or tenant they name,
+    so the answer is the deployment's. Support answers through the case raised
+    when they are written; this is the same question where a deployment runs
+    no intake, and the place to withdraw an answer either way.
+    """
+    return await narrowing_review.pending_for_guild(session, guild_id=guild_id)
+
+
+@router.put(
+    "/guilds/{guild_id}/narrowings/{connection_id}",
+    response_model=GuildNarrowingPending,
+)
+async def agree_guild_narrowing(
+    guild_id: int,
+    connection_id: int,
+    payload: GuildNarrowingAgreement,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> GuildNarrowingPending:
+    """Agree that these values are this community's, or withdraw that.
+
+    Agreeing lets arrivals it counts as its own join on sight where the
+    community asked for that. Withdrawing leaves the connection and its values
+    as they are; what stops is joining people on arrival.
+    """
+    return await narrowing_review.agree(
+        session,
+        guild_id=guild_id,
+        connection_id=connection_id,
+        agreed=payload.agreed,
+        actor_user_id=admin.id,
     )
 
 

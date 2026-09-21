@@ -217,7 +217,30 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     enabled: bool
     #: Whether somebody this connection counts as theirs joins on arrival.
     auto_join: bool = False
+    #: Whether somebody outside the community has agreed these values are its
+    #: to claim. ``auto_join`` waits for it; admitting people the community
+    #: already has does not. Changing the values asks again.
+    narrowing_approved: bool = False
     login_ready: bool = True
+
+
+class GuildNarrowingAgreement(SanitizedBaseModel):
+    """Whether these values are this community's to claim."""
+
+    agreed: bool
+
+
+class GuildNarrowingPending(SanitizedBaseModel):
+    """One community's claim, waiting to be answered."""
+
+    connection_id: int
+    guild_id: int
+    guild_name: str
+    provider_display_name: str
+    claim: str
+    claim_values: List[str]
+    auto_join: bool
+    agreed: bool
 
 
 class GuildProviderConnectionCreate(SanitizedBaseModel):
