@@ -6,10 +6,13 @@ from dataclasses import dataclass, field
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.db.session import set_rls_context
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.services import audit as audit_service
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
+from app.services.platform import guilds as guilds_service
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -27,6 +30,36 @@ _GUILD_ROLE_PRIORITY = {
     GuildRole.member.value: 0,
     GuildRole.admin.value: 1,
 }
+
+#: How every membership this module moves came to move. A reconciliation runs
+#: off what a provider asserted, with nobody at a keyboard, so the records it
+#: writes name this and no actor.
+_VIA = "claim_sync"
+
+
+async def _record(session: AsyncSession, **fields) -> None:
+    """Write one record out where it is made.
+
+    This module walks from guild to guild and detaches what it is holding on
+    each hop (``expunge_all``), so a record left pending would not survive the
+    walk. Flushed here, it is in the transaction the whole sync commits at the
+    end — and the actor is always absent, because the sync runs off asserted
+    claims rather than a request.
+    """
+    await audit_service.record(session, actor_user_id=None, **fields)
+    await session.flush()
+
+
+async def _role_name(session: AsyncSession, role_id: int | None) -> str | None:
+    """An initiative role's own name, for the record. ``None`` where the
+    membership carries no role."""
+    if role_id is None:
+        return None
+    return (
+        await session.exec(
+            select(InitiativeRoleModel.name).where(InitiativeRoleModel.id == role_id)
+        )
+    ).one_or_none()
 
 
 @dataclass
@@ -186,6 +219,25 @@ async def sync_oidc_assignments(
                     session.add(membership)
                     result.guilds_updated.append(guild_id)
         else:
+            # A listed community is open to anyone signed in, so the age rule
+            # holds however somebody arrived — and this is the way in with
+            # nobody at a keyboard to be asked, so what counts is the answer
+            # already on the record. An account that has never been asked is
+            # admitted: not knowing is not the same as knowing they are too
+            # young, and a private guild never puts the question at all.
+            #
+            # The guild is asked first, so a private one — which is most of
+            # them, and which the rule does not touch — costs no lookup of
+            # the account.
+            if await guilds_service.is_listed_in_directory(
+                session, guild_id=guild_id
+            ) and await guilds_service.is_known_under_age(session, user_id=user_id):
+                logger.info(
+                    "guild %s is listed; the age answer on record keeps this "
+                    "account out of it",
+                    guild_id,
+                )
+                continue
             role = GuildRole(desired) if desired is not None else GuildRole.member
             await _create_guild_membership(
                 session,
@@ -274,9 +326,24 @@ async def sync_oidc_assignments(
                 if im.oidc_provider_id != provider_id:
                     continue
                 if role_id is not None and im.role_id != role_id:
+                    previous_role_id = im.role_id
                     im.role_id = role_id
                     session.add(im)
                     result.initiatives_updated.append(iid)
+                    await _record(
+                        session,
+                        event_type=AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED,
+                        target_user_id=user_id,
+                        guild_id=gid,
+                        target_type="initiative",
+                        target_id=iid,
+                        detail={
+                            "from_role_id": previous_role_id,
+                            "from": await _role_name(session, previous_role_id),
+                            "to_role_id": role_id,
+                            "to": await _role_name(session, role_id),
+                        },
+                    )
             else:
                 await _create_initiative_membership(
                     session,
@@ -302,6 +369,15 @@ async def sync_oidc_assignments(
             if im.initiative_id not in matched_initiative_ids:
                 await clear_user_task_assignments_for_initiative(
                     session, initiative_id=im.initiative_id, user_id=user_id
+                )
+                await _record(
+                    session,
+                    event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,
+                    target_user_id=user_id,
+                    guild_id=gid,
+                    target_type="initiative",
+                    target_id=im.initiative_id,
+                    detail={"via": _VIA},
                 )
                 await session.delete(im)
                 result.initiatives_removed.append(im.initiative_id)
@@ -339,16 +415,18 @@ async def sync_oidc_assignments(
 
     session.expunge_all()
     await set_rls_context(session)
-    stale_guild_ids = (
+    # The role comes back with the id: it is gone once the delete below lands,
+    # and the record says what the person held.
+    stale_memberships = (
         await session.exec(
-            select(GuildMembership.guild_id).where(
+            select(GuildMembership.guild_id, GuildMembership.role).where(
                 GuildMembership.user_id == user_id,
                 GuildMembership.oidc_provider_id == provider_id,
                 GuildMembership.role != GuildRole.superadmin,
             )
         )
     ).all()
-    for stale_gid in stale_guild_ids:
+    for stale_gid, stale_role in stale_memberships:
         if stale_gid in matched_guild_ids:
             continue
         session.expunge_all()
@@ -359,6 +437,15 @@ async def sync_oidc_assignments(
         await session.flush()
         session.expunge_all()
         await set_rls_context(session)
+        await _record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            target_user_id=user_id,
+            guild_id=stale_gid,
+            target_type="guild",
+            target_id=stale_gid,
+            detail={"role": stale_role.value, "via": _VIA},
+        )
         await session.exec(
             delete(GuildMembership).where(
                 GuildMembership.user_id == user_id,
@@ -413,6 +500,15 @@ async def _create_guild_membership(
     )
     session.add(membership)
     await session.flush()
+    await _record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_ADDED,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"role": role.value, "via": _VIA},
+    )
     return membership
 
 
@@ -444,4 +540,17 @@ async def _create_initiative_membership(
     )
     session.add(im)
     await session.flush()
+    await _record(
+        session,
+        event_type=AuditEventType.INITIATIVE_MEMBER_ADDED,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="initiative",
+        target_id=initiative_id,
+        detail={
+            "via": _VIA,
+            "role_id": role_id,
+            "role": await _role_name(session, role_id),
+        },
+    )
     return im

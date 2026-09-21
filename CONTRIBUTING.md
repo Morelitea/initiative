@@ -260,6 +260,6 @@ Please **do not** open a public issue for security vulnerabilities. See [SECURIT
 
 ## License
 
-This project is copyright its maintainers, who retain full commercial rights. The source code is available under the [AGPL-3.0](LICENSE).
+This repository is open source under the [AGPL-3.0](LICENSE). Copyright is retained by the maintainers, who retain full commercial rights. Initiative is open core — see [License](README.md#license) for what's open and what isn't.
 
 By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md), which grants the maintainers the right to relicense contributions.

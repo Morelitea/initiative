@@ -17,13 +17,21 @@ from app.core.auth_context import (
     set_api_key_credential,
     set_device_token_id,
     set_satisfied_providers,
-    set_session_mfa,
-    set_session_passkey,
+    set_session_amr,
     claims_from_provider_auth,
     set_satisfied_claims,
 )
 from app.services.auth import guild_provider_connections as guild_connections
-from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
+from app.services.auth.assurance import (
+    SECOND_FACTOR_AMR,
+    carries_passkey,
+    policy_markers,
+)
+from app.core.login_methods import SecondFactorRequirement
+from app.models.platform.app_setting import AppSetting
+from app.services.platform import auth_posture
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
+from app.core import audit_context
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -61,6 +69,7 @@ from app.models.platform.access_grant import (
 )
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
+    LIVE_STATUS_VALUES,
     GUILD_ADMIN_ROLES,
     Guild,
     GuildMembership,
@@ -72,7 +81,6 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
     User,
-    UserRole,
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
@@ -309,8 +317,7 @@ async def get_current_user(
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
-    set_session_mfa(False)
-    set_session_passkey(False)
+    set_session_amr(None)
     set_device_token_id(None)
     # Not an API key until the branch below says so, which is the answer a
     # community that declines them admits.
@@ -378,18 +385,14 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    # The satisfied-provider set the guild auth-policy gate reads. Legacy
-    # tokens (and every non-session credential, which never reaches this
-    # branch) leave it empty — fail-closed for policy-gated guilds.
+    # The satisfied-provider set the guild auth-policy gate reads. A
+    # non-session credential never reaches this branch and leaves it empty.
     set_satisfied_providers(frozenset(token_data.sat or ()))
     set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # The marker the sign-in wrote when a code was presented. Absent on a
-    # legacy token and on every credential that is not a session, which is
-    # fail-closed for a community that asks for one.
-    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
-    # And which kind of key answered, where one did. A community asking for a
-    # passkey is asking for that; a code presented after a password is not it.
-    set_session_passkey(carries_passkey(token_data.amr or ()))
+    # What the sign-in wrote about how it was made — the second-factor marker
+    # where a code was presented, the passkey markers where a key answered.
+    # Empty on every credential that is not a session.
+    set_session_amr(policy_markers(token_data.amr))
 
     if not token_data.sub:
         raise HTTPException(
@@ -452,10 +455,59 @@ async def get_current_user_optional(
         return None
 
 
-async def get_current_active_user(
-    request: Request,
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
+async def _account_holds_factor(user: User) -> bool:
+    """Whether this account holds a second factor.
+
+    Both credential stores are ``app_admin``-only, so the question goes to the
+    system engine — the shape a personal API key's own lookup already uses.
+
+    Asked afresh each time rather than remembered against the request: the
+    answer changes the moment somebody enrols, and that is exactly the moment
+    they are trying to get back in.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return await auth_posture.holds_second_factor(admin_session, user_id=user.id)
+
+
+async def platform_factor_unmet(
+    session: AsyncSession,
+    user: User,
+    *,
+    level: SecondFactorRequirement | None = None,
+) -> bool:
+    """Whether the deployment asks this account for a second factor it lacks.
+
+    Also records what this request answers with, which is what the database
+    reads as ``app.platform_factor`` — so a path that never asks this question
+    carries no standing and the rule is applied there too, by Postgres.
+
+    Three answers, cheapest first. A session that presented a factor answers
+    every level. A deployment that asks nothing of this account's rung asks
+    nothing — which is every request on a deployment that asks nobody, so the
+    credential stores are never read there at all. Only what is left reads
+    them.
+
+    ``level`` is what the deployment asks, where the caller already knows —
+    the guild gate reads the settings row beside the membership it is checking,
+    so the question costs that path no round trip of its own. Left out, it is
+    read here.
+    """
+    if SECOND_FACTOR_AMR in auth_context.session_amr():
+        auth_context.set_platform_factor(True)
+        return False
+    if level is None:
+        level = await auth_posture.second_factor_requirement(session)
+    if not auth_posture.rule_covers(level, user.role):
+        auth_context.set_platform_factor(True)
+        return False
+    held = await _account_holds_factor(user)
+    auth_context.set_platform_factor(held)
+    return not held
+
+
+async def _active_user(request: Request, current_user: User) -> User:
     """The caller, if their account may hold a session at all.
 
     A *suspended* account may: its holder still reaches their own profile,
@@ -474,25 +526,54 @@ async def get_current_active_user(
     return current_user
 
 
-def require_roles(*roles: UserRole) -> Callable:
-    async def dependency(
-        current_user: Annotated[User, Depends(get_current_active_user)],
-    ) -> User:
-        if roles and current_user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-            )
-        return current_user
+async def get_current_active_user(
+    request: Request,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """The caller, held to what this deployment asks of an account.
 
-    return dependency
+    The active-account check, and then the deployment's own second-factor
+    rule: where it covers this account and the account holds nothing to answer
+    it with, the request is refused with the same 401 a community's factor
+    requirement answers with, and the same dialog asks for it.
+
+    The refusal is a 401 rather than a 403 for the reason RFC 9470 gives: the
+    session authenticated, and what is missing is a factor. It names no guild,
+    because this one is the deployment's.
+    """
+    user = await _active_user(request, current_user)
+    if await platform_factor_unmet(session, user):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
+            headers={"WWW-Authenticate": STEP_UP_CHALLENGE},
+        )
+    return user
+
+
+async def get_active_user_exempt_from_factor(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """The caller, on a route that stays reachable while the rule is unmet.
+
+    Reading who you are, setting a factor up, and presenting one: without
+    these an account the rule covers could not act on it. Nothing guild-scoped
+    is ever reached this way — those routes resolve their guild through
+    ``_load_guild_context``, which asks the same question again.
+    """
+    return await _active_user(request, current_user)
+
+
+#: For the handful of routes above. Everything else takes ``CurrentUser``.
+FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
 
 def require_capability(capability: Capability) -> Callable:
     """Dependency factory gating an endpoint on a platform capability.
 
-    Prefer this over ``require_roles`` for platform-level authorization so
-    access is expressed against the capability model rather than a hardcoded
+    Access is expressed against the capability model rather than a hardcoded
     role name (see ``app.core.capabilities``).
     """
 
@@ -515,13 +596,20 @@ class GuildContext:
     membership: GuildMembership
     # The live content grant used when the caller is not a member.
     grant: Optional[AccessGrant] = None
-    # The live settings rung, independent of content access.
-    settings_level: Optional[SettingsLevel] = None
+    # The live settings grant, independent of content access.
+    settings_grant: Optional[AccessGrant] = None
     # True when the guild is in ``read_only`` status and access is via real
     # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
     # Postgres role so content writes are denied at the role level. Never set
     # on the grant branch — a grant carries its own read/write level.
     content_read_only: bool = False
+
+    @property
+    def settings_level(self) -> Optional[SettingsLevel]:
+        """The rung the settings grant confers, read off the grant itself."""
+        if self.settings_grant is None:
+            return None
+        return SettingsLevel(self.settings_grant.access_level)
 
     def settings_rung_reaches(self, role: GuildRole) -> bool:
         """Whether the settings grant includes ``role``'s authority."""
@@ -597,8 +685,9 @@ async def _enforce_guild_auth_policy(
     policy: GuildAuthPolicy | None,
     guild_id: int,
     satisfied: frozenset[int] | str,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    markers: frozenset[str] = frozenset(),
+    *,
+    require_second_factor: bool = False,
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -620,6 +709,15 @@ async def _enforce_guild_auth_policy(
     """
     if satisfied == SYSTEM_SATISFIED:
         return
+    # Asked of everybody reaching this community, whatever it says about how
+    # they arrive — so it is read before a community with no sign-in rule
+    # returns. The answer names no provider and no kind of factor: the
+    # step-up says a factor is what is wanted.
+    if require_second_factor and SECOND_FACTOR_AMR not in markers:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
     if policy is None or policy.policy == "open":
         return
 
@@ -651,7 +749,7 @@ async def _enforce_guild_auth_policy(
     # And the account's own second factor, where the community asks for one.
     # The answer names no provider, so the step-up says a factor is what is
     # wanted rather than pointing at a sign-in page.
-    if LoginMethod.totp in policy.require_methods and not session_mfa:
+    if LoginMethod.totp in policy.require_methods and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -660,7 +758,7 @@ async def _enforce_guild_auth_policy(
     # And a passkey, where the community asks for one. Read from the passkey
     # markers rather than the factor's, so each method is answered by itself:
     # an assertion records the second factor as well as the key.
-    if LoginMethod.passkey in policy.require_methods and not session_passkey:
+    if LoginMethod.passkey in policy.require_methods and not carries_passkey(markers):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
@@ -698,26 +796,47 @@ def _enforce_guild_api_access(guild: Guild) -> None:
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 
+def _asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequirement:
+    """What the deployment asks, from the row the gate read.
+
+    A database with no singleton yet asks nothing — the same conclusion
+    ``public.platform_factor_satisfied()`` reaches from the same absence, so
+    the two layers agree on a deployment that has not finished starting.
+    """
+    if settings_row is None:
+        return SecondFactorRequirement.nobody
+    return auth_posture.requirement_from_row(settings_row)
+
+
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
-) -> tuple[GuildMembership, Guild, GuildAuthPolicy | None] | None:
-    """The three rows the gate needs about a member, in one query.
+) -> (
+    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement, bool]
+    | None
+):
+    """The four rows the gate needs about a member, in one query.
 
     ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
     ``public`` and are all keyed on the guild this request addresses, so asking
-    for them separately was three trips for one answer. Each row still comes
-    back under its own policies — an outer join to a row the session may not
-    read yields NULL, exactly as its own SELECT would have. ``None`` means no
-    membership the session can see, which is the grant branch's cue.
+    for them separately was three trips for one answer. The settings singleton
+    rides along for the same reason — what the deployment asks of an account is
+    decided in the same breath as what the community asks of the session, and a
+    read of its own would be a round trip on every guild request there is.
+
+    Each row still comes back under its own policies — an outer join to a row
+    the session may not read yields NULL, exactly as its own SELECT would have.
+    ``None`` means no membership the session can see, which is the grant
+    branch's cue.
     """
     row = (
         await session.exec(
-            select(GuildMembership, Guild, GuildAuthPolicy)
+            select(GuildMembership, Guild, GuildAuthPolicy, AppSetting)
             .select_from(GuildMembership)
             .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
             .outerjoin(
                 GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
             )
+            .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id == user_id,
@@ -726,29 +845,36 @@ async def _read_membership_gate(
     ).one_or_none()
     if row is None:
         return None
-    membership, guild, policy = row
+    membership, guild, policy, settings_row = row
     if guild is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return membership, guild, policy
+    # The age switch rides along for the same reason the factor requirement
+    # does: it is decided from this same row, and reading it separately would
+    # be a round trip on every guild request there is.
+    age_gate_on = bool(
+        settings_row is not None and settings_row.community_age_gate_enabled
+    )
+    return membership, guild, policy, _asked_of_an_account(settings_row), age_gate_on
 
 
 async def _read_grant_gate(
     session: AsyncSession, guild_id: int
-) -> tuple[Guild, GuildAuthPolicy | None]:
-    """The same two public rows for a grantee, whose PAM context has just been
+) -> tuple[Guild, GuildAuthPolicy | None, SecondFactorRequirement]:
+    """The same public rows for a grantee, whose PAM context has just been
     applied — a grant reaches the guild row through its own policy leg, so this
     read cannot be folded into the membership one above."""
     row = (
         await session.exec(
-            select(Guild, GuildAuthPolicy)
+            select(Guild, GuildAuthPolicy, AppSetting)
             .select_from(Guild)
             .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
+            .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return row[0], row[1]
+    return row[0], row[1], _asked_of_an_account(row[2])
 
 
 async def _load_guild_context(
@@ -810,8 +936,15 @@ async def _load_guild_context(
             pam_read=True,
             pam_write=is_read_write,
         )
-        guild, policy = await _read_grant_gate(session, guild_id)
+        guild, policy, asked = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
+        # What the deployment asks of the account, before what this community
+        # asks of the session. Asked here as well as in the dependency above
+        # because the sockets, the keepalive and the stream re-check resolve
+        # their guild through this function and never run that one — off the
+        # row the read above already carried.
+        if await platform_factor_unmet(session, current_user, level=asked):
+            raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
         # access path, not a policy bypass.
         await _enforce_guild_auth_policy(
@@ -819,8 +952,8 @@ async def _load_guild_context(
             policy,
             guild_id,
             satisfied,
-            auth_context.session_mfa(),
-            auth_context.session_passkey(),
+            auth_context.session_amr(),
+            require_second_factor=guild.require_second_factor,
         )
         # Every grantee gets the ``support`` role — a first-class identity for
         # PAM access rather than a ``member`` masquerade. It is the content
@@ -839,22 +972,38 @@ async def _load_guild_context(
             guild=guild,
             membership=synthetic,
             grant=grant,
-            settings_level=(
-                SettingsLevel(settings_grant.access_level) if settings_grant else None
-            ),
+            settings_grant=settings_grant,
         )
-    membership, guild, policy = gate
-    # Membership access respects the guild's lifecycle status.
-    if guild.status == GuildStatus.suspended.value:
+    membership, guild, policy, asked, age_gate_on = gate
+    # Membership access respects the guild's lifecycle status: the statuses
+    # that serve members are named, and every other one is refused.
+    if guild.status not in LIVE_STATUS_VALUES:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
+    # A listed community is open to anyone signed in, so the deployment's age
+    # question is owed by the people in it — and the ways in that had nobody at
+    # a keyboard could not put it to them. It is put here instead: at the door
+    # of the community it is for, and nowhere else. A private community never
+    # asks, and neither does the rest of the platform.
+    #
+    # Free in the common case: it stops on the account's own column, which is
+    # already loaded, for everyone who has answered.
+    if current_user.age_confirmed_at is None and guild.is_community and age_gate_on:
+        raise GuildAccessError(
+            GuildMessages.AGE_BELOW_MINIMUM
+            if current_user.age_below_minimum_at is not None
+            else GuildMessages.AGE_CONFIRMATION_REQUIRED
+        )
+    # And the deployment's own question, off the row the gate read carried.
+    if await platform_factor_unmet(session, current_user, level=asked):
+        raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
     await _enforce_guild_auth_policy(
         session,
         policy,
         guild_id,
         satisfied,
-        auth_context.session_mfa(),
-        auth_context.session_passkey(),
+        auth_context.session_amr(),
+        require_second_factor=guild.require_second_factor,
     )
     return GuildContext(
         guild=guild,
@@ -919,6 +1068,7 @@ async def get_guild_membership(
         if exc.detail in (
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+            GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
         ):
             # 401 for the same reason as the provider step-up below, and apart
             # from it because what satisfies these is presented against the
@@ -1007,6 +1157,31 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
     return dependency
 
 
+def _note_privileged_request(current_user: User, guild_context: GuildContext) -> None:
+    """Record on the request's own context which grant is serving it.
+
+    Read back when the response is finished, to write the one line that says
+    what this request did with the grant (``app.core.request_audit``).
+    """
+    grant, settings_grant = guild_context.grant, guild_context.settings_grant
+    issued = grant or settings_grant
+    audit_context.note_grant(
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        grant_id=grant.id if grant is not None else None,
+        access_level=grant.access_level if grant is not None else None,
+        settings_grant_id=settings_grant.id if settings_grant is not None else None,
+        settings_level=(
+            settings_grant.access_level if settings_grant is not None else None
+        ),
+        break_glass=(
+            issued.requested_by_id == issued.approved_by_id
+            if issued is not None
+            else None
+        ),
+    )
+
+
 async def _apply_guild_session_context(
     session: AsyncSession,
     current_user: User,
@@ -1018,6 +1193,7 @@ async def _apply_guild_session_context(
     PAM-scoped when access is via a grant."""
 
     if guild_context.is_settings_only:
+        _note_privileged_request(current_user, guild_context)
         set_active_grant(None, None)
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
@@ -1029,11 +1205,12 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
-            session_mfa=auth_context.session_mfa(),
+            session_amr=auth_context.session_amr(),
         )
         return session
 
     if guild_context.is_pam:
+        _note_privileged_request(current_user, guild_context)
         # Apply a content grant at its recorded access level.
         grant = guild_context.grant
         access_level = (
@@ -1057,8 +1234,7 @@ async def _apply_guild_session_context(
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
-            session_mfa=auth_context.session_mfa(),
-            session_passkey=auth_context.session_passkey(),
+            session_amr=auth_context.session_amr(),
         )
         return session
 
@@ -1091,8 +1267,7 @@ async def _apply_guild_session_context(
         read_only=guild_context.content_read_only,
         satisfied_providers=_satp_param(satisfied),
         satisfied_claims=auth_context.satisfied_claims(),
-        session_mfa=auth_context.session_mfa(),
-        session_passkey=auth_context.session_passkey(),
+        session_amr=auth_context.session_amr(),
     )
     # The initiatives where this member holds "Full access", for the sync DAC
     # checks (gate 4, without an async query) and for the policies that read
@@ -1224,6 +1399,34 @@ async def _include_deleted_flag(
 IncludeDeletedDep = Annotated[bool, Depends(_include_deleted_flag)]
 
 
+async def _apply_user_session_context(
+    session: AsyncSession, current_user: User
+) -> AsyncSession:
+    """Route ``session`` for the public/platform path: no guild, the caller's
+    own tier. The body both user-session dependencies share."""
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        platform_role=current_user.role.value,
+    )
+    return session
+
+
+async def get_factor_exempt_user_session(
+    session: SessionDep,
+    current_user: FactorExemptUser,
+) -> AsyncSession:
+    """The platform-path session for a route that stays reachable while the
+    deployment's second-factor rule is unmet — routed exactly as the ordinary
+    one, and holding no more."""
+    return await _apply_user_session_context(session, current_user)
+
+
+FactorExemptSessionDep = Annotated[
+    AsyncSession, Depends(get_factor_exempt_user_session)
+]
+
+
 async def get_user_session(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1245,12 +1448,7 @@ async def get_user_session(
     (Phase 2), and reaching a guild's *data* requires an explicit break-glass
     PAM grant (§7), never an ambient flag.
     """
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        platform_role=current_user.role.value,
-    )
-    return session
+    return await _apply_user_session_context(session, current_user)
 
 
 # Dependency for routes that need user-level RLS without guild context
@@ -1299,8 +1497,7 @@ async def _authenticate_upload_query_token(
             user_id,
             token_satisfied,
             token_claims,
-            token_mfa,
-            token_passkey,
+            token_markers,
         ) = verify_upload_token(token_param)
     except UploadTokenError:
         pass
@@ -1309,8 +1506,7 @@ async def _authenticate_upload_query_token(
         # it so the guild auth-policy gate treats this request as that session.
         set_satisfied_providers(token_satisfied)
         set_satisfied_claims(token_claims)
-        set_session_mfa(token_mfa)
-        set_session_passkey(token_passkey)
+        set_session_amr(policy_markers(token_markers))
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).
@@ -1330,7 +1526,7 @@ async def _authenticate_upload_query_token(
     )
 
 
-async def get_upload_user(
+async def _resolve_upload_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
@@ -1338,6 +1534,10 @@ async def get_upload_user(
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     """Auth dependency for /uploads/* and authenticated document downloads.
+
+    Held to the deployment's second-factor rule like any other request: this
+    resolves its own caller rather than going through
+    ``get_current_active_user``, so it asks the same question itself.
 
     Two trust tiers, by where the credential arrives:
 
@@ -1355,8 +1555,7 @@ async def get_upload_user(
     # credential's real satisfied set (see app.core.auth_context).
     set_satisfied_providers(None)
     set_satisfied_claims(None)
-    set_session_mfa(False)
-    set_session_passkey(False)
+    set_session_amr(None)
     set_device_token_id(None)
     set_api_key_credential(False)
 
@@ -1455,8 +1654,32 @@ async def get_upload_user(
     # What the session proved about the person, read from its own ``amr`` as
     # ``get_current_user`` reads it — a community asking for either answers a
     # picture and a download the same way it answers a page.
-    set_session_mfa(SECOND_FACTOR_AMR in (token_data.amr or ()))
-    set_session_passkey(carries_passkey(token_data.amr or ()))
+    set_session_amr(policy_markers(token_data.amr))
+    return user
+
+
+async def get_upload_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    token_param: Annotated[Optional[str], Query(alias="token")] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> User:
+    """The media path's caller, held to the deployment's second-factor rule.
+
+    The resolution itself is next door and unchanged; this is where the one
+    question every other request answers is asked of this one too, once the
+    credential has named somebody.
+    """
+    user = await _resolve_upload_user(
+        request, session, bearer_token, token_param, session_cookie
+    )
+    if await platform_factor_unmet(session, user):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
+            headers={"WWW-Authenticate": STEP_UP_CHALLENGE},
+        )
     return user
 
 

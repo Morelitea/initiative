@@ -44,7 +44,9 @@
     "existingTags": "Vorhandene Tags",
     "noTagsFound": "Keine Tags gefunden.",
     "createTag": "\"{{name}}\" erstellen",
-    "selected": "{{count}} ausgewählt"
+    "selected": "{{count}} ausgewählt",
+    "filterLabel": "Tags",
+    "anyTag": "Beliebiges Tag"
   },
   "tree": {
     "notTagged": "Nicht getaggt",
@@ -59,6 +61,5 @@
   "createError": "Tag kann nicht erstellt werden.",
   "updateError": "Tag kann nicht aktualisiert werden.",
   "deleteError": "Tag kann nicht gelöscht werden.",
-  "taskTagsError": "Aufgaben-Tags können nicht aktualisiert werden.",
   "toolTagsError": "Tags können nicht aktualisiert werden."
 }

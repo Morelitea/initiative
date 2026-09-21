@@ -7,7 +7,10 @@ guild-content table at once.
 A row is **frozen** when it is archived (``archived_at``), in the trash
 (``deleted_at``), or hangs off something that is. Frozen content accepts no
 writes; the only writes it accepts are the ones that end the state or move it
-along — unarchive, restore, purge.
+along — unarchive, restore, purge — and the one that moves the ground under it:
+a status column retired or recategorised takes every task in it along, frozen
+or not, because a column nobody can empty is a column nobody can delete (see
+``RESTRUCTURE_GUC``).
 
 Freeze is a **lifecycle** state, and it is orthogonal to who may do what: a
 frozen row is read-only for everybody, so the way to edit one is to bring it
@@ -38,9 +41,10 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
@@ -81,7 +85,34 @@ FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
 #: and never reaches a pooled connection.
 PURGE_GUC = "app.purging"
 
+#: Transaction-local flag marking a transaction as a restructure of the board a
+#: frozen row sits on.
+#:
+#: Retiring or recategorising a status column moves every task in it: the ones
+#: still live, and the ones archived or in the trash, which have to land
+#: somewhere too. The frozen task is not being edited — where it hangs is
+#: changing, and it keeps its stamp — so the row guards let the write through
+#: while this is set. The ancestry guards do not read it: nothing about a column
+#: can put a task under a different project or initiative.
+#:
+#: Set with ``set_config(…, true)`` by :func:`mark_restructuring`, so it lasts
+#: one transaction and never reaches a pooled connection.
+RESTRUCTURE_GUC = "app.restructuring"
+
 _PURGING = f"current_setting('{PURGE_GUC}'::text, true) = 'true'::text"
+_RESTRUCTURING = f"current_setting('{RESTRUCTURE_GUC}'::text, true) = 'true'::text"
+
+
+async def mark_restructuring(session: AsyncSession) -> None:
+    """Flag the current transaction as a board restructure (see ``RESTRUCTURE_GUC``).
+
+    Call it inside the transaction that moves the tasks, after every check that
+    should still be able to refuse; it is gone at commit.
+    """
+    await session.exec(
+        text("SELECT set_config(:name, 'true', true)").bindparams(name=RESTRUCTURE_GUC)
+    )
+
 
 #: What a frozen row may still change: the columns that describe the freeze
 #: itself, plus the timestamp every write touches. Everything else is content.
@@ -559,6 +590,9 @@ BEGIN
             USING ERRCODE = '{FROZEN_SQLSTATE}',
                   CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
     END IF;
+    IF {_RESTRUCTURING} THEN
+        RETURN NEW;
+    END IF;
     IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
         RAISE EXCEPTION 'archived or trashed content is read-only'
             USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
@@ -574,17 +608,18 @@ def render_frozen_guard_fn() -> str:
 
     Attached BEFORE UPDATE with a ``WHEN`` clause naming the frozen state, so a
     live row never reaches it. Once here, the row IS frozen: the only change it
-    may carry is one to the columns that describe the freeze.
+    may carry is one to the columns that describe the freeze — unless the
+    transaction is a purge or a board restructure, which write frozen rows on
+    purpose (``PURGE_GUC``, ``RESTRUCTURE_GUC``).
     """
     cols = ", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)
-    purging = _PURGING
     return f"""
 CREATE OR REPLACE FUNCTION public.fn_frozen_row_guard() RETURNS trigger
     LANGUAGE plpgsql AS $frozen_guard$
 DECLARE
     lifecycle text[] := ARRAY[{cols}];
 BEGIN
-    IF {purging} THEN
+    IF {_PURGING} OR {_RESTRUCTURING} THEN
         RETURN NEW;
     END IF;
     IF (to_jsonb(NEW) - lifecycle) IS DISTINCT FROM (to_jsonb(OLD) - lifecycle) THEN

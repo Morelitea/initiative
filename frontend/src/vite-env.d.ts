@@ -5,6 +5,12 @@ declare const __IS_CAPACITOR__: boolean;
 /** Where the emoji picker fetches its dataset from — served by the app itself
  *  (see the emojibase plugin in vite.config.ts), never a public CDN. */
 declare const __EMOJIBASE_URL__: string;
+/** The pdf.js worker bundle, served by the app itself under `assets/workers/`
+ *  so it gets the WebAssembly policy (see the pdfjs plugin in vite.config.ts). */
+declare const __PDFJS_WORKER_URL__: string;
+/** Directory the pdf.js worker fetches its WebAssembly image decoders from.
+ *  Ends in a slash — pdf.js appends the bare filename. */
+declare const __PDFJS_WASM_URL__: string;
 
 // Vite's default client types cover common image/font asset URLs but not
 // .wav. Declare it so `import url from "@/assets/foo.wav"` resolves to a

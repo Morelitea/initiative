@@ -62,18 +62,9 @@ describe("buildTimeline", () => {
     expect(divider).toEqual({ kind: "round-divider", round: 6 });
   });
 
-  it("orders fractional positions between equal integers", () => {
-    const lo = buildQueueItem({ id: 10, label: "lo", position: 10 });
-    const mid = buildQueueItem({ id: 11, label: "mid", position: 10.5 });
-    const hi = buildQueueItem({ id: 12, label: "hi", position: 11 });
-    const queue = buildQueue({
-      is_active: true,
-      current_round: 1,
-      items: [lo, hi, mid],
-      current_item: hi,
-    });
-    expect(labels(buildTimeline(queue))).toEqual(["hi", "mid", "lo", "--R2--"]);
-  });
+  // Turn order is position-desc, fractional positions included. That ordering
+  // is the turn transitions', which this timeline lays out, and is proved in
+  // `src/hooks/useQueues.test.ts`.
 
   it("shows hidden items below a 'Hidden' divider so they remain editable", () => {
     const hidden = { ...a, is_visible: false };

@@ -5,12 +5,6 @@ is where they live, in the same two representations ``users`` has always used:
 a keyed HMAC for the equality lookup and a Fernet ciphertext for reading the
 address back.
 
-``users.email_hash`` / ``email_encrypted`` still hold the one address an
-account was created with, and a lookup falls back to them so an account whose
-row did not come across still signs in. Every fallback is logged with the
-account it resolved; the columns on ``users`` come off once that log has
-stayed quiet under real traffic.
-
 Runs on the system engine. ``user_emails`` carries no request-path grants for
 the same reason ``auth_sessions`` carries none: resolving an address happens
 before there is anybody to scope a policy to.
@@ -116,14 +110,38 @@ async def account_holding(session: AsyncSession, email: str) -> User | None:
     ) or await account_awaiting_confirmation(session, email)
 
 
+async def row_for(session: AsyncSession, email: str) -> UserEmail | None:
+    """The address row itself, proved or not.
+
+    :func:`account_holding` answers who holds an address; this hands back the
+    row, for a caller that has to say something about that particular address
+    rather than about the account behind it.
+    """
+    return await _by_hash(session, hash_email(normalize(email)))
+
+
+async def mark_proved(
+    session: AsyncSession, *, address_id: int, now: datetime | None = None
+) -> bool:
+    """Record that this address has been proved, and say whether that is new.
+
+    ``False`` where it was already proved, so a caller can tell the first
+    proof from every later one. Staged in the caller's transaction.
+    """
+    result = await session.exec(
+        update(UserEmail)
+        .where(UserEmail.id == address_id, UserEmail.verified_at.is_(None))
+        .values(verified_at=now or datetime.now(timezone.utc))
+    )
+    return bool(result.rowcount)
+
+
 async def note_sign_in(
     session: AsyncSession, *, email: str, now: datetime | None = None
 ) -> None:
     """Stamp the address a sign-in resolved through.
 
     Staged in the caller's transaction, beside the session the sign-in opens.
-    An address that resolved through the fallback has no row to stamp, and the
-    statement matches nothing — which is the same thing the fallback log says.
     """
     await session.exec(
         update(UserEmail)
@@ -267,8 +285,7 @@ def record_address(
     """Stage an address for ``user_id`` in ``session``'s own transaction.
 
     Staged rather than committed so the address lands with whatever created the
-    account — an account that exists without its address would sign in only
-    through the fallback.
+    account.
     """
     row = _build_address(
         user_id=user_id,

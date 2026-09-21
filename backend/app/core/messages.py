@@ -62,6 +62,10 @@ class AuthMessages:
     #: out of attempts. One code for all four, so the client learns only that
     #: it has to begin again — the same shape as the refresh rejection above.
     TOTP_CHALLENGE_INVALID = "TOTP_CHALLENGE_INVALID"
+    #: The handle and code presented together are not a waiting sign-in.
+    EMAIL_OTP_INVALID = "EMAIL_OTP_INVALID"
+    #: A code was asked for while the deployment cannot send mail.
+    EMAIL_OTP_CANNOT_SEND = "EMAIL_OTP_CANNOT_SEND"
     #: Enrolling over a factor the account has already proved.
     TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
     #: The deployment does not offer the authenticator app.
@@ -122,6 +126,10 @@ class GuildMessages:
     #: The community asks that the session was opened, or stepped up, with a
     #: passkey, and this one was not.
     GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
+    #: The deployment asks this account for a second factor and it holds none.
+    #: Kept beside the two above because one dialog answers all three, and the
+    #: client tells them apart by the code alone.
+    PLATFORM_AUTH_FACTOR_REQUIRED = "PLATFORM_AUTH_FACTOR_REQUIRED"
     GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
     #: The community declines personal API keys. Raised both when one is being
     #: minted into the guild and when a request carrying one addresses it, so
@@ -135,7 +143,11 @@ class GuildMessages:
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
     #: The guild's sign-in configuration asks for the seat above admin.
     GUILD_SUPERADMIN_REQUIRED = "GUILD_SUPERADMIN_REQUIRED"
+    #: Help requests were switched on with no support stream bound to
+    #: receive them.
+    SUPPORT_INTAKE_NOT_CONFIGURED = "SUPPORT_INTAKE_NOT_CONFIGURED"
     GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
+    FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
     GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"
     # Naming another user as a new guild's admin is platform-staff only.
     GUILD_OWNER_REQUIRES_CAPABILITY = "GUILD_OWNER_REQUIRES_CAPABILITY"
@@ -145,6 +157,16 @@ class GuildMessages:
     GUILD_MEMBERSHIP_CREATE_FAILED = "GUILD_MEMBERSHIP_CREATE_FAILED"
     GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
     GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
+    #: Restore was asked for a guild that has not been deleted.
+    GUILD_NOT_DELETED = "GUILD_NOT_DELETED"
+    #: A guild cannot be restored *to* deleted.
+    GUILD_RESTORE_STATUS_INVALID = "GUILD_RESTORE_STATUS_INVALID"
+    #: The guild's roster no longer holds the seat that configures it, so the
+    #: restore has to name the account that will.
+    GUILD_RESTORE_SEAT_REQUIRED = "GUILD_RESTORE_SEAT_REQUIRED"
+    #: ``deleted`` is reached by deleting a guild and left by restoring it,
+    #: never by setting the status control to it.
+    GUILD_STATUS_NOT_SETTABLE = "GUILD_STATUS_NOT_SETTABLE"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or
@@ -157,14 +179,23 @@ class GuildMessages:
     GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
     GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
     GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
+    # A guild on its way onto the shelf that holds somebody who has answered
+    # the age question as under the minimum. Only ever raised on the way in:
+    # an already-listed guild is not re-checked, so an unrelated edit never
+    # fails over who its members are.
+    GUILD_COMMUNITY_UNDER_AGE_MEMBERS = "GUILD_COMMUNITY_UNDER_AGE_MEMBERS"
     # The deployment runs no community directory: an owner has not switched it
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
     COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
-    # The caller has not said they are 13 or older, and the guild they asked to
+    # The caller has not answered the age question, and the guild they asked to
     # join is listed in the directory. The deployment's own switch decides
     # whether this is ever raised at all.
     AGE_CONFIRMATION_REQUIRED = "GUILD_AGE_CONFIRMATION_REQUIRED"
+    # The caller answered the age question as under the minimum. Separate from
+    # the one above because there is nothing to click: the answer stands, and
+    # the reply has to say so rather than ask again.
+    AGE_BELOW_MINIMUM = "GUILD_AGE_BELOW_MINIMUM"
     # A guild icon or banner rendition that is not one. Each names the rule it
     # broke, so the settings page can say what to do about it rather than
     # "that didn't work".
@@ -349,6 +380,8 @@ class AuthProviderMessages:
     #: A narrowing is a claim and the values that admit somebody; either half
     #: alone would look configured and let nobody in, or nobody out.
     CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
+    #: An enabled connection that does not say who on the provider counts.
+    CONNECTION_NEEDS_NARROWING = "CONNECTION_NEEDS_NARROWING"
     #: Somebody arrived through a provider a community connects to, but the
     #: claim it narrows on did not name them.
     CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"
@@ -522,6 +555,16 @@ class SettingsMessages:
     LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"
     #: The method used to reach this endpoint is not one the platform permits.
     LOGIN_METHOD_NOT_PERMITTED = "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+    #: Withdrawing the last method that could answer the deployment's own
+    #: second-factor requirement, while that requirement stands.
+    LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+    #: Permitting the emailed code while the deployment cannot send mail.
+    LOGIN_METHODS_NO_EMAIL = "SETTINGS_LOGIN_METHODS_NO_EMAIL"
+    # What the deployment asks of an account.
+    #: Asking for a second factor while permitting nothing that presents one.
+    FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
+    #: The account writing the requirement does not meet it yet.
+    FACTOR_REQUIREMENT_SELF_UNSATISFIED = "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
 
     # Object storage
     STORAGE_S3_INCOMPLETE = "SETTINGS_STORAGE_S3_INCOMPLETE"
@@ -562,6 +605,8 @@ class IntakeMessages:
 class AdminMessages:
     CANNOT_RESET_INACTIVE = "ADMIN_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "ADMIN_USER_ALREADY_ACTIVE"
+    #: Restore was asked for an account that has not been deleted.
+    USER_NOT_DELETED = "ADMIN_USER_NOT_DELETED"
     CANNOT_SUSPEND_SELF = "ADMIN_CANNOT_SUSPEND_SELF"
     CANNOT_SUSPEND_INACTIVE = "ADMIN_CANNOT_SUSPEND_INACTIVE"
     ALREADY_ANONYMIZED = "ADMIN_ALREADY_ANONYMIZED"
@@ -599,6 +644,8 @@ class AccessGrantMessages:
     # not set one up, whose way on is their own Security page.
     SECOND_FACTOR_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_REQUIRED"
     SECOND_FACTOR_ENROLMENT_REQUIRED = "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
+    # The assertion presented against a break-glass request did not answer.
+    PASSKEY_INVALID = "ACCESS_GRANT_PASSKEY_INVALID"
 
 
 class PasswordMessages:
@@ -630,7 +677,6 @@ class UserMessages:
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
-    INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"
     INVALID_TASK_COMPLETION_VISUAL_FEEDBACK = (
@@ -682,7 +728,11 @@ class ExportMessages:
     EXPORT_WRITE_REQUIRED = "EXPORT_WRITE_REQUIRED"
     EXPORT_JOB_NOT_FOUND = "EXPORT_JOB_NOT_FOUND"
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
-    EXPORT_ADMIN_REQUIRED = "EXPORT_ADMIN_REQUIRED"
+    EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
+    EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
+    EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"
+    EXPORT_COOLDOWN_ACTIVE = "EXPORT_COOLDOWN_ACTIVE"
+    EXPORT_DELIVERED = "EXPORT_DELIVERED"
 
 
 class ImportEngineMessages:
@@ -693,7 +743,7 @@ class ImportEngineMessages:
     IMPORT_TOO_LARGE = "IMPORT_TOO_LARGE"
     IMPORT_JOB_LIMIT_REACHED = "IMPORT_JOB_LIMIT_REACHED"
     IMPORT_WRITE_REQUIRED = "IMPORT_WRITE_REQUIRED"
-    IMPORT_ADMIN_REQUIRED = "IMPORT_ADMIN_REQUIRED"
+    IMPORT_SUPERADMIN_REQUIRED = "IMPORT_SUPERADMIN_REQUIRED"
     IMPORT_JOB_NOT_FOUND = "IMPORT_JOB_NOT_FOUND"
     IMPORT_NOT_CANCELLABLE = "IMPORT_NOT_CANCELLABLE"
     IMPORT_NOT_CONFIRMABLE = "IMPORT_NOT_CONFIRMABLE"
@@ -705,6 +755,21 @@ class ImportEngineMessages:
     IMPORT_CREATOR_INACTIVE = "IMPORT_CREATOR_INACTIVE"
     IMPORT_PERMISSION_REQUIRED = "IMPORT_PERMISSION_REQUIRED"
     IMPORT_TOOL_DISABLED = "IMPORT_TOOL_DISABLED"
+
+    # Reading a foreign source. These name what the SOURCE said or did, which
+    # is a different thing from anything the envelope path can go wrong at:
+    # the person has to fix something at the other end, not in this app.
+    #: The site did not answer, or did not answer as a site of this kind.
+    IMPORT_SOURCE_UNREACHABLE = "IMPORT_SOURCE_UNREACHABLE"
+    #: The credential was refused, or it does not reach what was asked for.
+    IMPORT_SOURCE_AUTH = "IMPORT_SOURCE_AUTH"
+    #: The site asked us to slow down more than the job is willing to wait.
+    IMPORT_SOURCE_RATE_LIMITED = "IMPORT_SOURCE_RATE_LIMITED"
+    #: The address resolves inside a private network, which this client will
+    #: not connect to — the same rule webhooks and the AI client follow.
+    IMPORT_SOURCE_PRIVATE_HOST = "IMPORT_SOURCE_PRIVATE_HOST"
+    #: The request named nothing to bring over.
+    IMPORT_SOURCE_NOTHING_SELECTED = "IMPORT_SOURCE_NOTHING_SELECTED"
 
 
 class QueryMessages:
@@ -1291,6 +1356,16 @@ class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
 
 
+class LegalMessages:
+    """Codes for the hosted deployment's terms and privacy policy."""
+
+    #: This deployment has no billing portal, so it has no terms of its own.
+    NOT_CONFIGURED = "LEGAL_NOT_CONFIGURED"
+    #: The portal that holds the documents could not be reached.
+    PORTAL_UNAVAILABLE = "LEGAL_PORTAL_UNAVAILABLE"
+    DOCUMENT_NOT_FOUND = "LEGAL_DOCUMENT_NOT_FOUND"
+
+
 class BillingMessages:
     """Codes for the service-to-service billing write boundary.
 
@@ -1312,6 +1387,7 @@ class BillingMessages:
     GUILD_NOT_FOUND = "BILLING_GUILD_NOT_FOUND"
     SUPPORT_SOURCE_RESTRICTED = "BILLING_SUPPORT_SOURCE_RESTRICTED"
     SUPPORT_CANNOT_LOWER = "BILLING_SUPPORT_CANNOT_LOWER"
+    OPERATOR_CANNOT_LOWER_CEILING = "BILLING_OPERATOR_CANNOT_LOWER_CEILING"
     ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"

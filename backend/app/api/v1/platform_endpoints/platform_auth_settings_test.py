@@ -5,6 +5,8 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import UserRole
+from app.core.audit_events import AuditEventType
+from app.testing.audit import emitted
 from app.testing import (
     create_guild_provider_connection,
     create_auth_provider,
@@ -24,6 +26,26 @@ READ_URL = "/api/v1/settings/auth/platform"
 async def _owner(session: AsyncSession):
     owner = await create_user(session, role=UserRole.owner)
     return owner, get_auth_headers(owner)
+
+
+async def _can_send_mail(session: AsyncSession) -> None:
+    """A deployment that can send, which the emailed code asks for."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
+    await session.commit()
+
+
+async def _cannot_send_mail(session: AsyncSession) -> None:
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = None
+    session.add(row)
+    await session.commit()
 
 
 async def _store_passkey(session: AsyncSession, user, *, credential_id: bytes) -> None:
@@ -61,8 +83,16 @@ async def test_read_reports_every_method_and_its_cost(
         "sso",
         "totp",
         "passkey",
+        "email_otp",
     }
-    assert all(m["enabled"] for m in got.json()["methods"])
+    # Everything an account has to opt into is on; the emailed code, which
+    # every account with an address could use at once, waits to be turned on.
+    assert {m["method"] for m in got.json()["methods"] if m["enabled"]} == {
+        "password",
+        "sso",
+        "totp",
+        "passkey",
+    }
     assert got.json()["guilds_requiring_sign_in"] == 0
 
 
@@ -453,3 +483,292 @@ async def test_withdrawing_two_ways_in_at_once_counts_them_together(
     )
     assert accepted.status_code == 200, accepted.text
     assert {m["method"] for m in accepted.json()["methods"] if m["enabled"]} == {"sso"}
+
+
+# ── What the deployment asks of an account ─────────────────────────────────
+
+REQUIREMENT_URL = "/api/v1/settings/auth/second-factor-requirement"
+
+
+async def _enrol(session: AsyncSession, user) -> None:
+    """Give the account an authenticator it has proved."""
+    from datetime import datetime, timezone
+
+    from app.models.platform.user_totp import UserTotp
+
+    session.add(UserTotp(user_id=user.id, confirmed_at=datetime.now(timezone.utc)))
+    await session.commit()
+
+
+async def test_the_column_default_is_the_set_the_code_names(session: AsyncSession):
+    """What a fresh row gets, as the database itself holds it.
+
+    ``DEFAULT_LOGIN_METHODS`` feeds the model's ``server_default``, so those two
+    cannot disagree. The live column default is a third thing — written by a
+    migration, and not reissued when the tuple changes — so it is read back
+    from the catalogue rather than assumed.
+    """
+    from sqlalchemy import text
+
+    from app.core.login_methods import DEFAULT_LOGIN_METHODS
+
+    rendered = await session.scalar(
+        text(
+            "SELECT column_default FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'app_settings' "
+            "AND column_name = 'login_methods'"
+        )
+    )
+    assert rendered, "the column has no default"
+    stored = rendered[rendered.index("{") + 1 : rendered.index("}")]
+    assert {v.strip().strip("\"'") for v in stored.split(",")} == {
+        m.value for m in DEFAULT_LOGIN_METHODS
+    }
+
+
+async def test_the_emailed_code_needs_a_way_to_send_mail(
+    client: AsyncClient, session: AsyncSession
+):
+    """It is the one way in the deployment delivers itself, so it asks that
+    the deployment can send."""
+    _, headers = await _owner(session)
+
+    refused = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_NO_EMAIL"
+
+
+async def test_the_emailed_code_is_permitted_once_mail_works(
+    client: AsyncClient, session: AsyncSession
+):
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    assert put.status_code == 200, put.text
+    assert "email_otp" in {m["method"] for m in put.json()["methods"] if m["enabled"]}
+
+
+async def test_withdrawing_the_emailed_code_needs_no_mail_server(
+    client: AsyncClient, session: AsyncSession
+):
+    """The check is on the way up only: an operator who has since stopped
+    sending mail can still take the method back off."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+    await _cannot_send_mail(session)
+
+    put = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey"]},
+    )
+
+    assert put.status_code == 200, put.text
+    assert "email_otp" not in {
+        m["method"] for m in put.json()["methods"] if m["enabled"]
+    }
+
+
+async def test_an_address_is_a_way_in_once_the_code_is_permitted(
+    client: AsyncClient, session: AsyncSession
+):
+    """With the emailed code on, an account holding nothing but its address
+    still has a way in, so withdrawing the others strands nobody."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await create_user(session, hashed_password=None)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    put = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["email_otp"]}
+    )
+
+    assert put.status_code == 200, put.text
+    assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"email_otp"}
+
+
+async def test_withdrawing_the_emailed_code_reports_who_it_strands(
+    client: AsyncClient, session: AsyncSession
+):
+    """Taking it back off is the write that costs something: an account that
+    let its password go has nothing else."""
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    await create_user(session, hashed_password=None)
+    await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
+    )
+
+    refused = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "sso", "totp", "passkey"]},
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    assert refused.headers["X-Affected-Count"] == "1"
+
+
+async def test_the_read_says_who_is_asked_and_what_it_would_cost(
+    client: AsyncClient, session: AsyncSession
+):
+    """Both figures on every read, so the page states the consequence before
+    the write rather than after it binds anybody."""
+    owner, headers = await _owner(session)
+    await create_user(session)
+
+    answered = await client.get(READ_URL, headers=headers)
+
+    assert answered.status_code == 200, answered.text
+    body = answered.json()
+    assert body["second_factor_requirement"] == "nobody"
+    # The owner holds nothing yet, and neither does the account beside them.
+    assert body["accounts_without_factor"]["platform_roles"] >= 1
+    assert (
+        body["accounts_without_factor"]["everyone"]
+        > body["accounts_without_factor"]["platform_roles"]
+    )
+
+
+async def test_an_owner_who_holds_a_factor_may_ask_for_one(
+    client: AsyncClient, session: AsyncSession
+):
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+
+    written = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
+    )
+
+    assert written.status_code == 200, written.text
+    assert written.json()["second_factor_requirement"] == "everyone"
+
+
+async def test_a_requirement_is_written_by_somebody_it_already_applies_to(
+    client: AsyncClient, session: AsyncSession
+):
+    """The same rule a community's requirement makes: prove it before it binds
+    anybody."""
+    owner, headers = await _owner(session)
+
+    refused = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "platform_roles"}
+    )
+
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
+    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
+
+
+async def test_asking_needs_something_that_can_answer(
+    client: AsyncClient, session: AsyncSession
+):
+    """A deployment permitting neither the authenticator nor passkeys has
+    nothing to ask for."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    withdrawn = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+
+    refused = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
+
+
+async def test_the_last_way_to_answer_is_not_withdrawn_from_under_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Lower the rule first, then withdraw the method — the order a
+    community's requirement asks for too."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    refused = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
+
+    lowered = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
+    )
+    assert lowered.status_code == 200, lowered.text
+    withdrawn = await client.put(
+        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+
+
+async def test_lowering_it_asks_nothing_of_anybody(
+    client: AsyncClient, session: AsyncSession
+):
+    """Coming down only ever admits more, so it carries none of the conditions
+    going up does — including holding a factor yourself."""
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    lowered = await client.put(
+        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
+    )
+
+    assert lowered.status_code == 200, lowered.text
+    assert lowered.json()["second_factor_requirement"] == "nobody"
+
+
+async def test_the_change_is_recorded(
+    client: AsyncClient, session: AsyncSession, capfd
+):
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+    capfd.readouterr()
+    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+
+    rows = emitted(capfd, AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED)
+
+    assert len(rows) == 1
+    assert rows[0]["detail"] == {"from": "nobody", "to": "everyone"}
+
+
+async def test_the_requirement_needs_the_config_capability(
+    client: AsyncClient, session: AsyncSession
+):
+    operator = await create_user(session, role=UserRole.operator)
+
+    refused = await client.put(
+        REQUIREMENT_URL,
+        headers=get_auth_headers(operator),
+        json={"level": "everyone"},
+    )
+
+    assert refused.status_code == 403, refused.text

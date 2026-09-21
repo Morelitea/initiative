@@ -36,17 +36,6 @@ class GuildBlockerInfo(SanitizedBaseModel):
     other_members: List[UserPublic] = Field(default_factory=list)
 
 
-class InitiativeBlockerInfo(SanitizedBaseModel):
-    """Info about an initiative blocking user deletion."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    initiative_id: int
-    initiative_name: str
-    guild_id: int
-    other_members: List[UserPublic] = Field(default_factory=list)
-
-
 class AdminDeletionEligibilityResponse(SanitizedBaseModel):
     """Enhanced eligibility response with actionable blocker details."""
 

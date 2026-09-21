@@ -2,20 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
-  adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete,
   adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
-  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
   checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
   clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
   deleteUserApiV1AdminUsersUserIdDelete,
   exportPlatformUsersCsvApiV1AdminUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   getListAllUsersApiV1AdminUsersGetQueryKey,
-  getListAuditEventsApiV1AdminAuditEventsGetQueryKey,
   listAllUsersApiV1AdminUsersGet,
-  listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
   removeUserAvatarApiV1AdminUsersUserIdAvatarDelete,
+  restoreDeletedUserApiV1AdminUsersUserIdRestorePost,
   setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
   setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
@@ -26,10 +23,8 @@ import type {
   AdminDeletionEligibilityResponse,
   AdminUserDeleteRequest,
   AdminUserRead,
-  AuditEventListResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
-  ListAuditEventsApiV1AdminAuditEventsGetParams,
   UserRole,
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -50,18 +45,6 @@ export const usePlatformUsers = (options?: QueryOpts<AdminUserRead[]>) => {
   return useQuery<AdminUserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     queryFn: () => listAllUsersApiV1AdminUsersGet(),
-    ...options,
-  });
-};
-
-/** One page of the audit board (``audit.read`` — support and above). */
-export const usePlatformAuditEvents = (
-  params: ListAuditEventsApiV1AdminAuditEventsGetParams,
-  options?: QueryOpts<AuditEventListResponse>
-) => {
-  return useQuery<AuditEventListResponse>({
-    queryKey: getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params),
-    queryFn: () => listAuditEventsApiV1AdminAuditEventsGet(params),
     ...options,
   });
 };
@@ -141,44 +124,6 @@ export const useAdminDeleteGuild = (
     options
   );
 
-/** Delete an initiative (platform admin only).
- *
- * Used in the user-deletion blocker-resolution flow when the target
- * user is the sole project manager of an initiative with no other
- * members the admin can promote in their place.
- */
-export const useAdminDeleteInitiative = (
-  options?: MutationOpts<void, { initiativeId: number; guildId: number }>
-) =>
-  useApiMutation<void, { initiativeId: number; guildId: number }>(
-    {
-      mutationFn: ({ initiativeId, guildId }) =>
-        adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
-          guild_id: guildId,
-        }),
-      invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
-/** Promote an initiative member to project manager (admin only). */
-export const useAdminPromoteInitiativeMember = (
-  options?: MutationOpts<void, { initiativeId: number; userId: number; guildId: number }>
-) =>
-  useApiMutation<void, { initiativeId: number; userId: number; guildId: number }>(
-    {
-      mutationFn: ({ initiativeId, userId, guildId }) =>
-        adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
-          initiativeId,
-          userId,
-          { role: "project_manager" },
-          { guild_id: guildId }
-        ),
-      invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
 /** Trigger a password reset email for a user (admin only). */
 export const useAdminTriggerPasswordReset = (
   options?: MutationOpts<VerificationSendResponse, number>
@@ -195,6 +140,20 @@ export const useAdminReactivateUser = (options?: MutationOpts<AdminUserRead, num
   useApiMutation<AdminUserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidate(q.adminUsers()),
+    },
+    options
+  );
+
+/** Call off a pending erasure (``users.manage``).
+ *
+ * Not the same thing as reactivating: a deleted account never lost its
+ * memberships, so this puts it back exactly where it was, while reactivating a
+ * deactivated one gives back an account with no communities. */
+export const useAdminRestoreUser = (options?: MutationOpts<AdminUserRead, number>) =>
+  useApiMutation<AdminUserRead, number>(
+    {
+      mutationFn: (userId) => restoreDeletedUserApiV1AdminUsersUserIdRestorePost(userId),
       invalidate: () => invalidate(q.adminUsers()),
     },
     options

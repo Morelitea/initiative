@@ -1,8 +1,13 @@
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useImportEnvelopeApiV1GGuildIdImportsEnvelopePost } from "@/api/generated/imports/imports";
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
+  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
+  useImportEnvelopeApiV1GGuildIdImportsEnvelopePost,
+} from "@/api/generated/imports/imports";
+import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,7 +66,14 @@ export interface EnvelopeImportDialogProps {
 /** Generic single-envelope import — the file's ``type`` selects the backend
  * importer; this dialog validates it matches ``tool``, previews it, and posts
  * to /imports/envelope. Generalizes the old ProjectImportDialog for every
- * importable tool. */
+ * importable tool.
+ *
+ * Usually one step. The second appears only when the server stages the job
+ * instead of applying it, which it does when the file quotes somebody nobody
+ * here can be sure of: then this asks who those people are and confirms with
+ * the answers. A file that names nobody — or whose every handle matches a
+ * member exactly — still imports on one click, because a confirm screen
+ * nobody would change is not a step. */
 export function EnvelopeImportDialog({
   tool,
   open,
@@ -81,11 +93,24 @@ export function EnvelopeImportDialog({
     fixedInitiativeId != null ? String(fixedInitiativeId) : null
   );
   const [fileName, setFileName] = useState("");
+  // The job the server parked to ask about its people, if it did. Null is the
+  // ordinary case: the import already happened.
+  const [stagedJob, setStagedJob] = useState<ImportJobRead | null>(null);
+  // Source handle → the account picked for it, seeded from the plan's exact
+  // matches. A handle left out stays unmapped on purpose.
+  const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
   // Bumped on each file pick; an async read that finishes after a newer pick
   // started must not stamp its (stale) result onto the input.
   const readGeneration = useRef(0);
 
   const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
+  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
+  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
+
+  const people = useMemo(
+    () => ((stagedJob?.plan as { people?: PlanPerson[] } | null)?.people ?? []) as PlanPerson[],
+    [stagedJob]
+  );
 
   const creatableInitiatives = useMemo(() => {
     if (fixedInitiativeId != null || !initiativesQuery.data) {
@@ -109,8 +134,23 @@ export function EnvelopeImportDialog({
       setEnvelope(null);
       setParseError(null);
       setFileName("");
+      setStagedJob(null);
+      setPeopleMap({});
     }
   }, [open, fixedInitiativeId, creatableInitiatives]);
+
+  // Seed the mapping from the plan's exact matches, once, when a job is
+  // staged. Only the suggestions: a person the server could not place is left
+  // blank for somebody to answer.
+  useEffect(() => {
+    setPeopleMap(
+      Object.fromEntries(
+        people
+          .filter((person) => person.suggested_user_id != null)
+          .map((person) => [person.handle, person.suggested_user_id as number])
+      )
+    );
+  }, [people]);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const generation = ++readGeneration.current;
@@ -183,10 +223,10 @@ export function EnvelopeImportDialog({
           envelope: envelope as unknown as Record<string, unknown>,
           initiative_id: Number(initiativeId),
         },
-      })) as
-        | { result: { entity_title: string; unmatched_handles: string[] } }
-        | { id: number; status: string };
-      if ("result" in response) {
+      })) as { result: { entity_title: string; unmatched_handles: string[] } } | ImportJobRead;
+      // `id` rather than `result`, which a job row also carries (its report):
+      // only a job has an id, so that is what tells the two apart.
+      if (!("id" in response)) {
         toast.success(t("imports:envelope.success", { name: response.result.entity_title }));
         if (response.result.unmatched_handles.length > 0) {
           toast.warning(
@@ -196,16 +236,61 @@ export function EnvelopeImportDialog({
             })
           );
         }
+      } else if (response.status === "staged") {
+        // Nothing has been imported yet: the server is asking who the file's
+        // people are. Hold the dialog open on the second step instead of
+        // reporting a success that has not happened.
+        setStagedJob(response);
+        return;
       } else {
         toast.success(t("imports:envelope.queued"));
       }
-      // Refresh the tool's list (prefix invalidation catches all consumers).
-      void queryClient.invalidateQueries({ queryKey: [tool] });
-      onOpenChange(false);
-      onImported?.();
+      finish();
     } catch (err) {
       toast.error(getErrorMessage(err, "imports:envelope.error"));
     }
+  };
+
+  /** Close out a finished (or started) import: refresh the tool's list and
+   * let the page know. Prefix invalidation catches every consumer of it. */
+  const finish = () => {
+    void queryClient.invalidateQueries({ queryKey: [tool] });
+    onOpenChange(false);
+    onImported?.();
+  };
+
+  const handleConfirm = async () => {
+    if (!stagedJob) {
+      return;
+    }
+    // Only the rows somebody actually pointed at an account travel. A blank
+    // row is an answer — "nobody here" — and saying nothing is how it is said.
+    const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
+    try {
+      await confirmMutation.mutateAsync({
+        guildId,
+        jobId: stagedJob.id,
+        data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
+      });
+      toast.success(t("imports:envelope.queued"));
+      finish();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "imports:envelope.error"));
+    }
+  };
+
+  /** Back out of the people step. The file is already staged server-side, so
+   * the way out is to delete the job rather than to un-ask the question. */
+  const handleDiscard = async () => {
+    if (stagedJob) {
+      try {
+        await cancelMutation.mutateAsync({ guildId, jobId: stagedJob.id });
+      } catch {
+        // Already expired or started — nothing to cancel, and closing is
+        // still the right thing to do.
+      }
+    }
+    onOpenChange(false);
   };
 
   const isSubmitting = importMutation.isPending;
@@ -213,6 +298,42 @@ export function EnvelopeImportDialog({
   // Every tool's envelope names its entity `name`; document exports taken
   // before the rename spelled it `title`, which the server still accepts.
   const envelopeTitle = envelope?.name ?? envelope?.title ?? "";
+
+  if (stagedJob) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : void handleDiscard())}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("imports:envelope.title")}</DialogTitle>
+            <DialogDescription>{t("imports:wizard.people.prompt")}</DialogDescription>
+          </DialogHeader>
+          <ImportPeopleStep people={people} value={peopleMap} onChange={setPeopleMap} />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleDiscard()}
+              disabled={confirmMutation.isPending}
+            >
+              {t("common:cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={confirmMutation.isPending}
+            >
+              {confirmMutation.isPending
+                ? t("imports:envelope.importing")
+                : t("imports:envelope.importButton")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

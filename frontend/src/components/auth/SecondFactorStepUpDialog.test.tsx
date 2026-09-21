@@ -39,13 +39,15 @@ const mount = async (options: Parameters<typeof renderPage>[1] = {}) => {
 const fireChallenge = ({
   guildId = 4,
   kind = "totp",
+  platform,
 }: {
   guildId?: number | null;
   kind?: "totp" | "passkey" | "proof";
+  platform?: boolean;
 } = {}) => {
   act(() => {
     window.dispatchEvent(
-      new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { guildId, kind } })
+      new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { guildId, kind, platform } })
     );
   });
 };
@@ -78,22 +80,9 @@ describe("SecondFactorStepUpDialog", () => {
     });
   });
 
-  it("reads a code the way an authenticator shows it", async () => {
-    statusIs(true);
-    const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
-    await mount({ auth: { stepUpWithFactor } });
-
-    fireChallenge();
-    await screen.findByRole("dialog");
-
-    // An authenticator app displays "123 456", and that is what gets pasted.
-    await userEvent.type(screen.getByLabelText(/authentication code/i), "123 456");
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
-
-    await waitFor(() => {
-      expect(stepUpWithFactor).toHaveBeenCalledWith({ code: "123456" });
-    });
-  });
+  // An authenticator app displays "123 456", and that is what gets pasted.
+  // Reading it as the six digits it is proved in
+  // `src/lib/secondFactorAnswer.test.ts`.
 
   it("takes a recovery code instead", async () => {
     statusIs(true);
@@ -202,18 +191,17 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
     expect(screen.queryByLabelText(/authentication code/i)).not.toBeInTheDocument();
   });
 
-  it("adds the passkey to the session already open", async () => {
+  // What the presented passkey does to the session — the token it produces
+  // becoming this browser's, and the account being read back under it — is the
+  // hook's, proved in `src/hooks/useAuth.test.tsx`.
+  it("closes on a presented passkey rather than making them reload", async () => {
     passkeysAre([{ id: "pk-1", name: "Laptop" }]);
-    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
-    await mount({ auth: { stepUpWithPasskey } });
+    await mount({ auth: { stepUpWithPasskey: vi.fn().mockResolvedValue(undefined) } });
 
     fireChallenge({ kind: "passkey" });
     await screen.findByRole("dialog");
     await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
 
-    await waitFor(() => {
-      expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
-    });
     // The page behind it carries on rather than needing a reload.
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -339,5 +327,48 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
       expect(router.state.location.pathname).toBe("/login");
     });
     expect((router.state.location.search as { next?: string }).next).toBe("/profile/security");
+  });
+});
+
+describe("when the deployment is the one asking", () => {
+  it("says so, and offers the way out rather than a way past", async () => {
+    // A refusal from the deployment is every request, not one page's, so
+    // carrying on is not on offer — answering it or leaving is.
+    statusIs(true);
+    passkeysAre([]);
+    await mount();
+
+    fireChallenge({ guildId: null, platform: true });
+    await screen.findByRole("dialog");
+
+    expect(screen.getByText(/this server requires a second factor/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^dismiss$/i })).not.toBeInTheDocument();
+  });
+
+  it("offers the passkey the account already holds", async () => {
+    // A user-verified passkey records the second factor too, so an account
+    // with a key and no authenticator app has already met the rule and only
+    // has to present it.
+    statusIs(false);
+    passkeysAre([{ id: "p1", name: "Laptop" }]);
+    await mount({ auth: { stepUpWithPasskey: vi.fn() } });
+
+    fireChallenge({ guildId: null, platform: true });
+    await screen.findByRole("dialog");
+
+    expect(await screen.findByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
+  });
+
+  it("holds off while the person is on the page that answers it", async () => {
+    // The shell around that page makes requests of its own, and each would
+    // put the dialog back over the thing it is asking them to do.
+    statusIs(false);
+    passkeysAre([]);
+    await mount({ initialRoute: "/profile/security" });
+
+    fireChallenge({ guildId: null, platform: true });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

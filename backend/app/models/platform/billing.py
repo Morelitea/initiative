@@ -41,14 +41,15 @@ class BillingOp(str, Enum):
 class BillingSource(str, Enum):
     """Who initiated a billing write — must match ``initiative_auto`` exactly.
 
-    ``support_manual`` is the human support path: it may only *raise* the
-    storage cap and must name an ``actor``; the other two are the automated
-    paths that alone may touch ``status``.
+    ``support_manual`` and ``operator_manual`` are the human paths and must name
+    an ``actor``; ``support_manual`` may only *raise* the storage cap.
     """
 
     paddle_webhook = "paddle_webhook"
     platinum_invoice = "platinum_invoice"
     support_manual = "support_manual"
+    trial_expiry = "trial_expiry"
+    operator_manual = "operator_manual"
 
 
 class BillingEventLog(SQLModel, table=True):

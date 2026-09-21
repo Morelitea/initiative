@@ -1,51 +1,6 @@
-import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
-import type { RouterContext } from "@/router";
-
-import { type GuardServerState, redirectToActiveGuild, routeGuardSignature } from "./routeGuards";
-
-/** Minimal router context — these guards only read `guilds.activeGuildId`. */
-const contextWithGuild = (activeGuildId: number | null) =>
-  ({ guilds: { activeGuildId } }) as unknown as RouterContext;
-
-describe("redirectToActiveGuild", () => {
-  it("forwards to the active guild's copy of the route", () => {
-    const guard = redirectToActiveGuild("/c/$guildId/projects");
-    try {
-      guard({ context: contextWithGuild(42) });
-      expect.unreachable("guard must throw a redirect");
-    } catch (error) {
-      expect(isRedirect(error)).toBe(true);
-      expect(
-        (error as { options: { to: string; params: { guildId: string } } }).options
-      ).toMatchObject({ to: "/c/$guildId/projects", params: { guildId: "42" } });
-    }
-  });
-
-  it("carries the route's search params across", () => {
-    const guard = redirectToActiveGuild("/c/$guildId/tasks");
-    try {
-      guard({ context: contextWithGuild(7), search: { status: "open" } });
-      expect.unreachable("guard must throw a redirect");
-    } catch (error) {
-      expect((error as { options: { search: unknown } }).options.search).toEqual({
-        status: "open",
-      });
-    }
-  });
-
-  it("falls back to home when no guild is active", () => {
-    const guard = redirectToActiveGuild("/c/$guildId/documents");
-    try {
-      guard({ context: contextWithGuild(null) });
-      expect.unreachable("guard must throw a redirect");
-    } catch (error) {
-      expect(isRedirect(error)).toBe(true);
-      expect((error as { options: { to: string } }).options.to).toBe("/");
-    }
-  });
-});
+import { type GuardServerState, routeGuardSignature } from "./routeGuards";
 
 const web: GuardServerState = {
   loading: false,

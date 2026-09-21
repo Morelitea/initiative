@@ -1,45 +1,18 @@
 """Coverage tests — every tool is wired into every per-tool surface.
 
-The tools are uniform, so instead of a mirror registry these assert directly that
-each real surface (the DAC registries, the soft-delete model list, the purge
-worker, the trash listing) covers the whole ``Tool`` enum / every soft-deletable
-model. A new tool — or a new soft-delete model — that forgets one of them fails
-here. This is the "confirm all tools have similar surface coverage" guarantee,
-kept honest against the actual sources rather than a re-declared list.
+The tools are uniform, so instead of a mirror registry these assert directly
+that each real surface (the soft-delete model list, the trash listing, the tag
+and comment registries, the mounted routes) covers the whole ``Tool`` enum /
+every soft-deletable model. A new tool — or a new soft-delete model — that
+forgets one of them fails here. This is the "confirm all tools have similar
+surface coverage" guarantee, kept honest against the actual sources rather than
+a re-declared list.
+
+The plain ``set(registry) == set(enum)`` rows live together in
+``app/core/registry_coverage_test.py``, one row per registry.
 """
 
 from app.core.tools import Tool
-
-
-def test_resource_grant_schema_takes_the_tool_enum():
-    # resource_grants rows and schemas are typed by the Tool enum itself — no
-    # parallel string list anywhere.
-    from app.models.tenant.resource_grant import ResourceGrant
-    from app.schemas.tenant.resource_grant import ResourceGrantBulkItem
-
-    assert ResourceGrant.model_fields["resource_type"].annotation is Tool
-    assert ResourceGrantBulkItem.model_fields["resource_type"].annotation is Tool
-
-
-def test_dac_registries_cover_every_tool():
-    from app.api.resource_access import GRANTABLE_KINDS, RESOURCE_ACCESS
-    from app.services.permissions import DAC_RESOURCES
-
-    # Every tool is a local DAC resource; the three registries must agree and span
-    # the whole enum. A new tool that forgets one of them fails here.
-    assert set(DAC_RESOURCES) == set(Tool)
-    assert set(RESOURCE_ACCESS) == set(Tool)
-    assert set(GRANTABLE_KINDS) == set(Tool)
-
-
-def test_purge_worker_covers_every_soft_delete_model():
-    # The invariant that caught the missing CounterGroup/Counter drift: every
-    # soft-deletable model must be reachable by the auto-purge worker, else an
-    # independently-trashed row of that type never purges past retention.
-    from app.db.soft_delete_filter import SOFT_DELETE_MODELS
-    from app.services.tenant.trash_purge import _PURGE_TOP_DOWN
-
-    assert set(_PURGE_TOP_DOWN) == set(SOFT_DELETE_MODELS)
 
 
 def test_trash_listing_covers_every_soft_delete_model():
@@ -52,20 +25,12 @@ def test_trash_listing_covers_every_soft_delete_model():
     assert set(SOFT_DELETE_MODELS) <= listed
 
 
-def test_permission_keys_are_exactly_the_derived_tool_pairs():
-    # Every tool has a `{plural}_enabled` + `create_{plural}` PermissionKey pair
-    # spelled exactly as the Tool enum derives it, and nothing else exists. A new
-    # tool that forgets its keys — or a key that drifts from the canonical stem —
-    # fails here.
-    from app.models.tenant.initiative import (
-        BUILTIN_ROLE_PERMISSIONS,
-        DEFAULT_PERMISSION_VALUES,
-        PermissionKey,
-    )
+def test_every_builtin_role_answers_for_every_permission_key():
+    # The per-role tables are written out by hand, one entry per key. A tool
+    # added to the enum gives every built-in role two more keys to answer for,
+    # and a role that is missing one fails here.
+    from app.models.tenant.initiative import BUILTIN_ROLE_PERMISSIONS, PermissionKey
 
-    derived = {t.view_permission for t in Tool} | {t.create_permission for t in Tool}
-    assert {k.value for k in PermissionKey} == derived
-    assert set(DEFAULT_PERMISSION_VALUES) == set(PermissionKey)
     for role_permissions in BUILTIN_ROLE_PERMISSIONS.values():
         assert set(role_permissions) == set(PermissionKey)
 
@@ -74,11 +39,10 @@ def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
     # column + read/create/update schema fields) — projects and documents
     # included, which is the whole of making them optional.
-    from app.core.tools import TOGGLEABLE_TOOLS, Tool
+    from app.core.tools import TOGGLEABLE_TOOLS
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
 
-    assert set(TOGGLEABLE_TOOLS) == set(Tool)
     switches = {t.view_permission for t in TOGGLEABLE_TOOLS}
     model_fields = set(Initiative.model_fields)
     schema_fields = set(InitiativeBase.model_fields)
@@ -101,22 +65,6 @@ def test_an_initiative_starts_with_projects_and_documents_on():
         expected = tool in DEFAULT_ENABLED_TOOLS
         assert Initiative.model_fields[tool.view_permission].default is expected
         assert InitiativeBase.model_fields[tool.view_permission].default is expected
-
-
-def test_member_read_flags_are_exactly_the_derived_tool_pairs():
-    # InitiativeMemberRead carries one can_view/can_create pair per tool, spelled
-    # exactly as the Tool enum derives them.
-    from app.schemas.tenant.initiative import InitiativeMemberRead
-
-    fields = set(InitiativeMemberRead.model_fields)
-    for t in Tool:
-        assert t.member_view_field in fields
-        assert t.member_create_field in fields
-    flag_fields = {f for f in fields if f.startswith(("can_view_", "can_create_"))}
-    derived = {t.member_view_field for t in Tool} | {
-        t.member_create_field for t in Tool
-    }
-    assert flag_fields == derived
 
 
 def test_recent_entity_types_agree_across_surfaces():
@@ -345,6 +293,117 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     ref = schema.get("$ref") or schema["allOf"][0]["$ref"]
     enum_values = spec["components"]["schemas"][ref.rsplit("/", 1)[-1]]["enum"]
     assert set(enum_values) == {t.value for t in Tool}
+
+
+def test_every_tool_mounts_both_recent_view_routes():
+    # Opening and closing a tab is one pair of routes, mounted from the
+    # resource-access registry for every tool (tenant_endpoints/tool_views.py).
+    # The exact equality means a tool that loses a half — or a hand-written
+    # copy added back somewhere else — fails here. The operation ids are
+    # asserted too: they are the generated frontend client's function names.
+    from app.api.resource_access import RESOURCE_ACCESS
+    from app.main import app
+
+    spec = app.openapi()
+    mounted = {path for path in spec["paths"] if path.endswith("/view")}
+    expected = {
+        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
+        for tool in Tool
+    }
+    assert mounted == expected
+
+    for tool in Tool:
+        path = (
+            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
+        )
+        item = spec["paths"][path]
+        assert set(item) == {"post", "delete"}, tool
+        assert item["post"]["operationId"].startswith(f"record_{tool.value}_view")
+        assert item["delete"]["operationId"].startswith(f"clear_{tool.value}_view")
+
+
+def test_every_tool_mounts_both_list_routes():
+    # A tool's guild-wide list and the sidebar counts beside it are one pair of
+    # routes, mounted from TOOL_LISTS for every tool
+    # (tenant_endpoints/tool_lists.py). The operation-id stems are asserted
+    # too: they are the generated frontend client's function names, so a tool
+    # that loses a half — or gains a hand-written copy somewhere else — fails
+    # here rather than silently changing the client.
+    from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+    from app.main import app
+
+    assert set(TOOL_LISTS) == set(Tool)
+
+    spec = app.openapi()
+    for tool in Tool:
+        segment = tool.plural.replace("_", "-")
+        listing = spec["paths"][f"/api/v1/g/{{guild_id}}/{segment}/"]["get"]
+        counts = spec["paths"][
+            f"/api/v1/g/{{guild_id}}/{segment}/counts/by-initiative"
+        ]["get"]
+        assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
+        assert counts["operationId"].startswith(
+            f"get_{tool.value}_counts_by_initiative_"
+        ), tool
+        # Every tool is taggable, so every list narrows by tag.
+        assert "tag_ids" in {p["name"] for p in listing["parameters"]}, tool
+
+
+def test_every_tool_mounts_the_grants_route():
+    # Sharing is one route, mounted from the resource-access registry for every
+    # tool (tenant_endpoints/tool_grants.py). The exact equality means a tool
+    # that loses it — or a hand-written copy added back somewhere else — fails
+    # here. The operation-id stem is asserted too: it is the generated frontend
+    # client's function name.
+    from app.api.resource_access import RESOURCE_ACCESS
+    from app.main import app
+
+    spec = app.openapi()
+    mounted = {path for path in spec["paths"] if path.endswith("/grants")}
+    expected = {
+        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
+        for tool in Tool
+    }
+    assert mounted == expected
+
+    for tool in Tool:
+        path = (
+            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
+        )
+        item = spec["paths"][path]
+        assert set(item) == {"put"}, tool
+        assert item["put"]["operationId"].startswith(f"set_{tool.value}_grants"), tool
+
+
+def test_every_tool_mounts_its_cross_guild_list_route():
+    # The My Tools page's list is one route, mounted from MY_TOOL_LISTS for
+    # every tool (tenant_endpoints/me_tools.py). Projects, documents and
+    # calendars each carried a hand-written copy of it until this registry took
+    # them over, so the count is asserted as well as the presence: a tool that
+    # loses its list, or grows a second one anywhere else under /me, fails here
+    # rather than silently changing the client. The operation-id stem is the
+    # generated frontend client's function name.
+    from app.api.v1.tenant_endpoints.me_tools import MY_TOOL_LISTS
+    from app.main import app
+
+    assert set(MY_TOOL_LISTS) == set(Tool)
+
+    spec = app.openapi()
+    operation_ids = [
+        operation["operationId"]
+        for item in spec["paths"].values()
+        for operation in item.values()
+    ]
+    for tool in Tool:
+        path = f"/api/v1/me/{tool.plural.replace('_', '-')}"
+        listing = spec["paths"][path]["get"]
+        stem = f"list_my_{tool.plural}_"
+        assert listing["operationId"].startswith(stem), tool
+        assert sum(oid.startswith(stem) for oid in operation_ids) == 1, tool
 
 
 def test_tool_models_spell_the_shared_columns_the_same():

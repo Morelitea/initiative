@@ -76,14 +76,6 @@ def initiative_scope_clause(
 NO_SCOPE_COLUMN = object()
 
 
-def member_initiative_ids_select(user_id: int):
-    """SELECT of initiative ids the user belongs to, for use as a subquery
-    (``Entity.initiative_id.in_(member_initiative_ids_select(uid))``)."""
-    return select(InitiativeMember.initiative_id).where(
-        InitiativeMember.user_id == user_id
-    )
-
-
 # ---------------------------------------------------------------------------
 # Batch lookups — one query regardless of how many users/initiatives
 # ---------------------------------------------------------------------------

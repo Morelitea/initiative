@@ -145,7 +145,6 @@ async def create_user(
         "status": UserStatus.active,
         "week_starts_on": 0,
         "timezone": "UTC",
-        "overdue_notification_time": "21:00",
         "event_reminder_minutes_before": 15,
     }
 
@@ -2165,6 +2164,29 @@ async def create_auth_provider(
     return provider
 
 
+#: What :func:`create_guild_provider_connection` narrows on, and what
+#: :func:`satisfied_claims_for` answers it with. Named rather than written
+#: twice: a session only reaches a narrowed connection by asserting the value
+#: it counts, so the two have to agree.
+NARROWED_CLAIM = "hd"
+NARROWED_VALUE = "example.com"
+
+
+def satisfied_claims_for(*providers) -> dict:
+    """What a session has to carry to satisfy connections these providers serve.
+
+    Keyed by provider id and shaped as the gate reads it — a list, because the
+    claim a provider asserts may name more than one value. The same shape both
+    consumers take: ``get_auth_token(asserted_claims=...)`` for a credential,
+    and ``set_rls_context(satisfied_claims=...)`` for a routed session, which
+    serialises the integer keys to the strings the gate indexes by.
+    """
+    return {
+        int(getattr(provider, "id", provider)): {NARROWED_CLAIM: [NARROWED_VALUE]}
+        for provider in providers
+    }
+
+
 async def create_guild_provider_connection(
     session: AsyncSession,
     *,
@@ -2175,16 +2197,26 @@ async def create_guild_provider_connection(
 ) -> GuildProviderConnection:
     """Connect a community to one of the operator's providers.
 
-    Unnarrowed by default, which is the shape a community bringing its own
-    identity provider has: it admits whoever that provider vouched for. Pass
-    ``claim`` and ``claim_values`` for the Google-Workspace shape.
+    Narrowed by default, because an enabled connection has to be: communities
+    here are separate tenants, so a provider vouching for somebody is not the
+    same as them belonging to one. Pass ``claim=None, claim_values=None`` with
+    ``enabled=False`` for the row a community writes to decline the
+    deployment's answer for a provider.
+
+    Its narrowing is agreed by default too, so a connection this makes joins
+    people on arrival where it says to. ``narrowing_approved_at=None`` is the
+    state a community's own new connection starts in.
     """
     defaults = {
         "guild_id": guild.id,
         "provider_id": provider.id,
-        "claim": None,
-        "claim_values": None,
+        "claim": NARROWED_CLAIM,
+        "claim_values": [NARROWED_VALUE],
         "enabled": True,
+        # Agreed, like the narrowing itself: this makes a connection that
+        # works, so a test about what happens before somebody agrees says
+        # ``narrowing_approved_at=None`` and means it.
+        "narrowing_approved_at": datetime.now(timezone.utc),
     }
     connection = GuildProviderConnection(**{**defaults, **overrides})
     session.add(connection)

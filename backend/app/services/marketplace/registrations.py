@@ -44,6 +44,7 @@ from jwt.exceptions import InvalidKeyError, PyJWKError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.db import session as db_session
 from app.core.encryption import SALT_APP_SERVICE_SECRET, decrypt_field, encrypt_field
@@ -55,10 +56,25 @@ from app.models.platform.app_service_registration import (
     AppServiceStatus,
     browser_base,
 )
+from app.services import audit as audit_service
 from app.services.marketplace.handshake import HandshakeError, perform_handshake
 from app.services.marketplace.registration_lookup import invalidate_registrations
 
 logger = logging.getLogger(__name__)
+
+#: What a registration confers and where it points, for the record. The shared
+#: secret is not among them — it is reported as a boolean beside the diff.
+AUDITED_FIELDS: tuple[str, ...] = (
+    "public_id",
+    "base_url",
+    "embed_origin",
+    "allowed_origins",
+    "grants",
+    "mandatory",
+    "enabled",
+    "status",
+    "protocol_version",
+)
 
 __all__ = [
     "ReconcileResult",
@@ -452,6 +468,7 @@ async def create_registration(
     mandatory: bool = False,
     enabled: bool = True,
     transport: httpx.AsyncBaseTransport | None = None,
+    actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
     """Wire an app service up, verifying it on the way in.
 
@@ -544,6 +561,20 @@ async def create_registration(
         last_verified_at=verified_at,
     )
     session.add(row)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_SERVICE_CREATED,
+        actor_user_id=actor_user_id,
+        target_type="app_service_registration",
+        target_id=row.id,
+        detail={
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_FIELDS)
+            ),
+            "secret_changed": bool(row.secret_encrypted),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
@@ -562,6 +593,7 @@ async def update_registration(
     delegation_jwks: Optional[dict] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
+    actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
     """Edit a registration. Rotating the secret or repointing the base URL
     discards the recorded verification — re-verify after either.
@@ -572,6 +604,8 @@ async def update_registration(
     ``base_url``.
     """
     row = await get_registration(session, registration_id)
+    before = audit_service.snapshot(row, AUDITED_FIELDS)
+    secret_before = row.secret_encrypted
     retarget = False
     # Whether the origin list is still just the app's own origin. An untouched
     # list follows the address it was derived from; one an operator typed is
@@ -620,6 +654,19 @@ async def update_registration(
         _clear_verification(row)
     row.updated_at = _now()
     session.add(row)
+    secret_changed = row.secret_encrypted != secret_before
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if changed["changed"] or secret_changed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_SERVICE_UPDATED,
+            actor_user_id=actor_user_id,
+            target_type="app_service_registration",
+            target_id=row.id,
+            detail={**changed, "secret_changed": secret_changed},
+        )
     await session.commit()
     await session.refresh(row)
     # The kill switch, the mandatory flag and the origin list are all read
@@ -629,9 +676,19 @@ async def update_registration(
     return row
 
 
-async def delete_registration(session: AsyncSession, registration_id: int) -> None:
+async def delete_registration(
+    session: AsyncSession, registration_id: int, *, actor_user_id: int | None = None
+) -> None:
     row = await get_registration(session, registration_id)
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_SERVICE_DELETED,
+        actor_user_id=actor_user_id,
+        target_type="app_service_registration",
+        target_id=registration_id,
+        detail={},
+    )
     await session.commit()
     invalidate_registrations()
 
@@ -642,12 +699,14 @@ async def verify_registration(
     *,
     accept_manifest_change: bool = False,
     transport: httpx.AsyncBaseTransport | None = None,
+    actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
     """Re-run the handshake and record what it found.
 
     The outcome is persisted before any refusal is raised, so the row always
     reflects the most recent attempt — an operator reading the list sees the
-    same answer the request returned.
+    same answer the request returned. The audit record rides the same write,
+    carrying the status the attempt ended on.
     """
     check_signing_configured()
     row = await get_registration(session, registration_id)
@@ -658,6 +717,17 @@ async def verify_registration(
             setattr(row, key, value)
         row.updated_at = _now()
         session.add(row)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_SERVICE_VERIFIED,
+            actor_user_id=actor_user_id,
+            target_type="app_service_registration",
+            target_id=row.id,
+            detail={
+                "status": row.status,
+                "protocol_version": row.protocol_version,
+            },
+        )
         await session.commit()
         await session.refresh(row)
         invalidate_registrations()
@@ -747,6 +817,10 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         return ReconcileResult()
 
     created = updated = unchanged = skipped = 0
+    # The rows this pass touched, with what the updated ones looked like
+    # before. Recorded after the loop, when the inserts have their ids.
+    born: list[AppServiceRegistration] = []
+    edited: list[tuple[AppServiceRegistration, dict, bool]] = []
     # A public_id already handled in this pass. The row for it is pending rather
     # than flushed, so a second entry naming it would look absent, insert a
     # duplicate, and fail the unique constraint at the shared commit — taking
@@ -800,20 +874,20 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         mandatory = bool(entry.get("mandatory", False))
         row = await _by_public_id(session, public_id)
         if row is None:
-            session.add(
-                AppServiceRegistration(
-                    public_id=public_id,
-                    base_url=base_url,
-                    embed_origin=embed,
-                    allowed_origins=origins,
-                    secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
-                    grants=grants,
-                    delegation_jwks=key_set,
-                    mandatory=mandatory,
-                    enabled=True,
-                    status=AppServiceStatus.UNVERIFIED,
-                )
+            fresh = AppServiceRegistration(
+                public_id=public_id,
+                base_url=base_url,
+                embed_origin=embed,
+                allowed_origins=origins,
+                secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
+                grants=grants,
+                delegation_jwks=key_set,
+                mandatory=mandatory,
+                enabled=True,
+                status=AppServiceStatus.UNVERIFIED,
             )
+            session.add(fresh)
+            born.append(fresh)
             created += 1
             continue
 
@@ -840,6 +914,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             unchanged += 1
             continue
 
+        before = audit_service.snapshot(row, AUDITED_FIELDS)
         row.base_url = base_url
         row.embed_origin = embed
         row.allowed_origins = origins
@@ -851,8 +926,43 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             _clear_verification(row)
         row.updated_at = _now()
         session.add(row)
+        edited.append((row, before, secret != current_secret))
         updated += 1
 
+    # One flush so every insert has its id, then a record apiece. The file is
+    # the author, so the rows carry no actor.
+    if born or edited:
+        await session.flush()
+    for fresh in born:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_SERVICE_CREATED,
+            actor_user_id=None,
+            target_type="app_service_registration",
+            target_id=fresh.id,
+            detail={
+                "via": "config",
+                **audit_service.changed_fields(
+                    {}, audit_service.snapshot(fresh, AUDITED_FIELDS)
+                ),
+                "secret_changed": True,
+            },
+        )
+    for edit, was, secret_changed in edited:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_SERVICE_UPDATED,
+            actor_user_id=None,
+            target_type="app_service_registration",
+            target_id=edit.id,
+            detail={
+                "via": "config",
+                **audit_service.changed_fields(
+                    was, audit_service.snapshot(edit, AUDITED_FIELDS)
+                ),
+                "secret_changed": secret_changed,
+            },
+        )
     await session.commit()
     invalidate_registrations()
     return ReconcileResult(

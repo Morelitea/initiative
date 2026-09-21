@@ -13,6 +13,7 @@ from pydantic import (
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
 from app.core.profile_decorations import (
@@ -488,6 +489,29 @@ class UserEmailListResponse(SanitizedBaseModel):
     items: List[UserEmailRead]
 
 
+class CookieConsentRead(SanitizedBaseModel):
+    """What an account allows to be kept in a browser, and when it said so."""
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    granted: List[str]
+    #: Which version of the question was answered. A client holding an answer
+    #: to an older one treats it as unanswered and asks again.
+    version: int
+    #: The server's clock, not the client's, so two browsers comparing their
+    #: answers compare one clock.
+    decided_at: datetime
+
+
+class CookieConsentUpdate(SanitizedBaseModel):
+    """An answer given in one browser, for the account to carry to the rest."""
+
+    granted: List[CookieCategory] = Field(default_factory=list)
+    version: int
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -499,23 +523,29 @@ class UserRead(UserBase):
     # Whether this account picked its handle. False routes the SPA to the
     # choose-your-handle screen before anything else.
     username_chosen: bool = False
-    #: When this account said it belongs to somebody 13 or older, ``None``
-    #: where it never has. Read by the directory's Join button, which asks
-    #: before it joins rather than letting the server refuse.
+    #: When this account said it belongs to somebody old enough for the
+    #: community directory, ``None`` where it never has. Read by the
+    #: directory's Join button, which asks before it joins rather than letting
+    #: the server refuse.
     age_confirmed_at: Optional[datetime] = None
     #: When this account answered the age question as under the minimum,
-    #: ``None`` where it has not. Turns the confirmation screen from a form
-    #: into an explanation: the answer stands, and putting it right is
-    #: somebody else's to do.
+    #: ``None`` where it has not. Turns the directory's dialog from a form into
+    #: an explanation: the answer stands, and putting it right is somebody
+    #: else's to do.
     age_below_minimum_at: Optional[datetime] = None
-    #: Whether it must say so before it can carry on. True only for an account
-    #: that is already in a listed guild without having confirmed — every other
-    #: way in leaves the membership standing and lands here. False routes
-    #: nowhere; true blocks the app on the confirmation screen, the way
-    #: ``username_chosen`` false routes to the handle screen. Populated by the
-    #: self endpoints (``/users/me`` and ``PATCH /users/me``), which is where
-    #: the SPA reads its own account; defaults false elsewhere.
-    age_confirmation_required: bool = False
+    #: Whether this account still owes its agreement to this deployment's
+    #: terms and privacy policy. Always false where there are none to agree
+    #: to, which is every self-hosted deployment. An account created through
+    #: the signup form agreed there and never sees this; one provisioned by an
+    #: identity provider met no form, so true blocks the app on the acceptance
+    #: screen the way ``username_chosen`` false routes to the handle screen.
+    #: Populated by ``/users/me``; defaults false elsewhere.
+    legal_acceptance_required: bool = False
+    #: This account's cookie answer, so a browser it has never been asked in
+    #: can adopt it instead of asking again. Null where it has never answered,
+    #: which is different from having answered and allowed nothing. Populated
+    #: by ``/users/me``; null elsewhere.
+    cookie_consent: Optional["CookieConsentRead"] = None
     status: UserStatus
     #: Both resolved from ``user_emails`` by whoever builds this shape (see
     #: ``services.platform.users.to_read``) — the ``users`` row carries neither.
@@ -532,7 +562,6 @@ class UserRead(UserBase):
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
-    overdue_notification_time: str = "21:00"
     event_reminder_minutes_before: Optional[int] = 15
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
@@ -600,6 +629,12 @@ class AdminUserRead(UserRead):
     #: reason ``UserRead`` gives.
     email: str = ""
 
+    #: When a deleted account is erased: the moment the deletion was asked for
+    #: plus the deployment's window. Null unless ``status`` is ``deleted``, and
+    #: null for a deployment that keeps deleted accounts. Computed from the
+    #: columns beside it rather than stored, so the window is stated once.
+    purge_at: Optional[datetime] = None
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:
@@ -658,7 +693,6 @@ class UserSelfUpdate(SanitizedBaseModel):
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
-    overdue_notification_time: Optional[str] = None
     event_reminder_minutes_before: Optional[int] = None
     color_theme: Optional[str] = None
     task_completion_visual_feedback: Optional[str] = None

@@ -61,6 +61,13 @@ class ResourceAccessConfig:
     #: async (session, id) -> row | None
     loader: Callable[..., Awaitable[Any]]
     path_param: str
+    #: async (session, id) -> row | None, for a handler that also *serializes*
+    #: the row it authorized: the eager loads a read response reads off it.
+    #: ``None`` where ``loader`` already carries them, which is most tools —
+    #: only projects and documents answer with a graph wider than the decision
+    #: needs, and loading that on every gate check would cost every caller a
+    #: handful of queries none of them reads.
+    hydrated_loader: Optional[Callable[..., Awaitable[Any]]] = None
 
     @property
     def dac_kind(self) -> Tool:
@@ -91,10 +98,16 @@ class ResourceAccessConfig:
 
 RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     Tool.project: ResourceAccessConfig(
-        Tool.project, project_grants.get_project, "project_id"
+        Tool.project,
+        project_grants.get_project,
+        "project_id",
+        hydrated_loader=project_grants.get_project_hydrated,
     ),
     Tool.document: ResourceAccessConfig(
-        Tool.document, documents_service.get_document_for_grants, "document_id"
+        Tool.document,
+        documents_service.get_document_for_grants,
+        "document_id",
+        hydrated_loader=documents_service.get_document_hydrated,
     ),
     Tool.queue: ResourceAccessConfig(Tool.queue, queues_service.get_queue, "queue_id"),
     Tool.counter_group: ResourceAccessConfig(
@@ -253,10 +266,16 @@ async def load_authorized(
     access: str = "read",
     require_owner: bool = False,
     manage_access: bool = False,
+    hydrated: bool = False,
 ) -> Any:
-    """Load by id (RLS scopes to the guild) → 404 if absent, then authorize."""
+    """Load by id (RLS scopes to the guild) → 404 if absent, then authorize.
+
+    ``hydrated=True`` takes the tool's wider loader, for a handler that goes on
+    to serialize the row it just authorized.
+    """
     cfg = RESOURCE_ACCESS[kind]
-    row = await cfg.loader(session, resource_id)
+    loader = cfg.hydrated_loader if hydrated and cfg.hydrated_loader else cfg.loader
+    row = await loader(session, resource_id)
     if row is None:
         if await reachability.reader_is_in_the_initiative(
             kind.plural, resource_id, user.id, guild_context.guild_id
@@ -369,6 +388,7 @@ async def set_resource_grants(
         initiative_id=row.initiative_id,
         owner_id=ownership_service.owner_id_of(row),
         grants=grants,
+        actor_user_id=user.id,
     )
     await session.commit()
 

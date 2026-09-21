@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,6 +9,7 @@ from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import Select, Text, cast, event, func, literal_column, text
 from sqlalchemy import select as sa_select
@@ -15,10 +17,13 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
+from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
+
+logger = logging.getLogger(__name__)
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
@@ -181,8 +186,9 @@ _CONTEXT_SQL = (
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.satisfied_claims', :satc, true), "
-    "set_config('app.session_mfa', :mfa, true), "
-    "set_config('app.session_passkey', :pk, true), "
+    "set_config('app.session_amr', :amr, true), "
+    "set_config('app.platform_role', :prole, true), "
+    "set_config('app.platform_factor', :pfac, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
@@ -239,10 +245,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "satc": "",
-            # No session at all on this path, so it answers for none of the
-            # things a session records about how somebody signed in.
-            "mfa": "false",
-            "pk": "false",
+            # No session at all on this path, so it recorded nothing about
+            # how anybody signed in.
+            "amr": "",
+            # No account either, so no rung and no standing under the
+            # deployment's own rule.
+            "prole": "",
+            "pfac": "false",
             "bgid": str(int(billing_guild_id)),
             "ovr": "",
             "sinit": "",
@@ -332,20 +341,25 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     claims = params.get("satisfied_claims") or {}
     satc = json.dumps(claims, separators=(",", ":"), sort_keys=True) if claims else ""
 
-    # Whether the credential recorded the account's own second factor. A plain
-    # string, because the policy leg compares it as one.
-    mfa = "true" if params.get("session_mfa") else "false"
-    # And whether a passkey is what opened it, in the same form and read by the
-    # leg beside it.
-    pk = "true" if params.get("session_passkey") else "false"
+    # Which of the markers a community can ask about the credential recorded,
+    # comma-joined the way the satisfied-provider set above is. The vocabulary
+    # is closed (``POLICY_AMR_MARKERS``), so the delimiter cannot appear inside
+    # a value; sorted so one session always writes one string. Empty when the
+    # credential recorded none, which every leg reads as unanswered.
+    amr = ",".join(sorted(params.get("session_amr") or ()))
+    # And whether the account answers the deployment's own second-factor rule:
+    # a factor it holds, or one this session presented. Read beside the rung
+    # the rule is scoped by, which every routed request already carries.
+    pfac = "true" if params.get("platform_factor") else "false"
 
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
-        "mfa": mfa,
-        "pk": pk,
+        "amr": amr,
+        "prole": platform_role or "",
+        "pfac": pfac,
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
         "satp": satp,
@@ -410,8 +424,8 @@ async def set_rls_context(
     query: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
     satisfied_claims: Optional[dict] = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    session_amr: frozenset[str] | None = None,
+    platform_factor: Optional[bool] = None,
     override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
@@ -457,6 +471,13 @@ async def set_rls_context(
     anyway yields nothing — and it is what lets an initiative-scoped surface
     ask a guild-scoped question and get its own initiative's answer. Unset
     means no narrowing, which is every ordinary request.
+
+    ``platform_factor`` says whether the account answers the deployment's own
+    second-factor rule — a factor it holds, or one this session presented. It
+    rides beside the tier because the rule is scoped by rung, and both are read
+    by ``public.platform_factor_satisfied()``, which decides the rule itself
+    from the settings row. ``None`` (the default) reads what this request's
+    gate resolved; pass a value only where there is no such gate.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -507,12 +528,21 @@ async def set_rls_context(
         query=query,
         satisfied_providers=satisfied_providers,
         satisfied_claims=satisfied_claims,
-        session_mfa=session_mfa,
-        session_passkey=session_passkey,
+        session_amr=session_amr,
         override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
     )
+    # Whether the account answers the deployment's own second-factor rule.
+    # Ambient by default, from the context the request's gate resolved once —
+    # the same shape ``establish_guild_access`` reads its satisfied set with,
+    # and what lets a service re-route a request's session without carrying
+    # the fact through every signature between here and the gate.
+    if platform_factor is None:
+        from app.core import auth_context
+
+        platform_factor = auth_context.platform_factor()
+
     # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
     # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
     # sentinel for user-attributed system work whose enqueueing request
@@ -559,8 +589,8 @@ async def set_rls_context(
         "query": query,
         "satisfied_providers": satisfied_providers,
         "satisfied_claims": satisfied_claims,
-        "session_mfa": session_mfa,
-        "session_passkey": session_passkey,
+        "session_amr": session_amr,
+        "platform_factor": platform_factor,
         "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
@@ -829,23 +859,92 @@ def _database_name(url: str) -> str:
     return urlparse(url.replace("+asyncpg", "")).path.lstrip("/") or "?"
 
 
+def migration_chain() -> tuple[frozenset[str], str | None]:
+    """Every revision this image ships, and the newest of them.
+
+    Read from the files in the image, without touching the database: it is what
+    a stamped database is checked against before alembic is asked to upgrade it
+    (see ``check_pre_baseline_db``). ``(frozenset(), None)`` if the chain cannot
+    be read, so a caller diagnosing a database treats it as unknown rather than
+    as empty.
+    """
+    try:
+        chain = ScriptDirectory.from_config(_get_alembic_config())
+        revisions = frozenset(step.revision for step in chain.walk_revisions())
+        return revisions, chain.get_current_head()
+    except Exception:
+        return frozenset(), None
+
+
+def _missing_database_error() -> RuntimeError:
+    """What to raise when DATABASE_URL names a database that is not there.
+
+    The database itself is infrastructure's to make, not the app's: the
+    compose image creates it from POSTGRES_DB on first boot, and an existing
+    install has one already. Say so, rather than let a connection error
+    surface as forty frames of driver traceback — from whichever of the two
+    startup connections reaches it first.
+    """
+    name = _database_name(settings.DATABASE_URL)
+    return RuntimeError(
+        f"Database {name!r} does not exist. The compose image creates it "
+        f"from POSTGRES_DB the first time its volume is initialised, and "
+        f"only then — on a server that already has a volume, make it by "
+        f"hand as the superuser:\n"
+        f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
+        f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
+        f"The app does not create its own database; it takes ownership "
+        f"of an existing one at startup."
+    )
+
+
+#: The advisory-lock key a process holds while it migrates. Arbitrary and
+#: app-specific: all it has to be is the same number in every build, and a
+#: different one from the suite's (``conftest.py``).
+MIGRATION_LOCK_KEY = 0x1417A7E50D
+
+
+@asynccontextmanager
+async def migration_lock() -> AsyncGenerator[None, None]:
+    """Take the database's migration lock for the duration of the block.
+
+    Alembic runs in-process at startup, so instances sharing a database take
+    turns here rather than upgrading it at the same time. The lock rides a
+    connection of its own — opened for this, closed after, which is what
+    releases it — because the upgrade runs on connections alembic opens for
+    itself. AUTOCOMMIT keeps that connection merely idle, rather than idle in
+    a transaction, for however long the upgrade ahead of it takes.
+    """
+    lock_engine = create_async_engine(
+        settings.DATABASE_URL, poolclass=NullPool, isolation_level="AUTOCOMMIT"
+    )
+    params = {"key": MIGRATION_LOCK_KEY}
+    try:
+        conn = await lock_engine.connect()
+    except InvalidCatalogNameError as exc:
+        await lock_engine.dispose()
+        raise _missing_database_error() from exc
+    try:
+        taken = await conn.scalar(text("SELECT pg_try_advisory_lock(:key)"), params)
+        if not taken:
+            logger.info(
+                "Another instance is migrating this database; waiting for it to finish."
+            )
+            waited_from = time.monotonic()
+            await conn.execute(text("SELECT pg_advisory_lock(:key)"), params)
+            logger.info(
+                "Migration lock acquired after %.0fs.", time.monotonic() - waited_from
+            )
+        yield
+    finally:
+        # Closing the connection is what gives the lock back.
+        await conn.close()
+        await lock_engine.dispose()
+
+
 async def run_migrations() -> None:
     config = _get_alembic_config()
     try:
         await asyncio.to_thread(command.upgrade, config, "head")
     except InvalidCatalogNameError as exc:
-        # The database itself is infrastructure's to make, not the app's: the
-        # compose image creates it from POSTGRES_DB on first boot, and an
-        # existing install has one already. Say so, rather than let a
-        # connection error surface as forty frames of driver traceback.
-        name = _database_name(settings.DATABASE_URL)
-        raise RuntimeError(
-            f"Database {name!r} does not exist. The compose image creates it "
-            f"from POSTGRES_DB the first time its volume is initialised, and "
-            f"only then — on a server that already has a volume, make it by "
-            f"hand as the superuser:\n"
-            f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
-            f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
-            f"The app does not create its own database; it takes ownership "
-            f"of an existing one at startup."
-        ) from exc
+        raise _missing_database_error() from exc

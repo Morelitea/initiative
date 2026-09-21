@@ -15,6 +15,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
+from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative
@@ -81,7 +82,9 @@ async def _validate_project_write_access(
             detail=ImportMessages.PROJECT_ARCHIVED,
         )
 
-    permissions_service.require_project_access(project, user, access="write")
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES[Tool.project], project, user, access="write"
+    )
 
     return project
 
@@ -309,6 +312,12 @@ from app.schemas.tenant.import_job import (  # noqa: E402
     EnvelopeImportResponse,
     ImportJobRead,
 )
+from app.schemas.tenant.atlassian import (  # noqa: E402
+    AtlassianConnectRequest,
+    AtlassianConnectResponse,
+)
+from app.services.import_engine import atlassian as atlassian_service  # noqa: E402
+from app.services.import_engine import credentials as import_credentials  # noqa: E402
 from app.services.import_engine import engine as import_engine  # noqa: E402
 from app.services.import_engine.contract import (  # noqa: E402
     ImportEngineError,
@@ -316,6 +325,14 @@ from app.services.import_engine.contract import (  # noqa: E402
 )
 
 _LIST_LIMIT = 50
+
+
+def _job_credential_id(job: ImportJob) -> int | None:
+    """The credential this job was lent, if it was lent one. ``params`` is
+    JSON that round-tripped through a request, so the value is checked rather
+    than trusted."""
+    raw = (job.params or {}).get("credential_id")
+    return raw if isinstance(raw, int) else None
 
 
 def _require_writable(guild_context: GuildContext) -> None:
@@ -339,9 +356,13 @@ async def import_envelope(
 ) -> Response:
     """Import a previously-exported JSON envelope (any tool — the envelope's
     ``type`` field selects the importer) into the chosen initiative. Requires
-    the tool's create permission there. Small envelopes apply immediately and
-    return ``201`` with the result; large ones return ``202`` with a queued
-    job to poll."""
+    the tool's create permission there.
+
+    Small envelopes apply immediately and return ``201`` with the result.
+    Anything else returns ``202`` with a job: ``queued`` for one that is
+    merely large, or ``staged`` for one quoting people nobody here can place,
+    whose ``plan`` names them and which starts on
+    ``POST /imports/jobs/{id}/confirm``."""
     # Byte bound (IMPORT_MAX_ENVELOPE_BYTES) is enforced by
     # BodySizeLimitMiddleware at the ASGI seam — a handler-level check would
     # run only after FastAPI had already buffered and parsed the body.
@@ -367,6 +388,71 @@ async def import_envelope(
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content=ImportJobRead.model_validate(outcome).model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/atlassian/connect",
+    response_model=AtlassianConnectResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def connect_atlassian(
+    payload: AtlassianConnectRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> AtlassianConnectResponse:
+    """Prove an Atlassian API token and say what the site holds.
+
+    One request, because the two questions are the same one: the only honest
+    proof that a token works is using it, so connecting *is* the first
+    listing. It returns the Jira projects and Confluence spaces the token can
+    see, with rough counts, and the id of the stored credential the later
+    confirm quotes.
+
+    The credential is stored **after** the site answers, never before — a
+    token the site rejects is not worth a row. What is stored is short-lived
+    by construction: it carries the secret to the worker that picks the job
+    up and is deleted when that job ends, or swept at its deadline if no job
+    ever claims it.
+
+    Real membership of a writable guild, like every other import entry point.
+    Which initiative the work lands in is not asked here and not trusted from
+    here — the target and the create permission for it are resolved on the
+    confirm, and again by the worker at apply time.
+    """
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        # A break-glass or support grant reaches existing content; it does not
+        # get to make this server talk to somebody else's on its behalf.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+
+    try:
+        credential = atlassian_service.AtlassianCredential(
+            site_url=atlassian_service.normalize_site_url(payload.site_url),
+            email=payload.email.strip(),
+            api_token=payload.api_token,
+        )
+        jira, confluence = await atlassian_service.probe_site(credential)
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    credential_id = await import_credentials.store(
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+        provider="atlassian",
+        site_url=credential.site_url,
+        principal=credential.email,
+        secret=credential.api_token,
+    )
+    return AtlassianConnectResponse(
+        credential_id=credential_id,
+        site_url=credential.site_url,
+        jira=jira,
+        confluence=confluence,
     )
 
 
@@ -423,6 +509,9 @@ async def cancel_import_job(
             detail=ImportEngineMessages.IMPORT_NOT_CANCELLABLE,
         )
     import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+    # Everything the job was lent goes back with the payload — a cancelled
+    # import has no further use for the credential it was given.
+    await import_credentials.discard(_job_credential_id(job))
     job.status = ImportJobStatus.cancelled
     job.payload_ref = None
     session.add(job)
@@ -449,15 +538,18 @@ from app.services.tenant.attachments import (  # noqa: E402
 )
 
 
-def _require_real_guild_admin(guild_context: GuildContext) -> None:
-    """Backup import creates initiatives and restores blobs — guild admins
-    only, and REAL membership at that: a break-glass grant synthesizes an
-    admin role, but the worker re-checks actual membership at apply time, so
-    a stand-in would only fail later. Reject it up front."""
-    if guild_context.grant is not None or not guild_context.is_admin:
+def _require_guild_seat(guild_context: GuildContext) -> None:
+    """Restoring a backup creates initiatives and writes blobs back into the
+    community, so it sits with the seat that exports one.
+
+    Held outright, too: a break-glass grant synthesizes an admin role, but the
+    worker re-checks real membership at apply time, so a stand-in would only
+    fail later. Reject it up front.
+    """
+    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportEngineMessages.IMPORT_ADMIN_REQUIRED,
+            detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED,
         )
 
 
@@ -473,8 +565,8 @@ async def upload_backup(
     """Upload a backup zip and get its pre-flight plan. The zip is staged in
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
-    backups expire after IMPORT_STAGED_TTL_HOURS. Guild admins only."""
-    _require_real_guild_admin(guild_context)
+    backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only."""
+    _require_guild_seat(guild_context)
     _require_writable(guild_context)
     guild_id = guild_context.guild_id
 
@@ -499,9 +591,15 @@ async def upload_backup(
             )
         ).all()
     }
+    # The guild's own roster, so the plan can suggest who each name in the
+    # archive is. Read on the request's routed session, so it is the roster
+    # this user can actually see.
+    roster = await _guild_member_ids_by_handle(session, guild_id)
     try:
         plan = backup_service.plan_backup(
-            payload, existing_initiative_names=existing_names
+            payload,
+            existing_initiative_names=existing_names,
+            member_ids_by_handle=roster,
         )
         await count_active_jobs_locked(session, user=current_user)
         payload_ref = stage_payload(guild_id, payload, suffix="zip")
@@ -525,19 +623,54 @@ async def upload_backup(
     return job
 
 
+async def _guild_member_ids_by_handle(session, guild_id: int) -> dict[str, int]:
+    """Every member of this guild, keyed by normalised handle.
+
+    One query rather than a lookup per person: an archive can quote dozens of
+    names, and the answer for all of them is the same roster.
+    """
+    from app.core.user_display import handle_of
+    from app.models.platform.guild import GuildMembership
+    from app.models.platform.user_profile_view import MemberProfile
+    from app.services.import_engine.common import handle_key
+
+    # ``MemberProfile``, not ``users``: this runs on the guild-routed session,
+    # and the view is how guild content refers to a person. The table itself
+    # is the account holder's own business.
+    rows = (
+        await session.exec(
+            select(MemberProfile)
+            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+            .where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    return {handle_key(handle_of(row)): row.id for row in rows}
+
+
 @router.post("/jobs/{job_id}/confirm", response_model=ImportJobRead)
-async def confirm_backup_import(
+async def confirm_import(
     job_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     body: Optional[dict] = None,
 ) -> ImportJob:
-    """Confirm a staged backup: flips it to ``queued`` for the worker.
+    """Confirm a staged import: flips it to ``queued`` for the worker.
+
     Optional body ``{"include": {tool: bool}}`` narrows which tools apply
-    (omitted tools default to included). Guild admins only — re-checked here
-    and again at apply time."""
-    _require_real_guild_admin(guild_context)
+    (backup only; omitted tools default to included), and ``{"people_map":
+    {handle: user id}}`` says who each name the archive quotes is here — the
+    answers to the wizard's people step. Both are recorded on the job and read
+    at apply time; the mapping is re-checked against real membership there,
+    because this confirm may be hours old by then.
+
+    Two kinds of job reach this, and they are gated differently because they
+    were created differently. A **backup** puts a whole community back, so it
+    is the seat only — re-checked here and again at apply time. A lone
+    **envelope** is one thing its creator already had the create permission
+    for when they dropped it; it is staged only to ask who the handles in it
+    are, so that creator is the one who answers, and nobody else confirms on
+    their behalf."""
     _require_writable(guild_context)
     job = await session.get(ImportJob, job_id)
     if job is None:
@@ -545,7 +678,16 @@ async def confirm_backup_import(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
-    if job.status != ImportJobStatus.staged or job.source != "backup":
+    if job.source == "backup":
+        _require_guild_seat(guild_context)
+    elif job.created_by != current_user.id:
+        # RLS lets a guild admin read the row; answering somebody else's
+        # people step is a different thing from being able to see it.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
+        )
+    if job.status != ImportJobStatus.staged:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
@@ -556,6 +698,7 @@ async def confirm_backup_import(
     now = datetime.now(timezone.utc)
     if job.expires_at is not None and job.expires_at <= now:
         import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+        await import_credentials.discard(_job_credential_id(job))
         job.status = ImportJobStatus.expired
         job.payload_ref = None
         session.add(job)
@@ -564,7 +707,7 @@ async def confirm_backup_import(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
         )
-    include = (body or {}).get("include")
+    include = (body or {}).get("include") if job.source == "backup" else None
     if include is not None:
         if not isinstance(include, dict) or not all(
             isinstance(v, bool) for v in include.values()
@@ -574,6 +717,19 @@ async def confirm_backup_import(
                 detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
             )
         job.params = {**(job.params or {}), "include": include}
+    people_map = (body or {}).get("people_map")
+    if people_map is not None:
+        if not isinstance(people_map, dict) or not all(
+            isinstance(handle, str) and isinstance(user_id, int)
+            for handle, user_id in people_map.items()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
+            )
+        # Stored as given; the ids are proved to be members of this guild at
+        # apply time, on the session that will actually write the rows.
+        job.params = {**(job.params or {}), "people_map": people_map}
     job.status = ImportJobStatus.queued
     # Fresh TTL window: the confirmed job now waits on the worker, and a
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.

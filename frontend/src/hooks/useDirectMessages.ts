@@ -8,7 +8,7 @@
  */
 
 import { useQueries } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import {
   readDmPermissionsApiV1MeDmPermissionsPost,
@@ -236,6 +236,3 @@ export const useCanUseDirectMessages = (): boolean => {
   const { data } = useDmSettings();
   return dmEnabled && Boolean(data?.age_confirmed_at);
 };
-
-/** One place for "these lists moved", for callers outside a mutation. */
-export const useRefreshContacts = () => useCallback(refreshContactLists, []);

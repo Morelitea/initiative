@@ -21,73 +21,46 @@ caller's RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+)
+from app.services.export.contract import RenderItem
+
+#: What one gallery contributes to a batch: its row and its pictures.
+Loaded = tuple[Gallery, list[GalleryImage]]
 
 
-class GalleryAdapter:
-    source = "gallery"
-    template_id = "data-table"  # protocol requirement; json never renders one
-    formats = frozenset({"json"})
+class GalleryAdapter(ToolExportAdapter):
+    tool = Tool.gallery
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        # One row per picture: a gallery's size is what is in it, not the
-        # single row naming it.
-        return sum(
-            len(images) or 1
-            for _gallery, images in await self._galleries(
-                session, user, guild_id, params
-            )
-        )
-
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        loaded = await self._galleries(session, user, guild_id, params)
-        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(
-                build_gallery_item(gallery, images, now) for gallery, images in loaded
-            ),
-        )
-
-    async def _galleries(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> list[tuple[Gallery, list[GalleryImage]]]:
-        from app.services.export.adapters._common import selection_ids
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, gallery_id: int, /
+    ) -> Loaded:
         from app.services.tenant.galleries import get_gallery_for_export
 
-        return [
-            await get_gallery_for_export(session, user, guild_id, gallery_id=gid)
-            for gid in selection_ids(
-                params, single_key="gallery_id", multi_key="gallery_ids"
-            )
-        ]
+        return await get_gallery_for_export(
+            session, user, guild_id, gallery_id=gallery_id
+        )
+
+    def rows(self, loaded: Loaded, /) -> int:
+        # One row per picture: a gallery's size is what is in it, not the
+        # single row naming it.
+        _gallery, images = loaded
+        return len(images) or 1
+
+    def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
+        gallery, images = loaded
+        return build_gallery_item(gallery, images, ctx.now)
 
 
 def storage_key_of(url: str | None) -> str:
@@ -98,12 +71,10 @@ def storage_key_of(url: str | None) -> str:
 def build_gallery_item(
     gallery: Gallery, images: list[GalleryImage], now: datetime
 ) -> RenderItem:
-    date = now.strftime("%Y-%m-%d")
-    stem = safe_filename_component(gallery.name).lower()
     # The envelope is importable machine data — stays canonical, never
     # localized (translating field keys breaks import).
     return RenderItem(
-        key=f"{stem}-{date}.initiative-gallery",
+        key=envelope_key(Tool.gallery, gallery.name, now.strftime("%Y-%m-%d")),
         data=_envelope(gallery, images),
     )
 

@@ -26,7 +26,6 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -690,7 +689,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
     )
 
 
-async def reject_privileged_database_url(*, now: datetime | None = None) -> None:
+async def reject_privileged_database_url() -> None:
     """Refuse to start when DATABASE_URL connects as a SUPERUSER/BYPASSRLS role.
 
     The application's own connection is meant to be ``app_provisioner``: the
@@ -698,19 +697,11 @@ async def reject_privileged_database_url(*, now: datetime | None = None) -> None
     The access rules ``SECURITY.md`` describes are enforced by the database and
     assume this connection is bound by them.
 
-    ``SECURITY.md`` has said since it was written that "a future release will
-    refuse to start with one". This is that release; it used to be a warning.
-
     Migrations and guild provisioning fit in ``app_provisioner`` (NOSUPERUSER
     CREATEROLE + CREATE on the database + ownership of the app's objects), so
     this URL never needs more. Creating that role is :mod:`app.db.bootstrap`'s
     job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
     legitimately holds the privilege, and which this does not touch.
-
-    ``ALLOW_PRIVILEGED_DATABASE_UNTIL`` keeps such a deployment booting until
-    an operator-chosen absolute UTC deadline. It logs every boot and refuses
-    the next start once the deadline has passed -- this is a startup check, so
-    a process already running when the deadline passes is not interrupted.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -725,55 +716,28 @@ async def reject_privileged_database_url(*, now: datetime | None = None) -> None
         return
 
     held = "SUPERUSER" if rolsuper else "BYPASSRLS"
-    migration = (
-        "  1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
-        "  2. Point DATABASE_URL at app_provisioner, with a password of\n"
-        "     your choosing, and restart. The bootstrap creates the role\n"
-        "     and hands the app's objects over to it.\n"
-        "  3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n"
-        "\n"
-        "DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
-        "deployment docs for details."
-    )
-
-    current_time = now or datetime.now(timezone.utc)
-    deadline = settings.ALLOW_PRIVILEGED_DATABASE_UNTIL
-    if deadline is not None and deadline > current_time:
-        logger.warning(
-            "\n%s\n"
-            "ALLOW_PRIVILEGED_DATABASE_UNTIL is %s, and DATABASE_URL connects\n"
-            "as a %s role. The access rules described in SECURITY.md are NOT\n"
-            "in force for this connection. This setting exists to buy a\n"
-            "maintenance window. The deadline is checked at startup, so it\n"
-            "stops the NEXT start after it passes -- this process keeps\n"
-            "running until then. Migrate (about a minute):\n"
-            "\n%s\n%s",
-            "=" * 70,
-            deadline.isoformat(),
-            held,
-            migration,
-            "=" * 70,
-        )
-        return
-
-    deadline_status = (
-        f"The configured deadline {deadline.isoformat()} has expired.\n\n"
-        if deadline is not None
-        else "No temporary startup deadline is configured.\n\n"
-    )
-
     raise SystemExit(
         f"\n{'=' * 70}\n"
         f"REFUSING TO START: DATABASE_URL connects as a {held} role.\n\n"
         f"The app never needs these privileges, and the access rules\n"
         f"described in SECURITY.md are not in force for a connection that\n"
-        f"holds them.\n\n"
-        f"{deadline_status}"
-        f"Migrate once (about a minute):\n\n"
-        f"{migration}\n\n"
-        f"To keep booting for one maintenance window, set\n"
-        f"ALLOW_PRIVILEGED_DATABASE_UNTIL to a future timezone-aware timestamp.\n"
-        f"It warns on every boot and refuses the next start after it passes.\n"
+        f"holds them. Make the three logins -- either way takes a minute,\n"
+        f"and neither touches your data:\n\n"
+        f"  Let the app do it\n"
+        f"    1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
+        f"    2. Point DATABASE_URL at app_provisioner, with a password of\n"
+        f"       your choosing, and restart. The bootstrap creates the\n"
+        f"       roles and hands the app's objects over to them.\n"
+        f"    3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n\n"
+        f"  Or do it by hand\n"
+        f"    1. Point DATABASE_URL at app_provisioner, with a password of\n"
+        f"       your choosing.\n"
+        f"    2. Print the SQL for exactly those logins (reads the URLs;\n"
+        f"       connects to nothing):\n"
+        f"         python -m app.db.bootstrap --print-sql\n"
+        f"    3. Run it as the database owner, then start the app.\n\n"
+        f"DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
+        f"deployment docs for details.\n"
         f"{'=' * 70}\n"
     )
 

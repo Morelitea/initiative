@@ -14,14 +14,21 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import (
+    FACTOR_METHODS,
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
+    SecondFactorRequirement,
     methods_from_values,
 )
 from app.core.messages import SettingsMessages
+from app.core.security import AUTH_POLICY_UNMET_HEADER
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_passkey import UserPasskey
+from app.models.platform.user_totp import UserTotp
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import identity as identity_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
@@ -49,6 +56,94 @@ async def resolve_login_methods(session: AsyncSession) -> frozenset[LoginMethod]
 async def login_method_allowed(session: AsyncSession, method: LoginMethod) -> bool:
     """Whether one method may be used to open a session right now."""
     return method in await resolve_login_methods(session)
+
+
+def requirement_from_row(row: AppSetting) -> SecondFactorRequirement:
+    """What this ``app_settings`` row asks of an account.
+
+    Pure, so a caller holding the row does not fetch it twice. A value this
+    version does not recognise reads as ``nobody``: the column is a database
+    enum, so that can only be a row written by a later version, and asking for
+    something this one cannot describe is worse than asking for nothing.
+    """
+    try:
+        return SecondFactorRequirement(row.second_factor_requirement)
+    except ValueError:
+        return SecondFactorRequirement.nobody
+
+
+async def second_factor_requirement(session: AsyncSession) -> SecondFactorRequirement:
+    """What this deployment asks of an account. See :func:`requirement_from_row`."""
+    return requirement_from_row(await app_settings_service.get_app_settings(session))
+
+
+def rule_covers(level: SecondFactorRequirement, role: UserRole) -> bool:
+    """Whether ``level`` asks this account for a second factor.
+
+    The rung is the whole distinction: ``platform_roles`` means everybody above
+    ``member`` on the ladder in :mod:`app.core.capabilities`, which is the one
+    fact the database re-derives for itself from ``app.platform_role``.
+    """
+    if level is SecondFactorRequirement.everyone:
+        return True
+    return (
+        level is SecondFactorRequirement.platform_roles and role is not UserRole.member
+    )
+
+
+def _holds_a_factor_clause():
+    """Accounts holding a second factor: a confirmed authenticator, or a key.
+
+    Either answers the deployment, which asks only that the account has one —
+    unlike a community, which names the method it wants and reads what the
+    session presented.
+    """
+    return (
+        select(UserTotp.user_id)
+        .where(UserTotp.user_id == User.id, UserTotp.confirmed_at.is_not(None))
+        .exists()
+        | select(UserPasskey.id).where(UserPasskey.user_id == User.id).exists()
+    )
+
+
+async def holds_second_factor(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether this account holds a second factor of its own.
+
+    On the system engine: both credential stores are ``app_admin``-only.
+    """
+    return bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.id == user_id, _holds_a_factor_clause())
+        )
+    )
+
+
+async def accounts_without_factor(
+    session: AsyncSession, *, level: SecondFactorRequirement
+) -> int:
+    """How many accounts ``level`` would ask to set one up.
+
+    Live accounts the level covers that hold neither an authenticator nor a
+    key. It counts what the page states before the write, so an operator
+    turning the rule on knows how many people meet it the next time they open
+    the app.
+
+    An account whose identity provider carries out the second factor is
+    counted here and asked for nothing in practice: the session it arrives on
+    says the factor was used, which answers the rule without a local one. The
+    figure is therefore the most it could be, which is the honest direction
+    for a warning.
+    """
+    if level is SecondFactorRequirement.nobody:
+        return 0
+    conditions = [User.status == UserStatus.active, ~_holds_a_factor_clause()]
+    if level is SecondFactorRequirement.platform_roles:
+        conditions.append(User.role != UserRole.member)
+    return (
+        await session.exec(select(func.count()).select_from(User).where(*conditions))
+    ).one()
 
 
 async def guilds_requiring_sign_in(session: AsyncSession) -> int:
@@ -126,7 +221,9 @@ async def set_login_methods(
 
     At least one, which the column's own constraint also holds.
 
-    Two refusals, both 409. Withdrawing single sign-on while a guild requires
+    Three refusals, all 409. Permitting the emailed code asks that the
+    deployment can send mail, since that is how the code reaches anybody.
+    Withdrawing single sign-on while a guild requires
     one names the guilds instead: a requirement is enforced from its policy row
     and stands on its own, so it is lifted first and the withdrawal then goes
     through. And a write that leaves somebody with no way in is refused with
@@ -163,6 +260,19 @@ async def set_login_methods(
     row = await _locked_settings(session)
     current = methods_from_row(row)
     withdrawn = current - requested
+    added = requested - current
+
+    # The emailed code is the one way in the deployment delivers itself, so it
+    # needs somewhere to deliver from. Checked on the way up only: an operator
+    # who later clears the SMTP settings is not retrospectively refused here,
+    # and the send route reports it at the moment it cannot send.
+    if LoginMethod.email_otp in added and not await email_service.email_configured(
+        session
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=SettingsMessages.LOGIN_METHODS_NO_EMAIL,
+        )
 
     if LoginMethod.sso in withdrawn:
         requiring = await guilds_requiring_sign_in(session)
@@ -186,6 +296,19 @@ async def set_login_methods(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=SettingsMessages.LOGIN_METHODS_GUILD_POLICIES,
                 headers={"X-Affected-Count": str(requiring)},
+            )
+
+    # And the deployment's own requirement, which names no method but needs
+    # one to exist. Withdrawing the last of them would leave a rule nobody new
+    # could answer, so the rule is lowered first and the withdrawal then goes
+    # through — the same order a community's requirement asks for.
+    if withdrawn.intersection(FACTOR_METHODS) and not requested.intersection(
+        FACTOR_METHODS
+    ):
+        if requirement_from_row(row) is not SecondFactorRequirement.nobody:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=SettingsMessages.LOGIN_METHODS_FACTOR_REQUIRED,
             )
 
     total_stranded = await stranded_between(
@@ -223,9 +346,20 @@ async def set_login_methods(
     return row
 
 
+async def second_factor_available(session: AsyncSession) -> bool:
+    """Whether this deployment offers a second factor at all.
+
+    What a community's own requirement is offered against: with no kind of
+    factor permitted here, there is nothing for anybody to be asked to hold,
+    so the question is not put.
+    """
+    permitted = await resolve_login_methods(session)
+    return any(method in permitted for method in FACTOR_METHODS)
+
+
 async def _locked_settings(session: AsyncSession) -> AppSetting:
     """The settings row, held for the rest of this transaction."""
-    await app_settings_service.get_app_settings(session)
+    await app_settings_service.ensure_settings_row(session)
     return (
         await session.exec(
             select(AppSetting)
@@ -242,7 +376,7 @@ async def hold_settings_for_read(session: AsyncSession) -> AppSetting:
     Shared locks do not block each other, so concurrent guild admins proceed
     normally; only a write to this row waits.
     """
-    await app_settings_service.get_app_settings(session)
+    await app_settings_service.ensure_settings_row(session)
     return (
         await session.exec(
             select(AppSetting)
@@ -250,3 +384,77 @@ async def hold_settings_for_read(session: AsyncSession) -> AppSetting:
             .with_for_update(read=True)
         )
     ).one()
+
+
+async def answers_the_rule(session: AsyncSession, *, user: User) -> bool:
+    """Whether this request's account answers the deployment's rule.
+
+    Two ways, and either will do: the account holds a factor of its own, or
+    this session presented one — which is what an identity provider's own
+    second factor looks like from here, an account holding nothing locally.
+
+    Read fresh rather than from the request context, which the gate fills in
+    only where the rule applies: a write that turns the rule *on* has to know
+    the answer before there is a rule to have gated anything.
+    """
+    from app.core import auth_context
+    from app.services.auth.assurance import SECOND_FACTOR_AMR
+
+    if SECOND_FACTOR_AMR in auth_context.session_amr():
+        return True
+    return await holds_second_factor(session, user_id=user.id)
+
+
+async def set_second_factor_requirement(
+    session: AsyncSession,
+    *,
+    level: SecondFactorRequirement,
+    actor: User,
+) -> AppSetting:
+    """Set who this deployment asks to hold a second factor.
+
+    Two refusals, both on the way up; lowering carries neither, because it only
+    ever admits more.
+
+    A level needs something that can answer it — the deployment has to be
+    permitting the authenticator app or passkeys — and the account writing it
+    has to answer it already, where the level covers them. The second is the
+    same "prove it before it binds anybody" a community's requirement makes,
+    and here it also means the rule is written by somebody who will still be
+    able to open the page afterwards.
+
+    Nobody is signed out. An account the rule covers is asked at its next
+    request and can answer it there; a credential that cannot present one —
+    the app on a phone, a personal API key — works again once its owner holds
+    a factor.
+    """
+    row = await _locked_settings(session)
+    current = requirement_from_row(row)
+
+    if level is not SecondFactorRequirement.nobody:
+        permitted = methods_from_row(row)
+        if not permitted.intersection(FACTOR_METHODS):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=SettingsMessages.FACTOR_REQUIREMENT_NO_METHOD,
+            )
+        if rule_covers(level, actor.role) and not await answers_the_rule(
+            session, user=actor
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=SettingsMessages.FACTOR_REQUIREMENT_SELF_UNSATISFIED,
+                headers={AUTH_POLICY_UNMET_HEADER: LoginMethod.totp.value},
+            )
+
+    row.second_factor_requirement = level
+    session.add(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED,
+        actor_user_id=actor.id,
+        detail={"from": current.value, "to": level.value},
+    )
+    await session.commit()
+    await session.refresh(row)
+    return row

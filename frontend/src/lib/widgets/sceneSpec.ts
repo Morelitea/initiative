@@ -434,7 +434,6 @@ export const SCENE_NODE_KINDS = [
   "empty",
   "stack",
 ] as const;
-export type SceneNodeKind = (typeof SCENE_NODE_KINDS)[number];
 
 /** What a widget module returns. */
 export interface SceneSpec {

@@ -71,6 +71,8 @@ from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.user_dm_settings import UserDmSettings
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
+from app.models.platform.email_outbox import EmailOutboxItem
+from app.models.platform.legal_acceptance import LegalAcceptance
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.contact_grant import ContactGrant
 from app.models.platform.user_ignore import UserIgnore
@@ -92,7 +94,6 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.guild_image import GuildImage
-from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.models.platform.user_totp import UserTotp
@@ -114,6 +115,7 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
+from app.models.platform.import_credential import ImportCredential
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
     MarketplaceRegistryState,
@@ -147,6 +149,7 @@ __all__ = [
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
+    "ImportCredential",
     "Project",
     "Task",
     "TaskAssignee",
@@ -198,9 +201,11 @@ __all__ = [
     "Upload",
     "UserDecoration",
     "ProfileFavorite",
+    "LegalAcceptance",
     "UserViewPreference",
     "UserDmSettings",
     "UserNotificationPrefs",
+    "EmailOutboxItem",
     "UserDmGuildOptout",
     "ContactGrant",
     "UserIgnore",

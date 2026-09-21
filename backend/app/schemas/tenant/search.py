@@ -56,3 +56,10 @@ class SearchSuggestion(BaseModel):
     #: its source is the source's to assert, so a thing somebody can only read
     #: cannot be the source of one.
     can_write: bool = False
+    #: What the thing it lives in is called, and the initiative it sits in.
+    #: A title alone does not identify anything: six projects run from one
+    #: template hold six tasks called "Do a thing", and the only difference
+    #: between them is which project they are in. ``tool_title`` is None for a
+    #: row that IS a tool — a project does not live in a project.
+    tool_title: Optional[str] = None
+    initiative_name: Optional[str] = None

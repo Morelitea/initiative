@@ -1,9 +1,8 @@
 import logging
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, List, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
-from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
@@ -11,22 +10,14 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
-from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse, UserPublic
-from app.schemas.platform.audit import (
-    AuditActor,
-    AuditEventListResponse,
-    AuditEventRead,
-)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
@@ -72,7 +63,6 @@ router = APIRouter()
 # ladder (member → support → moderator → admin → owner) maps cleanly onto
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
-AuditReadDep = Annotated[User, Depends(require_capability(Capability.AUDIT_READ))]
 UsersAgeUnblockDep = Annotated[
     User, Depends(require_capability(Capability.USERS_AGE_UNBLOCK))
 ]
@@ -126,7 +116,7 @@ _PLATFORM_CSV_HEADERS = [
 @router.get("/users/export.csv")
 async def export_platform_users_csv(
     session: UserSessionDep,
-    _current_user: UsersReadDep,
+    current_user: UsersReadDep,
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
@@ -179,6 +169,16 @@ async def export_platform_users_csv(
     else:
         datestamp = datetime.now(timezone.utc).date().isoformat()
         filename = f"platform-users-{datestamp}.csv"
+
+    # Nothing changed, so the endpoint has no commit of its own to ride: the
+    # record is the whole write.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLATFORM_USERS_EXPORTED,
+        actor_user_id=current_user.id,
+        detail={"count": len(users), "subset": bool(user_id)},
+    )
+    await session.commit()
 
     return Response(
         content=csv_bytes,
@@ -307,6 +307,45 @@ async def reactivate_user(
     return await users_service.to_admin_read_one(user)
 
 
+@router.post("/users/{user_id}/restore", response_model=AdminUserRead)
+async def restore_deleted_user(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> AdminUserRead:
+    """Call off a pending erasure from the users table (``users.manage``).
+
+    The account's holder can do this themselves simply by signing in, which is
+    the ordinary way it happens. This is for when they cannot — the address is
+    gone, the phone is gone, they asked somebody — and for an operator undoing
+    a deletion they made on somebody's behalf.
+
+    Nothing is restored as such: the account never lost anything. It kept its
+    memberships, its initiative roles and the documents it owns for the whole
+    window, so this puts it back exactly where it was.
+
+    Separate from ``reactivate``, which is for a *deactivated* account and
+    gives back an account with no communities — the memberships that one
+    dropped are not coming back.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if user.status != UserStatus.deleted:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AdminMessages.USER_NOT_DELETED,
+        )
+    await users_service.cancel_account_deletion(
+        session, user_id, actor_user_id=current_user.id, via="operator"
+    )
+    await session.commit()
+    await session.refresh(user)
+    return await users_service.to_admin_read_one(user)
+
+
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_user_avatar(
     user_id: int,
@@ -361,89 +400,6 @@ async def remove_user_avatar(
 
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/audit-events", response_model=AuditEventListResponse)
-async def list_audit_events(
-    session: AdminSessionDep,
-    _current_user: AuditReadDep,
-    event_type: Annotated[list[str] | None, Query()] = None,
-    actor_user_id: Optional[int] = Query(default=None),
-    target_user_id: Optional[int] = Query(default=None),
-    occurred_after: Optional[datetime] = Query(default=None),
-    occurred_before: Optional[datetime] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
-) -> AuditEventListResponse:
-    """The audit board: what was done, by whom, to whom, most recent first.
-
-    Gated on ``audit.read`` (support and above). Runs on the system engine
-    because nothing else can read the table — the log is not part of the
-    request path's world in either direction.
-    """
-    base = select(AuditEvent)
-    if event_type:
-        base = base.where(AuditEvent.event_type.in_(event_type))
-    if actor_user_id is not None:
-        base = base.where(AuditEvent.actor_user_id == actor_user_id)
-    if target_user_id is not None:
-        base = base.where(AuditEvent.target_user_id == target_user_id)
-    if occurred_after is not None:
-        base = base.where(AuditEvent.occurred_at >= occurred_after)
-    if occurred_before is not None:
-        base = base.where(AuditEvent.occurred_at <= occurred_before)
-
-    count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
-    events, total_count, actual_page = await paginated_query(
-        session, data_stmt, count_stmt, page=page, page_size=page_size
-    )
-
-    # The rows hold ids, so a name is looked up now rather than stored then.
-    # An account that has since been erased simply resolves to nothing, and the
-    # record of what was done to it stays intact.
-    wanted = {
-        event.actor_user_id for event in events if event.actor_user_id is not None
-    } | {event.target_user_id for event in events if event.target_user_id is not None}
-    handles: dict[int, User] = {}
-    if wanted:
-        rows = await session.exec(select(User).where(User.id.in_(wanted)))
-        handles = {user.id: user for user in rows.all() if user.id is not None}
-
-    def _actor(user_id: Optional[int]) -> Optional[AuditActor]:
-        if user_id is None:
-            return None
-        user = handles.get(user_id)
-        return AuditActor(
-            id=user_id,
-            username=user.username if user else None,
-            discriminator=user.discriminator if user else None,
-        )
-
-    return AuditEventListResponse(
-        items=[
-            AuditEventRead(
-                id=event.id,
-                event_uuid=str(event.event_uuid),
-                event_type=event.event_type,
-                category=str(event.envelope.get("category", "")),
-                tier=event.tier,
-                occurred_at=event.occurred_at,
-                actor=_actor(event.actor_user_id),
-                target_user=_actor(event.target_user_id),
-                guild_id=event.guild_id,
-                target_type=event.target_type,
-                target_id=event.target_id,
-                detail=event.envelope.get("detail") or {},
-            )
-            for event in events
-        ],
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
-    )
 
 
 @router.patch("/users/{user_id}/username", response_model=AdminUserRead)
@@ -863,7 +819,9 @@ async def delete_user(
         )
 
     if payload.action == "deactivate":
-        await users_service.deactivate_user(session, user_id)
+        await users_service.deactivate_user(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
@@ -871,17 +829,25 @@ async def delete_user(
         )
 
     if payload.action == "soft_delete":
-        await users_service.soft_delete_user(session, user_id)
+        # The same windowed deletion the account holder gets from their own
+        # danger zone. One meaning for the word on both surfaces, and the
+        # reversible action is the one that is easy to reach — ``hard_delete``
+        # below is the one that is not.
+        await users_service.request_account_deletion(
+            session, user_id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="soft_delete",
-            message=f"User {user.username} has been anonymized",
+            message=f"User {user.username} has been deleted",
         )
 
     # hard_delete: ownership is released as the memberships go, and the
     # authorship columns are re-pointed at the system user because the row they
     # named is about to stop existing.
-    await users_service.hard_delete_user(session, user_id)
+    await users_service.hard_delete_user(
+        session, user_id, actor_user_id=current_user.id
+    )
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
@@ -916,6 +882,12 @@ async def admin_delete_guild(
     guild's own deletion only by breaking glass into its danger zone. This
     endpoint backs the "delete the blocking guild" option in the user-deletion
     dialog, gated on ``guilds.manage``.
+
+    Deletes exactly the way the danger zone does: the community is retained
+    and can be restored, and its roster is kept — these are other people's
+    memberships, and this endpoint only fires where other people are in it.
+    What unblocks the account is that a deleted community has no seat to
+    protect, not that the seat was taken away.
     """
     await guilds_service.lock_guild_seats(session, guild_id)
     if not await guilds_service.would_strand_guild(
@@ -940,25 +912,23 @@ async def admin_delete_guild(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
 
-    # Delete the shared guild row (cascades clear the roster), then drop the
-    # guild's schema — its content lives entirely in guild_<id> and is NOT
-    # removed by the row delete (no cross-schema FKs). Without the deprovision
-    # the schema is orphaned: every initiative/project/document/task for the
-    # guild stays on disk, reachable by id if the schema name is ever reused.
-    # Mirrors the member-facing DELETE /guilds/{id} endpoint.
-    await guilds_service.delete_guild(session, guild)
+    # Mirrors the member-facing DELETE /guilds/{id}: the guild moves to
+    # ``deleted`` and everything is kept — shared rows, roster, the guild_<id>
+    # schema, the stored blobs — until guild_purge destroys it at the end of
+    # the retention window.
+    notice = await guilds_service.soft_delete_guild(
+        session,
+        guild,
+        actor_user_id=_current_user.id,
+        via="operator",
+        target_user_id=blocked_user_id,
+    )
     await session.commit()
-    # See delete_guild: these live on another connection, so they go after the
-    # commit that made the deletion real.
+    # The receipt, once the deletion is a fact. Never allowed to fail it.
+    await email_service.announce_community_deleted(session, notice)
+    # See soft_delete_guild: these live on another connection, so they go after
+    # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)
-    try:
-        await deprovision_guild(guild_id)
-    except Exception:
-        logger.exception(
-            "admin guild deletion: schema deprovision failed for guild %s "
-            "(row already deleted; schema orphaned, reclaimed on retry)",
-            guild_id,
-        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -1088,10 +1058,25 @@ async def admin_update_guild_member_role(
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=_current_user.id,
             target_user_id=user_id,
+            guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
+    elif previous_role != payload.role:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
+            actor_user_id=_current_user.id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
+    # Written out here, where this request's own context still applies: the
+    # reconciliation below borrows the session for the guild's schema.
+    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(

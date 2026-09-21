@@ -57,6 +57,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Frozen migrations are unchanged
+        if: github.event_name == 'pull_request'
+        run: |
+          # A revision at or before RELEASED_MIGRATION has run on somebody's
+          # database and is fixed. A pull request adds revisions after it;
+          # it does not edit those (CLAUDE.md, "Never edit a migration that
+          # has shipped"). Additions pass; modifications at or before the
+          # line fail.
+          FROZEN=$(tr -d '[:space:]' < RELEASED_MIGRATION)
+          EDITED=$(git diff --name-only --diff-filter=M "origin/${{ github.base_ref }}...HEAD" -- backend/alembic/versions \
+            | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$FROZEN" '$0 <= frozen' || true)
+          if [[ -n "$EDITED" ]]; then
+            echo "::error::Edited a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
+            echo "Add a new revision that converges both histories instead."
+            exit 1
+          fi
+          echo "No released migration edited (freeze line $FROZEN)"
+
       - name: Check for backend changes
         id: changes
         run: |
@@ -398,7 +416,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build runtime image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           load: true

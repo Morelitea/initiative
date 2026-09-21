@@ -19,6 +19,9 @@ Seeded logins (all password "changeme"):
 - owner@/operator@/moderator@/support@/member@example.com — one user per
   platform tier, plus seeded PAM access-grant rows (pending / live / denied /
   expired / break-glass) to exercise the privileged-access flows.
+- superadmin@example.com — the community compliance seat, held in EVERY seeded
+  community (platform tier: member, so the community seat is testable on its
+  own rather than alongside a platform tier).
 
 Every community also seeds template projects and archived projects (with a spread of
 archive dates, tags, and tasks) so the Templates and Archive tabs have the same
@@ -181,6 +184,8 @@ from app.services.tenant.filter_presets import (  # noqa: E402
 from app.models.tenant._mixins import ArchiveMixin, archive_models  # noqa: E402
 from app.services.tenant.archive import archive_entity  # noqa: E402
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
+from app.core.intake import IntakeStream  # noqa: E402
+from app.services.platform import intake_setup  # noqa: E402
 
 
 #: What the seeder calls the initiative it hangs each demo community's content
@@ -936,6 +941,140 @@ def _expunge_guild_scoped(session: AsyncSession) -> None:
         # it) — skip anything no longer in the session.
         if obj in sync and getattr(obj, "__tablename__", None) in GUILD_SCOPED_TABLES:
             sync.expunge(obj)
+
+
+async def _seat_community_superadmin(
+    session: AsyncSession,
+    ids: IDTracker,
+    user: User,
+) -> int:
+    """Seat one account as ``superadmin`` of every community in the database.
+
+    Done as one pass rather than an argument threaded through each community's
+    own membership call, so a community added to this seeder later is covered by
+    existing. The list comes from ``public.guilds`` rather than from
+    ``ids.data["guilds"]`` for the same reason: the primary community is fetched
+    with ``get_primary_guild`` instead of being created here, so the tracker
+    never learns its id and a pass over the tracker would miss community 1.
+
+    Idempotent: a re-run finds the rows it already wrote and leaves them. Rows
+    it does write are tracked, so ``--clean`` takes them away again.
+    """
+    # A membership row carrying a role is a system-engine write, and the session
+    # is still routed into the last community's schema at this point — reset to
+    # the bare login-role baseline first, as the other membership writes do.
+    await set_rls_context(session)
+    guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
+    seated = 0
+    for guild_id in guild_ids:
+        existing = (
+            await session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.guild_id == guild_id,
+                    GuildMembership.user_id == user.id,
+                )
+            )
+        ).first()
+        if existing is not None:
+            if existing.role != GuildRole.superadmin:
+                existing.role = GuildRole.superadmin
+                session.add(existing)
+            continue
+        session.add(
+            GuildMembership(
+                guild_id=guild_id,
+                user_id=user.id,
+                role=GuildRole.superadmin,
+            )
+        )
+        ids.add("guild_memberships", {"guild_id": guild_id, "user_id": user.id})
+        seated += 1
+    await session.flush()
+    return seated
+
+
+#: The community this deployment's own operations work lands in. Named for the
+#: product rather than for a company: a deployment runs one of these, and what
+#: it is called is what everybody in it sees at the top of the list.
+OPERATIONS_GUILD_NAME = "Initiative"
+
+
+async def _create_operations_guild(
+    session: AsyncSession,
+    ids: IDTracker,
+    *,
+    owner: User,
+    operator: User,
+    members: list[User],
+) -> Guild:
+    """Seed the operations community, set up, with the ladder seated in it.
+
+    The platform ladder is a set of accounts with nowhere of their own to work
+    until this exists, which is what made every intake surface unreachable on a
+    fresh dev database. So it is seeded as an ordinary community with the
+    ladder mapped onto community roles: the platform owner takes the seat, the
+    operator administers it, and everybody else is a member.
+
+    Both halves, because either one missing leaves the streams unreachable: the
+    deployment's pointer (``app_settings.operations_guild_id``) and a binding
+    per stream, each set up from its committed blueprint the same way the
+    operator's own "set this up for me" does.
+    """
+    await set_rls_context(session)
+    guild = await _create_guild(
+        session,
+        ids,
+        name=OPERATIONS_GUILD_NAME,
+        description="Where this deployment's security, moderation, support and feedback work lands.",
+        creator=owner,
+    )
+    # The creator joins as admin; this community's seat is the platform owner's.
+    seat = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == owner.id,
+            )
+        )
+    ).one()
+    seat.role = GuildRole.superadmin
+    session.add(seat)
+    # Same order the community sections use: commit the shared rows, provision
+    # the schema and its roles, add the roster, then route in to write content.
+    await session.commit()
+    _expunge_guild_scoped(session)
+    await provision_guild(guild.id)
+    await _add_guild_members(
+        session, ids, guild, [operator, *members], admin_users=[operator]
+    )
+    await session.commit()
+    await set_rls_context(
+        session, user_id=owner.id, guild_id=guild.id, guild_role="admin"
+    )
+
+    initiative, _, _ = await _create_initiative(
+        session,
+        ids,
+        guild=guild,
+        name="Operations",
+        description="The deployment's own cases: security, moderation, support and feedback.",
+        color="#dc2626",
+        pm_user=owner,
+        member_users=[operator, *members],
+    )
+    await session.commit()
+
+    await set_rls_context(session)
+    await intake_setup.set_operations_guild(session, guild.id)
+    await session.commit()
+    for stream in IntakeStream:
+        await intake_setup.provision_from_blueprint(
+            session, stream=stream, initiative_id=initiative.id, importer=owner
+        )
+    # provision_from_blueprint routes into the operations guild to write the
+    # binding; hand the session back at the public baseline the callers expect.
+    await set_rls_context(session)
+    return guild
 
 
 async def _create_guild(
@@ -3485,6 +3624,17 @@ async def seed() -> None:
                     "role": UserRole.member,
                     "color_theme": "strahd",
                 },
+                # The community compliance seat, in every community this run
+                # creates (see ``_seat_community_superadmin``). Platform tier
+                # stays `member`: the seat is a community role, orthogonal to
+                # the platform ladder, and seeding it as a plain account is
+                # what keeps the two axes separable here.
+                {
+                    "email": "superadmin@example.com",
+                    "full_name": "Community Superadmin",
+                    "role": UserRole.member,
+                    "color_theme": "displacer",
+                },
             ],
         )
 
@@ -3527,6 +3677,7 @@ async def seed() -> None:
         p_moderator = new_users["Platform Moderator"]
         p_support = new_users["Platform Support"]
         p_member = new_users["Platform Member"]
+        g_superadmin = new_users["Community Superadmin"]
 
         # ==============================================================
         # GUILD 1: Primary community — "Curse of Strahd" TTRPG campaign
@@ -11348,6 +11499,27 @@ async def seed() -> None:
             ],
         )
         await _apply_deferred_archives(session, admin_user)
+        # Last, so it covers every community the run created — including the
+        # directory fillers, which are seeded after communities 1-3.
+        seated = await _seat_community_superadmin(session, ids, g_superadmin)
+        print(f"  Seated the community superadmin in {seated} communities")
+        await session.commit()
+
+        # After that sweep, so the platform owner keeps the seat here rather
+        # than sharing it: this community's seat is a platform role, not the
+        # demo account the other communities get.
+        print("\n  --- Operations community: intake, set up ---")
+        ops_guild = await _create_operations_guild(
+            session,
+            ids,
+            owner=p_owner,
+            operator=p_operator,
+            members=[p_moderator, p_support, p_member],
+        )
+        print(
+            f"  {OPERATIONS_GUILD_NAME} (community {ops_guild.id}): "
+            f"{len(IntakeStream)} streams bound"
+        )
         await session.commit()
 
     _save_state(ids.data)
@@ -11416,6 +11588,8 @@ async def seed() -> None:
     print("  Platform-role users (password: changeme):")
     print("    owner@example.com, operator@example.com, moderator@example.com,")
     print("    support@example.com, member@example.com")
+    print("  Community superadmin: superadmin@example.com / changeme")
+    print("    (the compliance seat, in every seeded community)")
 
 
 # ---------------------------------------------------------------------------

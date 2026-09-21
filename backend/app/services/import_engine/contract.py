@@ -13,7 +13,7 @@ orchestrator commits per chunk).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,6 +21,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.schemas.base import SanitizedBaseModel
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.tenant.backup_export import ManifestPerson
+    from app.services.import_engine.context import ImportContext
 
 
 class ImportEngineError(Exception):
@@ -52,6 +56,10 @@ class EnvelopeImportResult(SanitizedBaseModel):
     # (names when known, count always).
     renamed_properties: list[str] = []
     renamed_property_count: int = 0
+    # Edges the deferred pass wrote for this envelope, and the ones whose far
+    # end was never imported. Zero on every importer that reads no links.
+    links_created: int = 0
+    links_unresolved: int = 0
     # Emails in the envelope that matched no member of the target initiative.
     unmatched_handles: list[str] = []
     warnings: list[str] = []
@@ -85,6 +93,20 @@ class EnvelopeImporter(Protocol):
         hard ceiling (len(tasks), len(items), … — 1 for a lone document)."""
         ...
 
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        """Everybody this envelope quotes, most-quoted first.
+
+        The same inventory a backup's manifest carries, read from one
+        envelope instead — it is what the wizard's people step asks about,
+        and what decides whether a lone envelope needs a confirm screen at
+        all (``engine.start_envelope_import``).
+
+        Most importers return nothing, and that is not a stub: an envelope
+        that names no people has nobody to ask about. Only the project
+        envelope carries comment authors today.
+        """
+        ...
+
     async def apply(
         self,
         session: AsyncSession,
@@ -92,7 +114,17 @@ class EnvelopeImporter(Protocol):
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        context: "ImportContext | None" = None,
     ) -> EnvelopeImportResult:
         """Insert the envelope's rows (importer becomes owner, owner grant
-        synthesized). Flush-only — the caller commits."""
+        synthesized). Flush-only — the caller commits.
+
+        ``context`` is what the job knows and the envelope does not
+        (``import_engine.context``): the link collector, where an importer
+        registers what it created under the refs its envelope gave and
+        records the links it read — never resolving any, because the far end
+        is usually in another entry — and the people map, which says who the
+        handles in it turned out to be. Every importer accepts it; most do
+        nothing with it.
+        """
         ...

@@ -210,9 +210,9 @@ async def test_app_settings_readable_by_every_tier(session):
 
 # NOTE: the env-reseed-on-read machinery was OIDC-only and is gone — OIDC env
 # values now seed the platform provider registry row once at boot instead
-# (platform_provider.seed_platform_provider_from_env). The non-owner create
-# path (a fresh singleton served transient without a write) is still covered
-# by _ensure_app_settings' grant probe.
+# (platform_provider.seed_platform_provider_from_env). Reading the singleton
+# creates nothing at all now: boot seeds it (app_settings.seed_app_settings)
+# and get_app_settings serves env defaults transient until it has.
 
 
 # --- end-to-end through the real-role request path ------------------------

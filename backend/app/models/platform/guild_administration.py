@@ -99,6 +99,9 @@ class GuildAdministration(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    plan_is_free: Optional[bool] = Field(
+        default=None, sa_column=Column(Boolean, nullable=True)
+    )
 
     guild: Optional["Guild"] = Relationship(
         back_populates="administration",

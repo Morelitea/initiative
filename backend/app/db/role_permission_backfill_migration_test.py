@@ -25,10 +25,7 @@ from types import ModuleType
 import pytest
 from sqlalchemy import text
 
-from app.models.tenant.initiative import (
-    DEFAULT_PERMISSION_VALUES,
-    PermissionKey,
-)
+from app.models.tenant.initiative import PermissionKey
 from app.testing import create_guild, create_initiative, create_user
 
 VERSIONS_DIR = Path(__file__).resolve().parents[2] / "alembic" / "versions"
@@ -87,11 +84,6 @@ def test_every_permission_key_has_a_backfill_migration() -> None:
         f"declares a {DEFAULTS_NAME} map naming them and runs its own INSERT — "
         "see 20260907_0233, which is meant to be copied rather than imported."
     )
-
-
-def test_defaults_map_is_exhaustive() -> None:
-    """The model answers for every key, which is what an absent row falls to."""
-    assert set(DEFAULT_PERMISSION_VALUES) == set(PermissionKey)
 
 
 @pytest.mark.integration

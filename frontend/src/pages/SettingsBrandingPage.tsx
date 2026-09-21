@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerForm } from "@/hooks/useServerForm";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
@@ -39,6 +40,17 @@ export const SettingsBrandingPage = () => {
   const updateInterface = useUpdateInterfaceSettings({
     onSuccess: () => toast.success(t("branding.interfaceSuccess")),
   });
+
+  // The chooser is the other half of what a visitor meets before they sign in,
+  // which is why it is set here. It saves on the switch rather than with the
+  // colours: one decision, answered by moving it.
+  const cookieConsentEnabled = interfaceQuery.data?.cookie_consent_enabled ?? false;
+  const setCookieConsent = (enabled: boolean) =>
+    updateInterface.mutate({
+      light_accent_color: form.values.light,
+      dark_accent_color: form.values.dark,
+      cookie_consent_enabled: enabled,
+    });
 
   const handleInterfaceSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +116,30 @@ export const SettingsBrandingPage = () => {
               </CardFooter>
             </form>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("branding.cookieConsent.title")}</CardTitle>
+          <CardDescription>{t("branding.cookieConsent.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="cookie-consent-enabled"
+              checked={cookieConsentEnabled}
+              disabled={interfaceQuery.isLoading || updateInterface.isPending}
+              onCheckedChange={(checked) => setCookieConsent(Boolean(checked))}
+            />
+            <Label htmlFor="cookie-consent-enabled">
+              {t("branding.cookieConsent.toggleLabel")}
+            </Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("branding.cookieConsent.helpText")}</p>
+          {/* Off is not a way to skip the question — an owner is entitled to
+              know what the switch actually decides before they touch it. */}
+          <p className="text-muted-foreground text-xs">{t("branding.cookieConsent.scopeNote")}</p>
         </CardContent>
       </Card>
 

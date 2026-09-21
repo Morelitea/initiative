@@ -88,13 +88,8 @@ export const PlatformSettingsLayout = () => {
   }, [t, user]);
 
   if (!canManagePlatformConfig(user)) {
-    // Send operational staff to their dashboard; everyone else to guild settings.
-    return (
-      <Navigate
-        to={canAccessOperatorDashboard(user) ? "/settings/operator" : "/settings"}
-        replace
-      />
-    );
+    // Send operational staff to their dashboard; everyone else back to the app.
+    return <Navigate to={canAccessOperatorDashboard(user) ? "/settings/operator" : "/"} replace />;
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";

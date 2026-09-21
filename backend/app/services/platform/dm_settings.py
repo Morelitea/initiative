@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlmodel import col, select
 
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
@@ -41,20 +41,9 @@ async def seed_for_new_account(session: AsyncSession, *, user_id: int) -> None:
     so a retried registration does not overwrite a policy its owner has since
     changed.
     """
-    from app.models.platform.app_setting import AppSetting
-    from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
+    from app.services.platform.app_settings import get_app_settings
 
-    # Read the operator default without creating the settings row if it is
-    # missing: ``get_app_settings`` writes and commits one, and making an
-    # account is not the place for that side effect — it would end the caller's
-    # transaction under them. No row yet means no operator choice yet, which is
-    # ``private``.
-    app_settings = (
-        await session.exec(
-            select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
-        )
-    ).one_or_none()
-    policy = app_settings.default_dm_policy if app_settings else DmPolicy.private
+    policy = (await get_app_settings(session)).default_dm_policy
     # A core insert, so the model's default factories do not run: the
     # timestamps are named here.
     now = datetime.now(timezone.utc)
@@ -99,7 +88,7 @@ async def _rail_ordered_communities(
             .join(GuildMembership, GuildMembership.guild_id == Guild.id)
             .where(
                 GuildMembership.user_id == user_id,
-                Guild.status != GuildStatus.suspended.value,
+                Guild.status.in_(LIVE_STATUS_VALUES),
             )
             .order_by(col(GuildMembership.position).asc(), col(Guild.id).asc())
         )

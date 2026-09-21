@@ -11,7 +11,7 @@ become a tool:
     events, wikis and their pages, notices, dashboards), plus the two comment
     reads that pair with the comment write (a parent's thread and a single
     comment by id), plus the one relationships read, which answers what a thing
-    is linked to. A handful are carved back out: file downloads, who voted and
+    is linked to, plus the guild's general search, which finds a thing by name. A handful are carved back out: file downloads, who voted and
     who has read, and the dashboard editor's own palette.
   * **Writes** — an explicit allow-list, matched by path shape: create and edit
     every tool (projects, documents, queues, counters, calendars, wikis,
@@ -170,6 +170,19 @@ _COMMENT_READ_ROUTE_MAPS = [
     RouteMap(methods=["GET"], pattern=r".*/comments/\{[^}]+\}$", mcp_type=MCPType.TOOL),
 ]
 
+# The guild's general search: how a caller reaches a thing it knows the name of
+# rather than the id of. Matched by path shape rather than by adding ``search``
+# to ``READ_TAGS``, for the same reason the comment reads are — the router's
+# other two GETs answer for a *picker* rather than for a question. ``recent``
+# is what a field offers before anything is typed and ``suggest`` is titles to
+# jump to while it is being typed; both describe a text input's behaviour. The
+# search proper is the one an agent wants: ranked, narrowable by entity type
+# and initiative, and carrying a ``total``, so "find the task called X" is one
+# call instead of a guess at a filter.
+_SEARCH_READ_ROUTE_MAPS = [
+    RouteMap(methods=["GET"], pattern=r".*/search/$", mcp_type=MCPType.TOOL),
+]
+
 # The edges between the things above: read them, and draw one.
 #
 # Matched by path shape rather than by a tag or a ``_WRITABLE_SEGMENTS`` entry,
@@ -229,6 +242,7 @@ _TOOL_READ_EXCLUSIONS = [
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
     *_COMMENT_READ_ROUTE_MAPS,
+    *_SEARCH_READ_ROUTE_MAPS,
     *_RELATIONSHIP_ROUTE_MAPS,
     *_TOOL_READ_EXCLUSIONS,
     # Carved out of the ``initiatives`` read surface below: a join request names

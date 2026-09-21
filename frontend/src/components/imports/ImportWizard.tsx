@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 
 import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
+  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
   useUploadBackupApiV1GGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { ImportReport } from "@/components/imports/ImportReport";
 import { Button } from "@/components/ui/button";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
@@ -28,11 +29,12 @@ export interface ImportWizardProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "pick" | "peek" | "uploading" | "plan" | "progress" | "report";
+type Step = "pick" | "peek" | "uploading" | "plan" | "people" | "progress" | "report";
 
 /** The backup import flow: pick a zip → local manifest preview (nothing
  * uploaded yet — the zip's central directory is read in-browser) → upload →
- * the server's authoritative plan → confirm → poll to the report. Closing
+ * the server's authoritative plan → say who the archive's people are, where
+ * it quotes anybody → confirm → poll to the report. Closing
  * the dialog after confirm doesn't cancel the job; the report also lands in
  * the Data tab's jobs table and the inbox notification. */
 export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
@@ -45,9 +47,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const [peeked, setPeeked] = useState<PeekedManifest | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const [stagedJob, setStagedJob] = useState<ImportJobRead | null>(null);
+  // Source handle → the account picked for it. Seeded from the plan's exact
+  // matches; a handle left out of it stays unmapped on purpose.
+  const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
 
   const uploadMutation = useUploadBackupApiV1GGuildIdImportsBackupPost();
-  const confirmMutation = useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
+  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
   const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment
@@ -58,6 +63,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       setPeeked(null);
       setPickError(null);
       setStagedJob(null);
+      setPeopleMap({});
       importJob.reset();
     } else if (importJob.busy) {
       // A job from a previous wizard session is still applying — resume its
@@ -65,6 +71,23 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       commit("progress");
     }
   }, [open]);
+
+  // Seed the mapping from the plan's exact matches, once, when the plan
+  // arrives. Only the suggestions: a person the server could not match is
+  // left blank for somebody to answer.
+  useEffect(() => {
+    const suggested = (stagedJob?.plan as { people?: PlanPerson[] } | null)?.people;
+    if (!suggested) {
+      return;
+    }
+    setPeopleMap(
+      Object.fromEntries(
+        suggested
+          .filter((person) => person.suggested_user_id != null)
+          .map((person) => [person.handle, person.suggested_user_id as number])
+      )
+    );
+  }, [stagedJob]);
 
   // The poll ending flips progress → report.
   useEffect(() => {
@@ -120,11 +143,14 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     if (!stagedJob) {
       return;
     }
+    // Only the rows somebody actually pointed at an account travel. A blank
+    // row is an answer — "nobody here" — and saying nothing is how it is said.
+    const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
     try {
       const job = await confirmMutation.mutateAsync({
         guildId,
         jobId: stagedJob.id,
-        data: {},
+        data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
       });
       importJob.watch(job.id);
       commit("progress");
@@ -161,9 +187,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
         asset_bytes?: number;
         skipped?: unknown[];
         unknown_types?: string[];
+        people?: PlanPerson[];
       }
     | null
     | undefined;
+
+  const people = plan?.people ?? [];
 
   const peekSummary = useMemo(() => {
     if (!peeked) {
@@ -181,15 +210,24 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   }, [peeked]);
 
   const stepDescription =
-    step === "pick" ? t("wizard.pick.hint") : step === "plan" ? t("wizard.plan.prompt") : null;
+    step === "pick"
+      ? t("wizard.pick.hint")
+      : step === "plan"
+        ? t("wizard.plan.prompt")
+        : step === "people"
+          ? t("wizard.people.prompt")
+          : null;
 
-  // Three questions to answer; the upload, the run and the report are what
-  // happens afterwards.
+  // The questions to answer; the upload, the run and the report are what
+  // happens afterwards. The fourth appears only where the archive quotes
+  // somebody — a backup with no comments in it has nobody to ask about.
+  const total = people.length > 0 ? 4 : 3;
   const position: Record<Step, number | null> = {
     pick: 1,
     peek: 2,
     uploading: null,
     plan: 3,
+    people: 4,
     progress: null,
     report: null,
   };
@@ -202,10 +240,11 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       title={t("wizard.title")}
       description={stepDescription}
-      progress={current === null ? undefined : { current, total: 3 }}
-      // Only here. The next step uploads the file, and once that has staged a
-      // job the way out is Cancel, which deletes it.
-      onBack={step === "peek" ? back : undefined}
+      progress={current === null ? undefined : { current, total }}
+      // Here, and back out of the people step — the two places where going
+      // back costs nothing. Between them the file is uploaded and a job is
+      // staged, and the way out of that is Cancel, which deletes it.
+      onBack={step === "peek" || step === "people" ? back : undefined}
       backLabel={t("wizard.back")}
     >
       {step === "pick" && (
@@ -297,6 +336,30 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
             </p>
           )}
           <p className="text-muted-foreground text-xs">{t("wizard.plan.note")}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>
+              {t("wizard.cancelUpload")}
+            </Button>
+            {people.length > 0 ? (
+              <Button className="flex-1" onClick={() => go("people")}>
+                {t("wizard.next")}
+              </Button>
+            ) : (
+              <Button
+                className="flex-1"
+                disabled={confirmMutation.isPending}
+                onClick={() => void handleConfirm()}
+              >
+                {t("wizard.start")}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === "people" && (
+        <div className="space-y-4">
+          <ImportPeopleStep people={people} value={peopleMap} onChange={setPeopleMap} />
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>
               {t("wizard.cancelUpload")}

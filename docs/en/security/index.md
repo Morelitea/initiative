@@ -10,6 +10,7 @@ Short answer: the only people who see something are the people you deliberately 
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
 - **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
+- **[Your community's sign-in and security](community-security.md)** is for a community that decides who gets in and on what terms — its own single sign-on, where groups land, personal API keys, and session length.
 - **[Private messages](private-messages.md)** explains what end-to-end encryption covers, and what could and could not be handed over if somebody asked.
 - **[Data & compliance](data-and-compliance.md)** covers data ownership, encryption, your data rights, and what compliance posture you can expect.
 - **[Reporting a problem](reporting-a-problem.md)** is how to responsibly report a security concern.

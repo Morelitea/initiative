@@ -1048,3 +1048,65 @@ async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession)
         await totp_service.remaining_recovery_codes(session, user_id=bystander_id)
         == totp_service.RECOVERY_CODE_COUNT
     )
+
+
+# ---------------------------------------------------------------------------
+# The erasure receipt
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_erasure_is_acknowledged_at_every_proved_address(session, monkeypatch):
+    """The letter goes to the addresses the account proved, read before the
+    erasure takes them away."""
+    from app.services import email as email_service
+    from app.services.auth import addresses
+    from app.services.platform import users as users_service
+
+    sent: list[list[str]] = []
+
+    async def _capture(session_, *, recipients, locale="en"):
+        sent.append(list(recipients))
+
+    monkeypatch.setattr(email_service, "announce_account_erased", _capture)
+
+    user = await create_user(session, email="erased-primary@example.com")
+    addresses.record_address(
+        session,
+        user_id=user.id,
+        email="erased-work@example.com",
+        source=addresses.SOURCE_ADDED,
+        is_primary=False,
+        verified=True,
+    )
+    await session.commit()
+
+    await users_service.soft_delete_user(session, user.id, actor_user_id=user.id)
+
+    assert sent == [["erased-primary@example.com", "erased-work@example.com"]]
+
+
+@pytest.mark.integration
+async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypatch):
+    """No proved address means no letter and no failure — the account is gone
+    either way."""
+    from app.models.platform.user import UserStatus
+    from app.services import email as email_service
+    from app.services.platform import users as users_service
+
+    calls: list[str] = []
+
+    async def _boom(session_, *, recipients, locale="en"):
+        calls.append("called")
+        raise RuntimeError("no mail here")
+
+    monkeypatch.setattr(email_service, "send_account_erased_email", _boom)
+
+    user = await create_user(session, email="erased-quiet@example.com")
+    user_id = user.id
+
+    await users_service.soft_delete_user(session, user_id, actor_user_id=user_id)
+
+    session.expire_all()
+    after = await session.get(type(user), user_id)
+    assert after.status == UserStatus.anonymized

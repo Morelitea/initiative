@@ -8,9 +8,10 @@
  *
  * The crypto itself is proved in `src/crypto/ratchet.test.ts`, against the real
  * ratchet. What is worth proving here is what the page does with it: that a
- * device is registered before anything is read, that a thread renders from this
- * device's own store rather than from an endpoint, and that sending goes
- * through the ratchet rather than posting a body.
+ * thread renders from this device's own store rather than from an endpoint,
+ * and that sending goes through the ratchet rather than posting a body.
+ * Registering this browser's device before anything is collected is the
+ * hook's, proved in `src/hooks/useMyMessages.test.tsx`.
  */
 import { createRouter } from "@tanstack/react-router";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -219,11 +220,10 @@ const profile = (userId: number, username: string) => ({
 });
 
 describe("My Messages", () => {
-  it("is reachable at /messages and registers this device before reading", async () => {
+  it("is reachable at /messages", async () => {
     await renderMessages();
 
     expect(await screen.findByRole("heading", { name: /my messages/i })).toBeInTheDocument();
-    await waitFor(() => expect(mocks.ensureDevice).toHaveBeenCalled());
   });
 
   it("lands on the list rather than a note about where the list is", async () => {

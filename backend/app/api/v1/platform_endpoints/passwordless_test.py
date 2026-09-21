@@ -19,7 +19,6 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     get_password_hash,
 )
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import GuildRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
@@ -35,6 +34,7 @@ from app.testing import (
     create_guild,
     create_guild_membership,
     create_user,
+    emitted,
     get_auth_headers,
     get_auth_token,
 )
@@ -171,22 +171,21 @@ async def _sign_in(
     )
 
 
-async def _events(
-    session: AsyncSession, user_id: int, event_type: AuditEventType
-) -> list[AuditEvent]:
+def _events(
+    written: list[dict], user_id: int, event_type: AuditEventType
+) -> list[dict]:
     """Every record of one kind naming this account, as actor or as target.
 
     A refused recovery is unauthenticated, so the account it named is the
     target rather than the actor; a change the account made itself is the
     other way round.
     """
-    session.expire_all()
-    rows = (
-        await session.exec(
-            select(AuditEvent).where(AuditEvent.event_type == event_type.value)
-        )
-    ).all()
-    return [row for row in rows if user_id in (row.actor_user_id, row.target_user_id)]
+    return [
+        envelope
+        for envelope in written
+        if envelope["event_type"] == event_type.value
+        and user_id in (envelope["actor_user_id"], envelope["target_user_id"])
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +247,7 @@ async def test_a_credential_the_deployment_withdrew_is_not_a_way_in(
 
 
 async def test_removing_keeps_this_device_signed_in(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await _account(session, "pl-remove@example.com")
     user_id = user.id
@@ -258,6 +257,7 @@ async def test_removing_keeps_this_device_signed_in(
 
     # A real sign-in, so the session this is done from is one the server wrote.
     assert (await _sign_in(client, "pl-remove@example.com")).status_code == 200
+    capfd.readouterr()
 
     response = await client.post(REMOVE, json={"current_password": PASSWORD})
     assert response.status_code == 200, response.text
@@ -286,12 +286,10 @@ async def test_removing_keeps_this_device_signed_in(
     assert live[0].amr == ["pwd"]
     assert live[0].id != elsewhere_id
 
+    written = emitted(capfd)
+    assert len(_events(written, user_id, AuditEventType.AUTH_PASSWORD_REMOVED)) == 1
     assert (
-        len(await _events(session, user_id, AuditEventType.AUTH_PASSWORD_REMOVED)) == 1
-    )
-    assert (
-        len(await _events(session, user_id, AuditEventType.AUTH_RECOVERY_CODES_ISSUED))
-        == 1
+        len(_events(written, user_id, AuditEventType.AUTH_RECOVERY_CODES_ISSUED)) == 1
     )
 
 
@@ -506,11 +504,12 @@ async def test_an_address_nobody_holds_gets_the_same_answer(client: AsyncClient)
 
 
 async def test_a_code_that_does_not_match_is_written_down(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await _account(session, "pl-badcode@example.com", password=None)
     user_id = user.id
     await _issue_codes(session, user)
+    capfd.readouterr()
 
     response = await client.post(
         RECOVER,
@@ -523,10 +522,12 @@ async def test_a_code_that_does_not_match_is_written_down(
     assert response.status_code == 400
     assert response.json()["detail"] == "RECOVERY_CODE_INVALID"
 
-    refusals = await _events(session, user_id, AuditEventType.AUTH_SECOND_FACTOR_FAILED)
+    refusals = _events(
+        emitted(capfd), user_id, AuditEventType.AUTH_SECOND_FACTOR_FAILED
+    )
     assert len(refusals) == 1
-    assert refusals[0].target_user_id == user_id
-    assert refusals[0].envelope["detail"] == {
+    assert refusals[0]["target_user_id"] == user_id
+    assert refusals[0]["detail"] == {
         "method": "recovery_code",
         "during": "recover",
     }
@@ -631,12 +632,13 @@ async def test_a_recovery_that_does_not_land_leaves_the_account_as_it_was(
 
 
 async def test_recovering_sets_the_password_and_clears_the_sessions(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await _account(session, "pl-recover@example.com", password=None)
     user_id = user.id
     codes = await _issue_codes(session, user)
     elsewhere_id = (await _another_session(session, user)).id
+    capfd.readouterr()
 
     response = await client.post(
         RECOVER,
@@ -658,14 +660,13 @@ async def test_recovering_sets_the_password_and_clears_the_sessions(
     assert retired is not None
     assert retired.revoked_at is not None
 
-    used = await _events(session, user_id, AuditEventType.AUTH_RECOVERY_CODE_USED)
+    written = emitted(capfd)
+    used = _events(written, user_id, AuditEventType.AUTH_RECOVERY_CODE_USED)
     assert len(used) == 1
-    assert used[0].envelope["detail"]["remaining"] == (
-        totp_service.RECOVERY_CODE_COUNT - 1
-    )
-    changed = await _events(session, user_id, AuditEventType.AUTH_PASSWORD_CHANGED)
+    assert used[0]["detail"]["remaining"] == (totp_service.RECOVERY_CODE_COUNT - 1)
+    changed = _events(written, user_id, AuditEventType.AUTH_PASSWORD_CHANGED)
     assert len(changed) == 1
-    assert changed[0].envelope["detail"] == {"via": "recovery_code"}
+    assert changed[0]["detail"] == {"via": "recovery_code"}
 
     # No session was opened here; the password is what signs the account in.
     signed_in = await _sign_in(client, "pl-recover@example.com", NEW_PASSWORD)
@@ -726,7 +727,11 @@ async def _delete_guild(
 ) -> Response:
     await _seed_passkey(session, user)
     guild = await create_guild(session, name="Winding Down")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    # Deleting a community belongs to the seat, so this is what reaches the
+    # recent-proof gate at all.
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.superadmin
+    )
     return await client.request(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",

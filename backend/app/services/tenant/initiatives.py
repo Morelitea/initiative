@@ -11,7 +11,9 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
+from app.db.session import rls_context_params
 from app.models.tenant.initiative import (
     BUILTIN_ROLES,
     Initiative,
@@ -32,6 +34,7 @@ from app.schemas.tenant.initiative import (
     InitiativeDirectoryEntry,
     InitiativeJoinRequestRead,
 )
+from app.services import audit as audit_service
 
 
 logger = logging.getLogger(__name__)
@@ -718,11 +721,26 @@ def is_self_joinable(initiative: Initiative) -> bool:
     )
 
 
+def _acting_user_id(session: AsyncSession) -> int | None:
+    """The account this session is acting as, or ``None``.
+
+    The guild-join excursion and the claim sync route into a guild's schema
+    with no account behind them, so what they enrol is recorded with no actor;
+    every request path is recorded against the account making it.
+    """
+    try:
+        return rls_context_params(session).get("user_id")
+    except RuntimeError:
+        return None
+
+
 async def self_join(
     session: AsyncSession,
     *,
     initiative: Initiative,
     user_id: int,
+    actor_user_id: int | None = None,
+    via: str = "self_join",
 ) -> InitiativeMember:
     """Add ``user_id`` to ``initiative`` with the role their standing earns.
 
@@ -735,6 +753,11 @@ async def self_join(
     The role comes from :func:`resolve_membership_role`, so a guild admin
     arriving by any of these routes lands on the manager role their standing
     already implies.
+
+    A membership this writes is recorded, with ``via`` naming the route that
+    produced it. ``actor_user_id`` is who is doing it; left ``None`` it is the
+    account the session is acting as, which on the self-join path is the
+    joining user.
 
     Idempotent — an existing membership is returned untouched. Flush-only; the
     caller owns the transaction. The policy check is the caller's
@@ -773,6 +796,19 @@ async def self_join(
         if existing is None:
             raise
         return existing
+
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.INITIATIVE_MEMBER_ADDED,
+        actor_user_id=(
+            actor_user_id if actor_user_id is not None else _acting_user_id(session)
+        ),
+        target_user_id=user_id,
+        guild_id=initiative.guild_id,
+        target_type="initiative",
+        target_id=initiative.id,
+        detail={"role_id": role.id, "role": role.name, "via": via},
+    )
     return membership
 
 
@@ -828,7 +864,12 @@ async def enroll_in_auto_join_initiatives(
     for initiative in await list_auto_join_initiatives(session, guild_id=guild_id):
         try:
             async with session.begin_nested():
-                await self_join(session, initiative=initiative, user_id=user_id)
+                await self_join(
+                    session,
+                    initiative=initiative,
+                    user_id=user_id,
+                    via="auto_join",
+                )
         except Exception:
             logger.exception(
                 "auto-join: user %s was not enrolled in initiative %s of guild %s",
@@ -994,7 +1035,11 @@ async def resolve_join_request(
         if initiative is None:
             raise ValueError(InitiativeMessages.NOT_FOUND)
         membership = await self_join(
-            session, initiative=initiative, user_id=request.user_id
+            session,
+            initiative=initiative,
+            user_id=request.user_id,
+            actor_user_id=resolver_id,
+            via="join_request",
         )
     await session.flush()
     return membership

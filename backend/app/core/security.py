@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 import bcrypt
 import jwt
@@ -219,6 +219,12 @@ AUTH_TOKEN_ISSUER = "initiative"
 #: with the columns that hold one (phases E and C2b).
 STEP_UP_CHALLENGE = 'Bearer error="insufficient_user_authentication"'
 
+#: Which part of a sign-in rule a refused write did not itself meet, so the
+#: page that wrote it can offer the one thing that would: a provider to sign
+#: in with, or a factor to present. Named here because two surfaces answer
+#: with it — a community's requirement and the deployment's own.
+AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
+
 
 def mint_access_token(
     *,
@@ -322,8 +328,7 @@ def create_upload_token(
     user_id: int,
     satisfied_providers: Sequence[int] = (),
     satisfied_claims: dict | None = None,
-    session_mfa: bool = False,
-    session_passkey: bool = False,
+    session_amr: Iterable[str] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -345,13 +350,10 @@ def create_upload_token(
         "scope": UPLOAD_TOKEN_SCOPE,
         "sat": [int(pid) for pid in satisfied_providers],
         "satc": dict(satisfied_claims or {}),
-        # Copied from the minting session like the two above: an upload in a
-        # community that asks for a second factor is made by somebody who
-        # presented one.
-        "mfa": bool(session_mfa),
-        # And the same for a community that asks for a passkey: the token
-        # carries the standing of the session that asked for it.
-        "pk": bool(session_passkey),
+        # Copied from the minting session like the two above, so a community
+        # that asks how somebody signed in gets the same answer from an upload
+        # as from the session that asked for it.
+        "amr": sorted(session_amr),
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -361,10 +363,10 @@ def create_upload_token(
 
 def verify_upload_token(
     token: str,
-) -> tuple[int, frozenset[int], dict, bool, bool]:
+) -> tuple[int, frozenset[int], dict, frozenset[str]]:
     """Verify a scoped upload token; return the user id, its satisfied set,
-    what those providers asserted, whether the minting session recorded the
-    account's second factor, and whether a passkey opened it.
+    what those providers asserted, and the markers the minting session
+    recorded about how it was opened.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -401,8 +403,9 @@ def verify_upload_token(
         user_id,
         satisfied,
         dict(claims or {}),
-        bool(payload.get("mfa")),
-        bool(payload.get("pk")),
+        # Narrowed again by the caller against the closed vocabulary: what a
+        # token says about itself is not what decides which markers count.
+        frozenset(str(v) for v in payload.get("amr") or ()),
     )
 
 
@@ -510,6 +513,15 @@ def app_platform_audience(public_id: str) -> str:
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
 
+BILLING_SUPPORT_CONSOLE = "support"
+BILLING_OPERATOR_CONSOLE = "operator"
+BILLING_CONSOLES = (BILLING_SUPPORT_CONSOLE, BILLING_OPERATOR_CONSOLE)
+
+_BILLING_CONSOLE_AUDIENCES = {
+    BILLING_SUPPORT_CONSOLE: BILLING_SUPPORT_HANDOFF_AUDIENCE,
+    BILLING_OPERATOR_CONSOLE: "initiative:billing-operator",
+}
+
 # Lifetime of a billing-support handoff, and the ceiling the receiver accepts.
 BILLING_SUPPORT_HANDOFF_LIFETIME = timedelta(seconds=60)
 BILLING_SUPPORT_HANDOFF_MAX_LIFETIME = timedelta(seconds=300)
@@ -520,11 +532,24 @@ class BillingSupportHandoffNotConfiguredError(RuntimeError):
     signing material is absent. Fails closed — the caller returns 503."""
 
 
-def billing_support_handoff_enabled() -> bool:
-    """True when this deployment can mint billing-support handoffs."""
-    return bool(
-        settings.BILLING_SUPPORT_HANDOFF_SECRET and settings.BILLING_SUPPORT_HANDOFF_KID
+def _billing_console_key(console: str) -> tuple[str | None, str | None]:
+    if console == BILLING_OPERATOR_CONSOLE:
+        return (
+            settings.BILLING_OPERATOR_HANDOFF_SECRET,
+            settings.BILLING_OPERATOR_HANDOFF_KID,
+        )
+    return (
+        settings.BILLING_SUPPORT_HANDOFF_SECRET,
+        settings.BILLING_SUPPORT_HANDOFF_KID,
     )
+
+
+def billing_support_handoff_enabled(
+    console: str = BILLING_SUPPORT_CONSOLE,
+) -> bool:
+    """True when this deployment can mint handoffs into ``console``."""
+    secret, kid = _billing_console_key(console)
+    return bool(secret and kid)
 
 
 def create_billing_support_handoff_token(
@@ -534,6 +559,7 @@ def create_billing_support_handoff_token(
     guild_ref: str,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
+    console: str = BILLING_SUPPORT_CONSOLE,
 ) -> tuple[str, int]:
     """Mint the billing-support handoff token.
 
@@ -544,17 +570,21 @@ def create_billing_support_handoff_token(
     operator's, which is what a pairwise pseudonymous identifier is for
     (OpenID Connect Core §8.1).
     """
-    if not billing_support_handoff_enabled():
+    if console not in BILLING_CONSOLES:
         raise BillingSupportHandoffNotConfiguredError(
-            "BILLING_SUPPORT_HANDOFF_SECRET and _KID are required to mint "
-            "billing-support handoffs"
+            f"unknown billing console {console!r}"
+        )
+    secret, kid = _billing_console_key(console)
+    if not (secret and kid):
+        raise BillingSupportHandoffNotConfiguredError(
+            f"the billing {console} console's handoff secret and kid are not configured"
         )
     lifetime = min(expires_in, BILLING_SUPPORT_HANDOFF_MAX_LIFETIME)
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
         "sub": user_ref,
-        "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        "aud": _BILLING_CONSOLE_AUDIENCES[console],
         "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
@@ -564,12 +594,7 @@ def create_billing_support_handoff_token(
     }
     if approver_ref is not None:
         payload["approver"] = approver_ref
-    token = jwt.encode(
-        payload,
-        settings.BILLING_SUPPORT_HANDOFF_SECRET,
-        algorithm="HS256",
-        headers={"kid": settings.BILLING_SUPPORT_HANDOFF_KID},
-    )
+    token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})
     return token, int(lifetime.total_seconds())
 
 

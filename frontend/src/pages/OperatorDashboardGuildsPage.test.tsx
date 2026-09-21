@@ -12,6 +12,7 @@ const GIB = 1024 ** 3;
 // edits and user-limit edits are told apart by the `data` payload they send
 // ({ max_storage_bytes } vs { max_users }).
 const mutate = vi.fn();
+const restore = vi.fn();
 
 const guildsData = [
   {
@@ -23,6 +24,8 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
+    purge_at: null,
+    has_seat: true,
     auth_options: ["providers", "restrictions"],
     banner_image_enabled: true,
     support_enabled: false,
@@ -36,6 +39,8 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
+    purge_at: null,
+    has_seat: true,
     auth_options: ["providers"],
     banner_image_enabled: true,
     support_enabled: true,
@@ -49,8 +54,25 @@ const guildsData = [
     max_users: 10,
     status: "suspended",
     status_changed_at: "2026-07-05T00:00:00Z",
+    purge_at: null,
+    has_seat: true,
     auth_options: [],
     banner_image_enabled: false,
+    support_enabled: false,
+  },
+  {
+    id: 10,
+    name: "Gone Community",
+    member_count: 4,
+    tier_name: null,
+    max_storage_bytes: null,
+    max_users: null,
+    status: "deleted",
+    status_changed_at: "2026-09-01T00:00:00Z",
+    purge_at: "2026-11-30T00:00:00Z",
+    has_seat: true,
+    auth_options: [],
+    banner_image_enabled: true,
     support_enabled: false,
   },
 ];
@@ -67,6 +89,20 @@ const mintHandoff = vi.fn();
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ billing: billingConfig }),
 }));
+
+// What each community says its own arrivals look like, and whether anybody
+// outside it has agreed.
+let narrowings: {
+  connection_id: number;
+  guild_id: number;
+  guild_name: string;
+  provider_display_name: string;
+  claim: string;
+  claim_values: string[];
+  auto_join: boolean;
+  agreed: boolean;
+}[] = [];
+const agreeNarrowing = vi.fn();
 
 vi.mock("@/api/generated/settings/settings", () => ({
   createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost: (
@@ -87,6 +123,26 @@ vi.mock("@/hooks/useSettings", () => ({
     updateCallbacks = options ?? {};
     return { mutate, isPending: false };
   },
+  useRestoreGuild: () => ({ mutate: restore, isPending: false }),
+  useGuildNarrowings: () => ({ data: narrowings, isLoading: false }),
+  useAgreeGuildNarrowing: () => ({ mutate: agreeNarrowing, isPending: false }),
+}));
+
+vi.mock("@/hooks/useAdmin", () => ({
+  usePlatformUsers: () => ({ data: [], isLoading: false }),
+}));
+
+// What the deployment has set up to receive operations work. The help-request
+// entitlement reads it: a community can only be offered the form where there is
+// somewhere to send what is written in it.
+let intakeBindings: { stream: string; enabled: boolean; project_id: number | null }[] = [
+  { stream: "support", enabled: true, project_id: 4 },
+];
+
+vi.mock("@/api/generated/intake/intake", () => ({
+  useReadIntakeSettingsApiV1SettingsIntakeGet: () => ({
+    data: { operations_guild_id: 9, bindings: intakeBindings },
+  }),
 }));
 
 import { OperatorDashboardGuildsPage } from "./OperatorDashboardGuildsPage";
@@ -96,21 +152,39 @@ const renderPage = () =>
     auth: { user: buildUser({ role: "owner" }) },
   });
 
-/** Open one community's operator settings. Everything editable lives there. */
-const openSheet = async (user: ReturnType<typeof userEvent.setup>, guildName: string) => {
+/** Render the page, ready to be clicked. */
+const mounted = () => {
+  const user = userEvent.setup();
+  renderPage();
+  return user;
+};
+
+/** Render and open one community's operator settings, which is where
+ *  everything editable lives. */
+const openSheet = async (guildName: string) => {
+  const user = mounted();
   expect(await screen.findByText(guildName)).toBeInTheDocument();
   await user.click(screen.getByLabelText(`Manage settings for ${guildName}`));
-  return screen.getByRole("dialog");
+  return user;
 };
 
 const storageInput = () => screen.getByLabelText("Storage limit") as HTMLInputElement;
 const userLimitInput = () => screen.getByLabelText("Members") as HTMLInputElement;
 
+/** Type into a box and leave it, which is the only way either cap is saved. */
+const typeAndLeave = (input: HTMLInputElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+  fireEvent.blur(input);
+};
+
 describe("OperatorDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
+    restore.mockClear();
     mintHandoff.mockReset();
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
+    intakeBindings = [{ stream: "support", enabled: true, project_id: 4 }];
+    narrowings = [];
   });
 
   describe("the table", () => {
@@ -128,95 +202,72 @@ describe("OperatorDashboardGuildsPage", () => {
     });
   });
 
-  describe("storage limit", () => {
-    it("pre-fills the cap in GB, blank meaning unlimited", async () => {
-      const user = userEvent.setup();
-      renderPage();
+  // Both caps are the same editor: pre-filled from what is stored, saved on
+  // blur, blank meaning no limit at all, and anything the field cannot mean
+  // snapped back rather than sent. Capped Community holds both caps at 10;
+  // Open Community holds neither.
+  describe.each([
+    {
+      what: "storage limit",
+      input: storageInput,
+      stored: "10",
+      typed: "5",
+      saves: { max_storage_bytes: 5 * GIB },
+      cleared: { max_storage_bytes: null },
+      rejects: [["a negative number", "-3"]],
+    },
+    {
+      what: "member limit",
+      input: userLimitInput,
+      stored: "10",
+      typed: "25",
+      saves: { max_users: 25 },
+      cleared: { max_users: null },
+      rejects: [
+        ["zero", "0"],
+        ["a negative number", "-2"],
+        ["a fraction", "2.5"],
+      ],
+    },
+  ])("$what", ({ input, stored, typed, saves, cleared, rejects }) => {
+    it("pre-fills the cap that is stored", async () => {
+      await openSheet("Capped Community");
 
-      await openSheet(user, "Capped Community");
-      expect(storageInput().value).toBe("10");
+      expect(input().value).toBe(stored);
     });
 
-    it("auto-saves the new cap on blur, converting GB to bytes", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    it("auto-saves a new cap on blur, converting it to what the API stores", async () => {
+      await openSheet("Open Community");
 
-      await openSheet(user, "Open Community");
-      const input = storageInput();
-      expect(input.value).toBe("");
-      fireEvent.change(input, { target: { value: "5" } });
-      fireEvent.blur(input);
+      expect(input().value).toBe(""); // blank meaning unlimited
+      typeAndLeave(input(), typed);
 
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 8,
-        data: { max_storage_bytes: 5 * GIB },
-      });
+      expect(mutate).toHaveBeenCalledWith({ guildId: 8, data: saves });
     });
 
     it("does not save when the value is left unchanged", async () => {
-      const user = userEvent.setup();
-      renderPage();
+      await openSheet("Capped Community");
 
-      await openSheet(user, "Capped Community");
-      fireEvent.blur(storageInput());
+      fireEvent.blur(input());
 
       expect(mutate).not.toHaveBeenCalled();
     });
 
-    it("reverts an invalid entry on blur without saving", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    it("saves clearing the cap as no limit at all", async () => {
+      await openSheet("Capped Community");
 
-      await openSheet(user, "Open Community");
-      const input = storageInput();
-      fireEvent.change(input, { target: { value: "-3" } });
-      fireEvent.blur(input);
+      typeAndLeave(input(), "");
+
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: cleared });
+    });
+
+    it.each(rejects)("reverts %s without saving", async (_label, value) => {
+      await openSheet("Capped Community");
+
+      typeAndLeave(input(), value);
 
       expect(mutate).not.toHaveBeenCalled();
-      expect(input.value).toBe(""); // snapped back to unlimited
-    });
-  });
-
-  describe("member limit", () => {
-    it("auto-saves the new cap on blur", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Open Community");
-      const input = userLimitInput();
-      fireEvent.change(input, { target: { value: "25" } });
-      fireEvent.blur(input);
-
-      expect(mutate).toHaveBeenCalledWith({ guildId: 8, data: { max_users: 25 } });
-    });
-
-    it("clearing the cap saves null, which is unlimited", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Capped Community");
-      const input = userLimitInput();
-      fireEvent.change(input, { target: { value: "" } });
-      fireEvent.blur(input);
-
-      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { max_users: null } });
-    });
-
-    it.each([
-      ["zero", "0"],
-      ["a negative number", "-2"],
-      ["a fraction", "2.5"],
-    ])("reverts %s without saving", async (_label, value) => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Capped Community");
-      const input = userLimitInput();
-      fireEvent.change(input, { target: { value } });
-      fireEvent.blur(input);
-
-      expect(mutate).not.toHaveBeenCalled();
-      expect(input.value).toBe("10"); // back to the persisted cap
+      expect(input().value).toBe(stored); // back to the persisted cap
     });
   });
 
@@ -232,8 +283,7 @@ describe("OperatorDashboardGuildsPage", () => {
     });
 
     it("applies a non-suspend change immediately (no confirm)", async () => {
-      const user = userEvent.setup();
-      renderPage();
+      const user = mounted();
 
       await user.click(statusControl("Capped Community"));
       await user.click(await screen.findByRole("option", { name: "Read-only" }));
@@ -242,8 +292,7 @@ describe("OperatorDashboardGuildsPage", () => {
     });
 
     it("gates suspend behind a confirm dialog", async () => {
-      const user = userEvent.setup();
-      renderPage();
+      const user = mounted();
 
       await user.click(statusControl("Capped Community"));
       await user.click(await screen.findByRole("option", { name: "Suspended" }));
@@ -259,15 +308,11 @@ describe("OperatorDashboardGuildsPage", () => {
 
   describe("a refused save", () => {
     it("puts the stored value back rather than leaving the rejected one", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Capped Community");
+      await openSheet("Capped Community");
       const input = storageInput();
       expect(input.value).toBe("10");
 
-      fireEvent.change(input, { target: { value: "99" } });
-      fireEvent.blur(input);
+      typeAndLeave(input, "99");
       expect(mutate).toHaveBeenCalled();
 
       act(() => updateCallbacks.onError?.(new Error("nope")));
@@ -275,13 +320,8 @@ describe("OperatorDashboardGuildsPage", () => {
     });
 
     it("shows what a save actually stored, not what was typed", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Capped Community");
-      const input = storageInput();
-      fireEvent.change(input, { target: { value: "5.0" } });
-      fireEvent.blur(input);
+      await openSheet("Capped Community");
+      typeAndLeave(storageInput(), "5.0");
 
       act(() =>
         updateCallbacks.onSuccess?.({
@@ -295,101 +335,126 @@ describe("OperatorDashboardGuildsPage", () => {
 
   describe("per-community sign-in grants", () => {
     const grant = (name: string) => screen.getByLabelText(name);
+    const SIGN_IN = "Its own sign-in";
+    const STANDARD = "Its own security standard";
 
-    it("shows which grants the community holds", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    // Neither grant waits on the other, so a community holds either, both or
+    // none — and both are offered either way.
+    it.each([
+      ["a community that signs its own people in", "Open Community", true, false],
+      ["a community holding neither", "Full Community", false, false],
+      ["a community holding both", "Capped Community", true, true],
+    ])("shows which grants %s holds", async (_label, guildName, signIn, standard) => {
+      await openSheet(guildName);
 
-      await openSheet(user, "Open Community");
-      expect(grant("Its own sign-in")).toBeChecked();
-      expect(grant("Its own security standard")).not.toBeChecked();
+      expect(grant(SIGN_IN)).toBeEnabled();
+      expect(grant(STANDARD)).toBeEnabled();
+      if (signIn) expect(grant(SIGN_IN)).toBeChecked();
+      else expect(grant(SIGN_IN)).not.toBeChecked();
+      if (standard) expect(grant(STANDARD)).toBeChecked();
+      else expect(grant(STANDARD)).not.toBeChecked();
     });
 
-    it("offers both to a community holding neither", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    // A click sends the whole set the community would then hold, so adding one
+    // keeps the other and withdrawing one leaves the other in place.
+    it.each([
+      [
+        "grants sign-in to a community holding neither",
+        "Full Community",
+        SIGN_IN,
+        9,
+        ["providers"],
+      ],
+      ["grants the security standard on its own", "Full Community", STANDARD, 9, ["restrictions"]],
+      [
+        "adds the security standard to a community that already signs people in",
+        "Open Community",
+        STANDARD,
+        8,
+        ["providers", "restrictions"],
+      ],
+      [
+        "withdraws one grant and leaves the other in place",
+        "Capped Community",
+        STANDARD,
+        7,
+        ["providers"],
+      ],
+    ])("%s", async (_label, guildName, name, guildId, auth_options) => {
+      const user = await openSheet(guildName);
 
-      await openSheet(user, "Full Community");
-      expect(grant("Its own sign-in")).not.toBeChecked();
-      expect(grant("Its own security standard")).not.toBeChecked();
-      // Neither waits on the other.
-      expect(grant("Its own sign-in")).toBeEnabled();
-      expect(grant("Its own security standard")).toBeEnabled();
+      await user.click(grant(name));
 
-      await user.click(grant("Its own sign-in"));
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 9,
-        data: { auth_options: ["providers"] },
-      });
-    });
-
-    it("grants the security standard on its own", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Full Community");
-      await user.click(grant("Its own security standard"));
-
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 9,
-        data: { auth_options: ["restrictions"] },
-      });
-    });
-
-    it("adds the security standard to a community that already signs people in", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Open Community");
-      await user.click(grant("Its own security standard"));
-
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 8,
-        data: { auth_options: ["providers", "restrictions"] },
-      });
-    });
-
-    it("withdraws one grant and leaves the other in place", async () => {
-      const user = userEvent.setup();
-      renderPage();
-
-      await openSheet(user, "Capped Community");
-      expect(grant("Its own sign-in")).toBeChecked();
-      expect(grant("Its own security standard")).toBeChecked();
-
-      await user.click(grant("Its own security standard"));
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 7,
-        data: { auth_options: ["providers"] },
-      });
+      expect(mutate).toHaveBeenCalledWith({ guildId, data: { auth_options } });
     });
   });
 
   describe("feature entitlements", () => {
-    it("sets the banner entitlement, which had no control before", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    // Neither of these had a control at all before; both are the operator's.
+    it.each([
+      ["the banner entitlement", "Banner artwork", { banner_image_enabled: false }],
+      ["the help-request entitlement", "Help requests", { support_enabled: true }],
+    ])("sets %s", async (_label, name, data) => {
+      const user = await openSheet("Capped Community");
 
-      await openSheet(user, "Capped Community");
-      await user.click(screen.getByLabelText("Banner artwork"));
+      await user.click(screen.getByLabelText(name));
 
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 7,
-        data: { banner_image_enabled: false },
-      });
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data });
     });
 
-    it("sets the help-request entitlement", async () => {
-      const user = userEvent.setup();
-      renderPage();
+    it("cannot offer help requests where nothing receives them", async () => {
+      intakeBindings = [];
+      await openSheet("Capped Community");
 
-      await openSheet(user, "Capped Community");
-      await user.click(screen.getByLabelText("Help requests"));
+      expect(screen.getByLabelText("Help requests")).toBeDisabled();
+    });
+  });
 
-      expect(mutate).toHaveBeenCalledWith({
-        guildId: 7,
-        data: { support_enabled: true },
-      });
+  describe("what a community counts as its own", () => {
+    const claiming = (agreed: boolean) => [
+      {
+        connection_id: 3,
+        guild_id: 7,
+        guild_name: "Capped Community",
+        provider_display_name: "Corp SSO",
+        claim: "hd",
+        claim_values: ["acme.example"],
+        auto_join: true,
+        agreed,
+      },
+    ];
+
+    it("says nothing where a community has claimed nothing", async () => {
+      await openSheet("Capped Community");
+
+      expect(screen.queryByText(/who it counts as its own/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the values and what agreeing would do", async () => {
+      narrowings = claiming(false);
+      await openSheet("Capped Community");
+
+      expect(screen.getByText(/hd is acme\.example/i)).toBeInTheDocument();
+      expect(screen.getByText(/join on sight/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^agree$/i })).toBeEnabled();
+    });
+
+    it("agrees that the values are theirs", async () => {
+      narrowings = claiming(false);
+      const user = await openSheet("Capped Community");
+
+      await user.click(screen.getByRole("button", { name: /^agree$/i }));
+
+      expect(agreeNarrowing).toHaveBeenCalledWith({ connectionId: 3, agreed: true });
+    });
+
+    it("offers to withdraw one already agreed", async () => {
+      narrowings = claiming(true);
+      const user = await openSheet("Capped Community");
+
+      await user.click(screen.getByRole("button", { name: /withdraw/i }));
+
+      expect(agreeNarrowing).toHaveBeenCalledWith({ connectionId: 3, agreed: false });
     });
   });
 
@@ -405,16 +470,14 @@ describe("OperatorDashboardGuildsPage", () => {
       expect(screen.getByLabelText("Open billing for Open Community")).toHaveTextContent("No plan");
     });
 
-    it("is absent when no billing portal is configured", async () => {
-      billingConfig = null;
-      renderPage();
-
-      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Open billing for Capped Community")).not.toBeInTheDocument();
-    });
-
-    it("is absent when the operator route into the portal is not wired", async () => {
-      billingConfig = { url: "https://billing.example.com", operator_handoff: false };
+    it.each([
+      ["no billing portal is configured", null],
+      [
+        "the operator route into the portal is not wired",
+        { url: "https://billing.example.com", operator_handoff: false },
+      ],
+    ])("is absent when %s", async (_label, billing) => {
+      billingConfig = billing;
       renderPage();
 
       expect(await screen.findByText("Capped Community")).toBeInTheDocument();
@@ -455,6 +518,56 @@ describe("OperatorDashboardGuildsPage", () => {
       expect(tab.location.href).toBe("");
 
       openSpy.mockRestore();
+    });
+  });
+
+  describe("a deleted community", () => {
+    it("shows a tag instead of the status control", async () => {
+      renderPage();
+
+      expect(await screen.findByText("Gone Community")).toBeInTheDocument();
+      expect(screen.getByText("Deleted")).toBeInTheDocument();
+      // No control at all: deleted is not a status you pick, so the row that
+      // holds it offers nothing to pick with.
+      expect(screen.queryByLabelText("Status for Gone Community")).not.toBeInTheDocument();
+      // ...while a live community still has its dropdown.
+      expect(screen.getByLabelText("Status for Capped Community")).toBeInTheDocument();
+    });
+
+    it("offers a restore with the date everything is destroyed on", async () => {
+      await openSheet("Gone Community");
+
+      // The purge date is an instant, not a calendar day, so it is drawn in
+      // the reader's own timezone — computed here the same way rather than
+      // written out, which would only pass in the timezone it was written in.
+      const expected = new Date("2026-11-30T00:00:00Z").toLocaleDateString("en", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      expect(
+        screen.getByText(`Deleted. Everything in it is destroyed on ${expected}.`)
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Restore community" })).toBeInTheDocument();
+      // Its caps are shown but frozen — worth seeing while you decide, not
+      // worth setting on a community nobody can reach.
+      expect(userLimitInput()).toBeDisabled();
+      expect(storageInput()).toBeDisabled();
+    });
+
+    it("restores it at the status the operator picks", async () => {
+      const user = await openSheet("Gone Community");
+      await user.click(screen.getByRole("button", { name: "Restore community" }));
+
+      // This community still has somebody to run it, so the seat step is
+      // skipped and the only question is what it comes back as.
+      expect(screen.getByText("Choose what the community comes back as.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Restore" }));
+
+      expect(restore).toHaveBeenCalledWith({
+        guildId: 10,
+        data: { status: "active", seat_user_id: null },
+      });
     });
   });
 });

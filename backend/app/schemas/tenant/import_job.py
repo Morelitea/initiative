@@ -70,6 +70,22 @@ class BackupPlanInitiative(SanitizedBaseModel):
     entry_counts: dict[str, int]  # tool -> entries in the zip
 
 
+class BackupPlanPerson(SanitizedBaseModel):
+    """One name the archive quotes, and our best guess at who that is here.
+
+    ``suggested_user_id`` is filled only by an **exact** handle match against
+    the guild's own roster. Anything looser is left empty on purpose: a
+    display name that looks similar is how one person's words end up under
+    another person's face, and the wizard is asking precisely so that nobody
+    has to guess.
+    """
+
+    handle: str
+    name: Optional[str] = None
+    comment_count: int = 0
+    suggested_user_id: Optional[int] = None
+
+
 class BackupImportPlan(SanitizedBaseModel):
     """The confirm-screen summary, persisted to ``import_jobs.plan`` —
     counts and names only, never envelope content."""
@@ -83,6 +99,27 @@ class BackupImportPlan(SanitizedBaseModel):
     asset_bytes: int = 0
     skipped: list[dict[str, Any]] = []
     unknown_types: list[str] = []
+    # Everyone the archive quotes, most-quoted first — the rows the wizard's
+    # people step asks about. Empty for a backup taken before people were
+    # inventoried, and for one that quotes nobody.
+    people: list[BackupPlanPerson] = []
+
+
+class EnvelopeImportPlan(SanitizedBaseModel):
+    """The confirm-screen summary for a lone envelope, persisted to
+    ``import_jobs.plan``.
+
+    Only people. A backup's plan has initiatives to name and tools to narrow;
+    one envelope is one thing going into one initiative the caller already
+    picked, so the only question left is who the handles in it are — and it
+    is only written when at least one of them has no obvious answer.
+    """
+
+    #: Everybody the envelope quotes, most-quoted first. The only thing in
+    #: here: the browser already parsed the file it is about, so a title in
+    #: the plan would be a second, guessable copy of something the step
+    #: already has.
+    people: list[BackupPlanPerson] = []
 
 
 class BackupImportResult(SanitizedBaseModel):
@@ -95,5 +132,10 @@ class BackupImportResult(SanitizedBaseModel):
     assets_restored: int = 0
     assets_deduped: int = 0
     asset_bytes: int = 0
+    # Edges the deferred pass wrote, and the ones whose far end was never
+    # imported — a link out of the selection is ordinary, and counted rather
+    # than treated as a failure.
+    links_created: int = 0
+    links_unresolved: int = 0
     unmatched_handles: list[str] = []
     warnings: list[str] = []

@@ -80,7 +80,7 @@ async def list_app_services(
 async def create_app_service(
     payload: AppServiceRegistrationCreate,
     session: AdminSessionDep,
-    _admin: AppsManageDep,
+    admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Register an app service, running the handshake on the way in.
 
@@ -99,6 +99,7 @@ async def create_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
+        actor_user_id=admin.id,
     )
     return _to_read(row)
 
@@ -118,7 +119,7 @@ async def update_app_service(
     registration_id: int,
     payload: AppServiceRegistrationUpdate,
     session: AdminSessionDep,
-    _admin: AppsManageDep,
+    admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Enable/disable, rotate the secret, repoint either address, or change the
     powers conferred. Rotating the secret or repointing ``base_url`` clears the
@@ -134,6 +135,7 @@ async def update_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
+        actor_user_id=admin.id,
     )
     return _to_read(row)
 
@@ -142,17 +144,19 @@ async def update_app_service(
 async def delete_app_service(
     registration_id: int,
     session: AdminSessionDep,
-    _admin: AppsManageDep,
+    admin: AppsManageDep,
 ) -> None:
     """Remove the registration. Every channel it backed stops with the row."""
-    await registrations_service.delete_registration(session, registration_id)
+    await registrations_service.delete_registration(
+        session, registration_id, actor_user_id=admin.id
+    )
 
 
 @router.post("/{registration_id}/verify", response_model=AppServiceRegistrationRead)
 async def verify_app_service(
     registration_id: int,
     session: AdminSessionDep,
-    _admin: AppsManageDep,
+    admin: AppsManageDep,
     payload: AppServiceVerifyRequest | None = None,
 ) -> AppServiceRegistrationRead:
     """Re-run the handshake and record the outcome on the row."""
@@ -160,5 +164,6 @@ async def verify_app_service(
         session,
         registration_id,
         accept_manifest_change=bool(payload and payload.accept_manifest_change),
+        actor_user_id=admin.id,
     )
     return _to_read(row)

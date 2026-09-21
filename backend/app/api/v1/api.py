@@ -58,6 +58,9 @@ from app.api.v1.tenant_endpoints import (
     filter_presets,
     task_statuses,
     tasks,
+    tool_grants,
+    tool_lists,
+    tool_views,
     tools,
     trash,
     wikis,
@@ -79,6 +82,8 @@ from app.api.v1.platform_endpoints import (
     guild_reference,
     guild_provider_connections,
     guilds,
+    health,
+    legal,
     marketplace,
     native,
     notification_prefs,
@@ -86,6 +91,7 @@ from app.api.v1.platform_endpoints import (
     push,
     intake,
     passkeys,
+    email_otp,
     passwordless,
     second_factor,
     settings,
@@ -104,14 +110,19 @@ api_router = APIRouter()
 # ---------------------------------------------------------------------------
 api_router.include_router(field_catalog.router, tags=["fields"])
 api_router.include_router(version.router, tags=["version"])
+api_router.include_router(health.router, tags=["health"])
 api_router.include_router(native.router, tags=["native"])
 api_router.include_router(config.router, tags=["config"])
+# This deployment's terms and privacy policy, if it has any.
+# Unauthenticated: the signup form links to them.
+api_router.include_router(legal.router, tags=["legal"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # Mounted on the same prefix: the factor routes are part of /auth, kept in
 # their own module rather than growing the sign-in one.
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
+api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
@@ -211,6 +222,11 @@ api_router.include_router(
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/g/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
+# Every tool's list and its sidebar counts, mounted once per Tool at each
+# tool's own path (see tenant_endpoints/tool_lists.py). Included FIRST so each
+# literal ``/counts/by-initiative`` wins the match against the ``/{id}`` route
+# its tool's own router declares below. The routes carry their own tags.
+guild_router.include_router(tool_lists.router)
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
@@ -290,6 +306,14 @@ guild_router.include_router(
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
+# Recent views: POST/DELETE /{tool}/{id}/view, mounted once per Tool at each
+# tool's own path. The routes carry their own tags (see tenant_endpoints/
+# tool_views.py), so none is added here.
+guild_router.include_router(tool_views.router)
+# Sharing: PUT /{tool}/{id}/grants, mounted once per Tool at each tool's own
+# path. The routes carry their own tags (see tenant_endpoints/tool_grants.py),
+# so none is added here.
+guild_router.include_router(tool_grants.router)
 guild_router.include_router(guild_search.router, prefix="/search", tags=["search"])
 guild_router.include_router(
     smart_chips.router, prefix="/smart-chips", tags=["smart-chips"]
@@ -325,12 +349,9 @@ api_router.include_router(guild_router)
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
 me_router.include_router(moderation.me_router, tags=["moderation"])
-me_router.include_router(documents.me_router, tags=["documents"])
-me_router.include_router(projects.me_router, tags=["projects"])
-me_router.include_router(calendars.me_router, tags=["calendars"])
-# The My Tools page: the three tools that had no cross-guild list before it,
-# plus the tab counts. One tag, because they are one page rather than four
-# domains reaching across guilds for their own reasons.
+# The My Tools page: every tool's cross-guild list, mounted once per tool from
+# MY_TOOL_LISTS, plus the tab counts. One tag, because they are one page rather
+# than nine domains reaching across guilds for their own reasons.
 me_router.include_router(me_tools.me_router, tags=["my-tools"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])

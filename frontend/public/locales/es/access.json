@@ -91,8 +91,6 @@
   "bulkBar": {
     "selected_one": "{{count}} seleccionado",
     "selected_other": "{{count}} seleccionados",
-    "select": "Seleccionar",
-    "done": "Listo",
     "editAccess": "Editar acceso",
     "needManage": "Solo puedes editar el acceso de los elementos que posees o puedes editar.",
     "resource_project_one": "proyecto",

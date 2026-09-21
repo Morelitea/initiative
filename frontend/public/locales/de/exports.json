@@ -46,10 +46,11 @@
       "disabled": "Nicht aktiviert",
       "estimateFailed": "Die Größenschätzung konnte nicht geladen werden.",
       "overRowLimit": "Dieser Export überschreitet das Größenlimit — schließe einige Werkzeuge aus, um fortzufahren.",
-      "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren."
+      "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren.",
+      "willBeDelivered": "Dieser Export ist größer als {{limit}} und wird daher in den Exportordner des Servers geschrieben statt heruntergeladen. Deine Serveradministration kann dir die Datei geben.",
+      "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte deine Serveradministration, einen einzurichten."
     },
     "report": {
-      "include": "Einschließen",
       "documentNative": "Textdokumente",
       "documentSpreadsheet": "Tabellen",
       "documentOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
@@ -82,14 +83,25 @@
     "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "open": "Exportieren…"
   },
+  "community": {
+    "lastExport": "Letzter Export",
+    "none": "Diese Community wurde noch nie exportiert.",
+    "startedBy": "Gestartet von {{name}}",
+    "startedByUnknown": "Gestartet von einem ehemaligen Mitglied",
+    "preparing": "Wird noch vorbereitet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
+    "expires": "Download läuft ab",
+    "delivered": "In den Exportordner des Servers geschrieben — bitte deine Serveradministration um die Datei.",
+    "expiredNote": "Das Archiv wurde inzwischen gelöscht.",
+    "failedNote": "Es wurde nichts exportiert.",
+    "nextAvailable": "Nächster Export möglich"
+  },
   "table": {
     "title": "Letzte Exporte",
-    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Community-Administratoren sehen die Exporte aller Mitglieder.",
+    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Diese Liste umfasst die Exporte aller Mitglieder.",
     "columns": {
       "export": "Export",
       "status": "Status",
       "created": "Erstellt",
-      "expires": "Läuft ab",
       "actions": "Aktionen"
     },
     "status": {
@@ -104,13 +116,14 @@
       "project": "Projekt",
       "document": "Dokument",
       "queue": "Warteschlange",
-      "counter-group": "Zählergruppe",
       "calendar": "Kalender",
       "post": "Beitrag",
       "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Community",
-      "gallery": "Galerie"
+      "gallery": "Galerie",
+      "counter-group": "Zählergruppe",
+      "dashboard": "Dashboard"
     },
     "download": "Herunterladen",
     "empty": "Noch keine Exporte.",

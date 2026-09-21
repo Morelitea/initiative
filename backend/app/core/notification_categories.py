@@ -310,6 +310,17 @@ PERSONAL_TYPES: frozenset[NotificationType] = frozenset(
 )
 
 
+def sample_type(category: NotificationCategory) -> NotificationType:
+    """Any one type from a category.
+
+    Preference resolution is keyed on a notification type, but a digest — and a
+    row in the email outbox — is about a whole category, and every type in one
+    resolves identically. Sorted so the choice is stable rather than dependent
+    on set ordering.
+    """
+    return sorted(CATEGORY_SPECS[category].types, key=lambda t: t.value)[0]
+
+
 def category_of(notification_type: NotificationType) -> NotificationCategory:
     """The category a type belongs to. Total over ``NotificationType`` — the
     drift test is what keeps it that way."""

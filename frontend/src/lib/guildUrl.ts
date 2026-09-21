@@ -47,15 +47,12 @@ export function isGuildScopedPath(path: string): boolean {
 }
 
 /**
- * Extract the guild ID from a guild-scoped path.
- * @param path The path to extract from
- * @returns The guild ID if present, null otherwise
+ * The community a guild-scoped path names, or null when it names none.
+ * @param path The path to read (e.g. "/c/5/projects/47")
  */
-export function extractGuildIdFromPath(path: string): number | null {
-  const match = path.match(/^\/c\/(\d+)/);
-  if (!match) return null;
-  const id = Number(match[1]);
-  return Number.isFinite(id) ? id : null;
+export function guildIdFromPath(path: string): number | null {
+  const match = path.match(/^\/c\/(\d+)(?:\/|$)/);
+  return match ? Number(match[1]) : null;
 }
 
 /**
@@ -66,16 +63,6 @@ export function extractGuildIdFromPath(path: string): number | null {
 export function extractSubPath(path: string): string {
   const match = path.match(/^\/c\/\d+(.*)$/);
   return match ? match[1] || "/" : path;
-}
-
-/**
- * Replace the guild ID in a guild-scoped path.
- * @param path The current path
- * @param newGuildId The new guild ID
- * @returns The path with the new guild ID
- */
-export function replaceGuildId(path: string, newGuildId: number): string {
-  return path.replace(/^\/c\/\d+/, `/c/${newGuildId}`);
 }
 
 /**

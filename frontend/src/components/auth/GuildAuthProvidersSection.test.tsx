@@ -47,8 +47,10 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
 
 import { GuildAuthProvidersSection } from "./GuildAuthProvidersSection";
 
+const onConnect = vi.fn();
+
 const render = () =>
-  renderWithProviders(<GuildAuthProvidersSection guildId={1} />, {
+  renderWithProviders(<GuildAuthProvidersSection guildId={1} onConnect={onConnect} />, {
     auth: { user: buildUser() },
   });
 
@@ -75,16 +77,18 @@ describe("GuildAuthProvidersSection", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
-  it("starts the community's own connection from what it inherited", async () => {
+  it("opens the wizard on the provider it is taking over", async () => {
     const user = userEvent.setup();
     connections = [row({ id: null, inherited: true, claim: "tid", claim_values: ["acme-tenant"] })];
     render();
 
     await user.click(screen.getByRole("button", { name: /make it ours/i }));
-    // The dialog opens on the inherited arrangement rather than on a blank
-    // form: the claim it narrows on, and the values that count.
-    expect(await screen.findByText(/microsoft entra tenant/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("acme-tenant")).toBeInTheDocument();
+
+    // One flow, not two: this card used to carry its own shorter copy of the
+    // wizard's first steps. It now asks for the wizard, opened on the
+    // provider being taken over, and the wizard seeds itself from what the
+    // deployment answered.
+    expect(onConnect).toHaveBeenCalledWith(connections[0].provider_id);
   });
 
   it("switches and disconnects a connection the community made itself", () => {

@@ -83,6 +83,94 @@ const emojibasePlugin = () => ({
   },
 });
 
+// The PDF viewer runs pdf.js out of the app itself rather than a CDN: a
+// cross-origin worker URL forces pdf.js to import() it from inside a blob
+// worker, which `script-src 'self'` blocks, and a self-hosted install may have
+// no internet at all. Two sets of files have to travel with it.
+//
+// The worker lands beside the other WebAssembly workers, because pdf.js 6
+// decodes JBIG2, CCITT fax and JPEG 2000 images in WebAssembly (all three were
+// plain JavaScript in 5.x) and so needs the policy the backend applies to
+// `assets/workers/` — see `_WASM_WORKER_ASSET_PREFIXES` in backend/app/main.py.
+//
+// The WebAssembly modules themselves are fetched by the worker at runtime from
+// the `wasmUrl` API option. Without them a scanned or faxed PDF — the common
+// source of JBIG2 and CCITT images — renders blank.
+//
+// Both paths carry the pdf.js version, so upgrading can't leave a browser
+// holding a cached worker from one release and modules from another.
+const PDFJS_DIR = path.resolve(import.meta.dirname, "node_modules/pdfjs-dist");
+const PDFJS_VERSION: string = JSON.parse(
+  fs.readFileSync(path.join(PDFJS_DIR, "package.json"), "utf-8")
+).version;
+const PDFJS_WORKER_FILE = `assets/workers/pdf.worker-${PDFJS_VERSION}.mjs`;
+const PDFJS_WASM_DIR = `assets/pdfjs-wasm/${PDFJS_VERSION}`;
+const PDFJS_WORKER_URL = `/${PDFJS_WORKER_FILE}`;
+// pdf.js appends the bare filename, so the trailing slash is part of the option.
+const PDFJS_WASM_URL = `/${PDFJS_WASM_DIR}/`;
+
+// pdf.js 6's default build calls `Map.prototype.getOrInsertComputed`, which only
+// the very newest browsers have — a PDF fails to render outright on anything
+// older, which is most of them. The `legacy` build is the same release with the
+// polyfills folded back in, so that is what the app ships: this worker, and the
+// two aliases under `resolve` that point react-pdf's copy of the API and the
+// annotation/text layer at their legacy twins. All three must move together —
+// pdf.js refuses a worker that isn't its own version, and mixing a legacy API
+// with a default worker would put the untranslated calls back in the page.
+const pdfjsWorkerSource = path.join(PDFJS_DIR, "legacy/build/pdf.worker.min.mjs");
+const pdfjsWasmFiles = () => fs.readdirSync(path.join(PDFJS_DIR, "wasm"));
+
+const pdfjsPlugin = () => ({
+  name: "initiative-pdfjs",
+  // Dev: answer the same URLs the build will, without a copy step.
+  configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+    server.middlewares.use(
+      (
+        req: { url?: string },
+        res: { setHeader: (k: string, v: string) => void; end: (body?: unknown) => void },
+        next: () => void
+      ) => {
+        if (req.url === PDFJS_WORKER_URL) {
+          res.setHeader("Content-Type", "text/javascript");
+          res.end(fs.readFileSync(pdfjsWorkerSource));
+          return;
+        }
+        // Two gates, as above: the pattern admits no dots or slashes in the
+        // filename, and the name must then be one the installed pdf.js ships.
+        // The directory is escaped because the version in it carries dots.
+        const match = req.url?.match(
+          new RegExp(
+            `^${PDFJS_WASM_URL.replace(/[.]/g, "\\.")}([A-Za-z0-9_]+\\.(?:wasm|js))$`
+          )
+        );
+        if (!match) return next();
+        const [, name] = match;
+        if (!pdfjsWasmFiles().includes(name)) return next();
+        res.setHeader("Content-Type", name.endsWith(".wasm") ? "application/wasm" : "text/javascript");
+        res.end(fs.readFileSync(path.join(PDFJS_DIR, "wasm", name)));
+      }
+    );
+  },
+  // Build: emit the files as static assets at their expected paths.
+  generateBundle(this: { emitFile: (f: unknown) => void }) {
+    this.emitFile({
+      type: "asset",
+      fileName: PDFJS_WORKER_FILE,
+      source: fs.readFileSync(pdfjsWorkerSource),
+    });
+    // Everything pdf.js ships, including the licenses for the binaries and the
+    // no-WebAssembly JavaScript fallbacks it reaches for when a browser has
+    // WebAssembly disabled.
+    for (const name of pdfjsWasmFiles()) {
+      this.emitFile({
+        type: "asset",
+        fileName: `${PDFJS_WASM_DIR}/${name}`,
+        source: fs.readFileSync(path.join(PDFJS_DIR, "wasm", name)),
+      });
+    }
+  },
+});
+
 // Use relative paths for Capacitor builds (mobile apps load from file:// or local server)
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 
@@ -95,6 +183,9 @@ export default defineConfig({
     // its origin root, so a relative URL would resolve against whatever route
     // the app happens to be on when the picker first opens.
     __EMOJIBASE_URL__: JSON.stringify(EMOJI_BASE_PATH),
+    // Absolute for the same reason as the emoji dataset above.
+    __PDFJS_WORKER_URL__: JSON.stringify(PDFJS_WORKER_URL),
+    __PDFJS_WASM_URL__: JSON.stringify(PDFJS_WASM_URL),
   },
   plugins: [
     // A route's tests sit beside it and export no Route of their own, so the
@@ -103,11 +194,19 @@ export default defineConfig({
     react(),
     tailwindcss(),
     emojibasePlugin(),
+    pdfjsPlugin(),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(import.meta.dirname, "./src") },
+      // The legacy pdf.js build — see the worker above. Anchored so the other
+      // `pdfjs-dist/...` subpaths resolve normally.
+      { find: /^pdfjs-dist$/, replacement: path.join(PDFJS_DIR, "legacy/build/pdf.mjs") },
+      {
+        find: "pdfjs-dist/web/pdf_viewer.mjs",
+        replacement: path.join(PDFJS_DIR, "legacy/web/pdf_viewer.mjs"),
+      },
+    ],
   },
   worker: {
     // Worker bundles land in their own directory so a served response can be

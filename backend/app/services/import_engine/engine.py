@@ -27,8 +27,14 @@ from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
 from app.core.tools import tool_for_create_permission
+from app.schemas.tenant.import_job import BackupPlanPerson, EnvelopeImportPlan
+from app.services.import_engine.common import (
+    handle_key,
+    load_guild_member_handles,
+)
 from app.services.import_engine.contract import (
     EnvelopeImporter,
+    EnvelopeImportResult,
     ImportEngineError,
     InlineImport,
 )
@@ -40,6 +46,9 @@ _JOB_CAP_LOCK_NS = 0x494D50  # "IMP"
 # Statuses that count against the per-user active-job cap.
 _ACTIVE_STATUSES = (
     ImportJobStatus.staged,
+    # A fetch is the slowest thing a job does and the one most worth
+    # capping — it is somebody else's API being read on our schedule.
+    ImportJobStatus.fetching,
     ImportJobStatus.queued,
     ImportJobStatus.running,
 )
@@ -118,6 +127,35 @@ async def load_target_initiative(
     return initiative
 
 
+async def plan_envelope_people(
+    session: AsyncSession, *, guild_id: int, importer: EnvelopeImporter, validated: Any
+) -> list[BackupPlanPerson]:
+    """Everybody the envelope quotes, with a suggestion where one is certain.
+
+    The lone-envelope counterpart of ``backup.plan_backup``'s people pass, and
+    filled by the same rule: ``suggested_user_id`` only on an **exact** handle
+    match against the community's roster. A display name that merely looks
+    similar is how one person's words end up under another person's face, and
+    it is the reason there is a step to ask at all.
+
+    Empty for every importer whose envelopes name nobody, which is most of
+    them — the roster is not even read in that case.
+    """
+    people = importer.people(validated)
+    if not people:
+        return []
+    roster = await load_guild_member_handles(session, guild_id=guild_id)
+    return [
+        BackupPlanPerson(
+            handle=person.handle,
+            name=person.name,
+            comment_count=person.comment_count,
+            suggested_user_id=roster.get(handle_key(person.handle)),
+        )
+        for person in people
+    ]
+
+
 async def start_envelope_import(
     session: AsyncSession,
     *,
@@ -127,10 +165,24 @@ async def start_envelope_import(
     envelope: dict[str, Any],
 ) -> InlineImport | ImportJob:
     """The shared create path: validate + authorize under RLS, bound, then
-    auto-select delivery — apply in-request at/under IMPORT_INLINE_MAX_ROWS,
-    else stage the payload and persist a queued ImportJob for the worker,
-    which re-validates and applies under the creator's RLS session."""
-    envelope_type = envelope.get("type") or envelope.get("kind")
+    auto-select delivery.
+
+    Three outcomes, and the first of them is the one worth stating:
+
+    * **Staged**, when the envelope quotes somebody nobody here can be sure
+      of. The job parks at ``staged`` with a plan naming those people, and
+      ``POST /imports/jobs/{id}/confirm`` starts the apply with the answers —
+      the same two-step a backup takes, for the same reason. It asks only
+      when there is something to ask: an envelope quoting nobody, or one
+      where every handle is an exact match for a member, is applied straight
+      away, because the confirm screen's own defaults would do the same thing
+      and interrupting somebody to agree with themselves is not a step.
+    * **Inline**, at or under IMPORT_INLINE_MAX_ROWS — applied in-request,
+      no job row.
+    * **Queued**, above it — the payload is staged and the worker
+      re-validates and applies it under the creator's RLS session.
+    """
+    envelope_type = envelope.get("type")
     if not isinstance(envelope_type, str):
         raise ImportEngineError(ImportEngineMessages.IMPORT_UNKNOWN_TYPE)
     importer = get_importer(envelope_type)
@@ -147,12 +199,18 @@ async def start_envelope_import(
     if rows > settings.IMPORT_MAX_ROWS:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
 
-    if rows <= settings.IMPORT_INLINE_MAX_ROWS:
-        result = await importer.apply(
+    people = await plan_envelope_people(
+        session, guild_id=guild_id, importer=importer, validated=validated
+    )
+    unplaced = [person for person in people if person.suggested_user_id is None]
+
+    if not unplaced and rows <= settings.IMPORT_INLINE_MAX_ROWS:
+        result = await apply_one_envelope(
             session,
+            importer=importer,
             envelope=validated,
             target_initiative=initiative,
-            importer=user,
+            user=user,
         )
         await session.commit()
         return InlineImport(result=result)
@@ -168,7 +226,13 @@ async def start_envelope_import(
         source=envelope_type,
         params={"initiative_id": initiative.id},
         payload_ref=payload_ref,
-        status=ImportJobStatus.queued,
+        # A staged job is waiting on a person; a queued one is waiting on the
+        # worker. The plan rides along only in the first case, because it is
+        # the question being asked.
+        plan=EnvelopeImportPlan(people=people).model_dump(mode="json")
+        if unplaced
+        else None,
+        status=ImportJobStatus.staged if unplaced else ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
         + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
     )
@@ -176,6 +240,49 @@ async def start_envelope_import(
     await session.commit()
     await session.refresh(job)
     return job
+
+
+async def apply_one_envelope(
+    session: AsyncSession,
+    *,
+    importer: EnvelopeImporter,
+    envelope: Any,
+    target_initiative: Initiative,
+    user: User,
+    people_map: Any = None,
+) -> "EnvelopeImportResult":
+    """Apply one envelope and then resolve the links it asserted.
+
+    A lone envelope is the degenerate case of the deferred pass, not a
+    different path: it registers what it created, records what it pointed
+    at, and resolves the pairs where both ends happened to be in the same
+    file. Every ref naming something outside it is counted as unresolved —
+    which is the honest answer, and the same one a backup gives.
+
+    ``people_map`` is whatever a confirm recorded. A lone envelope usually
+    arrives without one — there is no step in that flow to ask — and then
+    the handles in it are matched against the target initiative's own
+    members, or carried as names.
+    """
+    from app.services.import_engine.context import ImportContext
+    from app.services.import_engine.people import resolve_people_map
+
+    context = ImportContext(
+        people=await resolve_people_map(
+            session, guild_id=target_initiative.guild_id, raw=people_map
+        )
+    )
+    result = await importer.apply(
+        session,
+        envelope=envelope,
+        target_initiative=target_initiative,
+        importer=user,
+        context=context,
+    )
+    resolution = await context.links.resolve(session, created_by=user.id)
+    result.links_created = resolution.created
+    result.links_unresolved = resolution.unresolved
+    return result
 
 
 async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None:

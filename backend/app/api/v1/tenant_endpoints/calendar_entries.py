@@ -16,7 +16,6 @@ from datetime import datetime
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
@@ -25,7 +24,6 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.db.session import get_admin_session
 from app.models.platform.user import User
 from app.schemas.tenant.calendar_entry import CalendarEntriesResponse
 from app.schemas.tenant.calendar_event import serialize_calendar_event_summary
@@ -36,7 +34,6 @@ router = APIRouter()
 # Cross-guild "my calendar" aggregate. Mounted under /api/v1/me.
 me_router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
@@ -104,8 +101,7 @@ async def list_calendar_entries(
 
 @me_router.get("/calendar-entries", response_model=CalendarEntriesResponse)
 async def list_my_calendar_entries(
-    admin_session: AdminSessionDep,
-    user_session: UserSessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
@@ -120,15 +116,15 @@ async def list_my_calendar_entries(
 ) -> CalendarEntriesResponse:
     """Cross-guild events + assigned-task markers for the My Calendar page.
 
-    The two legs use different engines by design: events aggregate per guild
-    schema via the admin session (``gather_across_guilds``), tasks run on the
-    ``platform_<tier>`` user session — the same split as ``/me/calendar-events``
-    and ``/me/tasks``.
+    Both legs run on the caller's own ``platform_<tier>`` session, exactly as
+    ``/me/calendar-events`` and ``/me/tasks`` do: the event leg enters each
+    member guild with the membership role held there (``gather_across_guilds``)
+    and the task leg is the ``/me/tasks`` query, fetch-all over the window.
     """
     events_out = []
     if include_events:
         events = await calendar_events_api.query_my_calendar_events(
-            admin_session,
+            session,
             current_user,
             guild_ids=guild_ids,
             start_after=start_after,
@@ -141,7 +137,7 @@ async def list_my_calendar_entries(
     tasks_out = []
     if include_tasks:
         tasks_out = await tasks_api.query_my_tasks_list(
-            user_session,
+            session,
             current_user,
             conditions=conditions,
             tz=tz,

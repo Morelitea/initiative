@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, func
 from sqlmodel import select
 
 from app.core.smart_chips import SmartChipAspect, SmartChipTone
@@ -33,6 +34,7 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import Counter
+from app.models.tenant.project import Project
 from app.models.tenant.task import (
     Task,
     TaskAssignee,
@@ -223,6 +225,59 @@ async def _event_when(
     return values
 
 
+async def _project_progress(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    """How much of a project's work is done, as "2 / 5".
+
+    Counted the same way a project decides whether it is still holding
+    something up (:mod:`app.db.blocking`), so a chip reading 5 / 5 and a
+    blocker that has stopped blocking are the same fact told twice rather than
+    two answers that can disagree.
+
+    Archived and trashed tasks are in neither number: nobody is waiting on
+    them, and counting them would make a tidied project look unfinished
+    forever. A project with no work in it yet says so plainly rather than
+    claiming 0 / 0 is finished.
+    """
+    rows = (
+        await session.exec(
+            select(
+                Project.id,
+                func.count(Task.id),
+                func.count(Task.completed_at),
+            )
+            .select_from(Project)
+            .join(
+                Task,
+                and_(
+                    Task.project_id == Project.id,
+                    Task.archived_at.is_(None),
+                    Task.deleted_at.is_(None),
+                ),
+                isouter=True,
+            )
+            .where(Project.id.in_(ids), Project.deleted_at.is_(None))
+            .group_by(Project.id)
+        )
+    ).all()
+    values: dict[int, SmartChipValue] = {}
+    for project_id, total, done in rows:
+        values[project_id] = SmartChipValue(
+            text=f"{done} / {total}",
+            # Good only once there was work and all of it is finished.
+            tone=(
+                SmartChipTone.good
+                if total and done >= total
+                else SmartChipTone.muted
+                if not total
+                else SmartChipTone.neutral
+            ),
+            number=Decimal(done),
+        )
+    return values
+
+
 def _plain(value: Decimal) -> str:
     """A stored number as a person writes it — ``7`` rather than ``7.0000``."""
     trimmed = value.normalize()
@@ -238,6 +293,7 @@ SMART_CHIP_SOURCES: dict[tuple[SearchEntityType, SmartChipAspect], Reader] = {
     (SearchEntityType.task, SmartChipAspect.due): _task_due,
     (SearchEntityType.task, SmartChipAspect.priority): _task_priority,
     (SearchEntityType.counter, SmartChipAspect.value): _counter_value,
+    (SearchEntityType.project, SmartChipAspect.progress): _project_progress,
     (SearchEntityType.calendar_event, SmartChipAspect.when): _event_when,
 }
 

@@ -1,10 +1,10 @@
+import logging
 import re
 from collections.abc import Sequence
-from datetime import datetime, timezone
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AwareDatetime, AliasChoices, EmailStr, Field, field_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -151,15 +151,6 @@ class Settings(BaseSettings):
     # Unset it and the app verifies those prerequisites instead of applying
     # them; a deployment that provisions its database out of band never sets it.
     DATABASE_URL_BOOTSTRAP: str | None = None
-    # An escape hatch, not a supported configuration. The application's
-    # database connection is meant to be the least-privilege provisioning
-    # login; startup refuses one that is not, because the access rules
-    # described in SECURITY.md are enforced by the database and assume it.
-    #
-    # An operator who cannot migrate in the same maintenance window can set an
-    # absolute deadline to keep booting temporarily. It is recorded at WARNING
-    # on every boot and stops working once the deadline is reached.
-    ALLOW_PRIVILEGED_DATABASE_UNTIL: AwareDatetime | None = None
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
     # engines above. Unset (the common case) it uses ``DATABASE_URL``; set it
@@ -200,14 +191,6 @@ class Settings(BaseSettings):
     QUERY_MAX_COST: float = Field(default=1_000_000.0, gt=0)
     #: Rows one query may return.
     QUERY_MAX_ROWS: int = Field(default=5_000, gt=0)
-
-    @field_validator("ALLOW_PRIVILEGED_DATABASE_UNTIL")
-    @classmethod
-    def normalize_privileged_database_deadline(
-        cls, value: AwareDatetime | None
-    ) -> datetime | None:
-        """Store the operator's absolute deadline in UTC for one comparison path."""
-        return value.astimezone(timezone.utc) if value is not None else None
 
     @field_validator("QUERY_WORK_MEM")
     @classmethod
@@ -426,19 +409,20 @@ class Settings(BaseSettings):
     def wasm_worker_content_security_policy(self) -> str:
         """CSP for the WebAssembly worker bundles ONLY (applied per-response).
 
-        Two workers run WebAssembly: the dashboard widget sandbox, which
+        Three workers run WebAssembly: the dashboard widget sandbox, which
         evaluates widget code with QuickJS
-        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``), and the direct
+        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``); the direct
         message ratchet, which runs vodozemac
-        (``frontend/src/crypto/ratchet.worker.ts``). A worker takes its policy
-        from the response that served its script rather than from the document
-        that started it, so the WebAssembly source expression is named here — on
-        those built assets — and the app-wide policy above needs no mention of
-        it.
+        (``frontend/src/crypto/ratchet.worker.ts``); and the PDF viewer's pdf.js
+        worker, which decodes JBIG2, CCITT fax and JPEG 2000 images that way.
+        A worker takes its policy from the response that served its script
+        rather than from the document that started it, so the WebAssembly source
+        expression is named here — on those built assets — and the app-wide
+        policy above needs no mention of it.
 
         Each worker is given the three things it uses and nothing else: its own
         script, WebAssembly compilation, and a same-origin fetch for the
-        ``.wasm`` file. Neither has a DOM, loads styles, images, or fonts, or
+        ``.wasm`` file. None has a DOM, loads styles, images, or fonts, or
         talks to anybody but the page that started it.
         """
         return _format_csp(
@@ -564,10 +548,48 @@ class Settings(BaseSettings):
     EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
     # Aggregate (initiative/guild) exports: their own row ceiling — a guild
     # dump legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included
-    # uploads (the archive assembles in memory; the cap keeps peak usage
-    # bounded until streaming assembly lands).
-    EXPORT_MAX_BACKUP_ROWS: int = 50_000
-    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
+    # uploads.
+    #
+    # The archive now assembles on disk, one rendered artifact at a time
+    # (``engine._stream_zip_to_storage``), so peak memory no longer scales
+    # with how much a community has. The byte cap is therefore about how long
+    # a job may run and how much scratch disk it may use, not about what fits
+    # in RAM — which is why it is measured in gigabytes now rather than the
+    # 256 MiB that in-memory assembly could afford.
+    #
+    # The row ceiling still bounds the enumeration the adapter holds while it
+    # builds, so it stays — an order of magnitude higher, but a real bound.
+    EXPORT_MAX_BACKUP_ROWS: int = 500_000
+    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 10_737_418_240  # 10 GiB
+    # The line between an archive the app hands back over HTTP and one it
+    # writes to the operator's destination. A download is served by this
+    # process for as long as the client's connection lasts, so this is a bound
+    # on how long one request may hold a worker, not on anything about size in
+    # itself. Past it the archive is delivered instead.
+    EXPORT_MAX_DOWNLOAD_BYTES: int = 2_147_483_648  # 2 GiB
+    # Where a delivered archive is written: an absolute directory on this
+    # host, which may be any mount the operator can write to. Unset (the
+    # default) means delivery is not configured, and an archive over the
+    # download bound is refused rather than produced with nowhere to go.
+    EXPORT_DESTINATION_DIR: str | None = None
+    # How long a community must wait between whole-community exports. The one
+    # control that actually bounds what this costs a deployment: a community's
+    # entire content is not a thing to re-read on a loop.
+    EXPORT_GUILD_COOLDOWN_HOURS: int = 48
+    # Hand a finished export's download off to the object store: the endpoint
+    # redirects to a signed URL and the bytes travel from the store to the
+    # client instead of through this process for the whole download.
+    #
+    # Off by default, and opt-in rather than automatic, because the browser
+    # fetches the download with XHR: the bucket has to allow this app's origin
+    # in its CORS rules for the redirected request to be readable. A
+    # deployment that has not set that up would see downloads start failing
+    # the moment it switched storage over. Filesystem storage signs nothing,
+    # so this does nothing there whatever it is set to.
+    EXPORT_PRESIGNED_DOWNLOADS: bool = False
+    # Lifetime of a signed download URL. Short: it only has to outlive the
+    # redirect and the start of the transfer.
+    EXPORT_DOWNLOAD_URL_TTL_SECONDS: int = 300
     # Artifact retention: expires_at = render time + this; the GC pass then
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
@@ -785,6 +807,8 @@ class Settings(BaseSettings):
     # pair can be rotated without downtime.
     BILLING_SUPPORT_HANDOFF_SECRET: str | None = None
     BILLING_SUPPORT_HANDOFF_KID: str | None = None
+    BILLING_OPERATOR_HANDOFF_SECRET: str | None = None
+    BILLING_OPERATOR_HANDOFF_KID: str | None = None
 
     # --- Marketplace registry (optional; default OFF) ---------------------
     # A registry is not a service: it is a signed JSON index plus the manifest
@@ -873,6 +897,22 @@ class Settings(BaseSettings):
     # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True
+
+    # How much the application says about itself on stderr: one of the
+    # standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+    # The audit stream on stdout is not governed by this; it always emits.
+    LOG_LEVEL: str = "INFO"
+
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def _validate_log_level(cls, value: str) -> str:
+        level = value.strip().upper()
+        if level == "NOTSET" or level not in logging.getLevelNamesMapping():
+            raise ValueError(
+                "LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL; "
+                f"got {value!r}"
+            )
+        return level
 
     # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
     # default; enable per-environment via env / .env. Tools ride the real auth +

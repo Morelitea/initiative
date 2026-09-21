@@ -5,6 +5,7 @@ import {
   getGetAppConfigApiV1ConfigGetQueryKey,
 } from "@/api/generated/config/config";
 import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
+import type { OptionalConsentCategory } from "@/lib/consent";
 
 /**
  * Runtime config fetched once at boot.
@@ -58,11 +59,22 @@ export const useAppConfig = () => {
      *  config loads, and false is also the default — every way into the
      *  directory stays hidden unless the platform owner turned it on. */
     communityDirectoryEnabled: query.data?.community_directory_enabled ?? false,
-    /** Whether this deployment asks an account to confirm it is 13 or older
-     *  before it belongs to a listed guild. True until the config loads, and
-     *  true is also the default — the question is the safe thing to ask when
-     *  we do not yet know, and the server refuses the join either way. */
+    /** Whether this deployment asks an account to confirm it is 16 or older
+     *  before it joins a listed guild. True until the config loads, and true is
+     *  also the default — the question is the safe thing to ask when we do not
+     *  yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,
+    /** Whether an arriving visitor is asked what this deployment may keep in
+     *  their browser. False until the config loads, and false is also the
+     *  default — it is a question an owner turns on, not one every deployment
+     *  inherits, and a chooser that appears a moment after the page would read
+     *  as something having gone wrong. */
+    cookieConsentEnabled: query.data?.cookie_consent_enabled ?? false,
+    /** The optional cookie categories this deployment actually uses, which is
+     *  what the chooser offers a switch for. Empty until the config loads, and
+     *  empty is also the common answer — a deployment that uses none of them
+     *  asks about none of them. */
+    cookieCategories: (query.data?.cookie_categories ?? []) as OptionalConsentCategory[],
     /** Whether this deployment offers direct messages at all. True until the
      *  config loads, and true is also the default — messaging is what most
      *  deployments have, and hiding My Messages for a moment on every boot
@@ -82,5 +94,16 @@ export const useAppConfig = () => {
      *  button that turns up a moment late reads better than one that was there
      *  and then vanished, and the browser has its own say besides. */
     passkeyLoginEnabled: query.data?.login_methods?.includes("passkey") ?? false,
+    /** Whether this deployment offers a second factor of any kind. What a
+     *  community's own requirement is offered against: with none permitted
+     *  here there is nothing to be asked to hold, so the question is not put. */
+    secondFactorAvailable:
+      (query.data?.login_methods?.includes("totp") ?? false) ||
+      (query.data?.login_methods?.includes("passkey") ?? false),
+    /** Whether this deployment permits a one-time code sent to an address.
+     *  False until the config loads, like the passkey button and for the same
+     *  reason — and false is the default here too: it is the one way in an
+     *  operator turns on rather than one they inherit. */
+    emailOtpLoginEnabled: query.data?.login_methods?.includes("email_otp") ?? false,
   };
 };

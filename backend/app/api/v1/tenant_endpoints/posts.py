@@ -33,7 +33,6 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -52,13 +51,11 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.post import (
     PostCreate,
     PostReadMarks,
     PostReadReceipt,
     PostReaders,
-    PostListResponse,
     PostPinUpdate,
     PostRead,
     PostReactionSettings,
@@ -75,20 +72,15 @@ from app.schemas.tenant.post_poll import (
     poll_voter,
     serialize_poll,
 )
-from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.timeline import TimelineResponse
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.core.search import SearchEntityType
-from app.services.tenant import archive as archive_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
-from app.services.tenant import recent_views as recent_views_service
-from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
@@ -248,192 +240,50 @@ async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -
     return post
 
 
-async def _board_scope(
-    session: RLSSessionDep,
-    current_user: User,
-    guild_context: GuildContext,
+def board_conditions(
+    user_id: int,
     *,
-    initiative_id: Optional[int],
+    guild_id: int,
+    initiative_id: Optional[int] = None,
     search: Optional[str] = None,
+    tag_ids: Optional[List[int]] = None,
     unread: bool = False,
-) -> list | None:
+) -> list:
     """Which notices this reader may see on a board — the whole rule, once.
 
     The feed and the timeline rail beside it are two views of one set, and a
     rail that counted a different set would offer months with nothing in them
-    (or, worse, hide months that do). So the four gates are built here and both
-    routes take them: the guild, the feature switch, sharing, and publication.
+    (or, worse, hide months that do). So the gates are built here and both
+    routes take them: the guild, the feature switch, sharing and the filters
+    (:func:`tool_listing.base_conditions`), then publication — a notice
+    scheduled for later is on the board only for the people who could edit it.
 
-    ``None`` means the initiative exists but has its board turned off — the
-    caller answers with its own empty shape rather than being handed conditions
-    that would match nothing.
+    The archive answer is the caller's: the feed takes an ``archived``
+    parameter and the rail does not.
     """
-    conditions = [Post.guild_id == guild_context.guild_id]
-
-    if initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.posts_enabled:
-            return None
-        conditions.append(Post.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            Post.initiative_id.in_(
-                select(Initiative.id).where(Initiative.posts_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.post,
-            Post.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
+    conditions = tool_listing.base_conditions(
+        Tool.post,
+        Post,
+        Initiative.posts_enabled,
+        user_id,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        search=search,
+        tag_ids=tag_ids,
     )
     conditions.append(
         posts_service.visibility_clause(
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
+            user_id, guild_id=guild_id, initiative_id=initiative_id
         )
     )
-
-    name_match = search_service.tool_search_clause(Tool.post, Post.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
     if unread:
-        conditions.append(posts_service.unread_clause(current_user.id))
-
+        conditions.append(posts_service.unread_clause(user_id))
     return conditions
 
 
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=PostListResponse)
-async def list_posts(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the notice — its headline and its body. Reads "
-            "the same index the search page does, so the board's filter and a "
-            "search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for the board "
-            "order — live pins first, then newest first."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    unread: bool = Query(
-        default=False,
-        description="Only notices this reader has not read yet.",
-    ),
-    until: Optional[datetime] = Query(
-        default=None,
-        description=(
-            "Start the board at this instant and go back — inclusive, and "
-            "measured by the same date the feed is ordered by. This is how a "
-            "timeline jumps to a month without paging through everything "
-            "since. An anchored board is strictly chronological: the pinned "
-            "band steps aside, because a pin says what matters now rather "
-            "than what mattered then."
-        ),
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(
-        default=BOARD_PAGE_SIZE,
-        ge=1,
-        le=MAX_BOARD_PAGE_SIZE,
-        description=(
-            "Posts per page. Small by default: a board renders each post's "
-            "body, so a page is that many editors to mount."
-        ),
-    ),
-) -> PostListResponse:
-    """List posts visible to the current user (guild admins see all).
-
-    Returns whole posts — a board shows notices, not headlines — which is why
-    it pages in fives. A scheduled notice is here only for the people who
-    could edit it; for everyone else the board starts when it goes up.
-    """
-    scope = await _board_scope(
-        session,
-        current_user,
-        guild_context,
-        initiative_id=initiative_id,
-        search=search,
-        unread=unread,
-    )
-    if scope is None:
-        return PostListResponse(
-            items=[],
-            total_count=0,
-            page=page,
-            page_size=page_size,
-            has_next=False,
-        )
-    conditions = [
-        *scope,
-        archive_service.archive_filter_clause(Post, archived),
-    ]
-
-    if until is not None:
-        conditions.append(posts_service.anchored_clause(until))
-
-    count_subq = select(Post.id).where(*conditions).subquery()
-    total_count = (
-        await session.exec(select(func.count()).select_from(count_subq))
-    ).one()
-
-    stmt = select(Post).where(*conditions).options(*posts_service.list_loader_options())
-    stmt = (
-        tool_listing.apply_tool_order(
-            stmt,
-            Post,
-            sort_by,
-            sort_dir,
-            default=posts_service.board_order(anchored=until is not None),
-        )
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await session.exec(stmt)
-    posts = result.unique().all()
-    # One grouped query each for the page, so a board of twenty asks twice
-    # rather than forty times.
-    await tags_service.annotate_tags(session, posts)
-    await comments_service.annotate_comment_counts(session, posts, column="post_id")
-    await posts_service.attach_reactions(session, *posts)
-    await posts_service.annotate_read_state(session, posts, user_id=current_user.id)
-    await posts_service.annotate_read_counts(session, posts)
-    await post_polls_service.annotate_poll_state(
-        session, posts, user_id=current_user.id
-    )
-
-    items = [serialize_post(p, user_id=current_user.id) for p in posts]
-    has_next = page * page_size < total_count
-    return PostListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
 
 
 # Declared before /{post_id} so the literal path wins the match.
@@ -462,7 +312,7 @@ async def get_post_timeline(
     with the unread filter on, a month that is fully read has nothing to offer
     and should not be a stop on the rail.
 
-    Scoped through :func:`_board_scope`, the same gates the list applies, so
+    Scoped through :func:`board_conditions`, the same gates the list applies, so
     the rail can never show a month whose notices the reader cannot open.
     """
     try:
@@ -473,58 +323,17 @@ async def get_post_timeline(
             detail=CommonMessages.UNKNOWN_TIMEZONE,
         ) from exc
 
-    scope = await _board_scope(
-        session,
-        current_user,
-        guild_context,
+    scope = board_conditions(
+        current_user.id,
+        guild_id=guild_context.guild_id,
         initiative_id=initiative_id,
         search=search,
         unread=unread,
     )
-    if scope is None:
-        return TimelineResponse()
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(
             session, date_expr=board_time(), conditions=scope, tz=zone
         )
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_post_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-post counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar badges — same visibility rules as the
-    post list, one GROUP BY instead of a capped list page.
-    """
-    conditions = [
-        Post.guild_id == guild_context.guild_id,
-        Post.initiative_id.in_(
-            select(Initiative.id).where(Initiative.posts_enabled == True)  # noqa: E712
-        ),
-        permissions_service.granted_scope_clause(
-            Tool.post,
-            Post.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        ),
-        posts_service.visibility_clause(
-            current_user.id, guild_id=guild_context.guild_id
-        ),
-    ]
-
-    statement = (
-        select(Post.initiative_id, func.count(Post.id))
-        .where(*conditions)
-        .group_by(Post.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 
@@ -621,6 +430,7 @@ async def create_post(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=post_in.grants,
+        actor_user_id=current_user.id,
     )
 
     # What the new body points at becomes `references` edges.
@@ -862,72 +672,19 @@ async def set_post_reaction_settings(
     return PostReactionSettings(reactions_enabled=post.reactions_enabled)
 
 
-@router.put("/{post_id}/grants", response_model=PostRead)
-async def set_post_grants(
-    post_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    post_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> PostRead:
-    """Replace the post's entire sharing state in one call — the body is the
-    full list of grants (all-initiative-members / per-user / per-role). Every
-    non-owner grant is rebuilt from it; the owner is always preserved."""
-    await resource_access.set_resource_grants(
-        session, Tool.post, post_id, current_user, guild_context, grants
-    )
-    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    # Sharing decides who has a notice at all, so the room is told and each
-    # window's own refetch settles what it may now see.
-    return serialize_post(hydrated, user_id=current_user.id)
+    """The notice a write answers with: re-read after the commit, serialized.
 
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{post_id}/view", response_model=RecentViewWrite)
-async def record_post_view(
-    post_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    post = await resource_access.load_authorized(
-        session, Tool.post, post_id, current_user, guild_context
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="post",
-        entity_id=post.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="post",
-        entity_id=post.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{post_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_post_view(
-    post_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    await resource_access.load_authorized(
-        session, Tool.post, post_id, current_user, guild_context
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="post",
-        entity_id=post_id,
-    )
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
+    hydrated = await _refetch_post(session, post_id, user_id=user.id)
+    return serialize_post(hydrated, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------

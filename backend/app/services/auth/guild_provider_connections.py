@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
 
+from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthProviderMessages
 from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
@@ -39,8 +40,19 @@ from app.schemas.platform.settings import (
     GuildProviderConnectionRead,
     GuildProviderConnectionUpdate,
 )
+from app.services import audit as audit_service
+from app.services.auth import narrowing_approval
 
 logger = logging.getLogger(__name__)
+
+#: What a community's connection to a provider consists of, for the record.
+AUDITED_FIELDS: tuple[str, ...] = (
+    "provider_id",
+    "claim",
+    "claim_values",
+    "enabled",
+    "auto_join",
+)
 
 
 def connection_read(
@@ -56,6 +68,7 @@ def connection_read(
         claim_values=list(connection.claim_values or ()),
         enabled=connection.enabled,
         auto_join=connection.auto_join,
+        narrowing_approved=connection.narrowing_approved_at is not None,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -77,6 +90,9 @@ def default_read(
         enabled=default.enabled,
         # Never inherited: joining a community is the community's own say.
         auto_join=False,
+        # The deployment wrote these values itself, so there is nobody else to
+        # ask about them.
+        narrowing_approved=True,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -237,6 +253,26 @@ async def _connectable_provider(
     return row
 
 
+def require_narrowing(*, enabled: bool, claim: str | None, values: list | None) -> None:
+    """An enabled connection says who on the provider counts as this
+    community's own.
+
+    Communities here are separate tenants, so a provider vouching for somebody
+    is not the same as that person belonging to one of them. A connection that
+    named nobody used to count everybody the provider did, which for a
+    provider open to the world is the world.
+
+    A **disabled** connection may name nobody: that is how a community
+    declines the deployment's answer for a provider, and it admits nobody by
+    being off.
+    """
+    if enabled and not (claim and values):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=AuthProviderMessages.CONNECTION_NEEDS_NARROWING,
+        )
+
+
 def clean_claim(
     claim: str | None, claim_values: list[str] | None
 ) -> tuple[str | None, list[str] | None]:
@@ -265,11 +301,13 @@ async def create_connection(
     payload: GuildProviderConnectionCreate,
     *,
     guild_id: int,
+    actor_user_id: int | None = None,
 ) -> GuildProviderConnectionRead:
     provider = await _connectable_provider(
         session, payload.provider_id, guild_id=guild_id
     )
     claim, claim_values = clean_claim(payload.claim, payload.claim_values)
+    require_narrowing(enabled=payload.enabled, claim=claim, values=claim_values)
     row = GuildProviderConnection(
         guild_id=guild_id,
         provider_id=provider.id,
@@ -280,6 +318,23 @@ async def create_connection(
     )
     session.add(row)
     try:
+        # Flushed here so the record can name the row it describes; the unique
+        # constraint still answers with the promised 409 below.
+        await session.flush()
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_PROVIDER_CONNECTED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_provider_connection",
+            target_id=row.id,
+            detail={
+                "provider_id": provider.id,
+                **audit_service.changed_fields(
+                    {}, audit_service.snapshot(row, AUDITED_FIELDS)
+                ),
+            },
+        )
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
@@ -298,6 +353,7 @@ async def create_connection(
         provider.slug,
         row.id,
     )
+    await narrowing_approval.ask_for_agreement(session, row)
     return connection_read(row, provider)
 
 
@@ -307,36 +363,79 @@ async def update_connection(
     payload: GuildProviderConnectionUpdate,
     *,
     guild_id: int,
+    actor_user_id: int | None = None,
 ) -> GuildProviderConnectionRead:
     row = await editable_connection(session, connection_id, guild_id=guild_id)
+    before = audit_service.snapshot(row, AUDITED_FIELDS)
+    asks_again = False
     data = payload.model_dump(exclude_unset=True)
     # The provider a connection is to is what it is; pointing an existing one
     # somewhere else would silently change who gets in. Disconnect and connect.
     if "claim" in data or "claim_values" in data:
+        was = (row.claim, tuple(row.claim_values or ()))
         row.claim, row.claim_values = clean_claim(
             data.get("claim", row.claim), data.get("claim_values", row.claim_values)
         )
+        # An agreement is about the values that were agreed. Writing different
+        # ones asks the question again.
+        if (row.claim, tuple(row.claim_values or ())) != was:
+            row.narrowing_approved_at = None
+            row.narrowing_approved_by = None
+            asks_again = True
     if "enabled" in data and data["enabled"] is not None:
         if not data["enabled"]:
             await _ensure_not_required(session, row, guild_id=guild_id)
         row.enabled = data["enabled"]
     if "auto_join" in data and data["auto_join"] is not None:
         row.auto_join = data["auto_join"]
+    # Asked of the row as it now stands, so neither half can be removed on its
+    # own: clearing the narrowing of an enabled connection is refused, and so
+    # is enabling one that has none.
+    require_narrowing(enabled=row.enabled, claim=row.claim, values=row.claim_values)
     session.add(row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_PROVIDER_CONNECTION_UPDATED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_provider_connection",
+            target_id=row.id,
+            detail={"provider_id": row.provider_id, **changed},
+        )
     await session.commit()
     await session.refresh(row)
+    if asks_again:
+        await narrowing_approval.ask_for_agreement(session, row)
     provider = await session.get(AuthProvider, row.provider_id)
     return connection_read(row, provider)
 
 
 async def delete_connection(
-    session: AsyncSession, connection_id: int, *, guild_id: int
+    session: AsyncSession,
+    connection_id: int,
+    *,
+    guild_id: int,
+    actor_user_id: int | None = None,
 ) -> None:
     """Disconnect. Nobody is signed out and no account changes — what goes is
     the button, and the community's claim on who arrives through it."""
     row = await editable_connection(session, connection_id, guild_id=guild_id)
     await _ensure_not_required(session, row, guild_id=guild_id)
+    provider_id = row.provider_id
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_PROVIDER_DISCONNECTED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild_provider_connection",
+        target_id=connection_id,
+        detail={"provider_id": provider_id},
+    )
     await session.commit()
     logger.info("guild %s disconnected connection %s", guild_id, connection_id)
 
@@ -496,7 +595,10 @@ async def join_on_arrival(
         for connection in await admitting_connections(
             session, provider_id=provider_id, claims=claims
         )
-        if connection.auto_join
+        # And only where the values it counts as its own have been agreed: a
+        # community names them itself, and joining somebody to a community is
+        # not something it gets to do on its own word alone.
+        if connection.auto_join and connection.narrowing_approved_at is not None
     ]
 
     joined: list[int] = []
@@ -506,7 +608,11 @@ async def join_on_arrival(
         try:
             async with session.begin_nested():
                 await guilds_service.ensure_membership(
-                    session, guild_id=guild_id, user_id=user_id
+                    session,
+                    guild_id=guild_id,
+                    user_id=user_id,
+                    actor_user_id=user_id,
+                    via="sso",
                 )
         except guilds_service.GuildCapacityError:
             logger.info(

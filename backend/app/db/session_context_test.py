@@ -237,8 +237,9 @@ def test_every_context_branch_binds_every_parameter():
 
     Written against the SQL rather than against a list kept beside it, so a GUC
     added to the statement and to only one branch fails here. That is what
-    happened to ``app.session_mfa``: the billing branch returns early and did
-    not gain it, and every billing-service session raised on the missing bind.
+    happened to the second-factor setting (``app.session_amr``'s predecessor):
+    the billing branch returns early and did not gain it, and every
+    billing-service session raised on the missing bind.
     """
     import re
 

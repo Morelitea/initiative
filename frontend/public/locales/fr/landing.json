@@ -1,7 +1,6 @@
 {
   "nav": {
     "signIn": "Se connecter",
-    "getStarted": "Créer une communauté",
     "pricing": "Tarifs",
     "help": "Aide"
   },
@@ -129,13 +128,13 @@
   "cta": {
     "title": "Quand vous voulez.",
     "description": "Connectez-vous si votre groupe est déjà ici. Créez une communauté sinon.",
-    "signIn": "Se connecter",
-    "start": "Créer une communauté"
+    "signIn": "Se connecter"
   },
   "footer": {
     "copyright": "© {{year}} Initiative. Open source, et ça le restera.",
     "docs": "Centre d'aide",
     "source": "Code source",
-    "changelog": "Nouveautés"
+    "changelog": "Nouveautés",
+    "cookies": "Cookies"
   }
 }

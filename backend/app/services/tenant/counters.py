@@ -16,7 +16,6 @@ from sqlmodel import select
 
 from app.services.permissions import (
     DAC_RESOURCES,
-    compute_permission,
     require_access,
 )
 from app.models.tenant.counter import (
@@ -33,31 +32,6 @@ from app.services.tenant import tags as tags_service
 # ---------------------------------------------------------------------------
 # Visibility subquery
 # ---------------------------------------------------------------------------
-
-
-# DAC — thin wrappers over the registry engine (the "counter_group" row).
-
-
-def compute_counter_group_permission(group: CounterGroup, user_id: int) -> str | None:
-    return compute_permission(DAC_RESOURCES["counter_group"], group, user_id)
-
-
-def require_counter_group_access(
-    group: CounterGroup,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: str | None = None,
-) -> None:
-    require_access(
-        DAC_RESOURCES["counter_group"],
-        group,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +99,8 @@ async def get_counter_group_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.counter_group.feature_disabled_code,
         )
-    require_counter_group_access(
+    require_access(
+        DAC_RESOURCES[Tool.counter_group],
         group,
         current_user,
         access="read",

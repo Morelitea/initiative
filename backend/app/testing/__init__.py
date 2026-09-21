@@ -11,6 +11,7 @@ guild's ``guild_<id>`` schema before touching the database (see
 """
 
 from app.testing.actor import Actor, make_actor
+from app.testing.audit import emitted
 from app.testing.app_channel import (
     APP_CHANNEL_SECRET,
     channel_headers,
@@ -27,6 +28,9 @@ from app.testing.factories import (
     create_app_service_registration,
     create_auth_provider,
     create_guild_provider_connection,
+    NARROWED_CLAIM,
+    NARROWED_VALUE,
+    satisfied_claims_for,
     create_calendar,
     create_guild_calendar,
     create_dashboard,
@@ -74,9 +78,21 @@ from app.testing.factories import (
     get_auth_headers,
     get_auth_token,
 )
+from app.testing.passkeys import (
+    assertion_for,
+    create_passkey,
+    registration_for,
+    stub_assertion,
+    stub_registration,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 __all__ = [
+    "assertion_for",
+    "create_passkey",
+    "registration_for",
+    "stub_assertion",
+    "stub_registration",
     "APP_CHANNEL_SECRET",
     "channel_headers",
     "encode_body",
@@ -87,10 +103,14 @@ __all__ = [
     "create_tool_entity",
     "Actor",
     "make_actor",
+    "emitted",
     "create_app_delegation",
     "create_app_service_registration",
     "create_auth_provider",
     "create_guild_provider_connection",
+    "NARROWED_CLAIM",
+    "NARROWED_VALUE",
+    "satisfied_claims_for",
     "create_calendar",
     "create_guild_calendar",
     "create_dashboard",

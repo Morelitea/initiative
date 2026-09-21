@@ -12,6 +12,16 @@ NEVER re-claimed and re-applied. Exports re-render idempotently (same
 artifact key); an interrupted import has already committed rows under the
 always-create policy, so a re-run would duplicate them. Stale running rows
 are failed closed with ``IMPORT_INTERRUPTED``.
+
+A stale ``fetching`` row is the one exception, and for the reason that makes
+the rule above right: a fetch writes no content row at all, only a payload in
+storage. There is nothing committed to duplicate, so the partial payload is
+thrown away and the job goes back in the queue to start over — keeping its
+credential, which is the one thing a restart still needs.
+
+Every other terminal transition here drops the job's credential along with its
+payload. Both are things the job was lent rather than things it owns, and a
+job that is over needs neither.
 """
 
 from __future__ import annotations
@@ -30,6 +40,7 @@ from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.services.import_engine import credentials as import_credentials
 from app.services.import_engine import engine as import_engine
 from app.services.platform import accounts as accounts_service
 from app.services.import_engine.contract import ImportEngineError
@@ -43,6 +54,12 @@ IMPORT_GC_POLL_SECONDS = 3600
 # A ``running`` row untouched this long is a crashed apply. Unlike exports it
 # is NOT re-claimed (see module docstring) — it is failed closed.
 STALE_RUNNING = timedelta(minutes=15)
+
+# A ``fetching`` row untouched this long is a crashed fetch. Longer than the
+# apply bound because reading somebody else's API under a rate limit is
+# legitimately slow, and re-claiming one that was still working would start a
+# second conversation with the same site.
+STALE_FETCHING = timedelta(minutes=60)
 
 
 def _open_user_session() -> AsyncSession:
@@ -109,9 +126,35 @@ async def _process_guild_jobs(
         job.error = ImportEngineMessages.IMPORT_INTERRUPTED
         job.updated_at = now
         import_engine.delete_payload(guild_id, job.payload_ref)
+        await import_credentials.discard(_credential_id(job))
         session.add(job)
         outcomes.append(_outcome(job, guild_id))
     if stale:
+        await session.commit()
+
+    # Re-claim abandoned fetches. Nothing content-side was written, so the
+    # partial payload is discarded and the job queues again from the start.
+    abandoned = list(
+        await session.exec(
+            select(ImportJob).where(
+                ImportJob.status == ImportJobStatus.fetching,
+                ImportJob.updated_at < now - STALE_FETCHING,
+            )
+        )
+    )
+    for job in abandoned:
+        logger.warning(
+            "import fetch re-claimed id=%s guild=%s source=%s",
+            job.id,
+            guild_id,
+            job.source,
+        )
+        import_engine.delete_payload(guild_id, job.payload_ref)
+        job.payload_ref = None
+        job.status = ImportJobStatus.queued
+        job.updated_at = now
+        session.add(job)
+    if abandoned:
         await session.commit()
 
     jobs = list(
@@ -146,11 +189,23 @@ async def _process_guild_jobs(
             job.error = None
         job.updated_at = datetime.now(timezone.utc)
         import_engine.delete_payload(guild_id, job.payload_ref)
+        await import_credentials.discard(_credential_id(job))
         job.payload_ref = None
         session.add(job)
         await session.commit()
         outcomes.append(_outcome(job, guild_id))
     return outcomes
+
+
+def _credential_id(job: ImportJob) -> int | None:
+    """The credential this job was lent, if it was lent one.
+
+    ``params`` is JSON that round-tripped through a request, so the value is
+    checked rather than trusted — and a job with no foreign source (every
+    backup, every envelope) simply has no such key.
+    """
+    raw = (job.params or {}).get("credential_id")
+    return raw if isinstance(raw, int) else None
 
 
 def _outcome(job: ImportJob, guild_id: int) -> JobOutcome:
@@ -200,6 +255,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                 guild_id=guild_id,
                 payload=payload,
                 include=(job.params or {}).get("include"),
+                people_map=(job.params or {}).get("people_map"),
             )
         return backup_result.model_dump(mode="json")
 
@@ -222,11 +278,13 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
             importer=importer,
             user=user,
         )
-        result = await importer.apply(
+        result = await import_engine.apply_one_envelope(
             user_session,
+            importer=importer,
             envelope=envelope,
             target_initiative=initiative,
-            importer=user,
+            user=user,
+            people_map=(job.params or {}).get("people_map"),
         )
         await user_session.commit()
     return result.model_dump(mode="json")
@@ -265,7 +323,11 @@ async def process_import_gc() -> None:
                 await session.exec(
                     select(ImportJob).where(
                         ImportJob.status.in_(
-                            (ImportJobStatus.staged, ImportJobStatus.queued)
+                            (
+                                ImportJobStatus.staged,
+                                ImportJobStatus.fetching,
+                                ImportJobStatus.queued,
+                            )
                         ),
                         ImportJob.expires_at.is_not(None),
                         ImportJob.expires_at < now,
@@ -274,8 +336,13 @@ async def process_import_gc() -> None:
             )
             for job in jobs:
                 import_engine.delete_payload(guild_id, job.payload_ref)
+                await import_credentials.discard(_credential_id(job))
                 job.status = ImportJobStatus.expired
                 job.payload_ref = None
                 job.updated_at = now
                 session.add(job)
             await session.commit()
+    # The backstop under every ``discard`` above: a credential whose job never
+    # reached a transition to be cleaned up by — a connect nobody finished, a
+    # wizard somebody closed — is removed on its own deadline.
+    await import_credentials.sweep_expired()

@@ -6,8 +6,10 @@ from urllib.parse import urlparse
 import asyncpg
 from sqlalchemy import delete as sql_delete
 
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.security import get_password_hash
+from app.core.version import get_version
 from app.db.schema_provisioning import (
     deprovision_guild,
     ensure_shared_table_grants,
@@ -15,9 +17,16 @@ from app.db.schema_provisioning import (
     verify_effective_shared_grants,
     verify_engine_identities,
 )
-from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
+from app.db.session import (
+    AdminSessionLocal,
+    migration_chain,
+    migration_lock,
+    run_migrations,
+    set_rls_context,
+)
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
+from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import dm_settings as dm_settings_service
@@ -60,6 +69,14 @@ async def init_owner() -> None:
             verified=True,
         )
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+        # Nobody signed in made this account, so it carries no actor.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_CREATED,
+            actor_user_id=None,
+            target_user_id=user.id,
+            detail={"via": "bootstrap"},
+        )
         await session.commit()
 
         # ...and their guild the same way the API does: create the shared rows,
@@ -105,6 +122,43 @@ def _is_dated_revision(revision: str) -> bool:
     )
 
 
+def _require_image_knows(stamped: list[str]) -> None:
+    """Exit with instructions if this image lacks a revision the database is
+    stamped at — the mirror of the pre-baseline case below, and the same
+    cryptic alembic failure ("can't locate revision") if nothing catches it.
+
+    A database gets ahead of its image whenever the container comes back on an
+    older one than last upgraded it: a pull that did not replace the tag it was
+    meant to, a deliberate roll-back, or a half-finished rebuild whose leftover
+    container is the one still being started.
+    """
+    revisions, head = migration_chain()
+    if not revisions:
+        return  # Chain unreadable; let alembic surface whatever is wrong with it
+    ahead = [revision for revision in stamped if revision not in revisions]
+    if not ahead:
+        return
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"This image is older than the database.\n\n"
+        f"  database stamped at:   {', '.join(sorted(ahead))}\n"
+        f"  newest migration here: {head or '?'}\n"
+        f"  this image:            {get_version()}\n\n"
+        f"Migrations only run forward, so this version cannot serve this\n"
+        f"database. Start the release that last upgraded it — or any newer\n"
+        f"one — and the app comes up where it left off.\n\n"
+        f"If it keeps coming back on the old image after you pull a new one,\n"
+        f"look for a container the upgrade left behind and started instead:\n"
+        f"compose renames the one it is replacing to <12 hex characters>_<name>\n"
+        f"and leaves it there when the rebuild does not finish. Remove it and\n"
+        f"bring the project up again.\n\n"
+        f"Running this version deliberately means restoring the database\n"
+        f"backup taken before that upgrade; there is no downgrade path.\n"
+        f"{'=' * 70}"
+    )
+
+
 async def check_pre_baseline_db() -> None:
     """Exit with upgrade instructions if the database predates the v0.53.5
     baseline squash — its revision id no longer exists in this chain, so
@@ -132,11 +186,15 @@ async def check_pre_baseline_db() -> None:
         if not has_table:
             return  # Fresh database
 
-        revision = await conn.fetchval(
-            "SELECT version_num FROM alembic_version LIMIT 1"
-        )
-        if revision is None:
+        # Every row, not just one: a database left on a branch carries a stamp
+        # per head, and a single image has to be able to run all of them.
+        stamped = [
+            row["version_num"]
+            for row in await conn.fetch("SELECT version_num FROM alembic_version")
+        ]
+        if not stamped:
             return  # Fresh database (empty alembic_version)
+        revision = stamped[0]
 
         if revision == BASELINE_REVISION:
             # Stamped at the baseline, but roles may be missing on a database
@@ -154,7 +212,11 @@ async def check_pre_baseline_db() -> None:
             return
 
         if _is_dated_revision(revision) and revision > BASELINE_REVISION:
-            return  # post-squash revision (e.g. 20260701_0126) — normal upgrade
+            # Post-squash, so alembic can run it — as long as this image is the
+            # one that has it. Say so when it isn't, for the same reason the
+            # pre-baseline message below exists.
+            _require_image_knows(stamped)
+            return  # normal upgrade
 
         raise SystemExit(
             f"\n{'=' * 70}\n"
@@ -177,9 +239,20 @@ async def check_pre_baseline_db() -> None:
         await conn.close()
 
 
+async def migrate_database() -> None:
+    """Bring the database to head, one instance at a time.
+
+    The pre-baseline check reads — and on one path clears — the alembic stamp
+    that the upgrade then acts on, so the two share a lock rather than taking
+    one each.
+    """
+    async with migration_lock():
+        await check_pre_baseline_db()
+        await run_migrations()
+
+
 async def init() -> None:
-    await check_pre_baseline_db()
-    await run_migrations()
+    await migrate_database()
     # Name the three DB logins in the log and warn loudly on wiring that
     # collapses the role separation, before the heals act on those logins.
     await verify_engine_identities()
@@ -198,6 +271,10 @@ async def init() -> None:
     await verify_effective_shared_grants()
     await init_owner()
     async with AdminSessionLocal() as session:
+        # The platform settings singleton, before anything reads it: a read
+        # serves defaults in memory rather than creating the row, so this is
+        # where it comes from on a database that has never had one.
+        await app_settings_service.seed_app_settings(session)
         # guild_settings is guild-scoped; route into the primary guild's schema so
         # the seeded settings row lands there, not in public. get_primary_guild_id
         # provisions the guild if it has to create it (no-FIRST_OWNER path).
@@ -206,6 +283,7 @@ async def init() -> None:
         await app_settings_service.get_or_create_guild_settings(
             session, guild_id=primary_id
         )
+        await session.commit()
 
 
 if __name__ == "__main__":  # pragma: no cover

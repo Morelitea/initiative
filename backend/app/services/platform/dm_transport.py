@@ -799,23 +799,6 @@ async def _other_members(
     )
 
 
-async def _sole_other_member(
-    session: AsyncSession, *, conversation_id: uuid.UUID, user_id: int
-) -> int:
-    """The other party, where there is exactly one.
-
-    The send path still speaks to one recipient. A roster that is not a pair has
-    no single answer to give it, and picking one of several would deliver a
-    message to a fraction of the people it was addressed to, so it refuses.
-    """
-    others = await _other_members(
-        session, conversation_id=conversation_id, user_id=user_id
-    )
-    if len(others) != 1:
-        raise DmTransportError(Messages.CONVERSATION_NOT_FOUND)
-    return others[0]
-
-
 async def leave_conversation(
     session: AsyncSession, *, user_id: int, conversation_id: uuid.UUID
 ) -> None:

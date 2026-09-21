@@ -40,9 +40,15 @@ Listing is then each community admin's own decision: they pick the community's c
 
 ### Asking members their age
 
-Because a listed community is open to people its members haven't met, Initiative asks anyone joining one to confirm they're **13 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered — and only the parts of Initiative open to strangers ask at all. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one from the directory to confirm they're **16 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
-The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
+**The rule belongs to the community, not to the way in.** Every route into a listed community is covered: the directory, an invite, and the group rules your identity provider drives. A community that hasn't listed itself asks nobody, whoever brings them in, and an unanswered question never costs somebody a membership they already have or holds up the rest of Initiative.
+
+Where nobody is at a keyboard to be asked — a group sync, say — what counts is the answer already on the account. Someone who has never been asked is let in; someone who answered under the minimum is not. The listed community then puts the question at its own door the first time they open it, which is the moment there is finally somebody there to answer. Until they do, that community is the only thing closed to them.
+
+A community that has been private until now collected its members under no such rule, so **listing it is refused while it holds anybody who has answered under the minimum**. That check runs on the way onto the shelf only: once listed, an ordinary edit is never failed over a member's answer.
+
+The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 16 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
 
 Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [operator dashboard](platform-roles.md#managing-platform-users).
 
@@ -69,6 +75,26 @@ Web sessions already open keep the terms they were opened under and pick up the 
     A phone holds a longer-lived credential, and the new limit is written into the ones already issued — measured from when that person last signed in. So somebody whose phone signed in three days ago, on a deployment that has just set twelve hours, is signed out at once and asked for their password again. Shortening the number, or turning on a community's twelve-hour switch, can therefore sign phones out immediately. Lengthening the number, or clearing it, signs nobody out — and a phone that is still signed in goes back to the longer window from its next renewal. A phone that was already signed out stays signed out: it has to sign in again, which is the point.
 
 **A community can hold itself to a stricter one.** Where you've [let a community configure its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), the switch is theirs rather than yours: under that community's own **Settings → Security**, and it's twelve hours — the figure HIPAA and NIST both land on. Its members then sign in again on that schedule whatever your own number says, and being in two such communities is still twelve hours, not six.
+
+### Requiring two-factor authentication
+
+By default nobody has to have [two-factor authentication](../account/two-factor-authentication.md) — anybody can set it up, and nobody is nagged. **Settings → Platform → Security** lets you change that, in two sizes:
+
+| Who you ask | What it means |
+|---|---|
+| **People with a platform role** | Support, moderators, operators and owners. The people who can see across the whole server rather than just their own communities. |
+| **Everybody** | Every account here. Communities stop being offered the question, because it's already answered for their members. |
+
+Either one counts an authenticator app **or** a passkey — whichever somebody has, they're covered. So is somebody whose single sign-on did the second factor on the way in, even if they have nothing set up here.
+
+Nobody is signed out. The next time somebody this covers opens the app they're asked to set one up, where they stand, and carry on once they have.
+
+!!! warning "Personal API keys and the app on a phone stop first"
+    Neither can type in a code, so for anybody this covers they stop working until that person sets a factor up — and start working again the moment they do. If you turn this on for everybody, expect a scripted integration or two to go quiet for as long as it takes its owner to spend a minute on their Security page.
+
+    The page tells you how many people don't have a factor yet before you save, which is a reasonable proxy for how much of that you're about to cause.
+
+Two things the page will stop you doing, both for the same reason: you can't require a factor while you haven't got one yourself, and you can't withdraw the authenticator app and passkeys from the [ways in](single-sign-on.md) while a requirement is standing. Lower the requirement first, then withdraw.
 
 ## Running behind a reverse proxy
 
@@ -118,6 +144,22 @@ These have their own pages:
 ## Mobile app version floor
 
 `MIN_NATIVE_VERSION` (tracked in the source) records the minimum native mobile-app version the current web bundle needs. You rarely touch it by hand — it's part of how the mobile app updates safely over the air. Mentioned here only so it isn't a mystery if you spot it. See [Backups & updates](backups-and-updates.md).
+
+## Logs
+
+Two streams come out of the container, and they are for different readers.
+
+**Standard error** is the application talking: what it checked at start-up, what it repaired, anything it thinks you should know. `LOG_LEVEL` says how much. It's `INFO` unless you set it; `WARNING` if you would rather only hear about trouble; `DEBUG` when you are chasing something and want all of it.
+
+**Standard output** is the audit stream: one JSON object per line, one line per recorded action — who did what, to which account or community, when — and nothing else on that stream. Every line carries `"stream": "audit"`, so a collector can route these and nothing else, and `"service": "initiative"`, so where the billing and automation services ship the same kind of line about the same community, a reader can tell whose it is. Whatever already ships your container's logs carries it, and a log platform reads it as records rather than text.
+
+That is where the record is kept, searched and alerted on. A filter on `event_type` is an alert; `guild_id` is on every line about a community. `LOG_LEVEL` has no say over any of it.
+
+**Every line says which request it came from.** A `context` block carries the id that request is known by, the network address it arrived from, and what the browser or app called itself. The same id goes back to the caller as an `X-Request-Id` header, and behind a reverse proxy an id the proxy has already assigned is kept rather than replaced — so one request has one name in your proxy's log, your application log and the audit stream alike. People appear as account ids; no line holds a password, a key, an email address or anybody's name.
+
+**Somebody visiting a community they don't belong to is recorded request by request.** Support access and emergency break-glass both work by a grant, and while one is live every single request made under it is a line of its own — the route, the method, the answer, and which grant allowed it. Knowing an operator held the keys for an hour is not the same as knowing what they opened, and this is the difference. Editing is over a live connection rather than a request, so that gets a line of its own the first time they change a document or a wiki page, naming which one.
+
+**What stays on the box.** Docker holds a container's output in a file that keeps growing until you say how much to keep. The example compose file says the last 50 MB per container, in five files it rotates through. Treat that as a buffer rather than the record: if the audit stream matters to you, ship it somewhere durable and let the buffer cover the stretch when the shipper is down.
 
 ## After changing settings
 

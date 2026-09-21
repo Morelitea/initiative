@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type {
   AccessGrantRead,
   AccessGrantStatus,
+  BreakGlassCreate,
   UserRole,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys";
 import { Capability, hasCapability } from "@/lib/permissions";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 
@@ -158,7 +160,9 @@ const grantScope = (grant: { purpose?: string; access_level: string }): string =
   grant.purpose === "settings" ? `settings · ${grant.access_level}` : grant.access_level;
 
 const BreakGlassSection = () => {
-  const { t } = useTranslation(["settings", "common"]);
+  // auth too: a prompt that produced nothing is reported in the same words
+  // the sign-in page uses for it.
+  const { t } = useTranslation(["settings", "common", "auth"]);
   const { refreshGuilds } = useGuilds();
   const [guildId, setGuildId] = useState("");
   const [duration, setDuration] = useState("60");
@@ -176,7 +180,13 @@ const BreakGlassSection = () => {
   const requirements = useBreakGlassRequirements();
   const [factorRefused, setFactorRefused] = useState(false);
   const needsCode = (requirements.data?.second_factor_required ?? false) || factorRefused;
-  const knownUnenrolled = requirements.data?.enrolled === false;
+  // Either factor answers, so the form offers what this account actually
+  // holds: the code field, the key, or the line telling somebody with neither
+  // where to go and get one.
+  const hasCode = requirements.data?.totp_enrolled ?? false;
+  const hasKey = requirements.data?.passkey_enrolled ?? false;
+  const knownUnenrolled = requirements.data !== undefined && !hasCode && !hasKey;
+  const [presenting, setPresenting] = useState(false);
 
   const breakGlass = useBreakGlass({
     onSuccess: () => {
@@ -185,6 +195,7 @@ const BreakGlassSection = () => {
       setReason("");
       setCode("");
       setFactorRefused(false);
+      setPresenting(false);
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
       // /c/{id} route guard read from the GuildProvider's context list (not
@@ -201,19 +212,40 @@ const BreakGlassSection = () => {
     },
   });
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  /** The request itself, with whatever answered the factor attached. */
+  const issue = (answer: Partial<BreakGlassCreate>) => {
     const gid = Number.parseInt(guildId, 10);
     if (!gid || !reason.trim()) return;
-    const entered = code.trim();
     // No level to choose: breaking glass issues write access to the content
     // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
       guild_id: gid,
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
-      ...(needsCode && entered ? classifySecondFactorAnswer(entered) : {}),
+      ...answer,
     });
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const entered = code.trim();
+    issue(needsCode && entered ? classifySecondFactorAnswer(entered) : {});
+  };
+
+  /** Answer with a key instead. The ceremony runs first and the assertion it
+   *  produces goes out with the request, so the key answers this grant rather
+   *  than the session the button was pressed on. */
+  const presentAKey = async () => {
+    if (!guildId.trim() || !reason.trim()) return;
+    setPresenting(true);
+    try {
+      issue({ passkey: await assertForBreakGlass() });
+    } catch (err) {
+      const line = describePasskeyPromptError(err);
+      if (line) toast.error(t(line));
+    } finally {
+      setPresenting(false);
+    }
   };
 
   return (
@@ -281,10 +313,26 @@ const BreakGlassSection = () => {
               </p>
             </div>
           )}
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="destructive" disabled={breakGlass.isPending}>
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={breakGlass.isPending || presenting}
+            >
               {breakGlass.isPending ? t("common:submitting") : t("accessGrants.breakGlass.submit")}
             </Button>
+            {needsCode && hasKey && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void presentAKey()}
+                disabled={breakGlass.isPending || presenting}
+              >
+                {presenting
+                  ? t("accessGrants.breakGlass.passkeyPresenting")
+                  : t("accessGrants.breakGlass.passkeySubmit")}
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>

@@ -2,7 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { type RelatedEnd, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type RelatedEnd,
+  SearchEntityType,
+  type SmartChipState,
+} from "@/api/generated/initiativeAPI.schemas";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +16,7 @@ import { entityRefTypeFor } from "@/lib/entityResolver";
 import { useGuildPath } from "@/lib/guildUrl";
 import { relatedTarget } from "@/lib/relationships";
 import { hitIcon, searchHitPath } from "@/lib/searchResults";
+import { CHIP_TONE_CLASSES } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
@@ -30,6 +35,19 @@ interface EntityCardProps {
   badge?: string;
   /** When the link was made, if the surface shows it. */
   linkedAt?: string | null;
+  /**
+   * What the far end is currently doing — a task's column, an event's date, a
+   * counter's reading. Read live rather than stored on the edge, so a card says
+   * what the thing is now and not what it was when somebody linked it.
+   */
+  state?: SmartChipState | null;
+  /**
+   * Whether the far end has finished, where that means anything. `false` dims
+   * the card: a blocker somebody has dealt with should stop drawing the eye
+   * without having to be unlinked. `null` is a kind that never finishes, which
+   * is most of them, and draws normally.
+   */
+  isOpen?: boolean | null;
   /** Take the link back. Omitted when this reader may not. */
   onRemove?: () => void;
   removing?: boolean;
@@ -58,6 +76,8 @@ export const EntityCard = ({
   variant = "card",
   badge,
   linkedAt,
+  state,
+  isOpen,
   onRemove,
   removing,
   className,
@@ -140,17 +160,44 @@ export const EntityCard = ({
     </div>
   );
 
-  const caption = linkedAt ? t("card.kindLinked", { kind: kindLabel, date: linked }) : kindLabel;
+  const settled = isOpen === false;
+  /** The live reading, drawn in the tone the server chose for it. */
+  const stateChip = state?.text ? (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 font-medium text-[11px]",
+        CHIP_TONE_CLASSES[state.tone]
+      )}
+    >
+      {state.text}
+    </span>
+  ) : null;
+
+  const kindCaption = linkedAt
+    ? t("card.kindLinked", { kind: kindLabel, date: linked })
+    : kindLabel;
+  // Where it lives, ahead of what it is: six tasks called "Do a thing" are all
+  // tasks, and the project is the only thing that tells them apart.
+  const where = end.tool_title?.trim();
+  const caption = where ? `${where} · ${kindCaption}` : kindCaption;
 
   const body = compact ? (
     <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-1.5">
       <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-muted">{mark}</div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-sm leading-tight">{title}</p>
+        <p
+          className={cn(
+            "truncate font-medium text-sm leading-tight",
+            settled && "text-muted-foreground line-through"
+          )}
+        >
+          {title}
+        </p>
         <p className="truncate text-muted-foreground text-xs">
           {badge ? `${badge} · ${caption}` : caption}
         </p>
       </div>
+      {stateChip}
     </div>
   ) : (
     <>
@@ -168,7 +215,12 @@ export const EntityCard = ({
         <TooltipProvider delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <h3 className="line-clamp-2 font-semibold text-card-foreground text-sm leading-snug">
+              <h3
+                className={cn(
+                  "line-clamp-2 font-semibold text-sm leading-snug",
+                  settled ? "text-muted-foreground line-through" : "text-card-foreground"
+                )}
+              >
                 {title}
               </h3>
             </TooltipTrigger>
@@ -177,7 +229,10 @@ export const EntityCard = ({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <p className="text-muted-foreground text-xs">{caption}</p>
+        {/* Two lines: where a thing lives is often longer than the box, and
+            cutting it at one can leave the project name a stub. */}
+        <p className="line-clamp-2 text-muted-foreground text-xs">{caption}</p>
+        {stateChip ? <div className="pt-1">{stateChip}</div> : null}
       </div>
     </>
   );
@@ -193,6 +248,7 @@ export const EntityCard = ({
           to={gp(path)}
           className={cn(
             shell,
+            settled && "opacity-70",
             compact
               ? "hover:border-primary/50 hover:bg-accent/40"
               : "hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg",

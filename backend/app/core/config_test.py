@@ -1,7 +1,5 @@
 """Tests for application settings parsing."""
 
-from datetime import datetime, timezone
-
 import pytest
 from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
@@ -27,41 +25,6 @@ def _settings(**overrides) -> Settings:
         DATABASE_URL_APP="postgresql+asyncpg://app:app@localhost/app",
         DATABASE_URL_ADMIN="postgresql+asyncpg://admin:admin@localhost/app",
         **overrides,
-    )
-
-
-def test_privileged_database_deadline_defaults_to_disabled():
-    assert _settings().ALLOW_PRIVILEGED_DATABASE_UNTIL is None
-
-
-def test_privileged_database_deadline_is_normalized_to_utc():
-    configured = _settings(ALLOW_PRIVILEGED_DATABASE_UNTIL="2030-04-05T12:30:00+05:30")
-
-    assert configured.ALLOW_PRIVILEGED_DATABASE_UNTIL == datetime(
-        2030, 4, 5, 7, 0, tzinfo=timezone.utc
-    )
-    assert configured.ALLOW_PRIVILEGED_DATABASE_UNTIL.tzinfo is timezone.utc
-
-
-@pytest.mark.parametrize(
-    "deadline",
-    [
-        "not-a-date",
-        "2030-04-05T12:30:00",
-    ],
-)
-def test_privileged_database_deadline_rejects_malformed_or_naive_values(deadline):
-    with pytest.raises(ValidationError, match="ALLOW_PRIVILEGED_DATABASE_UNTIL"):
-        _settings(ALLOW_PRIVILEGED_DATABASE_UNTIL=deadline)
-
-
-def test_privileged_database_deadline_allows_an_operator_chosen_far_future_time():
-    deadline = "9998-12-31T23:59:59Z"
-
-    assert _settings(
-        ALLOW_PRIVILEGED_DATABASE_UNTIL=deadline
-    ).ALLOW_PRIVILEGED_DATABASE_UNTIL == datetime(
-        9998, 12, 31, 23, 59, 59, tzinfo=timezone.utc
     )
 
 
@@ -416,3 +379,18 @@ def test_enable_api_docs_defaults_true():
 
 def test_enable_api_docs_can_be_disabled():
     assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False
+
+
+def test_log_level_defaults_to_info():
+    assert _settings().LOG_LEVEL == "INFO"
+
+
+@pytest.mark.parametrize("given", ["debug", " Warning ", "ERROR"])
+def test_log_level_is_read_as_a_standard_level_name(given):
+    assert _settings(LOG_LEVEL=given).LOG_LEVEL == given.strip().upper()
+
+
+@pytest.mark.parametrize("bad", ["verbose", "NOTSET", "", "20"])
+def test_log_level_refuses_anything_else(bad):
+    with pytest.raises(ValidationError, match="LOG_LEVEL"):
+        _settings(LOG_LEVEL=bad)

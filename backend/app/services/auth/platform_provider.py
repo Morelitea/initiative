@@ -122,7 +122,17 @@ async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
 
 async def _create_platform_row(session: AsyncSession, **fields) -> AuthProvider:
     """Insert the platform row; a concurrent-creation race resolves to the
-    winner's row (the savepoint keeps the outer transaction usable)."""
+    winner's row (the savepoint keeps the outer transaction usable).
+
+    The row is the deployment's first provider and nobody signed in makes it,
+    so the record it stages carries no actor and says the environment is
+    where it came from. A lost race writes no record: the winner's row is
+    returned instead of one being created here.
+    """
+    from app.core.audit_events import AuditEventType
+    from app.services import audit as audit_service
+    from app.services.auth.provider_registry import AUDITED_FIELDS
+
     provider = AuthProvider(
         slug=PLATFORM_OIDC_SLUG,
         kind=AuthProviderKind.oidc.value,
@@ -133,6 +143,19 @@ async def _create_platform_row(session: AsyncSession, **fields) -> AuthProvider:
         async with session.begin_nested():
             session.add(provider)
             await session.flush()
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_PROVIDER_CREATED,
+            actor_user_id=None,
+            target_type="auth_provider",
+            target_id=provider.id,
+            detail={
+                "via": "env",
+                **audit_service.changed_fields(
+                    {}, audit_service.snapshot(provider, AUDITED_FIELDS)
+                ),
+            },
+        )
         await session.commit()
         await session.refresh(provider)
         return provider

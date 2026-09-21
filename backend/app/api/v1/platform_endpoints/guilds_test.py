@@ -6,10 +6,10 @@ Tests the guild API endpoints at /api/v1/guilds including:
 - Creating guilds
 - Updating guilds
 - Deleting guilds
-- Switching active guild
 - Reordering guilds
 - Creating and managing invites
 - Accepting invites
+- Leaving a guild
 """
 
 import pytest
@@ -30,7 +30,6 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
-    get_auth_headers,
     get_auth_token,
 )
 
@@ -51,62 +50,44 @@ async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
 
 
 @pytest.mark.integration
-async def test_list_guilds_empty(client: AsyncClient, session: AsyncSession):
-    """Test listing guilds when user has no memberships."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
+async def test_an_account_in_no_guild_lists_nothing(
+    client: AsyncClient, acting_user
+) -> None:
+    """The list is memberships, so an account with none gets an empty one."""
+    a = await acting_user("member")
 
-    response = await client.get("/api/v1/guilds/", headers=headers)
+    response = await client.get("/api/v1/guilds/", headers=a.headers)
 
     assert response.status_code == 200
-    data = response.json()
-    assert data == []
+    assert response.json() == []
 
 
 @pytest.mark.integration
-async def test_list_guilds_with_memberships(client: AsyncClient, session: AsyncSession):
-    """Test listing guilds shows all user's guilds."""
-    user = await create_user(session, email="test@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
-
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-
-    headers = get_auth_headers(user)
-    response = await client.get("/api/v1/guilds/", headers=headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    guild_names = {g["name"] for g in data}
-    assert "Guild 1" in guild_names
-    assert "Guild 2" in guild_names
-
-
-@pytest.mark.integration
-async def test_list_guilds_includes_role(client: AsyncClient, session: AsyncSession):
-    """Test that guild list includes user's role in each guild."""
-    user = await create_user(session, email="test@example.com")
+async def test_the_guild_list_is_the_callers_memberships_with_their_roles(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """Every guild the caller belongs to, each carrying the role they hold
+    there — and nothing they do not belong to, whether it is somebody else's or
+    nobody's. Which guild is open is the client's business, so no entry says."""
     admin_guild = await create_guild(session, name="Admin Guild")
+    a = await acting_user(guild_role=GuildRole.admin, guild=admin_guild)
     member_guild = await create_guild(session, name="Member Guild")
-
     await create_guild_membership(
-        session, user=user, guild=admin_guild, role=GuildRole.admin
+        session, user=a.user, guild=member_guild, role=GuildRole.member
     )
-    await create_guild_membership(
-        session, user=user, guild=member_guild, role=GuildRole.member
-    )
+    await create_guild(session, name="Nobody's Guild")
+    elsewhere = await create_guild(session, name="Somebody Else's Guild")
+    await acting_user(guild_role=GuildRole.admin, guild=elsewhere)
 
-    headers = get_auth_headers(user)
-    response = await client.get("/api/v1/guilds/", headers=headers)
+    response = await client.get("/api/v1/guilds/", headers=a.headers)
 
     assert response.status_code == 200
     data = response.json()
-
-    guild_roles = {g["name"]: g["role"] for g in data}
-    assert guild_roles["Admin Guild"] == "admin"
-    assert guild_roles["Member Guild"] == "member"
+    assert {entry["name"]: entry["role"] for entry in data} == {
+        "Admin Guild": "admin",
+        "Member Guild": "member",
+    }
+    assert "is_active" not in data[0]
 
 
 #: The administration half of ``GuildRead`` — caps, plan label, retention
@@ -132,11 +113,9 @@ async def test_list_guilds_administration_fields_are_admin_only(
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
-    guild = await session.get(Guild, admin.guild.id)
-    assert guild is not None
     await guild_administration(
         session,
-        guild,
+        admin.guild,
         max_storage_bytes=5_000_000,
         max_users=25,
         tier_name="Bespoke Plan",
@@ -154,7 +133,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
         assert member_row[field] is None, f"{field} must not reach a plain member"
     # What a member does get: the guild itself, their membership, the roster
     # size, and whether content is frozen.
-    assert member_row["name"] == guild.name
+    assert member_row["name"] == admin.guild.name
     assert member_row["role"] == "member"
     assert member_row["member_count"] == 2
     assert member_row["content_read_only"] is False
@@ -170,240 +149,254 @@ async def test_list_guilds_administration_fields_are_admin_only(
 
 
 @pytest.mark.integration
-async def test_accepted_invite_withholds_administration_fields(
+async def test_accepting_an_invite_answers_with_the_member_tier_guild(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Joining by invite answers with the same member-tier payload — the new
-    member is not an admin, so the administration fields come back ``None``."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    guild = await session.get(Guild, admin.guild.id)
-    assert guild is not None
+    """Redeeming a code hands back the guild the caller has just joined, in the
+    same member-tier payload the list serves: they are not an admin, so the
+    administration fields come back ``None``."""
+    guild = await create_guild(session, name="Test Guild")
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
     await guild_administration(session, guild, max_users=25, tier_name="Bespoke Plan")
 
     invite = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites",
-        headers=admin.headers,
-        json={},
+        f"/api/v1/guilds/{guild.id}/invites", headers=admin.headers, json={}
     )
     assert invite.status_code == 201, invite.text
 
-    joiner = await create_user(session, email="joiner@example.com")
+    joiner = await acting_user("member")
     resp = await client.post(
         "/api/v1/guilds/invite/accept",
-        headers=get_auth_headers(joiner),
+        headers=joiner.headers,
         json={"code": invite.json()["code"]},
     )
+
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    assert body["id"] == guild.id
+    assert body["name"] == "Test Guild"
     assert body["role"] == "member"
     for field in ADMIN_ONLY_GUILD_FIELDS:
         assert body[field] is None, f"{field} must not reach a plain member"
 
 
 @pytest.mark.integration
-async def test_list_guilds_shows_active_guild(
-    client: AsyncClient, session: AsyncSession
+async def test_creating_a_guild_seats_its_creator_and_leaves_the_icon_unset(
+    client: AsyncClient, acting_user
 ):
-    """Test listing guilds returns role and position."""
-    user = await create_user(session, email="test@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
-
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-
-    headers = get_auth_headers(user)
-    response = await client.get("/api/v1/guilds/", headers=headers)
-
-    assert response.status_code == 200
-    data = response.json()
-
-    guild_names = {g["name"] for g in data}
-    assert "Guild 1" in guild_names
-    assert "Guild 2" in guild_names
-    # is_active is no longer returned; active guild is client-side only
-    assert "is_active" not in data[0]
-
-
-@pytest.mark.integration
-async def test_create_guild(client: AsyncClient, session: AsyncSession):
-    """Test creating a new guild."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
-
-    payload = {
-        "name": "New Guild",
-        "description": "A test guild",
-    }
-
-    response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
-
-    assert response.status_code == 201
-    data = response.json()
-    assert data["name"] == "New Guild"
-    assert data["description"] == "A test guild"
-    # Whoever makes a community holds its seat.
-    assert data["role"] == "superadmin"
-
-
-@pytest.mark.integration
-async def test_a_new_guild_has_no_icon_yet(client: AsyncClient, session: AsyncSession):
-    """An icon is a picture, not a field: a guild is created and then given
-    one, through ``PUT /guilds/{id}/icon``."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
+    """Whoever makes a community holds its seat. An icon is a picture rather
+    than a field, so a new guild has none until ``PUT /guilds/{id}/icon``."""
+    a = await acting_user("member")
 
     response = await client.post(
         "/api/v1/guilds/",
-        headers=headers,
-        json={"name": "Icon Guild", "description": "Guild with icon"},
+        headers=a.headers,
+        json={"name": "New Guild", "description": "A test guild"},
     )
 
-    assert response.status_code == 201
-    assert response.json()["icon_url"] is None
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["name"] == "New Guild"
+    assert data["description"] == "A test guild"
+    assert data["role"] == "superadmin"
+    assert data["icon_url"] is None
 
 
 @pytest.mark.integration
-async def test_create_guild_requires_name(client: AsyncClient, session: AsyncSession):
+async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     """Test that creating a guild requires a name."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
+    a = await acting_user("member")
 
-    payload = {"name": "   ", "description": "No name"}
-
-    response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=a.headers,
+        json={"name": "   ", "description": "No name"},
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "GUILD_NAME_REQUIRED"
 
 
+# --- one free community each ------------------------------------------------
+
+
+@pytest.fixture
+def billed(monkeypatch):
+    """A deployment with a billing service behind it. The gate below is skipped
+    entirely without one, which is every self-hosted install."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", "a-key")
+    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "a-secret")
+
+
 @pytest.mark.integration
-async def test_create_guild_sets_as_active(client: AsyncClient, session: AsyncSession):
-    """Test that creating a guild sets it as the user's active guild."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
+async def test_a_second_free_community_is_refused_before_it_is_made(
+    client: AsyncClient, session: AsyncSession, acting_user, billed
+):
+    """One free community per account, and the refusal comes first.
 
-    payload = {"name": "Active Guild"}
+    The old shape let the community be created and priced afterwards, which
+    handed somebody who wanted a free notebook a trial they never asked for.
+    Refusing here means nothing exists to undo: no guild, no membership, no
+    clock started on anybody's behalf, and a client that can send them to the
+    plan picker with the answer in hand.
+    """
+    a = await acting_user("member")
+    first = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+    )
+    assert first.status_code == 201, first.text
 
-    response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
+    second = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "One more"}
+    )
+    assert second.status_code == 402
+    assert second.json()["detail"] == "FREE_COMMUNITY_ALREADY_HELD"
+    # Nothing was made on the way to that answer.
+    made = (await session.exec(select(Guild).where(Guild.name == "One more"))).all()
+    assert made == []
 
-    assert response.status_code == 201
+
+@pytest.mark.integration
+async def test_a_paid_community_does_not_use_up_the_free_one(
+    client: AsyncClient, session: AsyncSession, acting_user, billed
+):
+    """The rule counts *free* communities, and billing is what says which are.
+
+    ``plan_is_free`` is the only money fact this app is told, and it is a
+    boolean rather than a tier name for a reason: nothing here has to know what
+    a plan is called, or what it costs, to answer this question.
+    """
+    a = await acting_user("member")
+    paid = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "Acme"}
+    )
+    assert paid.status_code == 201, paid.text
+
+    guild = await session.get(Guild, paid.json()["id"])
+    administration = await guild_administration(session, guild)
+    administration.plan_is_free = False
+    session.add(administration)
+    await session.commit()
+
+    free = await client.post(
+        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+    )
+    assert free.status_code == 201, free.text
+
+
+@pytest.mark.integration
+async def test_a_deployment_without_billing_never_counts_communities(
+    client: AsyncClient, acting_user
+):
+    """No billing service, no rule. A self-hosted install makes as many as it
+    likes, and nothing in this app has an opinion about how many that is."""
+    a = await acting_user("member")
+    for name in ("One", "Two", "Three"):
+        created = await client.post(
+            "/api/v1/guilds/", headers=a.headers, json={"name": name}
+        )
+        assert created.status_code == 201, created.text
+
+
+@pytest.mark.integration
+async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
+    client: AsyncClient, acting_user, billed
+):
+    """An enterprise onboarding is a community made for a customer who is about
+    to be invoiced, not a second free notebook — and the person it is for may
+    well already have one of those."""
+    staff = await acting_user(UserRole.owner)
+    customer = await acting_user("member")
+    theirs = await client.post(
+        "/api/v1/guilds/", headers=customer.headers, json={"name": "Their notebook"}
+    )
+    assert theirs.status_code == 201, theirs.text
+
+    for_them = await client.post(
+        "/api/v1/guilds/",
+        headers=staff.headers,
+        json={"name": "Acme", "owner_user_id": customer.user.id},
+    )
+    assert for_them.status_code == 201, for_them.text
 
 
 # --- creating a guild for another account ----------------------------------
 
 
 @pytest.mark.integration
-async def test_staff_can_create_a_guild_owned_by_someone_else(
-    client: AsyncClient, session: AsyncSession
+async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
-    customer = await create_user(session, email="customer@example.com")
+    """The named account holds the seat and the creator holds nothing in it.
+    Who did it and who it was for are both in the row, not only in a log line.
+    """
+    staff = await acting_user(UserRole.owner)
+    customer = await acting_user("member")
 
     response = await client.post(
         "/api/v1/guilds/",
-        headers=get_auth_headers(staff),
-        json={"name": "Acme", "owner_user_id": customer.id},
+        headers=staff.headers,
+        json={"name": "Acme", "owner_user_id": customer.user.id},
     )
 
     assert response.status_code == 201, response.text
-    guild_id = response.json()["id"]
-
-    # The named account holds its seat...
-    memberships = (
-        await session.exec(
-            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
-        )
-    ).all()
-    assert [(m.user_id, m.role) for m in memberships] == [
-        (customer.id, GuildRole.superadmin)
-    ]
-    # ...and the creator holds nothing in it.
-    assert staff.id not in {m.user_id for m in memberships}
-
-
-@pytest.mark.integration
-async def test_creating_for_someone_else_records_both_identities(
-    client: AsyncClient, session: AsyncSession
-):
-    """Who did it and who it was for, in the row rather than only a log line."""
-    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
-    customer = await create_user(session, email="customer@example.com")
-
-    response = await client.post(
-        "/api/v1/guilds/",
-        headers=get_auth_headers(staff),
-        json={"name": "Acme", "owner_user_id": customer.id},
-    )
-
     guild = await session.get(Guild, response.json()["id"])
-    assert guild.created_by == staff.id
-    membership = (
+    assert guild.created_by == staff.user.id
+    memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.guild_id == guild.id)
         )
-    ).one()
-    assert membership.user_id == customer.id
+    ).all()
+    assert [(m.user_id, m.role) for m in memberships] == [
+        (customer.user.id, GuildRole.superadmin)
+    ]
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    "for_another_account",
+    [False, True],
+    ids=["for themselves", "for another account"],
+)
 async def test_a_new_guild_is_created_with_no_initiatives(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    for_another_account: bool,
 ):
-    """A new guild holds no initiative at all. Naming a body of work is the
-    owner's first decision, and a seeded "Default Initiative" answered it for
-    them; the guild home offers them the empty state instead."""
-    owner = await create_user(session, email="owner@example.com")
-
-    response = await client.post(
-        "/api/v1/guilds/",
-        headers=get_auth_headers(owner),
-        json={"name": "Acme"},
+    """A new guild holds no initiative at all, and so nobody inside its content
+    — the creator of a guild made for somebody else included. Naming a body of
+    work is the owner's first decision, and a seeded "Default Initiative"
+    answered it for them; the guild home offers them the empty state instead."""
+    creator = await acting_user(
+        UserRole.owner if for_another_account else UserRole.member
     )
-    assert response.status_code == 201
-    guild_id = response.json()["id"]
+    body: dict = {"name": "Acme"}
+    if for_another_account:
+        body["owner_user_id"] = (await acting_user("member")).user.id
 
-    await route_session_to_guild(session, guild_id)
+    response = await client.post("/api/v1/guilds/", headers=creator.headers, json=body)
+    assert response.status_code == 201, response.text
+
+    await route_session_to_guild(session, response.json()["id"])
     assert (await session.exec(select(Initiative))).all() == []
     assert (await session.exec(select(InitiativeMember))).all() == []
 
 
 @pytest.mark.integration
-async def test_a_guild_made_for_someone_else_leaves_its_creator_no_content(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild made for another account must not leave its creator inside the
-    content. With nothing seeded there is no content to be inside — this holds
-    the line so a future seed cannot quietly hand the staff creator a
-    membership."""
-    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
-    customer = await create_user(session, email="customer@example.com")
-
-    response = await client.post(
-        "/api/v1/guilds/",
-        headers=get_auth_headers(staff),
-        json={"name": "Acme", "owner_user_id": customer.id},
-    )
-    guild_id = response.json()["id"]
-
-    await route_session_to_guild(session, guild_id)
-    members = (await session.exec(select(InitiativeMember))).all()
-    assert {m.user_id for m in members} <= {customer.id}
-
-
-@pytest.mark.integration
 async def test_an_ordinary_user_cannot_name_another_owner(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Refused, not silently ignored: creating the guild under the caller would
-    answer 201 for a request that named someone else."""
-    user = await create_user(session, email="member@example.com")
-    other = await create_user(session, email="other@example.com")
+    """Refused, not silently ignored: the guild is not created at all."""
+    a = await acting_user("member")
+    other = await acting_user("member")
 
     response = await client.post(
         "/api/v1/guilds/",
-        headers=get_auth_headers(user),
-        json={"name": "Not yours", "owner_user_id": other.id},
+        headers=a.headers,
+        json={"name": "Not yours", "owner_user_id": other.user.id},
     )
 
     assert response.status_code == 403
@@ -414,17 +407,15 @@ async def test_an_ordinary_user_cannot_name_another_owner(
 
 
 @pytest.mark.integration
-async def test_naming_yourself_needs_no_capability(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_naming_yourself_needs_no_capability(client: AsyncClient, acting_user):
     """The field is about handing a guild to someone else; spelling out your
     own id is the ordinary path."""
-    user = await create_user(session, email="member@example.com")
+    a = await acting_user("member")
 
     response = await client.post(
         "/api/v1/guilds/",
-        headers=get_auth_headers(user),
-        json={"name": "Mine", "owner_user_id": user.id},
+        headers=a.headers,
+        json={"name": "Mine", "owner_user_id": a.user.id},
     )
 
     assert response.status_code == 201, response.text
@@ -438,22 +429,20 @@ async def test_naming_yourself_needs_no_capability(
     ids=["unknown user", "deactivated user"],
 )
 async def test_an_unusable_owner_is_refused(
-    client: AsyncClient, session: AsyncSession, owner_id_of: str
+    client: AsyncClient, session: AsyncSession, acting_user, owner_id_of: str
 ):
     """This never creates an account, and never hands a guild to one that
     cannot sign in to run it."""
-    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    staff = await acting_user(UserRole.owner)
     if owner_id_of == "missing":
         owner_id = 999_999_999
     else:
-        deactivated = await create_user(
-            session, email="gone@example.com", status=UserStatus.deactivated
-        )
+        deactivated = await create_user(session, status=UserStatus.deactivated)
         owner_id = deactivated.id
 
     response = await client.post(
         "/api/v1/guilds/",
-        headers=get_auth_headers(staff),
+        headers=staff.headers,
         json={"name": "Acme", "owner_user_id": owner_id},
     )
 
@@ -462,17 +451,17 @@ async def test_an_unusable_owner_is_refused(
 
 
 @pytest.mark.integration
-async def test_update_guild_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_update_guild_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that admin can update guild."""
-    user = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, name="Old Name", description="Old description")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    payload = {"name": "New Name", "description": "New description"}
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}", headers=headers, json=payload
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin.headers,
+        json={"name": "New Name", "description": "New description"},
     )
 
     assert response.status_code == 200
@@ -482,190 +471,134 @@ async def test_update_guild_as_admin(client: AsyncClient, session: AsyncSession)
 
 
 @pytest.mark.integration
-async def test_update_guild_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
+async def test_an_ordinary_admin_cannot_delete_the_community(
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that regular members cannot update guild."""
-    user = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+    """Deleting a community is the seat's, not an admin's. It is the one
+    action an admin could not undo and could not have undone for them."""
+    guild = await create_guild(session, name="Not Yours To End")
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+
+    refused = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=admin.headers,
+        json={
+            "password": "testpassword123",
+            "confirmation_text": "DELETE NOT YOURS TO END",
+        },
     )
 
-    headers = get_auth_headers(user)
-    payload = {"name": "Hacked Name"}
-
-    response = await client.patch(
-        f"/api/v1/guilds/{guild.id}", headers=headers, json=payload
-    )
-
-    assert response.status_code == 403
+    assert refused.status_code == 403, refused.text
 
 
 @pytest.mark.integration
-async def test_update_guild_without_membership_forbidden(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(
+    "password,confirmation,expected_status,expected_detail",
+    [
+        pytest.param(
+            "testpassword123",
+            "DELETE GUILD TO DELETE",
+            204,
+            None,
+            id="the password and the phrase",
+        ),
+        pytest.param(
+            "wrongpassword",
+            "DELETE GUILD TO DELETE",
+            400,
+            "GUILD_INVALID_PASSWORD",
+            id="a password that does not match",
+        ),
+        pytest.param(
+            "testpassword123",
+            "To Delete",
+            400,
+            "GUILD_CONFIRMATION_MISMATCH",
+            id="a phrase that does not match",
+        ),
+    ],
+)
+async def test_deleting_a_guild_asks_for_the_password_and_the_phrase(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    password: str,
+    confirmation: str,
+    expected_status: int,
+    expected_detail: str | None,
 ):
-    """Test that users without membership cannot update guild."""
-    user = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session, name="Test Guild")
-
-    headers = get_auth_headers(user)
-    payload = {"name": "Hacked Name"}
-
-    response = await client.patch(
-        f"/api/v1/guilds/{guild.id}", headers=headers, json=payload
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_delete_guild_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that admin can delete guild with the right password and phrase."""
-    user = await create_user(session, email="admin@example.com")
+    """Both answers have to be right. A refusal is 400 rather than 401, which
+    is the status the SPA reads as a session ending."""
     guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    body = {
-        "password": "testpassword123",
-        "confirmation_text": "DELETE GUILD TO DELETE",
-    }
-    response = await client.request(
-        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
-    )
-
-    assert response.status_code == 204
-
-
-@pytest.mark.integration
-async def test_delete_guild_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
-):
-    """Test that regular members cannot delete guild."""
-    user = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(user)
-    body = {
-        "password": "testpassword123",
-        "confirmation_text": "DELETE GUILD TEST GUILD",
-    }
-    response = await client.request(
-        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_delete_guild_wrong_password(client: AsyncClient, session: AsyncSession):
-    """A wrong password is rejected with 400 (not 401, to avoid logout)."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    body = {"password": "wrongpassword", "confirmation_text": "DELETE GUILD TO DELETE"}
-    response = await client.request(
-        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
-
-
-@pytest.mark.integration
-async def test_delete_guild_wrong_confirmation(
-    client: AsyncClient, session: AsyncSession
-):
-    """A mismatched confirmation phrase is rejected with 400."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    body = {"password": "testpassword123", "confirmation_text": "To Delete"}
-    response = await client.request(
-        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_CONFIRMATION_MISMATCH"
-
-
-@pytest.mark.integration
-async def test_delete_guild_oidc_user_skips_password(
-    client: AsyncClient, session: AsyncSession
-):
-    """An SSO-provisioned account holds no password, so there is none for the
-    gate to ask for — it deletes with just the phrase."""
-    user = await create_user(session, email="sso@example.com", hashed_password=None)
-    await create_federated_identity(session, user, subject="sso-123")
-    guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = await _just_signed_in(session, user)
-    body = {"confirmation_text": "DELETE GUILD TO DELETE"}
-    response = await client.request(
-        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
-    )
-
-    assert response.status_code == 204
-
-
-@pytest.mark.integration
-async def test_delete_guild_passkey_only_admin_skips_password(
-    client: AsyncClient, session: AsyncSession
-):
-    """An admin who signs in with a credential and holds no password at all."""
-    user = await create_user(
-        session, email="passkey-admin@example.com", hashed_password=None
-    )
-    session.add(
-        UserPasskey(
-            user_id=user.id,
-            credential_id=b"delete-guild-key",
-            public_key=b"public-key-bytes",
-            rp_id="localhost",
-            sign_count=0,
-            transports=["internal"],
-            name="Laptop",
-        )
-    )
-    await session.commit()
-    guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
 
     response = await client.request(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",
-        headers=await _just_signed_in(session, user),
+        headers=admin.headers,
+        json={"password": password, "confirmation_text": confirmation},
+    )
+
+    assert response.status_code == expected_status, response.text
+    if expected_detail is not None:
+        assert response.json()["detail"] == expected_detail
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "credential", ["federated identity", "passkey"], ids=["SSO", "passkey"]
+)
+async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
+    client: AsyncClient, session: AsyncSession, acting_user, credential: str
+):
+    """An account that signs in another way holds no password for the gate to
+    ask for, so the phrase and a sign-in from a moment ago are the whole
+    confirmation."""
+    guild = await create_guild(session, name="To Delete")
+    admin = await acting_user(
+        guild_role=GuildRole.superadmin, guild=guild, hashed_password=None
+    )
+    if credential == "federated identity":
+        await create_federated_identity(session, admin.user, subject="sso-123")
+    else:
+        session.add(
+            UserPasskey(
+                user_id=admin.user.id,
+                credential_id=b"delete-guild-key",
+                public_key=b"public-key-bytes",
+                rp_id="localhost",
+                sign_count=0,
+                transports=["internal"],
+                name="Laptop",
+            )
+        )
+        await session.commit()
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}",
+        headers=await _just_signed_in(session, admin.user),
         json={"confirmation_text": "DELETE GUILD TO DELETE"},
     )
 
-    assert response.status_code == 204
+    assert response.status_code == 204, response.text
 
 
 @pytest.mark.integration
 async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An identity link is not the question: an account can hold both, and one
     that holds a password confirms with it."""
-    user = await create_user(session, email="linked-admin@example.com")
-    await create_federated_identity(session, user, subject="linked-admin-1")
     guild = await create_guild(session, name="To Delete")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    admin = await acting_user(guild_role=GuildRole.superadmin, guild=guild)
+    await create_federated_identity(session, admin.user, subject="linked-admin-1")
 
     response = await client.request(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",
-        headers=get_auth_headers(user),
+        headers=admin.headers,
         json={
             "password": "wrongpassword",
             "confirmation_text": "DELETE GUILD TO DELETE",
@@ -680,7 +613,9 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
 @pytest.mark.parametrize(
     "role", ["member", "support", "moderator", "operator", "owner"]
 )
-async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
+async def test_reorder_guilds(
+    client: AsyncClient, session: AsyncSession, acting_user, role: str
+):
     """EVERY platform tier can reorder their own guilds in personal mode.
 
     The request runs as ``platform_<role>`` with no guild context, and the write
@@ -691,267 +626,130 @@ async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: 
     the same way, and run through ``client`` rather than the superuser session
     so the policy is the thing being exercised.
     """
-    user = await create_user(session, email="test@example.com", role=UserRole(role))
-    guild1 = await create_guild(session, name="Guild 1")
+    a = await acting_user(role, guild_role=GuildRole.member)
     guild2 = await create_guild(session, name="Guild 2")
     guild3 = await create_guild(session, name="Guild 3")
+    for guild in (guild2, guild3):
+        await create_guild_membership(session, user=a.user, guild=guild)
 
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-    await create_guild_membership(session, user=user, guild=guild3)
-
-    headers = get_auth_headers(user)
-    payload = {"guild_ids": [guild3.id, guild1.id, guild2.id]}
-
-    response = await client.put("/api/v1/guilds/order", headers=headers, json=payload)
+    wanted = [guild3.id, a.guild.id, guild2.id]
+    response = await client.put(
+        "/api/v1/guilds/order", headers=a.headers, json={"guild_ids": wanted}
+    )
 
     assert response.status_code == 204
 
-    # Verify order changed
-    list_response = await client.get("/api/v1/guilds/", headers=headers)
-    guilds = list_response.json()
-    ordered_ids = [g["id"] for g in guilds]
-    assert ordered_ids == [guild3.id, guild1.id, guild2.id]
+    listing = await client.get("/api/v1/guilds/", headers=a.headers)
+    assert [g["id"] for g in listing.json()] == wanted
 
 
 @pytest.mark.integration
-async def test_create_guild_invite_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that admin can create guild invites."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    payload = {"max_uses": 5, "invitee_email": "invitee@example.com"}
+async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
+    """An admin mints an invite, with a use count and an expiry it chooses."""
+    admin = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites", headers=headers, json=payload
+        f"/api/v1/guilds/{admin.guild.id}/invites",
+        headers=admin.headers,
+        json={
+            "max_uses": 5,
+            "invitee_email": "invitee@example.com",
+            "expires_at": "2025-12-31T23:59:59Z",
+        },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 201, response.text
     data = response.json()
-    assert data["guild_id"] == guild.id
+    assert data["guild_id"] == admin.guild.id
     assert data["max_uses"] == 5
+    assert data["uses"] == 0
+    assert len(data["code"]) == 22
+    assert "2025-12-31" in data["expires_at"]
     # Read back masked: whoever typed the address already has it, and a
     # guild's other admins never did. Redemption still matches the whole
     # address, from the ciphertext. The domain is elided too — a bare domain
     # narrows an address to one organisation.
     assert data["invitee_email"] == "i***e@e***m"
-    assert data["uses"] == 0
-    assert len(data["code"]) == 22
 
 
 @pytest.mark.integration
-async def test_create_guild_invite_with_expiration(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(
+    "max_users,extra_members,expected_status",
+    [
+        pytest.param(1, 0, 403, id="every seat taken"),
+        pytest.param(2, 0, 201, id="a seat still free"),
+        pytest.param(None, 3, 201, id="no cap at all"),
+    ],
+)
+async def test_minting_an_invite_respects_the_seat_cap(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    max_users: int | None,
+    extra_members: int,
+    expected_status: int,
 ):
-    """Test creating an invite with expiration date."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    headers = get_auth_headers(user)
-    payload = {
-        "max_uses": 1,
-        "expires_at": "2025-12-31T23:59:59Z",
-    }
-
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites", headers=headers, json=payload
-    )
-
-    assert response.status_code == 201
-    data = response.json()
-    assert data["expires_at"] is not None
-    assert "2025-12-31" in data["expires_at"]
-
-
-@pytest.mark.integration
-async def test_create_guild_invite_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
-):
-    """Test that regular members cannot create invites."""
-    user = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(user)
-    payload = {"max_uses": 5}
-
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites", headers=headers, json=payload
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_create_guild_invite_at_user_limit_forbidden(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild whose membership has reached ``max_users`` mints no new invite."""
-    user = await create_user(session, email="full-admin@example.com")
-    guild = await create_guild(session, name="Full Guild", max_users=1)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    """A guild whose membership has reached ``max_users`` mints no new invite;
+    a free seat leaves minting untouched, and a ``NULL`` cap is unlimited
+    however many members the guild already has."""
+    guild = await create_guild(session, max_users=max_users)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    for _ in range(extra_members):
+        await acting_user(guild_role=GuildRole.member, guild=guild)
 
     response = await client.post(
         f"/api/v1/guilds/{guild.id}/invites",
-        headers=get_auth_headers(user),
+        headers=admin.headers,
         json={"max_uses": 1},
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.status_code == expected_status, response.text
+    if expected_status == 403:
+        assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
 @pytest.mark.integration
-async def test_create_guild_invite_below_user_limit_allowed(
-    client: AsyncClient, session: AsyncSession
+async def test_an_admin_lists_and_revokes_the_guilds_invites(
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A seat still free leaves invite minting untouched."""
-    user = await create_user(session, email="roomy-admin@example.com")
-    guild = await create_guild(session, name="Roomy Guild", max_users=2)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    """The two halves of running a guild's invites: see them all, drop one."""
+    from app.services.platform import guilds as guild_service
 
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites",
-        headers=get_auth_headers(user),
-        json={"max_uses": 1},
-    )
-
-    assert response.status_code == 201, response.text
-
-
-@pytest.mark.integration
-async def test_create_guild_invite_uncapped_guild_allowed(
-    client: AsyncClient, session: AsyncSession
-):
-    """A ``NULL`` cap is unlimited, however many members the guild already has."""
-    user = await create_user(session, email="uncapped-admin@example.com")
-    guild = await create_guild(session, name="Uncapped Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    for index in range(3):
-        member = await create_user(session, email=f"uncapped-{index}@example.com")
-        await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.member
+    admin = await acting_user(guild_role=GuildRole.admin)
+    invites = [
+        await guild_service.create_guild_invite(
+            session,
+            guild_id=admin.guild.id,
+            created_by=admin.user.id,
+            max_uses=max_uses,
         )
-
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites",
-        headers=get_auth_headers(user),
-        json={"max_uses": 1},
-    )
-
-    assert response.status_code == 201, response.text
-
-
-@pytest.mark.integration
-async def test_list_guild_invites_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that admin can list guild invites."""
-    from app.services.platform import guilds as guild_service
-
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    # Create some invites
-    await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=user.id, max_uses=1
-    )
-    await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=user.id, max_uses=2
-    )
+        for max_uses in (1, 2)
+    ]
     await session.commit()
+    url = f"/api/v1/guilds/{admin.guild.id}/invites"
 
-    headers = get_auth_headers(user)
-    response = await client.get(f"/api/v1/guilds/{guild.id}/invites", headers=headers)
+    listed = await client.get(url, headers=admin.headers)
+    assert listed.status_code == 200
+    assert {row["id"] for row in listed.json()} == {i.id for i in invites}
 
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
+    revoked = await client.delete(f"{url}/{invites[0].id}", headers=admin.headers)
+    assert revoked.status_code == 204
+
+    remaining = await client.get(url, headers=admin.headers)
+    assert [row["id"] for row in remaining.json()] == [invites[1].id]
 
 
 @pytest.mark.integration
-async def test_list_guild_invites_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
+async def test_get_invite_status_valid(
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that regular members cannot list invites."""
-    user = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(user)
-    response = await client.get(f"/api/v1/guilds/{guild.id}/invites", headers=headers)
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_delete_guild_invite_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that admin can delete guild invites."""
-    from app.services.platform import guilds as guild_service
-
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=user.id
-    )
-    await session.commit()
-
-    headers = get_auth_headers(user)
-    response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/invites/{invite.id}", headers=headers
-    )
-
-    assert response.status_code == 204
-
-
-@pytest.mark.integration
-async def test_delete_guild_invite_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
-):
-    """Test that regular members cannot delete invites."""
-    from app.services.platform import guilds as guild_service
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, name="Test Guild")
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=admin.id
-    )
-    await session.commit()
-
-    headers = get_auth_headers(member)
-    response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/invites/{invite.id}", headers=headers
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_get_invite_status_valid(client: AsyncClient, session: AsyncSession):
     """Test getting status of a valid invite."""
     from app.services.platform import guilds as guild_service
 
-    user = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, name="Test Guild")
-
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=user.id, max_uses=5
+        session, guild_id=guild.id, created_by=admin.user.id, max_uses=5
     )
     await session.commit()
 
@@ -968,9 +766,7 @@ async def test_get_invite_status_valid(client: AsyncClient, session: AsyncSessio
 
 
 @pytest.mark.integration
-async def test_get_invite_status_invalid_code(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_get_invite_status_invalid_code(client: AsyncClient):
     """Test getting status of invalid invite code."""
     response = await client.get("/api/v1/guilds/invite/invalidcode123")
 
@@ -981,58 +777,27 @@ async def test_get_invite_status_invalid_code(
 
 
 @pytest.mark.integration
-async def test_accept_invite(client: AsyncClient, session: AsyncSession):
-    """Test accepting a guild invite."""
-    from app.services.platform import guilds as guild_service
-
-    creator = await create_user(session, email="creator@example.com")
-    invitee = await create_user(session, email="invitee@example.com")
-    guild = await create_guild(session, name="Test Guild")
-
-    invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by=creator.id, max_uses=5
-    )
-    await session.commit()
-
-    headers = get_auth_headers(invitee)
-    payload = {"code": invite.code}
-
-    response = await client.post(
-        "/api/v1/guilds/invite/accept", headers=headers, json=payload
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == guild.id
-    assert data["name"] == "Test Guild"
-    assert data["role"] == "member"
-
-
-@pytest.mark.integration
 async def test_accept_invite_blocked_when_guild_full(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Accepting an invite into a guild at its user cap returns 403."""
     from app.services.platform import guilds as guild_service
 
-    creator = await create_user(session, email="full-creator@example.com")
-    seat_holder = await create_user(session, email="full-seat@example.com")
-    invitee = await create_user(session, email="full-invitee@example.com")
     guild = await create_guild(session, name="Full Guild", max_users=1)
+    creator = await create_user(session)
+    invitee = await acting_user("member")
 
     # Minted while the seat is still free, redeemed after it is taken — minting
     # itself is capacity-gated, so the order here is the scenario.
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=creator.id, max_uses=5
     )
-    await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
-    )
+    await acting_user(guild_role=GuildRole.member, guild=guild)
     await session.commit()
 
     response = await client.post(
         "/api/v1/guilds/invite/accept",
-        headers=get_auth_headers(invitee),
+        headers=invitee.headers,
         json={"code": invite.code},
     )
 
@@ -1041,157 +806,214 @@ async def test_accept_invite_blocked_when_guild_full(
 
 
 @pytest.mark.integration
-async def test_accept_invalid_invite_fails(client: AsyncClient, session: AsyncSession):
-    """Test that accepting invalid invite fails."""
-    user = await create_user(session, email="test@example.com")
-    headers = get_auth_headers(user)
-    payload = {"code": "invalidcode123"}
-
-    response = await client.post(
-        "/api/v1/guilds/invite/accept", headers=headers, json=payload
-    )
-
-    assert response.status_code == 400
-
-
-@pytest.mark.integration
-async def test_accept_expired_invite_fails(client: AsyncClient, session: AsyncSession):
-    """Test that accepting expired invite fails."""
+@pytest.mark.parametrize(
+    "kind,expected_detail",
+    [
+        pytest.param("unknown", "INVITE_NOT_FOUND", id="a code nobody minted"),
+        pytest.param("expired", "INVITE_EXPIRED_OR_USED", id="a code past its date"),
+    ],
+)
+async def test_an_invite_that_cannot_be_redeemed_is_refused(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    kind: str,
+    expected_detail: str,
+):
+    """Both refusals are 400, each naming which one it was."""
     from datetime import datetime, timedelta, timezone
     from app.services.platform import guilds as guild_service
 
-    creator = await create_user(session, email="creator@example.com")
-    invitee = await create_user(session, email="invitee@example.com")
-    guild = await create_guild(session, name="Test Guild")
-
-    invite = await guild_service.create_guild_invite(
-        session,
-        guild_id=guild.id,
-        created_by=creator.id,
-        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
-    )
-    await session.commit()
-
-    headers = get_auth_headers(invitee)
-    payload = {"code": invite.code}
+    invitee = await acting_user("member")
+    if kind == "unknown":
+        code = "invalidcode123"
+    else:
+        admin = await acting_user(guild_role=GuildRole.admin)
+        invite = await guild_service.create_guild_invite(
+            session,
+            guild_id=admin.guild.id,
+            created_by=admin.user.id,
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        await session.commit()
+        code = invite.code
 
     response = await client.post(
-        "/api/v1/guilds/invite/accept", headers=headers, json=payload
+        "/api/v1/guilds/invite/accept", headers=invitee.headers, json={"code": code}
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "INVITE_EXPIRED_OR_USED"
+    assert response.json()["detail"] == expected_detail
+
+
+# --- who each guild-router surface answers --------------------------------
+
+
+#: Surfaces only a guild's own administrators reach. The body is the one a
+#: well-formed request carries, so the status is the gate's answer rather than
+#: the schema's.
+ADMIN_ONLY_ROUTES = (
+    ("PATCH", "/api/v1/guilds/{guild}", {"name": "Renamed"}),
+    (
+        "DELETE",
+        "/api/v1/guilds/{guild}",
+        {"password": "testpassword123", "confirmation_text": "DELETE GUILD X"},
+    ),
+    ("POST", "/api/v1/guilds/{guild}/invites", {"max_uses": 1}),
+    ("GET", "/api/v1/guilds/{guild}/invites", None),
+    ("DELETE", "/api/v1/guilds/{guild}/invites/{invite}", None),
+    ("POST", "/api/v1/guilds/{guild}/billing/handoff", None),
+)
+
+#: Surfaces any signed-in account may call, listed here for the one caller they
+#: all turn away.
+SIGNED_IN_ROUTES = (
+    ("GET", "/api/v1/guilds/", None),
+    ("POST", "/api/v1/guilds/", {"name": "Fresh"}),
+    ("PUT", "/api/v1/guilds/order", {"guild_ids": []}),
+    ("POST", "/api/v1/guilds/invite/accept", {"code": "notarealcode000000"}),
+    ("GET", "/api/v1/guilds/{guild}/leave/eligibility", None),
+    ("DELETE", "/api/v1/guilds/{guild}/leave", None),
+)
+
+#: Leaving is about a membership, so an account holding none in this guild is
+#: told there is none rather than refused.
+MEMBERSHIP_ROUTES = (
+    ("GET", "/api/v1/guilds/{guild}/leave/eligibility", None),
+    ("DELETE", "/api/v1/guilds/{guild}/leave", None),
+)
+
+
+def _gate_cases():
+    """(method, path, body, actor_kind, expected_status) for every surface."""
+    for method, path, body in ADMIN_ONLY_ROUTES:
+        for actor_kind, expected in (
+            ("member", 403),
+            ("stranger", 403),
+            ("anonymous", 401),
+        ):
+            yield pytest.param(
+                method,
+                path,
+                body,
+                actor_kind,
+                expected,
+                id=f"{method} {path} {actor_kind}",
+            )
+    for method, path, body in SIGNED_IN_ROUTES:
+        yield pytest.param(
+            method, path, body, "anonymous", 401, id=f"{method} {path} anonymous"
+        )
+    for method, path, body in MEMBERSHIP_ROUTES:
+        yield pytest.param(
+            method, path, body, "stranger", 404, id=f"{method} {path} stranger"
+        )
+
+
+@pytest.fixture
+async def guild_gate_world(session: AsyncSession, acting_user, monkeypatch):
+    """One guild with an invite in it, and the three callers who do not
+    administer it: a plain member of it, an admin of a different guild, and
+    nobody at all. ``BILLING_URL`` is configured so the billing surface is
+    reached rather than answering "no portal here"."""
+    from app.core.config import settings as app_settings
+    from app.services.platform import guilds as guild_service
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    stranger = await acting_user(guild_role=GuildRole.admin)
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=admin.guild.id, created_by=admin.user.id
+    )
+    await session.commit()
+    return {
+        "guild": admin.guild.id,
+        "invite": invite.id,
+        "member": member.headers,
+        "stranger": stranger.headers,
+        "anonymous": None,
+    }
 
 
 @pytest.mark.integration
-async def test_guild_isolation(client: AsyncClient, session: AsyncSession):
-    """Test that users only see their own guilds."""
-    user1 = await create_user(session, email="user1@example.com")
-    user2 = await create_user(session, email="user2@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
+@pytest.mark.parametrize(
+    "method,path,body,actor_kind,expected_status", list(_gate_cases())
+)
+async def test_each_guild_surface_answers_by_what_the_caller_holds(
+    client: AsyncClient,
+    guild_gate_world,
+    method: str,
+    path: str,
+    body: dict | None,
+    actor_kind: str,
+    expected_status: int,
+):
+    """Every guild-router surface these tests reach, against every caller who
+    is not the guild's administrator: administration is refused, an unsigned
+    request is unauthenticated, and leaving a guild you are not in is missing.
+    """
+    response = await client.request(
+        method,
+        path.format(guild=guild_gate_world["guild"], invite=guild_gate_world["invite"]),
+        headers=guild_gate_world[actor_kind],
+        json=body,
+    )
 
-    await create_guild_membership(session, user=user1, guild=guild1)
-    await create_guild_membership(session, user=user2, guild=guild2)
-
-    headers1 = get_auth_headers(user1)
-    response1 = await client.get("/api/v1/guilds/", headers=headers1)
-
-    assert response1.status_code == 200
-    data1 = response1.json()
-    assert len(data1) == 1
-    assert data1[0]["name"] == "Guild 1"
-
-
-@pytest.mark.integration
-async def test_list_guilds_requires_authentication(client: AsyncClient):
-    """Test that listing guilds requires authentication."""
-    response = await client.get("/api/v1/guilds/")
-
-    assert response.status_code == 401
-
-
-@pytest.mark.integration
-async def test_create_guild_requires_authentication(client: AsyncClient):
-    """Test that creating guilds requires authentication."""
-    payload = {"name": "Test Guild"}
-    response = await client.post("/api/v1/guilds/", json=payload)
-
-    assert response.status_code == 401
+    assert response.status_code == expected_status, response.text
 
 
 # --- Billing-portal handoff endpoint --------------------------------------
 
 
 @pytest.mark.integration
-async def test_guild_billing_handoff_returns_404_when_billing_url_unset(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+@pytest.mark.parametrize(
+    "billing_url,clear_signing_key,expected_status,expected_detail",
+    [
+        pytest.param(
+            None,
+            False,
+            404,
+            "BILLING_PORTAL_NOT_CONFIGURED",
+            id="no portal configured",
+        ),
+        pytest.param(
+            "https://billing.example.com",
+            True,
+            503,
+            "BILLING_PORTAL_SIGNING_NOT_CONFIGURED",
+            id="a portal with nothing to sign with",
+        ),
+    ],
+)
+async def test_the_billing_handoff_needs_a_portal_and_a_signing_key(
+    client: AsyncClient,
+    acting_user,
+    monkeypatch,
+    billing_url: str | None,
+    clear_signing_key: bool,
+    expected_status: int,
+    expected_detail: str,
 ):
-    """No BILLING_URL configured -> 404."""
+    """Each half of the configuration is reported as its own answer."""
     from app.core.config import settings as app_settings
 
-    monkeypatch.setattr(app_settings, "BILLING_URL", None)
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
-    )
+    monkeypatch.setattr(app_settings, "BILLING_URL", billing_url)
+    if clear_signing_key:
+        monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+    seat = await acting_user(guild_role=GuildRole.superadmin)
 
     response = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_PORTAL_NOT_CONFIGURED"
-
-
-@pytest.mark.integration
-async def test_guild_billing_handoff_rejects_non_admin(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """A plain member is refused (admin only)."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        f"/api/v1/guilds/{seat.guild.id}/billing/handoff", headers=seat.headers
     )
 
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(member)
-    )
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_guild_billing_handoff_rejects_non_member(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """A user can't mint a billing token for a guild they don't belong to."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-
-    outsider = await create_user(session, email="outsider@example.com")
-    other_guild = await create_guild(session, name="Other guild")
-    await create_guild_membership(
-        session, user=outsider, guild=other_guild, role=GuildRole.admin
-    )
-    target_guild = await create_guild(session, name="Target guild")
-
-    response = await client.post(
-        f"/api/v1/guilds/{target_guild.id}/billing/handoff",
-        headers=get_auth_headers(outsider),
-    )
-    assert response.status_code == 403
+    assert response.status_code == expected_status, response.text
+    assert response.json()["detail"] == expected_detail
 
 
 @pytest.mark.integration
 async def test_guild_billing_handoff_succeeds_for_admin(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, acting_user, monkeypatch
 ):
     """Admin gets an RS256 token with the billing-portal audience and role."""
     from app.core.config import settings as app_settings
@@ -1199,15 +1021,10 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     import jwt
 
     monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
-    )
+    seat = await acting_user(guild_role=GuildRole.superadmin)
 
     response = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
+        f"/api/v1/guilds/{seat.guild.id}/billing/handoff", headers=seat.headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -1225,164 +1042,101 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     assert "guild_id" not in payload
 
 
-@pytest.mark.integration
-async def test_guild_billing_handoff_requires_authentication(
-    client: AsyncClient, monkeypatch
-):
-    """Unauthenticated -> 401."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-
-    response = await client.post("/api/v1/guilds/1/billing/handoff")
-    assert response.status_code == 401
+# --- Leave guild: the seat a community keeps ------------------------------
 
 
 @pytest.mark.integration
-async def test_guild_billing_handoff_503_when_signing_key_unset(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+@pytest.mark.parametrize(
+    "leaver_role,other_roles,can_leave,expected_status,expected_detail",
+    [
+        pytest.param(
+            GuildRole.admin,
+            (GuildRole.superadmin,),
+            True,
+            204,
+            None,
+            id="an ordinary admin, the seat still held",
+        ),
+        pytest.param(
+            GuildRole.superadmin,
+            (GuildRole.member,),
+            False,
+            400,
+            "CANNOT_VACATE_LAST_SUPERADMIN",
+            id="the only seat, with somebody to strand",
+        ),
+        pytest.param(
+            GuildRole.superadmin,
+            (),
+            True,
+            204,
+            None,
+            id="the only member there is",
+        ),
+    ],
+)
+async def test_a_departure_is_counted_against_the_communitys_last_seat(
+    client: AsyncClient,
+    acting_user,
+    leaver_role: GuildRole,
+    other_roles: tuple[GuildRole, ...],
+    can_leave: bool,
+    expected_status: int,
+    expected_detail: str | None,
 ):
-    """BILLING_URL set but no signing key -> 503."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
-    monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
-    )
-
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
-    )
-    assert response.status_code == 503
-    assert response.json()["detail"] == "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
-
-
-# --- Leave guild: project-orphan protection -------------------------------
-
-
-@pytest.mark.integration
-async def test_an_ordinary_admin_leaves_freely(
-    client: AsyncClient, session: AsyncSession
-):
-    """Being a community's last *admin* stops nobody. Its superadmin is still
-    there, and can appoint another admin whenever it wants one."""
-    seat = await create_user(session)
-    leaving = await create_user(session)
-    guild = await create_guild(session, creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=leaving, guild=guild, role=GuildRole.admin
-    )
+    """Holding a community's only superadmin seat is the one thing that stops a
+    departure, and only while somebody is left behind. Being its last *admin*
+    stops nobody — the seat is still there to appoint another. The eligibility
+    read answers the same question ahead of time."""
+    leaver = await acting_user(guild_role=leaver_role)
+    for role in other_roles:
+        await acting_user(guild_role=role, guild=leaver.guild)
 
     eligibility = await client.get(
-        f"/api/v1/guilds/{guild.id}/leave/eligibility",
-        headers=get_auth_headers(leaving),
+        f"/api/v1/guilds/{leaver.guild.id}/leave/eligibility", headers=leaver.headers
     )
     assert eligibility.status_code == 200, eligibility.text
-    assert eligibility.json()["can_leave"] is True
-    assert eligibility.json()["is_last_superadmin"] is False
+    assert eligibility.json() == {
+        "can_leave": can_leave,
+        "is_last_superadmin": not can_leave,
+    }
 
     response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+        f"/api/v1/guilds/{leaver.guild.id}/leave", headers=leaver.headers
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == expected_status, response.text
+    if expected_detail is not None:
+        assert response.json()["detail"] == expected_detail
 
 
 @pytest.mark.integration
-async def test_the_only_seat_cannot_leave(client: AsyncClient, session: AsyncSession):
-    """The rule a departure is counted for: a community keeps its seat."""
-    only_seat = await create_user(session)
-    guild = await create_guild(session, creator=only_seat)
-    await create_guild_membership(
-        session, user=only_seat, guild=guild, role=GuildRole.superadmin
-    )
-    # Somebody to strand. A community of one is the exception below.
-    await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
-    )
-
-    eligibility = await client.get(
-        f"/api/v1/guilds/{guild.id}/leave/eligibility",
-        headers=get_auth_headers(only_seat),
-    )
-    assert eligibility.json()["can_leave"] is False
-    assert eligibility.json()["is_last_superadmin"] is True
-
-    response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(only_seat)
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
-
-
-@pytest.mark.integration
-async def test_a_second_seat_frees_the_first(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_a_second_seat_frees_the_first(client: AsyncClient, acting_user):
     """Two seats, so either may go; the one left behind then stays."""
-    first = await create_user(session)
-    second = await create_user(session)
-    guild = await create_guild(session, creator=first)
-    for user in (first, second):
-        await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.superadmin
-        )
-    await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
-    )
+    first = await acting_user(guild_role=GuildRole.superadmin)
+    second = await acting_user(guild_role=GuildRole.superadmin, guild=first.guild)
+    await acting_user(guild_role=GuildRole.member, guild=first.guild)
 
     left = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(second)
+        f"/api/v1/guilds/{first.guild.id}/leave", headers=second.headers
     )
     assert left.status_code == 204, left.text
 
     refused = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(first)
+        f"/api/v1/guilds/{first.guild.id}/leave", headers=first.headers
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
 
 @pytest.mark.integration
-async def test_the_only_member_leaves_whatever_they_hold(
-    client: AsyncClient, session: AsyncSession
-):
-    """Nobody to strand, and nobody to appoint either. What is left behind is a
-    community with no members."""
-    alone = await create_user(session)
-    guild = await create_guild(session, creator=alone)
-    await create_guild_membership(
-        session, user=alone, guild=guild, role=GuildRole.superadmin
-    )
-
-    eligibility = await client.get(
-        f"/api/v1/guilds/{guild.id}/leave/eligibility",
-        headers=get_auth_headers(alone),
-    )
-    assert eligibility.json()["can_leave"] is True
-
-    response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(alone)
-    )
-    assert response.status_code == 204, response.text
-
-
-@pytest.mark.integration
 async def test_leaving_takes_the_lock_before_it_counts_anyone(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, acting_user, monkeypatch
 ):
     """A departure's guard asks how many seats a community has left, and that
     answer has to still be true when the departure is written. So the lock
     comes first.
 
-    Pinned as an order because that is what the invariant is: a guard that runs
-    outside the lock is a guard two concurrent departures can both pass.
+    Pinned as an order because that is what the invariant is.
     """
     from app.services.platform import guilds as guilds_service
 
@@ -1405,18 +1159,11 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
         lambda *a, **k: record("last seat", real_seat, *a, **k),
     )
 
-    seat = await create_user(session)
-    leaving = await create_user(session)
-    guild = await create_guild(session, creator=seat)
-    await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
-    )
-    await create_guild_membership(
-        session, user=leaving, guild=guild, role=GuildRole.admin
-    )
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    leaving = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
 
     response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/leave", headers=get_auth_headers(leaving)
+        f"/api/v1/guilds/{seat.guild.id}/leave", headers=leaving.headers
     )
     assert response.status_code == 204, response.text
     assert order == ["lock", "last seat"]

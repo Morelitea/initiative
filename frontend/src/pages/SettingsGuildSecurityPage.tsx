@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useGuildAuthPolicy,
   useGuildAuthSettings,
@@ -31,6 +32,7 @@ import {
   useGuildProviderConnections,
   useUpdateGuildApiAccess,
   useUpdateGuildAuthPolicy,
+  useUpdateGuildSecondFactor,
   useUpdateGuildSessionLimit,
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -157,10 +159,10 @@ export const SettingsGuildSecurityPage = () => {
         })),
     [connectionsQuery.data]
   );
-  // Nothing connected at all — a community that has not started yet, rather
-  // than one whose connections are all switched off.
-  const hasNoConnections = (connectionsQuery.data ?? []).length === 0;
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Set when the wizard is opened to take over a provider the deployment
+  // answered for, so it opens on that one rather than on the picker.
+  const [wizardStartOn, setWizardStartOn] = useState<number | null>(null);
 
   // Chosen here, saved by the button below — a refetch in between must not
   // undo the choice.
@@ -174,12 +176,11 @@ export const SettingsGuildSecurityPage = () => {
       anyProvider: loaded?.provider_id == null && (loaded?.require_methods ?? []).includes("sso"),
       // Orthogonal to the provider choice: a community may ask for its own
       // sign-in, for a second factor, for a passkey, or for any combination.
-      requireFactor: (loaded?.require_methods ?? []).includes("totp"),
       requirePasskey: (loaded?.require_methods ?? []).includes("passkey"),
     }),
     guildId
   );
-  const { policy, providerId, anyProvider, requireFactor, requirePasskey } = form.values;
+  const { policy, providerId, anyProvider, requirePasskey } = form.values;
   const setPolicy = (next: "open" | "required") => form.set({ policy: next });
   const [error, setError] = useState<string | null>(null);
   const [unmet, setUnmet] = useState<Unmet | null>(null);
@@ -220,6 +221,34 @@ export const SettingsGuildSecurityPage = () => {
     guildId
   );
 
+  const { secondFactorAvailable } = useAppConfig();
+  const updateSecondFactor = useUpdateGuildSecondFactor(guildId);
+  const secondFactor = useFlipToSave(
+    authSettings?.require_second_factor ?? activeGuild?.require_second_factor ?? false,
+    guildId
+  );
+
+  const changeSecondFactor = (next: boolean) => {
+    secondFactor.begin(next);
+    updateSecondFactor.mutate(
+      { require_second_factor: next },
+      {
+        onSuccess: async () => {
+          if (hasGrantedSeat) {
+            await authSettingsQuery.refetch();
+          } else {
+            await refreshGuilds();
+          }
+          secondFactor.settle();
+          toast.success(t("guildAuth.secondFactor.saved"));
+        },
+        onError: (err: unknown) => {
+          secondFactor.fail(getErrorMessage(err, "settings:guildAuth.secondFactor.error"));
+        },
+      }
+    );
+  };
+
   const changeSessionLimit = (next: boolean) => {
     sessionLimit.begin(next);
     updateSessionLimit.mutate(
@@ -246,8 +275,13 @@ export const SettingsGuildSecurityPage = () => {
     policyQuery.data != null &&
     policyQuery.data.provider_id == null &&
     (policyQuery.data.require_methods ?? []).includes("sso");
-  const savedRequireFactor =
-    policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("totp");
+  // Where the deployment already asks everybody for a second factor, this
+  // community's own box has nothing to add, so it is not offered. A rule
+  // already written stays on the row and comes back into force if the
+  // deployment lowers its answer.
+  // Where the deployment already asks everybody, this community's switch has
+  // nothing to add, so it says so rather than offering the same answer twice.
+  const factorAskedByPlatform = policyQuery.data?.factor_required_by_platform === true;
   const savedRequirePasskey =
     policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("passkey");
   const isDirty =
@@ -255,12 +289,10 @@ export const SettingsGuildSecurityPage = () => {
     (policy !== policyQuery.data.policy ||
       (policy === "required" &&
         (anyProvider !== savedAnyProvider ||
-          requireFactor !== savedRequireFactor ||
           requirePasskey !== savedRequirePasskey ||
           (!anyProvider && providerId !== (policyQuery.data.provider_id ?? null)))));
   // A rule has to ask for something. Any one of the four will do.
-  const canSave =
-    policy === "open" || anyProvider || requireFactor || requirePasskey || providerId != null;
+  const canSave = policy === "open" || anyProvider || requirePasskey || providerId != null;
 
   const save = () => {
     // What is being sent, so a choice changed while this is in flight is not
@@ -274,7 +306,6 @@ export const SettingsGuildSecurityPage = () => {
             ...(anyProvider ? {} : { provider_id: providerId as number }),
             require_methods: [
               ...(anyProvider ? (["sso"] as const) : []),
-              ...(requireFactor ? (["totp"] as const) : []),
               ...(requirePasskey ? (["passkey"] as const) : []),
             ],
           },
@@ -336,7 +367,7 @@ export const SettingsGuildSecurityPage = () => {
     setUnmet(null);
     setError(null);
   };
-  const changeRequirement = (patch: { requireFactor?: boolean; requirePasskey?: boolean }) => {
+  const changeRequirement = (patch: { requirePasskey?: boolean }) => {
     form.set(patch);
     setUnmet(null);
     setError(null);
@@ -408,28 +439,21 @@ export const SettingsGuildSecurityPage = () => {
             {t("guildAuth.sections.whoGetsIn")}
           </h2>
 
-          {hasNoConnections ? (
-            <Card className="border-dashed shadow-sm">
-              <CardHeader>
-                <CardTitle>{t("guildAuth.emptyState.title")}</CardTitle>
-                <CardDescription>{t("guildAuth.emptyState.body")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button type="button" onClick={() => setWizardOpen(true)}>
-                  {t("guildAuth.emptyState.button")}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
           <ConnectSignInWizard
             guildId={guildId}
             open={wizardOpen}
             onOpenChange={setWizardOpen}
             canRequire={mayConfigureProviders}
+            startOn={wizardStartOn}
           />
 
-          <GuildAuthProvidersSection guildId={guildId} />
+          <GuildAuthProvidersSection
+            guildId={guildId}
+            onConnect={(providerId) => {
+              setWizardStartOn(providerId ?? null);
+              setWizardOpen(true);
+            }}
+          />
 
           <GuildClaimRulesSection guildId={guildId} />
 
@@ -509,26 +533,6 @@ export const SettingsGuildSecurityPage = () => {
                   </div>
                 </div>
               </RadioGroup>
-
-              {policy === "required" && (
-                <div className="flex items-start gap-3 border-t pt-4">
-                  <Checkbox
-                    id="require-second-factor"
-                    checked={requireFactor}
-                    onCheckedChange={(checked) =>
-                      changeRequirement({ requireFactor: Boolean(checked) })
-                    }
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="require-second-factor" className="font-medium">
-                      {t("guildAuth.policy.requireFactor")}
-                    </Label>
-                    <p className="text-muted-foreground text-sm">
-                      {t("guildAuth.policy.requireFactorHelp")}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {policy === "required" && (
                 <div className="flex items-start gap-3">
@@ -619,6 +623,40 @@ export const SettingsGuildSecurityPage = () => {
           <h2 className="font-semibold text-xl tracking-tight">
             {t("guildAuth.sections.onWhatTerms")}
           </h2>
+
+          {secondFactorAvailable && (
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>{t("guildAuth.secondFactor.title")}</CardTitle>
+                <CardDescription>{t("guildAuth.secondFactor.description")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="guild-second-factor" className="font-medium">
+                      {t("guildAuth.secondFactor.allowLabel")}
+                    </Label>
+                    <p className="text-muted-foreground text-sm">
+                      {factorAskedByPlatform
+                        ? t("guildAuth.secondFactor.askedByPlatform")
+                        : t("guildAuth.secondFactor.help")}
+                    </p>
+                  </div>
+                  <Switch
+                    id="guild-second-factor"
+                    checked={secondFactor.value || factorAskedByPlatform}
+                    onCheckedChange={changeSecondFactor}
+                    disabled={updateSecondFactor.isPending || factorAskedByPlatform}
+                  />
+                </div>
+                {secondFactor.error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{secondFactor.error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="shadow-sm">
             <CardHeader>

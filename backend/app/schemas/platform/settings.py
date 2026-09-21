@@ -2,8 +2,12 @@ from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.user_input_validators import validate_provider_slug
+from app.models.platform.app_setting import (
+    MAX_GUILD_RETENTION_DAYS,
+    MIN_GUILD_RETENTION_DAYS,
+)
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -23,6 +27,9 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     scopes: Optional[str] = None
     role_claim_path: Optional[str] = None
     allow_jit: bool
+    #: Whether this provider's own account of a sign-in may answer a
+    #: request for a second factor.
+    asserts_second_factor: bool = False
     #: Whether communities may connect to this provider. Off keeps one
     #: registered for a single customer out of everybody else's picker.
     icon: Optional[str] = None
@@ -58,6 +65,7 @@ class AuthProviderCreate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default="openid email profile", max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: bool = True
+    asserts_second_factor: bool = False
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
@@ -85,10 +93,18 @@ class AuthProviderUpdate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default=None, max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: Optional[bool] = None
+    asserts_second_factor: Optional[bool] = None
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
-    @field_validator("display_name", "issuer", "client_id", "enabled", "allow_jit")
+    @field_validator(
+        "display_name",
+        "issuer",
+        "client_id",
+        "enabled",
+        "allow_jit",
+        "asserts_second_factor",
+    )
     @classmethod
     def _no_explicit_null(cls, value, info):
         """Absent means keep; an explicit null would strip config a login-ready
@@ -201,7 +217,30 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     enabled: bool
     #: Whether somebody this connection counts as theirs joins on arrival.
     auto_join: bool = False
+    #: Whether somebody outside the community has agreed these values are its
+    #: to claim. ``auto_join`` waits for it; admitting people the community
+    #: already has does not. Changing the values asks again.
+    narrowing_approved: bool = False
     login_ready: bool = True
+
+
+class GuildNarrowingAgreement(SanitizedBaseModel):
+    """Whether these values are this community's to claim."""
+
+    agreed: bool
+
+
+class GuildNarrowingPending(SanitizedBaseModel):
+    """One community's claim, waiting to be answered."""
+
+    connection_id: int
+    guild_id: int
+    guild_name: str
+    provider_display_name: str
+    claim: str
+    claim_values: List[str]
+    auto_join: bool
+    agreed: bool
 
 
 class GuildProviderConnectionCreate(SanitizedBaseModel):
@@ -328,17 +367,6 @@ class OIDCSettingsResponse(SanitizedBaseModel):
     scopes: List[str] = Field(default_factory=list)
 
 
-class OIDCSettingsUpdate(SanitizedBaseModel):
-    enabled: bool
-    issuer: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[RawTextStr] = None
-    redirect_uri: Optional[str] = None
-    post_login_redirect: Optional[str] = None
-    provider_name: Optional[str] = None
-    scopes: List[str] = Field(default_factory=list)
-
-
 class LoginMethodStatus(SanitizedBaseModel):
     """One way in, and what withdrawing it would cost."""
 
@@ -346,11 +374,37 @@ class LoginMethodStatus(SanitizedBaseModel):
 
     method: LoginMethod
     enabled: bool
+    #: Whether this method can begin a session on its own. False for a second
+    #: factor, which accompanies a sign-in rather than opening one — the one
+    #: distinction that decides where the surface asks about it, so it is
+    #: derived from ``PRIMARY_LOGIN_METHODS`` here rather than listed again
+    #: in the frontend.
+    primary: bool
+    #: Whether this method can answer a second-factor requirement. Derived
+    #: from ``FACTOR_METHODS``, and orthogonal to ``primary``: a passkey is
+    #: both — a way in on its own, and an answer to being asked for a factor.
+    answers_factor: bool = False
     #: Accounts that can sign in today and could not if this method were
     #: withdrawn. Computed for every method, withdrawn or not, so the settings
     #: page can warn before the write rather than after a refusal — and so the
     #: number an operator acknowledges is one they were shown.
     would_strand: int
+
+
+class AccountsWithoutFactor(SanitizedBaseModel):
+    """How many accounts each level would ask to set a second factor up.
+
+    Both figures on every read, so the page states the consequence of a choice
+    before it is made rather than after it binds anybody.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Accounts above ``member`` on the platform ladder holding neither an
+    #: authenticator nor a passkey.
+    platform_roles: int
+    #: Every live account holding neither.
+    everyone: int
 
 
 class PlatformAuthSettingsResponse(SanitizedBaseModel):
@@ -364,10 +418,25 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
     guilds_requiring_sign_in: int
+    #: Whether anything this deployment permits could answer a second-factor
+    #: requirement — the authenticator app or a passkey, either will do. False
+    #: means the requirement below cannot be raised, and the server refuses it
+    #: with ``SETTINGS_FACTOR_REQUIREMENT_NO_METHOD``. Answered here so the
+    #: surface can say so before the write, and so it never has to work out
+    #: which methods count.
+    factor_methods_permitted: bool = True
     #: How long somebody may stay signed in before signing in again, in hours.
     #: ``None`` asks for no limit, which is the default. A community held to
     #: the compliance standard overrides it downwards for its own members.
     session_max_hours: Optional[int] = None
+    #: How long a session may be left alone before it lapses, in minutes.
+    #: ``None`` leaves the deployment's configured refresh window. A community
+    #: held to the compliance standard narrows it further for its members.
+    session_idle_minutes: Optional[int] = None
+    #: Who this deployment asks to hold a second factor.
+    second_factor_requirement: SecondFactorRequirement = SecondFactorRequirement.nobody
+    #: What each level would ask for, as things stand.
+    accounts_without_factor: AccountsWithoutFactor
 
 
 class SessionLifetimeUpdate(SanitizedBaseModel):
@@ -380,6 +449,22 @@ class SessionLifetimeUpdate(SanitizedBaseModel):
     """
 
     session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
+    #: The idle window, in minutes. ``None`` asks for no limit of its own and
+    #: leaves ``AUTH_REFRESH_TTL_DAYS``. Floored at a minute — anything less
+    #: ends a session while somebody is still reading the page.
+    session_idle_minutes: Optional[int] = Field(default=None, ge=1, le=525600)
+
+
+class SecondFactorRequirementUpdate(SanitizedBaseModel):
+    """Who to ask for a second factor from now on.
+
+    Nobody is signed out by the change. An account the level covers is asked
+    at its next request and answers it where it stands; one that cannot
+    present a factor — the app on a phone, a personal API key — works again
+    once its owner holds one.
+    """
+
+    level: SecondFactorRequirement
 
 
 class LoginMethodsUpdate(SanitizedBaseModel):
@@ -398,11 +483,18 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
 
     light_accent_color: str
     dark_accent_color: str
+    #: Whether arriving visitors are asked what this deployment may keep in
+    #: their browser. Also on ``GET /config``, which is where the SPA reads it;
+    #: served here for the page that writes it.
+    cookie_consent_enabled: bool
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):
     light_accent_color: str
     dark_accent_color: str
+    #: Omitted leaves it as it was, so saving a colour does not silently
+    #: answer a separate question.
+    cookie_consent_enabled: bool | None = None
 
 
 class CommunitySettingsResponse(SanitizedBaseModel):
@@ -423,13 +515,23 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: Whether this deployment offers direct messages at all. Also on
     #: ``GET /config``, which is where every signed-in page reads it.
     direct_messages_enabled: bool
+    #: How long a deleted community is kept before it is destroyed, in days.
+    #: ``None`` means it is never destroyed — a deployment that has undertaken
+    #: to keep what its members put in it. Owner-only, deployment-wide; a
+    #: community has no say in its own.
+    deleted_community_retention_days: Optional[int] = None
+    #: How long a deleted account is kept before it is erased, in days. Its own
+    #: figure rather than the one above: what a deployment owes the people in a
+    #: community and what it owes the person leaving are different questions.
+    #: ``None`` means never, for a deployment required to keep accounts.
+    deleted_account_retention_days: Optional[int] = None
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
     community_directory_enabled: bool
-    #: Whether an account must confirm it is 13 or older to belong to a listed
-    #: guild. Omitted leaves it as it was — the two switches are separate
-    #: decisions and the directory one is written far more often.
+    #: Whether an account must confirm it is 16 or older to join a listed
+    #: guild from the directory. Omitted leaves it as it was — the two switches
+    #: are separate decisions and the directory one is written far more often.
     age_gate_enabled: Optional[bool] = None
     #: Omitted leaves it as it was, like the switch above.
     default_dm_policy: Optional[DmPolicy] = None
@@ -437,6 +539,23 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: as it was; it is independent of the directory, which a deployment can
     #: run with or without messaging.
     direct_messages_enabled: Optional[bool] = None
+    #: How long a deleted community is kept, in days. This one reads its
+    #: presence rather than its value, because ``null`` is an answer here
+    #: ("never destroy one") and not the absence of one: omit the field to
+    #: leave the window alone, send a number to set it, send ``null`` to turn
+    #: destruction off. The endpoint inspects ``model_fields_set``.
+    deleted_community_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
+    #: The account window, read the same way: omit to leave it alone, send a
+    #: number to set it, send ``null`` to stop erasing on a timer.
+    deleted_account_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
 
 
 class EmailSettingsResponse(SanitizedBaseModel):
@@ -568,23 +687,11 @@ class OIDCClaimMappingRead(SanitizedBaseModel):
     initiative_role_name: Optional[str] = None
 
 
-class OIDCClaimPathUpdate(SanitizedBaseModel):
-    claim_path: Optional[str] = Field(default=None, max_length=500)
-
-
 class OIDCMappingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     claim_path: Optional[str] = None
     mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)
-
-
-class OIDCClaimPathResponse(SanitizedBaseModel):
-    """The role-claim path after an update (``None`` clears it)."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    claim_path: Optional[str] = None
 
 
 # The mapping form needs every guild, initiative, and initiative role to

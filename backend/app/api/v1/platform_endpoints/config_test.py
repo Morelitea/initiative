@@ -141,3 +141,23 @@ async def test_config_captcha_exposes_provider_and_site_key(
     assert body["captcha"] == {"provider": provider, "site_key": "public-site-key"}
     # Belt-and-braces: the secret must never appear in the public payload.
     assert "very-private-secret" not in response.text
+
+
+@pytest.mark.integration
+async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient):
+    """The SPA reads the switch here because the notice is for somebody who has
+    not signed in. Off unless an owner turned it on."""
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["cookie_consent_enabled"] is False
+
+
+@pytest.mark.integration
+async def test_config_asks_about_nothing_a_deployment_does_not_do(client: AsyncClient):
+    """The chooser offers a switch per category here. Self-host default:
+    nothing optional is configured, so there is nothing to offer."""
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["cookie_categories"] == []

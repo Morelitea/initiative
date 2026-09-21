@@ -26,6 +26,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.core.messages import ProjectExportMessages
+from app.core.search import SearchEntityType
+from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -43,11 +45,14 @@ from app.models.platform.user import User
 from app.schemas.tenant.project_export import (
     MIN_SUPPORTED_IMPORT_VERSION,
     SCHEMA_VERSION,
+    ProjectExportComment,
     ProjectExportEnvelope,
     ProjectExportTask,
     ProjectImportResult,
 )
 from app.schemas.tenant.task import mint_checklist_item_id
+from app.services.import_engine.context import ImportContext
+from app.services.import_engine.people import PeopleMap, initiative_member_id
 from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
@@ -65,6 +70,7 @@ async def import_project(
     envelope: ProjectExportEnvelope,
     target_initiative: Initiative,
     importer: User,
+    context: ImportContext | None = None,
 ) -> ProjectImportResult:
     """Materialize ``envelope`` as a new project under ``target_initiative``.
 
@@ -73,6 +79,13 @@ async def import_project(
     function only flushes, so the import engine can compose it inside a
     larger transaction (per-chunk backup commits). RLS context must
     already point at the target guild.
+
+    ``context`` is what the job knows and this envelope does not: the link
+    collector, which each task registers itself with under the
+    ``external_ref`` its envelope gave so the deferred pass can resolve the
+    links it asserts — nothing resolves here, because the far end is usually
+    in an entry that has not been applied yet — and the people map, which
+    says which account each handle in it turned out to be.
     """
     if not (MIN_SUPPORTED_IMPORT_VERSION <= envelope.schema_version <= SCHEMA_VERSION):
         raise HTTPException(
@@ -88,6 +101,10 @@ async def import_project(
     initiative_member_handles = await load_initiative_member_handles(
         session, initiative_id=target_initiative.id
     )
+    # The same roster read the other way round. Assignment is gated on
+    # membership however the handle was resolved, and a mapped account is
+    # known by its id rather than by a handle to look up.
+    initiative_member_ids = frozenset(initiative_member_handles.values())
     target_guild_id = target_initiative.guild_id
     if target_guild_id is None:
         # Initiatives are created with a guild (services/initiatives.py
@@ -198,9 +215,10 @@ async def import_project(
 
     # 5. Tasks
     assignee_match_count = 0
+    comment_count = 0
     unmatched_handles: set[str] = set()
     for t in envelope.tasks:
-        matched = await _import_task(
+        matched, comments_made = await _import_task(
             session,
             envelope_task=t,
             project_id=project.id,
@@ -212,9 +230,12 @@ async def import_project(
             tag_name_to_id=tag_name_to_id,
             prop_key_to_id=prop_key_to_id,
             initiative_member_handles=initiative_member_handles,
+            initiative_member_ids=initiative_member_ids,
             unmatched_handle_sink=unmatched_handles,
+            context=context,
         )
         assignee_match_count += matched
+        comment_count += comments_made
 
     await session.flush()
 
@@ -229,6 +250,7 @@ async def import_project(
         property_rename_count=property_rename_count,
         assignee_match_count=assignee_match_count,
         assignee_unmatched_handles=sorted(unmatched_handles),
+        comment_count=comment_count,
     )
 
 
@@ -267,10 +289,12 @@ async def _import_task(
     tag_name_to_id: dict[str, int],
     prop_key_to_id: dict[tuple[str, PropertyType], int],
     initiative_member_handles: dict[str, int],
+    initiative_member_ids: frozenset[int],
     unmatched_handle_sink: set[str],
-) -> int:
-    """Insert one task, its checklist, tags, assignees, and property
-    values. Returns the number of distinct assignees matched & linked.
+    context: ImportContext | None = None,
+) -> tuple[int, int]:
+    """Insert one task, its checklist, tags, assignees, property values and
+    comments. Returns (assignees matched & linked, comments written).
     """
     status_id = status_name_to_id.get(envelope_task.status_name) or default_status_id
     if status_id is None:
@@ -297,6 +321,12 @@ async def _import_task(
         archived_at=envelope_task.archived_at,
         completed_at=envelope_task.completed_at,
         created_by=importer_id,
+        # When the work was written down, where the envelope says so. An
+        # envelope that carries neither leaves the model's own default — the
+        # moment of the import, which is the only time this row can honestly
+        # claim. ``None`` would be a lie of a different kind: the column is
+        # NOT NULL and every reader treats it as "when this appeared".
+        **_timestamps(envelope_task),
         checklist=[
             {
                 "id": mint_checklist_item_id(),
@@ -333,10 +363,18 @@ async def _import_task(
             tag_name_to_id[task_tag.name] = tid
         session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
 
-    # Assignees: match by handle against initiative members; drop misses
+    # Assignees: the account a person mapped the handle to, else a member
+    # whose handle is the same string — and a member of this initiative
+    # either way (see ``people.initiative_member_id``). Misses are dropped
+    # and counted.
     seen_user_ids: set[int] = set()
     for handle in envelope_task.assignee_handles:
-        uid = initiative_member_handles.get(handle_key(handle))
+        uid = initiative_member_id(
+            handle,
+            people=context.people if context is not None else PeopleMap(),
+            member_handles=initiative_member_handles,
+            member_ids=initiative_member_ids,
+        )
         if uid is None:
             unmatched_handle_sink.add(handle)
             continue
@@ -358,4 +396,95 @@ async def _import_task(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )
 
-    return len(seen_user_ids)
+    # What this task was called at the source, and what it says it points at.
+    # Both are handed to the job's collector and resolved once every entry has
+    # been applied — see ``import_engine.links``.
+    if context is not None:
+        context.links.register(
+            envelope_task.external_ref, SearchEntityType.task, task.id
+        )
+        for link in envelope_task.links:
+            context.links.link(
+                envelope_task.external_ref, link.type, link.target_external_ref
+            )
+
+    comment_count = 0
+    for envelope_comment in envelope_task.comments:
+        body = (envelope_comment.body or "").strip()
+        if not body:
+            continue
+        author_id, source_name = _comment_author(
+            envelope_comment,
+            context=context,
+            initiative_member_handles=initiative_member_handles,
+            importer_id=importer_id,
+        )
+        session.add(
+            Comment(
+                task_id=task.id,
+                guild_id=guild_id,
+                content=body,
+                created_by=author_id,
+                imported_author_name=source_name,
+                created_at=envelope_comment.created_at or datetime.now(timezone.utc),
+            )
+        )
+        comment_count += 1
+
+    return len(seen_user_ids), comment_count
+
+
+def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:
+    """The creation/update times to write, if the envelope carried any.
+
+    Returned as kwargs rather than values so an absent field falls through to
+    the model's own default instead of overwriting it with None.
+    """
+    stamps: dict[str, datetime] = {}
+    if envelope_task.created_at is not None:
+        stamps["created_at"] = envelope_task.created_at
+    if envelope_task.updated_at is not None:
+        stamps["updated_at"] = envelope_task.updated_at
+    return stamps
+
+
+def _comment_author(
+    envelope_comment: ProjectExportComment,
+    *,
+    context: ImportContext | None,
+    initiative_member_handles: dict[str, int],
+    importer_id: int,
+) -> tuple[int, str | None]:
+    """Who this comment belongs to here, and whose name to show if nobody.
+
+    Three answers, in the order they are worth anything:
+
+    1. **The account a person mapped this handle to**, in the import wizard's
+       people step. This is the only thing that moves authorship, and it moves
+       it because somebody read the name and said who it was.
+    2. **A member of the target initiative whose handle is the same string.**
+       Exact only, and only inside the initiative the comment is landing in —
+       a handle is one identifier, and a restore into the community it came
+       from is the case this covers.
+    3. **Nobody.** The row names the import that wrote it, because every
+       guild-content row names what wrote it, and the source's own answer
+       rides beside it as ``imported_author_name`` — a name, not an account,
+       so the comment shows no avatar and links to no profile.
+
+    What is deliberately missing is a fourth: a near match. A display name
+    that looks similar is how one person's words end up under another
+    person's face, and telling those two apart is the whole reason the
+    wizard asks.
+    """
+    handle = envelope_comment.author_handle
+    mapped = context.people.user_id(handle) if context is not None else None
+    if mapped is not None:
+        return mapped, None
+    if handle:
+        member = initiative_member_handles.get(handle_key(handle))
+        if member is not None:
+            return member, None
+    source_name = (
+        envelope_comment.author_name or envelope_comment.author_handle or ""
+    ).strip()
+    return importer_id, source_name[:200] or None

@@ -428,8 +428,7 @@
     "failed": "Ce statut n'a pas pu être enregistré."
   },
   "guilds": {
-    "title": "Communautés",
-    "empty": "Aucune communauté publique."
+    "title": "Communautés"
   },
   "trophyRail": "Trophées"
 }

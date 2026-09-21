@@ -19,7 +19,6 @@ from app.core.messages import QueueMessages
 from app.core.tools import Tool
 from app.services.permissions import (
     DAC_RESOURCES,
-    compute_permission,
     require_access,
 )
 from app.models.tenant.document import Document
@@ -40,31 +39,6 @@ from app.services.tenant import tags as tags_service
 # ---------------------------------------------------------------------------
 # Visibility subquery
 # ---------------------------------------------------------------------------
-
-
-# DAC — thin wrappers over the registry engine (the "queue" row of DAC_RESOURCES).
-
-
-def compute_queue_permission(queue: Queue, user_id: int) -> str | None:
-    return compute_permission(DAC_RESOURCES["queue"], queue, user_id)
-
-
-def require_queue_access(
-    queue: Queue,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: str | None = None,
-) -> None:
-    require_access(
-        DAC_RESOURCES["queue"],
-        queue,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +107,8 @@ async def get_queue_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.queue.feature_disabled_code,
         )
-    require_queue_access(
+    require_access(
+        DAC_RESOURCES[Tool.queue],
         queue,
         current_user,
         access="read",

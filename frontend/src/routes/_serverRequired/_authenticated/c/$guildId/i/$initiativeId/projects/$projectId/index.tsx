@@ -34,27 +34,16 @@ import {
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
 import { parsePresetSlug, parseViewMode } from "@/lib/filters/viewSearch";
-import { getItem } from "@/lib/storage";
 
-/** The viewer's remembered filter state, from the hydrated preferences cache
- *  (or legacy localStorage if they haven't written it back yet). */
+/** The viewer's remembered filter state, from the hydrated preferences cache. */
 function storedSpec(
   queryClient: { getQueryData: <T>(key: readonly unknown[]) => T | undefined },
   projectId: number
 ): { spec: TaskFilterSpec; viewMode?: TaskViewMode; activePresetSlug?: string | null } | null {
-  const scopeKey = `project:${projectId}:view-filters`;
-  let raw = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
-    scopeKey
+  const raw = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
+    `project:${projectId}:view-filters`
   ];
-  if (raw === undefined) {
-    try {
-      const local = getItem(scopeKey);
-      raw = local ? JSON.parse(local) : undefined;
-    } catch {
-      raw = undefined;
-    }
-  }
-  if (raw === null || typeof raw !== "object") return null;
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
   const parsed = raw as Record<string, unknown>;
   return {
     spec: specFromApi(parsed as never),

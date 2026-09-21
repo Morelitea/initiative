@@ -46,10 +46,11 @@
       "disabled": "Not enabled",
       "estimateFailed": "Couldn't load the size estimate.",
       "overRowLimit": "This export exceeds the size limit — exclude some tools to continue.",
-      "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue."
+      "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue.",
+      "willBeDelivered": "This export is over {{limit}}, so it will be written to the server's export folder instead of downloaded. Your server administrator can give you the file.",
+      "noDestination": "This export is over {{limit}} and this server has no export folder set up, so it can't be downloaded. Ask your server administrator to configure one."
     },
     "report": {
-      "include": "Include",
       "documentNative": "Text documents",
       "documentSpreadsheet": "Spreadsheets",
       "documentOthersNote": "Whiteboards and links export as JSON; uploaded files ride along unchanged."
@@ -82,14 +83,25 @@
     "initiativeDescription": "Download this initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
     "open": "Export…"
   },
+  "community": {
+    "lastExport": "Last export",
+    "none": "Nobody has exported this community yet.",
+    "startedBy": "Started by {{name}}",
+    "startedByUnknown": "Started by a former member",
+    "preparing": "Still preparing — you'll get a notification when it's ready.",
+    "expires": "Download expires",
+    "delivered": "Written to the server's export folder — ask your server administrator for the file.",
+    "expiredNote": "The archive has been cleaned up.",
+    "failedNote": "Nothing was exported.",
+    "nextAvailable": "Next export available"
+  },
   "table": {
     "title": "Recent exports",
-    "description": "Finished exports can be re-downloaded until they expire (7 days). Community admins see every member's exports.",
+    "description": "Finished exports can be re-downloaded until they expire (7 days). This list covers every member's exports.",
     "columns": {
       "export": "Export",
       "status": "Status",
       "created": "Created",
-      "expires": "Expires",
       "actions": "Actions"
     },
     "status": {
@@ -104,13 +116,14 @@
       "project": "Project",
       "document": "Document",
       "queue": "Queue",
-      "counter-group": "Counter group",
       "calendar": "Calendar",
       "post": "Post",
       "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Community",
-      "gallery": "Gallery"
+      "gallery": "Gallery",
+      "counter-group": "Counter group",
+      "dashboard": "Dashboard"
     },
     "download": "Download",
     "empty": "No exports yet.",

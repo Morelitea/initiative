@@ -46,10 +46,11 @@
       "disabled": "No habilitado",
       "estimateFailed": "No se pudo cargar la estimación de tamaño.",
       "overRowLimit": "Esta exportación supera el límite de tamaño — excluye algunas herramientas para continuar.",
-      "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar."
+      "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar.",
+      "willBeDelivered": "Esta exportación supera {{limit}}, así que se escribirá en la carpeta de exportación del servidor en lugar de descargarse. La administración del servidor puede darte el archivo.",
+      "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a la administración del servidor que configure una."
     },
     "report": {
-      "include": "Incluir",
       "documentNative": "Documentos de texto",
       "documentSpreadsheet": "Hojas de cálculo",
       "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
@@ -82,14 +83,25 @@
     "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "open": "Exportar…"
   },
+  "community": {
+    "lastExport": "Última exportación",
+    "none": "Nadie ha exportado esta comunidad todavía.",
+    "startedBy": "Iniciada por {{name}}",
+    "startedByUnknown": "Iniciada por un antiguo miembro",
+    "preparing": "Todavía se está preparando: recibirás una notificación cuando esté lista.",
+    "expires": "La descarga caduca",
+    "delivered": "Escrita en la carpeta de exportación del servidor: pide el archivo a la administración del servidor.",
+    "expiredNote": "El archivo ya se ha eliminado.",
+    "failedNote": "No se exportó nada.",
+    "nextAvailable": "Próxima exportación disponible"
+  },
   "table": {
     "title": "Exportaciones recientes",
-    "description": "Las exportaciones terminadas se pueden volver a descargar hasta que caduquen (7 días). Los administradores de la comunidad ven las exportaciones de todos los miembros.",
+    "description": "Las exportaciones terminadas se pueden volver a descargar hasta que caduquen (7 días). Esta lista incluye las exportaciones de todos los miembros.",
     "columns": {
       "export": "Exportación",
       "status": "Estado",
       "created": "Creada",
-      "expires": "Caduca",
       "actions": "Acciones"
     },
     "status": {
@@ -104,13 +116,14 @@
       "project": "Proyecto",
       "document": "Documento",
       "queue": "Cola",
-      "counter-group": "Grupo de contadores",
       "calendar": "Calendario",
       "post": "Publicación",
       "wiki": "Wiki",
       "initiative": "Iniciativa",
       "guild": "Comunidad",
-      "gallery": "Galería"
+      "gallery": "Galería",
+      "counter-group": "Grupo de contadores",
+      "dashboard": "Panel"
     },
     "download": "Descargar",
     "empty": "Aún no hay exportaciones.",

@@ -31,6 +31,11 @@ from app.models.tenant._mixins import CreatedByMixin
 class ImportJobStatus(str, Enum):
     # Backup only: payload uploaded, plan persisted, awaiting user confirm.
     staged = "staged"
+    # A foreign source is being read into a bundle. Nothing has been written
+    # to any content table yet, which is what makes this the one status a
+    # stale row is RE-CLAIMED from rather than failed: the fetch has no
+    # partial result to duplicate, only a partial payload to throw away.
+    fetching = "fetching"
     queued = "queued"
     running = "running"
     done = "done"

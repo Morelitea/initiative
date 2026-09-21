@@ -13,8 +13,6 @@
   },
   "filters": {
     "heading": "Filters",
-    "show": "Show filters",
-    "hide": "Hide filters",
     "statusCategory": "Status category",
     "filterByStatusCategory": "Filter by status category",
     "allStatusCategories": "All status categories",
@@ -67,21 +65,10 @@
     "createdAt": "Created {{time}}",
     "readOnlyNoAccess": "You only have read access to this project, so task fields are disabled.",
     "readOnlyArchived": "This project is archived. Unarchive it from project settings to edit tasks.",
-    "titleLabel": "Title",
-    "titlePlaceholder": "Task title",
     "descriptionLabel": "Description",
     "aiGenerate": "AI Generate",
     "descriptionPlaceholder": "Add extra context or acceptance criteria. Markdown supported.",
     "noDescriptionReadOnly": "No description yet.",
-    "statusLabel": "Status",
-    "selectStatus": "Select status",
-    "priorityLabel": "Priority",
-    "startDateLabel": "Start date",
-    "dueDateLabel": "Due date",
-    "assigneesLabel": "Assignees",
-    "assigneesEmptyMessage": "No initiative members available yet.",
-    "tagsLabel": "Tags",
-    "tagsPlaceholder": "Add tags...",
     "saving": "Saving…",
     "saveTask": "Save task",
     "moveToProject": "Move to project",
@@ -102,7 +89,6 @@
     "taskUnarchived": "Task unarchived",
     "moveSuccess": "Task moved to {{projectName}}.",
     "moveError": "Unable to move task",
-    "archiveError": "Unable to update task",
     "descriptionGenerated": "Description generated",
     "generateDescriptionError": "Unable to generate description",
     "commentsError": "Unable to load comments right now.",
@@ -134,7 +120,6 @@
   "myTasks": {
     "title": "My Tasks",
     "subtitle": "Everything assigned to you across all projects.",
-    "addTask": "Add Task",
     "noGuild": "No Community",
     "loadError": "Unable to load your tasks.",
     "groupByDate": "Date",
@@ -142,10 +127,7 @@
   },
   "myCalendar": {
     "title": "My Calendar",
-    "subtitle": "Tasks and events across all your communities.",
-    "loadError": "Unable to load calendar data.",
-    "typeEvents": "Events",
-    "typeTasks": "Tasks"
+    "subtitle": "Tasks and events across all your communities."
   },
   "tagTasks": {
     "loadError": "Unable to load tasks."
@@ -177,8 +159,7 @@
   },
   "prioritySelector": {
     "ariaLabel": "Priority: {{priority}}. Click to change.",
-    "changed": "Priority changed to {{priority}}",
-    "updateError": "Unable to update priority."
+    "changed": "Priority changed to {{priority}}"
   },
   "statusSelector": {
     "invalidStatus": "Invalid status selected."
@@ -215,14 +196,12 @@
   },
   "createWizard": {
     "title": "Add Task",
-    "description": "Select a project to create a new task.",
     "lastUsed": "Last used",
     "selectGuild": "Select a community",
     "selectInitiative": "Select an initiative",
     "selectProject": "Select a project",
     "noInitiatives": "No initiatives found in this community.",
     "noProjects": "No projects found in this initiative.",
-    "loading": "Loading…",
     "back": "Back",
     "searchProjects": "Search projects…",
     "loadMore": "Load more"
@@ -250,8 +229,7 @@
     "applyChanges": "Apply changes",
     "selected": "{{count}} task selected",
     "selected_other": "{{count}} tasks selected",
-    "editTags": "Edit Tags",
-    "archiving": "Archiving…"
+    "editTags": "Edit Tags"
   },
   "taskForm": {
     "titleLabel": "Title",

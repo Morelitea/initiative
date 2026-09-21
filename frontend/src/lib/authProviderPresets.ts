@@ -18,7 +18,14 @@
 export type BlankLabelKey = "tenant" | "oktaHost" | "auth0Host" | "host" | "realm" | "application";
 
 /** Likewise for `settings:authProviders.presetHints`. */
-export type PresetHintKey = "keycloak" | "authentik" | "authelia" | "pocketId" | "custom";
+export type PresetHintKey =
+  | "keycloak"
+  | "authentik"
+  | "authelia"
+  | "pocketId"
+  | "salesforce"
+  | "dex"
+  | "custom";
 
 /** A blank in an issuer template, asked for as its own field. */
 export interface PresetBlank {
@@ -45,10 +52,26 @@ export interface ProviderPreset {
   blanks: PresetBlank[];
   /** Where there is something worth saying beyond the address. */
   hintKey?: PresetHintKey;
+  /**
+   * Whether this product documents an ``amr`` carrying ``mfa`` when a second
+   * factor ran, which is what makes its word worth reading. Ticks the box on
+   * the form; the operator changes it either way, since an IdP's configuration
+   * is theirs and not something a list here can know.
+   *
+   * Set only where the product says so. A provider that is silent here is
+   * asked about rather than guessed at — a wrong yes is worse than a question.
+   */
+  assertsSecondFactor?: boolean;
 }
 
-/** Offered in the order somebody scanning the grid would want them: the ones
- *  a community brings with it, then the ones a deployment runs itself. */
+/** Offered in the order somebody scanning the grid would want them: the
+ *  enterprise platforms an organisation already has, then the ones a
+ *  deployment runs itself.
+ *
+ *  Dedicated identity providers only. A self-hosted app that happens to speak
+ *  OpenID Connect — a git forge, a chat server — is reached through the
+ *  generic entry at the end rather than named here, which is what keeps this
+ *  list to things somebody chose as their way in. */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: "google",
@@ -61,6 +84,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "microsoft",
     name: "Microsoft Entra ID",
     slug: "microsoft",
+    assertsSecondFactor: true,
     template: "https://login.microsoftonline.com/{tenant}/v2.0",
     blanks: [
       {
@@ -74,6 +98,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "okta",
     name: "Okta",
     slug: "okta",
+    assertsSecondFactor: true,
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "oktaHost", example: "dev-12345.okta.com" }],
   },
@@ -81,8 +106,26 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "auth0",
     name: "Auth0",
     slug: "auth0",
+    assertsSecondFactor: true,
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "auth0Host", example: "your-tenant.eu.auth0.com" }],
+  },
+  {
+    key: "salesforce",
+    name: "Salesforce",
+    slug: "salesforce",
+    template: "https://{host}",
+    blanks: [{ name: "host", labelKey: "host", example: "login.salesforce.com" }],
+    hintKey: "salesforce",
+  },
+  {
+    key: "jumpcloud",
+    name: "JumpCloud",
+    slug: "jumpcloud",
+    // The trailing slash is part of the issuer JumpCloud publishes, and the
+    // address has to match it exactly.
+    template: "https://oauth.id.jumpcloud.com/",
+    blanks: [],
   },
   {
     key: "keycloak",
@@ -121,6 +164,17 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "host", example: "id.example.com" }],
     hintKey: "pocketId",
+  },
+  {
+    key: "dex",
+    name: "Dex",
+    slug: "dex",
+    // Dex is mounted under a path far more often than at a root, and `/dex`
+    // is the convention its own examples use. Whatever the deployment set as
+    // its `issuer` is the answer, which is what the hint says.
+    template: "https://{host}/dex",
+    blanks: [{ name: "host", labelKey: "host", example: "auth.example.com" }],
+    hintKey: "dex",
   },
   {
     key: "zitadel",

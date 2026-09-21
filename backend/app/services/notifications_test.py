@@ -7,6 +7,8 @@ session; these tests drive it directly and assert against committed rows
 
 from datetime import datetime, timedelta, timezone
 
+import re
+
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,7 +31,7 @@ from app.models.tenant.task import (
 )
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.platform.user import User
-from app.services import email as email_service
+from app.services.platform import email_outbox
 from app.services.platform import push_notifications
 from app.services.notifications import (
     ASSIGNMENT_ITEM_RETENTION,
@@ -388,6 +390,14 @@ async def _overdue_task_in_new_guild(
     return guild
 
 
+def _titles(body: str) -> set[str]:
+    """What a rendered message names in bold — the task and project titles
+    among them. The digests build their lists by wrapping each in <strong>, so
+    this is how a test sees what reached the recipient now that the message is
+    composed rather than handed over as rows."""
+    return set(re.findall(r"<strong>([^<]+)</strong>", body))
+
+
 @pytest.mark.integration
 async def test_overdue_digest_gathers_tasks_across_user_guilds(
     session: AsyncSession, monkeypatch
@@ -399,19 +409,21 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
     user = await create_user(
         session,
         email="multi-overdue@example.com",
-        overdue_notification_time="00:00",  # always past, so the digest fires
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past.
+    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
     await _overdue_task_in_new_guild(session, user, label="Alpha")
     await _overdue_task_in_new_guild(session, user, label="Beta")
 
     captured: dict = {}
 
-    async def _capture_email(sess, recipient, tasks):
+    async def _capture_email(sess, recipient, **kwargs):
         captured["user_id"] = recipient.id
-        captured["titles"] = {t["title"] for t in tasks}
+        captured["titles"] = _titles(kwargs["pieces"].body)
+        return True
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
     # Mirror the worker's starting context: its AdminSessionLocal (app_admin) sees
     # the shared users table; the gather inside still scopes guild data per member.
@@ -419,7 +431,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
     assert captured.get("user_id") == user.id
-    assert captured.get("titles") == {"Alpha overdue", "Beta overdue"}
+    assert {"Alpha overdue", "Beta overdue"} <= captured["titles"]
 
 
 def _capture_push(monkeypatch) -> list[dict]:
@@ -453,17 +465,19 @@ async def test_overdue_digest_pushes_alongside_email(
     user = await create_user(
         session,
         email="overdue-both@example.com",
-        overdue_notification_time="00:00",
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past.
+    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
     emails: list[int] = []
 
-    async def _capture_email(sess, recipient, tasks):
+    async def _capture_email(sess, recipient, **kwargs):
         emails.append(recipient.id)
+        return True
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -490,18 +504,24 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     user = await create_user(
         session,
         email="overdue-push-only@example.com",
-        overdue_notification_time="00:00",
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past. One
+    # call, because the document is written whole: a second would replace it.
     await set_notification_prefs(
-        session, user, {"categories": {"due_dates": {"email": False}}}
+        session,
+        user,
+        {
+            "email": {"at": "00:00"},
+            "categories": {"due_dates": {"email": False}},
+        },
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
-    async def _fail_email(sess, recipient, tasks):  # pragma: no cover
+    async def _fail_email(sess, recipient, **kwargs):  # pragma: no cover
         raise AssertionError("email must not be sent to an opted-out user")
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _fail_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
     pushes = _capture_push(monkeypatch)
 
     now = datetime.now(timezone.utc)
@@ -529,18 +549,24 @@ async def test_overdue_digest_skips_push_when_opted_out(
     user = await create_user(
         session,
         email="overdue-email-only@example.com",
-        overdue_notification_time="00:00",
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past. One
+    # call, because the document is written whole: a second would replace it.
     await set_notification_prefs(
-        session, user, {"categories": {"due_dates": {"push": False}}}
+        session,
+        user,
+        {
+            "email": {"at": "00:00"},
+            "categories": {"due_dates": {"push": False}},
+        },
     )
     await _overdue_task_in_new_guild(session, user, label="Alpha")
 
-    async def _capture_email(sess, recipient, tasks):
-        return None
+    async def _capture_email(sess, recipient, **kwargs):
+        return False
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -558,24 +584,26 @@ async def test_overdue_digest_skips_template_projects(
     user = await create_user(
         session,
         email="template-overdue@example.com",
-        overdue_notification_time="00:00",
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past.
+    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
     await _overdue_task_in_new_guild(session, user, label="Real")
     await _overdue_task_in_new_guild(session, user, label="Template", is_template=True)
 
     captured: dict = {}
 
-    async def _capture_email(sess, recipient, tasks):
-        captured["titles"] = {t["title"] for t in tasks}
+    async def _capture_email(sess, recipient, **kwargs):
+        captured["titles"] = _titles(kwargs["pieces"].body)
+        return True
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
-    assert captured.get("titles") == {"Real overdue"}
+    assert {"Real overdue"} <= captured["titles"]
     assert len(pushes) == 1
     assert "Template overdue" not in pushes[0]["body"]
 
@@ -590,9 +618,10 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
     user = await create_user(
         session,
         email="archived-overdue@example.com",
-        overdue_notification_time="00:00",
         timezone="UTC",
     )
+    # The scheduled clock is a preference now; midnight is always past.
+    await set_notification_prefs(session, user, {"email": {"at": "00:00"}})
     await _overdue_task_in_new_guild(session, user, label="Live")
     await _overdue_task_in_new_guild(
         session, user, label="ArchivedProject", project_archived=True
@@ -603,16 +632,17 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
 
     captured: dict = {}
 
-    async def _capture_email(sess, recipient, tasks):
-        captured["titles"] = {t["title"] for t in tasks}
+    async def _capture_email(sess, recipient, **kwargs):
+        captured["titles"] = _titles(kwargs["pieces"].body)
+        return True
 
-    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
-    assert captured.get("titles") == {"Live overdue"}
+    assert {"Live overdue"} <= captured["titles"]
     assert len(pushes) == 1
     assert "ArchivedProject overdue" not in pushes[0]["body"]
     assert "ArchivedTask overdue" not in pushes[0]["body"]
@@ -681,13 +711,12 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
 
     captured: dict = {}
 
-    async def _capture_email(sess, recipient, assignments):
+    async def _capture_email(sess, recipient, **kwargs):
         captured["user_id"] = recipient.id
-        captured["titles"] = {a["task_title"] for a in assignments}
+        captured["titles"] = _titles(kwargs["pieces"].body)
+        return True
 
-    monkeypatch.setattr(
-        email_service, "send_task_assignment_digest_email", _capture_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
     await set_rls_context(session)
     # Past the quiet period, so the items have settled and the digest is due.
@@ -696,7 +725,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
     )
 
     assert captured.get("user_id") == user.id
-    assert captured.get("titles") == {"Alpha task", "Beta task"}
+    assert {"Alpha task", "Beta task"} <= captured["titles"]
 
     # Items were marked processed in each guild's own schema.
     for guild_id in (guild_a.id, guild_b.id):
@@ -723,12 +752,11 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
 
     sent: list[int] = []
 
-    async def _capture_email(sess, recipient, assignments):
-        sent.append(len(assignments))
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(kwargs["pieces"].body.count("<li>"))
+        return True
 
-    monkeypatch.setattr(
-        email_service, "send_task_assignment_digest_email", _capture_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
     # Item just landed — still accumulating, nothing goes out.
@@ -766,12 +794,11 @@ async def test_assignment_digest_caps_a_steady_trickle(
 
     sent: list[int] = []
 
-    async def _capture_email(sess, recipient, assignments):
-        sent.append(len(assignments))
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(kwargs["pieces"].body.count("<li>"))
+        return True
 
-    monkeypatch.setattr(
-        email_service, "send_task_assignment_digest_email", _capture_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
     # An item that landed a moment ago would normally hold the digest, but the
@@ -795,12 +822,11 @@ async def test_assignment_digest_sends_both_channels_together(
 
     emails: list[int] = []
 
-    async def _capture_email(sess, recipient, assignments):
-        emails.append(len(assignments))
+    async def _capture_email(sess, recipient, **kwargs):
+        emails.append(kwargs["pieces"].body.count("<li>"))
+        return True
 
-    monkeypatch.setattr(
-        email_service, "send_task_assignment_digest_email", _capture_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -825,12 +851,10 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
     user = await create_user(session, email="digest-one@example.com")
     guild = await _assignment_item_in_new_guild(session, user, label="Alpha")
 
-    async def _capture_email(sess, recipient, assignments):
-        return None
+    async def _capture_email(sess, recipient, **kwargs):
+        return False
 
-    monkeypatch.setattr(
-        email_service, "send_task_assignment_digest_email", _capture_email
-    )
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -858,10 +882,10 @@ async def test_assignment_digest_pushes_when_email_opted_out(
     )
     await _assignment_item_in_new_guild(session, user, label="Alpha")
 
-    async def _fail_email(sess, recipient, assignments):  # pragma: no cover
+    async def _fail_email(sess, recipient, **kwargs):  # pragma: no cover
         raise AssertionError("email must not be sent to an opted-out user")
 
-    monkeypatch.setattr(email_service, "send_task_assignment_digest_email", _fail_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -882,10 +906,10 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     user = await create_user(session, email="pref-race@example.com")
     await _assignment_item_in_new_guild(session, user, label="Alpha")
 
-    async def _fail_email(sess, recipient, assignments):  # pragma: no cover
+    async def _fail_email(sess, recipient, **kwargs):  # pragma: no cover
         raise AssertionError("email must not be sent after opting out")
 
-    monkeypatch.setattr(email_service, "send_task_assignment_digest_email", _fail_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
     pushes = _capture_push(monkeypatch)
 
     # Turn the email off after the items were queued — as a request handled
@@ -1031,11 +1055,12 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
 
     captured: dict = {}
 
-    async def _capture_email(sess, recipient, reactions):
+    async def _capture_email(sess, recipient, **kwargs):
         captured["user_id"] = recipient.id
-        captured["emoji"] = {r["emoji"] for r in reactions}
+        captured["body"] = kwargs["pieces"].body
+        return True
 
-    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -1044,7 +1069,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     )
 
     assert captured.get("user_id") == user.id
-    assert captured.get("emoji") == {"👍", "🎉"}
+    assert {"\U0001f44d", "\U0001f389"} <= set(captured["body"])
 
     for guild_id in (guild_a.id, guild_b.id):
         await set_rls_context(session, user_id=user.id, guild_id=guild_id)
@@ -1071,10 +1096,11 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
 
     sent: list[int] = []
 
-    async def _capture_email(sess, recipient, reactions):
-        sent.append(len(reactions))
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(kwargs["pieces"].body.count("<li>"))
+        return True
 
-    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
     await set_rls_context(session)
@@ -1116,10 +1142,11 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
 
     sent: list[int] = []
 
-    async def _capture_email(sess, recipient, reactions):
-        sent.append(len(reactions))
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(kwargs["pieces"].body.count("<li>"))
+        return True
 
-    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
     await set_rls_context(session)

@@ -274,5 +274,91 @@
       "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba.",
       "textBody": "La clave de acceso {{passkey}} se ha eliminado de tu cuenta y ya no sirve para iniciar sesión."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "La última hora en Initiative",
+      "subject_one": "{{count}} cosa de la última hora",
+      "subject_other": "{{count}} cosas de la última hora"
+    },
+    "daily": {
+      "title": "Tu día en Initiative",
+      "subject_one": "{{count}} cosa de ayer",
+      "subject_other": "{{count}} cosas de ayer"
+    },
+    "weekly": {
+      "title": "Tu semana en Initiative",
+      "subject_one": "{{count}} cosa de la semana pasada",
+      "subject_other": "{{count}} cosas de la semana pasada"
+    },
+    "away": {
+      "title": "Mientras no estabas",
+      "subject_one": "{{count}} cosa ocurrió mientras no estabas",
+      "subject_other": "{{count}} cosas ocurrieron mientras no estabas"
+    },
+    "recent": {
+      "title": "Lo que acaba de pasar",
+      "subject_one": "{{count}} novedad en Initiative",
+      "subject_other": "{{count}} novedades en Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Mensajes directos",
+      "connections": "Contactos",
+      "account": "Tu cuenta",
+      "other": "De tus comunidades"
+    },
+    "category": {
+      "mentions": "Menciones",
+      "replies": "Respuestas",
+      "comments": "Comentarios sobre tu trabajo",
+      "reactions": "Reacciones",
+      "assignments": "Tareas asignadas",
+      "due_dates": "Tareas vencidas",
+      "membership": "Nuevas incorporaciones",
+      "approvals": "Esperan tu decisión",
+      "posts": "Publicaciones",
+      "events": "Eventos",
+      "event_reminders": "Recordatorios de eventos",
+      "direct_messages": "Mensajes directos",
+      "connections": "Contactos",
+      "jobs": "Exportaciones e importaciones",
+      "account": "Tu cuenta"
+    }
+  },
+  "signInCode": {
+    "subject": "Tu código de acceso de Initiative",
+    "title": "Tu código de acceso",
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "body": "Escribe este código en la página que te lo ha pedido:",
+    "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
+    "fallbackText": "Si no has pedido iniciar sesión, puedes ignorar este correo.",
+    "textBody": "Tu código de acceso de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
+  },
+  "signUpCode": {
+    "subject": "Tu código de registro de Initiative",
+    "title": "Termina de crear tu cuenta",
+    "greeting": "Hola:",
+    "body": "Escribe este código en la página que te lo ha pedido para terminar de crear tu cuenta:",
+    "expiry": "El código sirve durante {{minutes}} minutos y solo puede usarse una vez.",
+    "fallbackText": "Si no has intentado crear una cuenta, puedes ignorar este correo.",
+    "textBody": "Tu código de registro de Initiative es {{code}}. Sirve durante {{minutes}} minutos y solo puede usarse una vez."
+  },
+  "accountErased": {
+    "subject": "Tu cuenta de Initiative ha sido eliminada",
+    "title": "Tu cuenta ha sido eliminada",
+    "greeting": "Hola:",
+    "body": "Confirmamos que la cuenta de Initiative asociada a esta dirección ha sido eliminada, junto con los datos personales que se guardaban con ella.",
+    "kept": "Algunas cosas permanecen y ya no te nombran: el trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada.",
+    "unexpected": "Si no has pedido esto, escribe cuanto antes a quien administre tu servidor de Initiative.",
+    "textBody": "La cuenta de Initiative asociada a esta dirección ha sido eliminada, junto con los datos personales que se guardaban con ella. El trabajo que aportaste a una comunidad sigue ahí, atribuido a una cuenta eliminada."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} ha sido eliminada",
+    "title": "{{community}} ha sido eliminada",
+    "greeting": "Hola:",
+    "body": "La comunidad <strong>{{community}}</strong> ha sido eliminada. Sus miembros ya no la ven y no se puede acceder a nada de lo que contenía.",
+    "recoverable": "Todavía no se ha destruido nada. Hasta el <strong>{{date}}</strong>, quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
+    "recoverableNoDate": "No se ha destruido nada. Quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
+    "textBody": "La comunidad {{community}} ha sido eliminada. Sus miembros ya no la ven. Todavía no se ha destruido nada y quien administre este servidor puede restaurarla."
   }
 }

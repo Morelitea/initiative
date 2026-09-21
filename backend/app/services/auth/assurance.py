@@ -150,9 +150,35 @@ def carries_passkey(amr: Iterable[str]) -> bool:
     return any(value in PASSKEY_AMR_VALUES for value in amr)
 
 
+#: The whole of what a community's sign-in rule can ask about. A session's
+#: ``amr`` says more than this — which provider it came through, that a
+#: password was typed, whatever the IdP chose to name — and none of the rest is
+#: a question anybody can put to it, so none of the rest travels to the gate.
+#:
+#: Closed on purpose. These markers travel onward as one delimited value, and
+#: this list is the whole of what may appear in it. The rest of an ``amr`` is
+#: the identity provider's own vocabulary and stops here: a marker counts
+#: because this module named it.
+POLICY_AMR_MARKERS: frozenset[str] = frozenset({SECOND_FACTOR_AMR, *PASSKEY_AMR_VALUES})
+
+
+def policy_markers(amr: Iterable[str] | None) -> frozenset[str]:
+    """The part of ``amr`` a community's sign-in rule is written against.
+
+    One reading for every credential validator, so what reaches the gate and
+    what reaches the database are the same set rather than two derivations of
+    it. A third requirable method is a value in
+    :data:`POLICY_AMR_MARKERS` and a leg that reads it, not another flag
+    threaded from the validator to the sink.
+    """
+    return frozenset(value for value in (amr or ()) if value in POLICY_AMR_MARKERS)
+
+
 def session_amr(
     provider_slug: str,
     assurance: ProviderAssurance,
+    *,
+    asserts_second_factor: bool = False,
 ) -> list[str]:
     """The session-level ``amr`` one provider login contributes: our own marker
     naming the provider, plus the methods the IdP named.
@@ -161,9 +187,20 @@ def session_amr(
     matches; the IdP's own values are what an assurance-only policy reads. A
     policy asking for any of a community's providers is answered from the
     connections themselves, so no marker names a community.
+
+    The markers a rule can ask about (:data:`POLICY_AMR_MARKERS`) are this
+    application's own account of what it verified, so a provider only
+    contributes them where the operator has said that provider's word counts
+    (``auth_providers.asserts_second_factor``). Everything else the IdP names
+    is kept either way: it is the provider's vocabulary, and nothing reads it.
     """
     markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
-    return sorted({*markers, *assurance.amr})
+    named = (
+        assurance.amr
+        if asserts_second_factor
+        else (value for value in assurance.amr if value not in POLICY_AMR_MARKERS)
+    )
+    return sorted({*markers, *named})
 
 
 def record_for_provider(

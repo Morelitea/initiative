@@ -179,6 +179,10 @@ export const ConnectProviderWizard = ({
         scopes: scopes || null,
         role_claim_path: groupsClaim.trim() || null,
         allow_jit: allowJit,
+        // Ticked for the products that document the claim, and the operator's
+        // to change on the provider's own page either way: how an IdP is
+        // configured is theirs, not something this list can know.
+        asserts_second_factor: preset.assertsSecondFactor ?? false,
         enabled,
         // The preset key doubles as the mark, `custom` included: a
         // hand-configured provider gets the standard’s own mark.

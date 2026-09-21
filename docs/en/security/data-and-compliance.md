@@ -52,6 +52,53 @@ If we host it, your data lives where our service runs. For a group with a reside
 - **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including an administrator of the server they passed through. See [Private messages](private-messages.md).
 - **Access control:** everything else is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
 
+## What is kept in your browser
+
+Initiative stores a small amount on the device you use it from. What's essential is there to run what you asked for; anything beyond that is yours to switch on or off.
+
+### Essential
+
+Always present, because there is no version of Initiative without it.
+
+| What | Where | Why |
+|---|---|---|
+| Your sign-in session | A cookie the page's own scripts can't read | Keeps you signed in between page loads. |
+| A renewal token | A cookie sent only to the sign-in routes | Renews the session without asking for your password again. |
+| Your theme, language and layout | Local storage | Your preferences, kept where you set them. |
+| What you had open, and unsent drafts | Local storage | So a reload doesn't lose your place or your typing. |
+| Recently read pages, on the mobile app | The device's own storage | So the app has something to show with no signal. |
+
+Signing out clears the session and renewal cookies. Clearing your browser's site data clears the rest; you'll land back on the sign-in page with default preferences.
+
+### Optional
+
+Initiative knows two: **analytics** — which pages get used and where people get stuck, counted in aggregate — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+
+**You are only asked about the ones your deployment actually uses.** Both ship switched off, so a server run by a group for itself uses neither and never asks about either. Where a deployment has configured one, it gets a switch, and that switch starts off. Ignoring the question, closing the chooser, or never being asked all leave everything optional off.
+
+### The cookie chooser
+
+A deployment can put the question to arriving visitors. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**.
+
+Where it is on and the deployment uses something optional, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click; **Choose** opens a switch per category. Where the deployment uses nothing optional, there is nothing to decide, so it says what is kept and offers a single acknowledgement.
+
+You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
+
+Your answer is kept in the browser you gave it in, which is what decides what that browser loads. Answered before you sign in, it stays there and goes nowhere — somebody reading the landing page has no account to attach it to.
+
+Once you're signed in it also belongs to your **account**, so a browser or device that has never asked you takes your existing answer instead of asking again, and changing your mind on one device reaches the others. Where the two disagree, an answer you have just given wins over one carried from elsewhere. Your account keeps only the categories you allowed, the date, and which version of the question it answered.
+
+If the categories change, you're asked again.
+
+### The one outside company
+
+Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The chooser names the vendor where it applies.
+
+Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
+
+!!! info "If you host it yourself"
+    The tables above describe Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
+
 ## Your data rights
 
 ### Getting your data out
@@ -72,17 +119,24 @@ Together, the **export** tools above and these **removal** tools cover the two r
 
 ### Accountability
 
-Sensitive cross-group access is **recorded**. When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, that event is logged with who, which community, and why — so privileged access is auditable rather than invisible.
+Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. Every entry is written out as one line to the deployment's log platform, which is where it is kept, queried and retained. Entries name accounts by id rather than by name or email address, never contain a password or a key, and outlive the accounts and communities they name. Each entry also records the request it came from: an identifier for that request, the network address it arrived from, and the browser or app it was made with. What is recorded:
+
+- **Privileged access.** When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a document or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
+- **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.
+- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, app services and installed apps.
+- **Accounts and data.** Accounts created, deactivated, anonymized or deleted; communities created, deleted or exported; member lists exported; permanent deletion from the trash; API keys and webhooks; and each time content is sent to an AI provider.
 
 ### Age, and what we ask for
 
-Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Taking a place in one asks your date of birth, once.
+Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Joining one from the directory asks your date of birth, once, and requires you to be 16 or older.
 
 **The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
 
-Only the parts of Initiative that are open to people outside your own communities ask at all. A private community — one that has not listed itself — never does, and neither does an invite into one.
+The question belongs to the community rather than to the way in: every route into a listed one is covered, an invite included. A private community — one that has not listed itself — never asks, whoever brings somebody in, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
 
-If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
+A community that was private until now is refused a listing while it holds anybody who has answered under the minimum, since its members joined it under no such rule.
+
+If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. It closes the directory's Join button; it takes nothing away. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
 
 Administrators of a deployment where every account is known to belong to an adult can switch the question off entirely, under **Settings › Admin › Community**.
 

@@ -43,12 +43,13 @@ What you searched and which shelf you're on live in the address, so a filtered d
 
 ![The community directory](../images/communities/community-directory.png)
 
-The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **13 or older** to take part. You're asked once, ever, and then never again.
+The first time you join a listed community, you'll be asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you've never met, and you need to be **16 or older** to join one. You're asked once, ever, and then never again.
+
+!!! info "It's about the community, not the button"
+    Anyone signed in can find a listed community, so joining one asks your age however you got there — the directory, or an invite into it. If you were put in one without ever being asked, it asks the first time you open it. A community that hasn't listed itself never asks, whoever invites you. And nothing else on Initiative asks at all: close the box and the rest of the app carries on exactly as it did.
 
 !!! info "The date isn't kept"
-    We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere.
-
-    Only the parts of Initiative open to people outside your own communities ask at all — a private community never does, and neither does an invite into one. See [Data and compliance](../security/data-and-compliance.md).
+    We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"
     It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../admin/configuration.md).
@@ -125,10 +126,10 @@ Open **Community settings** from the sidebar or the rail:
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in — single sign-on for this community, where its people land, and whether members must carry a second factor or a passkey — and on what terms: whether personal API keys reach it, and whether members sign in again every twelve hours. Each half appears only where your server has granted it; most communities never see this tab. |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
 | **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
-| **Data** | Export the whole community, and re-download a finished export. |
+| **Data** | Export the whole community, restore a backup, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |
 
 ### Trash and retention

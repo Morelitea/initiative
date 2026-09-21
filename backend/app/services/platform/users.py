@@ -8,14 +8,23 @@ from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import AuthMessages
+from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
 from app.core.encryption import hash_email
 from app.db.session import set_rls_context, set_system_guild_context
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import (
+    ABSENT_STATUSES,
+    User,
+    UserRole,
+    UserStatus,
+)
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
@@ -184,21 +193,6 @@ async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List
     return blockers
 
 
-async def _user_guild_ids(session: AsyncSession, user_id: int) -> List[int]:
-    """Guild ids the user belongs to. ``guild_memberships`` is shared/public, so
-    this needs no guild routing — it's the entry point for fanning per-guild
-    routed reads/writes out across the user's guilds."""
-    return list(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == user_id
-                )
-            )
-        ).all()
-    )
-
-
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
@@ -244,12 +238,68 @@ async def check_deletion_eligibility(
     return can_delete, blockers
 
 
-async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
+async def _end_app_access(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> None:
+    """End everything this account let an app do, in one guild.
+
+    Every app credential they connected, and every app they let act as them.
+    Losing the account has to end the vendor access it opened, and an
+    authorization to carry somebody's name has nothing left to mean once the
+    account it named is gone.
+
+    The caller routes the session into ``guild_id`` as guild admin first, which
+    is what lets the own-row policy admit rows the acting session does not own
+    (an operator closing somebody else's account).
+    """
+    from app.services.tenant import app_connections as app_connections_service
+    from app.services.tenant import app_delegations as app_delegations_service
+
+    await app_connections_service.delete_member_connections(
+        session, user_id=user_id, reason="account_closed"
+    )
+    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
+
+
+async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:
+    """The same, across every community the account belongs to.
+
+    For the paths that keep the roster: a deleted account holds its memberships
+    for its whole window, so there is no membership loop to hang this off, and
+    the guilds have to be enumerated for it.
+
+    Returns the session to the public baseline, because the caller's remaining
+    work is on shared tables.
+    """
+    guild_ids = list(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
+    )
+    for guild_id in guild_ids:
+        # ids repeat per schema, so the identity map is cleared between guilds.
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await _end_app_access(session, user_id=user_id, guild_id=guild_id)
+        await session.flush()
+    await set_rls_context(session)
+
+
+async def _drop_user_memberships(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> User:
     """Remove the user from every guild and initiative they belong to,
     handing owned documents off to PMs along the way. Returns the loaded
     ``User`` row but does NOT commit — the caller is responsible for
     issuing exactly one commit so its own status / PII writes land in
     the same transaction as the membership cleanup.
+
+    ``actor_user_id`` is who closed the account — the person themselves, or an
+    operator doing it for them — and is what each departure record names.
 
     Splitting the membership work out of ``deactivate_user`` lets
     ``soft_delete_user`` perform PII erasure atomically: a failure
@@ -281,8 +331,6 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # commit here: we ``flush`` so the SQL lands in the shared transaction the
     # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_delegations as app_delegations_service
 
     for gid in guild_ids:
         session.expunge_all()
@@ -292,20 +340,7 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             guild_id=gid,
             user_id=user_id,
         )
-        # Every app credential this person connected, in every guild they
-        # belong to — one sweep rather than a per-guild chore, because losing
-        # the account has to end the vendor access it opened. Routed as guild
-        # admin, which is what lets the own-row policy admit rows the acting
-        # session does not own (an admin removing somebody else's account).
-        await app_connections_service.delete_member_connections(
-            session, user_id=user_id, reason="account_closed"
-        )
-        # And every app this person let act as them. An authorization to carry
-        # somebody's name has nothing left to mean once the account it named is
-        # gone.
-        await app_delegations_service.delete_member_delegations(
-            session, user_id=user_id
-        )
+        await _end_app_access(session, user_id=user_id, guild_id=gid)
         await session.flush()
 
     # Back to the public, login-role baseline for the shared-table work: the
@@ -318,20 +353,35 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
         )
     ).all()
     for membership in memberships:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            actor_user_id=actor_user_id,
+            target_user_id=user_id,
+            guild_id=membership.guild_id,
+            target_type="guild",
+            target_id=membership.guild_id,
+            detail={"role": membership.role.value, "via": "account_closed"},
+        )
         await session.delete(membership)
 
     return (await session.exec(select(User).where(User.id == user_id))).one()
 
 
-async def deactivate_user(session: AsyncSession, user_id: int) -> None:
+async def deactivate_user(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Reversibly deactivate a user account.
 
     Sets ``status = deactivated``, drops the user from every guild and
     initiative they belong to, and bumps ``token_version`` so any
     outstanding JWTs stop authenticating. PII (name, email, avatar) is
     left intact so the user can be reactivated by an admin later.
+
+    ``actor_user_id`` is who asked for it — the account holder, or somebody
+    acting on the account.
     """
-    user = await _drop_user_memberships(session, user_id)
+    user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
     # Owned documents are handed off to other initiative PMs inside
     # ``_drop_user_memberships`` above, before the InitiativeMember
     # rows are dropped.
@@ -339,8 +389,107 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     user.token_version += 1
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DEACTIVATED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
     await session.commit()
     await _dispatch_queued_revocations(session)
+
+
+async def request_account_deletion(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> User:
+    """Mark an account for erasure and keep it until the window runs out.
+
+    The account stops existing for everybody else — absent from rosters,
+    pickers and search, and its sessions end — while everything it holds stays
+    exactly where it is. Memberships, initiative roles and owned documents are
+    **not** dropped, which is the whole difference from ``deactivate_user``:
+    coming back restores the account whole rather than to an empty one.
+
+    ``status_changed_at`` is the moment it was asked for, and so what the
+    erasure date is counted from. Stamped unconditionally rather than through a
+    general status setter — an account asked for twice would otherwise keep the
+    first stamp and be erased early.
+
+    Nothing is erased here. ``account_purge`` runs :func:`soft_delete_user` when
+    the window ends, which is the erasure this used to do immediately.
+
+    ``actor_user_id`` is who asked — the account holder, or somebody acting on
+    the account.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise ValueError(AuthMessages.USER_NOT_FOUND)
+    # The account has withdrawn what it let apps do, so they are told now
+    # rather than in a month's time — the same call the community deletion
+    # makes, for the same reason. A restored account comes back with its app
+    # connections gone, and reconnects them.
+    await _end_app_access_everywhere(session, user_id=user_id)
+    session.expunge_all()
+    user = await session.get(User, user_id)
+    if user is None:  # pragma: no cover — re-read after the routing excursion
+        raise ValueError(AuthMessages.USER_NOT_FOUND)
+    user.status = UserStatus.deleted
+    user.status_changed_at = datetime.now(timezone.utc)
+    # Every session this account holds ends here. Getting back in is what calls
+    # the deletion off, so the way back has to start from a sign-in.
+    user.token_version += 1
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETION_SCHEDULED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
+    await session.commit()
+    await _dispatch_queued_revocations(session)
+    return user
+
+
+async def cancel_account_deletion(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    actor_user_id: int | None = None,
+    via: str,
+) -> bool:
+    """Call off a pending erasure. Returns whether there was one to call off.
+
+    ``via`` says how it was called off — ``sign_in`` when the holder simply
+    came back, ``operator`` when somebody restored it from the users table.
+
+    Does not commit: a sign-in cancelling a deletion is part of opening that
+    session, and the two land together or not at all.
+    """
+    user = await session.get(User, user_id)
+    if user is None or user.status != UserStatus.deleted:
+        return False
+    user.status = UserStatus.active
+    user.status_changed_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETION_CANCELLED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"via": via},
+    )
+    await session.flush()
+    return True
 
 
 async def _scrub_invites_addressed_to(
@@ -385,7 +534,9 @@ async def _scrub_invites_addressed_to(
             session.add(invite)
 
 
-async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
+async def soft_delete_user(
+    session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
+) -> None:
     """Soft-delete (anonymize) a user account.
 
     Drops memberships like ``deactivate_user``, then strips every PII
@@ -404,6 +555,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     All of this happens inside a single transaction with one commit at
     the end, so a "right to be forgotten" request never ends up in a
     half-applied state — either every change lands or none do.
+
+    ``actor_user_id`` is who asked for it — the account holder, or somebody
+    acting on the account.
 
     This is irreversible — there is no undo.
     """
@@ -434,11 +588,16 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     session.expunge_all()
     await set_rls_context(session)
 
-    user = await _drop_user_memberships(session, user_id)
+    user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
 
     # Captured before ``replace_all`` below overwrites them — it is how a guild
     # invite bound to one of this person's addresses is found.
     original_email_hashes = await addresses.held_hashes(session, user_id=user_id)
+    # The addresses the receipt goes to, read before the erasure takes them.
+    # Proved ones only: an address nobody confirmed is not somewhere this
+    # account's own news should be sent.
+    receipt_recipients = await addresses.proven_addresses(session, user_id=user_id)
+    receipt_locale = getattr(user, "locale", None) or "en"
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -515,9 +674,24 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     if original_email_hashes:
         await _scrub_invites_addressed_to(session, email_hashes=original_email_hashes)
 
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_ANONYMIZED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
+
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
     await session.commit()
+    # The receipt, once the erasure is a fact. Never allowed to fail it: the
+    # account is gone whether or not the letter goes.
+    await email_service.announce_account_erased(
+        session, recipients=receipt_recipients, locale=receipt_locale
+    )
     await _dispatch_queued_revocations(session)
     # Last, because the revocations above name this person to each app by the
     # very references this removes.
@@ -537,39 +711,6 @@ async def _dispatch_queued_revocations(session: AsyncSession) -> None:
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )
-
-
-async def count_capability_holders(
-    session: AsyncSession, capability: Capability, *, for_update: bool = False
-) -> int:
-    """Count active users whose standing role grants ``capability``.
-
-    Args:
-        session: Database session
-        capability: The platform capability to count holders of
-        for_update: If True, lock the matching user rows to prevent race conditions
-    """
-    roles = list(roles_with_capability(capability))
-    if not roles:
-        return 0
-    if for_update:
-        # Lock the matching users to prevent a race when demoting/deleting.
-        stmt = (
-            select(User)
-            .where(
-                User.role.in_(roles),
-                User.status == UserStatus.active,
-            )
-            .with_for_update()
-        )
-        result = await session.exec(stmt)
-        return len(result.all())
-    stmt = select(func.count(User.id)).where(
-        User.role.in_(roles),
-        User.status == UserStatus.active,
-    )
-    result = await session.exec(stmt)
-    return result.one()
 
 
 async def is_last_capability_holder(
@@ -622,6 +763,8 @@ async def is_last_capability_holder(
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,
+    *,
+    actor_user_id: int | None = None,
 ) -> None:
     """
     Permanently delete a user account.
@@ -636,6 +779,7 @@ async def hard_delete_user(
     Args:
         session: Database session
         user_id: ID of user to delete
+        actor_user_id: Who asked for it, for the record
     """
     from app.services.tenant import initiatives as initiatives_service
     from app.services.tenant.mention_parser import anonymize_user_mentions
@@ -769,6 +913,19 @@ async def hard_delete_user(
 
     await session.delete(user)
 
+    # Recorded in phase 2, on the reset context: the record outlives the row it
+    # names, so it is written where every other shared-table write of this
+    # delete is written.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_DELETED,
+        actor_user_id=actor_user_id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"self": actor_user_id == user_id},
+    )
+
     await session.commit()
     # After the commit: the row is gone, so what outside parties were given to
     # name this person by should stop resolving to anybody.
@@ -887,10 +1044,17 @@ def visible_to_other_people(status_column=None):
     """Rows that may appear where a person is listed as someone to work with.
 
     A suspended account is not one: it vanishes from rosters, pickers, search,
-    mention candidates and presence for as long as the suspension lasts. What
-    it does **not** vanish from is work it already touched — a comment it wrote
-    still says who wrote it, because suspension is reversible and removes the
-    account from nothing.
+    mention candidates and presence for as long as the suspension lasts. Nor is
+    an account whose holder has asked for it to go — for the window before the
+    erasure, it is as absent as if the erasure had already happened.
+
+    Neither vanishes from work it already touched: a comment either wrote still
+    says who wrote it. Both states are reversible, and neither removes the
+    account from anything.
+
+    Stated against :data:`~app.models.platform.user.ABSENT_STATUSES` rather
+    than by naming one status, so a state added later is a decision about which
+    side of this line it falls on.
 
     A clause rather than a filtered query, so each surface keeps its own
     joins and its own gates and only borrows the predicate. It reads the guild
@@ -899,7 +1063,7 @@ def visible_to_other_people(status_column=None):
     ``user_profiles`` view, which carry the same column and the same rule.
     """
     column = MemberProfile.status if status_column is None else status_column
-    return column != UserStatus.suspended
+    return column.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value))
 
 
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
@@ -954,13 +1118,51 @@ async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
     from app.schemas.platform.user import AdminUserRead
 
     primary, proven = await _reach([u.id for u in users])
+    # Only asked when somebody on this page is actually waiting out a window,
+    # which on an ordinary roster is nobody.
+    retention = (
+        await _account_retention_days()
+        if any(u.status == UserStatus.deleted for u in users)
+        else None
+    )
     out: List[AdminUserRead] = []
     for user in users:
         payload = AdminUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
+        payload.purge_at = _erase_at(user, retention)
         out.append(payload)
     return out
+
+
+async def _account_retention_days() -> int | None:
+    """The deployment's window for deleted accounts, on its own session.
+
+    Same reason as :func:`_reach`: this shape is built outside any particular
+    request's session, and the setting is one row read once for the whole page.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.services.platform import app_settings as app_settings_service
+
+    async with AdminSessionLocal() as admin_session:
+        row = await app_settings_service.get_app_settings(admin_session)
+        return row.deleted_account_retention_days
+
+
+def _erase_at(user: User, retention: int | None) -> datetime | None:
+    """When this account is erased, or None if nothing will erase it.
+
+    ``status_changed_at`` is when the deletion was asked for. ``retention`` of
+    None is a deployment that keeps deleted accounts, and an account that is
+    never erased has no date to show.
+    """
+    if user.status != UserStatus.deleted or user.status_changed_at is None:
+        return None
+    if retention is None:
+        return None
+    from app.services.platform.account_purge import erase_at
+
+    return erase_at(user.status_changed_at, retention)
 
 
 async def to_admin_read_one(user: User) -> "AdminUserRead":

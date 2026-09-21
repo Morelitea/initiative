@@ -192,47 +192,33 @@ async def test_progress_bar_requires_bounds(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
-async def test_increment_clamps_at_max(client: AsyncClient, acting_user):
+@pytest.mark.parametrize(
+    ("operation", "start", "landed"),
+    [("increment", "99", "100"), ("decrement", "2", "0")],
+    ids=["up to the maximum", "down to the minimum"],
+)
+async def test_a_step_lands_on_the_bound_rather_than_past_it(
+    client: AsyncClient, acting_user, operation: str, start: str, landed: str
+):
+    """A step wider than the room left stops at the bound it is heading for."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(
         client,
         a,
         group["id"],
-        count="99",
+        count=start,
         min_value="0",
         max_value="100",
         step="5",
     )
 
     response = await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/increment"),
+        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/{operation}"),
         headers=a.headers,
     )
     assert response.status_code == 200
-    assert Decimal(response.json()["count"]) == Decimal("100")
-
-
-@pytest.mark.integration
-async def test_decrement_clamps_at_min(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    group = await _create_group(client, a)
-    counter = await _add_counter(
-        client,
-        a,
-        group["id"],
-        count="2",
-        min_value="0",
-        max_value="100",
-        step="5",
-    )
-
-    response = await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/decrement"),
-        headers=a.headers,
-    )
-    assert response.status_code == 200
-    assert Decimal(response.json()["count"]) == Decimal("0")
+    assert Decimal(response.json()["count"]) == Decimal(landed)
 
 
 @pytest.mark.integration

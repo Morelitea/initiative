@@ -33,7 +33,6 @@
     "platformSettings": "Platform Settings",
     "operatorDashboard": "Operator Dashboard"
   },
-  "shortcutHint": "Search",
   "shortcutTooltip": "Quick search ({{shortcut}})",
   "types": {
     "project": "Project",

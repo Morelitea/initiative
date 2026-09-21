@@ -72,7 +72,7 @@ const FREQUENCY_LABELS: Record<
   yearly: { singular: "year", plural: "years" },
 };
 
-const clampInterval = (value: number) => Math.max(1, Math.min(365, Math.floor(value)));
+const _clampInterval = (value: number) => Math.max(1, Math.min(365, Math.floor(value)));
 
 const getReferenceDate = (value?: string | null): Date => {
   if (!value) {
@@ -348,35 +348,6 @@ export const summarizeRecurrence = (
 
   return parts.join(" ");
 };
-
-export const withInterval = (
-  rule: TaskRecurrenceOutput,
-  interval: number
-): TaskRecurrenceOutput => ({
-  ...rule,
-  interval: clampInterval(interval),
-});
-
-export const withEndDate = (
-  rule: TaskRecurrenceOutput,
-  endDate?: string | null
-): TaskRecurrenceOutput => ({
-  ...rule,
-  ends: endDate ? "on_date" : "never",
-  end_date: endDate ?? null,
-  end_after_occurrences: null,
-});
-
-export const withOccurrenceCount = (
-  rule: TaskRecurrenceOutput,
-  count?: number
-): TaskRecurrenceOutput => ({
-  ...rule,
-  ends: typeof count === "number" ? "after_occurrences" : "never",
-  end_after_occurrences:
-    typeof count === "number" ? Math.max(1, Math.min(1000, Math.floor(count))) : null,
-  end_date: null,
-});
 
 export const updateWeeklyWeekdays = (
   rule: TaskRecurrenceOutput,

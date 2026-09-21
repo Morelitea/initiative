@@ -89,7 +89,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/c/$guildId/i", params: { guildId: String(guild.id) } });
+    router.navigate({ to: "/c/$guildId", params: { guildId: String(guild.id) } });
   };
 
   const handleGuildSettings = async () => {
@@ -101,12 +101,13 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   };
 
   const handleCreateInitiative = async () => {
-    // Switch to this guild first if not active, then navigate to initiatives with create param
+    // Switch to this guild first if not active; the guild home holds the
+    // initiatives list, and `create` opens its create dialog on arrival.
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
     router.navigate({
-      to: "/c/$guildId/i",
+      to: "/c/$guildId",
       params: { guildId: String(guild.id) },
       search: { create: "true" },
     });

@@ -27,24 +27,68 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class GuildStatus(str, Enum):
-    """Operator-set lifecycle status of a guild (platform `guilds.manage`).
+    """Lifecycle status of a guild.
+
+    The first three are operator-set from the platform Guilds tab (platform
+    `guilds.manage`) and are freely interchangeable:
 
     - ``active``: normal operation.
     - ``read_only``: members keep read access to content but writes are denied
       at the Postgres role level (routed into ``guild_<id>_ro``).
-    - ``suspended``: soft delete — members lose all content access and the
-      guild vanishes from their guild list. Guild admins keep the settings
-      surface (billing / data ownership / danger zone) under every status.
+    - ``suspended``: members lose all content access and the guild vanishes
+      from their guild list. Guild admins keep the settings surface (billing /
+      data ownership / danger zone) under all three.
+
+    The fourth is not:
+
+    - ``deleted``: the guild has been deleted and is being retained for
+      :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
+      it is destroyed. Nobody in the guild reaches it — not even its admins,
+      whose settings carve-out is withdrawn, because a deleted guild has no
+      billing surface left to reach and its danger zone has already been used.
+      It is absent from every member's guild list.
+
+      Reached only through deletion and left only through restore, both of
+      which do more than move a column, so it is deliberately not offered in
+      the operator's status control and a PATCH that names it is refused.
 
     PAM/break-glass grants deliberately override all of this: a grantee
     behaves exactly as against an active guild (the resolver's grant branch
-    never consults the status), so suspending a guild can never lock the
-    platform operators out. The status is not serialized to guild members.
+    never consults the status), so no status can lock the platform operators
+    out — which is what lets an operator look inside a deleted guild before
+    deciding whether to bring it back. The status is not serialized to guild
+    members.
     """
 
     active = "active"
     read_only = "read_only"
     suspended = "suspended"
+    deleted = "deleted"
+
+
+#: The statuses from which a request reaches guild content at all. Everything
+#: else is refused by the guild-access resolver.
+#:
+#: Stated once, as a set, because the question is asked in a dozen places and
+#: every one of them should have the same answer.
+#: ``guild_soft_delete_test`` holds the set and the resolver together.
+LIVE_STATUSES: frozenset[GuildStatus] = frozenset(
+    {GuildStatus.active, GuildStatus.read_only}
+)
+
+#: The statuses an operator may set from the Guilds tab, in the order the
+#: control lists them (least → most restrictive). ``deleted`` is absent by
+#: derivation rather than by a second hand-written list.
+OPERATOR_SETTABLE_STATUSES: tuple[GuildStatus, ...] = (
+    GuildStatus.active,
+    GuildStatus.read_only,
+    GuildStatus.suspended,
+)
+
+#: :data:`LIVE_STATUSES` as the strings the column stores, so one set answers
+#: the question in Python (``guild.status in LIVE_STATUS_VALUES``) and in SQL
+#: (``Guild.status.in_(LIVE_STATUS_VALUES)``) rather than two.
+LIVE_STATUS_VALUES: frozenset[str] = frozenset(s.value for s in LIVE_STATUSES)
 
 
 class GuildCategory(str, Enum):
@@ -248,6 +292,18 @@ class Guild(SQLModel, table=True):
     # lifting its sign-in requirement. Set by the guild's superadmin; read when
     # a sign-in is stamped with its deadline.
     enforce_compliance_session: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # Whether reaching this community asks for a second factor. The community
+    # asks for one; which kinds exist, and which providers' word counts as
+    # having presented one, are the deployment's answers.
+    #
+    # Here for the reason the two above are: it says what is asked of a session
+    # reaching this community, and the answer has to survive the guild lifting
+    # its sign-in requirement. Set by the guild's superadmin; read by the
+    # guild-access gate.
+    require_second_factor: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

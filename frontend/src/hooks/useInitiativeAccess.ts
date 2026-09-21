@@ -168,6 +168,17 @@ export function guildMayWriteContent(
  * `activeGuild.accessType === "grant"` below — so the UI must reflect that and
  * not show create/edit affordances the backend would reject.
  */
+/**
+ * Whether this person holds a managing role in an initiative, read off
+ * `is_manager` — the flag the role carries — so an initiative that renamed its
+ * managers or added a second managing role counts the same members the server
+ * does. The one rule behind `canManage` and a project card's pin control.
+ */
+export const managesInitiative = (
+  members: readonly { user: { id: number }; is_manager: boolean }[] | undefined,
+  userId: number
+): boolean => Boolean(members?.some((m) => m.user.id === userId && m.is_manager));
+
 export function useInitiativeAccess() {
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
@@ -217,7 +228,7 @@ export function useInitiativeAccess() {
     (initiative: InitiativeRead): boolean => {
       if (isGuildAdmin) return true;
       if (!user) return false;
-      return initiative.members.some((m) => m.user.id === user.id && m.is_manager);
+      return managesInitiative(initiative.members, user.id);
     },
     [user, isGuildAdmin]
   );

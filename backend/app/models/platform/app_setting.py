@@ -5,12 +5,53 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import (
+    DEFAULT_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.models.platform.user_dm_settings import DmPolicy
 
 # Platform OIDC config lives on the provider registry row (``auth_providers``
 # slug ``oidc``), not here. Which ways in the deployment permits does — see
 # ``login_methods`` below and ``app.services.platform.auth_posture``.
+
+
+#: ``DEFAULT_LOGIN_METHODS`` as Postgres writes an array literal, so the set is
+#: stated once rather than here and in ``login_methods`` below. The migrations
+#: that moved this default keep their own copies: a migration is the record of
+#: what changed when, and is not read for what the default is now.
+_DEFAULT_LOGIN_METHODS_SQL = "{%s}" % ",".join(m.value for m in DEFAULT_LOGIN_METHODS)
+
+
+#: The retention window a deployment gets until it says otherwise, in days.
+#:
+#: The figure is the deployment's, not a community's: one answer for everybody
+#: on the server, set by whoever runs it. A community cannot shorten or extend
+#: its own, which is what makes the window mean something to the person
+#: deleting theirs.
+DEFAULT_GUILD_RETENTION_DAYS = 90
+
+#: The window a deployment gets for a deleted **account**, in days.
+#:
+#: Shorter than the community one by default: a community's window protects a
+#: body of work that several people made, an account's protects one person
+#: from a decision they made in a moment, and thirty days is what somebody
+#: takes to change their mind.
+#:
+#: It is a separate figure from the community's rather than one setting for
+#: both, because they answer to different things — what a deployment owes the
+#: people in it, and what it owes the person leaving.
+DEFAULT_ACCOUNT_RETENTION_DAYS = 30
+
+#: The shortest window a deployment may set, for either. A day, because a
+#: window measured in hours is not one somebody notices their mistake inside
+#: of.
+MIN_GUILD_RETENTION_DAYS = 1
+
+#: The longest. Past this, the answer being asked for is "never", which is what
+#: clearing the figure says.
+MAX_GUILD_RETENTION_DAYS = 3650
 
 
 class AppSetting(SQLModel, table=True):
@@ -27,6 +68,17 @@ class AppSetting(SQLModel, table=True):
     dark_accent_color: str = Field(
         default="#60a5fa",
         sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
+    )
+
+    # Whether an arriving visitor is asked what this deployment may keep in
+    # their browser. Off by default: most deployments are a group's own server,
+    # reached by people who were sent a link, and a question nobody needed is
+    # just something in the way. An owner running a public front door turns it
+    # on. The answer itself lives in that browser and never reaches here —
+    # there is no account behind a landing-page visitor to attach it to.
+    cookie_consent_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
     # What this deployment is running, and what it was running before that.
@@ -61,13 +113,76 @@ class AppSetting(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, nullable=True),
     )
+
+    # And the other half: the longest a session may be left alone. NULL keeps
+    # ``AUTH_REFRESH_TTL_DAYS``, which is where this question was answered
+    # before and still is for a deployment that says nothing. A figure here
+    # narrows it; a community held to the compliance standard narrows it
+    # further. Whichever is strictest binds, which is what a limit means.
+    session_idle_minutes: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+
+    # How long a deleted community is kept before it is destroyed, in days.
+    #
+    # NULL is not the default here, unlike the limit above: it means **never**
+    # destroy one. A deployment that has undertaken to keep what its members
+    # put in it — or that is holding everything pending something unresolved —
+    # says so by clearing this, and deleted communities then sit in the
+    # operator's list until somebody restores or purges one deliberately.
+    #
+    # 90 days on a fresh install and on every upgrade, because that is the
+    # figure the retention window shipped as.
+    # How long a deleted account is kept before it is erased, in days.
+    #
+    # NULL means never, as it does above: the deployment keeps the account and
+    # nothing erases it on a timer. That is the answer for one required to keep
+    # accounts rather than to remove them, and the reason this is a setting at
+    # all rather than the constant it started as.
+    deleted_account_retention_days: Optional[int] = Field(
+        default=DEFAULT_ACCOUNT_RETENTION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_ACCOUNT_RETENTION_DAYS)
+        ),
+    )
+
+    deleted_community_retention_days: Optional[int] = Field(
+        default=DEFAULT_GUILD_RETENTION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_GUILD_RETENTION_DAYS)
+        ),
+    )
     login_methods: list[str] = Field(
-        default_factory=lambda: [m.value for m in LoginMethod],
+        default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],
         sa_column=Column(
             ARRAY(PGEnum(LoginMethod, name="login_method", create_type=False)),
             nullable=False,
-            # Matches what migration 0315 sets on the column.
-            server_default="{password,sso,totp,passkey}",
+            server_default=_DEFAULT_LOGIN_METHODS_SQL,
+        ),
+    )
+
+    # Who this deployment asks to hold a second factor. A Postgres enum for
+    # the same reason ``login_methods`` is one: the database validates the
+    # value, and a rung added later is a value on the type rather than a
+    # column here. ``nobody`` on every fresh and upgraded install, so an
+    # upgrade asks nothing of anybody it was not already asking.
+    #
+    # What answers it is the account holding one — a confirmed authenticator
+    # or a registered passkey — or a session that presented one, which is what
+    # an identity provider's own second factor looks like from here. The
+    # per-session reading is a community's question (``require_methods``);
+    # this one is about the account.
+    second_factor_requirement: SecondFactorRequirement = Field(
+        default=SecondFactorRequirement.nobody,
+        sa_column=Column(
+            PGEnum(
+                SecondFactorRequirement,
+                name="second_factor_requirement",
+                create_type=False,
+            ),
+            nullable=False,
+            server_default=SecondFactorRequirement.nobody.value,
         ),
     )
 
@@ -107,8 +222,10 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
-    # Whether an account must say it is 13 or older before it belongs to a
-    # guild listed in that directory. On by default, and only a platform owner
+    # Whether an account must say it is 16 or older before it joins a guild
+    # listed in that directory. It gates that join and nothing else — a
+    # private guild is its own to answer for, and asks nobody's age.
+    # On by default, and only a platform owner
     # turns it off — doing so is that owner asserting that every account on the
     # deployment already belongs to an adult, which is a thing an enterprise
     # rollout knows and a public one does not. Independent of the directory

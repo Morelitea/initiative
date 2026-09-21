@@ -1,0 +1,46 @@
+{
+  "signupNotice": "Al crear una cuenta aceptas los <termsLink>{{terms}}</termsLink> y la <privacyLink>{{privacy}}</privacyLink> de {{appName}}.",
+  "termsTitle": "Términos del servicio",
+  "privacyTitle": "Política de privacidad",
+  "documentFallbackTitle": "Documento legal",
+  "effective": "En vigor desde el {{date}}",
+  "version": "Versión {{version}}",
+  "unavailable": "Ahora mismo no se puede mostrar este documento. Vuelve a intentarlo en un momento.",
+  "backToSignIn": "Volver a iniciar sesión",
+  "acceptError": "No hemos podido registrarlo. Inténtalo de nuevo.",
+  "accept": {
+    "title": "Una cosa antes de empezar",
+    "subtitle": "Tu cuenta se creó a través de tu proveedor de identidad, así que aún no has visto estos documentos. Léelos y acéptalos para continuar.",
+    "submit": "Acepto",
+    "signOut": "Cerrar sesión"
+  },
+  "cookies": {
+    "label": "Cookies",
+    "title": "Sobre las cookies",
+    "body": "{{appName}} guarda algunas cosas en este navegador para funcionar: lo que mantiene tu sesión, el tema que elegiste y lo que tenías abierto.",
+    "nothingOptional": "Nada más. No se guarda ninguna otra cosa y nada te sigue por otros sitios.",
+    "optionalIntro": "Más allá de eso, tú decides.",
+    "spamCheck": "Si creas una cuenta, el formulario de registro carga una comprobación antispam de {{provider}}, que coloca una cookie propia.",
+    "readMore": "Qué se guarda",
+    "alwaysOn": "Siempre activas",
+    "rejectAll": "Rechazar opcionales",
+    "acceptAll": "Aceptar todas",
+    "choose": "Elegir",
+    "save": "Guardar opciones",
+    "acknowledge": "Entendido",
+    "categories": {
+      "necessary": {
+        "name": "Esenciales",
+        "description": "Iniciar sesión, tus preferencias y lo que tenías abierto. No existe una versión de Initiative sin ellas."
+      },
+      "analytics": {
+        "name": "Analítica",
+        "description": "Qué páginas se usan y dónde se atasca la gente, contado en conjunto para saber qué arreglar."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Qué enlace te trajo aquí, y poder hablarte de Initiative en otro sitio."
+      }
+    }
+  }
+}

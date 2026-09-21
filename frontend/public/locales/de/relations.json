@@ -1,19 +1,16 @@
 {
-  "title": "Beziehungen",
-  "description": "Verknüpfe dies mit allem anderen in der Initiative und sag, wie beides zusammenhängt.",
+  "title": "Verknüpft mit",
+  "description": "Alles, womit dies verbunden ist — und wie.",
   "untitled": "Ohne Titel",
-  "empty": "Hiermit ist noch nichts verknüpft.",
-  "loadFailed": "Beziehungen antworten nicht. Versuche es in einem Moment erneut.",
-  "add": "Beziehung hinzufügen",
+  "empty": "Noch nichts verknüpft.",
+  "loadFailed": "Verknüpfungen antworten nicht. Versuch es gleich noch einmal.",
+  "add": "Verknüpfung hinzufügen",
   "graph": {
     "alt": "{{title}} und die {{count}} damit verknüpften Dinge",
     "hops": "Schritte",
     "hopsN_one": "{{count}} Schritt",
     "hopsN_other": "{{count}} Schritte",
     "walking": "Sucht weiter…",
-    "zoomIn": "Vergrößern",
-    "zoomOut": "Verkleinern",
-    "reset": "Ansicht zurücksetzen",
     "showTags": "Tags anzeigen"
   },
   "layout": {
@@ -28,13 +25,14 @@
   "added": "Verknüpft.",
   "removed": "Verknüpfung entfernt.",
   "dialog": {
-    "title": "Beziehung hinzufügen",
-    "description": "Gib an, wie die beiden zusammenhängen, und wähle dann das Objekt.",
-    "relationship": "Beziehung",
+    "title": "Verknüpfung hinzufügen",
+    "description": "Such zuerst das Objekt, sag dann, wie die beiden zusammenhängen.",
     "entity": "Objekt",
     "entityPlaceholder": "Nach Namen suchen…",
     "noResults": "Keine Treffer.",
-    "submit": "Beziehung hinzufügen",
+    "relationship": "Beziehung",
+    "sentenceLabel": "Wie die beiden zusammenhängen",
+    "submit": "Verknüpfung hinzufügen",
     "submitting": "Wird hinzugefügt…",
     "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen."
   },
@@ -48,43 +46,93 @@
     "attached": {
       "title": "Angehängt",
       "empty": "Noch nichts angehängt.",
-      "option": "Ist angehängt an"
+      "option": "ist angehängt an"
     },
     "blockedBy": {
       "title": "Blockiert von",
-      "empty": "Nichts steht im Weg.",
-      "option": "Wird blockiert von"
+      "option": "wird blockiert von"
     },
     "blocks": {
       "title": "Blockiert",
-      "empty": "Hält nichts auf.",
-      "option": "Blockiert"
+      "option": "blockiert"
     },
     "partOf": {
       "title": "Teil von",
-      "empty": "Nicht Teil von etwas Größerem.",
-      "option": "Ist Teil von"
+      "option": "ist Teil von"
     },
     "parts": {
-      "title": "Teile",
-      "empty": "Nichts gehört hierzu.",
-      "option": "Hat als Teil"
+      "title": "Besteht aus",
+      "option": "besteht aus"
     },
     "related": {
-      "title": "Verwandt",
-      "empty": "Noch nichts Verwandtes.",
-      "option": "Ist verwandt mit"
+      "title": "Siehe auch",
+      "option": "hängt zusammen mit"
     },
     "referencedBy": {
-      "title": "Erwähnt von",
-      "empty": "Nichts erwähnt das hier.",
-      "option": "Verweist auf"
+      "title": "Erwähnt in",
+      "option": "wird erwähnt in"
     },
     "tagged": {
       "title": "Markiert",
-      "empty": "Keine Tags.",
-      "option": "Ist markiert"
+      "option": "ist markiert"
     }
   },
-  "loading": "Wird geladen…"
+  "loading": "Wird geladen…",
+  "title_task": "Verbindungen",
+  "title_document": "Verbindungen",
+  "title_project": "Angehängt & verknüpft",
+  "empty_task": "Noch nichts verknüpft. Verknüpfe das Dokument, das diese Aufgabe beschreibt, oder die Aufgabe, von der sie blockiert wird.",
+  "empty_document": "Noch nichts verknüpft. Verknüpfe das Projekt, das dies erklärt, oder die Aufgabe, aus der es entstanden ist.",
+  "empty_project": "Noch nichts verknüpft. Häng die Dokumente und Dateien an, auf denen dieses Projekt aufbaut.",
+  "count": "{{count}}",
+  "openOf": "{{open}} von {{total}} noch offen",
+  "help": {
+    "title": "Was eine Verknüpfung ist",
+    "body": "Eine Verknüpfung hält fest, wie zwei Dinge zusammenhängen — worauf eine Aufgabe wartet, welches Dokument ein Projekt erklärt, was was erwähnt.",
+    "derived": "Manche Verknüpfungen schreiben sich selbst: # und [[ ]] im Text werden zu „Erwähnt in“.",
+    "learnMore": "Mehr erfahren"
+  },
+  "anchor": {
+    "calendar": "Dieser Kalender",
+    "calendar_event": "Dieser Termin",
+    "counter": "Dieser Zähler",
+    "counter_group": "Diese Gruppe",
+    "dashboard": "Dieses Dashboard",
+    "document": "Dieses Dokument",
+    "gallery": "Diese Galerie",
+    "gallery_image": "Dieses Bild",
+    "generic": "Dies",
+    "post": "Dieser Beitrag",
+    "project": "Dieses Projekt",
+    "queue": "Diese Warteschlange",
+    "queue_item": "Dieser Eintrag",
+    "task": "Diese Aufgabe",
+    "wiki": "Dieses Wiki",
+    "wiki_page": "Diese Seite"
+  },
+  "blockers": {
+    "label_one": "{{count}} Sache hält dies auf",
+    "label_other": "{{count}} Sachen halten dies auf",
+    "icon": "Was dies aufhält"
+  },
+  "title_calendar": "Verbindungen",
+  "title_calendar_event": "Verbindungen",
+  "title_counter": "Verbindungen",
+  "title_counter_group": "Verbindungen",
+  "title_dashboard": "Verbindungen",
+  "title_gallery": "Angehängt & verknüpft",
+  "title_gallery_image": "Verbindungen",
+  "title_post": "Verbindungen",
+  "title_queue": "Verbindungen",
+  "title_queue_item": "Verbindungen",
+  "empty_calendar": "Noch nichts verknüpft. Verknüpfe das Projekt, das dieser Kalender plant, oder das Dokument, das ihn erklärt.",
+  "empty_calendar_event": "Noch nichts verknüpft. Verknüpfe die Aufgabe, um die es geht, oder das Dokument, mit dem du arbeitest.",
+  "empty_counter": "Noch nichts verknüpft. Verknüpfe die Aufgabe, auf die das einzahlt, oder das Projekt, über das es berichtet.",
+  "empty_counter_group": "Noch nichts verknüpft. Verknüpfe das Projekt, um dessen Zahlen es geht.",
+  "empty_dashboard": "Noch nichts verknüpft. Verknüpfe das Projekt, über das dies berichtet, oder das Dokument, das es auswertet.",
+  "empty_gallery": "Noch nichts verknüpft. Verknüpfe das Projekt, für das diese Bilder sind.",
+  "empty_gallery_image": "Noch nichts verknüpft. Verknüpfe die Aufgabe, für die das Bild ist, oder das Dokument, in das es gehört.",
+  "empty_post": "Noch nichts verknüpft. Verknüpfe das Projekt, das hier angekündigt wird, oder das Dokument dahinter.",
+  "empty_queue": "Noch nichts verknüpft. Verknüpfe das Projekt, das diese Warteschlange speist.",
+  "empty_queue_item": "Noch nichts verknüpft. Verknüpfe die Aufgabe, die daraus wurde, oder das Dokument, aus dem es stammt."
 }

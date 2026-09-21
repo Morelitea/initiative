@@ -1,12 +1,12 @@
 {
   "job": {
     "succeeded": "Import finished.",
-    "failed": "Import failed.",
-    "queued": "Import started — you'll get a notification when it finishes."
+    "failed": "Import failed."
   },
   "wizard": {
     "title": "Import a backup",
     "back": "Back",
+    "next": "Next",
     "close": "Close",
     "cancelUpload": "Cancel import",
     "upload": "Upload backup",
@@ -16,8 +16,7 @@
       "hint": "A .zip exported from Initiative's community or initiative backup.",
       "notZip": "This file isn't a valid Initiative backup.",
       "readFailed": "Couldn't read this backup file. It may be corrupted.",
-      "tooLarge": "This file is larger than the {{limit}} upload limit.",
-      "reading": "Reading backup…"
+      "tooLarge": "This file is larger than the {{limit}} upload limit."
     },
     "peek": {
       "source": "Backup of {{name}}",
@@ -34,11 +33,18 @@
     "plan": {
       "prompt": "Review what will be imported",
       "willCreate": "\"{{name}}\" will be imported as a new initiative \"{{proposed}}\"",
-      "toolCount": "{{tool}}: {{count}}",
       "skipped_one": "{{count}} item was left out of this backup by its exporter",
       "skipped_other": "{{count}} items were left out of this backup by its exporter",
       "unknownTypes": "Unknown content types will be skipped: {{types}}",
       "note": "Each initiative in the backup is created fresh — nothing existing is changed. The import runs in the background."
+    },
+    "people": {
+      "prompt": "Who are these people here?",
+      "note": "The export names people by the handle they had where it came from. We've filled in the ones whose handle matches a member exactly — check them, and say who the rest are. Leave a row blank and those comments keep the name they arrived with, credited to no account.",
+      "comments_one": "{{count}} comment",
+      "comments_other": "{{count}} comments",
+      "unmapped": "Nobody here",
+      "pickerLabel": "Who {{name}} is here"
     },
     "progress": {
       "title": "Importing…",
@@ -87,6 +93,7 @@
     },
     "status": {
       "staged": "Awaiting confirmation",
+      "fetching": "Reading the source",
       "queued": "Queued",
       "running": "Running",
       "done": "Finished",
@@ -99,11 +106,12 @@
       "initiative-project": "Project",
       "initiative-document": "Document",
       "initiative-queue": "Queue",
-      "initiative-counter-group": "Counter group",
       "initiative-calendar": "Calendar",
       "initiative-post": "Post",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Gallery"
+      "initiative-gallery": "Gallery",
+      "initiative-counter-group": "Counter group",
+      "initiative-dashboard": "Dashboard"
     },
     "cancel": "Cancel",
     "viewReport": "View report",

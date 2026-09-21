@@ -67,6 +67,19 @@ describe("GuildSettingsLayout", () => {
     expect(screen.queryByRole("tab", { name: /integrations/i })).not.toBeInTheDocument();
   });
 
+  it("offers Data to the seat and not to an admin", async () => {
+    // Taking the community out in one file, or putting one back, reaches as
+    // far as deleting it does — so it sits with the same seat.
+    render();
+    expect(await screen.findByRole("tab", { name: /data/i })).toBeInTheDocument();
+
+    cleanup();
+    guildRole = "admin";
+    render();
+    expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /data/i })).not.toBeInTheDocument();
+  });
+
   it.each(["admin", "member"])("does not offer it to %s", async (role) => {
     // Everything on that tab is the superadmin's to set, so an ordinary
     // admin is not shown a page they could only look at.

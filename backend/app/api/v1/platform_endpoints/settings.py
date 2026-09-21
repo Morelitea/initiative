@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
@@ -15,6 +15,7 @@ from app.api.deps import (
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
+from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
@@ -34,6 +35,8 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    GuildNarrowingAgreement,
+    GuildNarrowingPending,
     CommunitySettingsResponse,
     CommunitySettingsUpdate,
     EmailSettingsResponse,
@@ -43,7 +46,9 @@ from app.schemas.platform.settings import (
     InterfaceSettingsResponse,
     InterfaceSettingsUpdate,
     LoginMethodStatus,
+    AccountsWithoutFactor,
     LoginMethodsUpdate,
+    SecondFactorRequirementUpdate,
     SessionLifetimeUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
@@ -59,6 +64,7 @@ from app.schemas.platform.settings import (
 )
 from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
+    PlatformGuildRestore,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
@@ -79,12 +85,20 @@ from app.core.security import (
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
 from app.services.auth import guild_claim_rules as claim_rules
+from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import (
+    FACTOR_METHODS,
+    PRIMARY_LOGIN_METHODS,
+    LoginMethod,
+    SecondFactorRequirement,
+)
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
 
@@ -92,6 +106,34 @@ logger = logging.getLogger(__name__)
 
 # Reason stamped on a grant self-issued by the Guilds tab's billing button.
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
+
+# Which columns of the settings singleton this page moves itself; the other
+# areas are recorded by the service that writes them. A value rides along in
+# the record only where its type rules out a secret.
+_SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
+    "session_max_hours",
+    "session_idle_minutes",
+)
+
+#: What the operator's caps and entitlements for one community consist of.
+_GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
+    "max_storage_bytes",
+    "max_users",
+    "auth_options",
+    "banner_image_enabled",
+    "support_enabled",
+)
+
+#: What a claim rule places somebody by, for the record.
+_CLAIM_RULE_FIELDS: tuple[str, ...] = (
+    "provider_id",
+    "claim_value",
+    "target_type",
+    "guild_role",
+    "initiative_id",
+    "initiative_role_id",
+)
+
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
@@ -173,6 +215,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             LoginMethodStatus(
                 method=method,
                 enabled=method in permitted,
+                primary=method in PRIMARY_LOGIN_METHODS,
+                answers_factor=method in FACTOR_METHODS,
                 would_strand=await auth_posture.stranded_between(
                     session, current=permitted, requested=permitted - {method}
                 ),
@@ -180,7 +224,18 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             for method in LoginMethod
         ],
         guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
+        session_idle_minutes=row.session_idle_minutes,
+        second_factor_requirement=auth_posture.requirement_from_row(row),
+        accounts_without_factor=AccountsWithoutFactor(
+            platform_roles=await auth_posture.accounts_without_factor(
+                session, level=SecondFactorRequirement.platform_roles
+            ),
+            everyone=await auth_posture.accounts_without_factor(
+                session, level=SecondFactorRequirement.everyone
+            ),
+        ),
     )
 
 
@@ -216,11 +271,38 @@ async def update_login_methods(
     return await _platform_auth_payload(session)
 
 
+@router.put(
+    "/auth/second-factor-requirement", response_model=PlatformAuthSettingsResponse
+)
+async def update_second_factor_requirement(
+    payload: SecondFactorRequirementUpdate,
+    session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> PlatformAuthSettingsResponse:
+    """Set who this deployment asks to hold a second factor.
+
+    Two refusals on the way up, and none coming down. Asking for one while the
+    deployment permits nothing that presents one is refused (409); so is
+    asking while the account writing it does not meet the rule itself (400,
+    naming the unmet method), which is the same "prove it before it binds
+    anybody" a community's requirement makes.
+
+    Nobody is signed out. An account the rule covers is asked at its next
+    request and can answer it where it stands; a credential that cannot
+    present one — the app on a phone, a personal API key — works again once
+    its owner holds a factor.
+    """
+    await auth_posture.set_second_factor_requirement(
+        session, level=payload.level, actor=admin
+    )
+    return await _platform_auth_payload(session)
+
+
 @router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
 async def update_session_lifetime(
     payload: SessionLifetimeUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set how long somebody may stay signed in before signing in again.
 
@@ -231,13 +313,25 @@ async def update_session_lifetime(
     shortening the limit can end one on the spot.
     """
     row = await app_settings_service.get_app_settings(session)
+    before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
     row.session_max_hours = payload.session_max_hours
+    row.session_idle_minutes = payload.session_idle_minutes
     session.add(row)
     await session.flush()
     # A device token carries its deadline in its own expiry, so the new figure
     # is written into the ones already issued rather than read back on every
     # native request.
     await session_lifetime.apply_to_device_tokens(session)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+            actor_user_id=admin.id,
+            detail={"area": "session_lifetime", **changed},
+        )
     await session.commit()
     return await _platform_auth_payload(session)
 
@@ -250,6 +344,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
     )
 
 
@@ -257,16 +352,19 @@ async def get_interface_settings(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
-    settings_obj = await app_settings_service.update_interface_colors(
+    settings_obj = await app_settings_service.update_interface_settings(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
+        cookie_consent_enabled=payload.cookie_consent_enabled,
+        actor_user_id=admin.id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
     )
 
 
@@ -289,6 +387,8 @@ async def read_community_settings(
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
+        deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 
@@ -296,7 +396,7 @@ async def read_community_settings(
 async def update_community_settings(
     payload: CommunitySettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """Turn the community directory on or off for the whole deployment.
 
@@ -314,8 +414,8 @@ async def update_community_settings(
     starts on, and changing it moves no existing account.
 
     ``age_gate_enabled`` is the second switch: whether an account must confirm
-    it belongs to somebody 13 or older before it takes a place in a listed
-    guild. Turning it off is the owner asserting that every account on this
+    it belongs to somebody 16 or older before it takes a place in a listed
+    guild. That join is all it gates; an invited guild asks nobody's age. Turning it off is the owner asserting that every account on this
     deployment already belongs to an adult, which is why it is a deliberate
     write and not a side effect of the first — omitting it leaves it alone.
 
@@ -324,6 +424,13 @@ async def update_community_settings(
     without a directory. Off, My Messages is not offered and every
     direct-message route refuses; nothing is deleted, so turning it back on
     restores the channels people already had.
+
+    ``deleted_community_retention_days`` is the fifth: how long a deleted
+    community is kept before it is destroyed. ``null`` means never, which is
+    the answer for a deployment that has undertaken to keep what its members
+    put in it, so this field reads its presence rather than its value — omit it
+    to leave the window alone. The figure is the deployment's; a community has
+    no say in its own.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
@@ -331,12 +438,21 @@ async def update_community_settings(
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
         direct_messages_enabled=payload.direct_messages_enabled,
+        deleted_community_retention_days=payload.deleted_community_retention_days,
+        retention_provided="deleted_community_retention_days"
+        in payload.model_fields_set,
+        deleted_account_retention_days=payload.deleted_account_retention_days,
+        account_retention_provided="deleted_account_retention_days"
+        in payload.model_fields_set,
+        actor_user_id=admin.id,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
         age_gate_enabled=settings_obj.community_age_gate_enabled,
         default_dm_policy=settings_obj.default_dm_policy,
         direct_messages_enabled=settings_obj.direct_messages_enabled,
+        deleted_community_retention_days=settings_obj.deleted_community_retention_days,
+        deleted_account_retention_days=settings_obj.deleted_account_retention_days,
     )
 
 
@@ -353,7 +469,7 @@ async def get_email_settings(
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
@@ -368,6 +484,7 @@ async def update_email_settings(
         password_provided=password_provided,
         from_address=payload.from_address,
         test_recipient=payload.test_recipient,
+        actor_user_id=admin.id,
     )
     return _email_settings_payload(updated)
 
@@ -435,7 +552,7 @@ async def get_storage_settings(
 async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     secret_provided = "s3_secret_access_key" in data
@@ -451,6 +568,7 @@ async def update_storage_settings(
         s3_use_path_style=payload.s3_use_path_style,
         s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
+        actor_user_id=admin.id,
     )
     return _storage_settings_payload(updated)
 
@@ -556,6 +674,21 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
+def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
+    """When this guild is destroyed, or None if nothing will destroy it.
+
+    ``status_changed_at`` is the deletion time for a deleted guild, so the date
+    is derived from the columns already loaded rather than stored. ``retention``
+    is the deployment's window; None there means it keeps deleted communities,
+    and a community that is never destroyed has no date to show.
+    """
+    if guild.status != GuildStatus.deleted.value or guild.status_changed_at is None:
+        return None
+    if retention is None:
+        return None
+    return guild_purge.purge_at(guild.status_changed_at, retention)
+
+
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
     session: AdminSessionDep,
@@ -590,11 +723,27 @@ async def list_platform_guild_storage(
             )
         ).all()
     )
+    retention = await guild_purge.retention_days(session)
+    # Which guilds still hold the seat that configures them. One grouped query
+    # beside the member counts rather than a per-guild check, for the same
+    # reason: this list is every guild on the deployment.
+    seated = {
+        row
+        for row in (
+            await session.exec(
+                select(GuildMembership.guild_id)
+                .where(GuildMembership.role == GuildRole.superadmin)
+                .distinct()
+            )
+        ).all()
+    }
     return [
         PlatformGuildStorageRead(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
+            purge_at=_guild_purge_at(g, retention),
+            has_seat=g.id in seated,
             tier_name=administration.tier_name if administration else None,
             max_storage_bytes=(
                 administration.max_storage_bytes if administration else None
@@ -619,7 +768,7 @@ async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
     session: AdminSessionDep,
-    _admin: GuildsManageDep,
+    admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
@@ -635,7 +784,14 @@ async def update_platform_guild_storage(
     Lowering a cap below current usage just blocks further uploads / new joins.
     """
     provided = payload.model_fields_set
+    before: dict[str, Any] = {}
+    status_before: str | None = None
+    status_after: str | None = None
     try:
+        before = audit_service.snapshot(
+            await guilds_service.get_administration(session, guild_id=guild_id),
+            _GUILD_ADMINISTRATION_FIELDS,
+        )
         guild = await guilds_service.update_guild(
             session,
             guild_id=guild_id,
@@ -653,11 +809,19 @@ async def update_platform_guild_storage(
                 guild_id,
                 guild.status,
                 payload.status.value,
-                _admin.id,
+                admin.id,
             )
+            status_before, status_after = guild.status, payload.status.value
             guild = await guilds_service.set_guild_status(
                 session, guild_id=guild_id, status=payload.status
             )
+    except guilds_service.SupportIntakeMissingError as exc:
+        # Nowhere to send what the form would collect. The setup this asks for
+        # is the operator's own, one page over.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED,
+        ) from exc
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
@@ -669,9 +833,32 @@ async def update_platform_guild_storage(
                 detail=GuildMessages.GUILD_NOT_FOUND,
             ) from exc
         raise
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(administration, _GUILD_ADMINISTRATION_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+            actor_user_id=admin.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"area": "administration", **changed},
+        )
+    if status_after is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_STATUS_CHANGED,
+            actor_user_id=admin.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": status_before, "to": status_after},
+        )
     await session.commit()
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
         id=guild.id,
         name=guild.name,
@@ -681,7 +868,119 @@ async def update_platform_guild_storage(
         max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
+        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
+        has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
         auth_options=sorted(administration.auth_options),
+        banner_image_enabled=administration.banner_image_enabled,
+        support_enabled=administration.support_enabled,
+    )
+
+
+@router.get("/guilds/{guild_id}/narrowings", response_model=list[GuildNarrowingPending])
+async def read_guild_narrowings(
+    guild_id: int,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> list[GuildNarrowingPending]:
+    """What this community says its own arrivals look like, and whether
+    anybody has agreed.
+
+    Admin/owner (``guilds.manage``). The community writes these values itself
+    and nothing here can tell whether it holds the domain or tenant they name,
+    so the answer is the deployment's. Support answers through the case raised
+    when they are written; this is the same question where a deployment runs
+    no intake, and the place to withdraw an answer either way.
+    """
+    return await narrowing_review.pending_for_guild(session, guild_id=guild_id)
+
+
+@router.put(
+    "/guilds/{guild_id}/narrowings/{connection_id}",
+    response_model=GuildNarrowingPending,
+)
+async def agree_guild_narrowing(
+    guild_id: int,
+    connection_id: int,
+    payload: GuildNarrowingAgreement,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> GuildNarrowingPending:
+    """Agree that these values are this community's, or withdraw that.
+
+    Agreeing lets arrivals it counts as its own join on sight where the
+    community asked for that. Withdrawing leaves the connection and its values
+    as they are; what stops is joining people on arrival.
+    """
+    return await narrowing_review.agree(
+        session,
+        guild_id=guild_id,
+        connection_id=connection_id,
+        agreed=payload.agreed,
+        actor_user_id=admin.id,
+    )
+
+
+@router.post("/guilds/{guild_id}/restore", response_model=PlatformGuildStorageRead)
+async def restore_platform_guild(
+    guild_id: int,
+    payload: PlatformGuildRestore,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> PlatformGuildStorageRead:
+    """Bring a deleted guild back before its retention window runs out.
+
+    Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    rows, the ``guild_<id>`` schema and the stored blobs all stay until
+    ``guild_purge`` destroys them — so restoring is a status write plus, where
+    the roster was emptied, seating somebody who can run the community again.
+
+    The operator names the status it returns at, and must name a seat when the
+    guild holds none. Both are re-checked in the service rather than trusted
+    from the payload. What does *not* come back is the guild's app
+    connections: those were revoked when it was deleted, and an admin
+    reconnects them.
+
+    Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
+    ``guild_memberships``), so no guild-schema routing is needed.
+    """
+    try:
+        guild = await guilds_service.restore_guild(
+            session,
+            guild_id=guild_id,
+            status=payload.status,
+            seat_user_id=payload.seat_user_id,
+            actor_user_id=admin.id,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == GuildMessages.GUILD_NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=code
+            ) from exc
+        if code == GuildMessages.GUILD_NOT_DELETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=code
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=code
+        ) from exc
+    logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
+    await session.commit()
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    return PlatformGuildStorageRead(
+        id=guild.id,
+        name=guild.name,
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
+        tier_name=administration.tier_name,
+        max_storage_bytes=administration.max_storage_bytes,
+        max_users=administration.max_users,
+        status=GuildStatus(guild.status),
+        status_changed_at=guild.status_changed_at,
+        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
+        has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
+        auth_options=sorted(administration.auth_options),
+        banner_image_enabled=administration.banner_image_enabled,
+        support_enabled=administration.support_enabled,
     )
 
 
@@ -693,6 +992,7 @@ async def create_platform_guild_billing_service_handoff(
     guild_id: int,
     session: AdminSessionDep,
     admin: GuildsManageDep,
+    console: Literal["support", "operator"] = "support",
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
@@ -756,6 +1056,7 @@ async def create_platform_guild_billing_service_handoff(
                 if grant.approved_by_id is not None
                 else None
             ),
+            console=console,
         )
     except BillingSupportHandoffNotConfiguredError as exc:
         raise HTTPException(
@@ -889,7 +1190,7 @@ async def get_oidc_mappings(
 async def create_oidc_mapping(
     payload: OIDCClaimMappingCreate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> OIDCClaimMappingRead:
     # Validate target_type
     try:
@@ -958,6 +1259,21 @@ async def create_oidc_mapping(
         else None,
     )
     session.add(mapping)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_CREATED,
+        actor_user_id=admin.id,
+        guild_id=mapping.guild_id,
+        target_type="claim_rule",
+        target_id=mapping.id,
+        detail={
+            "via": "operator",
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
+            ),
+        },
+    )
     await session.commit()
     await session.refresh(mapping)
     return await _enrich_mapping(session, mapping)
@@ -968,7 +1284,7 @@ async def update_oidc_mapping(
     mapping_id: int,
     payload: OIDCClaimMappingUpdate,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> OIDCClaimMappingRead:
     mapping = (
         await session.exec(
@@ -978,6 +1294,7 @@ async def update_oidc_mapping(
     if not mapping:
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
+    before = audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
     data = payload.model_dump(exclude_unset=True)
     if "provider_id" in data and data["provider_id"] is not None:
         mapping.provider_id = data["provider_id"]
@@ -1046,6 +1363,19 @@ async def update_oidc_mapping(
 
     mapping.updated_at = datetime.now(timezone.utc)
     session.add(mapping)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.CLAIM_RULE_UPDATED,
+            actor_user_id=admin.id,
+            guild_id=mapping.guild_id,
+            target_type="claim_rule",
+            target_id=mapping.id,
+            detail={"via": "operator", **changed},
+        )
     await session.commit()
     await session.refresh(mapping)
     return await _enrich_mapping(session, mapping)
@@ -1055,7 +1385,7 @@ async def update_oidc_mapping(
 async def delete_oidc_mapping(
     mapping_id: int,
     session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    admin: ConfigManageDep,
 ) -> None:
     mapping = (
         await session.exec(
@@ -1064,7 +1394,17 @@ async def delete_oidc_mapping(
     ).one_or_none()
     if not mapping:
         raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
+    guild_id = mapping.guild_id
     await session.delete(mapping)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.CLAIM_RULE_DELETED,
+        actor_user_id=admin.id,
+        guild_id=guild_id,
+        target_type="claim_rule",
+        target_id=mapping_id,
+        detail={"via": "operator"},
+    )
     await session.commit()
 
 

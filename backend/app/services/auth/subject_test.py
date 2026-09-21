@@ -4,7 +4,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
-from app.services.auth.subject import MAX_ROW_ID, subject_for_user, user_for_subject
+from app.services.auth.subject import subject_for_user, user_for_subject
 from app.services.platform import identity_refs
 from app.testing.factories import create_user
 
@@ -43,21 +43,12 @@ async def test_two_accounts_get_unrelated_names(session: AsyncSession):
     )
 
 
-async def test_the_row_id_still_resolves(session: AsyncSession):
-    """A token minted by the previous build carries the row id, and its holder
-    keeps working until it lapses."""
-    user = await create_user(session)
-
-    assert await user_for_subject(session, subject=str(user.id)) == user
-
-
 @pytest.mark.parametrize(
     "subject",
     [
         "",
         "ucli_nothing_was_ever_minted_for_this",
         "x" * 400,
-        str(MAX_ROW_ID + 1),
         "9" * 40,
     ],
 )

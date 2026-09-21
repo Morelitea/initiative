@@ -6,7 +6,7 @@
     "title": "Elige una conversación"
   },
   "nobodyYet": "Todavía nadie. Una conversación se abre cuando se acepta una solicitud de mensaje.",
-  "ageLocked": "La mensajería es para personas de 13 años o más, y esta cuenta aún no ha respondido a esa pregunta.",
+  "ageLocked": "La mensajería es para personas de 16 años o más, y esta cuenta aún no ha respondido a esa pregunta.",
   "requests": {
     "heading": "Solicitudes",
     "asked": "Quieren iniciar una conversación.",

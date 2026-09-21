@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/DashboardUpdateBadge";
 import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/PublishedViewNotice";
@@ -157,6 +158,13 @@ export function DashboardDetailPage() {
         onLayoutChange={editor.replaceDefinition}
         onConfigureWidget={setConfiguringId}
         onRemoveWidget={editor.removeWidget}
+      />
+
+      <ToolRelationsPanel
+        tool={Tool.dashboard}
+        entity={dashboard}
+        canEdit={canEdit}
+        entityTitle={dashboard?.name}
       />
 
       {dashboard != null && (

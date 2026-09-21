@@ -19,7 +19,13 @@ from app.core.role_context import (
     set_override_sharing_initiatives,
 )
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus, content_role
+from app.models.platform.guild import (
+    LIVE_STATUS_VALUES,
+    Guild,
+    GuildMembership,
+    GuildStatus,
+    content_role,
+)
 from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
@@ -59,7 +65,7 @@ async def member_guild_ids(
     await set_rls_context(session, user_id=user_id)
     conditions = [
         GuildMembership.user_id == user_id,
-        Guild.status != GuildStatus.suspended.value,
+        Guild.status.in_(LIVE_STATUS_VALUES),
         User.status != UserStatus.suspended,
     ]
     if auth_context.api_key_credential():
@@ -163,8 +169,8 @@ async def gather_across_guilds(
             )
             # Defense in depth for callers that assemble their own guild list
             # (member_guild_ids already filters): membership grants NO content
-            # access to a suspended guild, admins included.
-            if guild_status == GuildStatus.suspended.value:
+            # access to a guild that is not live, admins included.
+            if guild_status not in LIVE_STATUS_VALUES:
                 continue
             # And the same for a guild that declines personal API keys when the
             # request is carrying one.
@@ -187,8 +193,7 @@ async def gather_across_guilds(
                 # contributes nothing here.
                 satisfied_providers=satisfied_providers,
                 satisfied_claims=auth_context.satisfied_claims(),
-                session_mfa=auth_context.session_mfa(),
-                session_passkey=auth_context.session_passkey(),
+                session_amr=auth_context.session_amr(),
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.

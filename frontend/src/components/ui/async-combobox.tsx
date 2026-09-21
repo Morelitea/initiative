@@ -136,20 +136,33 @@ export const AsyncCombobox = ({
                     <CommandItem
                       key={item.value}
                       value={item.value}
+                      // Top-aligned rather than centred: a row with a second
+                      // line is taller than the tick and the icon beside it.
+                      className="items-start"
                       onSelect={() => handleSelect(item.value)}
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4 shrink-0",
+                          "mt-0.5 mr-2 h-4 w-4 shrink-0",
                           item.value === value ? "opacity-100" : "opacity-0"
                         )}
                       />
                       {item.icon ? (
-                        <item.icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <item.icon className="mt-0.5 mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                       ) : null}
-                      <span className="truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{item.label}</span>
+                        {/* Where the row lives. Two things of the same name are
+                            told apart by this line and nothing else, so it is
+                            drawn under the name rather than squeezed beside it. */}
+                        {item.sublabel ? (
+                          <span className="block truncate text-muted-foreground text-xs">
+                            {item.sublabel}
+                          </span>
+                        ) : null}
+                      </span>
                       {item.hint ? (
-                        <span className="ml-auto shrink-0 pl-2 text-muted-foreground text-xs">
+                        <span className="mt-0.5 shrink-0 pl-2 text-muted-foreground text-xs">
                           {item.hint}
                         </span>
                       ) : null}

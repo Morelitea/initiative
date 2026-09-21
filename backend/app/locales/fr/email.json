@@ -274,5 +274,91 @@
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez.",
       "textBody": "La clé d'accès {{passkey}} a été retirée de votre compte et ne permet plus de vous connecter."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "La dernière heure sur Initiative",
+      "subject_one": "{{count}} chose de la dernière heure",
+      "subject_other": "{{count}} choses de la dernière heure"
+    },
+    "daily": {
+      "title": "Votre journée sur Initiative",
+      "subject_one": "{{count}} chose d'hier",
+      "subject_other": "{{count}} choses d'hier"
+    },
+    "weekly": {
+      "title": "Votre semaine sur Initiative",
+      "subject_one": "{{count}} chose de la semaine dernière",
+      "subject_other": "{{count}} choses de la semaine dernière"
+    },
+    "away": {
+      "title": "Pendant votre absence",
+      "subject_one": "{{count}} chose s'est passée pendant votre absence",
+      "subject_other": "{{count}} choses se sont passées pendant votre absence"
+    },
+    "recent": {
+      "title": "Ce qui vient de se passer",
+      "subject_one": "{{count}} nouveauté sur Initiative",
+      "subject_other": "{{count}} nouveautés sur Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Messages directs",
+      "connections": "Contacts",
+      "account": "Votre compte",
+      "other": "Dans vos communautés"
+    },
+    "category": {
+      "mentions": "Mentions",
+      "replies": "Réponses",
+      "comments": "Commentaires sur votre travail",
+      "reactions": "Réactions",
+      "assignments": "Tâches assignées",
+      "due_dates": "Tâches en retard",
+      "membership": "Nouvelles arrivées",
+      "approvals": "En attente de vous",
+      "posts": "Publications",
+      "events": "Événements",
+      "event_reminders": "Rappels d'événements",
+      "direct_messages": "Messages directs",
+      "connections": "Contacts",
+      "jobs": "Exports et imports",
+      "account": "Votre compte"
+    }
+  },
+  "signInCode": {
+    "subject": "Votre code de connexion Initiative",
+    "title": "Votre code de connexion",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body": "Saisissez ce code sur la page qui vous l'a demandé :",
+    "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
+    "fallbackText": "Si vous n'avez pas demandé à vous connecter, vous pouvez ignorer cet e-mail.",
+    "textBody": "Votre code de connexion Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
+  },
+  "signUpCode": {
+    "subject": "Votre code d'inscription Initiative",
+    "title": "Terminez la création de votre compte",
+    "greeting": "Bonjour,",
+    "body": "Saisissez ce code sur la page qui vous l'a demandé pour terminer la création de votre compte :",
+    "expiry": "Le code est valable {{minutes}} minutes et ne peut servir qu'une fois.",
+    "fallbackText": "Si vous n'avez pas cherché à créer un compte, vous pouvez ignorer cet e-mail.",
+    "textBody": "Votre code d'inscription Initiative est {{code}}. Il est valable {{minutes}} minutes et ne peut servir qu'une fois."
+  },
+  "accountErased": {
+    "subject": "Votre compte Initiative a été supprimé",
+    "title": "Votre compte a été supprimé",
+    "greeting": "Bonjour,",
+    "body": "Ceci confirme que le compte Initiative associé à cette adresse a été supprimé, ainsi que les données personnelles qui y étaient rattachées.",
+    "kept": "Certaines choses demeurent et ne vous nomment plus : ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé.",
+    "unexpected": "Si vous n'êtes pas à l'origine de cette demande, contactez au plus vite la personne qui administre votre serveur Initiative.",
+    "textBody": "Le compte Initiative associé à cette adresse a été supprimé, ainsi que les données personnelles qui y étaient rattachées. Ce que vous avez apporté à une communauté y reste, attribué à un compte supprimé."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} a été supprimée",
+    "title": "{{community}} a été supprimée",
+    "greeting": "Bonjour,",
+    "body": "La communauté <strong>{{community}}</strong> a été supprimée. Ses membres ne la voient plus et rien de son contenu n'est accessible.",
+    "recoverable": "Rien n'a encore été détruit. Jusqu'au <strong>{{date}}</strong>, la personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
+    "recoverableNoDate": "Rien n'a été détruit. La personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
+    "textBody": "La communauté {{community}} a été supprimée. Ses membres ne la voient plus. Rien n'a encore été détruit et la personne qui administre ce serveur peut la rétablir."
   }
 }

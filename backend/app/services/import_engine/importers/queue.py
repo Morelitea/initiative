@@ -11,18 +11,23 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.queue import Queue, QueueItem
 from app.schemas.tenant.import_envelopes import QueueEnvelope
 from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.import_engine.importers._base import parse_envelope
+from app.services.import_engine.context import ImportContext
+from app.services.import_engine.importers._base import (
+    QuotesNobody,
+    grant_ownership,
+    parse_envelope,
+)
 from app.services.tenant import tags as tags_service
 
 
-class QueueImporter:
+class QueueImporter(QuotesNobody):
     envelope_type = "initiative-queue"
     permission = PermissionKey.create_queues
 
@@ -40,6 +45,7 @@ class QueueImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: QueueEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -67,22 +73,13 @@ class QueueImporter:
         session.add(queue)
         await session.flush()
 
-        session.add(
-            ResourceGrant(
-                resource_type="queue",
-                resource_id=queue.id,
-                user_id=importer.id,
-                role_id=None,
-                level=ResourceAccessLevel.owner,
-                guild_id=guild_id,
-                initiative_id=target_initiative.id,
-            )
+        await grant_ownership(
+            session,
+            tool=Tool.queue,
+            entity_id=queue.id,
+            target_initiative=target_initiative,
+            importer=importer,
         )
-
-        # The sharing has to be in the database before the content it governs:
-        # a flush orders its statements by table, not by the order things were
-        # added.
-        await session.flush()
 
         tags_created = 0
         tags_matched = 0

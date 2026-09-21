@@ -19,8 +19,12 @@ import type {
   GuildAuthOption,
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { useReadIntakeSettingsApiV1SettingsIntakeGet } from "@/api/generated/intake/intake";
+import { GuildRestoreWizard } from "@/components/admin/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -30,7 +34,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
-import { useUpdateGuildStorage } from "@/hooks/useSettings";
+import {
+  useAgreeGuildNarrowing,
+  useGuildNarrowings,
+  useUpdateGuildStorage,
+} from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -66,11 +74,12 @@ export const GuildOperatorSettingsSheet = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
 
   const [storageDraft, setStorageDraft] = useState("");
   const [usersDraft, setUsersDraft] = useState("");
   const [loadedFor, setLoadedFor] = useState<number | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   /** Show what is stored, so a box never presents an unsaved value as saved. */
   const syncDrafts = (row: { max_storage_bytes: number | null; max_users: number | null }) => {
@@ -91,6 +100,10 @@ export const GuildOperatorSettingsSheet = ({
       if (guild) syncDrafts(guild);
       toast.error(getErrorMessage(err, "settings:guilds.saveError"));
     },
+  });
+
+  const intake = useReadIntakeSettingsApiV1SettingsIntakeGet({
+    query: { enabled: open, staleTime: 60_000 },
   });
 
   // The drafts follow whichever community the sheet was opened for.
@@ -125,11 +138,32 @@ export const GuildOperatorSettingsSheet = ({
     patch({ max_users: limit });
   };
 
+  // Help requests become cases in the deployment's support stream, so the
+  // switch is only meaningful once something is bound to receive them. Read
+  // here rather than inferred from the community: the binding is the
+  // deployment's, one for all of them.
+  const supportBound = (intake.data?.bindings ?? []).some(
+    (binding) => binding.stream === "support" && binding.enabled && binding.project_id !== null
+  );
+
   const options = guild.auth_options ?? [];
   const toggleOption = (option: GuildAuthOption, checked: boolean) =>
     patch({
       auth_options: checked ? [...options, option] : options.filter((held) => held !== option),
     });
+
+  // A deleted community is on its way out. Its caps and entitlements are
+  // settings for a community nobody can reach, so they are shown and frozen
+  // rather than hidden — what it was configured as is worth seeing when you
+  // are deciding whether to bring it back.
+  const deleted = guild.status === GuildStatus.deleted;
+  const purgeDate = guild.purge_at
+    ? new Date(guild.purge_at).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -143,6 +177,22 @@ export const GuildOperatorSettingsSheet = ({
         </SheetHeader>
 
         <div className="space-y-6 py-6">
+          {deleted ? (
+            <Section title={t("guilds.sheet.deleted")}>
+              <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+                <p className="text-sm">
+                  {purgeDate
+                    ? t("guilds.restore.purgesOn", { date: purgeDate })
+                    : t("guilds.restore.purgesSoon")}
+                </p>
+                <p className="text-muted-foreground text-xs">{t("guilds.restore.retained")}</p>
+                <Button size="sm" onClick={() => setRestoring(true)}>
+                  {t("guilds.restore.open")}
+                </Button>
+              </div>
+            </Section>
+          ) : null}
+
           <Section title={t("guilds.sheet.limits")}>
             <SettingRow
               label={t("guilds.sheet.usersLabel")}
@@ -163,7 +213,7 @@ export const GuildOperatorSettingsSheet = ({
                     if (event.key === "Enter") event.currentTarget.blur();
                   }}
                   placeholder={t("guilds.unlimitedPlaceholder")}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -187,7 +237,7 @@ export const GuildOperatorSettingsSheet = ({
                       if (event.key === "Enter") event.currentTarget.blur();
                     }}
                     placeholder={t("guilds.unlimitedPlaceholder")}
-                    disabled={update.isPending}
+                    disabled={update.isPending || deleted}
                   />
                   <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground text-xs">
                     GB
@@ -208,7 +258,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-providers"
                   checked={options.includes("providers")}
                   onCheckedChange={(checked) => toggleOption("providers", Boolean(checked))}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
@@ -221,11 +271,13 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-restrictions"
                   checked={options.includes("restrictions")}
                   onCheckedChange={(checked) => toggleOption("restrictions", Boolean(checked))}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
           </Section>
+
+          <NarrowingsSection guildId={guild.id} disabled={deleted} />
 
           <Section title={t("guilds.sheet.features")}>
             <SettingRow
@@ -237,26 +289,104 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-banner-image"
                   checked={guild.banner_image_enabled}
                   onCheckedChange={(checked) => patch({ banner_image_enabled: Boolean(checked) })}
-                  disabled={update.isPending}
+                  disabled={update.isPending || deleted}
                 />
               }
             />
             <SettingRow
               label={t("guilds.sheet.supportLabel")}
-              help={t("guilds.sheet.supportHelp")}
+              help={
+                supportBound || guild.support_enabled
+                  ? t("guilds.sheet.supportHelp")
+                  : t("guilds.sheet.supportNeedsIntake")
+              }
               htmlFor="guild-support"
               control={
                 <Switch
                   id="guild-support"
                   checked={guild.support_enabled}
                   onCheckedChange={(checked) => patch({ support_enabled: Boolean(checked) })}
-                  disabled={update.isPending}
+                  // Switching it off stays available wherever it is on: a
+                  // deployment that has stopped staffing help stops offering
+                  // it, binding or no binding.
+                  disabled={
+                    update.isPending || deleted || (!supportBound && !guild.support_enabled)
+                  }
                 />
               }
             />
           </Section>
         </div>
       </SheetContent>
+      {restoring ? (
+        <GuildRestoreWizard guild={guild} open={restoring} onOpenChange={setRestoring} />
+      ) : null}
     </Sheet>
+  );
+};
+
+/**
+ * What a community says its own arrivals look like, and whether anybody has
+ * agreed.
+ *
+ * A community writes its own claim values and nothing in the app can tell
+ * whether it holds the domain or tenant they name, so the answer is the
+ * deployment's. Support answers through the case raised when they are
+ * written; this is the same question where a deployment runs no intake, and
+ * where an answer is withdrawn either way.
+ */
+const NarrowingsSection = ({ guildId, disabled }: { guildId: number; disabled: boolean }) => {
+  const { t } = useTranslation("settings");
+  const narrowings = useGuildNarrowings(guildId);
+  const agree = useAgreeGuildNarrowing(guildId, {
+    onError: (err: unknown) =>
+      toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),
+  });
+
+  const rows = narrowings.data ?? [];
+  if (narrowings.isLoading || rows.length === 0) return null;
+
+  return (
+    <Section title={t("guilds.sheet.narrowings.title")}>
+      <p className="text-muted-foreground text-sm">{t("guilds.sheet.narrowings.help")}</p>
+      <ul className="space-y-3">
+        {rows.map((row) => (
+          <li
+            key={row.connection_id}
+            className="flex items-start justify-between gap-3 rounded-md border px-3 py-3"
+          >
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium text-sm">
+                {t("guilds.sheet.narrowings.claims", {
+                  provider: row.provider_display_name,
+                  claim: row.claim,
+                  values: row.claim_values.join(", "),
+                })}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {row.auto_join
+                  ? t("guilds.sheet.narrowings.joinsOnArrival")
+                  : t("guilds.sheet.narrowings.admitsOnly")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={row.agreed ? "outline" : "default"}
+              disabled={disabled || agree.isPending}
+              onClick={() =>
+                agree.mutate({
+                  connectionId: row.connection_id,
+                  agreed: !row.agreed,
+                })
+              }
+            >
+              {row.agreed
+                ? t("guilds.sheet.narrowings.withdraw")
+                : t("guilds.sheet.narrowings.agree")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Section>
   );
 };

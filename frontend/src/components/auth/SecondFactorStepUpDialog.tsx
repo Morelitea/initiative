@@ -27,6 +27,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { describePasskeyPromptError } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 import { returnPath } from "@/lib/returnPath";
+import { compactCode } from "@/lib/secondFactorAnswer";
 
 /**
  * Global handler for a community that requires a factor of the account's own.
@@ -46,6 +47,12 @@ import { returnPath } from "@/lib/returnPath";
  * a change to how it signs in wants a session opened a moment ago. A passkey
  * opens one, and so does signing in again — which is the whole offer for an
  * account that holds no passkey because a provider signs it in.
+ *
+ * A fourth comes from the deployment: it asks this account to hold a second
+ * factor, and it holds none. The same answer — a code, or a passkey — with two
+ * differences. It says who is asking, and it offers to sign out rather than to
+ * carry on, because a refusal from the deployment is every request rather than
+ * one page's.
  */
 export const SecondFactorStepUpDialog = () => {
   // The array form, so the line a put-down prompt deserves — named by
@@ -55,12 +62,19 @@ export const SecondFactorStepUpDialog = () => {
   const { isNativePlatform } = useServer();
   const location = useLocation();
   const navigate = useNavigate();
+  // Everything is accepted except the deployment's own ask while the person
+  // is on the page that answers it: the shell around that page makes requests
+  // of its own, and each would put this dialog back over the thing it is
+  // asking them to do. Their next request elsewhere raises it again.
+  const onSecurityPage = location.pathname.startsWith("/profile/security");
   const { challenge, clear, open } = useAuthChallenge<FactorChallengeDetail>(
     AUTH_FACTOR_REQUIRED_EVENT,
-    () => true
+    (detail) => !(detail?.platform === true && onSecurityPage)
   );
   const wantsPasskey = challenge?.kind === "passkey";
   const wantsProof = challenge?.kind === "proof";
+  /** The deployment asking, rather than one community. */
+  const fromPlatform = challenge?.platform === true;
   /** Both asks are answered by presenting a passkey, so both read the same
    *  side of this dialog and ask the account the same question. */
   const presentsPasskey = wantsPasskey || wantsProof;
@@ -76,8 +90,12 @@ export const SecondFactorStepUpDialog = () => {
   const statusQuery = useReadSecondFactorApiV1AuthTotpGet({
     query: { enabled: open && !presentsPasskey },
   });
+  // Asked on both sides now. On the passkey side it decides what to offer; on
+  // the code side it is the other way to answer the same ask — a user-verified
+  // passkey records the factor too, so an account with a key and no
+  // authenticator app has one already.
   const passkeyQuery = useListPasskeysApiV1AuthPasskeysGet({
-    query: { enabled: open && presentsPasskey && !isNativePlatform },
+    query: { enabled: open && !isNativePlatform },
   });
   // Three states, not two. While the answer is in flight, offer the way in:
   // the refusal that opened this dialog is the common case and an account that
@@ -88,6 +106,9 @@ export const SecondFactorStepUpDialog = () => {
   const hasNoFactor = statusQuery.data?.enrolled === false;
   const statusUnknown = statusQuery.isError;
   const hasNoPasskey = passkeyQuery.isSuccess && (passkeyQuery.data.passkeys ?? []).length === 0;
+  /** A key to present, where the ask is for a code and the account has none. */
+  const canPresentPasskey =
+    !isNativePlatform && passkeyQuery.isSuccess && (passkeyQuery.data.passkeys ?? []).length > 0;
   const passkeysUnknown = passkeyQuery.isError;
 
   const dismiss = () => {
@@ -111,7 +132,7 @@ export const SecondFactorStepUpDialog = () => {
     try {
       const entered = code.trim();
       await stepUpWithFactor(
-        useRecoveryCode ? { recoveryCode: entered } : { code: entered.replace(/\s+/g, "") }
+        useRecoveryCode ? { recoveryCode: entered } : { code: compactCode(entered) }
       );
       await settle();
     } catch (err) {
@@ -230,21 +251,46 @@ export const SecondFactorStepUpDialog = () => {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>{t("factorStepUp.title")}</DialogTitle>
+              <DialogTitle>
+                {t(fromPlatform ? "factorStepUp.platformTitle" : "factorStepUp.title")}
+              </DialogTitle>
               <DialogDescription>
                 {hasNoFactor
-                  ? t("factorStepUp.notEnrolled")
+                  ? t(
+                      fromPlatform ? "factorStepUp.platformNotEnrolled" : "factorStepUp.notEnrolled"
+                    )
                   : useRecoveryCode
                     ? t("factorStepUp.recoveryDescription")
-                    : t("factorStepUp.description")}
+                    : t(
+                        fromPlatform
+                          ? "factorStepUp.platformDescription"
+                          : "factorStepUp.description"
+                      )}
               </DialogDescription>
             </DialogHeader>
 
             {hasNoFactor ? (
               <DialogFooter>
-                <Button variant="outline" onClick={dismiss}>
-                  {t("factorStepUp.dismiss")}
-                </Button>
+                {fromPlatform ? (
+                  <Button variant="outline" onClick={signInAgain} disabled={submitting}>
+                    {t("factorStepUp.signOut")}
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={dismiss}>
+                    {t("factorStepUp.dismiss")}
+                  </Button>
+                )}
+                {canPresentPasskey && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={presentPasskey}
+                    disabled={submitting}
+                  >
+                    <KeyRound className="h-4 w-4" aria-hidden="true" />
+                    {t("factorStepUp.passkeyPresent")}
+                  </Button>
+                )}
                 <Button asChild>
                   <Link to="/profile/security" onClick={dismiss}>
                     {t("factorStepUp.setUp")}
@@ -296,9 +342,20 @@ export const SecondFactorStepUpDialog = () => {
                     : t("secondFactor.useRecoveryCode")}
                 </button>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={dismiss}>
-                    {t("factorStepUp.dismiss")}
-                  </Button>
+                  {fromPlatform ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={signInAgain}
+                      disabled={submitting}
+                    >
+                      {t("factorStepUp.signOut")}
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" onClick={dismiss}>
+                      {t("factorStepUp.dismiss")}
+                    </Button>
+                  )}
                   <Button type="submit" disabled={submitting || !code.trim()}>
                     {submitting ? t("login.submitting") : t("factorStepUp.submit")}
                   </Button>

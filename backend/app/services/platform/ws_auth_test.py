@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import jwt as pyjwt
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth_context import session_mfa, session_passkey
+from app.core.auth_context import session_amr
 from app.core.config import settings
 from app.core.security import JWT_ALGORITHM
 from app.models.platform.user import UserStatus
@@ -167,15 +167,13 @@ async def test_a_socket_records_what_the_session_proved(session: AsyncSession):
         get_auth_token(user, amr=["pwd", "hwk", "mfa"]), session
     )
     assert with_a_key is not None
-    assert session_mfa() is True
-    assert session_passkey() is True
+    assert session_amr() == frozenset({"mfa", "hwk"})
 
     with_a_password = await authenticate_ws_token(
         get_auth_token(user, amr=["pwd"]), session
     )
     assert with_a_password is not None
-    assert session_mfa() is False
-    assert session_passkey() is False
+    assert session_amr() == frozenset()
 
 
 async def test_a_device_token_records_neither(session: AsyncSession):
@@ -195,5 +193,4 @@ async def test_a_device_token_records_neither(session: AsyncSession):
         is not None
     )
     assert await authenticate_ws_token(device_token, session) is not None
-    assert session_mfa() is False
-    assert session_passkey() is False
+    assert session_amr() == frozenset()

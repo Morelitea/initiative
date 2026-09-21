@@ -24,12 +24,6 @@ class CounterViewMode(str, Enum):
     segmented_clock = "segmented_clock"
 
 
-class CounterPermissionLevel(str, Enum):
-    owner = "owner"
-    write = "write"
-    read = "read"
-
-
 class CounterGroup(
     CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
 ):

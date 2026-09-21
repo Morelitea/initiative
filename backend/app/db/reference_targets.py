@@ -29,6 +29,7 @@ from sqlmodel import SQLModel
 from app.core.references import NOT_REFERENCEABLE
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.blocking import open_expr
 from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
 
@@ -346,6 +347,21 @@ def _governing_tool(table_name: str, table: Table):
     return source.dac_tool, local
 
 
+def _container_title(table_name: str, table: Table, tool: Tool | None):
+    """The table holding what a row is addressed inside, and its name column.
+
+    A name on its own identifies nothing in a list of mixed things: six
+    projects run from one template hold six tasks called "Do a thing", and the
+    project is the only thing that tells them apart. A kind that governs itself
+    — which every tool does — has no container to name and reports none.
+    """
+    source = SEARCH_SOURCES[table_name]
+    if tool is None or source.dac_id is None:
+        return None, null()
+    container = SQLModel.metadata.tables[tool.plural]
+    return container, container.c[SEARCH_SOURCES[tool.plural].title]
+
+
 @dataclass(frozen=True)
 class Resolved:
     """What a reference turned out to name."""
@@ -375,6 +391,10 @@ class Resolved:
     #: cannot be built from its own id alone.
     tool: Tool | None = None
     tool_id: int | None = None
+    #: What that tool is CALLED, for the surfaces that show a list of mixed
+    #: things: "Do a thing" says nothing until it says which project. None for
+    #: a row that is a tool itself.
+    tool_title: str | None = None
     #: What the row shows of itself beside its name — see :class:`Visual`. At
     #: most one of the three is set, and most kinds set none. A picture is a
     #: list because a gallery shows several when nobody picked one.
@@ -387,6 +407,10 @@ class Resolved:
     mime_type: str | None = None
     original_filename: str | None = None
     smart_link_url: str | None = None
+    #: Whether this row is still outstanding — still capable of holding
+    #: something else up. None for a kind that never finishes, which is most of
+    #: them; see :mod:`app.db.blocking`.
+    is_open: bool | None = None
 
 
 async def resolve_many(
@@ -417,23 +441,32 @@ async def resolve_many(
         table_name, table
     )
     tool, tool_id = _governing_tool(table_name, table)
+    container, tool_title = _container_title(table_name, table, tool)
+    is_open = open_expr(table_name, table)
 
+    stmt = select(
+        table.c["id"],
+        title_column(entity_type),
+        initiative,
+        archived,
+        updated,
+        tool_id,
+        images,
+        icon,
+        color,
+        doc_type,
+        mime,
+        filename,
+        link_url,
+        tool_title,
+        is_open,
+    ).select_from(table)
+    if container is not None:
+        # Left: a container this reader cannot see leaves the name blank rather
+        # than dropping a row they were allowed to resolve.
+        stmt = stmt.join(container, container.c["id"] == tool_id, isouter=True)
     rows = await session.exec(
-        select(
-            table.c["id"],
-            title_column(entity_type),
-            initiative,
-            archived,
-            updated,
-            tool_id,
-            images,
-            icon,
-            color,
-            doc_type,
-            mime,
-            filename,
-            link_url,
-        ).where(
+        stmt.where(
             table.c["id"].in_(wanted),
             table.c["id"].in_(visible_ids(entity_type, user_id)),
         )
@@ -456,6 +489,8 @@ async def resolve_many(
             mime_type=row[10],
             original_filename=row[11],
             smart_link_url=row[12],
+            tool_title=row[13],
+            is_open=None if row[14] is None else bool(row[14]),
         )
         for row in rows.all()
     }

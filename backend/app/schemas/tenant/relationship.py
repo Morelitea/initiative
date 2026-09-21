@@ -72,6 +72,11 @@ class RelatedEnd(SanitizedBaseModel):
     #: The same pair a search hit carries, from the same declaration.
     tool: Optional[Tool] = None
     tool_id: Optional[int] = None
+    #: What that tool is called. A list of links is a list of mixed things, and
+    #: a name is often not enough to tell two of them apart — six projects run
+    #: from one template hold six tasks called "Do a thing". None for a far end
+    #: that IS a tool.
+    tool_title: Optional[str] = None
     #: What it shows of itself besides its name: a picture, an emoji, or a
     #: colour. At most one is set, and most kinds set none — those draw as their
     #: kind's own icon. A picture URL has already fallen back from a thumbnail to
@@ -91,6 +96,11 @@ class RelatedEnd(SanitizedBaseModel):
     mime_type: Optional[str] = None
     original_filename: Optional[str] = None
     smart_link_url: Optional[str] = None
+    #: Whether the far end is still outstanding — whether, were this a
+    #: ``depends_on`` edge, it would still be holding the anchor up. None for a
+    #: kind that has no notion of finishing, which is most of them: a document
+    #: is never "done". See :mod:`app.db.blocking`.
+    is_open: Optional[bool] = None
 
 
 class RelationshipRead(SanitizedBaseModel):

@@ -8,13 +8,16 @@ limit and storage backend are settings-driven, and that ``SlowAPIMiddleware`` is
 actually registered on the app so ``default_limits`` is no longer inert.
 """
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from slowapi.middleware import SlowAPIMiddleware, _find_route_handler
 from starlette.datastructures import Headers
+from starlette.applications import Starlette
 from starlette.requests import Request
+from starlette.routing import Mount
 
 from app.core import rate_limit
 from app.core.config import settings
@@ -25,7 +28,7 @@ from app.core.rate_limit import (
     get_user_or_ip_key,
     limiter,
 )
-from app.main import app
+from app.main import _MOUNTED, _route_endpoint, app
 
 
 class TestDefaultLimitsBuilder:
@@ -79,10 +82,57 @@ class TestMiddlewareRegistration:
 
     def test_slowapi_middleware_registered(self):
         registered = {m.cls for m in app.user_middleware}
-        assert SlowAPIMiddleware in registered
+        assert any(issubclass(cls, SlowAPIMiddleware) for cls in registered), registered
 
     def test_app_uses_shared_limiter(self):
         assert app.state.limiter is rate_limit.limiter
+
+
+class TestRouteResolution:
+    """The middleware has to read the route the router will actually run.
+
+    Upstream picks one by scanning every route and keeping the LAST that
+    matches; this app ends with a catch-all serving the SPA, which matches
+    everything. ``_route_endpoint`` resolves the way the router does instead.
+    """
+
+    def _endpoint(self, path: str, method: str = "GET", host=app):
+        scope = {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "headers": [],
+            "root_path": "",
+            "app": host,
+        }
+        return _route_endpoint(Request(scope))
+
+    def test_resolves_the_route_the_router_runs(self):
+        assert self._endpoint("/api/v1/version").__name__ == "get_version"
+        assert self._endpoint("/api/v1/readyz").__name__ == "readyz"
+
+    def test_upstream_would_have_answered_the_catch_all(self):
+        """Pins why this app cannot use the stock middleware. Should a later
+        slowapi resolve first-match, this fails and the override can go."""
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/version",
+            "headers": [],
+            "root_path": "",
+        }
+        assert _find_route_handler(app.routes, scope).__name__ == "serve_spa"
+
+    def test_an_unmatched_request_resolves_to_nothing(self):
+        assert self._endpoint("/api/v1/version", method="DELETE") is None
+
+    def test_a_mounted_sub_app_is_told_apart_from_no_match(self):
+        """A mount carries no endpoint. That must not read back as "no route",
+        which slowapi treats as exempt — a whole mounted surface would lose the
+        default limit. Built here rather than read off the app so the case is
+        covered whether or not this configuration mounts anything."""
+        host = Starlette(routes=[Mount("/sub", app=Starlette())])
+        assert self._endpoint("/sub/anything", host=host) is _MOUNTED
 
 
 class TestDefaultLimitThrottlesUndecoratedRoute:
@@ -204,3 +254,34 @@ class TestUserOrIpKey:
 
     def test_the_address_is_the_counter_when_nobody_is_named(self):
         assert get_user_or_ip_key(self._request()) == "198.51.100.7"
+
+
+class TestDefaultLimitOnTheRealApp:
+    """What the default does on the app as assembled, catch-all and all.
+
+    ``TestDefaultLimitThrottlesUndecoratedRoute`` above builds a throwaway app
+    with two routes, where slowapi's last-match resolution happens to land on
+    the right one. These go through the real router, which is where it does
+    not.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _throttled(self, rate_limit_of_one_per_minute):
+        pass
+
+    async def test_an_undecorated_route_takes_the_default(self, client):
+        assert (await client.get("/api/v1/version")).status_code == 200
+        assert (await client.get("/api/v1/version")).status_code == 429
+
+    async def test_a_decorated_route_takes_its_own_limit_instead(self, client):
+        """A route carrying ``@limiter.limit`` is left to its decorator rather
+        than also counted against the default, so one set ABOVE the default is
+        not quietly held down to it. ``/auth/username-available`` asks for 60 a
+        minute, so under a 1-a-minute default it still answers a second time."""
+        path = "/api/v1/auth/username-available?username=someone"
+        assert (await client.get(path)).status_code == 200
+        assert (await client.get(path)).status_code == 200
+
+    async def test_an_exempt_route_takes_no_limit_at_all(self, client):
+        assert (await client.get("/api/v1/healthz")).status_code == 200
+        assert (await client.get("/api/v1/healthz")).status_code == 200

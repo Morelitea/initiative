@@ -15,6 +15,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import create_upload_token
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.document import Document
@@ -43,7 +44,7 @@ async def test_collaboration_guild_admin_gets_full_access(
     """A guild admin must get full collaboration access to a restricted document
     they hold no grant on and aren't an initiative member of — mirroring the REST
     guild-admin bypass. The collaboration paths resolve access straight through
-    the shared DAC engine (``compute_document_permission``), which reads the
+    the shared DAC engine (``permissions.compute_permission``), which reads the
     active guild-role context that ``establish_guild_access`` records."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
@@ -64,7 +65,10 @@ async def test_collaboration_guild_admin_gets_full_access(
     # the engine resolves no access.
     set_active_role(None, None)
     assert (
-        permissions_service.compute_document_permission(document, admin.user.id) is None
+        permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[Tool.document], document, admin.user.id
+        )
+        is None
     )
 
     # With the guild-admin role recorded — as establish_guild_access now does for
@@ -73,7 +77,11 @@ async def test_collaboration_guild_admin_gets_full_access(
     set_active_role(owner.guild.id, GuildRole.admin.value)
     try:
         assert (
-            permissions_service.compute_document_permission(document, admin.user.id)
+            permissions_service.compute_permission(
+                permissions_service.DAC_RESOURCES[Tool.document],
+                document,
+                admin.user.id,
+            )
             == "owner"
         )
     finally:

@@ -11,12 +11,15 @@ in the envelope are informational and dropped."""
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
@@ -26,7 +29,6 @@ from app.models.tenant.calendar_event import (
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.property import CalendarEventPropertyValue
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import (
     CalendarEnvelope,
     EventEnvelopeItem,
@@ -39,14 +41,17 @@ from app.services.import_engine.common import (
     unique_name,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
+from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    QuotesNobody,
+    grant_ownership,
     parse_envelope,
     resolve_property_values,
 )
 from app.services.tenant import tags as tags_service
 
 
-class CalendarImporter:
+class CalendarImporter(QuotesNobody):
     envelope_type = "initiative-calendar"
     permission = PermissionKey.create_calendars
 
@@ -64,6 +69,7 @@ class CalendarImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -92,22 +98,13 @@ class CalendarImporter:
         session.add(calendar)
         await session.flush()
 
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                user_id=importer.id,
-                role_id=None,
-                level=ResourceAccessLevel.owner,
-                guild_id=guild_id,
-                initiative_id=target_initiative.id,
-            )
+        await grant_ownership(
+            session,
+            tool=Tool.calendar,
+            entity_id=calendar.id,
+            target_initiative=target_initiative,
+            importer=importer,
         )
-
-        # The sharing has to be in the database before the content it governs:
-        # a flush orders its statements by table, not by the order things were
-        # added.
-        await session.flush()
 
         created = 0
         failed = 0
@@ -131,6 +128,7 @@ class CalendarImporter:
                         importer=importer,
                         member_handles=member_handles,
                         unmatched_handles=unmatched_handles,
+                        context=context,
                     )
             except Exception:
                 failed += 1
@@ -174,6 +172,7 @@ class CalendarImporter:
         importer: User,
         member_handles: dict[str, int],
         unmatched_handles: set[str],
+        context: ImportContext | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
         end_at = parse_datetime(item.end_at)
@@ -190,9 +189,21 @@ class CalendarImporter:
             all_day=item.all_day,
             recurrence=json.dumps(item.recurrence) if item.recurrence else None,
             created_by=importer.id,
+            # When the event was written down, not when it happens. Absent
+            # leaves the model default: the moment of the import.
+            **_created_at(item),
         )
         session.add(event)
         await session.flush()
+
+        # An event is something other entries point at — a sprint with its
+        # tasks in it — so it joins the job's ref map like a task does. The
+        # edges themselves are written by the deferred pass, because the
+        # tasks naming this sprint are in a different envelope.
+        if context is not None:
+            context.links.register(
+                item.external_ref, SearchEntityType.calendar_event, event.id
+            )
 
         attendees_matched = 0
         seen_user_ids: set[int] = set()
@@ -256,3 +267,11 @@ class CalendarImporter:
             "props_matched": attached.matched,
             "attendees_matched": attendees_matched,
         }
+
+
+def _created_at(item: EventEnvelopeItem) -> dict[str, datetime]:
+    """The event's own creation time, where the envelope carried a readable
+    one. Returned as kwargs so an absent or unparseable stamp falls through
+    to the model default rather than overwriting it."""
+    parsed = parse_datetime(item.created_at)
+    return {"created_at": parsed} if parsed is not None else {}

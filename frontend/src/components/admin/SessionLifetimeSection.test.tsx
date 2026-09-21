@@ -22,6 +22,9 @@ const base: PlatformAuthSettingsResponse = {
   ],
   guilds_requiring_sign_in: 0,
   session_max_hours: null,
+  session_idle_minutes: null,
+  second_factor_requirement: "nobody",
+  accounts_without_factor: { platform_roles: 0, everyone: 0 },
 };
 
 describe("SessionLifetimeSection", () => {
@@ -44,7 +47,10 @@ describe("SessionLifetimeSection", () => {
     fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(lifetimeMutate).toHaveBeenCalledWith({ session_max_hours: 12 });
+    expect(lifetimeMutate).toHaveBeenCalledWith({
+      session_max_hours: 12,
+      session_idle_minutes: null,
+    });
   });
 
   it("clears the limit when the field is emptied", () => {
@@ -54,7 +60,10 @@ describe("SessionLifetimeSection", () => {
     fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(lifetimeMutate).toHaveBeenCalledWith({ session_max_hours: null });
+    expect(lifetimeMutate).toHaveBeenCalledWith({
+      session_max_hours: null,
+      session_idle_minutes: null,
+    });
   });
 
   it("will not save an unchanged limit", () => {
@@ -62,5 +71,20 @@ describe("SessionLifetimeSection", () => {
     renderWithProviders(<SessionLifetimeSection />);
 
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
+  it("saves both halves of the answer in one write", async () => {
+    settings = { ...base, session_max_hours: null, session_idle_minutes: null };
+    renderWithProviders(<SessionLifetimeSection />);
+
+    fireEvent.change(await screen.findByLabelText(/idle minutes/i), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(lifetimeMutate).toHaveBeenCalledWith({
+      session_max_hours: null,
+      session_idle_minutes: 20,
+    });
   });
 });

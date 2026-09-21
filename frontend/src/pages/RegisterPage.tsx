@@ -5,7 +5,9 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { LegalNotice } from "@/components/auth/LegalNotice";
 import { LogoIcon } from "@/components/LogoIcon";
+import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
 import { UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +23,11 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  browserOffersPasskeys,
+  describePasskeyPromptError,
+  signUpWithPasskey,
+} from "@/lib/passkeys";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { slugifyUsername } from "@/lib/usernames";
 
@@ -32,7 +39,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
-  const { register, login } = useAuth();
+  const { register, login, applyPasskeySignIn } = useAuth();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
@@ -53,7 +60,13 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   // configured); ``captchaToken`` is the value the widget hands us
   // after a solve. Bootstrap-first-user mode mirrors the backend's
   // skip rule and never renders the widget.
-  const { captcha } = useAppConfig();
+  const { captcha, passwordLoginEnabled, passkeyLoginEnabled } = useAppConfig();
+  // Which doors this deployment leaves open. A key can make an account on its
+  // own, so a deployment that has withdrawn passwords still has a way in that
+  // is its own rather than an identity provider's.
+  const keysOffered = passkeyLoginEnabled && browserOffersPasskeys();
+  const passwordsOffered = passwordLoginEnabled;
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string>("");
   // Captcha tokens are single-use: once the backend forwards one to
   // the provider's siteverify endpoint, replaying it returns a
@@ -137,6 +150,68 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       ignore = true;
     };
   }, [inviteCode, t]);
+
+  // What stops either button, in one place so the two agree.
+  const gatesUnmet =
+    (captchaRequired && !captchaToken) ||
+    (inviteCode ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false) : false);
+
+  /** What both doors send about the person registering. */
+  const details = () => ({
+    email: email.toLowerCase().trim(),
+    username: username.trim().toLowerCase(),
+    full_name: fullName,
+    // Resolve the browser's IANA timezone (e.g. "America/Los_Angeles") so the
+    // new account starts on the user's wall clock instead of the backend's
+    // "UTC" default.
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+    captcha_token: captchaRequired ? captchaToken : undefined,
+  });
+
+  /** The gates neither door gets past, checked here so both say the same. */
+  const blocked = (): string | null => {
+    if (inviteCode && inviteStatus && !inviteStatus.is_valid) {
+      return inviteStatus.reason ?? t("register.inviteInvalid");
+    }
+    if (captchaRequired && !captchaToken) return t("register.captchaRequired");
+    return null;
+  };
+
+  /**
+   * Register with a key instead of a password.
+   *
+   * The account is signed in by the ceremony that made it, so there is no
+   * second sign-in here. Its recovery codes come back with it and are shown
+   * once — an account with no password cannot be sent a reset, so they are
+   * how it gets one later.
+   */
+  const registerWithPasskey = async () => {
+    setSubmitting(true);
+    setError(null);
+    setInfoMessage(null);
+    try {
+      const stop = blocked();
+      if (stop) {
+        setError(stop);
+        return;
+      }
+      const made = await signUpWithPasskey(details(), inviteCode || undefined);
+      // The ceremony that made the account signed it in, so it is adopted the
+      // way any passkey sign-in is. The codes go on screen before anything
+      // else is awaited: they are shown once.
+      setRecoveryCodes(made.codes ?? []);
+      await applyPasskeySignIn({ access_token: made.access_token });
+    } catch (err) {
+      const prompt = describePasskeyPromptError(err);
+      setError(prompt ? t(prompt) : getErrorMessage(err, "auth:register.defaultError"));
+    } finally {
+      setSubmitting(false);
+      if (captchaRequired) {
+        setCaptchaToken("");
+        setCaptchaResetKey((k) => k + 1);
+      }
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -276,95 +351,119 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="full-name">{t("register.fullNameLabel")}</Label>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                />
-              </div>
-              <UsernameField
-                id="register-username"
-                value={username}
-                onChange={setUsername}
-                suggestion={suggestedUsername}
-                disabled={submitting}
+            {recoveryCodes ? (
+              // The account exists and is signed in; what is left is the one
+              // sight of the codes that are now its way back to a password.
+              <RecoveryCodesPanel
+                codes={recoveryCodes}
+                note={t("register.recoveryCodesNote")}
+                onDone={() => router.navigate({ to: "/", replace: true })}
               />
-              <div className="space-y-2">
-                <Label htmlFor="register-email">{t("register.emailLabel")}</Label>
-                <Input
-                  id="register-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoCapitalize="none"
-                  required
+            ) : (
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="full-name">{t("register.fullNameLabel")}</Label>
+                  <Input
+                    id="full-name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                  />
+                </div>
+                <UsernameField
+                  id="register-username"
+                  value={username}
+                  onChange={setUsername}
+                  suggestion={suggestedUsername}
+                  disabled={submitting}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="register-password">{t("register.passwordLabel")}</Label>
-                <Input
-                  id="register-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={PASSWORD_MIN_LENGTH}
-                  required
-                />
-                <p
-                  className={
-                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                      ? "text-destructive text-xs"
-                      : "text-muted-foreground text-xs"
-                  }
-                >
-                  {t("auth:passwordPolicy.minLengthHelp")}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">{t("register.confirmPasswordLabel")}</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  required
-                />
-              </div>
-              {inviteCode ? (
-                <p className="text-muted-foreground text-sm">
-                  {inviteStatusLoading && t("register.checkingInvite")}
-                  {!inviteStatusLoading && inviteStatus && inviteStatus.is_valid
-                    ? inviteStatus.guild_name
-                      ? t("register.joiningGuild", { guildName: inviteStatus.guild_name })
-                      : t("register.joiningGuildDefault")
-                    : null}
-                  {!inviteStatusLoading && inviteStatusError ? (
-                    <span className="text-destructive">{inviteStatusError}</span>
-                  ) : null}
-                </p>
-              ) : null}
-              {captchaRequired && captcha ? (
-                <CaptchaWidget key={captchaResetKey} config={captcha} onToken={setCaptchaToken} />
-              ) : null}
-              <Button
-                className="w-full"
-                type="submit"
-                disabled={
-                  submitting ||
-                  (captchaRequired && !captchaToken) ||
-                  (inviteCode
-                    ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false)
-                    : false)
-                }
-              >
-                {submitting ? t("register.submitting") : t("register.submit")}
-              </Button>
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
-              {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
-            </form>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">{t("register.emailLabel")}</Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoCapitalize="none"
+                    required
+                  />
+                </div>
+                {passwordsOffered ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password">{t("register.passwordLabel")}</Label>
+                    <Input
+                      id="register-password"
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      minLength={PASSWORD_MIN_LENGTH}
+                      required
+                    />
+                    <p
+                      className={
+                        password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                          ? "text-destructive text-xs"
+                          : "text-muted-foreground text-xs"
+                      }
+                    >
+                      {t("auth:passwordPolicy.minLengthHelp")}
+                    </p>
+                  </div>
+                ) : null}
+                {passwordsOffered ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">{t("register.confirmPasswordLabel")}</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      required
+                    />
+                  </div>
+                ) : null}
+                {inviteCode ? (
+                  <p className="text-muted-foreground text-sm">
+                    {inviteStatusLoading && t("register.checkingInvite")}
+                    {!inviteStatusLoading && inviteStatus && inviteStatus.is_valid
+                      ? inviteStatus.guild_name
+                        ? t("register.joiningGuild", { guildName: inviteStatus.guild_name })
+                        : t("register.joiningGuildDefault")
+                      : null}
+                    {!inviteStatusLoading && inviteStatusError ? (
+                      <span className="text-destructive">{inviteStatusError}</span>
+                    ) : null}
+                  </p>
+                ) : null}
+                {captchaRequired && captcha ? (
+                  <CaptchaWidget key={captchaResetKey} config={captcha} onToken={setCaptchaToken} />
+                ) : null}
+                {/* Immediately above the button, because pressing the button is
+                  the agreement. Renders nothing where the deployment has no
+                  terms of its own. */}
+                <LegalNotice />
+                {passwordsOffered ? (
+                  <Button className="w-full" type="submit" disabled={submitting || gatesUnmet}>
+                    {submitting ? t("register.submitting") : t("register.submit")}
+                  </Button>
+                ) : null}
+                {keysOffered ? (
+                  <Button
+                    className="w-full"
+                    type="button"
+                    variant={passwordsOffered ? "outline" : "default"}
+                    onClick={() => void registerWithPasskey()}
+                    disabled={submitting || gatesUnmet}
+                  >
+                    {submitting ? t("register.submitting") : t("register.submitPasskey")}
+                  </Button>
+                ) : null}
+                {!passwordsOffered && !keysOffered ? (
+                  <p className="text-muted-foreground text-sm">{t("register.noDoorHere")}</p>
+                ) : null}
+                {error ? <p className="text-destructive text-sm">{error}</p> : null}
+                {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
+              </form>
+            )}
           </CardContent>
           <CardFooter className="text-muted-foreground text-sm">
             {t("register.haveAccount")}{" "}

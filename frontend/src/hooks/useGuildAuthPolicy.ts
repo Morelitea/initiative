@@ -17,7 +17,6 @@ import {
   listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet,
   listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet,
   listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet,
-  updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch,
   updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch,
 } from "@/api/generated/guild-provider-connections/guild-provider-connections";
 import {
@@ -27,6 +26,7 @@ import {
   getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut,
   setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
 import type {
@@ -37,10 +37,10 @@ import type {
   GuildAuthSettingsRead,
   GuildClaimRuleCreate,
   GuildClaimRulesResponse,
-  GuildClaimRuleUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
+  GuildSecondFactorUpdate,
   GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -132,6 +132,14 @@ export const useUpdateGuildSessionLimit = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildSessionLimitUpdate) =>
       setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
+  });
+};
+
+/** Whether reaching this community asks for a second factor. */
+export const useUpdateGuildSecondFactor = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildSecondFactorUpdate) =>
+      setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut(guildId, data),
   });
 };
 
@@ -251,15 +259,6 @@ export const useCreateClaimRule = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildClaimRuleCreate) =>
       createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost(guildId, data),
-    onSuccess: invalidate,
-  });
-};
-
-export const useUpdateClaimRule = (guildId: number) => {
-  const invalidate = useInvalidateClaimRules(guildId);
-  return useMutation({
-    mutationFn: ({ ruleId, data }: { ruleId: number; data: GuildClaimRuleUpdate }) =>
-      updateGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdPatch(guildId, ruleId, data),
     onSuccess: invalidate,
   });
 };

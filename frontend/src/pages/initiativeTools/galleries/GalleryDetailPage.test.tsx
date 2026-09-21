@@ -10,8 +10,10 @@
  *    timeline through the shared row virtualizer, the masonry through a
  *    window over placements it computes without measuring — none of them
  *    mounts the whole gallery.
- * 3. **The row gap lives inside the measured element**, so the virtualizer's
- *    model is not short by the gap on every row.
+ *
+ * How the shared row virtualizer measures itself is a shape every virtualized
+ * list in the app keeps, proved once in
+ * `src/__tests__/virtualizedListShape.test.ts`.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -42,15 +44,6 @@ describe("the gallery wall", () => {
     // The wall windows its own placements: only the boxes crossing the
     // viewport are rendered.
     expect(MASONRY).toMatch(/placements\.filter/);
-  });
-
-  it("keeps the row spacing inside the element it measures", () => {
-    expect(ROWS).toMatch(/ref={virtualizer\.measureElement}\s*\n\s*className={ROW_GAP}/);
-  });
-
-  it("measures where the list starts instead of assuming the top", () => {
-    expect(ROWS).toContain("useLayoutEffect");
-    expect(ROWS).toContain("scrollMargin: listOffset");
   });
 
   it("scrolls with the app's own scroller, not the window", () => {

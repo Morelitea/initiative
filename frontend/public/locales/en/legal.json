@@ -1,0 +1,46 @@
+{
+  "signupNotice": "By creating an account you agree to {{appName}}'s <termsLink>{{terms}}</termsLink> and <privacyLink>{{privacy}}</privacyLink>.",
+  "termsTitle": "Terms of Service",
+  "privacyTitle": "Privacy Policy",
+  "documentFallbackTitle": "Legal document",
+  "effective": "Effective {{date}}",
+  "version": "Version {{version}}",
+  "unavailable": "This document can't be shown right now. Please try again in a moment.",
+  "backToSignIn": "Back to sign in",
+  "acceptError": "We couldn't record that. Please try again.",
+  "accept": {
+    "title": "One thing before you start",
+    "subtitle": "Your account was created through your identity provider, so you haven't seen these yet. Have a read, then agree to carry on.",
+    "submit": "I agree",
+    "signOut": "Sign out"
+  },
+  "cookies": {
+    "label": "Cookies",
+    "title": "About cookies",
+    "body": "{{appName}} keeps a few things in this browser to work at all — what keeps you signed in, the theme you picked, what you had open.",
+    "nothingOptional": "That's the lot. Nothing else is kept, and nothing follows you to other sites.",
+    "optionalIntro": "Anything beyond that is yours to decide.",
+    "spamCheck": "If you make an account, the sign-up form loads a spam check from {{provider}}, which sets a cookie of its own.",
+    "readMore": "What's kept",
+    "alwaysOn": "Always on",
+    "rejectAll": "Reject optional",
+    "acceptAll": "Accept all",
+    "choose": "Choose",
+    "save": "Save choices",
+    "acknowledge": "Got it",
+    "categories": {
+      "necessary": {
+        "name": "Essential",
+        "description": "Signing in, your preferences, and what you had open. There is no version of Initiative without these."
+      },
+      "analytics": {
+        "name": "Analytics",
+        "description": "Which pages get used and where people get stuck, counted in aggregate to work out what to fix."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Which link brought you here, and reaching you about Initiative somewhere else."
+      }
+    }
+  }
+}

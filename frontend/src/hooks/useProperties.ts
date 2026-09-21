@@ -10,7 +10,6 @@ import type {
   PropertyDefinitionRead,
   PropertyDefinitionUpdate,
   PropertyDefinitionUpdateResponse,
-  PropertyEntitiesResult,
   PropertyOption,
   PropertyValuesSetRequest,
   TaskRead,
@@ -18,11 +17,7 @@ import type {
 import {
   createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost,
   deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete,
-  getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey,
-  getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey,
   getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey,
-  getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet,
-  getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet,
   listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet,
   updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
@@ -63,37 +58,6 @@ export const useProperties = (options?: { initiativeId?: number; enabled?: boole
       ),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
-  });
-};
-
-export const useProperty = (propertyId: number | null) => {
-  const guildId = useActiveGuildId();
-  return useQuery<PropertyDefinitionRead>({
-    queryKey: getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey(
-      guildId,
-      propertyId!
-    ),
-    queryFn: () =>
-      getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet(guildId, propertyId!),
-    enabled: !!propertyId,
-    staleTime: 60 * 1000,
-  });
-};
-
-export const usePropertyEntities = (propertyId: number | null) => {
-  const guildId = useActiveGuildId();
-  return useQuery<PropertyEntitiesResult>({
-    queryKey: getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey(
-      guildId,
-      propertyId!
-    ),
-    queryFn: () =>
-      getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet(
-        guildId,
-        propertyId!
-      ),
-    enabled: !!propertyId,
-    staleTime: 30 * 1000,
   });
 };
 

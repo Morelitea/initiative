@@ -25,6 +25,7 @@ import type {
   EmailSettingsUpdate,
   FCMConfigResponse,
   GetChangelogApiV1ChangelogGetParams,
+  GuildNarrowingPending,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   LoginMethodsUpdate,
@@ -35,10 +36,12 @@ import type {
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
+  PlatformGuildRestore,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
+  SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
@@ -46,6 +49,7 @@ import type {
   StorageTestResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
+  agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
   createOidcMappingApiV1SettingsOidcMappingsPost,
   deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
   getEmailSettingsApiV1SettingsEmailGet,
@@ -65,9 +69,12 @@ import {
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
+  getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
+  readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet,
+  restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost,
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
@@ -77,6 +84,7 @@ import {
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
@@ -107,6 +115,36 @@ export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) =
     ...options,
   });
 };
+
+/** What a community says its own arrivals look like, for the operator. */
+export const useGuildNarrowings = (
+  guildId: number,
+  options?: QueryOpts<GuildNarrowingPending[]>
+) => {
+  return useQuery<GuildNarrowingPending[]>({
+    queryKey: getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId),
+    queryFn: () => readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet(guildId),
+    ...options,
+  });
+};
+
+/** Agree that a community's claim values are its own, or withdraw that. */
+export const useAgreeGuildNarrowing = (
+  guildId: number,
+  options?: MutationOpts<GuildNarrowingPending, { connectionId: number; agreed: boolean }>
+) =>
+  useApiMutation<GuildNarrowingPending, { connectionId: number; agreed: boolean }>(
+    {
+      mutationFn: ({ connectionId, agreed }) =>
+        agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+          guildId,
+          connectionId,
+          { agreed }
+        ),
+      invalidate: () => invalidate(q.guildNarrowings(guildId)),
+    },
+    options
+  );
 
 export const useOidcMappings = () => {
   return useQuery<OIDCMappingsResponse>({
@@ -250,7 +288,9 @@ export const useUpdateInterfaceSettings = (
         updateInterfaceSettingsApiV1SettingsInterfacePut(
           data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
         ),
-      invalidate: () => invalidate(q.interfaceSettings()),
+      // The cookie-notice switch shares this endpoint and is also on the boot
+      // config, which is where the notice itself reads it.
+      invalidate: () => invalidate(q.appConfig(), q.interfaceSettings()),
     },
     options
   );
@@ -337,6 +377,28 @@ export const useUpdateSessionLifetime = (
     options
   );
 
+/**
+ * Set who this deployment asks to hold a second factor.
+ *
+ * Nobody is signed out by the change. An account the level covers is asked at
+ * its next request and answers it where it stands.
+ */
+export const useUpdateSecondFactorRequirement = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>
+) =>
+  useApiMutation<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>(
+    {
+      mutationFn: (data) =>
+        updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut(
+          data as Parameters<
+            typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut
+          >[0]
+        ),
+      invalidate: () => invalidate(q.platformAuthSettings()),
+    },
+    options
+  );
+
 export const useUpdateEmailSettings = (
   options?: MutationOpts<EmailSettingsResponse, EmailSettingsUpdate>
 ) =>
@@ -396,6 +458,18 @@ export const useStartStorageBackfill = (
   useApiMutation<StorageBackfillStatusResponse, void>(
     {
       mutationFn: () => startStorageBackfillApiV1SettingsStorageBackfillPost(),
+    },
+    options
+  );
+
+export const useRestoreGuild = (
+  options?: MutationOpts<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>
+) =>
+  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>(
+    {
+      mutationFn: ({ guildId, data }) =>
+        restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost(guildId, data),
+      invalidate: () => invalidate(q.platformGuilds()),
     },
     options
   );

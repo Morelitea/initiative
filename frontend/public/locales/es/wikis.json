@@ -33,8 +33,6 @@
     "untitled": "Sin título",
     "titleLabel": "Título",
     "titlePlaceholder": "De qué trata esta página",
-    "created": "Página creada",
-    "saved": "Guardado",
     "deleted": "Página movida a la papelera",
     "deleteTitle": "¿Eliminar esta página?",
     "deleteDescription": "Sus subpáginas van con ella. Puedes restaurarlas desde la papelera.",
@@ -43,13 +41,10 @@
     "createFirst": "Escribir la primera página",
     "loading": "Cargando página...",
     "notFound": "Esa página no está en este wiki",
-    "setHome": "Establecer como página de inicio",
     "isHome": "Página de inicio",
     "homeSet": "Página de inicio establecida",
-    "noMatches": "Ninguna página coincide",
     "collapse": "Contraer",
     "expand": "Expandir",
-    "moved": "Página movida",
     "draft": "Borrador",
     "previous": "Anterior",
     "next": "Siguiente",
@@ -62,7 +57,6 @@
     "title": "Conexiones",
     "outgoing": "Enlaces desde esta página",
     "incoming": "Enlazada desde",
-    "none": "Todavía nada enlaza aquí",
     "noneDescription": "Menciona esta página con [[ desde cualquier sitio y aparecerá aquí.",
     "loading": "Cargando conexiones..."
   },
@@ -75,13 +69,10 @@
     "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchWikis": "Buscar wikis...",
-    "noMatchingWikis": "Ningún wiki coincide con tus filtros.",
-    "tags": "Etiquetas",
-    "anyTag": "Cualquier etiqueta"
+    "noMatchingWikis": "Ningún wiki coincide con tus filtros."
   },
   "settings": {
     "title": "Configuración del wiki",
-    "description": "Para qué sirve este wiki. Todo esto se aplica al wiki entero.",
     "order": "Orden de las páginas",
     "orderDescription": "Cómo se colocan las páginas en la barra lateral.",
     "orderManual": "El orden que tú pongas",
@@ -96,7 +87,6 @@
     "contentsLevels_other": "{{count}} niveles",
     "connections": "Mostrar qué enlaza a una página",
     "connectionsHint": "La lista al pie de cada página. Desactívala si nadie hace referencias cruzadas.",
-    "width": "Ancho de página",
     "widthWide": "Ancho completo",
     "widthWideHint": "Espacio para tablas y capturas.",
     "widthComfortable": "Ancho de lectura",
@@ -133,7 +123,6 @@
     "drafted": "Página marcada como borrador"
   },
   "comments": "Comentarios",
-  "closeComments": "Cerrar comentarios",
   "newPage": "Nueva página",
   "viewMode": {
     "read": "Ver como lector",

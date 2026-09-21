@@ -16,6 +16,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DmPolicy } from "@/api/generated/initiativeAPI.schemas";
+import { DeletedAccountRetentionSection } from "@/components/admin/DeletedAccountRetentionSection";
+import { DeletedCommunityRetentionSection } from "@/components/admin/DeletedCommunityRetentionSection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
@@ -153,33 +155,35 @@ export const SettingsCommunityPage = () => {
           <p className="text-muted-foreground text-xs">
             {t("community.directMessagesReversibleNote")}
           </p>
-        </div>
 
-        {/* The third decision. Not a switch and not on the boot config: it is
-            read once, when an account is made, so changing it moves nobody who
-            is already here. */}
-        <div className="space-y-2 border-t pt-4">
-          <Label htmlFor="default-dm-policy">{t("community.defaultDmLabel")}</Label>
-          <Select
-            value={community?.default_dm_policy ?? "private"}
-            disabled={isLoading || update.isPending || !community}
-            onValueChange={(value) =>
-              update.mutate({
-                community_directory_enabled: communityDirectoryEnabled,
-                default_dm_policy: value as DmPolicy,
-              })
-            }
-          >
-            <SelectTrigger id="default-dm-policy" className="max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="private">{t("privacy.dm.private")}</SelectItem>
-              <SelectItem value="community">{t("privacy.dm.community")}</SelectItem>
-              <SelectItem value="public">{t("privacy.dm.public")}</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-sm">{t("community.defaultDmHelpText")}</p>
+          {/* Read once, when an account is made, so changing it moves nobody
+              who is already here. Nested under the switch because it is a
+              question about messaging: with messaging off there is no policy
+              to start anybody on, and the control says so by going quiet
+              rather than disappearing. */}
+          <div className="ms-7 space-y-2 border-s ps-4">
+            <Label htmlFor="default-dm-policy">{t("community.defaultDmLabel")}</Label>
+            <Select
+              value={community?.default_dm_policy ?? "private"}
+              disabled={isLoading || update.isPending || !community || !directMessagesEnabled}
+              onValueChange={(value) =>
+                update.mutate({
+                  community_directory_enabled: communityDirectoryEnabled,
+                  default_dm_policy: value as DmPolicy,
+                })
+              }
+            >
+              <SelectTrigger id="default-dm-policy" className="max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="private">{t("privacy.dm.private")}</SelectItem>
+                <SelectItem value="community">{t("privacy.dm.community")}</SelectItem>
+                <SelectItem value="public">{t("privacy.dm.public")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-sm">{t("community.defaultDmHelpText")}</p>
+          </div>
         </div>
 
         <ConfirmDialog
@@ -195,6 +199,10 @@ export const SettingsCommunityPage = () => {
             })
           }
         />
+
+        <DeletedCommunityRetentionSection directoryEnabled={communityDirectoryEnabled} />
+
+        <DeletedAccountRetentionSection directoryEnabled={communityDirectoryEnabled} />
 
         <ConfirmDialog
           open={confirmingAgeGateOff}

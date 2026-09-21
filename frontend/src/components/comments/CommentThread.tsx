@@ -86,10 +86,18 @@ export const CommentThread = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
 
-  const anonymizedAuthor = isAnonymizedUser(comment.author);
-  const displayName = comment.author
-    ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
-    : `User #${comment.created_by}`;
+  // An import that could not match this comment's author to an account
+  // carries the source's own name for them. It is a name and not an account:
+  // no picture, no profile, no presence, because there is nobody here to
+  // show. It wins over the row's `created_by`, which names the import that
+  // wrote the row rather than whoever said this.
+  const importedAuthorName = comment.imported_author_name?.trim() || null;
+  const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
+  const displayName =
+    importedAuthorName ??
+    (comment.author
+      ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
+      : `User #${comment.created_by}`);
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
@@ -125,14 +133,23 @@ export const CommentThread = ({
               reads at — and the presence dot with it. An anonymized author has
               neither a picture nor a profile to have decorated. */}
           <ProfileAvatar
-            user={anonymizedAuthor ? { id: null } : (comment.author ?? { id: comment.created_by })}
-            decorations={anonymizedAuthor ? null : comment.author?.profile_decorations}
-            presence={anonymizedAuthor ? undefined : comment.author?.presence}
+            user={
+              anonymizedAuthor || importedAuthorName
+                ? { id: null }
+                : (comment.author ?? { id: comment.created_by })
+            }
+            decorations={
+              anonymizedAuthor || importedAuthorName ? null : comment.author?.profile_decorations
+            }
+            presence={anonymizedAuthor || importedAuthorName ? undefined : comment.author?.presence}
             className="size-9"
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
               <span className="font-medium text-foreground">{displayName}</span>
+              {importedAuthorName && (
+                <span className="whitespace-nowrap">{t("importedAuthor")}</span>
+              )}
               <span className="whitespace-nowrap">
                 {relativeCreatedAt}
                 {isEdited && <span className="ml-1 text-muted-foreground">{t("edited")}</span>}

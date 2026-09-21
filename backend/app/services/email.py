@@ -7,15 +7,17 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t
+from app.core.notification_categories import CATEGORY_SPECS, NotificationCategory
 from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
 from app.models.platform.access_grant import LEVEL_LABEL_KEYS
 from app.models.platform.app_setting import AppSetting
@@ -399,6 +401,194 @@ async def _send_to_primary(
     )
 
 
+# ---------------------------------------------------------------------------
+# Pieces
+#
+# A notification email is written down before it is sent (see
+# ``app.services.platform.email_outbox``), so what a notifier produces is not a
+# finished message but the parts of one: what it is about, what it says, and
+# where it goes. On its own that renders exactly the email that used to be sent
+# inline. Alongside others it becomes one line of a digest, without being
+# re-rendered — which is what makes a line in a digest read the way its own
+# email would have.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EmailPieces:
+    """One notification's worth of email, before it is a message."""
+
+    #: The subject, if this goes out on its own. A digest writes its own.
+    subject: str
+    #: The heading, if this goes out on its own.
+    headline: str
+    #: What happened, as an HTML fragment. No greeting and no button: those
+    #: belong to the message, and a digest carries many of these.
+    body: str
+    link: str | None = None
+    #: What the button says when this goes out on its own.
+    link_label: str | None = None
+
+
+@dataclass(frozen=True)
+class DigestLine:
+    """One row of a digest, as the composer needs it."""
+
+    category: str
+    guild_id: int | None
+    body: str
+    link: str | None
+
+
+def _greeting(locale: str, name: str) -> str:
+    return email_t("mention.greeting", locale=locale, name=name)
+
+
+def render_single(
+    pieces: EmailPieces, *, user: User, accent: str, locale: str
+) -> tuple[str, str]:
+    """One notification as its own message — the shape this app has always
+    sent. Returns ``(html, text)``."""
+    name = _display_name(user)
+    button = ""
+    if pieces.link:
+        label = pieces.link_label or email_t("mention.buttonLabel", locale=locale)
+        button = (
+            f'<p style="margin:24px 0;">{_cta_button(label, pieces.link, accent)}</p>'
+        )
+    body = f"""
+    <p>{_greeting(locale, name)}</p>
+    <p>{pieces.body}</p>
+    {button}
+    """
+    html_body = _build_html_layout(pieces.headline, body, accent, locale=locale)
+    # The body is an HTML fragment (locale strings bold their values via
+    # <strong>), so the plain-text alternative is it with the tags taken out.
+    plain = _strip_html(pieces.body)
+    if pieces.link:
+        plain += f"\n\nView: {pieces.link}"
+    return html_body, plain
+
+
+def render_digest(
+    lines: Sequence[DigestLine],
+    *,
+    user: User,
+    accent: str,
+    locale: str,
+    reason: str,
+    guild_names: Mapping[int, str],
+) -> tuple[str, str, str]:
+    """Several notifications as one message. Returns ``(subject, html, text)``.
+
+    Grouped by community and then by category, because that is how somebody
+    reads it: which of my communities wants me, and what for. Rows arrive in
+    the order they were written, which inside a category is the order the
+    things happened.
+
+    ``reason`` is why this batch is going out now — a cadence
+    (``hourly``/``daily``/``weekly``) or ``away``, for a batch a hold released.
+    """
+    name = _display_name(user)
+    total = len(lines)
+    title = email_t(f"digest.{reason}.title", locale=locale)
+    subject = email_t(
+        f"digest.{reason}.subject", locale=locale, count=total, escape=False
+    )
+
+    grouped: dict[int | None, dict[str, list[DigestLine]]] = {}
+    for line in lines:
+        grouped.setdefault(line.guild_id, {}).setdefault(line.category, []).append(line)
+
+    def _place(guild_id: int | None, category: str) -> str:
+        if guild_id is not None:
+            return guild_names.get(guild_id) or email_t(
+                "digest.noCommunity.other", locale=locale
+            )
+        # Rows with no community are usually the things that belong to none —
+        # direct messages, connections, account notices — and those are named
+        # by what they are. A category that *does* belong to a community and
+        # arrived without one is a digest spanning several, so it is named as
+        # that rather than as something it is not.
+        try:
+            spec = CATEGORY_SPECS[NotificationCategory(category)]
+        except (KeyError, ValueError):
+            return email_t("digest.noCommunity.other", locale=locale)
+        if spec.guild_scoped:
+            return email_t("digest.noCommunity.other", locale=locale)
+        return email_t(f"digest.noCommunity.{category}", locale=locale)
+
+    html_parts: list[str] = [f"<p>{_greeting(locale, name)}</p>"]
+    text_parts: list[str] = [
+        email_t(f"digest.{reason}.title", locale=locale, escape=False),
+        "",
+    ]
+    for guild_id, by_category in grouped.items():
+        heading = _place(guild_id, next(iter(by_category)))
+        html_parts.append(
+            f'<h3 style="margin:24px 0 4px;font-size:16px;">{_html.escape(heading)}</h3>'
+        )
+        text_parts.append(heading)
+        for category, rows in by_category.items():
+            label = email_t(f"digest.category.{category}", locale=locale)
+            html_parts.append(
+                f'<p style="margin:12px 0 2px;font-weight:600;color:#64748b;'
+                f'font-size:13px;">{label}</p><ul style="margin:0;">'
+            )
+            text_parts.append(f"  {_strip_html(label)}")
+            for row in rows:
+                inner = f'<a href="{row.link}">{row.body}</a>' if row.link else row.body
+                html_parts.append(f"<li>{inner}</li>")
+                line_text = f"    - {_strip_html(row.body)}"
+                if row.link:
+                    line_text += f" -> {row.link}"
+                text_parts.append(line_text)
+            html_parts.append("</ul>")
+
+    html_body = _build_html_layout(title, "".join(html_parts), accent, locale=locale)
+    return subject, html_body, "\n".join(text_parts)
+
+
+async def deliver(
+    session: AsyncSession,
+    user: User,
+    *,
+    subject: str,
+    html_body: str,
+    text_body: str,
+) -> None:
+    """Put a composed message on the wire, to the address this account
+    nominated. The one exit from the outbox."""
+    settings_obj = await app_settings_service.get_app_settings(session)
+    await _send_to_primary(
+        session,
+        user,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
+
+
+async def email_configured(session: AsyncSession) -> bool:
+    """Whether this deployment can send mail at all.
+
+    Asked before writing a row rather than after: an install with no mail
+    server should not accumulate a queue nothing will ever drain.
+    """
+    settings_obj = await app_settings_service.get_app_settings(session)
+    try:
+        _build_smtp_config(settings_obj)
+    except EmailNotConfiguredError:
+        return False
+    return True
+
+
+async def email_context(session: AsyncSession) -> tuple[AppSetting, str]:
+    """The deployment's mail settings and accent, for a composer."""
+    return await _email_context(session)
+
+
 async def send_address_verification_email(
     session: AsyncSession, user: User, *, address: str, token: str
 ) -> None:
@@ -465,6 +655,218 @@ async def send_password_reset_email(
         text_body=text_body,
         settings_obj=settings_obj,
     )
+
+
+async def send_sign_in_code_email(
+    session: AsyncSession, user: User, *, email: str, code: str, minutes: int
+) -> None:
+    """Send a one-time sign-in code to the address it was asked about.
+
+    To that one address, not to every address the account has proved: the code
+    answers a question somebody asked about a particular mailbox, and the
+    account's other addresses did not ask.
+
+    No link and no button. The code is typed back into the page that asked for
+    it, which is the whole shape of this way in.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    shown = (
+        f'<p style="margin:24px 0;font-size:32px;font-weight:700;'
+        f'letter-spacing:0.25em;color:{accent};">{code}</p>'
+    )
+    body = f"""
+    <p>{email_t("signInCode.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("signInCode.body", locale=locale)}</p>
+    {shown}
+    <p>{email_t("signInCode.expiry", locale=locale, minutes=minutes)}</p>
+    <p>{email_t("signInCode.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("signInCode.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=[email],
+        subject=email_t("signInCode.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(
+            "signInCode.textBody",
+            locale=locale,
+            code=code,
+            minutes=minutes,
+            escape=False,
+        ),
+        settings_obj=settings_obj,
+    )
+
+
+async def send_sign_up_code_email(
+    session: AsyncSession, *, email: str, code: str, minutes: int, locale: str
+) -> None:
+    """Send a one-time code to an address no account holds yet.
+
+    There is no account, so there is no name to greet and no stored language
+    to write in: the locale is the one the browser asked in.
+    """
+    settings_obj, accent = await _email_context(session)
+    shown = (
+        f'<p style="margin:24px 0;font-size:32px;font-weight:700;'
+        f'letter-spacing:0.25em;color:{accent};">{code}</p>'
+    )
+    body = f"""
+    <p>{email_t("signUpCode.greeting", locale=locale)}</p>
+    <p>{email_t("signUpCode.body", locale=locale)}</p>
+    {shown}
+    <p>{email_t("signUpCode.expiry", locale=locale, minutes=minutes)}</p>
+    <p>{email_t("signUpCode.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("signUpCode.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=[email],
+        subject=email_t("signUpCode.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(
+            "signUpCode.textBody",
+            locale=locale,
+            code=code,
+            minutes=minutes,
+            escape=False,
+        ),
+        settings_obj=settings_obj,
+    )
+
+
+async def send_account_erased_email(
+    session: AsyncSession, *, recipients: list[str], locale: str = "en"
+) -> None:
+    """Tell an account that it is gone, at the addresses it proved.
+
+    The recipients are passed in rather than read from the account, because by
+    the time this is worth sending there is no account to read them from —
+    the caller captures them before the erasure and hands them over after it
+    commits.
+
+    No name and no link: the person it names has been unnamed, and there is
+    nowhere left for them to go.
+    """
+    settings_obj, accent = await _email_context(session)
+    body = f"""
+    <p>{email_t("accountErased.greeting", locale=locale)}</p>
+    <p>{email_t("accountErased.body", locale=locale)}</p>
+    <p>{email_t("accountErased.kept", locale=locale)}</p>
+    <p>{email_t("accountErased.unexpected", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("accountErased.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t("accountErased.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t("accountErased.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_account_erased(
+    session: AsyncSession, *, recipients: list[str], locale: str = "en"
+) -> None:
+    """Send the receipt, and never fail the erasure because it could not go.
+
+    By the time this runs the account is gone and committed. A deployment with
+    no mail configured still erased it, and answering the request with a
+    failure would say otherwise.
+    """
+    if not recipients:
+        return
+    try:
+        await send_account_erased_email(session, recipients=recipients, locale=locale)
+    except EmailNotConfiguredError:
+        logger.info("no mail configured; erasure not acknowledged by letter")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the erasure receipt")
+
+
+async def send_community_deleted_email(
+    session: AsyncSession,
+    *,
+    recipients: list[str],
+    community: str,
+    purge_at: datetime | None,
+    locale: str = "en",
+) -> None:
+    """Tell the people who ran a community that it is gone.
+
+    Its members learn from it leaving their lists, which is the thing they can
+    act on. The people who ran it get this, because the one action left —
+    asking an operator to put it back — is theirs, and it has a deadline.
+    """
+    settings_obj, accent = await _email_context(session)
+    recoverable = (
+        email_t(
+            "communityDeleted.recoverable",
+            locale=locale,
+            date=purge_at.strftime("%-d %B %Y"),
+        )
+        if purge_at is not None
+        else email_t("communityDeleted.recoverableNoDate", locale=locale)
+    )
+    body = f"""
+    <p>{email_t("communityDeleted.greeting", locale=locale)}</p>
+    <p>{email_t("communityDeleted.body", locale=locale, community=community)}</p>
+    <p>{recoverable}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("communityDeleted.title", locale=locale, community=community),
+        body,
+        accent,
+        locale=locale,
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t(
+            "communityDeleted.subject", locale=locale, community=community, escape=False
+        ),
+        html_body=html_body,
+        text_body=email_t(
+            "communityDeleted.textBody",
+            locale=locale,
+            community=community,
+            escape=False,
+        ),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_community_deleted(
+    session: AsyncSession, notice, *, locale: str = "en"
+) -> None:
+    """Send the receipt, and never fail the deletion because it could not go.
+
+    By the time this runs the community is deleted and committed. A deployment
+    with no mail configured still deleted it.
+    """
+    if not notice.recipients:
+        return
+    try:
+        await send_community_deleted_email(
+            session,
+            recipients=notice.recipients,
+            community=notice.community_name,
+            purge_at=notice.purge_at,
+            locale=locale,
+        )
+    except EmailNotConfiguredError:
+        logger.info("no mail configured; community deletion not acknowledged")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the community deletion receipt")
 
 
 async def send_second_factor_changed_email(
@@ -616,114 +1018,67 @@ async def announce_password_removed(session: AsyncSession, user: User) -> None:
         logger.exception("could not announce password removal for account %s", user.id)
 
 
-async def send_initiative_added_email(
-    session: AsyncSession, user: User, initiative_name: str
-) -> None:
-    settings_obj, accent = await _email_context(session)
+def initiative_added_pieces(user: User, initiative_name: str) -> EmailPieces:
     locale = _user_locale(user)
-    name = _display_name(user)
     link = _frontend_url("/initiatives")
-    button = _cta_button(
-        email_t("initiativeAdded.buttonLabel", locale=locale), link, accent
-    )
-    body = f"""
-    <p>{email_t("initiativeAdded.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("initiativeAdded.body", locale=locale, initiativeName=initiative_name)}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("initiativeAdded.title", locale=locale), body, accent, locale=locale
-    )
-    text_body = email_t(
-        "initiativeAdded.textBody",
-        locale=locale,
-        initiativeName=initiative_name,
-        link=link,
-        escape=False,
-    )
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t(
             "initiativeAdded.subject",
             locale=locale,
             initiativeName=initiative_name,
             escape=False,
         ),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t("initiativeAdded.title", locale=locale),
+        body=email_t(
+            "initiativeAdded.body", locale=locale, initiativeName=initiative_name
+        ),
+        link=link,
+        link_label=email_t("initiativeAdded.buttonLabel", locale=locale),
     )
 
 
-async def send_project_added_to_initiative_email(
-    session: AsyncSession,
+def project_added_pieces(
     user: User,
     *,
     initiative_name: str,
     project_name: str,
     project_id: int,
-) -> None:
-    settings_obj, accent = await _email_context(session)
+) -> EmailPieces:
     locale = _user_locale(user)
-    name = _display_name(user)
-    link = _frontend_url(f"/projects/{project_id}")
-    button = _cta_button(
-        email_t("projectAdded.buttonLabel", locale=locale), link, accent
-    )
-    body = f"""
-    <p>{email_t("projectAdded.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("projectAdded.body", locale=locale, projectName=project_name, initiativeName=initiative_name)}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("projectAdded.title", locale=locale), body, accent, locale=locale
-    )
-    text_body = email_t(
-        "projectAdded.textBody",
-        locale=locale,
-        projectName=project_name,
-        initiativeName=initiative_name,
-        link=link,
-        escape=False,
-    )
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t(
             "projectAdded.subject",
             locale=locale,
             initiativeName=initiative_name,
             escape=False,
         ),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t("projectAdded.title", locale=locale),
+        body=email_t(
+            "projectAdded.body",
+            locale=locale,
+            projectName=project_name,
+            initiativeName=initiative_name,
+        ),
+        link=_frontend_url(f"/projects/{project_id}"),
+        link_label=email_t("projectAdded.buttonLabel", locale=locale),
     )
 
 
-async def send_access_grant_email(
-    session: AsyncSession,
+def access_grant_pieces(
     user: User,
     *,
     event: str,
     guild_name: str,
     levels: Sequence[str] | None = None,
     requester: str | None = None,
-) -> None:
-    """Email a PAM access-grant lifecycle event.
+) -> EmailPieces:
+    """One PAM access-grant lifecycle event.
 
     ``event`` is one of ``requested`` | ``approved`` | ``denied`` | ``revoked``.
     ``requester`` is only used for the ``requested`` event (sent to approvers).
     All link to the platform Access dashboard.
     """
-    settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
-    link = _frontend_url("/settings/admin/access")
-    button = _cta_button(
-        email_t("accessGrant.buttonLabel", locale=locale), link, accent
-    )
     # Every level asked for, named — one ask can be for two things, and a
     # message describing only the first would ask for a decision about
     # something it had not mentioned.
@@ -733,36 +1088,24 @@ async def send_access_grant_email(
         if level in LEVEL_LABEL_KEYS
     )
     base = f"accessGrant.{event}"
-    vars_ = {
-        "guildName": guild_name,
-        "level": level_label,
-        "requester": requester or "",
-    }
-    body = f"""
-    <p>{email_t("accessGrant.greeting", locale=locale, name=name)}</p>
-    <p>{email_t(f"{base}.body", locale=locale, **vars_)}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{base}.title", locale=locale), body, accent, locale=locale
-    )
-    text_body = email_t(
-        f"{base}.textBody", locale=locale, link=link, escape=False, **vars_
-    )
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t(
             f"{base}.subject", locale=locale, guildName=guild_name, escape=False
         ),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t(f"{base}.title", locale=locale),
+        body=email_t(
+            f"{base}.body",
+            locale=locale,
+            guildName=guild_name,
+            level=level_label,
+            requester=requester or "",
+        ),
+        link=_frontend_url("/settings/admin/access"),
+        link_label=email_t("accessGrant.buttonLabel", locale=locale),
     )
 
 
-async def send_initiative_join_request_email(
-    session: AsyncSession,
+def initiative_join_request_pieces(
     user: User,
     *,
     event: str,
@@ -770,8 +1113,8 @@ async def send_initiative_join_request_email(
     link: str,
     requester: str | None = None,
     message: str | None = None,
-) -> None:
-    """Email an initiative join-request lifecycle event.
+) -> EmailPieces:
+    """One initiative join-request lifecycle event.
 
     ``event`` is one of ``requested`` | ``approved`` | ``denied``. ``requester``
     and ``message`` belong to ``requested`` only — that one goes to the
@@ -781,61 +1124,42 @@ async def send_initiative_join_request_email(
     ``link`` is supplied by the caller because these are guild-scoped: it is the
     guild-aware smart link, not a bare frontend path.
     """
-    settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
     base = f"initiativeJoinRequest.{event}"
-    button = _cta_button(email_t(f"{base}.buttonLabel", locale=locale), link, accent)
-    vars_ = {"initiativeName": initiative_name, "requester": requester or ""}
     # The requester's note is their own free text. email_t escapes interpolated
     # values in the `email` namespace, so it lands in the HTML part as literal
     # text; the line is omitted entirely when they wrote nothing, rather than
     # rendering an empty quotation.
-    note_html = ""
-    note_text = ""
-    if message:
-        note_html = f"<p>{email_t(f'{base}.note', locale=locale, message=message)}</p>"
-        note_text = "\n\n" + email_t(
-            f"{base}.noteText", locale=locale, message=message, escape=False
-        )
-    body = f"""
-    <p>{email_t("initiativeJoinRequest.greeting", locale=locale, name=name)}</p>
-    <p>{email_t(f"{base}.body", locale=locale, **vars_)}</p>
-    {note_html}
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{base}.title", locale=locale), body, accent, locale=locale
+    note = (
+        f"<br>{email_t(f'{base}.note', locale=locale, message=message)}"
+        if message
+        else ""
     )
-    text_body = (
-        email_t(f"{base}.textBody", locale=locale, link=link, escape=False, **vars_)
-        + note_text
-    )
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t(
             f"{base}.subject",
             locale=locale,
             initiativeName=initiative_name,
             escape=False,
         ),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t(f"{base}.title", locale=locale),
+        body=email_t(
+            f"{base}.body",
+            locale=locale,
+            initiativeName=initiative_name,
+            requester=requester or "",
+        )
+        + note,
+        link=link,
+        link_label=email_t(f"{base}.buttonLabel", locale=locale),
     )
 
 
-async def send_task_assignment_digest_email(
-    session: AsyncSession,
-    user: User,
-    assignments: Sequence[dict],
-) -> None:
-    if not assignments:
-        return
-    settings_obj, accent = await _email_context(session)
+def task_assignment_digest_pieces(
+    user: User, assignments: Sequence[dict]
+) -> EmailPieces:
+    """The "these landed on you" summary, as one list."""
     locale = _user_locale(user)
-    name = _display_name(user)
 
     def assignment_html(item: dict) -> str:
         # ``title`` is user-controlled and spliced into markup directly (not via
@@ -856,75 +1180,21 @@ async def send_task_assignment_digest_email(
         )
         return f"<li>{title_markup} {email_t('taskAssignment.inProject', locale=locale, projectName=project_name)}{assigned_fragment}</li>"
 
-    def assignment_text(item: dict) -> str:
-        title = item.get("task_title") or "Task"
-        project_name = item.get("project_name") or "a project"
-        assigned_by = item.get("assigned_by_name")
-        link = item.get("link")
-        in_project = _strip_html(
-            email_t(
-                "taskAssignment.inProject",
-                locale=locale,
-                projectName=project_name,
-                escape=False,
-            )
-        )
-        line = f"- {title} {in_project}"
-        if assigned_by:
-            assigned = _strip_html(
-                email_t(
-                    "taskAssignment.assignedBy",
-                    locale=locale,
-                    name=assigned_by,
-                    escape=False,
-                )
-            )
-            line += f" ({assigned})"
-        if link:
-            line += f" -> {link}"
-        return line
-
     items_html = "".join(assignment_html(item) for item in assignments)
-    body = f"""
-    <p>{email_t("taskAssignment.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("taskAssignment.body", locale=locale)}</p>
-    <ul>{items_html}</ul>
-    <p>{email_t("taskAssignment.footer", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("taskAssignment.title", locale=locale), body, accent, locale=locale
-    )
-    text_lines = [
-        email_t("taskAssignment.textBody", locale=locale, escape=False),
-        *(assignment_text(item) for item in assignments),
-        email_t("taskAssignment.footer", locale=locale, escape=False),
-    ]
-    text_body = "\n".join(text_lines)
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t("taskAssignment.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t("taskAssignment.title", locale=locale),
+        body=(f"{email_t('taskAssignment.body', locale=locale)}<ul>{items_html}</ul>"),
     )
 
 
-async def send_reaction_digest_email(
-    session: AsyncSession,
-    user: User,
-    reactions: Sequence[dict],
-) -> None:
+def reaction_digest_pieces(user: User, reactions: Sequence[dict]) -> EmailPieces:
     """The "people reacted to your posts" summary.
 
     Same shape as the assignment digest: one list, one line per reaction,
     linking back to what was reacted to.
     """
-    if not reactions:
-        return
-    settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
 
     def reaction_html(item: dict) -> str:
         # ``emoji`` and ``context_title`` are user-controlled and spliced into
@@ -943,139 +1213,34 @@ async def send_reaction_digest_email(
             f"{email_t('reaction.line', locale=locale, name=actor)} {context_markup}</li>"
         )
 
-    def reaction_text(item: dict) -> str:
-        emoji = item.get("emoji") or ""
-        context = item.get("context_title") or ""
-        actor = item.get("reactor_name") or ""
-        link = item.get("link")
-        line_text = _strip_html(
-            email_t("reaction.line", locale=locale, name=actor, escape=False)
-        )
-        line = f"- {emoji} {line_text} {context}"
-        if link:
-            line += f" -> {link}"
-        return line
-
     items_html = "".join(reaction_html(item) for item in reactions)
-    body = f"""
-    <p>{email_t("reaction.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("reaction.body", locale=locale)}</p>
-    <ul>{items_html}</ul>
-    <p>{email_t("reaction.footer", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("reaction.title", locale=locale), body, accent, locale=locale
-    )
-    text_lines = [
-        email_t("reaction.textBody", locale=locale, escape=False),
-        *(reaction_text(item) for item in reactions),
-        email_t("reaction.footer", locale=locale, escape=False),
-    ]
-    text_body = "\n".join(text_lines)
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t("reaction.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t("reaction.title", locale=locale),
+        body=f"{email_t('reaction.body', locale=locale)}<ul>{items_html}</ul>",
     )
 
 
-async def send_mention_email(
-    session: AsyncSession,
-    user: User,
-    *,
-    subject: str,
-    headline: str,
-    body_text: str,
-    link: str | None = None,
-) -> None:
-    settings_obj, accent = await _email_context(session)
-    locale = _user_locale(user)
-    name = _display_name(user)
-    if link:
-        button = _cta_button(
-            email_t("mention.buttonLabel", locale=locale), link, accent
-        )
-        body = f"""
-    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
-    <p>{body_text}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    else:
-        body = f"""
-    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
-    <p>{body_text}</p>
-    """
-    html_body = _build_html_layout(headline, body, accent, locale=locale)
-    # body_text is an HTML fragment (locale strings bold {{vars}} via <strong>);
-    # strip tags for the plain-text alternative.
-    plain = _strip_html(body_text)
-    if link:
-        plain += f"\n\nView: {link}"
-    await _send_to_primary(
-        session,
-        user,
-        subject=subject,
-        html_body=html_body,
-        text_body=plain,
-        settings_obj=settings_obj,
-    )
-
-
-async def send_direct_message_email(
-    session: AsyncSession,
-    user: User,
-    *,
-    sender_name: str,
-    link: str,
-) -> None:
+def direct_message_pieces(user: User, *, sender_name: str, link: str) -> EmailPieces:
     """Tell somebody a message is waiting, without telling them what it says.
 
     The subject and body carry the sender's name and nothing else. There is no
     preview here and no parameter that could carry one: the message this
     announces is encrypted, and the server has no key to it.
-
-    Sent once per conversation, on the transition into unread -- the same rule
-    the push and the bell line use, so a flurry is one email.
     """
-    settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
-    body_text = email_t("directMessage.body", locale=locale, sender=sender_name)
-    button = _cta_button(
-        email_t("directMessage.buttonLabel", locale=locale), link, accent
-    )
-    body = f"""
-    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
-    <p>{body_text}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("directMessage.title", locale=locale), body, accent, locale=locale
-    )
-    plain = _strip_html(body_text) + f"\n\nView: {link}"
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t("directMessage.subject", locale=locale, sender=sender_name),
-        html_body=html_body,
-        text_body=plain,
-        settings_obj=settings_obj,
+        headline=email_t("directMessage.title", locale=locale),
+        body=email_t("directMessage.body", locale=locale, sender=sender_name),
+        link=link,
+        link_label=email_t("directMessage.buttonLabel", locale=locale),
     )
 
 
-async def send_overdue_tasks_email(
-    session: AsyncSession,
-    user: User,
-    tasks: Sequence[dict],
-) -> None:
-    if not tasks:
-        return
-    settings_obj, accent = await _email_context(session)
+def overdue_tasks_pieces(user: User, tasks: Sequence[dict]) -> EmailPieces:
+    """What is past due, as one list."""
     locale = _user_locale(user)
-    name = _display_name(user)
 
     def overdue_html(item: dict) -> str:
         # ``title`` is user-controlled and spliced into markup directly (not via
@@ -1097,47 +1262,12 @@ async def send_overdue_tasks_email(
         )
         return f"<li>{title_markup} ({detail})</li>"
 
-    def overdue_text(item: dict) -> str:
-        title = item.get("title") or "Task"
-        project_name = item.get("project_name") or "a project"
-        due_date = item.get("due_date") or "N/A"
-        link = item.get("link")
-        detail = _strip_html(
-            email_t(
-                "overdue.taskDetail",
-                locale=locale,
-                projectName=project_name,
-                dueDate=due_date,
-                escape=False,
-            )
-        )
-        line = f"- {title} ({detail})"
-        if link:
-            line += f" -> {link}"
-        return line
-
-    task_count = len(tasks)
     items_html = "".join(overdue_html(item) for item in tasks)
-    body = f"""
-    <p>{email_t("overdue.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("overdue.body", locale=locale, count=task_count)}</p>
-    <ul>{items_html}</ul>
-    <p>{email_t("overdue.footer", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("overdue.title", locale=locale), body, accent, locale=locale
-    )
-    text_lines = [
-        email_t("overdue.textBody", locale=locale, count=task_count, escape=False),
-        *(overdue_text(item) for item in tasks),
-        email_t("overdue.footer", locale=locale, escape=False),
-    ]
-    text_body = "\n".join(text_lines)
-    await _send_to_primary(
-        session,
-        user,
+    return EmailPieces(
         subject=email_t("overdue.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=text_body,
-        settings_obj=settings_obj,
+        headline=email_t("overdue.title", locale=locale),
+        body=(
+            f"{email_t('overdue.body', locale=locale, count=len(tasks))}"
+            f"<ul>{items_html}</ul>"
+        ),
     )

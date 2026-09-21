@@ -15,7 +15,8 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_limits
+from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,15 +33,20 @@ from app.core.security import (
     billing_support_handoff_enabled,
 )
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
+from app.core.logging_config import configure_logging
+from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
-from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
+from app.db.session import AdminSessionLocal, get_admin_session
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
-from app.services.platform import security_rules
 from app.services.platform.users import SeatWouldBeEmptied
+
+# Before anything in this process logs: the served wiring for the application
+# stream and the audit stream (see app.core.logging_config).
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +98,7 @@ async def lifespan(app: FastAPI):
     lifespan is combined with this one via ``combine_lifespans`` in the mount
     block after ``include_router`` — so the MCP server boots alongside the API.
     """
-    from app.db.init_db import check_pre_baseline_db, init_owner
+    from app.db.init_db import init_owner, migrate_database
     from app.db.soft_delete_filter import install_soft_delete_filter
 
     # Surface the effective CORS allowlist so a misconfigured split-origin
@@ -107,6 +113,12 @@ async def lifespan(app: FastAPI):
     from app.db.bootstrap import ensure_database_bootstrap
 
     await ensure_database_bootstrap()
+    # A deployment that removed DATABASE_URL_BOOTSTRAP (or never set it) has no
+    # path that moves object ownership to the provisioning login, and every
+    # boot heal below that rewrites a function or a community schema needs it.
+    from app.db.bootstrap import warn_if_ownership_was_never_handed_over
+
+    await warn_if_ownership_was_never_handed_over()
     # Before any DDL runs: check the connection is the least-privilege
     # provisioning login. Ahead of the migrations rather than beside the other
     # heals below, so a misconfigured connection is caught before it reshapes
@@ -114,8 +126,7 @@ async def lifespan(app: FastAPI):
     from app.db.schema_provisioning import reject_privileged_database_url
 
     await reject_privileged_database_url()
-    await check_pre_baseline_db()
-    await run_migrations()
+    await migrate_database()
     # The functions every guild policy defers to, from the module that owns
     # them (app.db.authorization). Before the back-fill below, so a schema
     # rendered in this same boot finds each one its policies name.
@@ -200,12 +211,6 @@ async def lifespan(app: FastAPI):
     # After the schemas, never before: the sweep writes through functions and
     # into a table whose shape the pass above is what brings up to date.
     await backfill_guild_search()
-    # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
-    # matching the object-store layout. Local-only, idempotent, self-disabling —
-    # a no-op once converted, so packaged deploys convert themselves on boot.
-    from app.db.local_upload_migration import migrate_local_uploads_to_guild_prefix
-
-    await migrate_local_uploads_to_guild_prefix()
     # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
     # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
     # before traffic is served, so a packaged deploy rotates itself on boot.
@@ -376,10 +381,6 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        # First, while the engines are still up: a security rule runs after the
-        # row it reads has committed, so one cut off partway leaves a crossing
-        # recorded and no case raised.
-        await security_rules.drain()
         await collaboration_manager.stop_persistence_loop()
         await notify_bus.stop()
         # Shutdown: cancel the background notification tasks.
@@ -433,7 +434,75 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # decorator (SEC-14). Without this the global default was inert. The middleware
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
-app.add_middleware(SlowAPIMiddleware)
+
+#: Stands in for a request that lands on a mounted sub-app. A mount has no
+#: endpoint to read a marker off, which is a different answer from "no route
+#: matched" and gets different treatment below.
+_MOUNTED = object()
+
+
+def _route_endpoint(request: Request) -> object | None:
+    """The endpoint the router will run for this request.
+
+    Starlette dispatches to the FIRST route that fully matches, so this stops
+    there rather than reading on.
+    """
+    for route in request.app.routes:
+        match, _ = route.matches(request.scope)
+        if match == Match.FULL:
+            endpoint = getattr(route, "endpoint", None)
+            return _MOUNTED if endpoint is None else endpoint
+    return None
+
+
+class _DefaultRateLimit(SlowAPIMiddleware):
+    """The global default limit, applied against the route that will run.
+
+    Upstream picks a request's handler by scanning every route and keeping the
+    LAST one that matches. This app registers 600-odd routes and ends with a
+    catch-all serving the SPA, which matches everything — so upstream resolves
+    every request to ``serve_spa``, and three things follow from that:
+
+    * ``@limiter.exempt`` is never seen, because the name it registers is not
+      the name the middleware looks up.
+    * A route's own ``@limiter.limit`` never displaces the default, so one
+      set deliberately ABOVE the default is silently held down to it.
+    * Every request pays a full scan of all 600 routes — ~430µs, measured.
+
+    Resolving the way the router itself does settles all three, so this
+    replaces ``dispatch`` rather than wrapping it: delegating upward would run
+    the scan it is here to avoid.
+    """
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        request_limiter = request.app.state.limiter
+        if not request_limiter.enabled:
+            return await call_next(request)
+
+        endpoint = _route_endpoint(request)
+        if endpoint is _MOUNTED:
+            # Nothing to read a marker off, so a mount is limited like any
+            # undecorated route — by the URL it was asked for.
+            handler = None
+        elif _should_exempt(request_limiter, endpoint):
+            return await call_next(request)
+        else:
+            handler = endpoint
+
+        error_response, inject_headers = sync_check_limits(
+            request_limiter, request, handler, request.app
+        )
+        if error_response is not None:
+            return error_response
+        response = await call_next(request)
+        if inject_headers:
+            response = request_limiter._inject_headers(
+                response, request.state.view_rate_limit
+            )
+        return response
+
+
+app.add_middleware(_DefaultRateLimit)
 
 
 @app.exception_handler(RequestValidationError)
@@ -527,15 +596,21 @@ async def insufficient_privilege_handler(
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
-# The two WebAssembly workers — the dashboard widget sandbox and the direct
-# message ratchet — and only they, are served with a policy that admits
-# WebAssembly. Vite emits worker bundles into `assets/workers/` with a content
-# hash (see `worker.rolldownOptions` in frontend/vite.config.ts), so the match is
-# by directory + stem; the literals are pinned by tests on both sides.
+# The three WebAssembly workers — the dashboard widget sandbox, the direct
+# message ratchet and the PDF viewer's pdf.js worker — and only they, are served
+# with a policy that admits WebAssembly. Vite emits worker bundles into
+# `assets/workers/` with a content hash (see `worker.rolldownOptions` in
+# frontend/vite.config.ts) and the pdfjs plugin there puts pdf.js beside them
+# under its version, so the match is by directory + stem; the literals are
+# pinned by tests on both sides.
 _WASM_WORKER_ASSET_PREFIXES = (
     "assets/workers/sandbox.worker-",
     "assets/workers/ratchet.worker-",
+    "assets/workers/pdf.worker-",
 )
+# The first two are bundled by Vite as classic `.js`; pdf.js ships an ES module
+# and is emitted under its own name.
+_WASM_WORKER_ASSET_SUFFIXES = (".js", ".mjs")
 _WASM_WORKER_CSP = settings.wasm_worker_content_security_policy
 
 
@@ -545,7 +620,7 @@ def _is_wasm_worker_asset(path: str) -> bool:
     The hash varies per build, so the tail is open — but only as far as the one
     filename: anything nested below that name is an ordinary asset.
     """
-    if not path.endswith(".js"):
+    if not path.endswith(_WASM_WORKER_ASSET_SUFFIXES):
         return False
     return any(
         path.startswith(prefix) and "/" not in path[len(prefix) :]
@@ -610,6 +685,11 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
+# Added last, so it sits outside the rest: every request gets its id here,
+# whatever answers it, and a request served through a privileged-access grant
+# is written down once its response is finished. See app/core/request_audit.py.
+app.add_middleware(RequestAuditMiddleware)
+
 
 @app.get("/uploads/{guild_id}/{filename:path}", include_in_schema=False)
 @limiter.limit("600/minute")
@@ -638,7 +718,7 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import LIVE_STATUS_VALUES
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
 
@@ -653,11 +733,11 @@ async def serve_upload_file(
             raise HTTPException(status_code=404)
 
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if membership is not None and guild.status == GuildStatus.suspended.value:
-        # A suspended guild is unreadable to its members (mirrors the resolver
-        # gate in deps._load_guild_context; this route resolves access inline).
-        # The grant branch above deliberately skips the status — PAM overrides
-        # suspension. read_only needs nothing here: serving a file is a read.
+    if membership is not None and guild.status not in LIVE_STATUS_VALUES:
+        # A guild that is not live is unreadable to its members (mirrors the
+        # resolver gate in deps._load_guild_context; this route resolves access
+        # inline). The grant branch above deliberately skips the status — PAM
+        # overrides it. read_only needs nothing here: serving a file is a read.
         raise HTTPException(status_code=404)
     # And the same resolver's question about the credential, which binds
     # members and grantees alike. Asked once access is settled, so it is

@@ -67,6 +67,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # What one account wants to be told about. Off ``users`` on purpose:
         # that table is read whole by the platform tiers.
         "user_notification_prefs",
+        # Notification email waiting to go out. Per-account and cross-guild
+        # like the settings above: one message can gather rows from every
+        # community somebody is in, so it belongs to none of them.
+        "email_outbox",
         # The picture on a user's profile. Public-plane identity like the row
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.
@@ -78,11 +82,19 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # and one-directional: the list is the holder's, and it may name
         # people they share no guild with.
         "profile_favorites",
+        # What an account agreed to when it was created. A deployment's terms
+        # are the platform's, not any one community's, so the record of
+        # accepting them belongs beside the account rather than in a schema.
+        "legal_acceptances",
         # Who may ask to message an account, who it has agreed something with,
         # and who it has chosen not to hear from. All three are per-account and
         # cross-guild, like the starred list above, and none of them is any
         # guild's business.
         "user_dm_settings",
+        # What an account allows to be kept in a browser. Per-account and
+        # cross-guild like the rest here: the question is about the deployment,
+        # not about any one community.
+        "user_cookie_consent",
         "user_dm_guild_optouts",
         "contact_grants",
         "user_ignores",
@@ -98,7 +110,6 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
-        "audit_events",
         # What outside parties — a payment processor, an installed app —
         # call a user or a guild. One per purpose, so no two parties hold
         # the same value for the same entity. Cross-guild and pre-routing,
@@ -172,6 +183,12 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
+        # The secret one import job needs to read a foreign site, held from
+        # the connect request until the worker picks the job up and deleted
+        # the moment that job is over. Written before any guild schema is
+        # routed into and read on the system engine, so it cannot live in one
+        # — it names a guild without being that guild's content.
+        "import_credentials",
         "notifications",  # per-user inbox spanning guilds; carries its own place
         # Billing write boundary (external billing service, initiative_billing role)
         "billing_event_log",  # idempotency claim + append-only audit; weak guild ref

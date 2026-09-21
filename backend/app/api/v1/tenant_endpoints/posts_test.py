@@ -6,7 +6,9 @@ the board owns: what order notices come back in, who may lift one above the
 others, and when a notice becomes something other people can see.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
@@ -19,8 +21,8 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceGrant
-from app.schemas.tenant.post import MAX_POST_TEXT_CHARS, post_excerpt
-from app.testing import create_comment, create_post, lexical_body
+from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
+from app.testing import Actor, create_comment, create_post, lexical_body
 
 
 async def _posts_enabled(session: AsyncSession, initiative) -> None:
@@ -43,24 +45,80 @@ async def _strip_non_owner_grants(session, post, owner_id: int) -> None:
     await session.commit()
 
 
+async def _joins(acting_user, actor: Actor, **overrides: Any) -> Actor:
+    """Another account in the same guild and initiative as ``actor``."""
+    return await acting_user(
+        **{
+            "guild_role": GuildRole.member,
+            "guild": actor.guild,
+            "initiative": actor.initiative,
+            **overrides,
+        }
+    )
+
+
+async def _draft(session: AsyncSession, actor: Actor, **fields: Any) -> Post:
+    """A notice written but scheduled for tomorrow, so it is not up yet."""
+    return await create_post(
+        session,
+        actor.initiative,
+        actor.user,
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+        **{"name": "Embargoed", **fields},
+    )
+
+
+@pytest.fixture
+async def board(acting_user, session) -> Actor:
+    """A guild admin with an initiative whose board is switched on."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    return a
+
+
+@dataclass
+class _DraftScene:
+    """A notice that is not up yet, whoever wrote it, and somebody else in the
+    initiative it is not up for."""
+
+    author: Actor
+    reader: Actor
+    draft: Post
+
+
+@pytest.fixture
+async def draft_scene(acting_user, session) -> _DraftScene:
+    """An embargoed notice and the two people around it.
+
+    The author is an ordinary member, not a guild admin, so what keeps the
+    draft theirs is the notice's own grants. The reader is somebody else in
+    the same initiative, so the notice's default sharing already reaches
+    them — being shared with is not the same as being up.
+    """
+    author = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await _joins(acting_user, author)
+    await _posts_enabled(session, author.initiative)
+    return _DraftScene(
+        author=author, reader=reader, draft=await _draft(session, author)
+    )
+
+
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-async def test_create_post(client: AsyncClient, acting_user, session):
+async def test_create_post(client: AsyncClient, board: Actor):
     """Posting seeds the author's owner grant plus the default all-members read
     grant — a notice nobody could read is not a notice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Server maintenance Sunday",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("We are upgrading at 9am."),
         },
     )
@@ -97,22 +155,15 @@ async def test_create_requires_feature_enabled(
 
 @pytest.mark.integration
 async def test_create_requires_the_create_permission(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor
 ):
     """A plain member cannot post to the board unless their role says so."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    b = await _joins(acting_user, board, initiative_role="member")
 
     response = await client.post(
         b.g("/posts/"),
         headers=b.headers,
-        json={"name": "Unauthorized", "initiative_id": a.initiative.id},
+        json={"name": "Unauthorized", "initiative_id": board.initiative.id},
     )
 
     assert response.status_code == 403
@@ -121,41 +172,41 @@ async def test_create_requires_the_create_permission(
 
 @pytest.mark.integration
 async def test_list_carries_bodies_and_read_matches(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A board renders its notices, so the list carries whole posts — unlike
     every other tool list, which omits the body."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     post = await create_post(
-        session, a.initiative, a.user, name="Ops", body=lexical_body("All clear.")
+        session,
+        board.initiative,
+        board.user,
+        name="Ops",
+        body=lexical_body("All clear."),
     )
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     assert listing.status_code == 200
     (item,) = listing.json()["items"]
     assert item["name"] == "Ops"
     assert item["body"]["root"]["children"][0]["children"][0]["text"] == "All clear."
     assert item["excerpt"] == "All clear."
 
-    detail = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+    detail = await client.get(board.g(f"/posts/{post.id}"), headers=board.headers)
     assert detail.status_code == 200
     assert detail.json()["body"] == item["body"]
 
 
 @pytest.mark.integration
 async def test_board_pages_in_fives_by_default(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """The default page is small on purpose: each row is a body the client
     mounts an editor for, and the board fetches the next page as somebody
     reaches the bottom rather than making them ask."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     for i in range(7):
-        await create_post(session, a.initiative, a.user, name=f"Notice {i}")
+        await create_post(session, board.initiative, board.user, name=f"Notice {i}")
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     assert listing.status_code == 200
     payload = listing.json()
     assert payload["page_size"] == 5
@@ -165,25 +216,18 @@ async def test_board_pages_in_fives_by_default(
 
 
 @pytest.mark.integration
-async def test_a_page_larger_than_the_cap_is_refused(
-    client: AsyncClient, acting_user, session
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-
-    response = await client.get(a.g("/posts/?page_size=200"), headers=a.headers)
+async def test_a_page_larger_than_the_cap_is_refused(client: AsyncClient, board: Actor):
+    response = await client.get(board.g("/posts/?page_size=200"), headers=board.headers)
     assert response.status_code == 422
 
 
 @pytest.mark.integration
-async def test_update_post(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Draft")
+async def test_update_post(client: AsyncClient, board: Actor, session):
+    post = await create_post(session, board.initiative, board.user, name="Draft")
 
     response = await client.patch(
-        a.g(f"/posts/{post.id}"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}"),
+        headers=board.headers,
         json={"name": "Final", "body": lexical_body("Rewritten.")},
     )
 
@@ -193,39 +237,27 @@ async def test_update_post(client: AsyncClient, acting_user, session):
 
 
 @pytest.mark.integration
-async def test_delete_post_requires_owner(client: AsyncClient, acting_user, session):
+async def test_delete_post_requires_owner(
+    client: AsyncClient, acting_user, board: Actor, session
+):
     """A reader cannot delete somebody else's notice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    post = await create_post(session, board.initiative, board.user)
+    b = await _joins(acting_user, board, initiative_role="member")
 
     denied = await client.delete(b.g(f"/posts/{post.id}"), headers=b.headers)
     assert denied.status_code == 403
 
-    allowed = await client.delete(a.g(f"/posts/{post.id}"), headers=a.headers)
+    allowed = await client.delete(board.g(f"/posts/{post.id}"), headers=board.headers)
     assert allowed.status_code == 204
 
 
 @pytest.mark.integration
 async def test_a_post_not_shared_is_not_listed(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Private")
-    await _strip_non_owner_grants(session, post, a.user.id)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    post = await create_post(session, board.initiative, board.user, name="Private")
+    await _strip_non_owner_grants(session, post, board.user.id)
+    b = await _joins(acting_user, board, initiative_role="member")
 
     listing = await client.get(b.g("/posts/"), headers=b.headers)
     assert listing.status_code == 200
@@ -234,17 +266,15 @@ async def test_a_post_not_shared_is_not_listed(
 
 @pytest.mark.integration
 async def test_the_board_carries_each_post_s_comment_count(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A reader sees there is a conversation without opening the post."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    talked_about = await create_post(session, a.initiative, a.user, name="Busy")
-    await create_post(session, a.initiative, a.user, name="Quiet")
-    await create_comment(session, a.user, post=talked_about)
-    await create_comment(session, a.user, post=talked_about)
+    talked_about = await create_post(session, board.initiative, board.user, name="Busy")
+    await create_post(session, board.initiative, board.user, name="Quiet")
+    await create_comment(session, board.user, post=talked_about)
+    await create_comment(session, board.user, post=talked_about)
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     assert listing.status_code == 200
     counts = {p["name"]: p["comment_count"] for p in listing.json()["items"]}
     assert counts == {"Busy": 2, "Quiet": 0}
@@ -252,21 +282,19 @@ async def test_the_board_carries_each_post_s_comment_count(
 
 @pytest.mark.integration
 async def test_a_trashed_comment_leaves_the_count(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A thread that was cleared out reads as empty, not as history."""
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
-    comment = await create_comment(session, a.user, post=post)
+    post = await create_post(session, board.initiative, board.user)
+    comment = await create_comment(session, board.user, post=post)
     await soft_delete_entity(
-        session, comment, deleted_by_user_id=a.user.id, retention_days=30
+        session, comment, deleted_by_user_id=board.user.id, retention_days=30
     )
     await session.commit()
 
-    detail = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+    detail = await client.get(board.g(f"/posts/{post.id}"), headers=board.headers)
     assert detail.status_code == 200
     assert detail.json()["comment_count"] == 0
 
@@ -278,55 +306,61 @@ async def test_a_trashed_comment_leaves_the_count(
 
 @pytest.mark.integration
 async def test_board_orders_pins_first_then_newest(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """The default order is the board: live pins on top, then reverse
     chronological."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     base = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    old = await create_post(session, a.initiative, a.user, name="Old", created_at=base)
+    old = await create_post(
+        session, board.initiative, board.user, name="Old", created_at=base
+    )
     await create_post(
-        session, a.initiative, a.user, name="New", created_at=base + timedelta(days=2)
+        session,
+        board.initiative,
+        board.user,
+        name="New",
+        created_at=base + timedelta(days=2),
     )
 
-    unpinned = await client.get(a.g("/posts/"), headers=a.headers)
+    unpinned = await client.get(board.g("/posts/"), headers=board.headers)
     assert [p["name"] for p in unpinned.json()["items"]] == ["New", "Old"]
 
     pinned = await client.put(
-        a.g(f"/posts/{old.id}/pin"), headers=a.headers, json={"pinned": True}
+        board.g(f"/posts/{old.id}/pin"), headers=board.headers, json={"pinned": True}
     )
     assert pinned.status_code == 200, pinned.text
 
-    board = await client.get(a.g("/posts/"), headers=a.headers)
-    assert [p["name"] for p in board.json()["items"]] == ["Old", "New"]
+    reordered = await client.get(board.g("/posts/"), headers=board.headers)
+    assert [p["name"] for p in reordered.json()["items"]] == ["Old", "New"]
 
 
 @pytest.mark.integration
 async def test_a_lapsed_pin_falls_back_into_the_feed(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """An expiry in the past reads exactly like no pin: the post orders by its
     own age again, and nothing had to sweep the columns."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     base = datetime(2026, 1, 1, tzinfo=timezone.utc)
     old = await create_post(
         session,
-        a.initiative,
-        a.user,
+        board.initiative,
+        board.user,
         name="Old",
         created_at=base,
         pinned_at=base,
-        pinned_by=a.user.id,
+        pinned_by=board.user.id,
         pin_expires_at=base + timedelta(days=1),
     )
     await create_post(
-        session, a.initiative, a.user, name="New", created_at=base + timedelta(days=2)
+        session,
+        board.initiative,
+        board.user,
+        name="New",
+        created_at=base + timedelta(days=2),
     )
 
-    board = await client.get(a.g("/posts/"), headers=a.headers)
-    items = board.json()["items"]
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
+    items = listing.json()["items"]
     assert [p["name"] for p in items] == ["New", "Old"]
     # The record of the pin survives; only its force has lapsed.
     lapsed = next(p for p in items if p["name"] == "Old")
@@ -337,19 +371,17 @@ async def test_a_lapsed_pin_falls_back_into_the_feed(
 
 @pytest.mark.integration
 async def test_sort_by_opts_out_of_the_board_order(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """The guild-wide table needs an ordinary tool sort, so naming one wins
     over the pinned band."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    await create_post(session, a.initiative, a.user, name="Beta")
-    alpha = await create_post(session, a.initiative, a.user, name="Alpha")
+    await create_post(session, board.initiative, board.user, name="Beta")
+    alpha = await create_post(session, board.initiative, board.user, name="Alpha")
     await client.put(
-        a.g(f"/posts/{alpha.id}/pin"), headers=a.headers, json={"pinned": True}
+        board.g(f"/posts/{alpha.id}/pin"), headers=board.headers, json={"pinned": True}
     )
 
-    listing = await client.get(a.g("/posts/?sort_by=name"), headers=a.headers)
+    listing = await client.get(board.g("/posts/?sort_by=name"), headers=board.headers)
     assert [p["name"] for p in listing.json()["items"]] == ["Alpha", "Beta"]
 
 
@@ -360,20 +392,13 @@ async def test_sort_by_opts_out_of_the_board_order(
 
 @pytest.mark.integration
 async def test_pin_requires_manager_not_write_access(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """A pin puts one notice above everyone else's, so writing your own post is
     not enough — this is initiative authority."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    b = await _joins(acting_user, board, initiative_role="member")
     # b owns the post outright and still may not pin it.
-    post = await create_post(session, a.initiative, b.user)
+    post = await create_post(session, board.initiative, b.user)
 
     denied = await client.put(
         b.g(f"/posts/{post.id}/pin"), headers=b.headers, json={"pinned": True}
@@ -382,31 +407,29 @@ async def test_pin_requires_manager_not_write_access(
     assert denied.json()["detail"] == "POST_PIN_MANAGER_REQUIRED"
 
     allowed = await client.put(
-        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
+        board.g(f"/posts/{post.id}/pin"), headers=board.headers, json={"pinned": True}
     )
     assert allowed.status_code == 200
     assert allowed.json()["is_pinned"] is True
-    assert allowed.json()["pinned_by"] == a.user.id
+    assert allowed.json()["pinned_by"] == board.user.id
 
 
 @pytest.mark.integration
 async def test_unpin_clears_the_expiry_with_it(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """An expiry belongs to a pin; leaving one behind would silently apply to
     the next one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
+    post = await create_post(session, board.initiative, board.user)
     expires = datetime.now(timezone.utc) + timedelta(days=3)
 
     await client.put(
-        a.g(f"/posts/{post.id}/pin"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}/pin"),
+        headers=board.headers,
         json={"pinned": True, "expires_at": expires.isoformat()},
     )
     response = await client.put(
-        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": False}
+        board.g(f"/posts/{post.id}/pin"), headers=board.headers, json={"pinned": False}
     )
 
     assert response.status_code == 200
@@ -419,18 +442,16 @@ async def test_unpin_clears_the_expiry_with_it(
 
 @pytest.mark.integration
 async def test_pin_refuses_an_expiry_already_past(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A pin that is already over is a no-op that reads as a pin — refused
     rather than stored."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
+    post = await create_post(session, board.initiative, board.user)
     past = datetime.now(timezone.utc) - timedelta(days=1)
 
     response = await client.put(
-        a.g(f"/posts/{post.id}/pin"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}/pin"),
+        headers=board.headers,
         json={"pinned": True, "expires_at": past.isoformat()},
     )
 
@@ -440,20 +461,13 @@ async def test_pin_refuses_an_expiry_already_past(
 
 @pytest.mark.integration
 async def test_pin_requires_read_access_before_the_manager_check(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """The two gates run in order: read access on the post, then initiative
     authority. A caller without the first is refused at it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, post, a.user.id)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    post = await create_post(session, board.initiative, board.user)
+    await _strip_non_owner_grants(session, post, board.user.id)
+    b = await _joins(acting_user, board, initiative_role="member")
 
     response = await client.put(
         b.g(f"/posts/{post.id}/pin"), headers=b.headers, json={"pinned": True}
@@ -469,65 +483,48 @@ async def test_pin_requires_read_access_before_the_manager_check(
 
 
 @pytest.mark.integration
-async def test_a_post_longer_than_the_limit_is_refused(
-    client: AsyncClient, acting_user, session
+@pytest.mark.parametrize(
+    ("length", "status", "detail"),
+    [
+        (MAX_POST_TEXT_CHARS, 201, None),
+        (MAX_POST_TEXT_CHARS + 1, 422, "POST_BODY_TOO_LONG"),
+    ],
+    ids=["at the ceiling", "one character over it"],
+)
+async def test_a_notice_is_taken_up_to_the_length_ceiling(
+    client: AsyncClient, board: Actor, length: int, status: int, detail: str | None
 ):
-    """A board is read, not studied — something this long is a document."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-
+    """A board is read, not studied — something longer than this is a document.
+    The ceiling itself is inclusive."""
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "War and Peace",
-            "initiative_id": a.initiative.id,
-            "body": lexical_body("x" * (MAX_POST_TEXT_CHARS + 1)),
+            "initiative_id": board.initiative.id,
+            "body": lexical_body("x" * length),
         },
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == "POST_BODY_TOO_LONG"
+    assert response.status_code == status, response.text
+    assert response.json().get("detail") == detail
 
 
 @pytest.mark.integration
 async def test_an_edit_cannot_grow_a_post_past_the_limit(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """The ceiling is on the body, not on the way it arrived."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
+    post = await create_post(session, board.initiative, board.user)
 
     response = await client.patch(
-        a.g(f"/posts/{post.id}"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}"),
+        headers=board.headers,
         json={"body": lexical_body("x" * (MAX_POST_TEXT_CHARS + 1))},
     )
 
     assert response.status_code == 422
     assert response.json()["detail"] == "POST_BODY_TOO_LONG"
-
-
-@pytest.mark.integration
-async def test_a_post_at_the_limit_is_accepted(
-    client: AsyncClient, acting_user, session
-):
-    """The boundary is inclusive — a notice exactly at the ceiling is fine."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-
-    response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
-        json={
-            "name": "Just about",
-            "initiative_id": a.initiative.id,
-            "body": lexical_body("x" * MAX_POST_TEXT_CHARS),
-        },
-    )
-
-    assert response.status_code == 201, response.text
 
 
 # ---------------------------------------------------------------------------
@@ -536,120 +533,55 @@ async def test_a_post_at_the_limit_is_accepted(
 
 
 @pytest.mark.integration
-async def test_a_post_carries_its_reactions(client: AsyncClient, acting_user, session):
+async def test_a_post_carries_its_reactions(client: AsyncClient, board: Actor, session):
     """Chips ride along with the post, so a board renders them from the one
     list call rather than a request per row."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
+    post = await create_post(session, board.initiative, board.user)
 
     toggled = await client.put(
-        a.g(f"/reactions/post/{post.id}"), headers=a.headers, json={"emoji": "🎉"}
+        board.g(f"/reactions/post/{post.id}"),
+        headers=board.headers,
+        json={"emoji": "🎉"},
     )
     assert toggled.status_code == 200, toggled.text
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     (item,) = listing.json()["items"]
     assert [(g["emoji"], g["count"], g["reacted"]) for g in item["reactions"]] == [
         ("🎉", 1, True)
     ]
 
-    detail = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+    detail = await client.get(board.g(f"/posts/{post.id}"), headers=board.headers)
     assert detail.json()["reactions"] == item["reactions"]
 
 
 @pytest.mark.integration
-async def test_reacting_needs_only_read_access(
-    client: AsyncClient, acting_user, session
+@pytest.mark.parametrize(
+    ("shared_with_them", "expected"),
+    [(True, {200}), (False, {403, 404})],
+    ids=["a notice they can see", "one they cannot"],
+)
+async def test_reacting_takes_read_access_and_nothing_more(
+    client: AsyncClient,
+    acting_user,
+    board: Actor,
+    session,
+    shared_with_them: bool,
+    expected: set[int],
 ):
     """A notice everyone on the board can see is one everyone can react to —
-    reacting is a gesture, not an edit."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
+    reacting is a gesture, not an edit. One they cannot see is not theirs to
+    react to either."""
+    post = await create_post(session, board.initiative, board.user)
+    if not shared_with_them:
+        await _strip_non_owner_grants(session, post, board.user.id)
+    b = await _joins(acting_user, board, initiative_role="member")
 
     response = await client.put(
         b.g(f"/reactions/post/{post.id}"), headers=b.headers, json={"emoji": "👍"}
     )
-    assert response.status_code == 200, response.text
 
-
-@pytest.mark.integration
-async def test_reacting_to_an_unreadable_post_is_refused(
-    client: AsyncClient, acting_user, session
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, post, a.user.id)
-    b = await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
-    )
-
-    response = await client.put(
-        b.g(f"/reactions/post/{post.id}"), headers=b.headers, json={"emoji": "👍"}
-    )
-    assert response.status_code in (403, 404)
-
-
-# ---------------------------------------------------------------------------
-# Excerpts
-# ---------------------------------------------------------------------------
-
-
-def test_excerpt_reads_every_kind_of_text_node():
-    """Mentions and chips keep their words in ``text`` like a text node, so the
-    excerpt reads what the post says rather than only its plain runs."""
-    body = {
-        "root": {
-            "children": [
-                {
-                    "type": "paragraph",
-                    "children": [
-                        {"type": "text", "text": "Ping"},
-                        {"type": "mention", "text": "@Ada"},
-                        {"type": "text", "text": "about"},
-                        {"type": "smart-chip", "text": "Ship it"},
-                    ],
-                }
-            ]
-        }
-    }
-    assert post_excerpt(body) == "Ping @Ada about Ship it"
-
-
-def test_excerpt_of_a_body_with_no_words_is_empty():
-    """A notice that is only a picture has nothing to excerpt — it shows as its
-    headline, which is what there is."""
-    body = {"root": {"children": [{"type": "image", "src": "/x.png"}]}}
-    assert post_excerpt(body) == ""
-    assert post_excerpt({}) == ""
-
-
-def test_excerpt_truncates_on_a_word_boundary():
-    body = {
-        "root": {
-            "children": [
-                {
-                    "type": "paragraph",
-                    "children": [{"type": "text", "text": "wo " * 200}],
-                }
-            ]
-        }
-    }
-    excerpt = post_excerpt(body, limit=20)
-    assert len(excerpt) <= 20
-    assert excerpt.endswith("…")
-    assert not excerpt.endswith("w…")
+    assert response.status_code in expected, response.text
 
 
 # ---------------------------------------------------------------------------
@@ -672,22 +604,18 @@ async def _notifications_for(
 
 @pytest.mark.integration
 async def test_posting_now_notifies_the_people_it_is_shared_with(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """The default sharing is the whole initiative, so the whole initiative
     hears about it — everyone except the author."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
+    b = await _joins(acting_user, board)
 
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Doors open at seven",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("Bring a chair."),
         },
     )
@@ -703,14 +631,16 @@ async def test_posting_now_notifies_the_people_it_is_shared_with(
         == 1
     )
     assert (
-        await _notifications_for(session, a.user.id, NotificationType.post_published)
+        await _notifications_for(
+            session, board.user.id, NotificationType.post_published
+        )
         == []
     )
 
 
 @pytest.mark.integration
 async def test_a_notice_only_notifies_who_it_was_shared_with(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """The fan-out follows the post's own grants, not the initiative roster.
 
@@ -718,21 +648,15 @@ async def test_a_notice_only_notifies_who_it_was_shared_with(
     person must not ring the bell of everybody who happens to be in the
     initiative.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    named = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    bystander = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
+    named = await _joins(acting_user, board)
+    bystander = await _joins(acting_user, board)
 
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Just for you",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("A word in private."),
             "grants": [{"user_id": named.user.id, "level": "read"}],
         },
@@ -757,21 +681,17 @@ async def test_a_notice_only_notifies_who_it_was_shared_with(
 
 @pytest.mark.integration
 async def test_a_scheduled_notice_is_not_published_and_notifies_nobody(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
+    b = await _joins(acting_user, board)
     when = datetime.now(timezone.utc) + timedelta(days=1)
 
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Tomorrow's news",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("Not yet."),
             "scheduled_for": when.isoformat(),
         },
@@ -789,21 +709,17 @@ async def test_a_scheduled_notice_is_not_published_and_notifies_nobody(
 
 
 @pytest.mark.integration
-async def test_a_schedule_in_the_past_posts_it_now(
-    client: AsyncClient, acting_user, session
-):
+async def test_a_schedule_in_the_past_posts_it_now(client: AsyncClient, board: Actor):
     """An instant that has already gone is somebody asking for it now — the
     same thing an omitted schedule means, so it takes the same branch."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     when = datetime.now(timezone.utc) - timedelta(minutes=5)
 
     response = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Backdated",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("Now."),
             "scheduled_for": when.isoformat(),
         },
@@ -815,111 +731,49 @@ async def test_a_schedule_in_the_past_posts_it_now(
 
 @pytest.mark.integration
 async def test_a_draft_is_invisible_to_a_reader_but_not_to_its_author(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, draft_scene: _DraftScene
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Not yet",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    """The draft leg is write access, not any access: the notice is already
+    shared with the reader and they still do not get it early."""
+    author, reader, draft = draft_scene.author, draft_scene.reader, draft_scene.draft
 
-    mine = await client.get(a.g("/posts/"), headers=a.headers)
-    assert [p["id"] for p in mine.json()["items"]] == [draft.id]
-
+    mine = await client.get(author.g("/posts/"), headers=author.headers)
     theirs = await client.get(reader.g("/posts/"), headers=reader.headers)
+
+    assert [p["id"] for p in mine.json()["items"]] == [draft.id]
     assert theirs.json()["items"] == []
     assert theirs.json()["total_count"] == 0
-
-    direct = await client.get(reader.g(f"/posts/{draft.id}"), headers=reader.headers)
-    assert direct.status_code == 404
     assert (
-        await client.get(a.g(f"/posts/{draft.id}"), headers=a.headers)
+        await client.get(author.g(f"/posts/{draft.id}"), headers=author.headers)
     ).status_code == 200
 
 
 @pytest.mark.integration
 async def test_a_draft_is_out_of_the_sidebar_counts(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, draft_scene: _DraftScene, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    await create_post(session, a.initiative, a.user, name="Live one")
-    await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Draft one",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    author, reader = draft_scene.author, draft_scene.reader
+    await create_post(session, author.initiative, author.user, name="Live one")
 
     counts = await client.get(
         reader.g("/posts/counts/by-initiative"), headers=reader.headers
     )
-    assert counts.json()["counts"][str(a.initiative.id)] == 1
+    assert counts.json()["counts"][str(author.initiative.id)] == 1
 
 
 @pytest.mark.integration
-async def test_a_read_only_grantee_cannot_see_a_draft(
-    client: AsyncClient, acting_user, session
+async def test_an_editor_can_see_a_draft(
+    client: AsyncClient, draft_scene: _DraftScene, session
 ):
-    """The draft leg is write access, not any access. Someone the notice is
-    already shared with still does not get it early."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Shared but not up",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
-
-    listing = await client.get(reader.g("/posts/"), headers=reader.headers)
-    assert [p["id"] for p in listing.json()["items"]] == []
-    assert (
-        await client.get(reader.g(f"/posts/{draft.id}"), headers=reader.headers)
-    ).status_code == 404
-
-
-@pytest.mark.integration
-async def test_an_editor_can_see_a_draft(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    editor = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Co-written",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    author, editor, draft = draft_scene.author, draft_scene.reader, draft_scene.draft
     session.add(
         ResourceGrant(
             resource_type="post",
             resource_id=draft.id,
             user_id=editor.user.id,
             level="write",
-            guild_id=a.guild.id,
-            initiative_id=a.initiative.id,
+            guild_id=author.guild.id,
+            initiative_id=author.initiative.id,
         )
     )
     await session.commit()
@@ -930,25 +784,14 @@ async def test_an_editor_can_see_a_draft(client: AsyncClient, acting_user, sessi
 
 @pytest.mark.integration
 async def test_clearing_the_schedule_publishes_and_notifies(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Post it now",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    b = await _joins(acting_user, board)
+    draft = await _draft(session, board, name="Post it now")
 
     response = await client.patch(
-        a.g(f"/posts/{draft.id}"),
-        headers=a.headers,
+        board.g(f"/posts/{draft.id}"),
+        headers=board.headers,
         json={"scheduled_for": None},
     )
     assert response.status_code == 200
@@ -965,17 +808,15 @@ async def test_clearing_the_schedule_publishes_and_notifies(
 
 @pytest.mark.integration
 async def test_a_published_notice_cannot_be_rescheduled(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """Publication is not reversible — the people it was announced to have
     already been told."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Already up")
+    post = await create_post(session, board.initiative, board.user, name="Already up")
 
     response = await client.patch(
-        a.g(f"/posts/{post.id}"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}"),
+        headers=board.headers,
         json={
             "scheduled_for": (
                 datetime.now(timezone.utc) + timedelta(days=1)
@@ -988,27 +829,20 @@ async def test_a_published_notice_cannot_be_rescheduled(
 
 @pytest.mark.integration
 async def test_posting_an_already_posted_notice_now_is_nothing_to_do(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """ "Post now" twice is a double click, not a conflict — and it must not
     announce the notice a second time."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Twice",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    b = await _joins(acting_user, board)
+    draft = await _draft(session, board, name="Twice")
     body = {"scheduled_for": None}
 
-    first = await client.patch(a.g(f"/posts/{draft.id}"), headers=a.headers, json=body)
-    second = await client.patch(a.g(f"/posts/{draft.id}"), headers=a.headers, json=body)
+    first = await client.patch(
+        board.g(f"/posts/{draft.id}"), headers=board.headers, json=body
+    )
+    second = await client.patch(
+        board.g(f"/posts/{draft.id}"), headers=board.headers, json=body
+    )
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -1025,31 +859,29 @@ async def test_posting_an_already_posted_notice_now_is_nothing_to_do(
 
 @pytest.mark.integration
 async def test_the_board_dates_a_notice_by_when_it_went_up(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A notice written last week and published today leads a notice written
     yesterday — the board is a feed of what has been said, not of drafting."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     now = datetime.now(timezone.utc)
     await create_post(
         session,
-        a.initiative,
-        a.user,
+        board.initiative,
+        board.user,
         name="Written yesterday",
         created_at=now - timedelta(days=1),
         published_at=now - timedelta(days=1),
     )
     await create_post(
         session,
-        a.initiative,
-        a.user,
+        board.initiative,
+        board.user,
         name="Written last week, up today",
         created_at=now - timedelta(days=7),
         published_at=now,
     )
 
-    response = await client.get(a.g("/posts/"), headers=a.headers)
+    response = await client.get(board.g("/posts/"), headers=board.headers)
     assert [p["name"] for p in response.json()["items"]] == [
         "Written last week, up today",
         "Written yesterday",
@@ -1057,51 +889,42 @@ async def test_the_board_dates_a_notice_by_when_it_went_up(
 
 
 @pytest.mark.integration
-async def test_a_draft_is_not_exported(client: AsyncClient, acting_user, session):
+async def test_a_draft_is_not_exported(board: Actor, session):
     """An export is a record of what a board has said, and a draft has said
-    nothing yet."""
+    nothing yet — including to the author it belongs to."""
     from app.services.tenant.posts import list_post_ids_for_export
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    live = await create_post(session, a.initiative, a.user, name="Up")
-    await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Not up",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    live = await create_post(session, board.initiative, board.user, name="Up")
+    await _draft(session, board, name="Not up")
 
     ids = await list_post_ids_for_export(
-        session, a.user, a.guild.id, initiative_ids=[a.initiative.id]
+        session, board.user, board.guild.id, initiative_ids=[board.initiative.id]
     )
     assert ids == [live.id]
 
 
 @pytest.mark.integration
 async def test_setting_an_expiry_does_not_re_pin(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """Putting an end date on a live pin changes the end date and nothing else.
 
     Re-stamping ``pinned_at`` would vault a three-day-old pin over the pins
     made since it, which is the band's ordering key.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Long-standing")
+    post = await create_post(
+        session, board.initiative, board.user, name="Long-standing"
+    )
 
     first = await client.put(
-        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
+        board.g(f"/posts/{post.id}/pin"), headers=board.headers, json={"pinned": True}
     )
     assert first.status_code == 200
     pinned_at = first.json()["pinned_at"]
 
     second = await client.put(
-        a.g(f"/posts/{post.id}/pin"),
-        headers=a.headers,
+        board.g(f"/posts/{post.id}/pin"),
+        headers=board.headers,
         json={
             "pinned": True,
             "expires_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
@@ -1114,25 +937,23 @@ async def test_setting_an_expiry_does_not_re_pin(
 
 @pytest.mark.integration
 async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """A pin whose expiry has passed reads as no pin at all, so pinning again
     is a new pin and takes today's date."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
     stale = datetime.now(timezone.utc) - timedelta(days=5)
     post = await create_post(
         session,
-        a.initiative,
-        a.user,
+        board.initiative,
+        board.user,
         name="Lapsed",
         pinned_at=stale,
-        pinned_by=a.user.id,
+        pinned_by=board.user.id,
         pin_expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
 
     response = await client.put(
-        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
+        board.g(f"/posts/{post.id}/pin"), headers=board.headers, json={"pinned": True}
     )
     assert response.status_code == 200
     assert response.json()["pinned_at"] != stale.isoformat()
@@ -1145,93 +966,90 @@ async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
 # ---------------------------------------------------------------------------
 
 
-async def _draft_for(session, actor, author) -> "Post":
-    await _posts_enabled(session, actor.initiative)
-    return await create_post(
-        session,
-        actor.initiative,
-        author,
-        name="Embargoed",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("surface", "door"),
+    [
+        ("opening it", lambda s: ("GET", s.reader.g(f"/posts/{s.draft.id}"), {})),
+        (
+            "reading its comments",
+            lambda s: (
+                "GET",
+                s.reader.g("/comments/"),
+                {"params": {"post_id": s.draft.id}},
+            ),
+        ),
+        (
+            "adding a comment",
+            lambda s: (
+                "POST",
+                s.reader.g("/comments/"),
+                {"json": {"content": "Seen it", "post_id": s.draft.id}},
+            ),
+        ),
+        (
+            "reacting to it",
+            lambda s: (
+                "PUT",
+                s.reader.g(f"/reactions/post/{s.draft.id}"),
+                {"json": {"emoji": "👍"}},
+            ),
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) else "",
+)
+async def test_a_draft_answers_a_reader_as_if_it_were_not_there(
+    client: AsyncClient, draft_scene: _DraftScene, surface: str, door
+):
+    """Every door onto a notice is shut until it is up, and each says the same
+    thing: there is nothing here."""
+    method, url, kwargs = door(draft_scene)
+
+    response = await client.request(
+        method, url, headers=draft_scene.reader.headers, **kwargs
     )
+
+    assert response.status_code == 404, response.text
 
 
 @pytest.mark.integration
-async def test_a_draft_cannot_be_exported(client: AsyncClient, acting_user, session):
+async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, session):
     """The export seam resolves an id the caller chose, so it asks the same
     question the board does rather than only read access."""
     from app.services.tenant.posts import get_post_for_export
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    draft = await _draft_for(session, a, a.user)
+    reader, draft = draft_scene.reader, draft_scene.draft
 
     with pytest.raises(HTTPException) as excinfo:
-        await get_post_for_export(session, reader.user, a.guild.id, post_id=draft.id)
+        await get_post_for_export(
+            session, reader.user, draft_scene.author.guild.id, post_id=draft.id
+        )
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.integration
-async def test_a_draft_has_no_comment_thread(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    draft = await _draft_for(session, a, a.user)
-
-    listed = await client.get(
-        reader.g("/comments/"), headers=reader.headers, params={"post_id": draft.id}
-    )
-    posted = await client.post(
-        reader.g("/comments/"),
-        headers=reader.headers,
-        json={"content": "Seen it", "post_id": draft.id},
-    )
-    assert listed.status_code == 404
-    assert posted.status_code == 404
-
-
-@pytest.mark.integration
-async def test_a_draft_cannot_be_reacted_to(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    draft = await _draft_for(session, a, a.user)
-
-    response = await client.put(
-        reader.g(f"/reactions/post/{draft.id}"),
-        headers=reader.headers,
-        json={"emoji": "👍"},
-    )
-    assert response.status_code == 404
-
-
-@pytest.mark.integration
 async def test_its_author_still_reaches_a_draft_everywhere(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, draft_scene: _DraftScene, session
 ):
     """The gate is "not yours to read yet", not "gone" — whoever could edit it
     keeps every door."""
     from app.services.tenant.posts import get_post_for_export
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    draft = await _draft_for(session, a, a.user)
+    author, draft = draft_scene.author, draft_scene.draft
 
     assert (
-        await client.get(a.g(f"/posts/{draft.id}"), headers=a.headers)
+        await client.get(author.g(f"/posts/{draft.id}"), headers=author.headers)
     ).status_code == 200
     assert (
         await client.put(
-            a.g(f"/reactions/post/{draft.id}"),
-            headers=a.headers,
+            author.g(f"/reactions/post/{draft.id}"),
+            headers=author.headers,
             json={"emoji": "👍"},
         )
     ).status_code == 200
-    assert await get_post_for_export(session, a.user, a.guild.id, post_id=draft.id)
+    assert await get_post_for_export(
+        session, author.user, author.guild.id, post_id=draft.id
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1241,14 +1059,10 @@ async def test_its_author_still_reaches_a_draft_everywhere(
 
 @pytest.mark.integration
 async def test_a_notice_starts_unread_and_stays_read(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    post = await create_post(session, a.initiative, a.user, name="Read me")
+    reader = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Read me")
 
     before = await client.get(reader.g("/posts/"), headers=reader.headers)
     assert [p["is_read"] for p in before.json()["items"]] == [False]
@@ -1265,16 +1079,12 @@ async def test_a_notice_starts_unread_and_stays_read(
 
 @pytest.mark.integration
 async def test_marking_the_same_page_again_changes_nothing(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """The board sends what is on screen, and scrolling back up sends it again.
     That has to be free."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    post = await create_post(session, a.initiative, a.user, name="Seen twice")
+    reader = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Seen twice")
     body = {"post_ids": [post.id]}
 
     first = await client.post(
@@ -1290,18 +1100,12 @@ async def test_marking_the_same_page_again_changes_nothing(
 
 @pytest.mark.integration
 async def test_reading_is_one_persons_business(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """A receipt says this reader saw it, and nothing about anybody else."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    c = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    post = await create_post(session, a.initiative, a.user, name="Mine only")
+    b = await _joins(acting_user, board)
+    c = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Mine only")
 
     await client.post(
         b.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
@@ -1314,15 +1118,13 @@ async def test_reading_is_one_persons_business(
 
 
 @pytest.mark.integration
-async def test_marking_unread_puts_it_back(client: AsyncClient, acting_user, session):
+async def test_marking_unread_puts_it_back(
+    client: AsyncClient, acting_user, board: Actor, session
+):
     """Somebody ELSE's notice: there is no receipt on your own to take off, and
     a notice you wrote reads as read whatever you do to it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    post = await create_post(session, a.initiative, a.user, name="Again please")
+    reader = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Again please")
     await client.post(
         reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
     )
@@ -1338,28 +1140,26 @@ async def test_marking_unread_puts_it_back(client: AsyncClient, acting_user, ses
 
 @pytest.mark.integration
 async def test_marking_unread_twice_is_not_an_error(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """Asking for a state a thing is already in is not a failure."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Never read")
+    post = await create_post(session, board.initiative, board.user, name="Never read")
 
-    response = await client.delete(a.g(f"/posts/{post.id}/read"), headers=a.headers)
+    response = await client.delete(
+        board.g(f"/posts/{post.id}/read"), headers=board.headers
+    )
     assert response.status_code == 204
 
 
 @pytest.mark.integration
 async def test_the_unread_filter_shows_only_what_is_left(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    reader = await _joins(acting_user, board)
+    read = await create_post(
+        session, board.initiative, board.user, name="Done with this"
     )
-    await _posts_enabled(session, a.initiative)
-    read = await create_post(session, a.initiative, a.user, name="Done with this")
-    await create_post(session, a.initiative, a.user, name="Still to read")
+    await create_post(session, board.initiative, board.user, name="Still to read")
     await client.post(
         reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [read.id]}
     )
@@ -1373,7 +1173,7 @@ async def test_the_unread_filter_shows_only_what_is_left(
 
 @pytest.mark.integration
 async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """A receipt is only recorded for a notice the caller can see.
 
@@ -1381,13 +1181,9 @@ async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
     them — which is the point: what may be marked read is what the board would
     have shown them, not what the schema allows them to name.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Not theirs")
-    await _strip_non_owner_grants(session, post, a.user.id)
+    member = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Not theirs")
+    await _strip_non_owner_grants(session, post, board.user.id)
 
     response = await client.post(
         member.g("/posts/read"),
@@ -1400,23 +1196,11 @@ async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
 
 @pytest.mark.integration
 async def test_a_draft_is_not_in_the_unread_list(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, draft_scene: _DraftScene
 ):
     """Unread means "not read yet", not "does not exist yet" — a scheduled
     notice is nobody's to read, so it is not waiting for them either."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Not up yet",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    reader = draft_scene.reader
 
     response = await client.get(
         reader.g("/posts/"), headers=reader.headers, params={"unread": "true"}
@@ -1425,42 +1209,49 @@ async def test_a_draft_is_not_in_the_unread_list(
 
 
 @pytest.mark.integration
-async def test_a_notice_counts_its_readers(client: AsyncClient, acting_user, session):
+async def test_a_draft_cannot_be_marked_read(
+    client: AsyncClient, draft_scene: _DraftScene
+):
+    """A notice nobody can read yet is not one anybody has read."""
+    reader, draft = draft_scene.reader, draft_scene.draft
+
+    response = await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [draft.id]}
+    )
+    assert response.json()["marked"] == 0
+
+
+@pytest.mark.integration
+async def test_a_notice_counts_its_readers(
+    client: AsyncClient, acting_user, board: Actor, session
+):
     """Everyone who can see the notice can see whether it landed — that is the
     point of saying something out loud."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Did it land")
+    b = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Did it land")
 
     await client.post(
         b.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
     )
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     assert [p["read_count"] for p in listing.json()["items"]] == [1]
 
 
 @pytest.mark.integration
 async def test_the_roster_says_who_read_it_and_who_has_not(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    waiting = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Roster")
+    reader = await _joins(acting_user, board)
+    waiting = await _joins(acting_user, board)
+    post = await create_post(session, board.initiative, board.user, name="Roster")
     await client.post(
         reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
     )
 
-    response = await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)
+    response = await client.get(
+        board.g(f"/posts/{post.id}/reads"), headers=board.headers
+    )
     assert response.status_code == 200
     body = response.json()
 
@@ -1471,112 +1262,85 @@ async def test_the_roster_says_who_read_it_and_who_has_not(
 
 @pytest.mark.integration
 async def test_the_roster_waits_only_on_who_it_was_shared_with(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor
 ):
     """A board of a hundred where a notice went to one is not ninety-nine
     people ignoring it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    named = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
+    named = await _joins(acting_user, board)
+    await _joins(acting_user, board)
 
     created = await client.post(
-        a.g("/posts/"),
-        headers=a.headers,
+        board.g("/posts/"),
+        headers=board.headers,
         json={
             "name": "Just for you",
-            "initiative_id": a.initiative.id,
+            "initiative_id": board.initiative.id,
             "body": lexical_body("A word."),
             "grants": [{"user_id": named.user.id, "level": "read"}],
         },
     )
     post_id = created.json()["id"]
 
-    body = (await client.get(a.g(f"/posts/{post_id}/reads"), headers=a.headers)).json()
+    body = (
+        await client.get(board.g(f"/posts/{post_id}/reads"), headers=board.headers)
+    ).json()
     assert [row["id"] for row in body["unread"]] == [named.user.id]
 
 
 @pytest.mark.integration
-async def test_the_author_is_on_neither_list(client: AsyncClient, acting_user, session):
+async def test_the_author_is_on_neither_list(
+    client: AsyncClient, board: Actor, session
+):
     """Writing a notice is not reading it, and they were not told about it
     either."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Mine")
+    post = await create_post(session, board.initiative, board.user, name="Mine")
 
-    body = (await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)).json()
+    body = (
+        await client.get(board.g(f"/posts/{post.id}/reads"), headers=board.headers)
+    ).json()
     assert body["read"] == []
     assert body["unread"] == []
 
 
 @pytest.mark.integration
-async def test_a_notice_is_signed(client: AsyncClient, acting_user, session):
+async def test_a_notice_is_signed(client: AsyncClient, board: Actor, session):
     """A board shows who said it, the way a comment does — handle, picture and
     what they wear around it, carried with the row rather than fetched per
     card."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    await create_post(session, a.initiative, a.user, name="Signed")
+    await create_post(session, board.initiative, board.user, name="Signed")
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     author = listing.json()["items"][0]["author"]
 
-    assert author["id"] == a.user.id
-    assert author["username"] == a.user.username
+    assert author["id"] == board.user.id
+    assert author["username"] == board.user.username
     assert "profile_decorations" in author
     assert "presence" in author
 
 
 @pytest.mark.integration
-async def test_a_draft_cannot_be_marked_read(client: AsyncClient, acting_user, session):
-    """A notice nobody can read yet is not one anybody has read."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    await _posts_enabled(session, a.initiative)
-    draft = await create_post(
-        session,
-        a.initiative,
-        a.user,
-        name="Not up yet",
-        published_at=None,
-        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
-    )
-
-    response = await client.post(
-        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [draft.id]}
-    )
-    assert response.json()["marked"] == 0
-
-
-@pytest.mark.integration
 async def test_writing_a_notice_is_not_reading_it(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, board: Actor, session
 ):
     """An author's own notice is on their own board, so the card reports it
     read like any other. It must not count: the roster leaves them off the
     waiting side, and a count that included them would contradict it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Mine to write")
+    post = await create_post(
+        session, board.initiative, board.user, name="Mine to write"
+    )
 
     marked = await client.post(
-        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+        board.g("/posts/read"), headers=board.headers, json={"post_ids": [post.id]}
     )
     assert marked.json()["marked"] == 0
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     assert listing.json()["items"][0]["read_count"] == 0
 
 
 @pytest.mark.integration
 async def test_somebody_who_has_left_is_on_neither_side(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, board: Actor, session
 ):
     """Sharing changes after a notice goes up, and a receipt stays behind.
 
@@ -1584,22 +1348,20 @@ async def test_somebody_who_has_left_is_on_neither_side(
     former recipient is off both — otherwise "Read 1, Unread 0" would describe
     somebody the notice is no longer for.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    reader = await _joins(acting_user, board)
+    post = await create_post(
+        session, board.initiative, board.user, name="Shared, then not"
     )
-    await _posts_enabled(session, a.initiative)
-    post = await create_post(session, a.initiative, a.user, name="Shared, then not")
     await client.post(
         reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
     )
 
     # The sharing goes; the receipt does not.
-    await _strip_non_owner_grants(session, post, a.user.id)
+    await _strip_non_owner_grants(session, post, board.user.id)
 
-    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    listing = await client.get(board.g("/posts/"), headers=board.headers)
     roster = (
-        await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)
+        await client.get(board.g(f"/posts/{post.id}/reads"), headers=board.headers)
     ).json()
 
     assert listing.json()["items"][0]["read_count"] == 0
@@ -1615,9 +1377,7 @@ async def test_a_guild_admin_can_mark_read_without_a_grant(
     row, so the board shows them one. Refusing the receipt would leave
     everything they read permanently unread."""
     author = await acting_user(guild_role=GuildRole.member, initiative=True)
-    admin = await acting_user(
-        guild_role=GuildRole.admin, guild=author.guild, initiative=author.initiative
-    )
+    admin = await _joins(acting_user, author, guild_role=GuildRole.admin)
     await _posts_enabled(session, author.initiative)
     post = await create_post(
         session, author.initiative, author.user, name="Admin reads"
@@ -1626,8 +1386,8 @@ async def test_a_guild_admin_can_mark_read_without_a_grant(
 
     # The board shows it to them — the real request names its initiative,
     # which is the scope where a guild admin's authority answers.
-    board = {"initiative_id": author.initiative.id}
-    listing = await client.get(admin.g("/posts/"), headers=admin.headers, params=board)
+    view = {"initiative_id": author.initiative.id}
+    listing = await client.get(admin.g("/posts/"), headers=admin.headers, params=view)
     assert [p["id"] for p in listing.json()["items"]] == [post.id]
 
     # ...so marking it read has to work.
@@ -1636,5 +1396,5 @@ async def test_a_guild_admin_can_mark_read_without_a_grant(
     )
     assert marked.json()["marked"] == 1
 
-    after = await client.get(admin.g("/posts/"), headers=admin.headers, params=board)
+    after = await client.get(admin.g("/posts/"), headers=admin.headers, params=view)
     assert [p["is_read"] for p in after.json()["items"]] == [True]

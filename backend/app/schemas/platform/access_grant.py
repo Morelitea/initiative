@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import (
     ConfigDict,
@@ -78,9 +78,14 @@ class BreakGlassCreate(SanitizedBaseModel):
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
     # The account's own second factor, asked for once any ``data.bypass``
-    # holder has one. Either answer is accepted, as everywhere else.
+    # holder has one. Any of the three answers is accepted: a code from the
+    # authenticator, one of the recovery codes, or an assertion from one of
+    # the account's passkeys — begun at ``POST /access-grants/break-glass/
+    # passkey`` so the challenge it answers belongs to this request.
     code: Optional[str] = Field(default=None, max_length=64)
     recovery_code: Optional[str] = Field(default=None, max_length=64)
+    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
+    passkey: Optional[dict[str, Any]] = None
 
 
 class AccessGrantApprove(SanitizedBaseModel):
@@ -159,4 +164,7 @@ class BreakGlassRequirements(SanitizedBaseModel):
     """
 
     second_factor_required: bool
-    enrolled: bool
+    #: Whether the caller holds a confirmed authenticator to answer with.
+    totp_enrolled: bool
+    #: And whether they hold a passkey, which answers it just as well.
+    passkey_enrolled: bool

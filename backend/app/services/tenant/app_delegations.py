@@ -31,8 +31,10 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
+from app.services import audit as audit_service
 
 __all__ = [
     "authorized",
@@ -108,6 +110,8 @@ async def grant(
     user_id: int,
     can_write: bool,
     confirmed_factor: Optional[str] = None,
+    actor_user_id: Optional[int] = None,
+    via: str = "self",
 ) -> GuildAppUserDelegation:
     """Authorize the app to act as this member, at the depth given.
 
@@ -119,6 +123,10 @@ async def grant(
     Re-authorizing after a withdrawal reuses the row and restarts
     ``granted_at``, which keeps a member's history with one app to one row while
     still reporting the age of what is actually in force.
+
+    ``actor_user_id`` is the account the caller's session runs as; ``None``
+    writes no audit record. ``via`` says whose hand this was — ``self`` for the
+    member's own answer, which is the only way a grant is made.
     """
     row = await get_delegation(session, app_id=app.id, user_id=user_id)
     if row is None:
@@ -136,6 +144,17 @@ async def grant(
     row.updated_at = _now()
     session.add(row)
     await session.flush()
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.DELEGATION_GRANTED,
+            actor_user_id=actor_user_id,
+            target_user_id=user_id,
+            guild_id=app.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={"can_write": can_write, "via": via},
+        )
     return row
 
 
@@ -156,26 +175,53 @@ async def revoke(
     app_id: int,
     user_id: int,
     revoked_by_id: int,
+    actor_user_id: Optional[int] = None,
+    via: str = "self",
 ) -> bool:
     """Withdraw one member's grant, leaving the record of it.
 
     Returns whether anything was in force to withdraw, so a caller can tell a
-    real withdrawal from a repeat of one.
+    real withdrawal from a repeat of one — and a repeat records nothing.
+
+    ``actor_user_id`` is the account the caller's session runs as; ``None``
+    writes no audit record. ``via`` is ``self`` for the member withdrawing their
+    own, ``admin`` for the seat ending somebody else's.
     """
     row = await get_delegation(session, app_id=app_id, user_id=user_id)
     if row is None or row.revoked_at is not None:
         return False
     _mark_revoked(row, revoked_by_id=revoked_by_id)
     session.add(row)
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.DELEGATION_REVOKED,
+            actor_user_id=actor_user_id,
+            target_user_id=user_id,
+            guild_id=row.guild_id,
+            target_type="app",
+            target_id=app_id,
+            detail={"via": via},
+        )
     return True
 
 
-async def revoke_all(session: AsyncSession, *, app_id: int, revoked_by_id: int) -> int:
+async def revoke_all(
+    session: AsyncSession,
+    *,
+    app_id: int,
+    revoked_by_id: int,
+    actor_user_id: Optional[int] = None,
+    via: str = "self",
+) -> int:
     """Withdraw every member's grant for one install, at once.
 
     The lever for a suspected app compromise: it stops the app acting as anyone
     without uninstalling it, so reacting fast does not cost the guild its
     configuration. Members may authorize again once the guild is satisfied.
+
+    One audit record per grant actually withdrawn, each naming the member it
+    belonged to; an install nobody had authorized records nothing.
     """
     rows = [
         row
@@ -185,6 +231,17 @@ async def revoke_all(session: AsyncSession, *, app_id: int, revoked_by_id: int) 
     for row in rows:
         _mark_revoked(row, revoked_by_id=revoked_by_id)
         session.add(row)
+        if actor_user_id is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.DELEGATION_REVOKED,
+                actor_user_id=actor_user_id,
+                target_user_id=row.user_id,
+                guild_id=row.guild_id,
+                target_type="app",
+                target_id=app_id,
+                detail={"via": via},
+            )
     return len(rows)
 
 

@@ -24,7 +24,7 @@ import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
-import { RelationsSection } from "@/components/entities/RelationsSection";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { Markdown } from "@/components/Markdown";
 import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
@@ -801,12 +801,14 @@ export const TaskEditPage = () => {
               you want after what it is made of. A task is addressed inside its
               project, so that is the tool a link refreshes. */}
           {task ? (
-            <RelationsSection
-              entity={{ type: SearchEntityType.task, id: parsedTaskId }}
-              initiativeId={task.project?.initiative_id ?? null}
-              anchorTool={{ tool: Tool.project, id: task.project_id }}
+            <ToolRelationsPanel
+              tool={Tool.project}
+              entity={{
+                id: task.project_id,
+                initiative_id: task.project?.initiative_id ?? null,
+              }}
+              target={{ type: SearchEntityType.task, id: parsedTaskId }}
               canEdit={!isReadOnly}
-              collapseKey={`task:${parsedTaskId}:relationsCollapsed`}
               entityTitle={task.title}
               /* Rows by default: this sits in half a row beside the form, and a
                  dependency is read as a line rather than looked at as a tile. */

@@ -159,54 +159,12 @@ describe("useInitiativeAccess canManage", () => {
     mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "member", is_admin: false } });
   };
 
-  /** One initiative, with this user holding the given role. */
-  const withRole = (
-    user: ReturnType<typeof buildUser>,
-    role: Partial<ReturnType<typeof buildInitiativeMember>>
-  ) =>
-    buildInitiative({
-      members: [
-        buildInitiativeMember({
-          user: { id: user.id, full_name: user.full_name, email: user.email },
-          ...role,
-        }),
-      ],
-    });
-
-  it("counts the built-in managing role", () => {
-    const user = buildUser();
-    asMember(user);
-    const initiative = withRole(user, {
-      role_name: "project_manager",
-      is_manager: true,
-    });
-
-    const { result } = renderHook(() => useInitiativeAccess());
-    expect(result.current.canManage(initiative)).toBe(true);
-  });
-
-  it("counts a managing role the initiative named itself", () => {
-    // An initiative that renamed its managers, or added a second managing
-    // role: the flag is what the server reads, not the role's name.
-    const user = buildUser();
-    asMember(user);
-    const initiative = withRole(user, {
-      role_name: "lead",
-      role_display_name: "Lead",
-      is_manager: true,
-    });
-
-    const { result } = renderHook(() => useInitiativeAccess());
-    expect(result.current.canManage(initiative)).toBe(true);
-  });
-
-  it("does not count an ordinary member", () => {
-    const user = buildUser();
-    asMember(user);
-
-    const { result } = renderHook(() => useInitiativeAccess());
-    expect(result.current.canManage(withRole(user, { is_manager: false }))).toBe(false);
-  });
+  // Which roles count as managing — the built-in one, a role an initiative
+  // named itself, an ordinary member — is read off `is_manager`, the flag the
+  // role carries rather than its name. That rule is proved against the
+  // predicate itself in `src/components/projects/ProjectPreview.test.ts`; what
+  // is left here is what only the hook can answer, which is whose initiative
+  // and which guild seat it is being asked about.
 
   it("does not count managing some other initiative", () => {
     const user = buildUser();

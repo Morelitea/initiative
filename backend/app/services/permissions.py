@@ -30,18 +30,19 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
+from app.core.audit_events import AuditEventType
 from app.core.pam_context import active_grant_level, grant_satisfies
 from app.core.role_context import (
     content_read_only_active,
     is_request_guild_admin,
     request_overrides_sharing,
 )
+from app.services import audit as audit_service
 from app.services.membership import NO_SCOPE_COLUMN
 from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.project import Project
-from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.db.frozen import ancestor_is_frozen, row_is_frozen
@@ -464,6 +465,67 @@ def hidden_from_reader(
     )
 
 
+#: One grantee of a resource: ``("user", id)``, ``("role", id)`` or
+#: ``("all_members", None)``.
+_Grantee = tuple[str, int | None]
+
+
+def _levels_by_grantee(grants: Any) -> dict[_Grantee, str]:
+    """The level each grantee holds, from a set of ``resource_grants`` rows.
+
+    Owner rows and published-view rows are left out: neither is part of the
+    list a share is rebuilt from.
+    """
+    levels: dict[_Grantee, str] = {}
+    for g in grants:
+        if _grant_level(g.level) == "owner" or g.dashboard_id is not None:
+            continue
+        if g.user_id is not None:
+            key: _Grantee = ("user", g.user_id)
+        elif g.role_id is not None:
+            key = ("role", g.role_id)
+        else:
+            key = ("all_members", None)
+        levels[key] = _grant_level(g.level)
+    return levels
+
+
+async def _record_grant_changes(
+    session: Any,
+    *,
+    actor_user_id: int,
+    resource_type: str,
+    resource_id: int,
+    guild_id: int,
+    initiative_id: int | None,
+    before: dict[_Grantee, str],
+    after: dict[_Grantee, str],
+) -> None:
+    """One audit record per grantee whose level moved — granted, raised,
+    lowered or withdrawn. A grantee that reads back the same level is not one
+    of them. Staged in the caller's transaction, like every other record."""
+    for key in sorted(before.keys() | after.keys(), key=repr):
+        was, now = before.get(key), after.get(key)
+        if was == now:
+            continue
+        kind, grantee_id = key
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.SHARING_GRANT_CHANGED,
+            actor_user_id=actor_user_id,
+            target_user_id=grantee_id if kind == "user" else None,
+            guild_id=guild_id,
+            target_type=getattr(resource_type, "value", resource_type),
+            target_id=resource_id,
+            detail={
+                "initiative_id": initiative_id,
+                "grantee": {"kind": kind, "id": grantee_id},
+                "from": was,
+                "to": now,
+            },
+        )
+
+
 async def replace_resource_grants(
     session: Any,
     *,
@@ -473,6 +535,7 @@ async def replace_resource_grants(
     initiative_id: int | None,
     owner_id: int,
     grants: Any,
+    actor_user_id: int | None = None,
 ) -> None:
     """Rebuild a resource's non-owner grants from ``grants`` (a list of
     ResourceAccessGrant rows). Each row is sorted by grantee kind — all-members,
@@ -481,7 +544,11 @@ async def replace_resource_grants(
 
     ``initiative_id`` is None for a guild-level resource. There "all members"
     means the guild's, and a named grantee is validated against guild
-    membership; role grants are not resolvable (see below)."""
+    membership; role grants are not resolvable (see below).
+
+    ``actor_user_id`` is who is making the change; pass it on any request path
+    and the move of every grantee whose level actually changed is recorded in
+    the same transaction. Left ``None``, nothing is recorded."""
     all_members_level: str | None = None
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
@@ -592,6 +659,7 @@ async def replace_resource_grants(
             )
         )
     ).all()
+    before = _levels_by_grantee(existing)
     for g in existing:
         if _grant_level(g.level) == "owner":
             continue
@@ -627,6 +695,35 @@ async def replace_resource_grants(
         for rid, level in role_levels.items()
         if rid in valid_roles
     )
+
+    if actor_user_id is not None:
+        after: dict[_Grantee, str] = {}
+        if all_members_level is not None:
+            after[("all_members", None)] = all_members_level
+        after.update(
+            {
+                ("user", uid): level
+                for uid, level in user_levels.items()
+                if uid in valid_users
+            }
+        )
+        after.update(
+            {
+                ("role", rid): level
+                for rid, level in role_levels.items()
+                if rid in valid_roles
+            }
+        )
+        await _record_grant_changes(
+            session,
+            actor_user_id=actor_user_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+            before=before,
+            after=after,
+        )
 
 
 def require_access(
@@ -778,34 +875,7 @@ def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
     }
 
 
-# ── High-level helpers for projects ─────────────────────────────
-
-
-def compute_project_permission(
-    project: Project,
-    user_id: int,
-) -> str | None:
-    """Effective project permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.project], project, user_id)
-
-
-def require_project_access(
-    project: Project,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
-) -> None:
-    """Raise 403 unless the user may act on the project (delegates to the engine)."""
-    require_access(
-        DAC_RESOURCES[Tool.project],
-        project,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
-    )
+# ── Project helpers above the generic engine ────────────────────
 
 
 async def can_administer_project(
@@ -826,7 +896,7 @@ async def can_administer_project(
 
     if rls_service.is_guild_admin(guild_role):
         return True
-    if compute_project_permission(project, user.id) == "owner":
+    if compute_permission(DAC_RESOURCES[Tool.project], project, user.id) == "owner":
         return True
     if project.initiative_id:
         return await rls_service.is_initiative_manager(
@@ -862,47 +932,4 @@ def has_project_write_access(
     return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",
         "owner",
-    )
-
-
-# ── High-level helpers for documents ─────────────────────────────
-
-
-def compute_document_permission(
-    document: Document,
-    user_id: int,
-) -> str | None:
-    """Effective document permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.document], document, user_id)
-
-
-def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
-    """Effective calendar permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
-
-
-def compute_post_permission(post: Any, user_id: int) -> str | None:
-    """Effective post permission string for the client (delegates to the
-    engine). Reading a post is reading the board it sits on; writing one is
-    editing that notice, which is its author's or whoever they shared it
-    with — pinning is a separate, initiative-level authority."""
-    return compute_permission(DAC_RESOURCES[Tool.post], post, user_id)
-
-
-def require_document_access(
-    document: Document,
-    user: User,
-    *,
-    access: str = "read",
-    require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
-) -> None:
-    """Raise 403 unless the user may act on the document (delegates to the engine)."""
-    require_access(
-        DAC_RESOURCES[Tool.document],
-        document,
-        user,
-        access=access,
-        require_owner=require_owner,
-        guild_role=guild_role,
     )

@@ -45,9 +45,13 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
   const [askingAge, setAskingAge] = useState(false);
 
   // Somebody may only take a place in a listed guild once they have said they
-  // are 13 or older. Asked here, before the join, so ticking the box is what
-  // joins — the server refuses it either way, and being refused after clicking
-  // Join is a worse way to be asked a question you can answer.
+  // are old enough. Asked here, before the join, so answering is what joins —
+  // the server refuses it either way, and being refused after clicking Join is
+  // a worse way to be asked a question you can answer.
+  //
+  // This is the only place the question is put. An account that never answers
+  // it keeps every community it was invited to and the whole of the app around
+  // this card; all it cannot do is join a community from the directory.
   const needsAgeConfirmation = communityAgeGateEnabled && !user?.age_confirmed_at;
 
   const open = () => {

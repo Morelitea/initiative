@@ -220,7 +220,7 @@ describe("ConversationList", () => {
     });
     show();
 
-    expect(await screen.findByText(/aged 13 and over/)).toBeVisible();
+    expect(await screen.findByText(/aged 16 and over/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Privacy settings" })).toHaveAttribute(
       "href",
       "/profile/privacy"
@@ -235,7 +235,7 @@ describe("ConversationList", () => {
     show();
 
     expect(await screen.findByText(/Nobody yet/)).toBeVisible();
-    expect(screen.queryByText(/aged 13 and over/)).toBeNull();
+    expect(screen.queryByText(/aged 16 and over/)).toBeNull();
   });
 
   it("offers a way to find somebody who is not on it at all", async () => {

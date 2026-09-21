@@ -11,12 +11,12 @@ import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { AcceptTerms } from "@/components/AcceptTerms";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AnnouncementCenter } from "@/components/announcements/AnnouncementCenter";
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
-import { ConfirmAge } from "@/components/ConfirmAge";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
@@ -136,12 +136,12 @@ function AppLayout() {
     return <ChooseHandle />;
   }
 
-  // Already in a community the whole deployment can browse, without having
-  // said how old they are. Every way into a listed guild that had nobody at a
-  // keyboard to ask lands here — and so does anyone who was already a member
-  // when their guild listed itself.
-  if (!loading && user && user.age_confirmation_required) {
-    return <ConfirmAge />;
+  // Never agreed to this deployment's terms, on a deployment that has some.
+  // Signing up through the form is the agreement and is recorded there, so
+  // this is the way in that had no form: an account an identity provider
+  // provisioned on first sign-in.
+  if (!loading && user && user.legal_acceptance_required) {
+    return <AcceptTerms />;
   }
 
   // Now we can have conditional returns

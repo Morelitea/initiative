@@ -1,8 +1,4 @@
 {
-  "backlinks": {
-    "title_one": "Lié depuis {{count}} document",
-    "title_other": "Lié depuis {{count}} documents"
-  },
   "bulk": {
     "delete": "Supprimer",
     "deleteConfirm_one": "Supprimer {{count}} document ?",
@@ -67,9 +63,7 @@
     "activeCollaborators": "Collaborateurs actifs :",
     "viewing": "(en lecture)",
     "noCollaborators": "Aucun autre collaborateur. Les modifications se synchronisent en temps réel lorsque d'autres rejoignent.",
-    "failedToConnect": "Échec de la connexion. Les modifications seront enregistrées localement.",
-    "collaborators_one": "{{count}} collaborateur",
-    "collaborators_other": "{{count}} collaborateurs"
+    "failedToConnect": "Échec de la connexion. Les modifications seront enregistrées localement."
   },
   "columns": {
     "title": "Titre",
@@ -92,7 +86,6 @@
     "documentTypeText": "Document texte",
     "documentTypeWhiteboard": "Tableau blanc",
     "documentTypeSpreadsheet": "Feuille de calcul",
-    "documentTypeSmartLink": "Lien intelligent",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Collez un lien",
     "smartLinkSupportedProviders": "Pris en charge :",
@@ -122,9 +115,6 @@
     "createDocument": "Créer le document",
     "uploadingFile": "Téléchargement en cours…",
     "uploadDocument": "Télécharger le document",
-    "titleRequired": "Le titre du document est requis",
-    "initiativeRequired": "Veuillez sélectionner une initiative",
-    "fileRequired": "Veuillez sélectionner un fichier à télécharger",
     "createdAttached": "Document créé et attaché.",
     "created": "Document créé.",
     "uploadedAttached": "Document téléchargé et attaché.",
@@ -198,7 +188,6 @@
     "alignJustify": "Justifier",
     "alignLeft": "Aligner à gauche",
     "alignRight": "Aligner à droite",
-    "alignment": "Alignement",
     "background": "Arrière-plan",
     "blockCode": "Bloc de code",
     "blockH1": "Titre 1",
@@ -210,7 +199,6 @@
     "bulletedList": "Liste à puces",
     "checklist": "Liste de contrôle",
     "clearFormatting": "Effacer la mise en forme",
-    "codeBlock": "Bloc de code",
     "colorBlack": "Noir",
     "colorBlue": "Bleu",
     "colorDefault": "Par défaut",
@@ -222,8 +210,6 @@
     "colorPurple": "Violet",
     "colorRed": "Rouge",
     "colorYellow": "Jaune",
-    "columnLeft": "Colonne à gauche",
-    "columnRight": "Colonne à droite",
     "columnsLayout": "Disposition en colonnes",
     "deleteColumn": "Supprimer la colonne",
     "deleteRow": "Supprimer la ligne",
@@ -231,20 +217,11 @@
     "dismiss": "Ignorer",
     "embed": "Intégrer",
     "embedContent": "Intégrer {{contentName}}",
-    "errorImageOnly": "Seuls les fichiers image sont pris en charge.",
-    "errorInsertColumn": "Impossible d'insérer une colonne dans le tableau.",
-    "errorInsertRow": "Impossible d'insérer une ligne dans le tableau.",
-    "errorTableCursor": "Placez d'abord votre curseur dans un tableau.",
-    "errorUpload": "Échec du téléchargement de {{fileName}}.",
-    "errorYoutubeUrl": "Impossible d'analyser l'URL YouTube.",
     "fontSize": "Taille de police",
     "format": "Format",
-    "formatting": "Mise en forme",
-    "history": "Historique",
     "horizontalRule": "Règle horizontale",
     "image": "Image",
     "indent": "Augmenter le retrait",
-    "inlineCode": "Code",
     "insert": "Insérer",
     "insertColumnLeft": "Insérer une colonne à gauche",
     "insertColumnRight": "Insérer une colonne à droite",
@@ -258,17 +235,9 @@
     "moreFormatting": "Plus de mise en forme",
     "numberedList": "Liste numérotée",
     "outdent": "Diminuer le retrait",
-    "promptColumns": "Nombre de colonnes",
-    "promptRows": "Nombre de lignes",
-    "promptUrl": "Entrez une URL",
-    "promptYoutubeUrl": "URL YouTube",
     "redo": "Rétablir",
-    "rowAbove": "Ligne au-dessus",
-    "rowBelow": "Ligne en-dessous",
     "selectLanguage": "Choisir la langue",
-    "selectTable": "Sélectionner un tableau",
     "strikethrough": "Barré",
-    "subSuperscript": "Indice et exposant",
     "subscript": "Indice",
     "superscript": "Exposant",
     "table": "Tableau",
@@ -280,23 +249,7 @@
     "tweet": "Tweet",
     "underline": "Souligné",
     "undo": "Annuler",
-    "youtubeEmbed": "Intégration YouTube",
     "youtubeVideo": "Vidéo YouTube"
-  },
-  "myDocuments": {
-    "title": "Mes documents",
-    "subtitle": "Documents dont vous êtes propriétaire dans tous vos communautés.",
-    "empty": "Vous n'avez encore créé aucun document.",
-    "loadError": "Impossible de charger vos documents.",
-    "searchPlaceholder": "Rechercher des documents...",
-    "filterByGuild": "Filtrer par communauté",
-    "allGuilds": "Tous les communautés",
-    "noGuilds": "Aucune communauté trouvée",
-    "noGuild": "Aucune communauté",
-    "filters": "Filtres",
-    "showFilters": "Afficher les filtres",
-    "hideFilters": "Masquer les filtres",
-    "updating": "Mise à jour..."
   },
   "outline": {
     "title": "Sommaire",
@@ -317,8 +270,6 @@
     "viewGrid": "Grille",
     "viewList": "Liste",
     "filters": "Filtres",
-    "showFilters": "Afficher les filtres",
-    "hideFilters": "Masquer les filtres",
     "searchLabel": "Rechercher",
     "searchPlaceholder": "Rechercher des documents",
     "filterByTag": "Filtrer par étiquette",
@@ -351,11 +302,9 @@
     "unavailable": "Ceci ne vous est plus accessible"
   },
   "settings": {
-    "loading": "Chargement du document…",
     "notFound": "Document introuvable.",
     "title": "Paramètres du document",
     "subtitle": "Gérer l'accès, le statut de modèle, la duplication et la suppression.",
-    "breadcrumb": "Paramètres",
     "templateTitle": "Modèle",
     "templateDescription": "Les documents modèles sont destinés à être dupliqués plutôt qu'édités directement.",
     "templateToggle": "Basculer le statut de modèle",
@@ -388,14 +337,9 @@
     "documentCopied": "Document copié dans {{initiative}}",
     "duplicateError": "Impossible de dupliquer le document",
     "copyError": "Impossible de copier le document",
-    "templateUpdated": "Statut de modèle mis à jour",
-    "templateError": "Impossible de mettre à jour le statut de modèle",
-    "tagsSaved": "Étiquettes mises à jour",
-    "tagsError": "Impossible de mettre à jour les étiquettes"
+    "templateError": "Impossible de mettre à jour le statut de modèle"
   },
   "sidePanel": {
-    "title": "Panneau du document",
-    "commentsTab": "Commentaires",
     "summaryTab": "Résumé"
   },
   "smartChips": {
@@ -403,6 +347,7 @@
       "assignee": "Personne assignée",
       "due": "Date d'échéance",
       "priority": "Priorité",
+      "progress": "Avancement",
       "status": "Statut",
       "value": "Valeur",
       "when": "Date"
@@ -415,6 +360,7 @@
     "none": "Aucun",
     "nothingYet": "Rien à désigner dans cette initiative pour l’instant.",
     "openHint": "Cliquez pour ouvrir",
+    "projectProgress": "Avancement du projet",
     "recent": "Modifié récemment",
     "scopeHint": "Seule l’initiative de ce document peut être nommée ici.",
     "searchPlaceholder": "Cherchez quelque chose à afficher",
@@ -502,12 +448,6 @@
       "inputLabel": "Barre de formule : modifier la formule ou la valeur de la cellule active"
     },
     "format": {
-      "scopeCell": "Cellule",
-      "scopeColumn": "Colonne",
-      "scopeRow": "Ligne",
-      "scopeCellLabel": "Cellule {{name}}",
-      "scopeColumnLabel": "Colonne {{name}}",
-      "scopeRowLabel": "Ligne {{name}}",
       "title": "Mise en forme",
       "font": "Police",
       "colors": "Couleurs",
@@ -558,7 +498,6 @@
       "alignTop": "Aligner en haut",
       "alignMiddle": "Aligner au milieu",
       "alignBottom": "Aligner en bas",
-      "numberOptions": "Options",
       "decimals": "Décimales",
       "thousandsSeparator": "Séparateur de milliers",
       "negatives": "Nombres négatifs",
@@ -588,7 +527,6 @@
       "hiddenCount_other": "{{count}} feuilles masquées",
       "unhideNamed": "Afficher « {{name}} »",
       "import": "Importer un fichier",
-      "importing": "Lecture du fichier…",
       "imported_one": "{{count}} feuille importée.",
       "imported_other": "{{count}} feuilles importées.",
       "importFailed": "Ce fichier n'a pas pu être importé.",
@@ -675,21 +613,6 @@
     "showRendered": "Voir le rendu"
   },
   "whiteboard": {
-    "loading": "Chargement du tableau blanc…",
-    "syncing": "Synchronisation du tableau blanc…",
-    "readOnly": "Vous avez accès en lecture seule à ce tableau blanc."
-  },
-  "wikilink": {
-    "title": "Créer un document",
-    "descriptionCanCreate": "Le document \"{{title}}\" n'existe pas encore. Voulez-vous le créer ?",
-    "descriptionNoPermission": "Le document \"{{title}}\" n'existe pas. Vous n'avez pas la permission de créer des documents dans cette initiative.",
-    "templateLabel": "Modèle (optionnel)",
-    "searchTemplates": "Rechercher des modèles…",
-    "blankDocument": "Document vide",
-    "noTemplates": "Aucun modèle disponible",
-    "createDocument": "Créer le document",
-    "creating": "Création en cours…",
-    "created": "Document créé",
-    "createError": "Impossible de créer le document."
+    "syncing": "Synchronisation du tableau blanc…"
   }
 }

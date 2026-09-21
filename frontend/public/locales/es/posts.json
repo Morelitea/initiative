@@ -5,12 +5,9 @@
   "noPosts": "Aún no hay nada publicado",
   "noPostsDescription": "El tablón es donde una iniciativa dice las cosas en voz alta: un cambio de plan, una fecha, una bienvenida. Las publicaciones se leen de la más reciente a la más antigua, y las importantes se pueden fijar arriba.",
   "createPost": "Nueva publicación",
-  "editPost": "Editar publicación",
-  "postCreated": "Publicado",
   "name": "Titular",
   "namePlaceholder": "¿De qué se trata?",
   "body": "Publicación",
-  "bodyPlaceholder": "Escribe tu aviso...",
   "initiative": "Iniciativa",
   "selectInitiative": "Seleccionar iniciativa",
   "tags": "Etiquetas",
@@ -22,7 +19,6 @@
   "dangerZone": "Zona de peligro",
   "dangerZoneDescription": "Acciones destructivas. Las publicaciones eliminadas van a la papelera y pueden restaurarse antes de que termine el periodo de retención.",
   "detailsUpdated": "Publicación actualizada",
-  "postedBy": "Publicado por {{name}}",
   "pin": {
     "pin": "Fijar arriba",
     "unpin": "Dejar de fijar",
@@ -36,8 +32,7 @@
     "changeExpiry": "Cambiar fecha de fin",
     "removeExpiry": "Quitar fecha de fin",
     "pinnedToast": "Publicación fijada",
-    "unpinnedToast": "Publicación desfijada",
-    "managerOnly": "Solo los gestores de la iniciativa pueden fijar una publicación."
+    "unpinnedToast": "Publicación desfijada"
   },
   "schedule": {
     "label": "Programación",
@@ -53,7 +48,6 @@
   "read": {
     "markUnread": "Marcar como no leída",
     "markedUnread": "Marcada como no leída",
-    "unread": "Sin leer",
     "whoRead": "Quién la ha leído",
     "whoReadHint": "Todas las personas con las que se compartió.",
     "readTab": "Leída {{count}}",
@@ -65,8 +59,6 @@
   },
   "filters": {
     "heading": "Filtros",
-    "show": "Mostrar",
-    "hide": "Ocultar",
     "searchLabel": "Título o contenido",
     "searchPosts": "Buscar en este tablón...",
     "noMatchingPosts": "Ninguna publicación coincide con tus filtros.",
@@ -76,11 +68,8 @@
   },
   "loading": "Cargando publicaciones...",
   "loadError": "No se pudieron cargar las publicaciones.",
-  "loadingPost": "Cargando publicación...",
-  "loadMore": "Ver publicaciones anteriores",
   "creating": "Publicando...",
   "saving": "Guardando...",
-  "deleting": "Eliminando...",
   "notFound": "Publicación no encontrada",
   "notFoundDescription": "La publicación que buscas no existe o ha sido eliminada.",
   "noAccess": "Acceso denegado",

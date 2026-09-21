@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import joinedload, selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -36,6 +36,10 @@ from app.api.deps import (
     GuildContext,
 )
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
+from app.db.blocking import blocking_kinds
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -80,11 +84,14 @@ from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant import task_checklist as checklist_service
 from app.services import ai_generation as ai_generation_service
+from app.services import audit as audit_service
+from app.services.ai_settings import resolve_ai_settings
 from app.services import fields as fields_registry
 from app.services.fields.spec import FieldContext, SortContext
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.core.tools import Tool
+from app.core.audit_events import AuditEventType
 from app.core.messages import (
     ProjectMessages,
     QueryMessages,
@@ -340,18 +347,65 @@ def _comment_count_expression():
     )
 
 
+def _open_blocker_count_expression():
+    """How many things are still holding this task up.
+
+    Live outbound ``depends_on`` edges whose far end is still outstanding —
+    "outbound" because the source of a dependency is the end that waits.
+
+    What counts as outstanding is per kind and comes from
+    :data:`app.db.blocking.OPEN_WHEN`: a task not yet done, an event not yet
+    passed, a counter short of its target. A kind with no rule there is not
+    counted at all, which is the honest reading — nothing says when a document
+    stops blocking. One ``EXISTS`` arm per registered kind, built from the
+    registry, so a kind gains a count the day it gains a rule.
+
+    Correlated on ``Task`` like :func:`_comment_count_expression`, so it rides
+    along with the row instead of costing a query of its own. RLS does the rest:
+    the relationships policy clears both endpoints, so a blocker this reader
+    cannot open is not counted at them.
+    """
+    edge = EntityRelationship
+    arms = [
+        and_(
+            edge.target_type == kind,
+            exists(
+                select(1)
+                .select_from(table)
+                .where(table.c["id"] == edge.target_id, open_when)
+            ),
+        )
+        for kind, table, open_when in blocking_kinds()
+    ]
+    return (
+        select(func.count())
+        .select_from(edge)
+        .where(
+            edge.source_type == SearchEntityType.task.value,
+            edge.source_id == Task.id,
+            edge.relationship_type == RelationshipType.depends_on.value,
+            edge.removed_at.is_(None),
+            or_(*arms),
+        )
+        .correlate(Task)
+        .scalar_subquery()
+        .label("blocked_by_open_count")
+    )
+
+
 async def _annotate_tasks(
     session: SessionDep,
     tasks: list[Task],
     *,
     comment_counts: dict[int, int] | None = None,
+    blocker_counts: dict[int, int] | None = None,
 ) -> None:
-    """Annotate tasks with comment counts and checklist progress.
+    """Annotate tasks with comment counts, blockers and checklist progress.
 
     Checklist progress is read from the column the row already carries, so only
-    the comment count needs a query — and ``comment_counts`` skips even that,
-    for a caller that selected the counts alongside the rows
-    (:func:`_comment_count_expression`).
+    the comment and blocker counts need a query — and passing either in skips
+    even that, for a caller that selected them alongside the rows
+    (:func:`_comment_count_expression`, :func:`_open_blocker_count_expression`).
     """
     task_ids = [task.id for task in tasks if task.id is not None]
     if not task_ids:
@@ -368,8 +422,18 @@ async def _annotate_tasks(
         result = await session.exec(stmt)
         comment_counts = {row[0]: row[1] for row in result.all()}
 
+    if blocker_counts is None:
+        stmt = select(Task.id, _open_blocker_count_expression()).where(
+            Task.id.in_(tuple(task_ids))
+        )
+        result = await session.exec(stmt)
+        blocker_counts = {row[0]: row[1] for row in result.all()}
+
     for task in tasks:
         object.__setattr__(task, "comment_count", comment_counts.get(task.id, 0))
+        object.__setattr__(
+            task, "blocked_by_open_count", blocker_counts.get(task.id, 0)
+        )
         object.__setattr__(
             task, "checklist_progress", checklist_service.progress(task.checklist)
         )
@@ -436,6 +500,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
+        blocked_by_open_count=getattr(task, "blocked_by_open_count", 0),
         guild_id=guild.id if guild else None,
         guild_name=guild.name if guild else None,
         project_name=project.name if project else None,
@@ -446,12 +511,6 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         tags=getattr(task, "tags", []),
         properties=getattr(task, "properties", []),
     )
-
-
-def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
-    now = timestamp or datetime.now(timezone.utc)
-    task.updated_at = now
-    return now
 
 
 async def _touch_project(
@@ -948,14 +1007,24 @@ async def _gather_global_task_reads(
         # ``initiative_access``, and both apply to this statement exactly as
         # they did to the one that chose the ids a moment ago.
         statement = (
-            select(Task, _comment_count_expression())
+            select(
+                Task,
+                _comment_count_expression(),
+                _open_blocker_count_expression(),
+            )
             .where(Task.id.in_(tuple(ids)))
             .options(*_global_task_options())
         )
         rows = list((await guild_session.exec(statement)).unique().all())
         tasks = [row[0] for row in rows]
         comment_counts = {row[0].id: row[1] for row in rows}
-        await _annotate_tasks(guild_session, tasks, comment_counts=comment_counts)
+        blocker_counts = {row[0].id: row[2] for row in rows}
+        await _annotate_tasks(
+            guild_session,
+            tasks,
+            comment_counts=comment_counts,
+            blocker_counts=blocker_counts,
+        )
         await tags_service.annotate_tags(guild_session, tasks)
         _annotate_task_properties(tasks)
         return [
@@ -2458,6 +2527,42 @@ async def toggle_checklist_item(
     return checklist_service.read(row[0])
 
 
+async def _record_ai_request(
+    session: SessionDep,
+    *,
+    user: User,
+    guild_id: int,
+    purpose: str,
+    task_id: int,
+    initiative_id: Optional[int],
+) -> None:
+    """Write down that a task is about to be sent to an AI provider.
+
+    Which task, which connection and which provider — never any of the text.
+    Committed before the request goes out, since the disclosure does not wait
+    on the reply. A configuration that sends nothing records nothing.
+    """
+    resolved = await resolve_ai_settings(session, user, guild_id)
+    if not resolved.enabled or resolved.provider is None:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_REQUEST_SENT,
+        actor_user_id=user.id,
+        guild_id=guild_id,
+        target_type="task",
+        target_id=task_id,
+        detail={
+            "purpose": purpose,
+            "initiative_id": initiative_id,
+            "scope": resolved.scope.value if resolved.scope else None,
+            "connection_id": resolved.connection_id,
+            "provider": resolved.provider.value,
+        },
+    )
+    await session.commit()
+
+
 # AI Generation endpoints
 @router.post("/{task_id}/ai/checklist", response_model=GenerateChecklistResponse)
 async def generate_task_checklist(
@@ -2480,6 +2585,15 @@ async def generate_task_checklist(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
+    )
+
+    await _record_ai_request(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        purpose="checklist",
+        task_id=task.id,
+        initiative_id=project.initiative_id,
     )
 
     try:
@@ -2517,6 +2631,15 @@ async def generate_task_description(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
+    )
+
+    await _record_ai_request(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        purpose="description",
+        task_id=task.id,
+        initiative_id=project.initiative_id,
     )
 
     try:

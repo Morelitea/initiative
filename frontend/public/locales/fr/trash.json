@@ -1,8 +1,6 @@
 {
   "title": "Corbeille",
   "description": "Les éléments ici seront supprimés définitivement après la période de rétention de la communauté. Restaurez-les à tout moment avant cela.",
-  "scopeGuild": "Tout dans la communauté",
-  "scopeMine": "Seulement les miens",
   "empty": "La corbeille est vide.",
   "columnType": "Type",
   "columnName": "Nom",
@@ -20,12 +18,6 @@
   "restoreError": "Impossible de restaurer cet élément.",
   "purgeSuccess": "Supprimé définitivement.",
   "purgeError": "Impossible de supprimer définitivement cet élément.",
-  "reassignDialog": {
-    "title": "Choisissez un nouveau propriétaire",
-    "description": "Le propriétaire d'origine de ce {{type}} n'est plus membre de l'initiative. Choisissez quelqu'un pour en prendre la propriété avant de restaurer.",
-    "ownerLabel": "Nouveau propriétaire",
-    "confirm": "Restaurer avec un nouveau propriétaire"
-  },
   "entityType": {
     "project": "Projet",
     "task": "Tâche",

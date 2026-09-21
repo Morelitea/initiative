@@ -13,11 +13,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
+from app.schemas.tenant.backup_export import ManifestPerson
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
+from app.services.import_engine.common import handle_key
+from app.services.import_engine.context import ImportContext
 
 
 class ProjectImporter:
@@ -48,7 +51,46 @@ class ProjectImporter:
 
     def count(self, validated: BaseModel) -> int:
         envelope: ProjectExportEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
-        return len(envelope.tasks) + 1
+        # A comment is a row like any other, so it counts against the
+        # ceiling: a project with ten tasks and four thousand comments on
+        # them is a large import however few tasks it names.
+        return (
+            len(envelope.tasks) + sum(len(task.comments) for task in envelope.tasks) + 1
+        )
+
+    def people(self, validated: BaseModel) -> list[ManifestPerson]:
+        """Everybody this project's comments quote, most-quoted first.
+
+        The same inventory a backup's manifest carries, taken from one
+        envelope: a handle, the name it went by, and how many comments hang
+        on getting that one row right. Assignees are deliberately absent —
+        the wizard asks so that words end up under the right face, and an
+        assignee has no words.
+
+        A handle the envelope spelled two ways is one person: it is keyed
+        the way it is matched, and the first spelling seen is the one shown.
+        """
+        envelope: ProjectExportEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        seen: dict[str, ManifestPerson] = {}
+        for task in envelope.tasks:
+            for comment in task.comments:
+                if not comment.author_handle:
+                    continue
+                key = handle_key(comment.author_handle)
+                person = seen.get(key)
+                if person is None:
+                    seen[key] = ManifestPerson(
+                        handle=comment.author_handle,
+                        name=comment.author_name,
+                        comment_count=1,
+                    )
+                    continue
+                person.comment_count += 1
+                # A name only where one was given: the first comment by
+                # somebody may be the one that carried no display name.
+                if person.name is None:
+                    person.name = comment.author_name
+        return sorted(seen.values(), key=lambda p: (-p.comment_count, p.handle.lower()))
 
     async def apply(
         self,
@@ -57,6 +99,7 @@ class ProjectImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         from app.services.tenant.project_import import import_project
 
@@ -66,6 +109,7 @@ class ProjectImporter:
                 envelope=envelope,
                 target_initiative=target_initiative,
                 importer=importer,
+                context=context,
             )
         except HTTPException as exc:
             # The service speaks HTTP; the engine speaks ImportEngineError so
@@ -79,6 +123,7 @@ class ProjectImporter:
                 "tasks": result.task_count,
                 "tags": result.tag_create_count,
                 "properties": result.property_create_count,
+                "comments": result.comment_count,
             },
             matched={
                 "tags": result.tag_match_count,

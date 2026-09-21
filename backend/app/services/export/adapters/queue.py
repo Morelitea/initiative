@@ -20,21 +20,27 @@ time, under the caller's RLS session.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
 from app.services.tenant import relationships
 from app.models.tenant.queue import Queue, QueueItem
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import et, export_locale, localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+    export_stem,
+)
+from app.services.export.contract import RenderItem
+from app.services.export.i18n import et, export_locale
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -56,64 +62,32 @@ def _columns(locale: str) -> list[dict]:
     ]
 
 
-class QueueAdapter:
-    source = "queue"
-    template_id = "data-table"
+class QueueAdapter(ToolExportAdapter):
+    tool = Tool.queue
     formats = frozenset({"json", "pdf", "csv", "xlsx", "md"})
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        queues = await self._queues(session, user, guild_id, params)
-        return sum(len(queue.items) for queue in queues)
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, queue_id: int, /
+    ) -> Queue:
+        from app.services.tenant.queues import get_queue_for_export
 
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        queues = await self._queues(session, user, guild_id, params)
-        # One clock read: the filename date and the subtitle timestamp must
-        # not straddle midnight into disagreeing dates.
-        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
+        return await get_queue_for_export(session, user, guild_id, queue_id=queue_id)
+
+    def rows(self, queue: Queue, /) -> int:
+        return len(queue.items)
+
+    async def prepare(
+        self, session: AsyncSession, queues: list[Queue], /
+    ) -> "Attachments":
         # Every item across every queue, in one pass: the payload builders below
         # are synchronous and hold no session, and an export of a dozen queues
         # is exactly where a per-item fetch would show.
-        attachments = await queue_attachments_for(
+        return await queue_attachments_for(
             session, [item for queue in queues for item in queue.items]
         )
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(
-                build_queue_item(queue, format, user, now, attachments)
-                for queue in queues
-            ),
-        )
 
-    async def _queues(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> list[Queue]:
-        from app.services.export.adapters._common import selection_ids
-        from app.services.tenant.queues import get_queue_for_export
-
-        return [
-            await get_queue_for_export(session, user, guild_id, queue_id=queue_id)
-            for queue_id in selection_ids(
-                params, single_key="queue_id", multi_key="queue_ids"
-            )
-        ]
+    def item(self, queue: Queue, ctx: BuildContext, /) -> RenderItem:
+        return build_queue_item(queue, ctx.format, ctx.user, ctx.now, ctx.prepared)
 
 
 async def queue_attachments_for(
@@ -153,16 +127,15 @@ def build_queue_item(
 ) -> RenderItem:
     items = _rotation_order(queue.items)
     date = now.strftime("%Y-%m-%d")
-    stem = safe_filename_component(queue.name).lower()
     if format == "json":
         # The envelope is importable machine data — stays canonical, never
         # localized (translating field keys / enum values breaks import).
         return RenderItem(
-            key=f"{stem}-{date}.initiative-queue",
+            key=envelope_key(Tool.queue, queue.name, date),
             data=_envelope(queue, items, attachments),
         )
     return RenderItem(
-        key=f"{stem}-{date}", data=_report_payload(queue, items, user, now)
+        key=export_stem(queue.name, date), data=_report_payload(queue, items, user, now)
     )
 
 

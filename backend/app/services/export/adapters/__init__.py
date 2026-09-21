@@ -8,6 +8,7 @@ from app.services.export.adapters.backup import (
 )
 from app.services.export.adapters.calendar import CalendarAdapter
 from app.services.export.adapters.counter_group import CounterGroupAdapter
+from app.services.export.adapters.dashboard import DashboardAdapter
 from app.services.export.adapters.document import DocumentAdapter
 from app.services.export.adapters.gallery import GalleryAdapter
 from app.services.export.adapters.post import PostAdapter
@@ -24,6 +25,7 @@ ADAPTERS = {
         DocumentAdapter(),
         QueueAdapter(),
         CounterGroupAdapter(),
+        DashboardAdapter(),
         CalendarAdapter(),
         PostAdapter(),
         WikiAdapter(),

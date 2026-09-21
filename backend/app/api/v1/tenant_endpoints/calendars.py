@@ -12,11 +12,9 @@ they made is theirs to share. See ``history/guild-calendars-design.md``.
 """
 
 from datetime import datetime, timezone
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -29,8 +27,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import CalendarMessages, InitiativeMessages
-from app.db.session import get_admin_session
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
@@ -39,33 +35,18 @@ from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.calendar import (
     CalendarCreate,
-    CalendarListResponse,
     CalendarRead,
     CalendarUpdate,
     serialize_calendar,
-    serialize_calendar_summary,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.recent_view import RecentViewWrite
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
-from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant import search as search_service
-from app.services.tenant import tool_listing
 
 router = APIRouter()
 
-# Cross-guild personal aggregate ("My Calendar" grouping panel), mounted under
-# /api/v1/me; routes per member guild via gather_across_guilds.
-me_router = APIRouter()
-
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
 # ---------------------------------------------------------------------------
@@ -110,153 +91,6 @@ async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calenda
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=CalendarListResponse)
-async def list_calendars(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    scope: Optional[Literal["guild"]] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the row — its name and its description. "
-            "Reads the same index the search page does, so a list's filter "
-            "box and a search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for this "
-            "tool's own default order."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=1, le=200),
-) -> CalendarListResponse:
-    """List calendars visible to the current user (guild admins see all).
-
-    ``scope=guild`` narrows to the guild's own calendars — the ones the calendar
-    app holds, belonging to no initiative. That is the opposite of the
-    unfiltered list, which is everything in scope, so it is asked for by name
-    rather than inferred from an absent ``initiative_id``.
-    """
-    conditions = [
-        Calendar.guild_id == guild_context.guild_id,
-        archive_service.archive_filter_clause(Calendar, archived),
-    ]
-
-    if scope == "guild":
-        conditions.append(Calendar.initiative_id.is_(None))
-    elif initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.calendars_enabled:
-            return CalendarListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
-        conditions.append(Calendar.initiative_id == initiative_id)
-    else:
-        conditions.append(calendars_service.tool_enabled_clause())
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.calendar,
-            Calendar.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(Tool.calendar, Calendar.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    count_subq = select(Calendar.id).where(*conditions).subquery()
-    total_count = (
-        await session.exec(select(func.count()).select_from(count_subq))
-    ).one()
-
-    stmt = (
-        select(Calendar)
-        .where(*conditions)
-        .options(*calendars_service.calendar_loader_options())
-    )
-    stmt = (
-        tool_listing.apply_tool_order(
-            stmt,
-            Calendar,
-            sort_by,
-            sort_dir,
-            default=[Calendar.name.asc(), Calendar.id.asc()],
-        )
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    result = await session.exec(stmt)
-    calendars = result.unique().all()
-    await tags_service.annotate_tags(session, calendars)
-
-    items = [serialize_calendar_summary(c, user_id=current_user.id) for c in calendars]
-    has_next = page * page_size < total_count
-    return CalendarListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-# Declared before /{calendar_id} so the literal path wins the match.
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_calendar_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-calendar counts grouped by initiative.
-
-    Lightweight endpoint for the sidebar badges — same visibility rules as the
-    calendar list (calendars-enabled initiatives, DAC), one GROUP BY instead of
-    a capped list page. Guild calendars belong to no initiative, so they fall
-    outside every group here — the sidebar rows are initiative rows.
-    """
-    conditions = [
-        Calendar.guild_id == guild_context.guild_id,
-        Calendar.initiative_id.in_(
-            select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
-        ),
-    ]
-    conditions.append(
-        permissions_service.granted_scope_clause(
-            Tool.calendar,
-            Calendar.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    )
-
-    statement = (
-        select(Calendar.initiative_id, func.count(Calendar.id))
-        .where(*conditions)
-        .group_by(Calendar.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
 
 
 @router.get("/{calendar_id}", response_model=CalendarRead)
@@ -357,6 +191,7 @@ async def create_calendar(
         initiative_id=initiative_id,
         owner_id=current_user.id,
         grants=calendar_in.grants,
+        actor_user_id=current_user.id,
     )
 
     # The app is the container, so it is answerable for this too: uninstalling
@@ -452,163 +287,20 @@ async def delete_calendar(
 
 
 # ---------------------------------------------------------------------------
-# Cross-guild personal view
-# ---------------------------------------------------------------------------
-
-
-@me_router.get("/calendars", response_model=CalendarListResponse)
-async def list_my_calendars(
-    session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_ids: Optional[List[int]] = Query(default=None),
-    search: Optional[str] = Query(default=None),
-    created_by_me: bool = Query(
-        default=False,
-        description="Narrow to calendars the caller created.",
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, updated_at, created_at. Omit for this "
-            "view's own order, which is by name."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=200, ge=1, le=200),
-) -> CalendarListResponse:
-    """List the calendars visible to the user across all their guilds — the
-    backing data for the My Calendar grouping panel and the My Tools table.
-
-    Mirrors ``list_my_calendar_events``: visit each member guild schema under
-    the user's own RLS context (guild isolation + DAC hold), merge, and
-    paginate in Python (per-schema SQL can't limit across schemas). The WHERE
-    legs are ``my_tools.scope_conditions`` — the same rules every cross-guild
-    tool list reads; a guild calendar answers to no initiative switch and so
-    belongs in this view like any other.
-    """
-
-    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        stmt = (
-            select(Calendar)
-            .where(
-                *my_tools_service.scope_conditions(
-                    Tool.calendar,
-                    user_id=current_user.id,
-                    guild_id=guild_id,
-                    search=search,
-                    created_by_me=created_by_me,
-                )
-            )
-            .options(*calendars_service.calendar_loader_options())
-        )
-        return _exec_calendars(guild_session, stmt)
-
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-    calendars = await gather_across_guilds(
-        session, current_user.id, target_guilds, _fetch
-    )
-    # Merge-sort across guilds (per-schema SQL can't order across schemas).
-    calendars = my_tools_service.sort_merged(
-        calendars,
-        sort_by,
-        sort_dir,
-        default=lambda c: (c.name or "").lower(),
-        default_desc=False,
-    )
-
-    total_count = len(calendars)
-    start = (page - 1) * page_size
-    page_calendars = calendars[start : start + page_size]
-    items = [
-        serialize_calendar_summary(c, user_id=current_user.id) for c in page_calendars
-    ]
-    return CalendarListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=page * page_size < total_count,
-    )
-
-
-async def _exec_calendars(session, stmt) -> list[Calendar]:
-    """Run a Calendar select, de-duplicate, and carry each row's tags."""
-    result = await session.exec(stmt)
-    calendars = list(result.unique().all())
-    await tags_service.annotate_tags(session, calendars)
-    return calendars
-
-
-# ---------------------------------------------------------------------------
 # Sharing (resource grants)
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{calendar_id}/grants", response_model=CalendarRead)
-async def set_calendar_grants(
-    calendar_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    calendar_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> CalendarRead:
-    """Replace the calendar's entire sharing state in one call — the body is
-    the full list of grants (all-initiative-members / per-user / per-role).
-    Every non-owner grant is rebuilt from it; the owner is always preserved.
+    """The calendar a write answers with: re-read after the commit, serialized.
+
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
     """
-    await resource_access.set_resource_grants(
-        session, Tool.calendar, calendar_id, current_user, guild_context, grants
-    )
     hydrated = await _refetch_calendar(session, calendar_id)
-    return serialize_calendar(hydrated, user_id=current_user.id)
-
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{calendar_id}/view", response_model=RecentViewWrite)
-async def record_calendar_view(
-    calendar_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    calendar = await resource_access.load_authorized(
-        session, Tool.calendar, calendar_id, current_user, guild_context
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="calendar",
-        entity_id=calendar.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="calendar",
-        entity_id=calendar.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{calendar_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_calendar_view(
-    calendar_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    await resource_access.load_authorized(
-        session, Tool.calendar, calendar_id, current_user, guild_context
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="calendar",
-        entity_id=calendar_id,
-    )
+    return serialize_calendar(hydrated, user_id=user.id)

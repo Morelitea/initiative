@@ -28,6 +28,7 @@ from app.api.deps import (
     get_guild_membership,
     require_guild_roles,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import TrashMessages
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.calendar import Calendar
@@ -53,6 +54,7 @@ from app.schemas.tenant.trash import (
     TrashItem,
     TrashListResponse,
 )
+from app.services import audit as audit_service
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import ownership as ownership_service
 from app.core.user_display import display_name
@@ -387,5 +389,14 @@ async def purge_trash_entity(
         for_update=True,
     )
     await hard_purge_entity(session, entity)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.TRASH_PURGED,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        target_type=entity_type.value,
+        target_id=entity_id,
+        detail={"via": "admin"},
+    )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

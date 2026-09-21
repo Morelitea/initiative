@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { CaptchaConfig } from "@/api/generated/initiativeAPI.schemas";
+import { captchaProvider } from "@/lib/captchaProviders";
 
 /**
  * Single captcha widget that swaps between hCaptcha, Cloudflare
@@ -23,16 +24,6 @@ interface CaptchaWidgetProps {
   config: CaptchaConfig;
   onToken: (token: string) => void;
 }
-
-const PROVIDER_SCRIPT_URL: Record<string, string> = {
-  // ``render=explicit`` (hCaptcha + reCAPTCHA) and ``onload`` give us
-  // a deterministic init point so the SDK doesn't auto-render any
-  // accidental ``.h-captcha`` / ``.g-recaptcha`` markup elsewhere on
-  // the page. Turnstile already requires explicit render via API.
-  hcaptcha: "https://js.hcaptcha.com/1/api.js?render=explicit",
-  turnstile: "https://challenges.cloudflare.com/turnstile/v0/api.js",
-  recaptcha: "https://www.google.com/recaptcha/api.js?render=explicit",
-};
 
 interface ProviderRenderApi {
   /** Each SDK exposes a ``render(container, opts)`` that returns an
@@ -99,7 +90,7 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
 
   useEffect(() => {
     let cancelled = false;
-    const scriptUrl = PROVIDER_SCRIPT_URL[config.provider];
+    const scriptUrl = captchaProvider(config.provider)?.scriptUrl;
     if (!scriptUrl) {
       // Unknown provider name — should be impossible because the
       // backend filters to the supported list, but bail out cleanly.

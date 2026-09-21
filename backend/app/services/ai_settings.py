@@ -27,6 +27,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
 from app.db import session as db_session
@@ -55,6 +56,7 @@ from app.schemas.ai_settings import (
     ResolvedAISettings,
     ResolvedAISettingsResponse,
 )
+from app.services import audit as audit_service
 from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
@@ -63,6 +65,18 @@ from app.services.webhook_target_url import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: What a connection consists of, for the record. The key is not among them —
+#: it is reported as a boolean beside the diff.
+AUDITED_CONNECTION_FIELDS: tuple[str, ...] = (
+    "label",
+    "provider",
+    "base_url",
+    "model",
+    "enabled",
+    "is_default",
+    "allow_member_keys",
+)
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -399,12 +413,26 @@ async def get_platform_ai_mode(session: AsyncSession) -> PlatformAIModeResponse:
 
 
 async def update_platform_ai_mode(
-    session: AsyncSession, payload: PlatformAIModeUpdate
+    session: AsyncSession,
+    payload: PlatformAIModeUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> PlatformAIModeResponse:
     settings = await get_app_settings(session)
+    before = {"ai_config_mode": settings.ai_config_mode}
     settings.ai_config_mode = payload.mode.value
     settings.ai_config_version += 1
     session.add(settings)
+    changed = audit_service.changed_fields(
+        before, {"ai_config_mode": settings.ai_config_mode}
+    )
+    if actor_user_id is not None and changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+            actor_user_id=actor_user_id,
+            detail={"area": "ai_mode", **changed},
+        )
     await session.commit()
     invalidate_platform_ai_cache()
     return PlatformAIModeResponse(mode=payload.mode)
@@ -437,7 +465,10 @@ async def list_platform_connections(
 
 
 async def create_platform_connection(
-    session: AsyncSession, payload: AIConnectionCreate
+    session: AsyncSession,
+    payload: AIConnectionCreate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AIConnectionResponse:
     base_url = _normalize_optional_string(payload.base_url)
     await _validate_connection_base_url(payload.provider, base_url, "platform")
@@ -460,6 +491,21 @@ async def create_platform_connection(
         await _clear_platform_default(session)
     session.add(row)
     await _bump_ai_config_version(session)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_CONNECTION_CREATED,
+        actor_user_id=actor_user_id,
+        target_type="ai_connection",
+        target_id=row.id,
+        detail={
+            "scope": ConnectionScope.platform.value,
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+            ),
+            "secret_changed": bool(row.api_key_encrypted),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     invalidate_platform_ai_cache()
@@ -480,12 +526,18 @@ async def _clear_platform_default(session: AsyncSession) -> None:
 
 
 async def update_platform_connection(
-    session: AsyncSession, connection_id: int, payload: AIConnectionUpdate
+    session: AsyncSession,
+    connection_id: int,
+    payload: AIConnectionUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AIConnectionResponse:
     row = await session.get(PlatformAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     data = payload.model_dump(exclude_unset=True)
+    before = audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+    key_before = row.api_key_encrypted
     provider = payload.provider or AIProvider(row.provider)
     if "base_url" in data:
         base_url = _normalize_optional_string(payload.base_url)
@@ -515,18 +567,45 @@ async def update_platform_connection(
     _enforce_key_ownership(row)
     session.add(row)
     await _bump_ai_config_version(session)
+    secret_changed = row.api_key_encrypted != key_before
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+    )
+    if changed["changed"] or secret_changed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AI_CONNECTION_UPDATED,
+            actor_user_id=actor_user_id,
+            target_type="ai_connection",
+            target_id=row.id,
+            detail={
+                "scope": ConnectionScope.platform.value,
+                **changed,
+                "secret_changed": secret_changed,
+            },
+        )
     await session.commit()
     await session.refresh(row)
     invalidate_platform_ai_cache()
     return _platform_conn_response(row)
 
 
-async def delete_platform_connection(session: AsyncSession, connection_id: int) -> None:
+async def delete_platform_connection(
+    session: AsyncSession, connection_id: int, *, actor_user_id: int | None = None
+) -> None:
     row = await session.get(PlatformAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     await session.delete(row)
     await _bump_ai_config_version(session)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_CONNECTION_DELETED,
+        actor_user_id=actor_user_id,
+        target_type="ai_connection",
+        target_id=connection_id,
+        detail={"scope": ConnectionScope.platform.value},
+    )
     await session.commit()
     # Members attach their own key to a platform connection per guild, so the
     # member rows live in every guild schema — purge them so a deleted connection
@@ -578,6 +657,8 @@ async def create_guild_connection(
     guild_id: int,
     user_id: int,
     payload: AIConnectionCreate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AIConnectionResponse:
     base_url = _normalize_optional_string(payload.base_url)
     # Guild connections are always public-only (scope="guild" => no private).
@@ -602,18 +683,40 @@ async def create_guild_connection(
     if payload.is_default:
         await _clear_guild_default(session)
     session.add(row)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_CONNECTION_CREATED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="ai_connection",
+        target_id=row.id,
+        detail={
+            "scope": ConnectionScope.guild.value,
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+            ),
+            "secret_changed": bool(row.api_key_encrypted),
+        },
+    )
     await session.commit()
     await session.refresh(row)
     return _guild_conn_response(row)
 
 
 async def update_guild_connection(
-    session: AsyncSession, connection_id: int, payload: AIConnectionUpdate
+    session: AsyncSession,
+    connection_id: int,
+    payload: AIConnectionUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> AIConnectionResponse:
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     data = payload.model_dump(exclude_unset=True)
+    before = audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+    key_before = row.api_key_encrypted
     provider = payload.provider or AIProvider(row.provider)
     if "base_url" in data:
         base_url = _normalize_optional_string(payload.base_url)
@@ -642,16 +745,46 @@ async def update_guild_connection(
         row.is_default = payload.is_default
     _enforce_key_ownership(row)
     session.add(row)
+    secret_changed = row.api_key_encrypted != key_before
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
+    )
+    if changed["changed"] or secret_changed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AI_CONNECTION_UPDATED,
+            actor_user_id=actor_user_id,
+            guild_id=row.guild_id,
+            target_type="ai_connection",
+            target_id=row.id,
+            detail={
+                "scope": ConnectionScope.guild.value,
+                **changed,
+                "secret_changed": secret_changed,
+            },
+        )
     await session.commit()
     await session.refresh(row)
     return _guild_conn_response(row)
 
 
-async def delete_guild_connection(session: AsyncSession, connection_id: int) -> None:
+async def delete_guild_connection(
+    session: AsyncSession, connection_id: int, *, actor_user_id: int | None = None
+) -> None:
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
+    guild_id = row.guild_id
     await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_CONNECTION_DELETED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="ai_connection",
+        target_id=connection_id,
+        detail={"scope": ConnectionScope.guild.value},
+    )
     prior_role = (
         await session.exec(
             text("SELECT current_setting('app.current_guild_role', true)")
@@ -1027,21 +1160,6 @@ async def _list_models(
     if provider == AIProvider.custom:
         return await _list_custom_models(api_key, base_url, allow_private=allow_private)
     return [], f"Unknown provider: {provider}"
-
-
-def _resolved_from_conn(conn: _ConnRow, api_key: str | None) -> ResolvedAISettings:
-    provider = AIProvider(conn.provider)
-    return ResolvedAISettings(
-        enabled=True,
-        provider=provider,
-        api_key=api_key,
-        base_url=conn.base_url,
-        model=conn.model,
-        allow_private=_allow_private_for(provider, conn.scope),
-        scope=ConnectionScope(conn.scope),
-        connection_id=conn.id,
-        source=conn.scope,
-    )
 
 
 async def _probe(conn: _ConnRow, api_key: str | None) -> AIConnectionTestResponse:

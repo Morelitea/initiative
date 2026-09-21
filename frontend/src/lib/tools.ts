@@ -90,10 +90,11 @@ export const TOGGLEABLE_TOOLS = TOOLS;
  * `NON_EXPORTABLE_TOOLS`. Export and import are ONE capability (a tool's JSON
  * envelope round-trips through both), so this set governs each.
  */
-export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
-  // Export/import ships with the marketplace, which owns the definition
-  // envelope format.
-  Tool.dashboard,
+export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
+  // Empty, and that is the point: every tool has an export source. What used
+  // to sit here (Tool.dashboard) is now handled where it belongs — an entity
+  // built on an app this build does not ship is filtered by provenance on the
+  // server, which is a property of the ROW, not of the tool.
 ]);
 
 /** Tools with an export-engine source (single + bulk selection export), and
@@ -402,6 +403,54 @@ export interface ToolCommentEntity {
   initiative_id?: number | null;
   comments_enabled?: boolean;
 }
+
+/**
+ * The shape a relations panel needs off a tool's read schema: the row's id and
+ * the initiative it lives in. Deliberately the same two fields
+ * {@link ToolCommentEntity} opens with, so a tool page hands the same object to
+ * both panels.
+ */
+export interface ToolRelationEntity {
+  id: number;
+  initiative_id?: number | null;
+}
+
+/**
+ * The tool an entity that is not one of its own is addressed inside.
+ *
+ * A link is cached against a TOOL, so writing one from a child has to refresh
+ * the container's copy: a task's is its project, an event's its calendar, a
+ * counter's its group. Exactly the non-tool entity kinds the search vocabulary
+ * names, minus the two nothing links from — a comment, which no edge may name,
+ * and a tag, which is picked with the tag picker.
+ */
+export const PARENT_TOOL = {
+  task: Tool.project,
+  calendar_event: Tool.calendar,
+  counter: Tool.counter_group,
+  gallery_image: Tool.gallery,
+  queue_item: Tool.queue,
+  wiki_page: Tool.wiki,
+} as const satisfies Record<string, Tool>;
+
+/** An entity kind that lives inside a tool rather than being one. */
+export type ChildEntityType = keyof typeof PARENT_TOOL;
+
+/**
+ * Tools whose detail page does NOT carry a relations panel, and why. Stated as
+ * an exclusion, like {@link NON_EXPORTABLE_TOOLS}, so a tool is linkable on its
+ * own page by default and leaving one out has to be written down.
+ */
+export const NO_RELATIONS_PANEL: ReadonlySet<Tool> = new Set<Tool>([
+  // A wiki already draws its links: every page shows the pages it points at and
+  // the ones pointing back, read out of the `[[ ]]` in its body. A second panel
+  // beside that one would be two answers to "what is this connected to", and
+  // the one that writes itself is the better answer for a wiki.
+  Tool.wiki,
+]);
+
+/** Whether this tool's own detail page shows a relations panel. */
+export const showsRelations = (tool: Tool): boolean => !NO_RELATIONS_PANEL.has(tool);
 
 /**
  * The initiative master-switch field for a tool (same spelling as the view

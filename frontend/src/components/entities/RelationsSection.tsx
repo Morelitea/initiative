@@ -2,6 +2,7 @@ import {
   ChevronDown,
   ChevronUp,
   GalleryHorizontal,
+  HelpCircle,
   LayoutGrid,
   Loader2,
   type LucideIcon,
@@ -42,6 +43,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -51,6 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRelatedStates } from "@/hooks/useRelatedStates";
 import {
   type ToolRef,
   useRelate,
@@ -59,11 +62,14 @@ import {
   useUnrelate,
 } from "@/hooks/useRelationships";
 import { toast } from "@/lib/chesterToast";
+import { docsUrl } from "@/lib/links";
 import {
   canAssert,
+  defaultGroupFor,
   edgeFor,
   groupEdges,
   groupOf,
+  groupOrderFor,
   RELATION_GROUP_ORDER,
   RELATION_GROUPS,
   type RelationGroup,
@@ -184,6 +190,7 @@ export const RelationsSection = ({
     return isLayout(saved) ? saved : defaultLayout;
   });
   const [adding, setAdding] = useState(false);
+  /** Set only once somebody overrides what was proposed for what they picked. */
   const [groupKey, setGroupKey] = useState<RelationGroupKey | null>(null);
   const [picked, setPicked] = useState<SearchSuggestion | null>(null);
   const [hops, setHops] = useState(1);
@@ -192,22 +199,33 @@ export const RelationsSection = ({
   const shown = useMemo<RelationGroup[]>(() => groups.map((key) => RELATION_GROUPS[key]), [groups]);
   const assertable = useMemo(() => shown.filter((group) => group.assertable), [shown]);
 
-  // Attaching is what nearly every one of these is, so the dialog opens on it
-  // rather than on an empty box somebody has to answer before they can search.
   /**
    * The links that can actually be made to what was picked.
    *
-   * Reversing groups — "Blocks", "Has as a part" — assert their edge from the
+   * Reversing groups — "Blocking", "Made up of" — assert their edge from the
    * far end, which the server will only accept from somebody who may change it.
    * Offering them for a thing you can only read is offering a refusal.
+   *
+   * Ordered for the pair once something is picked: the list is the same list,
+   * but what two things of one kind usually say to each other comes first.
    */
-  const offered = useMemo(
-    () => assertable.filter((group) => canAssert(group, picked?.can_write !== false)),
-    [assertable, picked]
-  );
+  const offered = useMemo(() => {
+    const allowed = assertable.filter((group) => canAssert(group, picked?.can_write !== false));
+    return picked ? groupOrderFor(entity.type, picked.entity_type, allowed) : allowed;
+  }, [assertable, picked, entity.type]);
 
+  /**
+   * What the sentence currently says.
+   *
+   * An explicit choice wins. Otherwise the pair proposes one — never a
+   * dependency; see `defaultGroupFor`. Nothing is proposed before something is
+   * picked, because there is no pair to propose for and the question has not
+   * been asked yet.
+   */
+  const proposed = picked ? defaultGroupFor(entity.type, picked.entity_type) : null;
   const chosenGroup =
     (groupKey && offered.some((group) => group.key === groupKey) ? groupKey : null) ??
+    (proposed && offered.some((group) => group.key === proposed) ? proposed : null) ??
     offered[0]?.key ??
     null;
 
@@ -219,6 +237,19 @@ export const RelationsSection = ({
     includeTags: showTags,
   });
   const grouped = useMemo(() => groupEdges(rows, shown), [rows, shown]);
+
+  /**
+   * Picking a different KIND of thing re-asks what the link says.
+   *
+   * The proposal is made for the pair, so a pair that changed should get its
+   * own — but swapping one task for another after deliberately choosing
+   * "blocked by" is correcting the thing, not the claim, and that choice is
+   * kept.
+   */
+  const pick = (next: SearchSuggestion | null) => {
+    if (next?.entity_type !== picked?.entity_type) setGroupKey(null);
+    setPicked(next);
+  };
 
   const closeDialog = () => {
     setAdding(false);
@@ -266,6 +297,39 @@ export const RelationsSection = ({
   const visible = useMemo(() => rows.filter((row) => groupOf(row, shown) !== null), [rows, shown]);
   const total = visible.length;
 
+  // What each far end is doing now, in one batched request for the whole panel.
+  // Not asked for while the graph is up: that view draws names, not readings.
+  const states = useRelatedStates(visible, !collapsed && layout !== "graph");
+
+  /**
+   * How many of a group's links are still outstanding, where that means
+   * anything.
+   *
+   * Only shown for the groups where it changes what a reader does. "3" under
+   * Blocked by is a worry; "1 of 3 still open" is the actual answer, and a
+   * heading that keeps saying 3 after everything is done is why nobody trusted
+   * the panel. A group whose ends never finish counts nothing and says nothing.
+   */
+  const openTally = (edges: RelationshipRead[]) => {
+    const answerable = edges.filter((edge) => edge.other.is_open !== null);
+    if (answerable.length === 0) return null;
+    return {
+      open: answerable.filter((edge) => edge.other.is_open).length,
+      total: answerable.length,
+    };
+  };
+
+  // Contextual, from the thing itself, so no caller has to pass copy for a
+  // surface it happens to sit on. i18next falls back to the bare key for a kind
+  // that has no wording of its own.
+  const kind = entity.type;
+  const sectionTitle = title ?? t("title", { context: kind });
+  const emptyLine = t("empty", { context: kind });
+  // How the sentence in the dialog names this end: "This task is blocked by…".
+  const anchorName = t(`anchor.${kind}` as "anchor.generic", {
+    defaultValue: t("anchor.generic"),
+  });
+
   return (
     <Collapsible
       open={!collapsed}
@@ -276,7 +340,38 @@ export const RelationsSection = ({
         <div>
           <div className="inline-flex items-center gap-2">
             <Waypoints className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-semibold text-xl">{title ?? t("title")}</h2>
+            <h2 className="font-semibold text-xl">{sectionTitle}</h2>
+            {total > 0 ? <span className="text-muted-foreground text-sm">{total}</span> : null}
+            {/* The explanation lives one hover away rather than under the
+                heading forever: it is onboarding copy, and onboarding copy that
+                never leaves is just noise on the surface somebody already
+                understands. */}
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={t("help.title")}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent side="left" align="start" className="w-72">
+                <p className="font-medium text-sm">{t("help.title")}</p>
+                <p className="mt-2 text-muted-foreground text-sm">
+                  {description ?? t("help.body")}
+                </p>
+                <p className="mt-2 text-muted-foreground text-sm">{t("help.derived")}</p>
+                <a
+                  href={docsUrl("guides/mentions-and-links/#relations")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-block font-medium text-sm underline underline-offset-4"
+                >
+                  {t("help.learnMore")}
+                </a>
+              </HoverCardContent>
+            </HoverCard>
             <Button
               type="button"
               variant="ghost"
@@ -284,46 +379,49 @@ export const RelationsSection = ({
               className="h-8 w-8 rounded-full"
               onClick={() => setCollapsedState(!collapsed)}
               aria-expanded={!collapsed}
-              aria-label={title ?? t("title")}
+              aria-label={sectionTitle}
             >
               {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </Button>
           </div>
-          <p className="text-muted-foreground text-sm">{description ?? t("description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={t("layout.label")}
-                title={t("layout.label")}
-              >
-                {(() => {
-                  const Icon = LAYOUT_ICONS[layout];
-                  return <Icon className="h-4 w-4" />;
-                })()}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {LAYOUTS.map((option) => {
-                const Icon = LAYOUT_ICONS[option];
-                return (
-                  <DropdownMenuItem
-                    key={option}
-                    onSelect={() => setLayoutState(option)}
-                    className={option === layout ? "bg-accent" : undefined}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {t(`layout.${option}`)}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Four ways of looking at nothing is four ways of looking at
+              nothing. The switcher arrives with the first link. */}
+          {total > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t("layout.label")}
+                  title={t("layout.label")}
+                >
+                  {(() => {
+                    const Icon = LAYOUT_ICONS[layout];
+                    return <Icon className="h-4 w-4" />;
+                  })()}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {LAYOUTS.map((option) => {
+                  const Icon = LAYOUT_ICONS[option];
+                  return (
+                    <DropdownMenuItem
+                      key={option}
+                      onSelect={() => setLayoutState(option)}
+                      className={option === layout ? "bg-accent" : undefined}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {t(`layout.${option}`)}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           {headerActions}
           {canEdit && assertable.length > 0 ? (
             <Button type="button" size="sm" variant="outline" onClick={() => setAdding(true)}>
@@ -349,7 +447,10 @@ export const RelationsSection = ({
         ) : isError ? (
           <p className="text-muted-foreground text-sm">{t("loadFailed")}</p>
         ) : total === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("empty")}</p>
+          /* One line, naming two things worth linking from HERE. Not a button
+             per kind of link: that would be seven doors into a room nobody has
+             been told the purpose of, and the one door already exists. */
+          <p className="text-muted-foreground text-sm">{emptyLine}</p>
         ) : layout === "graph" ? (
           <Suspense fallback={<Skeleton className="h-[28rem] w-full rounded-xl" />}>
             <RelationsGraph
@@ -380,6 +481,8 @@ export const RelationsSection = ({
                       end={edge.other}
                       badge={t(`groups.${group.key}.title` as const)}
                       linkedAt={edge.created_at}
+                      state={states.get(`${edge.other.type}:${edge.other.id}`)}
+                      isOpen={edge.other.is_open}
                       onRemove={
                         canEdit && edge.provenance === "manual"
                           ? () => unrelate.mutate(edge)
@@ -404,7 +507,19 @@ export const RelationsSection = ({
                 <div className="flex items-center gap-2">
                   <GroupIcon className="h-4 w-4 text-muted-foreground" />
                   <h3 className="font-medium text-sm">{t(`groups.${group.key}.title`)}</h3>
-                  <span className="text-muted-foreground text-xs">{edges.length}</span>
+                  {(() => {
+                    // "1 of 3 still open" where the ends can say, a plain count
+                    // where they cannot. A bare 3 under Blocked by outlives the
+                    // work it describes, which is most of why nobody trusted it.
+                    const tally = openTally(edges);
+                    return (
+                      <span className="text-muted-foreground text-xs">
+                        {tally
+                          ? t("openOf", { open: tally.open, total: tally.total })
+                          : edges.length}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {group.assertable ? null : (
                   <p className="text-muted-foreground text-xs">{t("derived")}</p>
@@ -422,6 +537,8 @@ export const RelationsSection = ({
                       end={edge.other}
                       variant={layout === "rows" ? "compact" : "card"}
                       linkedAt={edge.created_at}
+                      state={states.get(`${edge.other.type}:${edge.other.id}`)}
+                      isOpen={edge.other.is_open}
                       /* A link read out of a body is not one to take back here:
                          editing the words is how it is withdrawn. */
                       onRemove={
@@ -446,37 +563,52 @@ export const RelationsSection = ({
             <DialogDescription>{t("dialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="relation-kind">{t("dialog.relationship")}</Label>
-              <Select
-                value={chosenGroup ?? undefined}
-                onValueChange={(value) => setGroupKey(value as RelationGroupKey)}
-              >
-                <SelectTrigger id="relation-kind">
-                  <SelectValue placeholder={t("dialog.relationship")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {offered.map((group) => (
-                    <SelectItem key={group.key} value={group.key}>
-                      {t(`groups.${group.key}.option`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* The thing first. Nobody opens this thinking "part_of" — they
+                think of the document they mean, and the picker offers what they
+                looked at recently before they have typed anything. What the
+                link SAYS is asked below, once there are two real names to say
+                it about. */}
             <div className="space-y-2">
               <Label>{t("dialog.entity")}</Label>
               <EntityPicker
                 subject={entity}
                 initiativeId={initiativeId}
                 value={picked}
-                onChange={setPicked}
-                disabled={!chosenGroup}
+                onChange={pick}
               />
-              {picked && offered.length < assertable.length ? (
-                <p className="text-muted-foreground text-xs">{t("dialog.readOnlyTarget")}</p>
-              ) : null}
             </div>
+
+            {picked ? (
+              <div className="space-y-2">
+                <Label htmlFor="relation-kind">{t("dialog.sentenceLabel")}</Label>
+                {/* Read as one sentence, with both ends named: "This task is
+                    blocked by Ship the API". Seeing the claim written out is
+                    what tells somebody it is the wrong one — and the verb in
+                    the middle of it is visibly the part they can change. */}
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
+                  <span className="font-medium text-sm">{anchorName}</span>
+                  <Select
+                    value={chosenGroup ?? undefined}
+                    onValueChange={(value) => setGroupKey(value as RelationGroupKey)}
+                  >
+                    <SelectTrigger id="relation-kind" className="w-auto min-w-44 bg-background">
+                      <SelectValue placeholder={t("dialog.relationship")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {offered.map((group) => (
+                        <SelectItem key={group.key} value={group.key}>
+                          {t(`groups.${group.key}.option`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="min-w-0 truncate font-medium text-sm">{picked.title}</span>
+                </div>
+                {offered.length < assertable.length ? (
+                  <p className="text-muted-foreground text-xs">{t("dialog.readOnlyTarget")}</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button

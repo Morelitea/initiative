@@ -60,7 +60,7 @@ Better APIs, integrations, templates, and apps that securely connect Initiative 
 
 Initiative is **bootstrapped by two people**, and we're building it for the long haul — not toward an acquisition, IPO, or enterprise sales machine.
 
-The core application stays **AGPL-licensed and open source**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services.
+Initiative is **open core**. The application — everything you self-host — stays **open source under the AGPL**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services. See [License](#license) for what's open and what isn't.
 
 We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted apps, automations, and other conveniences that make Initiative easier to run.
 
@@ -136,7 +136,6 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `DATABASE_URL` | Provisioning PostgreSQL connection (migrations, guild/role creation; not a superuser) | Required |
 | `DATABASE_URL_APP` | RLS-enforced connection (`app_user` role) | Required |
 | `DATABASE_URL_ADMIN` | Admin connection for background jobs (`app_admin` role) | Required |
-| `ALLOW_PRIVILEGED_DATABASE_UNTIL` | Absolute timezone-aware deadline for a temporary privileged `DATABASE_URL` maintenance window | - |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
@@ -277,4 +276,16 @@ See [SECURITY.md](SECURITY.md) for our security philosophy and how to report vul
 
 ## License
 
-This project is source-available under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Copyright is retained by the project maintainers, who reserve all commercial rights.
+Initiative is **open core**.
+
+The application in this repository is **open source** under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0) — the whole product, with nothing held back for a paid edition. Copyright is retained by the project maintainers, who reserve all commercial rights.
+
+**What's open:**
+
+| Repository | License | What it is |
+|---|---|---|
+| [Morelitea/initiative](https://github.com/Morelitea/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
+| [initiative-app-kit](https://github.com/Morelitea/initiative-app-kit) | MIT | The protocol half of writing an app for Initiative |
+| [initiative-github](https://github.com/Morelitea/initiative-github) | MIT | The reference app — clone it to start your own |
+
+**What isn't:** automations and billing are proprietary, are not published, and are not part of this repository. They exist to run Initiative Cloud; a self-hosted install is the complete product without them.

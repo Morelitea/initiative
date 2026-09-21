@@ -20,6 +20,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { BulkEditImageTagsDialog } from "@/components/initiativeTools/galleries/BulkEditImageTagsDialog";
 import { GalleryBulkBar } from "@/components/initiativeTools/galleries/GalleryBulkBar";
 import {
@@ -515,6 +516,16 @@ export function GalleryDetailPage() {
         )}
       </GalleryDropzone>
 
+      {/* A shelf, like a project's: a gallery's links are browsed along
+          rather than read down. */}
+      <ToolRelationsPanel
+        tool={Tool.gallery}
+        entity={gallery}
+        canEdit={canEdit}
+        entityTitle={gallery?.name}
+        defaultLayout="carousel"
+      />
+
       {gallery != null && (
         <ToolCommentsPanel tool={Tool.gallery} entity={gallery} canModerate={canEdit} />
       )}
@@ -565,6 +576,7 @@ export function GalleryDetailPage() {
 
       <GalleryImageSheet
         galleryId={parsedId}
+        initiativeId={initiativeId}
         image={detailsImage}
         open={detailsImage !== null}
         onOpenChange={(next) => {

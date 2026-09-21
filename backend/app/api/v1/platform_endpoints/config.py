@@ -14,6 +14,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.api.deps import SessionDep
+from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
 from app.core.version import get_min_native_version
@@ -70,9 +71,9 @@ class AppConfig(BaseModel):
     # control. Unlike the fields above this one is a database setting rather
     # than an env var, so it changes without a redeploy.
     community_directory_enabled: bool
-    # Whether this deployment asks an account to confirm it is 13 or older
-    # before it belongs to a listed guild. The SPA reads it to decide whether
-    # the directory's Join button asks first; the server refuses either way, so
+    # Whether this deployment asks an account to confirm it is 16 or older
+    # before it joins a listed guild. The SPA reads it to decide whether the
+    # directory's Join button asks first; the server refuses either way, so
     # this is which question gets asked and not whether the rule applies.
     community_age_gate_enabled: bool
     # Whether this deployment offers direct messages at all. The SPA hides My
@@ -80,6 +81,17 @@ class AppConfig(BaseModel):
     # command palette and the per-person message controls. A database setting
     # like the two above, so it changes without a redeploy.
     direct_messages_enabled: bool
+    # Whether an arriving visitor is asked what this deployment may keep in
+    # their browser. Off by default, and unauthenticated by necessity -- the
+    # question is put to somebody who has not signed in and may never do so. A
+    # database setting like the three above, so it changes without a redeploy.
+    cookie_consent_enabled: bool
+    # The optional cookie categories this deployment actually uses, which is
+    # what the chooser offers a switch for. Empty where it uses none, and the
+    # chooser then states what is essential rather than asking about nothing.
+    # Derived from configuration at request time, not stored -- see
+    # ``app.core.cookie_categories``.
+    cookie_categories: list[str]
     # The ways in this deployment permits. The login page reads it to decide
     # whether to render the password form at all; the server refuses either
     # way, so this only decides what is offered. Unauthenticated by necessity —
@@ -131,6 +143,8 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
+        cookie_consent_enabled=app_settings.cookie_consent_enabled,
+        cookie_categories=[c.value for c in active_cookie_categories(settings)],
         login_methods=sorted(
             m.value for m in auth_posture.methods_from_row(app_settings)
         ),

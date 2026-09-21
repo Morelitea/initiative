@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.auth_test import (
@@ -19,28 +18,13 @@ from app.api.v1.platform_endpoints.auth_test import (
     _wire_fake_idp,
 )
 from app.core.audit_events import AuditCategory, AuditEventType, meta_for
-from app.models.platform.audit_event import AuditEvent
 from app.models.platform.user import UserStatus
+from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "testpassword123"
-
-
-async def _events(
-    session: AsyncSession, event_type: AuditEventType
-) -> list[AuditEvent]:
-    session.expire_all()
-    return list(
-        (
-            await session.exec(
-                select(AuditEvent)
-                .where(AuditEvent.event_type == event_type.value)
-                .order_by(AuditEvent.id)
-            )
-        ).all()
-    )
 
 
 async def _sign_in(client: AsyncClient, email: str, password: str = PASSWORD):
@@ -50,20 +34,21 @@ async def _sign_in(client: AsyncClient, email: str, password: str = PASSWORD):
 
 
 async def test_a_sign_in_is_recorded_with_its_method(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session, email="signin-audit@example.com")
     user_id = user.id
+    capfd.readouterr()
     assert (await _sign_in(client, "signin-audit@example.com")).status_code == 200
 
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
-    assert [r.actor_user_id for r in rows] == [user_id]
-    assert rows[0].envelope["detail"] == {"method": "password"}
-    assert rows[0].tier == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
+    rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
+    assert [r["actor_user_id"] for r in rows] == [user_id]
+    assert rows[0]["detail"] == {"method": "password"}
+    assert rows[0]["tier"] == meta_for(AuditEventType.AUTH_SIGNED_IN).tier
 
 
 async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
 ):
     """The record is staged beside the session write, so a failure takes both.
     Nothing signed in, so there is nothing to write down."""
@@ -73,50 +58,53 @@ async def test_a_sign_in_that_never_opened_a_session_is_not_recorded(
         raise RuntimeError("session store down")
 
     monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+    capfd.readouterr()
     refused = await _sign_in(client, "nostore-audit@example.com")
     assert refused.status_code == 503
 
-    assert await _events(session, AuditEventType.AUTH_SIGNED_IN) == []
+    assert emitted(capfd, AuditEventType.AUTH_SIGNED_IN) == []
 
 
 async def test_a_refused_sign_in_is_recorded_with_its_reason(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session, email="badpass-audit@example.com")
     user_id = user.id
+    capfd.readouterr()
     response = await _sign_in(client, "badpass-audit@example.com", "not-the-password")
     assert response.status_code == 400
 
-    rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
+    rows = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     # The account is what the attempt was against, not who made it: the
     # request is unauthenticated, so there is no actor to name.
-    assert [r.actor_user_id for r in rows] == [None]
-    assert [r.target_user_id for r in rows] == [user_id]
-    assert rows[0].envelope["detail"]["reason"] == "bad_password"
+    assert [r["actor_user_id"] for r in rows] == [None]
+    assert [r["target_user_id"] for r in rows] == [user_id]
+    assert rows[0]["detail"]["reason"] == "bad_password"
     # A refusal changed nothing, so it is not a write.
-    assert rows[0].envelope["is_write"] is False
+    assert rows[0]["is_write"] is False
 
 
 async def test_an_inactive_account_is_recorded_separately_from_a_wrong_password(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(
         session, email="inactive-audit@example.com", status=UserStatus.deactivated
     )
     user_id = user.id
+    capfd.readouterr()
     assert (await _sign_in(client, "inactive-audit@example.com")).status_code == 400
 
-    rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
-    assert [r.actor_user_id for r in rows] == [None]
-    assert [r.target_user_id for r in rows] == [user_id]
-    assert rows[0].envelope["detail"]["reason"] == "inactive"
+    rows = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
+    assert [r["actor_user_id"] for r in rows] == [None]
+    assert [r["target_user_id"] for r in rows] == [user_id]
+    assert rows[0]["detail"]["reason"] == "inactive"
 
 
 async def test_password_endpoints_finalize_unknown_account_refusals_without_identity(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, capfd
 ):
     """Every refusal lands the same identity-free audit write and commit."""
-    before = len(await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED))
+    capfd.readouterr()
     login_response = await _sign_in(client, "nobody-at-all@example.com")
     device_response = await client.post(
         "/api/v1/auth/device-token",
@@ -128,33 +116,36 @@ async def test_password_endpoints_finalize_unknown_account_refusals_without_iden
     )
     assert login_response.status_code == device_response.status_code == 400
 
-    rows = await _events(session, AuditEventType.AUTH_SIGN_IN_FAILED)
-    new_rows = rows[before:]
+    new_rows = emitted(capfd, AuditEventType.AUTH_SIGN_IN_FAILED)
     assert len(new_rows) == 2
-    assert [row.actor_user_id for row in new_rows] == [None, None]
-    assert [row.target_user_id for row in new_rows] == [None, None]
-    assert [row.envelope["target"] for row in new_rows] == [None, None]
-    assert [row.envelope["detail"] for row in new_rows] == [
+    assert [row["actor_user_id"] for row in new_rows] == [None, None]
+    assert [row["target_user_id"] for row in new_rows] == [None, None]
+    assert [row["target"] for row in new_rows] == [None, None]
+    assert [row["detail"] for row in new_rows] == [
         {"method": "password", "reason": "bad_password"},
         {"method": "password", "reason": "bad_password"},
     ]
 
 
-async def test_signing_out_is_recorded(client: AsyncClient, session: AsyncSession):
+async def test_signing_out_is_recorded(
+    client: AsyncClient, session: AsyncSession, capfd
+):
     user = await create_user(session, email="signout-audit@example.com")
     user_id = user.id
+    capfd.readouterr()
     response = await client.post("/api/v1/auth/logout", headers=get_auth_headers(user))
     assert response.status_code == 204
 
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_OUT)
-    assert [r.actor_user_id for r in rows] == [user_id]
+    rows = emitted(capfd, AuditEventType.AUTH_SIGNED_OUT)
+    assert [r["actor_user_id"] for r in rows] == [user_id]
 
 
 async def test_changing_a_password_is_recorded_with_how(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     user = await create_user(session, email="pwchange-audit@example.com")
     user_id = user.id
+    capfd.readouterr()
     response = await client.patch(
         "/api/v1/users/me",
         headers=get_auth_headers(user),
@@ -162,13 +153,13 @@ async def test_changing_a_password_is_recorded_with_how(
     )
     assert response.status_code == 200
 
-    rows = await _events(session, AuditEventType.AUTH_PASSWORD_CHANGED)
-    assert [r.actor_user_id for r in rows] == [user_id]
-    assert rows[0].envelope["detail"] == {"via": "self_service"}
+    rows = emitted(capfd, AuditEventType.AUTH_PASSWORD_CHANGED)
+    assert [r["actor_user_id"] for r in rows] == [user_id]
+    assert rows[0]["detail"] == {"via": "self_service"}
 
 
 async def test_a_reset_is_recorded_as_a_reset(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     from app.models.platform.user_token import UserTokenPurpose
     from app.services.platform import user_tokens
@@ -177,18 +168,19 @@ async def test_a_reset_is_recorded_as_a_reset(
     token = await user_tokens.create_token(
         session, user_id=user.id, purpose=UserTokenPurpose.password_reset
     )
+    capfd.readouterr()
     response = await client.post(
         "/api/v1/auth/password/reset",
         json={"token": token, "password": "another-longer-secret-1"},
     )
     assert response.status_code == 200
 
-    rows = await _events(session, AuditEventType.AUTH_PASSWORD_CHANGED)
-    assert [r.envelope["detail"]["via"] for r in rows] == ["reset"]
+    rows = emitted(capfd, AuditEventType.AUTH_PASSWORD_CHANGED)
+    assert [r["detail"]["via"] for r in rows] == ["reset"]
 
 
 async def test_every_auth_event_is_filed_under_authentication():
-    """The board groups by category, so a new member filed under the wrong one
+    """Downstream groups by category, so a new member filed under the wrong one
     disappears from the view it belongs to."""
     auth_events = [e for e in AuditEventType if e.value.startswith("auth.")]
     assert auth_events
@@ -197,7 +189,7 @@ async def test_every_auth_event_is_filed_under_authentication():
 
 
 async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """The rejection kills the whole chain, so the record has to be able to say
     whose chain it was — there is no issued session to read it from, which is
@@ -213,46 +205,20 @@ async def test_a_replayed_refresh_token_is_recorded_against_its_owner(
 
     # Spend it once — which rotates the cookie — then put the spent one back.
     assert (await client.post("/api/v1/auth/refresh")).status_code == 200
+    capfd.readouterr()
     client.cookies.set(REFRESH_COOKIE_NAME, spent)
     replayed = await client.post("/api/v1/auth/refresh")
     assert replayed.status_code == 401
 
-    rows = await _events(session, AuditEventType.AUTH_REFRESH_REUSE_DETECTED)
+    rows = emitted(capfd, AuditEventType.AUTH_REFRESH_REUSE_DETECTED)
     # The endpoint is authorised by the cookie alone and has just rejected it,
     # so the owner of the chain is the target, not the one who presented it.
-    assert [r.actor_user_id for r in rows] == [None]
-    assert [r.target_user_id for r in rows] == [user_id]
-
-
-async def test_an_unauthenticated_event_reads_back_with_no_party(
-    client: AsyncClient, session: AsyncSession
-):
-    """The board renders the actor column from this field, so an event nobody
-    signed in caused has to survive the read as no party rather than a stray
-    id."""
-    from app.models.platform.user import UserRole
-    from app.schemas.platform.audit import AuditEventRead
-
-    await create_user(session, email="noparty-audit@example.com")
-    assert (
-        await _sign_in(client, "noparty-audit@example.com", "wrong")
-    ).status_code == 400
-
-    owner = await create_user(session, role=UserRole.owner)
-    listing = await client.get(
-        "/api/v1/admin/audit-events",
-        headers=get_auth_headers(owner),
-        params={"event_type": AuditEventType.AUTH_SIGN_IN_FAILED.value},
-    )
-    assert listing.status_code == 200
-    items = [AuditEventRead(**item) for item in listing.json()["items"]]
-    assert items
-    assert items[0].actor is None
-    assert items[0].target_user is not None
+    assert [r["actor_user_id"] for r in rows] == [None]
+    assert [r["target_user_id"] for r in rows] == [user_id]
 
 
 async def test_an_oidc_sign_in_records_its_provider_and_whether_it_stepped_up(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
 ):
     from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
     from app.testing.oidc import FakeIdp
@@ -260,6 +226,7 @@ async def test_an_oidc_sign_in_records_its_provider_and_whether_it_stepped_up(
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
+    capfd.readouterr()
 
     response = await _run_oidc_flow(
         client,
@@ -272,15 +239,15 @@ async def test_an_oidc_sign_in_records_its_provider_and_whether_it_stepped_up(
     )
     assert response.status_code in (302, 307)
 
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
-    assert [r.envelope["detail"] for r in rows] == [
+    rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
+    assert [r["detail"] for r in rows] == [
         {"method": "oidc", "provider": PLATFORM_OIDC_SLUG, "step_up": False}
     ]
-    assert rows[0].actor_user_id is not None
+    assert rows[0]["actor_user_id"] is not None
 
 
 async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
 ):
     """The methods and context class the provider named ride the record, so a
     reviewer reading the log can tell a second factor was used and when."""
@@ -290,6 +257,7 @@ async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
+    capfd.readouterr()
 
     response = await _run_oidc_flow(
         client,
@@ -305,8 +273,8 @@ async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
     )
     assert response.status_code in (302, 307)
 
-    rows = await _events(session, AuditEventType.AUTH_SIGNED_IN)
-    assert [r.envelope["detail"] for r in rows] == [
+    rows = emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
+    assert [r["detail"] for r in rows] == [
         {
             "method": "oidc",
             "provider": PLATFORM_OIDC_SLUG,
@@ -319,7 +287,7 @@ async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
 
 
 async def test_claiming_an_existing_account_by_verified_email_is_recorded(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
 ):
     """The link is what makes every later sign-in resolve by subject, so the
     moment an identity provider claims an existing account is worth a record."""
@@ -330,6 +298,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     existing_id = existing.id
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
+    capfd.readouterr()
 
     response = await _run_oidc_flow(
         client,
@@ -342,6 +311,6 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     )
     assert response.status_code in (302, 307)
 
-    rows = await _events(session, AuditEventType.AUTH_IDENTITY_LINKED)
-    assert [r.actor_user_id for r in rows] == [existing_id]
-    assert rows[0].envelope["detail"]["matched_by"] == "verified_email"
+    rows = emitted(capfd, AuditEventType.AUTH_IDENTITY_LINKED)
+    assert [r["actor_user_id"] for r in rows] == [existing_id]
+    assert rows[0]["detail"]["matched_by"] == "verified_email"

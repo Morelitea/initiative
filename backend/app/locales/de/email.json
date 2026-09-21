@@ -274,5 +274,91 @@
       "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst.",
       "textBody": "Der Passkey {{passkey}} wurde von deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "Die letzte Stunde auf Initiative",
+      "subject_one": "{{count}} Sache aus der letzten Stunde",
+      "subject_other": "{{count}} Sachen aus der letzten Stunde"
+    },
+    "daily": {
+      "title": "Dein Tag auf Initiative",
+      "subject_one": "{{count}} Sache von gestern",
+      "subject_other": "{{count}} Sachen von gestern"
+    },
+    "weekly": {
+      "title": "Deine Woche auf Initiative",
+      "subject_one": "{{count}} Sache aus der letzten Woche",
+      "subject_other": "{{count}} Sachen aus der letzten Woche"
+    },
+    "away": {
+      "title": "Während du weg warst",
+      "subject_one": "{{count}} Sache ist passiert, während du weg warst",
+      "subject_other": "{{count}} Sachen sind passiert, während du weg warst"
+    },
+    "recent": {
+      "title": "Das ist gerade passiert",
+      "subject_one": "{{count}} Neuigkeit auf Initiative",
+      "subject_other": "{{count}} Neuigkeiten auf Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Direktnachrichten",
+      "connections": "Kontakte",
+      "account": "Dein Konto",
+      "other": "Aus deinen Communities"
+    },
+    "category": {
+      "mentions": "Erwähnungen",
+      "replies": "Antworten",
+      "comments": "Kommentare zu deiner Arbeit",
+      "reactions": "Reaktionen",
+      "assignments": "Aufgabenzuweisungen",
+      "due_dates": "Überfällige Aufgaben",
+      "membership": "Neue Mitgliedschaften",
+      "approvals": "Wartet auf dich",
+      "posts": "Beiträge",
+      "events": "Termine",
+      "event_reminders": "Terminerinnerungen",
+      "direct_messages": "Direktnachrichten",
+      "connections": "Kontakte",
+      "jobs": "Exporte und Importe",
+      "account": "Dein Konto"
+    }
+  },
+  "signInCode": {
+    "subject": "Dein Initiative-Anmeldecode",
+    "title": "Dein Anmeldecode",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "Gib diesen Code auf der Seite ein, die danach gefragt hat:",
+    "expiry": "Der Code gilt {{minutes}} Minuten und kann einmal verwendet werden.",
+    "fallbackText": "Wenn du dich nicht anmelden wolltest, kannst du diese E-Mail ignorieren.",
+    "textBody": "Dein Initiative-Anmeldecode lautet {{code}}. Er gilt {{minutes}} Minuten und kann einmal verwendet werden."
+  },
+  "signUpCode": {
+    "subject": "Dein Initiative-Registrierungscode",
+    "title": "Konto fertig einrichten",
+    "greeting": "Hallo,",
+    "body": "Gib diesen Code auf der Seite ein, die danach gefragt hat, um dein Konto fertig einzurichten:",
+    "expiry": "Der Code gilt {{minutes}} Minuten und kann einmal verwendet werden.",
+    "fallbackText": "Wenn du kein Konto erstellen wolltest, kannst du diese E-Mail ignorieren.",
+    "textBody": "Dein Initiative-Registrierungscode lautet {{code}}. Er gilt {{minutes}} Minuten und kann einmal verwendet werden."
+  },
+  "accountErased": {
+    "subject": "Dein Initiative-Konto wurde gelöscht",
+    "title": "Dein Konto wurde gelöscht",
+    "greeting": "Hallo,",
+    "body": "Hiermit bestätigen wir, dass das Initiative-Konto zu dieser Adresse gelöscht wurde, zusammen mit den dazu gespeicherten personenbezogenen Daten.",
+    "kept": "Einiges bleibt und nennt dich nicht mehr: Beiträge, die du zu einer Community geleistet hast, verbleiben dort und sind einem gelöschten Konto zugeordnet.",
+    "unexpected": "Wenn du das nicht veranlasst hast, wende dich so bald wie möglich an die Betreiber deines Initiative-Servers.",
+    "textBody": "Das Initiative-Konto zu dieser Adresse wurde gelöscht, zusammen mit den dazu gespeicherten personenbezogenen Daten. Beiträge zu einer Community verbleiben dort und sind einem gelöschten Konto zugeordnet."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} wurde gelöscht",
+    "title": "{{community}} wurde gelöscht",
+    "greeting": "Hallo,",
+    "body": "Die Community <strong>{{community}}</strong> wurde gelöscht. Ihre Mitglieder sehen sie nicht mehr, und nichts darin ist erreichbar.",
+    "recoverable": "Es wurde noch nichts zerstört. Bis <strong>{{date}}</strong> kann die Serverbetreuung sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
+    "recoverableNoDate": "Es wurde nichts zerstört. Die Serverbetreuung kann sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
+    "textBody": "Die Community {{community}} wurde gelöscht. Ihre Mitglieder sehen sie nicht mehr. Es wurde noch nichts zerstört, und die Serverbetreuung kann sie wiederherstellen."
   }
 }

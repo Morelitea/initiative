@@ -13,6 +13,7 @@ Tests the task API endpoints at /api/v1/tasks including:
 """
 
 import json
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -21,17 +22,31 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlmodel import select
 
+from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
+from app.models.tenant.task import Task, TaskStatusCategory
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.testing.factories import (
     checklist_items,
+    create_counter,
+    create_counter_group,
+    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
+    create_relationship,
+    create_task,
+    create_task_status,
     create_user,
 )
+
+LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 
 
 async def _create_task(session, project, title="Test Task", checklist=None):
@@ -307,69 +322,52 @@ async def test_create_task_with_properties(
     assert props[text_defn.id] == "hello"
 
 
-@pytest.mark.integration
-async def test_create_task_with_invalid_tag_id_rolls_back(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """An invalid tag id fails the create and persists no task."""
-    from sqlmodel import func, select
-
-    from app.models.tenant.task import Task
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-
-    response = await client.post(
-        a.g("/tasks/"),
-        headers=a.headers,
-        json={
-            "title": "Should Not Exist",
-            "project_id": a.project.id,
-            "tag_ids": [999999],
-        },
-    )
-
-    assert response.status_code in (400, 404)
-    count = (
-        await session.exec(
-            select(func.count())
-            .select_from(Task)
-            .where(Task.title == "Should Not Exist")
-        )
-    ).one()
-    assert count == 0
+async def _an_unknown_tag(session, a) -> dict:
+    return {"tag_ids": [999999]}
 
 
-@pytest.mark.integration
-async def test_create_task_with_invalid_property_rolls_back(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A property from another initiative fails the create and persists no task."""
-    from sqlmodel import func, select
-
-    from app.models.tenant.task import Task
+async def _a_property_from_another_initiative(session, a) -> dict:
+    # A definition scoped to a DIFFERENT initiative in the same guild.
     from app.testing.factories import create_property_definition
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    # A definition scoped to a DIFFERENT initiative in the same guild.
     other_initiative = await create_initiative(session, a.guild, a.user)
     foreign_defn = await create_property_definition(
         session, other_initiative, name="Foreign"
     )
+    return {"property_values": [{"property_id": foreign_defn.id, "value": "x"}]}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("title", "unreachable"),
+    [
+        ("Should Not Exist", _an_unknown_tag),
+        ("Bad Prop Task", _a_property_from_another_initiative),
+    ],
+    ids=["a tag id that is not a tag", "a property of another initiative"],
+)
+async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
+    client: AsyncClient, session: AsyncSession, acting_user, title: str, unreachable
+):
+    """The whole create is refused, and no half-written task survives it."""
+    from sqlmodel import func, select
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     response = await client.post(
         a.g("/tasks/"),
         headers=a.headers,
         json={
-            "title": "Bad Prop Task",
+            "title": title,
             "project_id": a.project.id,
-            "property_values": [{"property_id": foreign_defn.id, "value": "x"}],
+            **await unreachable(session, a),
         },
     )
 
     assert response.status_code in (400, 404)
     count = (
         await session.exec(
-            select(func.count()).select_from(Task).where(Task.title == "Bad Prop Task")
+            select(func.count()).select_from(Task).where(Task.title == title)
         )
     ).one()
     assert count == 0
@@ -504,25 +502,35 @@ async def test_update_task(client: AsyncClient, session: AsyncSession, acting_us
 
 
 @pytest.mark.integration
-async def test_update_task_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    ("method", "payload"),
+    [("PATCH", {"title": "Hacked Title"}), ("DELETE", None)],
+    ids=["an update", "a delete"],
+)
+async def test_a_task_of_an_initiative_the_member_is_not_in_is_not_found(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    method: str,
+    payload: dict | None,
 ):
-    """Test that users without permission cannot update tasks."""
+    """A guild member outside the initiative gets 404 for either write verb:
+    RLS answers for a row it does not show the same way it answers for one
+    that is not there."""
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
     outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
     task = await _create_task(session, owner.project)
 
-    payload = {"title": "Hacked Title"}
-
-    response = await client.patch(
-        outsider.g(f"/tasks/{task.id}"), headers=outsider.headers, json=payload
+    response = await client.request(
+        method,
+        outsider.g(f"/tasks/{task.id}"),
+        headers=outsider.headers,
+        json=payload,
     )
 
-    assert (
-        response.status_code == 404
-    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
+    assert response.status_code == 404
 
 
 @pytest.mark.integration
@@ -534,26 +542,6 @@ async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_us
     response = await client.delete(a.g(f"/tasks/{task.id}"), headers=a.headers)
 
     assert response.status_code == 204
-
-
-@pytest.mark.integration
-async def test_delete_task_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that users without permission cannot delete tasks."""
-    owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
-    )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
-    task = await _create_task(session, owner.project)
-
-    response = await client.delete(
-        outsider.g(f"/tasks/{task.id}"), headers=outsider.headers
-    )
-
-    assert (
-        response.status_code == 404
-    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
@@ -1059,9 +1047,9 @@ async def test_reorder_tasks(client: AsyncClient, session: AsyncSession, acting_
 
 
 @pytest.mark.unit
-def test_reorder_item_rejects_non_finite_position():
-    """NaN/±inf would silently defeat the rebalance gap check, so the schema
-    rejects them at the boundary."""
+def test_reorder_item_takes_only_a_finite_position():
+    """A position is a finite number, positive or negative; the schema holds
+    the boundary to that."""
     import math
 
     from pydantic import ValidationError
@@ -1271,444 +1259,225 @@ async def test_filter_tasks_by_status(
     assert "Done Task" not in task_titles
 
 
-@pytest.mark.integration
-async def test_rolling_recurrence_preserves_due_time(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that completing a task with rolling recurrence preserves the original due time."""
-    from datetime import datetime, timezone
-    from app.models.tenant.task import Task
+@pytest.fixture
+async def recurring_task_env(session: AsyncSession, acting_user):
+    """An actor with a project, its default statuses seeded, and the two
+    statuses a completion moves between.
+
+    Returns a callable so a test can ask for the actor in a particular
+    timezone.
+    """
     from app.services.tenant import task_statuses as task_statuses_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    async def _env(**actor_kwargs):
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True, **actor_kwargs
+        )
+        statuses = await task_statuses_service.ensure_default_statuses(
+            session, a.project.id
+        )
+        todo = next(status for status in statuses if status.is_default)
+        done = next(status for status in statuses if status.name == "Done")
+        await session.commit()
+        return a, todo, done
 
-    # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(
-        session, a.project.id
-    )
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
-    await session.commit()
+    return _env
 
-    # Create a task with rolling recurrence due at 17:00
-    original_due_time = datetime(2026, 1, 20, 17, 0, 0, tzinfo=timezone.utc)
-    recurrence_data = {
-        "frequency": "daily",
-        "interval": 3,
-        "ends": "never",
-    }
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("strategy", "due", "recurrence", "next_time", "next_date"),
+    [
+        (
+            "rolling",
+            datetime(2026, 1, 20, 17, 0, 0, tzinfo=timezone.utc),
+            {"frequency": "daily", "interval": 3, "ends": "never"},
+            time(17, 0),
+            None,
+        ),
+        (
+            "fixed",
+            datetime(2026, 1, 20, 9, 30, 0, tzinfo=timezone.utc),
+            {"frequency": "daily", "interval": 2, "ends": "never"},
+            time(9, 30),
+            date(2026, 1, 22),
+        ),
+        (
+            "rolling",
+            datetime(2026, 1, 20, 0, 0, 0, tzinfo=timezone.utc),
+            {
+                "frequency": "weekly",
+                "interval": 1,
+                "weekdays": ["monday"],
+                "ends": "never",
+            },
+            time(0, 0),
+            None,
+        ),
+    ],
+    ids=[
+        "rolling keeps the due time",
+        "fixed counts from the original due date",
+        "rolling keeps midnight",
+    ],
+)
+async def test_completing_a_recurring_task_opens_the_next_occurrence(
+    client: AsyncClient,
+    session: AsyncSession,
+    recurring_task_env,
+    strategy: str,
+    due: datetime,
+    recurrence: dict,
+    next_time: time,
+    next_date: date | None,
+):
+    """Marking one done through the API leaves the completed task and a
+    successor due at the same time of day. A fixed strategy counts its
+    interval from the original due date; a rolling one counts from the day it
+    was completed, which is why only the fixed row can name a date.
+    """
+    a, todo, done = await recurring_task_env()
 
     task = Task(
         title="Recurring Task",
         project_id=a.project.id,
-        task_status_id=todo_status.id,
+        task_status_id=todo.id,
         guild_id=a.guild.id,
-        due_date=original_due_time,
-        recurrence=recurrence_data,
-        recurrence_strategy="rolling",  # After completion mode
+        due_date=due,
+        recurrence=recurrence,
+        recurrence_strategy=strategy,
     )
     session.add(task)
     await session.commit()
     await session.refresh(task)
 
-    # Mark the task as done (simulating completion at a different time like 12:34)
     response = await client.patch(
         a.g(f"/tasks/{task.id}"),
         headers=a.headers,
-        json={"task_status_id": done_status.id},
+        json={"task_status_id": done.id},
     )
-
     assert response.status_code == 200
 
-    # Fetch all tasks to find the newly created recurring task
     conditions = json.dumps(
         [{"field": "project_id", "op": "eq", "value": a.project.id}]
     )
-    response = await client.get(
+    listing = await client.get(
         a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
-    assert response.status_code == 200
-    tasks = response.json()["items"]
-
-    # Should have 2 tasks: original (completed) and new recurring task
+    assert listing.status_code == 200
+    tasks = listing.json()["items"]
+    # The original, now completed, and the occurrence that replaces it.
     assert len(tasks) == 2
 
-    # Find the new task (not the original one)
-    new_task = next((t for t in tasks if t["id"] != task.id), None)
-    assert new_task is not None
-    assert new_task["title"] == "Recurring Task"
-
-    # Parse the due_date and verify the time is preserved (17:00)
-    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
-    assert new_due_date.hour == 17
-    assert new_due_date.minute == 0
-    assert new_due_date.second == 0
+    successor = next(t for t in tasks if t["id"] != task.id)
+    assert successor["title"] == "Recurring Task"
+    next_due = datetime.fromisoformat(successor["due_date"].replace("Z", "+00:00"))
+    assert next_due.time() == next_time
+    if next_date is not None:
+        assert next_due.date() == next_date
 
 
 @pytest.mark.integration
-async def test_fixed_recurrence_uses_original_due_date(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that fixed recurrence strategy calculates from the original due date."""
-    from datetime import datetime, timezone
-    from app.models.tenant.task import Task
-    from app.services.tenant import task_statuses as task_statuses_service
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-
-    # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(
-        session, a.project.id
-    )
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
-    await session.commit()
-
-    # Create a task with fixed recurrence due at 09:30
-    original_due_time = datetime(2026, 1, 20, 9, 30, 0, tzinfo=timezone.utc)
-    recurrence_data = {
-        "frequency": "daily",
-        "interval": 2,
-        "ends": "never",
-    }
-
-    task = Task(
-        title="Fixed Recurring Task",
-        project_id=a.project.id,
-        task_status_id=todo_status.id,
-        guild_id=a.guild.id,
-        due_date=original_due_time,
-        recurrence=recurrence_data,
-        recurrence_strategy="fixed",  # Fixed mode (default)
-    )
-    session.add(task)
-    await session.commit()
-    await session.refresh(task)
-
-    # Mark the task as done
-    response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={"task_status_id": done_status.id},
-    )
-
-    assert response.status_code == 200
-
-    # Fetch all tasks
-    conditions = json.dumps(
-        [{"field": "project_id", "op": "eq", "value": a.project.id}]
-    )
-    response = await client.get(
-        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
-    )
-    assert response.status_code == 200
-    tasks = response.json()["items"]
-
-    # Find the new task
-    new_task = next((t for t in tasks if t["id"] != task.id), None)
-    assert new_task is not None
-
-    # Parse the due_date
-    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
-
-    # For fixed recurrence, next due should be 2 days after original (Jan 22)
-    assert new_due_date.day == 22
-    assert new_due_date.hour == 9
-    assert new_due_date.minute == 30
-
-
-@pytest.mark.integration
-async def test_rolling_recurrence_with_midnight_time(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test that rolling recurrence correctly preserves midnight (00:00) time."""
-    from datetime import datetime, timezone
-    from app.models.tenant.task import Task
-    from app.services.tenant import task_statuses as task_statuses_service
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-
-    # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(
-        session, a.project.id
-    )
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
-    await session.commit()
-
-    # Create a task with rolling recurrence due at midnight (00:00)
-    original_due_time = datetime(2026, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
-    recurrence_data = {
-        "frequency": "weekly",
-        "interval": 1,
-        "weekdays": ["monday"],
-        "ends": "never",
-    }
-
-    task = Task(
-        title="Midnight Task",
-        project_id=a.project.id,
-        task_status_id=todo_status.id,
-        guild_id=a.guild.id,
-        due_date=original_due_time,
-        recurrence=recurrence_data,
-        recurrence_strategy="rolling",
-    )
-    session.add(task)
-    await session.commit()
-    await session.refresh(task)
-
-    # Mark the task as done
-    response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={"task_status_id": done_status.id},
-    )
-
-    assert response.status_code == 200
-
-    # Fetch all tasks
-    conditions = json.dumps(
-        [{"field": "project_id", "op": "eq", "value": a.project.id}]
-    )
-    response = await client.get(
-        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
-    )
-    assert response.status_code == 200
-    tasks = response.json()["items"]
-
-    # Find the new task
-    new_task = next((t for t in tasks if t["id"] != task.id), None)
-    assert new_task is not None
-
-    # Parse the due_date and verify midnight time is preserved
-    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
-    assert new_due_date.hour == 0
-    assert new_due_date.minute == 0
-    assert new_due_date.second == 0
-
-
-@pytest.mark.integration
-async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
+@pytest.mark.parametrize(
+    ("due", "recurrence", "completed_at", "next_local"),
+    [
+        (
+            # 5pm Los Angeles on Sunday 2026-05-03, which is already the 4th
+            # in UTC, completed at 9pm the same Sunday.
+            datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc),
+            {"frequency": "daily", "interval": 3, "ends": "never"},
+            datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc),
+            datetime(2026, 5, 6, 17, 0, 0, tzinfo=LOS_ANGELES),
+        ),
+        (
+            # 2:30 AM Los Angeles, completed on the US spring-forward day.
+            # 2:30 AM does not exist that night, and the next occurrence lands
+            # on the following day, where it does.
+            datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc),
+            {"frequency": "daily", "interval": 1, "ends": "never"},
+            datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc),
+            datetime(2026, 3, 9, 2, 30, 0, tzinfo=LOS_ANGELES),
+        ),
+    ],
+    ids=[
+        "the completion day is the user's, not UTC's",
+        "a wall-clock time the spring-forward night does not have",
+    ],
+)
+async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     session: AsyncSession,
-    acting_user,
+    recurring_task_env,
+    due: datetime,
+    recurrence: dict,
+    completed_at: datetime,
+    next_local: datetime,
 ):
-    """The completion-date anchor for rolling recurrence is the user's
-    *local* calendar day, not the UTC day.
-
-    Repro: a 5pm-LA task is stored as 00:00 UTC the next day. Anchoring
-    a "+3 days" advance off the UTC date produced one local day too
-    early — completing on Sunday May 3 (LA) gave a next due of Tuesday
-    May 5 (LA) instead of Wednesday May 6 (LA).
+    """A rolling occurrence lands on the user's local calendar day, carrying
+    the original's local time of day — alarm-clock semantics: "every day at
+    2:30 AM" goes on firing at 2:30 AM once the clocks have moved.
     """
-    from datetime import datetime, timezone
-    from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-    from app.models.tenant.task import Task, TaskStatusCategory
-    from app.services.tenant import task_statuses as task_statuses_service
+    a, todo, done = await recurring_task_env(timezone="America/Los_Angeles")
 
-    a = await acting_user(
-        guild_role=GuildRole.member,
-        initiative=True,
-        project=True,
-        email="la-user@example.com",
-        timezone="America/Los_Angeles",
-    )
-    user = a.user
-    project = a.project
-
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
-    await session.commit()
-
-    # Original due: 5pm Los Angeles on Sunday 2026-05-03 → 00:00 UTC
-    # Monday 2026-05-04. The UTC representation has already crossed
-    # midnight; this is what makes the math go wrong if anchored in UTC.
-    original_due = datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc)
     task = Task(
         title="Feed frogs",
-        project_id=project.id,
-        task_status_id=todo_status.id,
+        project_id=a.project.id,
+        task_status_id=todo.id,
         guild_id=a.guild.id,
-        due_date=original_due,
-        recurrence={"frequency": "daily", "interval": 3, "ends": "never"},
+        due_date=due,
+        recurrence=recurrence,
         recurrence_strategy="rolling",
     )
     session.add(task)
     await session.commit()
-    # Eager-load every relationship the helper touches so the
-    # subsequent ``_advance_recurrence_if_needed`` call doesn't trip
-    # SQLAlchemy's async-greenlet guard on a lazy load.
+    # Eager-load every relationship the helper touches, so the call below
+    # doesn't trip SQLAlchemy's async-greenlet guard on a lazy load.
     await session.refresh(task, attribute_names=["task_status", "assignees"])
 
-    # Simulate the user completing the task at ~9pm Los Angeles on the
-    # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
-    completion_now = datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
-    task.task_status = done_status
+    task.task_status_id = done.id
+    task.task_status = done
 
     advanced = await _advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=TaskStatusCategory.todo,
-        now=completion_now,
-        user_timezone=user.timezone,
+        now=completed_at,
+        user_timezone=a.user.timezone,
     )
     assert advanced is True
     await session.commit()
 
-    from sqlmodel import select as _select
-
-    new_task = (
+    successor = (
         await session.exec(
-            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
+            select(Task).where(Task.project_id == a.project.id, Task.id != task.id)
         )
     ).first()
-    assert new_task is not None
-    assert new_task.due_date is not None
-    # Expected: 5pm Los Angeles on Wednesday 2026-05-06 → 00:00 UTC
-    # Thursday 2026-05-07 (DST: PDT is UTC-7 on this date).
-    new_due_local = new_task.due_date.astimezone(ZoneInfo("America/Los_Angeles"))
-    assert new_due_local.year == 2026
-    assert new_due_local.month == 5
-    assert new_due_local.day == 6
-    assert new_due_local.hour == 17
-
-
-@pytest.mark.integration
-async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
-    session: AsyncSession,
-    acting_user,
-):
-    """When the original due time would land in the clocked-forward gap
-    on a spring-forward night, rolling recurrence preserves the
-    original *wall-clock* time on the next calendar day rather than
-    normalising into the gap. This is alarm-clock semantics: "every
-    day at 2:30 AM" continues to fire at 2:30 AM after DST, even
-    though 2:30 AM does not exist on the spring-forward night itself.
-
-    Concretely: completing on 2026-03-08 (US spring-forward day) with
-    an original 2:30 AM due time produces a next occurrence of
-    2026-03-09 at 02:30 PDT = 09:30 UTC. The gap on Mar 8 is
-    irrelevant because the new occurrence lands on Mar 9, where 2:30
-    AM is a valid local time.
-    """
-    from datetime import datetime, timezone
-    from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-    from app.models.tenant.task import Task, TaskStatusCategory
-    from app.services.tenant import task_statuses as task_statuses_service
-
-    a = await acting_user(
-        guild_role=GuildRole.member,
-        initiative=True,
-        project=True,
-        email="dst-user@example.com",
-        timezone="America/Los_Angeles",
-    )
-    user = a.user
-    project = a.project
-
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
-    await session.commit()
-
-    # Original due: 2:30 AM Los Angeles. On a normal day that's 09:30
-    # (PST) or 10:30 (PDT) UTC; we just pick a non-DST date so the
-    # field value is unambiguous in storage.
-    original_due = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-    task = Task(
-        title="DST gap task",
-        project_id=project.id,
-        task_status_id=todo_status.id,
-        guild_id=a.guild.id,
-        due_date=original_due,
-        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
-        recurrence_strategy="rolling",
-    )
-    session.add(task)
-    await session.commit()
-    await session.refresh(task, attribute_names=["task_status", "assignees"])
-
-    # Complete on Sunday 2026-03-08 (US spring-forward day), late
-    # morning LA so ``now_local`` is firmly in PDT. The composed
-    # rolling base — ``now_local.replace(hour=2, minute=30)`` —
-    # references a local time that does not exist on Mar 8 (the
-    # clock jumped 2:00 → 3:00 earlier that morning). Adding one
-    # day before the stored conversion lands the new occurrence on
-    # Mar 9 at 02:30 PDT, which is a valid local time and matches
-    # the user's "every day at 2:30 AM" intent.
-    completion_now = datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
-    task.task_status = done_status
-
-    advanced = await _advance_recurrence_if_needed(
-        session,
-        task,
-        previous_status_category=TaskStatusCategory.todo,
-        now=completion_now,
-        user_timezone=user.timezone,
-    )
-    assert advanced is True
-    await session.commit()
-
-    from sqlmodel import select as _select
-
-    new_task = (
-        await session.exec(
-            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
-        )
-    ).first()
-    assert new_task is not None
-    assert new_task.due_date is not None
-    new_due_la = new_task.due_date.astimezone(ZoneInfo("America/Los_Angeles"))
-    # Daily +1 from completion (Mar 8) → Mar 9, fully in PDT. The
-    # important property: the wall-clock 2:30 AM of the original task
-    # is preserved on the next valid day, so the user's "every day at
-    # 2:30 AM" intent survives the DST transition. Strict UTC pin:
-    # 2026-03-09 09:30 UTC = 2026-03-09 02:30 PDT.
-    assert new_due_la.day == 9
-    assert new_due_la.hour == 2
-    assert new_due_la.minute == 30
-    new_due_utc = new_task.due_date.astimezone(timezone.utc)
-    assert new_due_utc == datetime(2026, 3, 9, 9, 30, 0, tzinfo=timezone.utc)
+    assert successor is not None
+    assert successor.due_date is not None
+    assert successor.due_date.astimezone(LOS_ANGELES) == next_local
 
 
 @pytest.mark.integration
 async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence(
     session: AsyncSession,
-    acting_user,
+    recurring_task_env,
 ):
-    """Advancing recurrence on a *tagged* task serializes the new
-    occurrence's tags without emitting IO from sync context.
-
-    Repro: the next occurrence's tag links were reloaded without their
-    ``tag`` relationship, so annotating them lazy-loaded each tag and the
-    request died with ``MissingGreenlet``. Only tagged recurring tasks hit
-    it, which is why it looked project-specific.
+    """The next occurrence carries the tags of the one it replaces, and
+    serializing them emits no IO from sync context.
     """
-    from datetime import datetime, timezone
-
-    from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-    from app.models.tenant.task import Task, TaskStatusCategory
     from app.services.tenant import tags as tags_service
-    from app.testing.factories import create_tag, create_task, create_task_status
+    from app.testing.factories import create_tag, create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    project = a.project
+    a, todo, done = await recurring_task_env()
 
     tag = await create_tag(session, a.guild, name="Chores", color="#112233")
     task = await create_task(
         session,
-        project,
+        a.project,
         title="Tagged recurring task",
-        status_category=TaskStatusCategory.todo,
+        task_status_id=todo.id,
         due_date=datetime(2026, 5, 4, 12, 0, 0, tzinfo=timezone.utc),
         recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
         recurrence_strategy="fixed",
-    )
-    done_status = await create_task_status(
-        session, project, name="Done", category=TaskStatusCategory.done, position=1
     )
     await tags_service.set_entity_tags(
         session,
@@ -1720,13 +1489,13 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     await session.commit()
     await session.refresh(task, attribute_names=["task_status", "assignees"])
 
-    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
-    task.task_status = done_status
+    task.task_status_id = done.id
+    task.task_status = done
 
     # Drop the tag from the identity map so reading a link's ``tag`` has to
     # go to the database — as it does on a real request, where the tag was
     # never loaded into this session. Keeping it resident lets SQLAlchemy
-    # satisfy the many-to-one from memory and the bug stays hidden.
+    # satisfy the many-to-one from memory.
     tag_id = tag.id
     session.expunge(tag)
 
@@ -1737,21 +1506,17 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         now=datetime(2026, 5, 4, 13, 0, 0, tzinfo=timezone.utc),
         user_timezone="UTC",
     )
-    # Getting here at all is the regression: serializing the new occurrence's
-    # tags used to raise before this line.
     assert advanced is True
     await session.commit()
 
-    from sqlmodel import select as _select
-
-    new_task = (
+    successor = (
         await session.exec(
-            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
+            select(Task).where(Task.project_id == a.project.id, Task.id != task.id)
         )
     ).first()
-    assert new_task is not None
+    assert successor is not None
     copied = await tags_service.active_tag_ids(
-        session, tags_service.TAG_LINKS["task"], new_task.id
+        session, tags_service.TAG_LINKS["task"], successor.id
     )
     assert copied == [tag_id]
 
@@ -1988,3 +1753,198 @@ async def test_my_tasks_unassigned_is_vacuous_not_an_error(
 
     assert response.status_code == 200
     assert response.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# What is still holding a task up
+# ---------------------------------------------------------------------------
+
+
+async def test_blocked_by_open_count_counts_only_what_is_unfinished(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A done blocker stops being one, without anybody taking the link back."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    still_going = await create_task(
+        session, a.project, status_category=TaskStatusCategory.todo
+    )
+    finished = await create_task(
+        session, a.project, status_category=TaskStatusCategory.done
+    )
+    for blocker in (still_going, finished):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.task, task.id),
+            target=(SearchEntityType.task, blocker.id),
+            relationship_type=RelationshipType.depends_on,
+            created_by=a.user.id,
+        )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 1
+
+
+async def test_blocked_by_open_count_spans_kinds(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Anything with a reading of "finished" can hold a task up, not just a task."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    blocker = await create_task(session, a.project)
+    group = await create_counter_group(session, a.initiative, a.user)
+    short = await create_counter(session, group, count=1, max=5)
+
+    for kind, entity_id in (
+        (SearchEntityType.task, blocker.id),
+        (SearchEntityType.counter, short.id),
+    ):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.task, task.id),
+            target=(kind, entity_id),
+            relationship_type=RelationshipType.depends_on,
+            created_by=a.user.id,
+        )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 2
+
+
+async def test_a_project_blocks_until_the_work_in_it_is_done(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Waiting on a whole project is waiting on the tasks in it."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    blocking_project = await create_project(session, a.initiative, a.user)
+    todo = await create_task(
+        session, blocking_project, status_category=TaskStatusCategory.todo
+    )
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.project, blocking_project.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 1
+
+    # Finish the work and the project stops holding anything up.
+    await route_session_to_guild(session, a.guild.id)
+    done = await create_task_status(
+        session, blocking_project, category=TaskStatusCategory.done
+    )
+    todo.task_status_id = done.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    todo.completed_at = datetime.now(timezone.utc)
+    session.add(todo)
+    await session.commit()
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_a_document_is_not_counted_as_a_blocker(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Nothing on a document says when it stops holding something up, so it is
+    shown as a link and left out of the count rather than blocking forever."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    doc = await create_document(session, a.initiative, a.user)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.document, doc.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_blocking_the_other_way_round_is_not_counted(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The source of a dependency is the end that waits, so a task this one
+    holds up is not something holding IT up."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    waiting_on_us = await create_task(session, a.project)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, waiting_on_us.id),
+        target=(SearchEntityType.task, task.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=a.user.id,
+    )
+
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0
+
+
+async def test_a_blocker_the_reader_cannot_open_is_not_counted(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The relationships policy clears both ends, so a blocker in an initiative
+    the reader is not in is invisible — and an invisible blocker must not show
+    up as a number they cannot account for."""
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, owner.project)
+    elsewhere = await create_initiative(session, owner.guild, owner.user)
+    hidden_project = await create_project(session, elsewhere, owner.user)
+    hidden = await create_task(session, hidden_project)
+    await create_relationship(
+        session,
+        owner.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.task, hidden.id),
+        relationship_type=RelationshipType.depends_on,
+        created_by=owner.user.id,
+    )
+
+    # The project is shared with the whole initiative, so the reader can open
+    # the task itself: what is being tested is the far end of its blocker.
+    await route_session_to_guild(session, owner.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=owner.project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=owner.guild.id,
+            initiative_id=owner.initiative.id,
+        )
+    )
+    await session.commit()
+
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    response = await client.get(owner.g(f"/tasks/{task.id}"), headers=reader.headers)
+
+    assert response.status_code == 200
+    assert response.json()["blocked_by_open_count"] == 0

@@ -274,5 +274,91 @@
       "body": "The passkey called <strong>{{passkey}}</strong> can no longer be used to sign in. The other ways you sign in are unchanged, and you are still signed in everywhere you were.",
       "textBody": "The passkey called {{passkey}} was removed from your account and can no longer be used to sign in."
     }
+  },
+  "digest": {
+    "hourly": {
+      "title": "The last hour on Initiative",
+      "subject_one": "{{count}} thing from the last hour",
+      "subject_other": "{{count}} things from the last hour"
+    },
+    "daily": {
+      "title": "Your day on Initiative",
+      "subject_one": "{{count}} thing from yesterday",
+      "subject_other": "{{count}} things from yesterday"
+    },
+    "weekly": {
+      "title": "Your week on Initiative",
+      "subject_one": "{{count}} thing from last week",
+      "subject_other": "{{count}} things from last week"
+    },
+    "away": {
+      "title": "While you were away",
+      "subject_one": "{{count}} thing happened while you were away",
+      "subject_other": "{{count}} things happened while you were away"
+    },
+    "recent": {
+      "title": "What just happened",
+      "subject_one": "{{count}} new thing on Initiative",
+      "subject_other": "{{count}} new things on Initiative"
+    },
+    "noCommunity": {
+      "direct_messages": "Direct messages",
+      "connections": "Connections",
+      "account": "Your account",
+      "other": "Across your communities"
+    },
+    "category": {
+      "mentions": "Mentions",
+      "replies": "Replies",
+      "comments": "Comments on your work",
+      "reactions": "Reactions",
+      "assignments": "Task assignments",
+      "due_dates": "Overdue tasks",
+      "membership": "Joining things",
+      "approvals": "Waiting on you",
+      "posts": "Posts",
+      "events": "Events",
+      "event_reminders": "Event reminders",
+      "direct_messages": "Direct messages",
+      "connections": "Connections",
+      "jobs": "Exports and imports",
+      "account": "Your account"
+    }
+  },
+  "signInCode": {
+    "subject": "Your Initiative sign-in code",
+    "title": "Your sign-in code",
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "body": "Type this code into the page that asked for it:",
+    "expiry": "The code works for {{minutes}} minutes and can be used once.",
+    "fallbackText": "If you didn't ask to sign in, you can ignore this email.",
+    "textBody": "Your Initiative sign-in code is {{code}}. It works for {{minutes}} minutes and can be used once."
+  },
+  "signUpCode": {
+    "subject": "Your Initiative sign-up code",
+    "title": "Finish creating your account",
+    "greeting": "Hello,",
+    "body": "Type this code into the page that asked for it to finish creating your account:",
+    "expiry": "The code works for {{minutes}} minutes and can be used once.",
+    "fallbackText": "If you didn't try to create an account, you can ignore this email.",
+    "textBody": "Your Initiative sign-up code is {{code}}. It works for {{minutes}} minutes and can be used once."
+  },
+  "accountErased": {
+    "subject": "Your Initiative account has been deleted",
+    "title": "Your account has been deleted",
+    "greeting": "Hello,",
+    "body": "This is confirmation that the Initiative account at this address has been deleted, along with the personal information held with it.",
+    "kept": "Some things stay, and they no longer name you: work you contributed to a community remains with that community, attributed to a deleted account.",
+    "unexpected": "If you did not ask for this, reply to whoever runs your Initiative server as soon as you can.",
+    "textBody": "Your Initiative account at this address has been deleted, along with the personal information held with it. Work you contributed to a community remains with that community, attributed to a deleted account."
+  },
+  "communityDeleted": {
+    "subject": "{{community}} has been deleted",
+    "title": "{{community}} has been deleted",
+    "greeting": "Hello,",
+    "body": "The community <strong>{{community}}</strong> has been deleted. Its members no longer see it, and nothing in it can be reached.",
+    "recoverable": "Nothing has been destroyed yet. Until <strong>{{date}}</strong>, whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
+    "recoverableNoDate": "Nothing has been destroyed. Whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
+    "textBody": "The community {{community}} has been deleted. Its members no longer see it. Nothing has been destroyed yet, and whoever runs this server can put it back."
   }
 }

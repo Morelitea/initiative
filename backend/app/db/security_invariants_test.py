@@ -43,7 +43,6 @@ _RLS_SHARED_TABLES = {
     "announcement_images",
     "announcement_reads",
     "announcements",
-    "audit_events",
     "app_service_nonces",
     "app_service_registrations",
     "app_settings",
@@ -67,6 +66,7 @@ _RLS_SHARED_TABLES = {
     "guild_provider_connections",
     "guilds",
     "identity_refs",
+    "legal_acceptances",
     "marketplace_listing_versions",
     "marketplace_listings",
     "marketplace_media",
@@ -80,6 +80,7 @@ _RLS_SHARED_TABLES = {
     "user_avatars",
     "user_decorations",
     "user_dm_guild_optouts",
+    "user_cookie_consent",
     "user_dm_settings",
     "user_emails",
     "user_email_assertions",
@@ -93,6 +94,11 @@ _RLS_SHARED_TABLES = {
     # WebAuthn credentials, on the same terms: forced with no policies, so
     # nothing but the system engine reads or writes one.
     "user_passkeys",
+    # One import job's credential for a foreign site, on the same terms:
+    # forced with no policies, because no request-path role ever reads one
+    # back — it is written by the connect request and read by the worker,
+    # both on the system engine.
+    "import_credentials",
     "user_ignores",
     "user_notification_prefs",
     "user_view_preferences",

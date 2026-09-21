@@ -66,12 +66,16 @@ _PROVISIONER = ("DATABASE_URL", "app_provisioner")
 _APP_USER = ("DATABASE_URL_APP", "app_user")
 _SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 
-#: Roles the provisioner administers but does not create: the shared floors and
-#: the platform ladder come from the baseline migration, and per-guild roles
-#: from guild provisioning. Granting them ``WITH ADMIN OPTION`` where they
-#: already exist is what lets the provisioner maintain them afterwards.
-_ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'platform_base', "
+#: Roles the provisioner administers but does not create: the shared floors,
+#: the platform ladder and the two reader roles come from migrations, and
+#: per-guild roles from guild provisioning. Granting them ``WITH ADMIN OPTION``
+#: where they already exist is what lets the provisioner maintain them
+#: afterwards — a cluster-global role is created once, by whichever login got
+#: there first, and a ``CREATEROLE`` login holds ADMIN only on the roles it
+#: created itself.
+ADMINISTERED_ROLE_PATTERN = (
+    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'app_profile_reader', "
+    "'app_dm_reader', 'platform_base', "
     "'platform_member', 'platform_support', 'platform_moderator', "
     "'platform_operator', 'platform_owner') "
     "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q)?$'"
@@ -239,13 +243,13 @@ END $$;
 
 # Roles the provisioner creates from now on carry implicit ADMIN (PG16+
 # CREATEROLE); ones that already exist are granted here.
-_ADMINISTER_EXISTING_ROLES = f"""
+ADMINISTER_EXISTING_ROLES = f"""
 DO $$
 DECLARE
     provisioner text := current_setting('app._bootstrap_role');
     r record;
 BEGIN
-    FOR r IN SELECT rolname FROM pg_roles WHERE {_ADMINISTERED_ROLE_PATTERN}
+    FOR r IN SELECT rolname FROM pg_roles WHERE {ADMINISTERED_ROLE_PATTERN}
     LOOP
         EXECUTE format('GRANT %I TO %I WITH ADMIN OPTION', r.rolname, provisioner);
     END LOOP;
@@ -284,17 +288,16 @@ _TRANSFER_STATEMENTS = """
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
 ), target AS (
-    -- Empty when the bootstrap connects as the provisioning role itself, which
-    -- makes every branch below return no rows: it already owns what it owns.
+    -- The login every statement below moves an object to. Each branch excludes
+    -- what it already owns, so a re-run on a moved database returns no rows.
     SELECT current_setting('app._bootstrap_role') AS role
-     WHERE current_setting('app._bootstrap_role') <> current_user
 )
 SELECT format('table %I.%I', n.nspname, c.relname) AS label,
        format('ALTER TABLE %I.%I OWNER TO %I', n.nspname, c.relname, target.role) AS stmt
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind IN ('r', 'v', 'm', 'p')
-   AND c.relowner = current_user::regrole
+   AND pg_get_userbyid(c.relowner) <> target.role
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
    AND (n.nspname ~ '^guild_([0-9]+|template)$'
         OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
@@ -304,7 +307,7 @@ SELECT format('sequence %I.%I', n.nspname, c.relname),
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind = 'S'
-   AND c.relowner = current_user::regrole
+   AND pg_get_userbyid(c.relowner) <> target.role
    AND n.nspname ~ '^guild_([0-9]+|template)$'
    AND NOT EXISTS (
        SELECT 1 FROM pg_depend d
@@ -315,7 +318,7 @@ SELECT format('type public.%I', t.typname),
   FROM pg_type t, target
  WHERE t.typnamespace = 'public'::regnamespace
    AND t.typtype = 'e'
-   AND t.typowner = current_user::regrole
+   AND pg_get_userbyid(t.typowner) <> target.role
    AND EXISTS (
        SELECT 1 FROM pg_attribute a
          JOIN pg_class c2 ON c2.oid = a.attrelid
@@ -329,7 +332,7 @@ SELECT format('function %s', p.oid::regprocedure),
        format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, target.role)
   FROM pg_proc p, target
  WHERE p.pronamespace = 'public'::regnamespace
-   AND p.proowner = current_user::regrole
+   AND pg_get_userbyid(p.proowner) <> target.role
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
    -- Every function the outgoing login left in ``public``, less the ones the
    -- bootstrap keeps. What calls a function is not something the catalog can
@@ -343,7 +346,7 @@ SELECT format('schema %I', n.nspname),
        format('ALTER SCHEMA %I OWNER TO %I', n.nspname, target.role)
   FROM pg_namespace n, target
  WHERE n.nspname ~ '^guild_([0-9]+|template)$'
-   AND n.nspowner = current_user::regrole
+   AND pg_get_userbyid(n.nspowner) <> target.role
 """
 
 
@@ -535,7 +538,7 @@ async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
         await _set_local(conn, "app._bootstrap_grantee", role.name)
         await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
         await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
-    await conn.execute(text(_ADMINISTER_EXISTING_ROLES))
+    await conn.execute(text(ADMINISTER_EXISTING_ROLES))
     await _transfer_ownership(conn)
     await conn.execute(text(_DEFAULT_PRIVILEGES))
 
@@ -580,6 +583,13 @@ async def _transfer_ownership(conn) -> None:
     Nothing to do on a fresh install, where the provisioning role creates them,
     or on any later start. A database that has been running under another login
     moves once, and what moved is logged.
+
+    The move is described by who owns an object, not by who is asking: the
+    bootstrap connection is whichever login the deployment named, and on an
+    install that has changed hands more than once the objects can belong to a
+    login it is neither. Claiming them needs rights over their current owner,
+    which is why this runs from the bootstrap connection and not from the
+    provisioning one.
     """
     await _set_local(
         conn, "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
@@ -612,6 +622,130 @@ async def _apply_search_operator(conn) -> bool:
             logger.exception("database bootstrap: %s failed", label)
             return False
     return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+
+
+#: A signal, not a work list: does anything in the app's own schemas belong to
+#: a login other than the one declared to own them? Deliberately coarse —
+#: tables and sequences only — because the remedy it points at moves
+#: everything, and the authoritative description of what "everything" is stays
+#: in :data:`_TRANSFER_STATEMENTS`. The owner is passed in rather than read
+#: from ``current_user`` so the answer does not depend on which connection
+#: asks.
+_FOREIGN_OWNERS = text(
+    "SELECT DISTINCT pg_get_userbyid(c.relowner) AS owner "
+    "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+    " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S') "
+    "   AND c.relowner <> CAST(:owner AS regrole) "
+    "   AND (n.nspname ~ '^guild_([0-9]+|template)$' "
+    "        OR (n.nspname = 'public' AND c.relname = ANY(:tables)))"
+)
+
+
+async def warn_if_ownership_was_never_handed_over() -> None:
+    """Say so when the app's objects still belong to an earlier login.
+
+    The handover runs as part of the bootstrap, so a deployment that still sets
+    ``DATABASE_URL_BOOTSTRAP`` — which the compose file does, and removing it is
+    only ever described as optional — has already had this done and reads
+    nothing here. A deployment that removed it, or that made its roles by hand
+    and never set it, has no path that moves ownership: the app can ask for
+    this repair but cannot make it, because taking an object from another login
+    needs rights over that login which a least-privilege provisioner does not
+    have.
+
+    Untreated it is not fatal and not silent either: `CREATE OR REPLACE` on the
+    app's functions and the per-community schema refresh both fail, once per
+    community, on every start. This turns that into one line that names the
+    remedy.
+    """
+    from app.db import session as db_session
+
+    provisioner, _app_login, _system = login_roles()
+    try:
+        async with db_session.provisioning_engine.connect() as conn:
+            owners = sorted(
+                row[0]
+                for row in (
+                    await conn.execute(
+                        _FOREIGN_OWNERS,
+                        {
+                            "owner": provisioner.name,
+                            "tables": sorted(GRANTABLE_SHARED_TABLES),
+                        },
+                    )
+                ).all()
+            )
+    except Exception:  # noqa: BLE001 — a diagnostic must never hold up boot
+        logger.debug("ownership check could not run", exc_info=True)
+        return
+    if not owners:
+        return
+
+    if settings.DATABASE_URL_BOOTSTRAP:
+        remedy = (
+            "DATABASE_URL_BOOTSTRAP is set, so the move was attempted and\n"
+            "found nothing it could take. Point it at a login with rights\n"
+            "over %s -- the owner of the database, or a superuser -- and\n"
+            "start once.\n" % (" and ".join(repr(owner) for owner in owners),)
+        )
+    else:
+        remedy = (
+            "This deployment has no DATABASE_URL_BOOTSTRAP for the move to\n"
+            "run under. Set it to a connection URL for the database owner and\n"
+            "start once. It moves every object and logs what it moved; the\n"
+            "line can come out again afterwards.\n"
+        )
+    logger.warning(
+        "\n%s\n"
+        "The app's tables still belong to %s, not to %r. Ownership moves as\n"
+        "part of the bootstrap. Left alone, refreshing the app's functions and\n"
+        "each community's schema fails on every start.\n\n"
+        "%s"
+        "%s",
+        "=" * 70,
+        " and ".join(repr(owner) for owner in owners),
+        provisioner.name,
+        remedy,
+        "=" * 70,
+    )
+
+
+def _executing(query: str) -> str:
+    """Wrap a ``(label, stmt)`` query in a block that RUNS what it returns.
+
+    The app executes those rows itself (:func:`_transfer_ownership`). The
+    printed script is piped into ``psql`` with nobody reading it, so it needs
+    the same rows executed rather than displayed. Both forms are built from the
+    one query, so they cannot come to describe different work.
+
+    Every statement is collected before any of them runs: the query filters
+    ``pg_class`` on who owns each object, and altering an owner part-way
+    through a scan of the catalog it is filtering on is not something to leave
+    to chance. That is also exactly what the app path does — fetch all, then
+    execute.
+    """
+    return (
+        "DO $handover$\n"
+        "DECLARE\n"
+        "    statements text[];\n"
+        "    labels text[];\n"
+        "    i int;\n"
+        "BEGIN\n"
+        "    SELECT array_agg(stmt ORDER BY label), array_agg(label ORDER BY label)\n"
+        "      INTO statements, labels\n"
+        "      FROM (\n"
+        f"{query.strip()}\n"
+        "      ) AS pending;\n"
+        "    IF statements IS NULL THEN\n"
+        "        RETURN;\n"
+        "    END IF;\n"
+        "    FOR i IN 1 .. array_length(statements, 1) LOOP\n"
+        "        EXECUTE statements[i];\n"
+        "        RAISE NOTICE 'ownership: %', labels[i];\n"
+        "    END LOOP;\n"
+        "END\n"
+        "$handover$;"
+    )
 
 
 def bootstrap_sql() -> str:
@@ -657,15 +791,14 @@ def bootstrap_sql() -> str:
             _REVOKE_LOGIN_DEFAULT_PRIVILEGES.strip(),
         ]
     out += [
-        _ADMINISTER_EXISTING_ROLES.strip(),
+        ADMINISTER_EXISTING_ROLES.strip(),
         "-- Ownership handover, for a database already running under another",
-        "-- login. Each statement is rendered by the query below; run what it",
-        "-- returns. Nothing to do on a fresh install.",
+        "-- login. Nothing to do on a fresh install.",
         setting("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
         setting(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
         ),
-        _TRANSFER_STATEMENTS.strip() + ";",
+        _executing(_TRANSFER_STATEMENTS),
         _DEFAULT_PRIVILEGES.strip(),
         "",
         "-- Guild search match operator",

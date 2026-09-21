@@ -1,7 +1,15 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlmodel import Field, Relationship
 
 from app.core.tools import COMMENT_TARGETS
@@ -28,11 +36,15 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             name="ck_comments_single_parent",
         ),
     )
-    # Comment authorship is intentionally NOT reassignable on restore.
-    # Comments are first-person speech; transferring created_by to someone
-    # else would let admins put words in another user's mouth. If the
-    # original author has left, the restore goes through and the comment
-    # renders as "Deleted user #N" via the existing user-display helpers.
+    # An import may attribute a comment to the account its author was matched
+    # to, and only that: the match is made by a person, one row at a time, in
+    # the import wizard's people step. Nothing infers it, and nothing else
+    # reassigns authorship — a comment is first-person speech, so outside that
+    # confirmed mapping ``created_by`` is never moved to somebody else. An
+    # author nobody matched is carried as ``imported_author_name`` instead,
+    # which names them without crediting an account here. If the original
+    # author has left, the restore goes through and the comment renders as
+    # "Deleted user #N" via the existing user-display helpers.
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
@@ -117,6 +129,20 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_column=Column(
             Integer, ForeignKey("wiki_pages.id", ondelete="CASCADE"), nullable=True
         ),
+    )
+    #: Who said this where it came from, when an import could not match them
+    #: to an account here. Display text and nothing more: it names a person
+    #: without claiming they have an account, so the comment carries no avatar
+    #: and no profile link. Null on everything written in this app, which is
+    #: almost every comment.
+    #:
+    #: ``created_by`` still names the import that wrote the row, because
+    #: something did write it and every guild-content row says what. The two
+    #: together are the honest reading: this app's record of who made the row,
+    #: and the source's record of who spoke.
+    imported_author_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(200), nullable=True),
     )
     parent_comment_id: Optional[int] = Field(
         default=None,

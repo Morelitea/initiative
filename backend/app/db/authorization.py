@@ -89,11 +89,13 @@ AS $function$
         WHERE c.enabled
           AND (p_provider_id IS NULL OR c.provider_id = p_provider_id)
           AND c.provider_id = ANY(COALESCE(p_providers, ARRAY[]::integer[]))
-          -- A connection naming no claim counts everybody the provider does.
+          -- A connection names a claim and the values that count, or it
+          -- admits nobody. An arrangement that says who belongs by saying
+          -- nothing is not one this reads as everybody.
+          AND c.claim IS NOT NULL
+          AND c.claim_values IS NOT NULL
           AND (
-              c.claim IS NULL
-              OR c.claim_values IS NULL
-              OR EXISTS (
+              EXISTS (
                   SELECT 1
                   FROM jsonb_array_elements_text(
                       CASE
@@ -151,6 +153,69 @@ $function$
 """
 
 
+#: What this session recorded about how it was opened, as an array.
+#:
+#: ``app.session_amr`` holds the markers narrowed to the closed vocabulary in
+#: ``app.services.auth.assurance`` — ``mfa`` where a code was presented,
+#: ``hwk``/``swk`` where a key answered — comma-joined and sorted. One reader
+#: rather than the parse repeated in each leg, and one place for the COALESCE:
+#: ``string_to_array`` of an unset setting is NULL, and the empty array is what
+#: the legs below are written against, so an absent setting reads as a session
+#: that recorded nothing.
+SESSION_AMR = """\
+CREATE OR REPLACE FUNCTION public.session_amr()
+ RETURNS text[]
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT COALESCE(
+        string_to_array(
+            NULLIF(current_setting('app.session_amr', true), ''),
+            ','
+        ),
+        ARRAY[]::text[]
+    )
+$function$
+
+"""
+
+
+#: Gate 0, first half: the deployment's own second-factor rule.
+#:
+#: The level is read from the settings row rather than from a GUC — what the
+#: deployment asks is a fact it holds, and the singleton is readable under
+#: every routed role, the SELECT-only guild floor included. Which rung the
+#: session holds arrives as ``app.platform_role``, because ``public.users`` is
+#: not on a guild request's path, and whether the account answers the rule
+#: arrives as ``app.platform_factor`` — the second factor it holds, or one
+#: this session presented. Both are written with the rest of the request's
+#: context.
+#:
+#: Unset reads as fail-closed: no rung recorded is not ``member``, and no
+#: standing recorded is not answered.
+PLATFORM_FACTOR_SATISFIED = """\
+CREATE OR REPLACE FUNCTION public.platform_factor_satisfied()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+    SELECT NOT EXISTS (
+        SELECT 1 FROM public.app_settings s
+        WHERE s.id = 1
+          AND s.second_factor_requirement <> 'nobody'
+          AND (
+              s.second_factor_requirement = 'everyone'
+              OR COALESCE(current_setting('app.platform_role', true), '') <> 'member'
+          )
+          AND COALESCE(
+                current_setting('app.platform_factor', true), 'false'
+              ) <> 'true'
+    )
+$function$
+
+"""
+
+
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
 GUILD_AUTH_SATISFIED = """\
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()
@@ -163,7 +228,11 @@ AS $function$
         -- user-attributed job sets are not sessions to gate.
         NULLIF(current_setting('app.current_user_id', true), '') IS NULL
         OR current_setting('app.satisfied_providers', true) = 'system'
-        OR NOT EXISTS (
+        OR (
+        -- What the deployment asks of the account, before what the community
+        -- asks of the session. Both have to hold.
+        public.platform_factor_satisfied()
+        AND NOT EXISTS (
             SELECT 1 FROM public.guild_auth_policies p
             WHERE p.guild_id = NULLIF(
                     current_setting('app.current_guild_id', true), ''
@@ -184,18 +253,15 @@ AS $function$
                   -- presented and the request carries that here.
                   OR (
                       'totp' = ANY(p.require_methods)
-                      AND COALESCE(
-                            current_setting('app.session_mfa', true), 'false'
-                          ) <> 'true'
+                      AND NOT ('mfa' = ANY(public.session_amr()))
                   )
                   -- Or a passkey, where the community asks for one. Its own
                   -- leg rather than the factor's: an assertion records the
                   -- second factor too, so the two are asked for separately.
+                  -- Either kind of key answers, which is what the overlap says.
                   OR (
                       'passkey' = ANY(p.require_methods)
-                      AND COALESCE(
-                            current_setting('app.session_passkey', true), 'false'
-                          ) <> 'true'
+                      AND NOT (public.session_amr() && ARRAY['hwk', 'swk'])
                   )
                   -- Or any of its own, whichever provider served it. Named
                   -- rather than counted, so a list holding some other method
@@ -206,6 +272,20 @@ AS $function$
                   )
               )
         )
+        AND NOT EXISTS (
+            -- Asked of everybody reaching this community, whatever it says
+            -- about how they arrive. Its own row rather than the policy's,
+            -- because a community that asks nothing about arrival holds no
+            -- policy row and still asks this. Unsatisfied is what this finds,
+            -- like the leg above it.
+            SELECT 1
+            FROM public.guilds g
+            WHERE g.id = NULLIF(
+                    current_setting('app.current_guild_id', true), ''
+                  )::int
+              AND g.require_second_factor
+              AND NOT ('mfa' = ANY(public.session_amr()))
+        ))
 $function$
 
 """
@@ -413,12 +493,16 @@ $function$
 
 #: Name -> definition, in dependency order: ``guild_connection_satisfied``
 #: calls ``guild_connection_admits``, ``guild_auth_satisfied`` calls
-#: ``guild_connection_satisfied``, and ``initiative_access`` and
-#: ``initiative_full_access`` call ``guild_auth_satisfied``. Applied in this
-#: order, a fresh database never sees a dangling call.
+#: ``guild_connection_satisfied``, ``session_amr`` and
+#: ``platform_factor_satisfied``, and
+#: ``initiative_access`` and ``initiative_full_access`` call
+#: ``guild_auth_satisfied``. Applied in this order, a fresh database never
+#: sees a dangling call.
 AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_connection_admits", GUILD_CONNECTION_ADMITS),
     ("guild_connection_satisfied", GUILD_CONNECTION_SATISFIED),
+    ("session_amr", SESSION_AMR),
+    ("platform_factor_satisfied", PLATFORM_FACTOR_SATISFIED),
     ("guild_auth_satisfied", GUILD_AUTH_SATISFIED),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),

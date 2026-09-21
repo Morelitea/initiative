@@ -18,17 +18,23 @@ and build time, under the caller's RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
-from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import et, export_locale, localize_now
-from app.services.platform.csv_export import safe_filename_component
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    envelope_key,
+    export_stem,
+)
+from app.services.export.contract import RenderItem
+from app.services.export.i18n import et, export_locale
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -49,72 +55,40 @@ def _columns(locale: str) -> list[dict]:
     ]
 
 
-class CounterGroupAdapter:
-    source = "counter-group"
-    template_id = "data-table"
+class CounterGroupAdapter(ToolExportAdapter):
+    tool = Tool.counter_group
     formats = frozenset({"json", "pdf", "csv", "xlsx", "md"})
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        groups = await self._groups(session, user, guild_id, params)
-        return sum(len(group.counters) for group in groups)
-
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        groups = await self._groups(session, user, guild_id, params)
-        # One clock read: the filename date and the subtitle timestamp must
-        # not straddle midnight into disagreeing dates.
-        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(
-                build_counter_group_item(group, format, user, now) for group in groups
-            ),
-        )
-
-    async def _groups(
-        self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> list[CounterGroup]:
-        from app.services.export.adapters._common import selection_ids
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, group_id: int, /
+    ) -> CounterGroup:
         from app.services.tenant.counters import get_counter_group_for_export
 
-        return [
-            await get_counter_group_for_export(session, user, guild_id, group_id=gid)
-            for gid in selection_ids(
-                params, single_key="counter_group_id", multi_key="counter_group_ids"
-            )
-        ]
+        return await get_counter_group_for_export(
+            session, user, guild_id, group_id=group_id
+        )
+
+    def rows(self, group: CounterGroup, /) -> int:
+        return len(group.counters)
+
+    def item(self, group: CounterGroup, ctx: BuildContext, /) -> RenderItem:
+        return build_counter_group_item(group, ctx.format, ctx.user, ctx.now)
 
 
 def build_counter_group_item(
     group: CounterGroup, format: str, user: User, now: datetime
 ) -> RenderItem:
     date = now.strftime("%Y-%m-%d")
-    stem = safe_filename_component(group.name).lower()
     if format == "json":
         # The envelope is importable machine data — stays canonical, never
         # localized (translating field keys / enum values breaks import).
         return RenderItem(
-            key=f"{stem}-{date}.initiative-counter-group",
+            key=envelope_key(Tool.counter_group, group.name, date),
             data=_envelope(group),
         )
-    return RenderItem(key=f"{stem}-{date}", data=_report_payload(group, user, now))
+    return RenderItem(
+        key=export_stem(group.name, date), data=_report_payload(group, user, now)
+    )
 
 
 def _envelope(group: CounterGroup) -> dict[str, Any]:

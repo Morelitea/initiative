@@ -21,7 +21,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ProjectMessages
 from app.core.tools import Tool
-from app.models.tenant.initiative import Initiative
+from app.models.tenant.initiative import (
+    Initiative,
+    InitiativeMember,
+    InitiativeRoleModel,
+)
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
@@ -40,6 +44,43 @@ async def get_project(session: AsyncSession, project_id: int) -> Project | None:
             selectinload(Project.initiative).selectinload(Initiative.memberships),
         )
     )
+    return (await session.exec(stmt)).one_or_none()
+
+
+async def get_project_hydrated(
+    session: AsyncSession, project_id: int, *, populate_existing: bool = False
+) -> Project | None:
+    """Load a project with everything a serialized ``ProjectRead`` reads.
+
+    The grant loader above carries what the access decision needs; this carries
+    that plus what the response does — the grant holders by name, each member's
+    role and its permission rows, and the project's task statuses. RLS scopes
+    the row to the request's guild.
+
+    ``populate_existing=True`` refreshes a project already in the session's
+    identity map, for a re-read after a commit (``expire_on_commit=False``
+    otherwise keeps the collections as they were before the write).
+    """
+    stmt = (
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
+            selectinload(Project.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
+            ),
+            selectinload(Project.task_statuses),
+        )
+    )
+    if populate_existing:
+        stmt = stmt.execution_options(populate_existing=True)
     return (await session.exec(stmt)).one_or_none()
 
 

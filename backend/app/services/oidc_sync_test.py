@@ -382,3 +382,75 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     assert preserved is not None
     assert preserved.role == GuildRole.superadmin
     assert result.guilds_removed == []
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "listed,admitted",
+    [
+        pytest.param(True, False, id="a listed community keeps them out"),
+        pytest.param(False, True, id="a private one admits them"),
+    ],
+)
+async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
+    session: AsyncSession, listed: bool, admitted: bool
+):
+    """This is the way in with nobody at a keyboard to ask.
+
+    A listed community is open to anyone signed in, so the deployment's age
+    rule holds however somebody arrived — including a claim matching on a
+    background refresh, hours after they last touched the app. What counts
+    here is the answer already on the record, because there is no one to put
+    the question to. A private guild is its own to answer for and admits them.
+    """
+    from datetime import datetime, timezone
+
+    from app.services.platform import app_settings as app_settings_service
+
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True, community_age_gate_enabled=True
+    )
+    provider = await create_auth_provider(session)
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    if listed:
+        guild.is_community = True
+        guild.categories = ["other"]
+        guild.has_adult_content = False
+        session.add(guild)
+
+    # The two are the two answers to one question, and ck_users_age_answer
+    # holds them apart — so saying one is said is unsaying the other.
+    newcomer = await create_user(session, age_confirmed_at=None)
+    newcomer.age_below_minimum_at = datetime.now(timezone.utc)
+    session.add(newcomer)
+    session.add(
+        OIDCClaimMapping(
+            provider_id=provider.id,
+            claim_value="engineering",
+            target_type=OIDCMappingTargetType.guild,
+            guild_id=guild.id,
+            guild_role=GuildRole.member.value,
+        )
+    )
+    await session.commit()
+
+    await set_rls_context(session)
+    await sync_oidc_assignments(
+        session,
+        user_id=newcomer.id,
+        provider_id=provider.id,
+        claim_values={"engineering"},
+    )
+
+    session.expunge_all()
+    await set_rls_context(session)
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.user_id == newcomer.id,
+                GuildMembership.guild_id == guild.id,
+            )
+        )
+    ).one_or_none()
+    assert (membership is not None) is admitted

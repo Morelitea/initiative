@@ -1,12 +1,12 @@
 {
   "job": {
     "succeeded": "Importación finalizada.",
-    "failed": "La importación falló.",
-    "queued": "Importación iniciada: recibirás una notificación cuando termine."
+    "failed": "La importación falló."
   },
   "wizard": {
     "title": "Importar una copia de seguridad",
     "back": "Atrás",
+    "next": "Siguiente",
     "close": "Cerrar",
     "cancelUpload": "Cancelar importación",
     "upload": "Subir copia de seguridad",
@@ -16,8 +16,7 @@
       "hint": "Un .zip exportado desde una copia de seguridad de comunidad o iniciativa de Initiative.",
       "notZip": "Este archivo no es una copia de seguridad válida de Initiative.",
       "readFailed": "No se pudo leer este archivo de copia de seguridad. Puede estar dañado.",
-      "tooLarge": "Este archivo supera el límite de subida de {{limit}}.",
-      "reading": "Leyendo la copia de seguridad…"
+      "tooLarge": "Este archivo supera el límite de subida de {{limit}}."
     },
     "peek": {
       "source": "Copia de seguridad de {{name}}",
@@ -34,11 +33,18 @@
     "plan": {
       "prompt": "Revisa lo que se importará",
       "willCreate": "\"{{name}}\" se importará como una nueva iniciativa \"{{proposed}}\"",
-      "toolCount": "{{tool}}: {{count}}",
       "skipped_one": "El exportador dejó {{count}} elemento fuera de esta copia de seguridad",
       "skipped_other": "El exportador dejó {{count}} elementos fuera de esta copia de seguridad",
       "unknownTypes": "Se omitirán tipos de contenido desconocidos: {{types}}",
       "note": "Cada iniciativa de la copia se crea de nuevo; nada existente se modifica. La importación se ejecuta en segundo plano."
+    },
+    "people": {
+      "prompt": "¿Quiénes son estas personas aquí?",
+      "note": "La exportación nombra a las personas con el identificador que tenían en su origen. Hemos rellenado aquellos cuyo identificador coincide exactamente con un miembro: revísalos e indica quiénes son los demás. Si dejas una fila en blanco, esos comentarios conservan el nombre con el que llegaron y no se atribuyen a ninguna cuenta.",
+      "comments_one": "{{count}} comentario",
+      "comments_other": "{{count}} comentarios",
+      "unmapped": "Nadie aquí",
+      "pickerLabel": "Quién es {{name}} aquí"
     },
     "progress": {
       "title": "Importando…",
@@ -87,6 +93,7 @@
     },
     "status": {
       "staged": "Esperando confirmación",
+      "fetching": "Leyendo el origen",
       "queued": "En cola",
       "running": "En curso",
       "done": "Finalizado",
@@ -99,11 +106,12 @@
       "initiative-project": "Proyecto",
       "initiative-document": "Documento",
       "initiative-queue": "Cola",
-      "initiative-counter-group": "Grupo de contadores",
       "initiative-calendar": "Calendario",
       "initiative-post": "Publicación",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Galería"
+      "initiative-gallery": "Galería",
+      "initiative-counter-group": "Grupo de contadores",
+      "initiative-dashboard": "Panel"
     },
     "cancel": "Cancelar",
     "viewReport": "Ver informe",

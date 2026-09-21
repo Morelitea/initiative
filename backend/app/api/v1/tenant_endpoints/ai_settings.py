@@ -69,7 +69,7 @@ async def create_guild_connection(
     user: CurrentUser,
 ) -> AIConnectionResponse:
     return await ai_settings_service.create_guild_connection(
-        session, ctx.guild_id, user.id, payload
+        session, ctx.guild_id, user.id, payload, actor_user_id=user.id
     )
 
 
@@ -79,9 +79,10 @@ async def update_guild_connection(
     payload: AIConnectionUpdate,
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
+    user: CurrentUser,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_guild_connection(
-        session, connection_id, payload
+        session, connection_id, payload, actor_user_id=user.id
     )
 
 
@@ -92,8 +93,11 @@ async def delete_guild_connection(
     connection_id: int,
     session: SettingsRLSSessionDep,
     _ctx: GuildSeatContext,
+    user: CurrentUser,
 ) -> None:
-    await ai_settings_service.delete_guild_connection(session, connection_id)
+    await ai_settings_service.delete_guild_connection(
+        session, connection_id, actor_user_id=user.id
+    )
 
 
 @router.post(

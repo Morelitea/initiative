@@ -1205,7 +1205,8 @@ class TestRelationshipCascades:
     ):
         """The DROP would take the rows silently, leaving vendor grants
         outliving the guild that authorized them."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        # Deleting a community belongs to the seat.
+        a = await acting_user(guild_role=GuildRole.superadmin)
         await _connected_member(client, acting_user, session, a)
 
         response = await client.request(

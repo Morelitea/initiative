@@ -198,20 +198,45 @@ async def start_export(
     return job
 
 
+@dataclass(frozen=True)
+class ArtifactLocation:
+    """Where a finished job's bytes ended up. Exactly one field is set.
+
+    ``artifact_ref`` means the app holds it and will serve it.
+    ``destination_ref`` means it was written to the operator's destination and
+    the app neither holds nor serves it — see ``export.delivery``.
+    """
+
+    artifact_ref: str | None = None
+    destination_ref: str | None = None
+
+
 async def render_to_storage(
     request: RenderRequest, *, job_id: int, source: str, tz: str | None = None
-) -> str:
-    """Render a job's request and persist the artifact behind the guild's
-    storage backend (local FS or S3 transparently). Returns the artifact_ref
-    storage key. Idempotent by job id — a re-render overwrites the same key."""
+) -> ArtifactLocation:
+    """Render a job's request and put the artifact where it belongs: behind
+    the guild's storage backend for the app to serve, or — for an archive past
+    the download bound — in the operator's destination.
+
+    Idempotent by job id: a re-render overwrites the same key or the same
+    destination filename."""
     from app.services.export.adapters import ADAPTERS
+
+    stem = _bundle_stem(source, tz)
+    if getattr(ADAPTERS.get(source), "force_zip", False):
+        # The aggregate sources assemble on disk: a whole community's archive
+        # is not something to hold in memory twice (once as rendered
+        # artifacts, once as the zip) just to hand it to storage.
+        return await _stream_zip_to_storage(
+            request, job_id=job_id, stem=stem, guild_id=request.guild_id
+        )
 
     artifacts = await get_backend().render(request)
     artifact = _bundle(
         artifacts,
         format=request.format,
-        stem=_bundle_stem(source, tz),
-        force_zip=getattr(ADAPTERS.get(source), "force_zip", False),
+        stem=stem,
+        force_zip=False,
     )
     # The job id must live in the storage BASENAME, not a directory: both
     # backends flatten a key to Path(key).name (a path-traversal guard), so a
@@ -226,7 +251,77 @@ async def render_to_storage(
     get_guild_storage(request.guild_id).write(
         key, artifact.content, content_type=artifact.content_type
     )
-    return key
+    return ArtifactLocation(artifact_ref=key)
+
+
+async def render_artifacts(request: RenderRequest):
+    """Every artifact in the request, one at a time.
+
+    Uses the backend's own streaming path when it has one and falls back to
+    rendering the batch eagerly when it does not — so a second
+    ``RenderBackend`` implementation stays a drop-in, which is the whole point
+    of the seam.
+    """
+    backend = get_backend()
+    stream = getattr(backend, "render_stream", None)
+    if stream is not None:
+        async for artifact in stream(request):
+            yield artifact
+        return
+    for artifact in await backend.render(request):
+        yield artifact
+
+
+async def _stream_zip_to_storage(
+    request: RenderRequest, *, job_id: int, stem: str, guild_id: int
+) -> ArtifactLocation:
+    """Build the archive on disk, then put the file where it belongs.
+
+    Peak memory is one artifact plus the zip's compressor state, instead of
+    every rendered artifact and a second full copy in the zip buffer. The temp
+    file is removed either way; a failed job leaves nothing behind.
+
+    The routing decision is made on the **assembled** size rather than on the
+    pre-flight estimate, because the estimate counts stored blob bytes and the
+    archive is compressed: an export the estimate put over the line can come
+    out under it, and handing that back as a download is the better answer.
+    The estimate still drives what the wizard warns about before submitting.
+    """
+    from app.services.export import delivery
+    import tempfile
+    import zipfile
+    from pathlib import Path
+
+    # Same naming as the eager path so the download endpoint recovers the same
+    # filename: `exports/{job_id}-{stem}.zip`, prefix stripped on the way out.
+    key = f"exports/{job_id}-{stem}.zip"
+    handle = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    handle.close()
+    tmp_path = Path(handle.name)
+    try:
+        taken: set[str] = set()
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            async for artifact in render_artifacts(request):
+                name = artifact.filename or f"{artifact.key}.{request.format}"
+                name = _dedupe_name(name, taken)
+                taken.add(name)
+                archive.writestr(name, artifact.content)
+        size = tmp_path.stat().st_size
+        if size > settings.EXPORT_MAX_DOWNLOAD_BYTES:
+            if not delivery.is_configured():
+                from app.core.messages import ExportMessages
+
+                raise ExportError(ExportMessages.EXPORT_DESTINATION_REQUIRED)
+            destination_ref = delivery.deliver(
+                tmp_path, guild_id=guild_id, filename=f"{stem}-{job_id}.zip"
+            )
+            return ArtifactLocation(destination_ref=destination_ref)
+        get_guild_storage(request.guild_id).write_file(
+            key, tmp_path, content_type="application/zip"
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return ArtifactLocation(artifact_ref=key)
 
 
 def _bundle_stem(source: str, tz: str | None) -> str:

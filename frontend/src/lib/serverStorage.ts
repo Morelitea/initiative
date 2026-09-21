@@ -16,15 +16,6 @@ export function clearStoredServerUrl(): void {
   removeItem(SERVER_URL_KEY);
 }
 
-// Token storage
-export function getStoredToken(): string | null {
-  return getItem(TOKEN_KEY);
-}
-
-export function setStoredToken(token: string): void {
-  setItem(TOKEN_KEY, token);
-}
-
 export function clearStoredToken(): void {
   removeItem(TOKEN_KEY);
 }

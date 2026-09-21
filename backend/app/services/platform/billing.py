@@ -1,21 +1,4 @@
-"""Verification and operations for the external billing service.
-
-``apply_guild_tier`` writes the tier label and billing-computed caps onto
-``public.guilds``; ``guild_storage_usage`` reads one guild's stored bytes for
-billing's usage read. Tier definitions live in the billing service's own database — no pricing data,
-tier matrix, or plan math may ever live in this repository, and the FOSS app
-enforces only the numeric caps and status it is handed (``tier_name`` is
-display/audit metadata, never an enforcement input).
-
-Requests carry an HMAC over ``METHOD\\nPATH\\nTIMESTAMP\\nsha256(body)``
-(bounded recency window) plus an RS256 service JWT whose ``jti`` is redeemed
-one-shot in ``billing_jti_blocklist``. Authorization is the database's: the
-caller runs as the ``initiative_billing`` role with ``app.billing_guild_id``
-set to the envelope's guild. Writes are claimed through ``billing_event_log``
-(UNIQUE event id), so retried deliveries apply once.
-
-Nothing here commits — the endpoint owns the transaction.
-"""
+"""Verification and operations for the external billing service."""
 
 from __future__ import annotations
 
@@ -33,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import billing_capabilities
 from app.core.config import settings
 from app.core.messages import BillingMessages
 from app.core.security import PublicKeyBundleError, load_verification_keys
@@ -220,6 +204,11 @@ _GUILD_TIER_COLUMNS = (
     GuildAdministration.tier_name,
     GuildAdministration.max_storage_bytes,
     GuildAdministration.max_users,
+    GuildAdministration.banner_image_enabled,
+    GuildAdministration.support_enabled,
+    GuildAdministration.auth_options,
+    # Billing's answer to "does this plan charge anybody" — see migration 0325.
+    GuildAdministration.plan_is_free,
     Guild.status,
 )
 
@@ -285,6 +274,21 @@ async def apply_guild_tier(
     ):
         raise BillingSourceRestrictionError(BillingMessages.SUPPORT_CANNOT_LOWER)
 
+    # An operator may lift a member ceiling, never impose one. A plan change
+    # sets whatever the plan says — a downgrade legitimately tightens — but a
+    # human at the billing end reaching in to type a number may only move the
+    # limit out of the way. NULL is unlimited and therefore the highest value
+    # there is, so anything finite under a NULL ceiling is a lowering too.
+    if (
+        payload.source is BillingSource.operator_manual
+        and "max_users" in provided
+        and payload.max_users is not None
+        and (row.max_users is None or payload.max_users < row.max_users)
+    ):
+        raise BillingSourceRestrictionError(
+            BillingMessages.OPERATOR_CANNOT_LOWER_CEILING
+        )
+
     # Plain INSERT in a savepoint rather than ON CONFLICT DO NOTHING: the
     # billing role holds no SELECT on this table (append-only), and under RLS
     # an ON CONFLICT insert would demand one. The unique-violation IS the
@@ -310,9 +314,13 @@ async def apply_guild_tier(
         # Two rows, one transaction: the caps and plan label on
         # ``guild_administration``, the lifecycle status on ``guilds``.
         administration_values: dict = {}
-        for field in ("tier_name", "max_storage_bytes", "max_users"):
+        for field in ("tier_name", "max_storage_bytes", "max_users", "plan_is_free"):
             if field in provided:
                 administration_values[field] = getattr(payload, field)
+        if "feature_keys" in provided and payload.feature_keys is not None:
+            administration_values.update(
+                billing_capabilities.administration_values(payload.feature_keys)
+            )
         guild_values: dict = {}
         if payload.status is not None and payload.status.value != row.status:
             guild_values["status"] = payload.status.value
@@ -347,6 +355,12 @@ async def apply_guild_tier(
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,
         status=GuildStatus(row.status),
+        feature_keys=billing_capabilities.package_of(
+            banner_image_enabled=row.banner_image_enabled,
+            support_enabled=row.support_enabled,
+            auth_options=row.auth_options,
+        ),
+        plan_is_free=row.plan_is_free,
         member_count=await _member_count(session, guild_id),
         applied=applied,
     )

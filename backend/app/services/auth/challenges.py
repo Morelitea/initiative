@@ -20,6 +20,7 @@ there is an authenticated request to scope.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field
 from app.models.platform.auth_challenge import AuthChallenge
 
 #: Bytes of randomness behind the value handed to the client.
@@ -65,6 +67,30 @@ class ChallengePurpose(str, Enum):
     #: to what that session has proved. Like a registration the row names the
     #: account, because there already is one.
     passkey_step_up = "passkey_step_up"
+    #: A passkey is being presented to break glass. Its own purpose rather than
+    #: the step-up's: what it answers for is the request that spends it, not
+    #: the session, so one may not be taken for the other.
+    break_glass = "break_glass"
+    #: A code has been sent to an address, and the page that asked for it is
+    #: waiting for the code to be typed back. The row names the account when
+    #: the address reaches one; where it reaches nobody the row still stands,
+    #: so that asking about an address says nothing about whether it is held.
+    email_otp = "email_otp"
+    #: The same, from the native sign-in. Kept apart for the reason
+    #: :attr:`sign_in_native` is: a browser reads its refresh token from a
+    #: cookie, and the app is given one to keep.
+    email_otp_native = "email_otp_native"
+    #: A code sent to an address no account holds has been answered, and the
+    #: handle screen is being filled in. The row carries the address the code
+    #: proved; nothing else about the account exists yet.
+    email_otp_register = "email_otp_register"
+    #: The same, from the native sign-up.
+    email_otp_register_native = "email_otp_register_native"
+    #: A passkey is being registered for an account that does not exist yet.
+    #: The row names nobody — there is nobody to name — and what it stands for
+    #: is that the gates a registration has to pass were passed before the
+    #: browser was sent to an authenticator.
+    passkey_sign_up = "passkey_sign_up"
 
 
 @dataclass(frozen=True)
@@ -93,6 +119,10 @@ async def create(
     user_id: int | None,
     purpose: ChallengePurpose,
     value: str | None = None,
+    answer: str | None = None,
+    ttl: timedelta | None = None,
+    user_email_id: int | None = None,
+    email: str | None = None,
 ) -> IssuedChallenge:
     """Open a challenge, for one account or for none. The caller commits.
 
@@ -101,6 +131,17 @@ async def create(
     stands for that value rather than for a second one. Given no value, one is
     minted here. Either way only the digest is kept.
 
+    ``answer`` is for a challenge whose value is not its own proof: the value
+    names the row and the answer is what has to arrive with it. Digested
+    together with the value, so the stored form of one code is particular to
+    the challenge that issued it. :func:`answered_by` is what checks it.
+
+    ``ttl`` overrides :data:`CHALLENGE_TTL` for a challenge whose answer has
+    further to travel than an authenticator on the desk.
+
+    ``email`` is for a challenge about an address no account holds yet; it is
+    kept encrypted, and :func:`address_of` reads it back.
+
     ``user_id`` is ``None`` for a ceremony that starts before anybody is named:
     a passkey sign-in offers what the authenticator holds for this domain, and
     the account arrives with the assertion.
@@ -108,9 +149,12 @@ async def create(
     value = value or secrets.token_urlsafe(_CHALLENGE_BYTES)
     challenge = AuthChallenge(
         challenge_hash=_hash(value),
+        answer_hash=_hash(f"{value}:{answer}") if answer is not None else None,
         user_id=user_id,
+        user_email_id=user_email_id,
+        email_encrypted=encrypt_field(email, SALT_EMAIL) if email else None,
         purpose=purpose.value,
-        expires_at=_now() + CHALLENGE_TTL,
+        expires_at=_now() + (ttl or CHALLENGE_TTL),
     )
     session.add(challenge)
     await session.flush()
@@ -156,6 +200,28 @@ async def claim_attempt(
             select(AuthChallenge).where(AuthChallenge.challenge_hash == digest)
         )
     ).first()
+
+
+def address_of(challenge: AuthChallenge) -> str | None:
+    """The address this challenge names, where it names one no account holds."""
+    if not challenge.email_encrypted:
+        return None
+    return decrypt_field(challenge.email_encrypted, SALT_EMAIL)
+
+
+def answered_by(challenge: AuthChallenge, *, value: str, answer: str) -> bool:
+    """Whether ``answer`` is the one this challenge is waiting for.
+
+    For a challenge that carries no separate answer this is ``False``: such a
+    row is proved by its value alone, and asking it this question means the
+    caller has confused two kinds of challenge.
+
+    Compared in constant time, and against a digest that was taken over the
+    value as well, so it only means anything alongside the right handle.
+    """
+    if challenge.answer_hash is None:
+        return False
+    return hmac.compare_digest(challenge.answer_hash, _hash(f"{value}:{answer}"))
 
 
 async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:

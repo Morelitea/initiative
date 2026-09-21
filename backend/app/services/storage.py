@@ -15,7 +15,7 @@ filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
 
 Phases delivered here:
 - ``LocalFilesystemStorage`` — files under ``UPLOADS_DIR/guild_<id>/`` (same
-  per-guild layout as S3; legacy flat files are relocated on boot).
+  per-guild layout as S3).
 - ``S3Storage`` — boto3 against any S3-compatible endpoint; serves via streaming
   proxy (:func:`build_upload_response`) and can presign for opt-in offload.
 
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +100,18 @@ class StorageBackend(Protocol):
         self, key: str, data: bytes, *, content_type: str | None = None
     ) -> None: ...
 
+    def write_file(
+        self, key: str, path: "Path", *, content_type: str | None = None
+    ) -> None:
+        """Store what is already on disk, without reading it into memory first.
+
+        The caller owns ``path`` and deletes it afterwards. This exists for
+        artifacts assembled on disk because they are too big to hold — a whole
+        community's export — so an implementation that just reads the file and
+        calls ``write`` would defeat the point.
+        """
+        ...
+
     def delete(self, key: str) -> bool: ...
 
     def copy(self, src_key: str, dst_key: str) -> bool: ...
@@ -124,10 +137,6 @@ class LocalFilesystemStorage:
     can never escape the (prefixed) base directory; this centralizes the
     path-traversal guard the two serve endpoints previously duplicated. The
     directory is created on demand.
-
-    (Legacy flat files written before this layout are relocated into their
-    ``guild_<id>/`` subdir by the one-time startup migration in
-    ``app.db.local_upload_migration``.)
     """
 
     def __init__(self, base_dir: str | None = None, prefix: str = "") -> None:
@@ -162,6 +171,18 @@ class LocalFilesystemStorage:
         if target is None:
             raise ValueError(f"Invalid storage key: {key!r}")
         target.write_bytes(data)
+
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        import shutil
+
+        target = self._safe_path(key)
+        if target is None:
+            raise ValueError(f"Invalid storage key: {key!r}")
+        # copyfile, not move: the source may be on a different filesystem
+        # (a temp dir), and it streams rather than loading the file.
+        shutil.copyfile(path, target)
 
     def delete(self, key: str) -> bool:
         target = self._safe_path(key)
@@ -298,6 +319,18 @@ class S3Storage:
             Bucket=self._bucket, Key=self._object_key(key), Body=data, **extra
         )
 
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        extra = self._sse_params()
+        if content_type:
+            extra["ContentType"] = content_type
+        # upload_file chunks large objects into a multipart upload itself, so
+        # the body never has to fit in memory.
+        self._client.upload_file(
+            str(path), self._bucket, self._object_key(key), ExtraArgs=extra or None
+        )
+
     def delete(self, key: str) -> bool:
         object_key = self._object_key(key)
         # head first so the bool return matches local semantics (missing -> False);
@@ -410,6 +443,11 @@ class DualReadStorage:
 
     def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
         self._primary.write(key, data, content_type=content_type)
+
+    def write_file(
+        self, key: str, path: Path, *, content_type: str | None = None
+    ) -> None:
+        self._primary.write_file(key, path, content_type=content_type)
 
     def delete(self, key: str) -> bool:
         # Remove from both stores so a deleted blob can't reappear via fallback.
@@ -645,3 +683,20 @@ def purge_guild_blobs(guild_id: int) -> int:
     and needs no per-file bookkeeping. Returns the number of objects removed.
     """
     return get_guild_storage(guild_id).delete_prefix()
+
+
+def probe() -> None:
+    """Reach the configured store once, raising if it cannot be reached.
+
+    Synchronous (boto3 is), so callers on the event loop run it in a worker
+    thread. ``head_bucket`` is the cheapest round trip that proves both the
+    credential and the bucket; the local backend is proved by its directory
+    existing and accepting a write.
+    """
+    cfg = current_storage_config()
+    if cfg.backend == "s3":
+        _get_s3_client().head_bucket(Bucket=_require_bucket())
+        return
+    directory = _local()._dir()
+    if not os.access(directory, os.W_OK):
+        raise OSError(f"{directory} is not writable")

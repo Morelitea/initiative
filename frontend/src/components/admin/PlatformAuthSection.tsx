@@ -1,6 +1,11 @@
 /**
  * Platform → Authentication: which ways in the deployment permits.
  *
+ * The ones that can *begin* a session. A second factor accompanies a sign-in
+ * rather than opening one, so it is asked about on Platform → Security beside
+ * the rule it answers — the split is the server's own `primary` flag, not a
+ * list kept here.
+ *
  * Written here and enforced server-side, so what this page does is offer the
  * choice and state what it costs — never decide it.
  */
@@ -39,18 +44,6 @@ const strandedByServer = (error: unknown): number | null => {
   return Number.isInteger(counted) && counted > 0 ? counted : null;
 };
 
-/**
- * Whether the ways in are offered on this page at all.
- *
- * They are held back for the moment: nobody is shown the choice, the platform
- * owner included, and the deployment goes on permitting whatever it already
- * permits. Set this to `true` to put the section back — the checkboxes it
- * renders, the mutation behind them and the endpoint they call are all
- * untouched, and so are their tests, which are skipped alongside it. While it
- * is off this section renders nothing at all.
- */
-const SHOW_LOGIN_METHODS: boolean = false;
-
 export const PlatformAuthSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
@@ -75,8 +68,6 @@ export const PlatformAuthSection = () => {
 
   const { methods, guilds_requiring_sign_in } = query.data;
 
-  if (!SHOW_LOGIN_METHODS) return null;
-
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;
 
@@ -98,50 +89,52 @@ export const PlatformAuthSection = () => {
     <>
       <SettingsSection title={t("auth.methods.title")} description={t("auth.methods.description")}>
         <div className="space-y-4">
-          {methods.map((entry) => {
-            // The last permitted way in cannot be withdrawn: the deployment
-            // must keep at least one, which the server holds too.
-            const isLastEnabled = entry.enabled && enabled.length === 1;
-            return (
-              <div key={entry.method} className="flex items-start gap-3">
-                <Checkbox
-                  id={`login-method-${entry.method}`}
-                  checked={entry.enabled}
-                  disabled={busy || isLastEnabled}
-                  onCheckedChange={(checked) => toggleMethod(entry.method, Boolean(checked))}
-                  className="mt-0.5"
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor={`login-method-${entry.method}`}
-                    className="cursor-pointer font-medium"
-                  >
-                    {t(`auth.methods.${entry.method}.label`)}
-                  </Label>
-                  <p className="text-muted-foreground text-sm">
-                    {t(`auth.methods.${entry.method}.help`)}
-                  </p>
-                  {isLastEnabled ? (
-                    <p className="text-muted-foreground text-xs">
-                      {t("auth.methods.lastRemaining")}
+          {methods
+            .filter((entry) => entry.primary)
+            .map((entry) => {
+              // The last permitted way in cannot be withdrawn: the deployment
+              // must keep at least one, which the server holds too.
+              const isLastEnabled = entry.enabled && enabled.length === 1;
+              return (
+                <div key={entry.method} className="flex items-start gap-3">
+                  <Checkbox
+                    id={`login-method-${entry.method}`}
+                    checked={entry.enabled}
+                    disabled={busy || isLastEnabled}
+                    onCheckedChange={(checked) => toggleMethod(entry.method, Boolean(checked))}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor={`login-method-${entry.method}`}
+                      className="cursor-pointer font-medium"
+                    >
+                      {t(`auth.methods.${entry.method}.label`)}
+                    </Label>
+                    <p className="text-muted-foreground text-sm">
+                      {t(`auth.methods.${entry.method}.help`)}
                     </p>
-                  ) : null}
-                  {entry.enabled && entry.would_strand > 0 ? (
-                    <p className="text-amber-600 text-xs dark:text-amber-500">
-                      {t("auth.methods.wouldStrand", { count: entry.would_strand })}
-                    </p>
-                  ) : null}
-                  {entry.method === "sso" && entry.enabled && guilds_requiring_sign_in > 0 ? (
-                    <p className="text-amber-600 text-xs dark:text-amber-500">
-                      {t("auth.methods.guildsRequire", {
-                        count: guilds_requiring_sign_in,
-                      })}
-                    </p>
-                  ) : null}
+                    {isLastEnabled ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t("auth.methods.lastRemaining")}
+                      </p>
+                    ) : null}
+                    {entry.enabled && entry.would_strand > 0 ? (
+                      <p className="text-amber-600 text-xs dark:text-amber-500">
+                        {t("auth.methods.wouldStrand", { count: entry.would_strand })}
+                      </p>
+                    ) : null}
+                    {entry.method === "sso" && entry.enabled && guilds_requiring_sign_in > 0 ? (
+                      <p className="text-amber-600 text-xs dark:text-amber-500">
+                        {t("auth.methods.guildsRequire", {
+                          count: guilds_requiring_sign_in,
+                        })}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </SettingsSection>
 

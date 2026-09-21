@@ -18,6 +18,13 @@ export interface SearchableComboboxItem {
   icon?: LucideIcon;
   /** Muted text after the label — what kind of thing this row is. */
   hint?: string;
+  /**
+   * Muted text on a second line — where this row lives. A name is often not
+   * enough to tell two rows apart, and unlike {@link hint} this can be long,
+   * so it gets a line of its own instead of competing with the label for the
+   * one they would otherwise share. Only {@link AsyncCombobox} draws it.
+   */
+  sublabel?: string;
 }
 
 export interface SearchableComboboxProps {

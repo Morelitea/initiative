@@ -781,7 +781,7 @@ async def test_upload_token_copies_session_satisfied_providers(
         },
     )
     assert satisfied.status_code == 200, satisfied.text
-    _, sat, asserted, _mfa, _pk = verify_upload_token(satisfied.json()["upload_token"])
+    _, sat, asserted, _amr = verify_upload_token(satisfied.json()["upload_token"])
     assert sat == frozenset({3, 7})
     # And what those providers asserted, so a community narrowing one reads
     # this token the way it reads that session.
@@ -792,9 +792,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     unsatisfied = await client.post(
         "/api/v1/auth/upload-token", headers=get_auth_headers(user)
     )
-    _, sat, asserted, _mfa, _pk = verify_upload_token(
-        unsatisfied.json()["upload_token"]
-    )
+    _, sat, asserted, _amr = verify_upload_token(unsatisfied.json()["upload_token"])
     assert sat == frozenset()
     assert asserted == {}
 
@@ -1154,8 +1152,11 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """The id_token's own account of the authentication — which methods, which
-    context class, when — is kept against the provider that performed it, and
-    its methods join the session's ``amr``."""
+    context class, when — is kept against the provider that performed it.
+
+    Its own vocabulary joins the session's ``amr`` too; the markers a rule
+    reads (``mfa``, ``hwk``, ``swk``) do so only where the operator has said
+    this provider's word counts, which nobody has here."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1196,9 +1197,10 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
             "acr": "phr",
         }
     }
-    # The session's own factors gain what the IdP named, alongside the marker
-    # that says which provider it was.
-    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
+    # The session gains the provider's own vocabulary and the marker naming
+    # it — but not ``mfa``, which this provider has not been said to be worth
+    # reading for. The record above keeps it either way.
+    assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
 
     import jwt as pyjwt
 
@@ -1206,6 +1208,52 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
         response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
     )
     assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_provider_whose_word_counts_contributes_its_factor(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Where the operator has said this provider reports a second factor
+    honestly, the marker it names reaches the session and answers a rule that
+    asks for one."""
+    await _enable_platform_oidc(session)
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    provider.asserts_second_factor = True
+    session.add(provider)
+    await session.commit()
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-counted@example.com",
+            "username": "sso-counted",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    user = (
+        await session.exec(
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-counted@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+
+    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
 
 
 @pytest.mark.integration
@@ -2405,8 +2453,9 @@ async def test_upload_token_carries_the_second_factor(
     client: AsyncClient, session: AsyncSession
 ):
     """An upload made in a community that asks for a second factor is made by
-    somebody who presented one, so the scoped token copies that marker the way
-    it copies the satisfied set beside it."""
+    somebody who presented one, so the scoped token copies the markers the way
+    it copies the satisfied set beside it — narrowed to the ones a rule can be
+    written against, so ``pwd`` and the provider's own vocabulary stay out."""
     user = await create_user(session)
 
     with_factor = await client.post(
@@ -2416,10 +2465,22 @@ async def test_upload_token_carries_the_second_factor(
         },
     )
     assert with_factor.status_code == 200, with_factor.text
-    assert verify_upload_token(with_factor.json()["upload_token"])[3] is True
+    assert verify_upload_token(with_factor.json()["upload_token"])[3] == frozenset(
+        {"mfa"}
+    )
+
+    with_a_key = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={
+            "Authorization": "Bearer " + get_auth_token(user, amr=["pwd", "hwk", "mfa"])
+        },
+    )
+    assert verify_upload_token(with_a_key.json()["upload_token"])[3] == frozenset(
+        {"hwk", "mfa"}
+    )
 
     without = await client.post(
         "/api/v1/auth/upload-token",
         headers={"Authorization": "Bearer " + get_auth_token(user, amr=["pwd"])},
     )
-    assert verify_upload_token(without.json()["upload_token"])[3] is False
+    assert verify_upload_token(without.json()["upload_token"])[3] == frozenset()

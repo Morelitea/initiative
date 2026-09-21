@@ -23,6 +23,7 @@ import {
   calendarVisibleRange,
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
@@ -823,6 +824,15 @@ export function CalendarFocusPage() {
         focusCalendarId={calendar.id}
         soloCalendar={isGuildCalendar ? calendar : undefined}
       />
+      {/* A guild calendar belongs to no initiative, and a link is only ever
+          made inside one — the panel takes itself out of the way there. */}
+      <ToolRelationsPanel
+        tool={Tool.calendar}
+        entity={calendar}
+        canEdit={hasWriteAccess(calendar.my_permission_level)}
+        entityTitle={calendar.name}
+      />
+
       <ToolCommentsPanel
         tool={Tool.calendar}
         entity={calendar}

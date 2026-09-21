@@ -21,10 +21,9 @@ Three things here are the wiki's own rather than the generic tool shape:
 """
 
 from copy import deepcopy
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -44,12 +43,8 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.recent_view import RecentViewWrite
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.wiki import (
     WikiCreate,
-    WikiListResponse,
     WikiPageCreate,
     WikiPageLink,
     WikiPageLinks,
@@ -63,18 +58,13 @@ from app.schemas.tenant.wiki import (
     serialize_wiki_page,
     serialize_document_as_page,
     serialize_wiki_page_summary,
-    serialize_wiki_summary,
 )
 from app.services import permissions as permissions_service
-from app.services.tenant import archive as archive_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
-from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import relationships as relationships_service
-from app.services.tenant import search as search_service
 from app.services.tenant import soft_delete as soft_delete_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant import tool_listing
 from app.services.tenant import wikis as wikis_service
 
 router = APIRouter()
@@ -108,7 +98,7 @@ async def _get_initiative_for_wiki(
     return initiative
 
 
-async def _annotate(session: RLSSessionDep, wikis: list) -> None:
+async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     """Everything a wiki row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, wikis)
@@ -123,7 +113,7 @@ async def _refetch_wiki(session: RLSSessionDep, wiki_id: int, *, user_id: int) -
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.wiki.not_found_code,
         )
-    await _annotate(session, [wiki])
+    await annotate_wiki_rows(session, [wiki])
     return wiki
 
 
@@ -166,166 +156,9 @@ async def _load_page(
     return wiki, page
 
 
-async def _wiki_scope(
-    session: RLSSessionDep,
-    current_user: User,
-    guild_context: GuildContext,
-    *,
-    initiative_id: Optional[int],
-    search: Optional[str] = None,
-    tag_ids: Optional[List[int]] = None,
-) -> list | None:
-    """Which wikis this reader may see — the guild, the feature switch,
-    sharing, the search box, and the tag filter. ``None`` means the initiative
-    exists but has the tool turned off."""
-    conditions = [Wiki.guild_id == guild_context.guild_id]
-
-    if initiative_id is not None:
-        initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.wikis_enabled:
-            return None
-        conditions.append(Wiki.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            Wiki.initiative_id.in_(
-                select(Initiative.id).where(Initiative.wikis_enabled == True)  # noqa: E712
-            )
-        )
-
-    conditions.append(
-        permissions_service.listing_scope_clause(
-            Tool.wiki,
-            Wiki.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-        )
-    )
-
-    name_match = search_service.tool_search_clause(Tool.wiki, Wiki.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    # ANY-of, like every other tag filter: asking for two tags is asking for
-    # either, because a shelf is narrowed by what a reader remembers about a
-    # wiki rather than by everything that is true of it.
-    if tag_ids:
-        conditions.append(
-            Wiki.id.in_(
-                tags_service.tagged_entity_ids(
-                    tags_service.TAG_LINKS[Tool.wiki.value], tuple(tag_ids)
-                )
-            )
-        )
-
-    return conditions
-
-
 # ---------------------------------------------------------------------------
 # Wikis
 # ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=WikiListResponse)
-async def list_wikis(
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the wiki's name and description, through the "
-            "same index the search page reads."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description="Order by one of: name, initiative, updated_at. Omit for newest first.",
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    tag_ids: Optional[List[int]] = Query(
-        default=None,
-        description="Only wikis carrying any of these tags.",
-    ),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=0, le=500),
-) -> WikiListResponse:
-    """List wikis visible to the current user (guild admins see all)."""
-    scope = await _wiki_scope(
-        session,
-        current_user,
-        guild_context,
-        initiative_id=initiative_id,
-        search=search,
-        tag_ids=tag_ids,
-    )
-    if scope is None:
-        return WikiListResponse(
-            items=[], total_count=0, page=page, page_size=page_size, has_next=False
-        )
-
-    scope = [*scope, archive_service.archive_filter_clause(Wiki, archived)]
-    count_subq = select(Wiki.id).where(*scope).subquery()
-    total_count = (
-        await session.exec(select(func.count()).select_from(count_subq))
-    ).one()
-
-    stmt = select(Wiki).where(*scope).options(*wikis_service.list_loader_options())
-    stmt = tool_listing.apply_tool_order(
-        stmt,
-        Wiki,
-        sort_by,
-        sort_dir,
-        default=[Wiki.updated_at.desc(), Wiki.id.desc()],
-    )
-    if page_size > 0:
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    wikis = (await session.exec(stmt)).unique().all()
-    await _annotate(session, list(wikis))
-
-    items = [serialize_wiki_summary(w, user_id=current_user.id) for w in wikis]
-    has_next = page_size > 0 and page * page_size < total_count
-    return WikiListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-    )
-
-
-@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
-async def get_wiki_counts_by_initiative(
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> InitiativeGroupedCountsResponse:
-    """Visible-wiki counts grouped by initiative, for the sidebar badges."""
-    conditions = [
-        Wiki.guild_id == guild_context.guild_id,
-        Wiki.initiative_id.in_(
-            select(Initiative.id).where(Initiative.wikis_enabled == True)  # noqa: E712
-        ),
-        permissions_service.granted_scope_clause(
-            Tool.wiki,
-            Wiki.id,
-            current_user.id,
-            guild_id=guild_context.guild_id,
-        ),
-    ]
-    statement = (
-        select(Wiki.initiative_id, func.count(Wiki.id))
-        .where(*conditions)
-        .group_by(Wiki.initiative_id)
-    )
-    rows = (await session.exec(statement)).all()
-    return InitiativeGroupedCountsResponse(
-        counts={initiative_id: count for initiative_id, count in rows}
-    )
 
 
 @router.get("/{wiki_id}", response_model=WikiRead)
@@ -390,6 +223,7 @@ async def create_wiki(
         initiative_id=initiative.id,
         owner_id=current_user.id,
         grants=wiki_in.grants,
+        actor_user_id=current_user.id,
     )
     if wiki_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -482,44 +316,19 @@ async def delete_wiki(
     await session.commit()
 
 
-@router.put("/{wiki_id}/grants", response_model=WikiRead)
-async def set_wiki_grants(
-    wiki_id: int,
-    grants: List[ResourceGrantSchema],
+async def read_after_write(
     session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    wiki_id: int,
+    user: User,
+    guild_context: GuildContext,
 ) -> WikiRead:
-    await resource_access.set_resource_grants(
-        session, Tool.wiki, wiki_id, current_user, guild_context, grants
-    )
-    hydrated = await _refetch_wiki(session, wiki_id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id)
+    """The wiki a write answers with: re-read after the commit, serialized.
 
-
-@router.post("/{wiki_id}/view", response_model=RecentViewWrite)
-async def record_wiki_view(
-    wiki_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    wiki = await resource_access.load_authorized(
-        session, Tool.wiki, wiki_id, current_user, guild_context
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="wiki",
-        entity_id=wiki.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="wiki",
-        entity_id=wiki.id,
-        last_viewed_at=record.last_viewed_at,
-    )
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
+    hydrated = await _refetch_wiki(session, wiki_id, user_id=user.id)
+    return serialize_wiki(hydrated, user_id=user.id)
 
 
 # ---------------------------------------------------------------------------

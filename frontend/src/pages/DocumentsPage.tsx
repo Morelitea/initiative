@@ -430,6 +430,7 @@ export const DocumentsView = ({
       sortBy,
       sortDir,
       prefetchDocuments,
+      isArchivedView,
     ]
   );
 

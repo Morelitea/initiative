@@ -1,12 +1,12 @@
 {
   "job": {
     "succeeded": "Import abgeschlossen.",
-    "failed": "Import fehlgeschlagen.",
-    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist."
+    "failed": "Import fehlgeschlagen."
   },
   "wizard": {
     "title": "Backup importieren",
     "back": "Zurück",
+    "next": "Weiter",
     "close": "Schließen",
     "cancelUpload": "Import abbrechen",
     "upload": "Backup hochladen",
@@ -16,8 +16,7 @@
       "hint": "Eine aus einem Community- oder Initiative-Backup von Initiative exportierte .zip.",
       "notZip": "Diese Datei ist kein gültiges Initiative-Backup.",
       "readFailed": "Diese Backup-Datei konnte nicht gelesen werden. Sie ist möglicherweise beschädigt.",
-      "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}.",
-      "reading": "Backup wird gelesen…"
+      "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}."
     },
     "peek": {
       "source": "Backup von {{name}}",
@@ -34,11 +33,18 @@
     "plan": {
       "prompt": "Überprüfe, was importiert wird",
       "willCreate": "\"{{name}}\" wird als neue Initiative \"{{proposed}}\" importiert",
-      "toolCount": "{{tool}}: {{count}}",
       "skipped_one": "{{count}} Element wurde vom Exporteur aus diesem Backup ausgelassen",
       "skipped_other": "{{count}} Elemente wurden vom Exporteur aus diesem Backup ausgelassen",
       "unknownTypes": "Unbekannte Inhaltstypen werden übersprungen: {{types}}",
       "note": "Jede Initiative im Backup wird neu erstellt — Bestehendes wird nicht verändert. Der Import läuft im Hintergrund."
+    },
+    "people": {
+      "prompt": "Wer sind diese Personen hier?",
+      "note": "Der Export nennt Personen mit dem Handle, das sie an der Herkunft hatten. Wo ein Handle genau zu einem Mitglied passt, haben wir es eingetragen — prüfe diese und gib an, wer die Übrigen sind. Bleibt eine Zeile leer, behalten diese Kommentare den mitgebrachten Namen und werden keinem Konto zugeordnet.",
+      "comments_one": "{{count}} Kommentar",
+      "comments_other": "{{count}} Kommentare",
+      "unmapped": "Niemand hier",
+      "pickerLabel": "Wer {{name}} hier ist"
     },
     "progress": {
       "title": "Wird importiert…",
@@ -87,6 +93,7 @@
     },
     "status": {
       "staged": "Wartet auf Bestätigung",
+      "fetching": "Quelle wird gelesen",
       "queued": "In Warteschlange",
       "running": "Läuft",
       "done": "Fertig",
@@ -99,11 +106,12 @@
       "initiative-project": "Projekt",
       "initiative-document": "Dokument",
       "initiative-queue": "Warteschlange",
-      "initiative-counter-group": "Zählergruppe",
       "initiative-calendar": "Kalender",
       "initiative-post": "Beitrag",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Galerie"
+      "initiative-gallery": "Galerie",
+      "initiative-counter-group": "Zählergruppe",
+      "initiative-dashboard": "Dashboard"
     },
     "cancel": "Abbrechen",
     "viewReport": "Bericht anzeigen",

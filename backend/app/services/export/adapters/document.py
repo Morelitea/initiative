@@ -36,17 +36,19 @@ caller's RLS session.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
-from app.services.export.adapters._common import selection_ids
-from app.services.export.contract import RenderItem, RenderRequest
+from app.services.export.adapters._common import (
+    BuildContext,
+    ToolExportAdapter,
+    export_stem,
+)
+from app.services.export.contract import RenderItem
 from app.services.export.engine import ExportError
-from app.services.platform.csv_export import safe_filename_component
 
 _TYPE_FORMATS: dict[str, frozenset[str]] = {
     DocumentType.native.value: frozenset({"json", "md", "pdf", "docx"}),
@@ -61,52 +63,21 @@ _TYPE_FORMATS: dict[str, frozenset[str]] = {
 _FILE_SIZE_ROW_BYTES = 1_048_576
 
 
-class DocumentAdapter:
-    source = "document"
+class DocumentAdapter(ToolExportAdapter):
+    tool = Tool.document
     template_id = "document"  # the Lexical PDF template
     formats = frozenset().union(*_TYPE_FORMATS.values())
 
-    async def count(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> int:
-        documents = await self._documents(session, user, guild_id, params, format)
-        return sum(_document_count(d) for d in documents)
+    async def fetch(
+        self, session: AsyncSession, user: User, guild_id: int, document_id: int, /
+    ) -> Document:
+        from app.services.tenant.documents import get_document_for_export
 
-    async def build(
-        self,
-        session: AsyncSession,
-        *,
-        user: User,
-        guild_id: int,
-        params: dict,
-        format: str,
-    ) -> RenderRequest:
-        from app.services.export.i18n import export_locale, localize_now
-
-        documents = await self._documents(session, user, guild_id, params, format)
-        date = localize_now(datetime.now(timezone.utc), params.get("tz")).strftime(
-            "%Y-%m-%d"
-        )
-        loc = export_locale(user)
-        return RenderRequest(
-            guild_id=guild_id,
-            template_id=self.template_id,
-            format=format,
-            batch=tuple(
-                build_document_item(
-                    document, format, guild_id=guild_id, date=date, loc=loc
-                )
-                for document in documents
-            ),
+        return await get_document_for_export(
+            session, user, guild_id, document_id=document_id
         )
 
-    async def _documents(
+    async def load(
         self,
         session: AsyncSession,
         user: User,
@@ -117,18 +88,28 @@ class DocumentAdapter:
         """Fetch + authorize every selected document (read suffices), and
         enforce the per-type format rule on each — a selection is only
         exportable in a format every member of it supports."""
-        from app.services.tenant.documents import get_document_for_export
-
         documents = []
-        for document_id in _document_ids(params):
-            document = await get_document_for_export(
-                session, user, guild_id, document_id=document_id
-            )
+        for document_id in self.selection(params):
+            document = await self.fetch(session, user, guild_id, document_id)
             allowed = _TYPE_FORMATS.get(_doc_type(document), frozenset())
             if format not in allowed:
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
             documents.append(document)
         return documents
+
+    def rows(self, document: Document, /) -> int:
+        return _document_count(document)
+
+    def item(self, document: Document, ctx: BuildContext, /) -> RenderItem:
+        from app.services.export.i18n import export_locale
+
+        return build_document_item(
+            document,
+            ctx.format,
+            guild_id=ctx.guild_id,
+            date=ctx.date,
+            loc=export_locale(ctx.user),
+        )
 
 
 def _document_count(document: Document) -> int:
@@ -152,7 +133,7 @@ def build_document_item(
     from app.services.export.i18n import et
 
     doc_type = _doc_type(document)
-    stem = f"{safe_filename_component(document.name).lower()}-{date}"
+    stem = export_stem(document.name, date)
 
     if doc_type == DocumentType.native.value and format != "json":
         from app.services.export.lexical import blocks_from_editor_state
@@ -249,7 +230,3 @@ def _envelope(document: Document, *, content: dict) -> dict:
 def _doc_type(document: Document) -> str:
     doc_type = document.document_type
     return doc_type.value if hasattr(doc_type, "value") else str(doc_type)
-
-
-def _document_ids(params: dict) -> list[int]:
-    return selection_ids(params, single_key="document_id", multi_key="document_ids")

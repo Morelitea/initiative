@@ -21,20 +21,12 @@ export function resetCounter(): void {
 // runtime; this only fills the gap in synthetic fixtures.
 const ROLE_CAPABILITIES: Record<UserRole, string[]> = {
   member: [],
-  support: ["access.request", "audit.read", "guilds.read", "users.read"],
-  moderator: [
-    "access.request",
-    "audit.read",
-    "content.moderate",
-    "guilds.read",
-    "users.manage",
-    "users.read",
-  ],
+  support: ["access.request", "guilds.read", "users.read"],
+  moderator: ["access.request", "content.moderate", "guilds.read", "users.manage", "users.read"],
   operator: [
     "access.approve",
     "access.read",
     "access.request",
-    "audit.read",
     "content.moderate",
     "data.bypass",
     "guilds.manage",
@@ -48,7 +40,6 @@ const ROLE_CAPABILITIES: Record<UserRole, string[]> = {
     "access.approve",
     "access.read",
     "apps.manage",
-    "audit.read",
     "config.manage",
     "content.moderate",
     "data.bypass",
@@ -129,7 +120,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // Answered, like the handle: a test that is not about the age gate should
     // never meet it. The gate's own tests override these two.
     age_confirmed_at: "2026-01-01T00:00:00Z",
-    age_confirmation_required: false,
+    // Agreed, for the same reason: only the terms gate's own tests want an
+    // account that has not.
+    legal_acceptance_required: false,
     age_below_minimum_at: null,
     full_name: `User ${counter}`,
     avatar_url: null,

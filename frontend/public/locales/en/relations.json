@@ -1,19 +1,16 @@
 {
-  "title": "Relations",
-  "description": "Connect this to anything else in the initiative, and say how the two are related.",
+  "title": "Relates to",
+  "description": "Everything this is connected to, and how.",
   "untitled": "Untitled",
-  "empty": "Nothing is connected to this yet.",
-  "loadFailed": "Relations are not answering. Try again in a moment.",
-  "add": "Add relation",
+  "empty": "Nothing linked yet.",
+  "loadFailed": "Links are not answering. Try again in a moment.",
+  "add": "Add link",
   "graph": {
     "alt": "{{title}} and the {{count}} things it is connected to",
     "hops": "Hops",
     "hopsN_one": "{{count}} hop",
     "hopsN_other": "{{count}} hops",
     "walking": "Looking further…",
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "reset": "Fit to the frame",
     "showTags": "Show tags"
   },
   "layout": {
@@ -28,13 +25,14 @@
   "added": "Linked.",
   "removed": "Link removed.",
   "dialog": {
-    "title": "Add a relation",
-    "description": "Say how the two are connected, then choose the thing.",
-    "relationship": "Relationship",
+    "title": "Add a link",
+    "description": "Find the thing first, then say how the two relate.",
     "entity": "Thing",
     "entityPlaceholder": "Search by name…",
     "noResults": "Nothing matches.",
-    "submit": "Add relation",
+    "relationship": "Relationship",
+    "sentenceLabel": "How the two relate",
+    "submit": "Add link",
     "submitting": "Adding…",
     "readOnlyTarget": "Some links can only be made from something you can change, and you can only read that."
   },
@@ -48,43 +46,93 @@
     "attached": {
       "title": "Attached",
       "empty": "Nothing attached yet.",
-      "option": "Is attached to"
+      "option": "is attached to"
     },
     "blockedBy": {
       "title": "Blocked by",
-      "empty": "Nothing is standing in the way.",
-      "option": "Is blocked by"
+      "option": "is blocked by"
     },
     "blocks": {
-      "title": "Blocks",
-      "empty": "This is not holding anything up.",
-      "option": "Blocks"
+      "title": "Blocking",
+      "option": "is blocking"
     },
     "partOf": {
       "title": "Part of",
-      "empty": "Not part of anything larger.",
-      "option": "Is part of"
+      "option": "is part of"
     },
     "parts": {
-      "title": "Parts",
-      "empty": "Nothing belongs to this.",
-      "option": "Has as a part"
+      "title": "Made up of",
+      "option": "is made up of"
     },
     "related": {
-      "title": "Related",
-      "empty": "Nothing related yet.",
-      "option": "Is related to"
+      "title": "See also",
+      "option": "is related to"
     },
     "referencedBy": {
-      "title": "Referenced by",
-      "empty": "Nothing mentions this.",
-      "option": "References"
+      "title": "Mentioned in",
+      "option": "is mentioned in"
     },
     "tagged": {
       "title": "Tagged",
-      "empty": "No tags.",
-      "option": "Is tagged"
+      "option": "is tagged"
     }
   },
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "title_task": "Connections",
+  "title_document": "Connections",
+  "title_project": "Attached & linked",
+  "empty_task": "Nothing linked yet. Link the document that describes this task, or the task it's blocked by.",
+  "empty_document": "Nothing linked yet. Link the project this explains, or the task it came out of.",
+  "empty_project": "Nothing linked yet. Attach the documents and files this project runs on.",
+  "count": "{{count}}",
+  "openOf": "{{open}} of {{total}} still open",
+  "help": {
+    "title": "What a link is",
+    "body": "A link records how two things relate — what a task is waiting on, which document explains a project, what mentions what.",
+    "derived": "Some links write themselves: # and [[ ]] in a body become \"Mentioned in\".",
+    "learnMore": "Learn more"
+  },
+  "anchor": {
+    "calendar": "This calendar",
+    "calendar_event": "This event",
+    "counter": "This counter",
+    "counter_group": "This group",
+    "dashboard": "This dashboard",
+    "document": "This document",
+    "gallery": "This gallery",
+    "gallery_image": "This picture",
+    "generic": "This",
+    "post": "This post",
+    "project": "This project",
+    "queue": "This queue",
+    "queue_item": "This item",
+    "task": "This task",
+    "wiki": "This wiki",
+    "wiki_page": "This page"
+  },
+  "blockers": {
+    "label_one": "{{count}} thing is holding this up",
+    "label_other": "{{count}} things are holding this up",
+    "icon": "What's holding this up"
+  },
+  "title_calendar": "Connections",
+  "title_calendar_event": "Connections",
+  "title_counter": "Connections",
+  "title_counter_group": "Connections",
+  "title_dashboard": "Connections",
+  "title_gallery": "Attached & linked",
+  "title_gallery_image": "Connections",
+  "title_post": "Connections",
+  "title_queue": "Connections",
+  "title_queue_item": "Connections",
+  "empty_calendar": "Nothing linked yet. Link the project this calendar plans, or the document that explains it.",
+  "empty_calendar_event": "Nothing linked yet. Link the task this event is for, or the document you'll work from.",
+  "empty_counter": "Nothing linked yet. Link the task this counts towards, or the project it reports on.",
+  "empty_counter_group": "Nothing linked yet. Link the project these numbers are about.",
+  "empty_dashboard": "Nothing linked yet. Link the project this reports on, or the document that reads it.",
+  "empty_gallery": "Nothing linked yet. Link the project these pictures are for.",
+  "empty_gallery_image": "Nothing linked yet. Link the task this picture is for, or the document it belongs in.",
+  "empty_post": "Nothing linked yet. Link the project this announces, or the document behind it.",
+  "empty_queue": "Nothing linked yet. Link the project this queue feeds.",
+  "empty_queue_item": "Nothing linked yet. Link the task this item became, or the document it came from."
 }

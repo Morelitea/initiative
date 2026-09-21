@@ -12,7 +12,7 @@ import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiat
 import { useWizard } from "@/hooks/useWizard";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { getItem, setItem } from "@/lib/storage";
 import { toolListRoute } from "@/lib/tools";
 
 // ── Module-level opener (same pattern as CreateTaskWizard) ──────────────────
@@ -48,17 +48,6 @@ function loadLastUsed(): LastUsedInitiative | null {
 
 function saveLastUsed(data: LastUsedInitiative) {
   setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-/**
- * Clear the stored "last used" initiative if it matches the given id.
- * Call this from error pages (404/403) to prevent stale shortcuts.
- */
-export function clearLastUsedInitiative(initiativeId: number) {
-  const stored = loadLastUsed();
-  if (stored && stored.initiativeId === initiativeId) {
-    removeItem(STORAGE_KEY);
-  }
 }
 
 // ── Component ───────────────────────────────────────────────────────────────

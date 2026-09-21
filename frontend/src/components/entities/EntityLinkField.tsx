@@ -54,6 +54,7 @@ export const EntityLinkField = ({
               type: picked.entity_type,
               id: picked.entity_id,
               title: picked.title,
+              toolTitle: picked.tool_title,
             };
             if (chosen.has(refKey(ref))) return;
             onChange([...value, ref]);
@@ -80,6 +81,7 @@ export const EntityLinkField = ({
                   updated_at: null,
                   tool: null,
                   tool_id: null,
+                  tool_title: ref.toolTitle ?? null,
                   image_urls: [],
                   icon: null,
                   color: null,
@@ -87,6 +89,7 @@ export const EntityLinkField = ({
                   mime_type: null,
                   original_filename: null,
                   smart_link_url: null,
+                  is_open: null,
                 }}
                 onRemove={
                   readOnly

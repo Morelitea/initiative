@@ -14,6 +14,74 @@ import {
   setHasActiveSession,
 } from "./client";
 
+/**
+ * The renewal round trip, as every case here needs it: `/users/me` answers 401
+ * until a refresh has landed, and then answers. What the refresh saw is
+ * returned so a test can assert on it; `answer` is how the refresh replies.
+ */
+function stubRenewal(answer: () => Response = () => HttpResponse.json({ access_token: "fresh" })) {
+  const seen = { calls: 0, body: null as string | null, renewed: false };
+  server.use(
+    http.get("/api/v1/users/me", () =>
+      seen.renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
+    ),
+    http.post("/api/v1/auth/refresh", async ({ request }) => {
+      seen.calls += 1;
+      seen.body = await request.text();
+      seen.renewed = true;
+      return answer();
+    })
+  );
+  return seen;
+}
+
+/** A renewal that is asked for and refused, however it is refused. */
+function stubFailedRenewal(answer: () => Response, ...paths: string[]) {
+  const seen = { calls: 0 };
+  server.use(
+    ...paths.map((path) => http.get(path, () => new HttpResponse(null, { status: 401 }))),
+    http.post("/api/v1/auth/refresh", () => {
+      seen.calls += 1;
+      return answer();
+    })
+  );
+  return seen;
+}
+
+/** One refusal that is a challenge rather than the end of a session. */
+type ChallengeCase = [
+  label: string,
+  challenge: {
+    path: string;
+    method?: "post";
+    status: number;
+    detail: string;
+    headers?: Record<string, string>;
+  },
+  event: string,
+  announces: Record<string, unknown>,
+];
+
+const listening: Array<[string, EventListener]> = [];
+
+/** Watch one of the client's own announcements; unhooked when the test ends. */
+function watch(event: string) {
+  const heard = vi.fn();
+  window.addEventListener(event, heard);
+  listening.push([event, heard]);
+  return heard;
+}
+
+/** What an announcement carried. */
+const announced = (heard: ReturnType<typeof vi.fn>) =>
+  (heard.mock.calls[0][0] as CustomEvent).detail;
+
+afterEach(() => {
+  for (const [event, heard] of listening.splice(0)) window.removeEventListener(event, heard);
+  setHasActiveSession(false);
+  setAuthToken(null);
+});
+
 // The silent-renewal interceptor: a 401 gets one POST /auth/refresh and a
 // retry before it surfaces as a signed-out state (web only — the refresh
 // cookie is HttpOnly, so the tests only observe the requests, not the cookie).
@@ -21,30 +89,19 @@ import {
 // hands it over, and rotation means the replacement has to be kept too.
 describe("renewal for a client that holds its own refresh token", () => {
   afterEach(() => {
-    setHasActiveSession(false);
-    setAuthToken(null);
     clearRefreshToken();
     removeItem(REFRESH_TOKEN_KEY);
   });
 
   it("sends the stored token and keeps the one that comes back", async () => {
     storeRefreshToken("rt-old");
-    let sent: unknown = null;
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", async ({ request }) => {
-        sent = await request.json();
-        renewed = true;
-        return HttpResponse.json({ access_token: "fresh", refresh_token: "rt-new" });
-      })
+    const seen = stubRenewal(() =>
+      HttpResponse.json({ access_token: "fresh", refresh_token: "rt-new" })
     );
 
     await apiClient.get("/users/me");
 
-    expect(sent).toEqual({ refresh_token: "rt-old" });
+    expect(JSON.parse(seen.body ?? "null")).toEqual({ refresh_token: "rt-old" });
     // Spent on use, so the one held has to be the replacement.
     const { readRefreshToken } = await import("@/lib/nativeSession");
     expect(readRefreshToken()).toBe("rt-new");
@@ -59,74 +116,35 @@ describe("renewal for a client that holds its own refresh token", () => {
     const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
     storeRefreshToken("rt-native");
     setHasActiveSession(true);
-    const signedOut = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, signedOut);
-
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        renewed = true;
-        return HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" });
-      })
-    );
+    const signedOut = watch(AUTH_UNAUTHORIZED_EVENT);
+    stubRenewal(() => HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" }));
 
     const response = await apiClient.get("/users/me");
 
     expect(response.data).toEqual({ id: 1 });
     expect(signedOut).not.toHaveBeenCalled();
-    window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, signedOut);
     native.mockRestore();
   });
 
   it("sends no body when there is nothing stored", async () => {
-    let sentBody: string | null = null;
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", async ({ request }) => {
-        sentBody = await request.text();
-        renewed = true;
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
+    const seen = stubRenewal();
 
     await apiClient.get("/users/me");
 
     // The browser's token is a cookie it cannot read; it sends nothing and the
     // server reads the jar.
-    expect(sentBody).toBe("");
+    expect(seen.body).toBe("");
   });
 });
 
 describe("silent session renewal", () => {
-  afterEach(() => {
-    setHasActiveSession(false);
-    setAuthToken(null);
-  });
-
   it("renews the session and retries the failed request", async () => {
-    let refreshCalls = 0;
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
-        renewed = true;
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
+    const seen = stubRenewal();
 
     const response = await apiClient.get("/users/me");
 
     expect(response.data).toEqual({ id: 1 });
-    expect(refreshCalls).toBe(1);
+    expect(seen.calls).toBe(1);
   });
 
   it("shares one renewal across concurrent 401s", async () => {
@@ -152,57 +170,39 @@ describe("silent session renewal", () => {
   });
 
   it("surfaces the signed-out state when renewal fails", async () => {
-    let refreshCalls = 0;
-    server.use(
-      http.get("/api/v1/users/me", () => new HttpResponse(null, { status: 401 })),
-      http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
-        return new HttpResponse(null, { status: 401 });
-      })
+    const seen = stubFailedRenewal(
+      () => new HttpResponse(null, { status: 401 }),
+      "/api/v1/users/me"
     );
     setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
-    try {
-      await expect(apiClient.get("/users/me")).rejects.toMatchObject({
-        response: { status: 401 },
-      });
-      // Exactly one renewal attempt — the refresh endpoint's own 401 must not
-      // recurse into another renewal.
-      expect(refreshCalls).toBe(1);
-      expect(onUnauthorized).toHaveBeenCalledTimes(1);
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    }
+    await expect(apiClient.get("/users/me")).rejects.toMatchObject({
+      response: { status: 401 },
+    });
+    // Exactly one renewal attempt — the refresh endpoint's own 401 must not
+    // recurse into another renewal.
+    expect(seen.calls).toBe(1);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
   it("emits one signed-out event when concurrent 401s share a failed renewal", async () => {
-    let refreshCalls = 0;
-    const rejected = () => new HttpResponse(null, { status: 401 });
-    server.use(
-      http.get("/api/v1/users/me", rejected),
-      http.get("/api/v1/notifications", rejected),
-      http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
-        return rejected();
-      })
+    const seen = stubFailedRenewal(
+      () => new HttpResponse(null, { status: 401 }),
+      "/api/v1/users/me",
+      "/api/v1/notifications"
     );
     setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
-    try {
-      const results = await Promise.allSettled([
-        apiClient.get("/users/me"),
-        apiClient.get("/notifications"),
-      ]);
-      expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
-      expect(refreshCalls).toBe(1);
-      expect(onUnauthorized).toHaveBeenCalledTimes(1);
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    }
+    const results = await Promise.allSettled([
+      apiClient.get("/users/me"),
+      apiClient.get("/notifications"),
+    ]);
+
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+    expect(seen.calls).toBe(1);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
   // A renewal can fail without saying anything about the session: a restart,
@@ -213,21 +213,13 @@ describe("silent session renewal", () => {
     ["a request declined before it was handled", () => new HttpResponse(null, { status: 403 })],
     ["nothing answering", () => HttpResponse.error()],
   ])("keeps the session when the renewal fails with %s", async (_label, failure) => {
-    server.use(
-      http.get("/api/v1/users/me", () => new HttpResponse(null, { status: 401 })),
-      http.post("/api/v1/auth/refresh", failure)
-    );
+    stubFailedRenewal(failure, "/api/v1/users/me");
     setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
 
-    try {
-      // The request still fails — it just doesn't take the session with it.
-      await expect(apiClient.get("/users/me")).rejects.toBeDefined();
-      expect(onUnauthorized).not.toHaveBeenCalled();
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    }
+    // The request still fails — it just doesn't take the session with it.
+    await expect(apiClient.get("/users/me")).rejects.toBeDefined();
+    expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
   // The guard above sees only its own window, so renewals are taken in turns
@@ -242,18 +234,11 @@ describe("silent session renewal", () => {
       return result;
     });
     vi.stubGlobal("navigator", { ...navigator, locks: { request } });
-    let renewed = false;
-    server.use(
-      http.get("/api/v1/users/me", () =>
-        renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        renewed = true;
-        // The lock is taken before the renewal and not yet let go.
-        renewedInsideLock = held.length === 1 && held[0] === "held:initiative:auth:refresh";
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
+    stubRenewal(() => {
+      // The lock is taken before the renewal and not yet let go.
+      renewedInsideLock = held.length === 1 && held[0] === "held:initiative:auth:refresh";
+      return HttpResponse.json({ access_token: "fresh" });
+    });
 
     try {
       const response = await apiClient.get("/users/me");
@@ -295,16 +280,7 @@ describe("silent session renewal", () => {
     };
 
     it("renews and says so, for the windows waiting on it", async () => {
-      let renewed = false;
-      server.use(
-        http.get("/api/v1/users/me", () =>
-          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-        ),
-        http.post("/api/v1/auth/refresh", () => {
-          renewed = true;
-          return HttpResponse.json({ access_token: "fresh" });
-        })
-      );
+      stubRenewal();
 
       await expect(apiClient.get("/users/me")).resolves.toMatchObject({ data: { id: 1 } });
       // The turn is given up, and how it went is left where peers can read it.
@@ -313,41 +289,22 @@ describe("silent session renewal", () => {
     });
 
     it("uses what another window renewed rather than renewing again", async () => {
-      let refreshCalls = 0;
-      let renewed = false;
-      server.use(
-        http.get("/api/v1/users/me", () =>
-          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-        ),
-        http.post("/api/v1/auth/refresh", () => {
-          refreshCalls += 1;
-          return HttpResponse.json({ access_token: "fresh" });
-        })
-      );
+      const seen = stubRenewal();
 
       const pending = apiClient.get("/users/me");
       // Another window claims the turn after this one — the last write wins —
       // and then reports that it went well, which in a real browser is what
       // the storage event carries.
       await takeTurnAsAnotherWindow();
-      renewed = true;
+      seen.renewed = true;
       reportAsAnotherWindow("ok");
 
       await expect(pending).resolves.toMatchObject({ data: { id: 1 } });
-      expect(refreshCalls).toBe(0);
+      expect(seen.calls).toBe(0);
     });
 
     it("renews itself when the window holding the turn did not get there", async () => {
-      let renewed = false;
-      server.use(
-        http.get("/api/v1/users/me", () =>
-          renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
-        ),
-        http.post("/api/v1/auth/refresh", () => {
-          renewed = true;
-          return HttpResponse.json({ access_token: "fresh" });
-        })
-      );
+      stubRenewal();
 
       const pending = apiClient.get("/users/me");
       await takeTurnAsAnotherWindow();
@@ -358,120 +315,88 @@ describe("silent session renewal", () => {
     });
   });
 
-  it("passes a guild step-up 401 through without renewal or sign-out", async () => {
-    let refreshCalls = 0;
+  // A challenge is not a signed-out session: nothing renews and nothing reads
+  // as signed out. What the client does is announce what is being asked for,
+  // and where, so the global dialog can offer the sign-in.
+  it.each<ChallengeCase>([
+    [
+      "a community's step-up, naming the provider whose login flow serves it",
+      {
+        path: "/g/1/projects/",
+        status: 401,
+        detail: "GUILD_AUTH_STEP_UP_REQUIRED",
+        headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
+      },
+      AUTH_STEP_UP_EVENT,
+      { providerSlug: "corp", guildId: 1 },
+    ],
+    [
+      "GUILD_AUTH_FACTOR_REQUIRED as a challenge naming the factor",
+      {
+        path: "/g/7/projects/",
+        status: 401,
+        detail: "GUILD_AUTH_FACTOR_REQUIRED",
+        headers: { "X-Auth-Step-Up-Guild": "7" },
+      },
+      AUTH_FACTOR_REQUIRED_EVENT,
+      { guildId: 7, kind: "totp" },
+    ],
+    [
+      "GUILD_AUTH_PASSKEY_REQUIRED as a challenge naming the factor",
+      {
+        path: "/g/7/projects/",
+        status: 401,
+        detail: "GUILD_AUTH_PASSKEY_REQUIRED",
+        headers: { "X-Auth-Step-Up-Guild": "7" },
+      },
+      AUTH_FACTOR_REQUIRED_EVENT,
+      { guildId: 7, kind: "passkey" },
+    ],
+    [
+      "the deployment's own ask, which names no community",
+      { path: "/guilds/", status: 401, detail: "PLATFORM_AUTH_FACTOR_REQUIRED" },
+      AUTH_FACTOR_REQUIRED_EVENT,
+      { guildId: null, kind: "totp", platform: true },
+    ],
+    [
+      "a change that wants a session opened a moment ago, which is the account's own",
+      {
+        path: "/auth/passkeys/register/options",
+        method: "post",
+        status: 403,
+        detail: "RECENT_PROOF_REQUIRED",
+      },
+      AUTH_FACTOR_REQUIRED_EVENT,
+      { guildId: null, kind: "proof" },
+    ],
+  ])("announces %s", async (_label, challenge, event, detail) => {
+    const posted = challenge.method === "post";
+    const refresh = { calls: 0 };
     server.use(
-      http.get("/api/v1/g/1/projects/", () =>
+      (posted ? http.post : http.get)(`/api/v1${challenge.path}`, () =>
         HttpResponse.json(
-          { detail: "GUILD_AUTH_STEP_UP_REQUIRED" },
-          {
-            status: 401,
-            headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
-          }
+          { detail: challenge.detail },
+          { status: challenge.status, headers: challenge.headers }
         )
       ),
       http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
+        refresh.calls += 1;
         return HttpResponse.json({ access_token: "fresh" });
       })
     );
     setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    const onStepUp = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    window.addEventListener(AUTH_STEP_UP_EVENT, onStepUp);
+    const onUnauthorized = watch(AUTH_UNAUTHORIZED_EVENT);
+    const onChallenge = watch(event);
 
-    try {
-      await expect(apiClient.get("/g/1/projects/")).rejects.toMatchObject({
-        response: { status: 401 },
-      });
-      expect(refreshCalls).toBe(0);
-      expect(onUnauthorized).not.toHaveBeenCalled();
-      // The challenge is announced (with the provider to step up with and
-      // the guild whose login flow serves it) so the global dialog can offer
-      // the sign-in.
-      expect(onStepUp).toHaveBeenCalledTimes(1);
-      expect((onStepUp.mock.calls[0][0] as CustomEvent).detail).toEqual({
-        providerSlug: "corp",
-        guildId: 1,
-      });
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-      window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
-    }
-  });
+    await expect(
+      posted ? apiClient.post(challenge.path) : apiClient.get(challenge.path)
+    ).rejects.toMatchObject({ response: { status: challenge.status } });
 
-  it.each([
-    ["GUILD_AUTH_FACTOR_REQUIRED", "totp"],
-    ["GUILD_AUTH_PASSKEY_REQUIRED", "passkey"],
-  ])("announces %s as a challenge naming the factor", async (detail, kind) => {
-    let refreshCalls = 0;
-    server.use(
-      http.get("/api/v1/g/7/projects/", () =>
-        HttpResponse.json({ detail }, { status: 401, headers: { "X-Auth-Step-Up-Guild": "7" } })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
-    setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    const onFactor = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
-
-    try {
-      await expect(apiClient.get("/g/7/projects/")).rejects.toMatchObject({
-        response: { status: 401 },
-      });
-      // Neither renewed nor read as signed out: the session is fine, it is
-      // this community that wants more from it.
-      expect(refreshCalls).toBe(0);
-      expect(onUnauthorized).not.toHaveBeenCalled();
-      expect(onFactor).toHaveBeenCalledTimes(1);
-      expect((onFactor.mock.calls[0][0] as CustomEvent).detail).toEqual({ guildId: 7, kind });
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
-      setHasActiveSession(false);
-    }
-  });
-
-  it("announces a change that wants a session opened a moment ago", async () => {
-    let refreshCalls = 0;
-    server.use(
-      http.post("/api/v1/auth/passkeys/register/options", () =>
-        HttpResponse.json({ detail: "RECENT_PROOF_REQUIRED" }, { status: 403 })
-      ),
-      http.post("/api/v1/auth/refresh", () => {
-        refreshCalls += 1;
-        return HttpResponse.json({ access_token: "fresh" });
-      })
-    );
-    setHasActiveSession(true);
-    const onUnauthorized = vi.fn();
-    const onFactor = vi.fn();
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-    window.addEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
-
-    try {
-      await expect(apiClient.post("/auth/passkeys/register/options")).rejects.toMatchObject({
-        response: { status: 403 },
-      });
-      expect(refreshCalls).toBe(0);
-      expect(onUnauthorized).not.toHaveBeenCalled();
-      expect(onFactor).toHaveBeenCalledTimes(1);
-      // The ask is the account's own, so it names no community.
-      expect((onFactor.mock.calls[0][0] as CustomEvent).detail).toEqual({
-        guildId: null,
-        kind: "proof",
-      });
-    } finally {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
-      window.removeEventListener(AUTH_FACTOR_REQUIRED_EVENT, onFactor);
-      setHasActiveSession(false);
-    }
+    // The session is fine; what is missing is something else.
+    expect(refresh.calls).toBe(0);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(onChallenge).toHaveBeenCalledTimes(1);
+    expect(announced(onChallenge)).toEqual(detail);
   });
 
   it("does not renew for auth lifecycle endpoints", async () => {

@@ -43,8 +43,6 @@
     }
   },
   "profile": {
-    "cardTitle": "How you appear",
-    "cardDescription": "Your picture, the name communities that show real names will use, and what you are up to.",
     "fullNameLabel": "Full name",
     "fullNamePlaceholder": "Your name",
     "currentPasswordLabel": "Current password",
@@ -58,7 +56,6 @@
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.jpg",
     "removeUploadedAvatar": "Remove uploaded avatar",
-    "clearAvatarUrl": "Clear avatar URL",
     "passwordsMismatch": "Passwords do not match",
     "saveChanges": "Save changes",
     "saving": "Saving…",
@@ -74,12 +71,6 @@
     },
     "usernameLabel": "Username",
     "usernameHelp": "How other people see you. Ask a moderator if you need it changed.",
-    "statusLabel": "Status",
-    "statusPlaceholder": "What are you up to?",
-    "statusEmojiPlaceholder": "Emoji",
-    "statusHelp": "Shown on your profile, which anyone can open.",
-    "pictureTitle": "Your picture",
-    "pictureDescription": "Upload one, or point at an image. It saves the moment you choose it.",
     "timezoneLabel": "Timezone",
     "timezonePlaceholder": "Select timezone",
     "timezoneEmpty": "No timezone found.",
@@ -264,7 +255,6 @@
   },
   "notifications": {
     "title": "Notification settings",
-    "description": "Control which notifications you receive by channel. Bell notifications always appear regardless of these settings.",
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive real-time alerts on your device",
     "pushEnabled": "Enabled",
@@ -276,12 +266,6 @@
     "timezone": "Timezone",
     "timezonePlaceholder": "Select timezone",
     "timezoneEmpty": "No timezone found.",
-    "overdueTime": "Overdue reminder time",
-    "overdueTimeHelp": "Daily reminder time (uses the timezone above).",
-    "saveSchedule": "Save schedule",
-    "savingSchedule": "Saving…",
-    "scheduleSuccess": "Notification schedule updated",
-    "scheduleError": "Unable to update notification schedule",
     "toggleError": "Unable to update notification settings",
     "categoryHeader": "Category",
     "categories": {
@@ -311,8 +295,6 @@
       "day_one": "{{count}} day before",
       "day_other": "{{count}} days before"
     },
-    "scheduleTitle": "Daily reminder",
-    "scheduleDescription": "When the overdue reminder goes out, and the clock it goes by.",
     "channelsTitle": "What you hear about",
     "channelsDescription": "One row per kind of update, one switch per channel. Nothing is on that you have not left on.",
     "switchLabel": "{{category}} on {{channel}}",
@@ -360,6 +342,52 @@
         "personal": "Only what names me",
         "nothing": "Nothing"
       }
+    },
+    "timing": {
+      "title": "When you hear about it",
+      "description": "Email can arrive as it happens or gathered up. Nothing is held back that you have not asked us to hold.",
+      "cadence": {
+        "label": "Email arrives",
+        "instant": "Right away",
+        "hourly": "Once an hour",
+        "daily": "Once a day",
+        "weekly": "Once a week",
+        "help": "Anything held is gathered into one message."
+      },
+      "day": "On",
+      "time": "At",
+      "timeHelp": "Your scheduled email, and the overdue reminder, go out at this time.",
+      "personalInstant": "Send things addressed to me right away",
+      "personalInstantHelp": "Mentions, replies, tasks assigned to you, invitations and direct messages skip the queue.",
+      "respectPresence": "Don't interrupt me while I'm using Initiative",
+      "respectPresenceHelp": "If you're already here, the bell has told you. Email waits a few minutes and mobile stays quiet.",
+      "pause": {
+        "title": "Pause notifications",
+        "description": "Email and mobile stand down for the days you pick. The bell keeps collecting, and you get one summary of everything when you're back.",
+        "active": "Paused until {{until}}",
+        "scheduled": "Pausing {{from}} to {{until}}",
+        "resume": "Resume",
+        "cancel": "Cancel",
+        "resumed": "Notifications resumed",
+        "from": "From",
+        "until": "Until",
+        "fromPlaceholder": "Today",
+        "untilPlaceholder": "Pick a day",
+        "confirm": "Pause",
+        "help": "Leave the start empty to begin now. Both days are included.",
+        "note": "Password resets and sign-in emails still arrive. Those aren't notifications."
+      },
+      "saved": "Saved",
+      "saveError": "Unable to update when you hear about things"
+    },
+    "weekdays": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+      "7": "Sunday"
     }
   },
   "dangerZone": {
@@ -369,54 +397,23 @@
     "disconnectButton": "Disconnect",
     "deactivateTitle": "Deactivate Account",
     "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. An administrator can reactivate your account later.",
-    "permanentDeleteTitle": "Permanently Delete Account",
-    "permanentDeleteDescription": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\". <bold>This cannot be undone.</bold>",
-    "permanentDeleteDescriptionText": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\".",
-    "cannotBeUndone": "This cannot be undone.",
+    "permanentDeleteTitle": "Delete Account",
+    "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
+    "cannotBeUndone": "Signing in is what stops it.",
     "deactivateButton": "Deactivate Account",
     "deleteButton": "Delete Account"
   },
   "deleteAccount": {
     "title": "Delete Account",
     "deactivateTitle": "Deactivate Account",
-    "confirmTitle": "Are you sure?",
-    "close": "Close",
     "back": "Back",
     "next": "Next",
     "cancel": "Cancel",
-    "loading": "Loading…",
-    "checkingEligibility": "Checking account status…",
-    "eligibilityError": "Unable to check account deletion eligibility.",
-    "stepType": "Choose deletion type",
-    "stepBlockers": "Resolve blockers",
-    "stepTransfer": "Transfer projects",
-    "stepConfirm": "Confirm deletion",
-    "softDeleteTitle": "Deactivate Account",
-    "softDeleteDescription": "Your account will be deactivated. You won't be able to log in, but your data will be preserved. An administrator can reactivate your account.",
-    "hardDeleteTitle": "Permanently Delete Account",
-    "hardDeleteDescription": "Your account will be permanently deleted. Your projects must be transferred to other members. Comments will show \"[Deleted User]\".",
-    "choose": "Choose",
-    "selected": "Selected",
-    "blockersTitle": "Blockers",
-    "blockersDescription": "The following issues must be resolved before you can delete your account:",
-    "warningsTitle": "Warnings",
-    "lastAdminGuilds": "You are the last admin in these communities. You must promote another member or leave before deleting.",
-    "transferTitle": "Transfer owned projects",
-    "transferDescription": "You own the following projects. Choose a new owner for each:",
-    "transferSelectPlaceholder": "Select new owner",
-    "confirmDescription": "This action is irreversible. Enter your password and type DELETE MY ACCOUNT to confirm.",
-    "passwordLabel": "Password",
-    "confirmationLabel": "Type DELETE MY ACCOUNT",
-    "confirmationPlaceholder": "DELETE MY ACCOUNT",
-    "deleteMyAccount": "Delete my account",
     "deleting": "Deleting…",
-    "deactivateMyAccount": "Deactivate my account",
-    "deactivating": "Deactivating…",
     "deleteError": "Unable to delete account",
     "chooseTypeDescription": "Choose how you want to delete your account",
     "checkBlockersDescription": "Checking if your account can be deleted",
     "checkBlockersDeactivateDescription": "Checking if your account can be deactivated",
-    "transferProjectsDescription": "Transfer project ownership",
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
     "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
@@ -427,28 +424,20 @@
     "cannotDeactivate": "Cannot deactivate account:",
     "resolveIssues": "Please resolve these issues before deleting your account.",
     "resolveIssuesDeactivate": "Please resolve these issues before deactivating your account.",
-    "important": "Important:",
     "eligible": "Your account is eligible for deletion.",
     "eligibleDeactivate": "Your account is eligible for deactivation.",
-    "selectNewOwners": "Select new owners for your projects before proceeding with account deletion.",
-    "selectNewOwnersDeactivate": "Select new owners for your projects before proceeding with account deactivation.",
-    "selectNewOwnerPlaceholder": "Select new owner…",
     "actionSerious": "This action is serious:",
     "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until an administrator reactivates your account. You will be removed from every community you belong to, and rejoining will require a fresh invite. Your name, email, and content remain intact.",
     "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
-    "typeToConfirm": "Type <1>DELETE MY ACCOUNT</1> to confirm",
     "typeToConfirmPrefix": "Type",
     "typeToConfirmSuffix": "to confirm",
-    "typeToConfirmCode": "DELETE MY ACCOUNT",
-    "agreeConsequences": "I understand this action cannot be undone",
     "deactivateAccount": "Deactivate Account",
     "deleteAccountButton": "Delete Account",
     "checking": "Checking…",
     "deactivateSuccess": "Account deactivated successfully",
-    "softDeleteSuccess": "Your account has been anonymized.",
-    "deleteSuccess": "Account deleted permanently"
+    "softDeleteSuccess": "Your account has been anonymized."
   },
   "branding": {
     "adminOnly": "Only the platform owner can manage branding settings.",
@@ -518,6 +507,13 @@
         "errorPrefix": "It failed: {{message}}"
       },
       "dismissAll": "dismiss all"
+    },
+    "cookieConsent": {
+      "title": "Cookie choices",
+      "description": "Ask arriving visitors what this deployment may keep in their browser.",
+      "toggleLabel": "Ask arriving visitors about cookies",
+      "helpText": "A chooser along the bottom of the page the first time somebody arrives: what is essential, and a switch for anything that isn't. Turn it on if this deployment has a public front door; leave it off for a server your group reaches by invitation, where it is only something in the way.",
+      "scopeNote": "Off is not a way to skip the question — it is for a deployment where nobody arrives who was not sent. With it off, everything optional stays off, because nothing may be switched on that was never agreed to."
     }
   },
   "email": {
@@ -557,23 +553,13 @@
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
     "mobileCallback": "Mobile app callback:",
-    "mappingsTitle": "OIDC Claim Mappings",
-    "mappingsDescription": "Map claim values from your identity provider to community and initiative memberships.",
-    "updateClaimPath": "Update",
-    "updatingClaimPath": "Updating…",
     "rulesTitle": "Mapping rules",
     "rulesDescription": "Map OIDC claim values to community and initiative memberships.",
     "addRule": "Add rule",
-    "addMapping": "Add mapping",
     "noRules": "No mapping rules configured yet.",
-    "noMappings": "No mappings configured. Add a mapping to automatically assign users to communities and initiatives when they sign in via OIDC.",
-    "loadingMappings": "Loading claim mappings…",
-    "mappingsLoadError": "Unable to load claim mappings.",
     "mappingClaimValue": "Claim value",
     "mappingClaimValuePlaceholder": "e.g. engineering-team",
     "mappingTargetType": "Target type",
-    "mappingTargetGuild": "Community only",
-    "mappingTargetInitiative": "Community + Initiative",
     "mappingTargetTypeGuild": "Community",
     "mappingTargetTypeInitiative": "Initiative",
     "mappingGuild": "Community",
@@ -583,12 +569,10 @@
     "mappingInitiativePlaceholder": "Select initiative",
     "mappingInitiativeRole": "Initiative role",
     "mappingInitiativeRolePlaceholder": "Select role",
-    "mappingSave": "Save",
     "mappingSaving": "Saving…",
     "mappingCancel": "Cancel",
     "mappingEdit": "Edit",
     "mappingDelete": "Delete",
-    "mappingDeleteConfirm": "Are you sure you want to delete this mapping?",
     "mappingCreateSuccess": "Mapping created",
     "mappingCreateError": "Unable to create mapping",
     "mappingUpdateSuccess": "Mapping updated",
@@ -597,10 +581,8 @@
     "mappingDeleteError": "Unable to delete mapping",
     "mappingColumnClaim": "Claim Value",
     "mappingColumnType": "Type",
-    "mappingColumnTarget": "Target",
     "mappingColumnGuild": "Community",
     "mappingColumnGuildRole": "Community role",
-    "mappingColumnRole": "Role",
     "mappingColumnInitiative": "Initiative",
     "mappingColumnInitiativeRole": "Initiative role",
     "mappingColumnActions": "Actions",
@@ -610,7 +592,6 @@
     "mappingRoleAdmin": "Admin",
     "mappingSelectGuildFirst": "Select community first",
     "mappingSelectInitiativeFirst": "Select initiative first",
-    "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
     "deploymentTitle": "This deployment",
@@ -640,12 +621,16 @@
       "guildsRequire_one": "{{count}} community requires a sign-in through a provider of its own.",
       "guildsRequire_other": "{{count}} communities require a sign-in through a provider of their own.",
       "totp": {
-        "label": "Authenticator app",
-        "help": "A code from an app, asked for after a password. People turn it on for themselves."
+        "label": "Enable two-factor authentication",
+        "help": "Let people protect their account with a code from an authenticator app. Each person turns it on for themselves; this is whether the server offers it at all."
       },
       "passkey": {
         "label": "Passkey",
         "help": "A key held by a device or a password manager, answering a prompt instead of a password. People add them for themselves."
+      },
+      "email_otp": {
+        "label": "Email OTP",
+        "help": "A one-time code sent to an address the account holds, typed back into the sign-in page. Every account with an address can use it, so it stays off until you turn it on."
       }
     },
     "sessionLifetime": {
@@ -655,7 +640,47 @@
       "placeholder": "No limit",
       "hint": "Leave blank for no limit. A figure shorter than the inactivity window becomes the only thing ending a session. Web sessions already open keep their original terms; phones are brought under a shortened limit straight away.",
       "saved": "Session limit saved.",
-      "error": "We couldn't save the session limit."
+      "error": "We couldn't save the session limit.",
+      "idleLabel": "Idle minutes",
+      "idlePlaceholder": "No limit",
+      "idleHint": "How long a session may sit untouched before it ends. Leave blank to keep the window set when the server was deployed. Using the app counts as touching it, so this only runs down once somebody has stopped. A community held to the compliance standard shortens it further for its own members."
+    },
+    "secondFactorRequirement": {
+      "title": "Two-factor authentication",
+      "description": "Whether people here have to hold a second factor — an authenticator app or a passkey — as well as a way to sign in.",
+      "levels": {
+        "nobody": {
+          "label": "Nobody has to",
+          "help": "Anybody can set one up, and nobody is asked to. Where this is what you want, communities can still ask for one of their own."
+        },
+        "platform_roles": {
+          "label": "People with a platform role",
+          "help": "Support, moderators, operators and owners — everybody whose reach is the whole server rather than the communities they belong to."
+        },
+        "everyone": {
+          "label": "Everybody",
+          "help": "Every account on this server. Communities stop being offered the question, because it is already answered for their members."
+        }
+      },
+      "wouldAsk_one": "{{count}} person doesn't have one yet. They'll be asked to set one up the next time they open the app.",
+      "wouldAsk_other": "{{count}} people don't have one yet. They'll be asked to set one up the next time they open the app.",
+      "derivedCredentials": "Personal API keys and the app on a phone can't present a code, so they stop working for anybody this covers until that person sets a factor up — and work again as soon as they do.",
+      "unmet": "Set up a second factor of your own first, then save.",
+      "present": "Enter a code",
+      "saved": "Saved. People this covers are asked at their next request.",
+      "error": "We couldn't save that.",
+      "noMethod": "Permit the authenticator app or passkeys first — with neither offered there is nothing to ask people for.",
+      "providers": {
+        "title": "Providers whose sign-in counts",
+        "help": "A sign-in through one of these answers the requirement above, because the provider reports running a second factor of its own. The same answer as on the provider's own page."
+      }
+    },
+    "factorMethods": {
+      "title": "Two-factor authentication",
+      "description": "What this server offers as a second factor. Whether anybody has to hold one is the next setting.",
+      "saved": "Two-factor authentication updated.",
+      "saveError": "Could not change two-factor authentication.",
+      "followsWaysIn": "A passkey proves the device and the person in one go, so it answers this as well as opening a session. Whether passkeys are offered is decided under Ways in."
     }
   },
   "platformUsers": {
@@ -666,7 +691,6 @@
     "filterPlaceholder": "Filter by handle…",
     "columnId": "User ID",
     "columnHandle": "Handle",
-    "columnEmail": "Email",
     "columnStatus": "Status",
     "columnActions": "Actions",
     "active": "Active",
@@ -674,16 +698,16 @@
     "anonymized": "Anonymized",
     "suspended": "Suspended",
     "resetPassword": "Reset password",
-    "resetDescription": "This will send a password reset email to {{email}}.",
+    "resetDescription": "Send a password reset to {{handle}}? They'll get a link at the address they signed up with.",
     "reactivate": "Reactivate",
     "exportUser": "Export",
     "exportAll": "Export all as CSV",
     "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
     "roleChangeError": "Unable to change user role",
-    "resetSuccess": "Password reset email sent to {{email}}",
+    "resetSuccess": "Password reset sent for {{handle}}.",
     "resetError": "Unable to send password reset",
-    "reactivateSuccess": "{{email}} has been reactivated",
+    "reactivateSuccess": "{{handle}} can sign in again.",
     "reactivateError": "Unable to reactivate user",
     "permissionRequired": "You don't have permission to view platform users.",
     "roles": {
@@ -695,7 +719,7 @@
     },
     "roleDescriptions": {
       "member": "Standard access to their own communities. No platform-wide privileges.",
-      "support": "Read-only platform visibility (users, communities, audit) and can request time-bound access to a community.",
+      "support": "Read-only platform visibility (users, communities) and can request time-bound access to a community.",
       "moderator": "Everything Support can do, plus user management (suspend/reactivate) and content moderation.",
       "operator": "Manages users, communities, and roles platform-wide, with cross-community data access and approves access requests.",
       "owner": "Full control, including app-wide configuration (auth, branding, email, AI). The only role that can manage configuration."
@@ -730,52 +754,40 @@
       "role": "Platform role",
       "roleLabel": "Role",
       "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
-    }
+    },
+    "deleted": "Deleted",
+    "erasedOn": "Erased {{date}}",
+    "erasedNever": "Kept indefinitely",
+    "restore": "Restore account",
+    "restoreSuccess": "Restored {{handle}}.",
+    "restoreError": "Could not restore the account. Please try again."
   },
   "adminDeleteUser": {
-    "title": "Delete User",
     "subtitle": "Delete {{email}}",
-    "close": "Close",
     "back": "Back",
     "next": "Next",
     "cancel": "Cancel",
     "loading": "Loading…",
     "checkingEligibility": "Checking deletion eligibility…",
-    "eligibilityError": "Unable to check deletion eligibility.",
     "stepType": "Choose deletion type",
     "stepBlockers": "Resolve blockers",
-    "stepTransfer": "Transfer projects",
-    "stepConfirm": "Confirm deletion",
     "deactivateTitle": "Deactivate",
     "deactivateDescription": "User cannot log in. PII preserved. Reversible from the users page.",
     "softDeleteTitle": "Anonymize (soft delete)",
-    "softDeleteDescription": "PII removed. User cannot log in. Content authorship is preserved as \"Deleted user\". Cannot be reversed.",
+    "softDeleteDescription": "The account disappears for everyone else and keeps everything it holds. It is erased when the deployment's window ends, unless its holder signs back in or you restore it.",
     "hardDeleteTitle": "Hard delete (purge)",
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
-    "choose": "Choose",
-    "selected": "Selected",
     "blockersTitle": "Blockers",
     "blockersDescription": "The following issues must be resolved before this user can be deleted:",
-    "warningsTitle": "Warnings",
     "guildBlockerTitle": "Last admin in community: {{guildName}}",
     "guildBlockerDescription": "Promote another member to admin:",
-    "initiativeBlockerTitle": "Sole project manager in: {{initiativeName}}",
-    "initiativeBlockerDescription": "Promote another member to project manager:",
     "promoteToGuildAdmin": "Promote to admin",
-    "promoteToInitiativePM": "Promote to PM",
-    "promoting": "Promoting…",
     "promoteSuccess": "Role updated",
     "promoteError": "Unable to update role",
     "deleteGuild": "Delete community",
     "deleteGuildConfirm": "Delete community \"{{guildName}}\"? This will permanently delete all community data.",
     "deleteGuildSuccess": "Community deleted",
     "deleteGuildError": "Unable to delete community",
-    "deleteInitiative": "Delete initiative",
-    "deleteInitiativeConfirm": "Delete initiative \"{{initiativeName}}\"? It and all its projects, tasks, documents, queues, and events will be sent to the trash. You can restore the whole tree from Settings → Trash before the retention period ends.",
-    "deleteInitiativeSuccess": "Initiative deleted",
-    "deleteInitiativeError": "Unable to delete initiative",
-    "transferTitle": "Transfer owned projects",
-    "transferDescription": "This user owns the following projects. Choose a new owner for each:",
     "transferSelectPlaceholder": "Select new owner",
     "noUsersAvailable": "No users available",
     "confirmTitle": "Confirm deletion",
@@ -790,9 +802,9 @@
     "deleting": "Deleting…",
     "deactivateButton": "Deactivate user",
     "deactivating": "Deactivating…",
-    "deleteSuccess": "User deleted",
-    "deactivateSuccess": "User deactivated",
-    "deleteError": "Unable to delete user"
+    "deleteError": "Unable to delete user",
+    "preferWindowLabel": "Delete with the recovery window instead",
+    "preferWindowHelp": "The account keeps everything and disappears for everyone else. It is erased at the end of the window unless somebody brings it back."
   },
   "accessGrants": {
     "title": "Access requests",
@@ -808,14 +820,15 @@
       "error": "Unable to break glass",
       "codeLabel": "Your authenticator code",
       "codePlaceholder": "123456, or a recovery code",
-      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks for a code. A recovery code works too.",
-      "codeNotEnrolled": "This account has no authenticator set up. Set one up under Security, then break glass."
+      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks you to prove it is you. An authenticator code, a recovery code or one of your passkeys will do.",
+      "codeNotEnrolled": "This account has no authenticator and no passkey. Set one up under Security, then break glass.",
+      "passkeySubmit": "Break glass with a passkey",
+      "passkeyPresenting": "Waiting for your passkey…"
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
     "guildIdLabel": "Community ID",
     "guildIdPlaceholder": "e.g. 42",
-    "levelLabel": "Access level",
     "levelNone": "None",
     "nothingAsked": "Choose content access, settings access, or both.",
     "levelRead": "Read-only",
@@ -977,18 +990,16 @@
     "filterByName": "Filter communities by name",
     "unlimitedPlaceholder": "Unlimited",
     "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
-    "overLimitHint": "{{name}} has more members than its current limit allows.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
-    "usersSaved": "Updated user limit for {{name}}.",
-    "usersSaveError": "Could not update the user limit. Please try again.",
     "statusInputLabel": "Status for {{name}}",
     "statusSaved": "Updated status for {{name}}.",
     "statusSaveError": "Could not update the community status. Please try again.",
     "status": {
       "active": "Active",
       "read_only": "Read-only",
-      "suspended": "Suspended"
+      "suspended": "Suspended",
+      "deleted": "Deleted"
     },
     "suspendConfirm": {
       "title": "Suspend {{name}}?",
@@ -998,7 +1009,6 @@
     "columns": {
       "id": "ID",
       "guild": "Community",
-      "members": "Members",
       "users": "Users",
       "storageLimit": "Storage limit",
       "status": "Status",
@@ -1007,7 +1017,9 @@
     "billing": {
       "noPlan": "No plan",
       "openLabel": "Open billing for {{name}}",
-      "openError": "Could not open the billing portal."
+      "openError": "Could not open the billing portal.",
+      "operatorLabel": "Billing operations for {{name}}",
+      "operations": "Operations"
     },
     "sheet": {
       "open": "Manage",
@@ -1021,6 +1033,7 @@
       "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
       "supportLabel": "Help requests",
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
+      "supportNeedsIntake": "Nowhere to send a help request yet. Bind the support stream to a project under Admin › Intake, and this can be switched on.",
       "authOption": {
         "restrictions": {
           "label": "Its own security standard",
@@ -1033,9 +1046,38 @@
       },
       "usersLabel": "Members",
       "storageLabel": "Storage limit",
-      "decidesForItself": "What it decides for itself"
+      "decidesForItself": "What it decides for itself",
+      "deleted": "Deleted",
+      "narrowings": {
+        "title": "Who it counts as its own",
+        "help": "This community says which arrivals on a provider are its people. It names the values itself, so agreeing is what lets them join on arrival — until then the connection works only for the people already in it.",
+        "claims": "{{provider}}: {{claim}} is {{values}}",
+        "joinsOnArrival": "Asks that matching arrivals join on sight.",
+        "admitsOnly": "Admits matching arrivals; does not join anybody.",
+        "agree": "Agree",
+        "withdraw": "Withdraw",
+        "error": "Could not save that answer."
+      }
     },
-    "unlimited": "No limit"
+    "unlimited": "No limit",
+    "restore": {
+      "open": "Restore community",
+      "purgesOn": "Deleted. Everything in it is destroyed on {{date}}.",
+      "purgesSoon": "Deleted. Everything in it is destroyed when the retention window ends.",
+      "retained": "Until then nothing has been removed — restoring brings the community back exactly as it was, apart from its app connections.",
+      "title": "Restore {{name}}",
+      "seatDescription": "Nobody is left who can run this community. Choose who takes it over.",
+      "seatLabel": "Who runs it",
+      "seatPlaceholder": "Choose an account",
+      "seatEmpty": "No accounts found.",
+      "seatHelp": "They become its superadmin: the seat that appoints others, reaches billing and sets sign-in.",
+      "statusDescription": "Choose what the community comes back as.",
+      "statusLabel": "Comes back as",
+      "appsNote": "Its app connections were ended when it was deleted and do not come back. Its admins can reconnect them.",
+      "confirm": "Restore",
+      "done": "Restored {{name}}.",
+      "error": "Could not restore the community. Please try again."
+    }
   },
   "operatorDashboard": {
     "title": "Operator dashboard",
@@ -1044,8 +1086,7 @@
       "users": "Users",
       "access": "Access",
       "guilds": "Communities",
-      "announcements": "Announcements",
-      "audit": "Audit"
+      "announcements": "Announcements"
     }
   },
   "storage": {
@@ -1128,7 +1169,8 @@
       "requireFactor": "Also require a second factor",
       "requireFactorHelp": "Members must have presented a code from their authenticator app in this session. They can add one without signing out.",
       "requirePasskey": "Also require a passkey",
-      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out."
+      "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out.",
+      "factorRequiredByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add."
     },
     "apiAccess": {
       "title": "API access",
@@ -1166,8 +1208,8 @@
       "providerLabel": "Provider",
       "providerPlaceholder": "Choose one",
       "claimLabel": "Whose accounts count as yours",
-      "claimHelp": "A provider like Google vouches for anybody with an account, so say which of its accounts are yours — a Workspace domain, or a tenant. Leave it blank where the provider is already only your people.",
-      "claimPlaceholder": "Leave blank for anyone it vouches for",
+      "claimHelp": "Communities here are separate, so say which accounts on this provider are yours — a Google Workspace domain, an Entra tenant, a group. Only those people count as your community's.",
+      "claimPlaceholder": "Pick what identifies your people",
       "claimValuesLabel": "Values that count",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Join them to this community",
@@ -1177,10 +1219,14 @@
         "hd": "Google Workspace domain",
         "tid": "Microsoft Entra tenant",
         "groups": "Group membership",
-        "domain": "Domain"
+        "domain": "Domain",
+        "other": "Another claim…"
       },
       "inherited": "From the deployment",
-      "makeItOurs": "Make it ours"
+      "makeItOurs": "Make it ours",
+      "claimNameLabel": "Claim name",
+      "claimNamePlaceholder": "e.g. org, realm",
+      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation."
     },
     "rules": {
       "title": "Where your people land",
@@ -1232,7 +1278,7 @@
         },
         "narrowing": {
           "title": "Whose people",
-          "prompt": "Say which accounts on it count as yours, or skip this where it already holds only your people."
+          "prompt": "Say which accounts on it count as yours."
         },
         "landing": {
           "title": "Where they land",
@@ -1248,6 +1294,15 @@
       "ruleHelp": "Optional. Name a group your provider reports and where its people land. You can add more later.",
       "requireLabel": "Require members to arrive through this provider",
       "requireHelp": "Members sign in through it and nothing else. You can change this later."
+    },
+    "secondFactor": {
+      "title": "Second factor",
+      "description": "Whether reaching this community asks for one.",
+      "allowLabel": "Require a second factor",
+      "help": "Members must have presented a second factor in this session. Which kinds count is the deployment's answer, not this community's — they can add one without signing out.",
+      "askedByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add.",
+      "saved": "Second factor saved.",
+      "error": "Could not save the second-factor requirement."
     }
   },
   "authProviders": {
@@ -1273,6 +1328,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Create accounts on first sign-in",
     "allowJitHelp": "When off, only existing accounts can sign in with this provider.",
+    "assertsSecondFactorLabel": "Its word counts for a second factor",
+    "assertsSecondFactorHelp": "When this provider says it ran a second factor, a sign-in through it answers a requirement for one. Leave it off unless you know it reports that honestly — people signing in through it are then asked for a factor of their own.",
     "enabledLabel": "Enabled",
     "save": "Save",
     "saving": "Saving…",
@@ -1333,6 +1390,8 @@
       "authentik": "The application slug, not the provider name — the issuer follows the application.",
       "authelia": "Paste the plaintext client secret, not the hash you put in the YAML.",
       "pocketId": "Passkey-only, so your sign-ins inherit passkeys with nothing further to do.",
+      "salesforce": "Sandboxes and My Domain orgs each sign in at their own address, so use the one your people actually use rather than the generic login host.",
+      "dex": "The address ends with whatever your Dex config sets as its issuer — /dex by convention. It has to match that exactly.",
       "custom": "Any provider that speaks OpenID Connect. Paste its issuer address — a .well-known URL works too."
     }
   },
@@ -1406,16 +1465,16 @@
     "title": "Community directory",
     "description": "Let communities list themselves where anyone signed in can find them and join without an invite.",
     "toggleLabel": "Run a community directory",
-    "helpText": "While this is on, an admin can list their community from its settings, and “Join a community” appears beside everyone's own. While it is off, there is nothing to browse and nothing can list itself.",
-    "reversibleNote": "Turning this off hides the directory; it does not un-list the communities that opted in. Turn it back on and the same communities are listed again.",
+    "helpText": "Turns on the public community directory: a browsable list of the communities that have chosen to be found. People search it and ask to join, and “Join a community” appears beside their own. Each community lists itself from its own settings.",
+    "reversibleNote": "Turning it off closes the directory. Communities that listed themselves stay listed, and appear again when you turn it back on.",
     "enabledToast": "The community directory is on.",
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
     "adminOnly": "You need the platform owner role to run a community directory.",
-    "ageGateLabel": "Ask members to confirm they are 13 or older",
-    "ageGateHelpText": "While this is on, anyone who belongs to a listed community is asked once to confirm their age, and the answer is kept on their account. Turn it off only where you already know every account belongs to an adult.",
+    "ageGateLabel": "Ask members to confirm they are 16 or older",
+    "ageGateHelpText": "While this is on, anyone joining a listed community from the directory is asked once to confirm their age, and the answer is kept on their account. It gates that join and nothing else — invited communities never ask. Turn it off only where you already know every account belongs to an adult.",
     "ageGateOffTitle": "Stop asking members their age?",
-    "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again, including people who join a listed community later.",
+    "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again when they join a listed community.",
     "ageGateOffConfirm": "Everyone here is 18 or older",
     "defaultDmLabel": "Direct messages for new accounts",
     "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be.",
@@ -1426,29 +1485,30 @@
     "directMessagesOffBody": "My Messages will disappear for everyone here, and messages already on their way will not be delivered. Nothing is deleted, so turning it back on restores the conversations and connections people already had.",
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
-    "directMessagesDisabledToast": "Direct messages are off."
-  },
-  "audit": {
-    "title": "Audit",
-    "description": "What was done to accounts, by whom, and when. Entries are kept after the accounts they name are gone.",
-    "whenColumn": "When",
-    "actionColumn": "Action",
-    "actorColumn": "Done by",
-    "subjectColumn": "Done to",
-    "subjectFilterPlaceholder": "Filter by account ID",
-    "departedAccount": "Account #{{id}} (deleted)",
-    "empty": "Nothing has been recorded yet.",
-    "pageOf": "Page {{page}} of {{total}} entries",
-    "actions": {
-      "user.avatar_removed": "Profile picture removed",
-      "auth.signed_in": "Signed in",
-      "auth.sign_in_failed": "Sign-in refused",
-      "auth.signed_out": "Signed out",
-      "auth.password_changed": "Password changed",
-      "auth.passkey_registered": "Passkey added",
-      "auth.passkey_removed": "Passkey removed",
-      "auth.identity_linked": "Single sign-on linked",
-      "auth.refresh_reuse_detected": "Reused session token rejected"
+    "directMessagesDisabledToast": "Direct messages are off.",
+    "retention": {
+      "title": "Keeping deleted communities",
+      "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
+      "label": "Keep communities for (days)",
+      "placeholder": "Never destroy",
+      "hint": "Counted from the moment each community was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is destroyed on a timer. Deleted communities stay in the list below until somebody restores one.",
+      "saved_one": "Deleted communities are kept for {{count}} day.",
+      "saved_other": "Deleted communities are kept for {{count}} days.",
+      "savedNever": "Deleted communities are kept indefinitely.",
+      "save": "Save how long communities are kept"
+    },
+    "accountRetention": {
+      "title": "Keeping deleted accounts",
+      "description": "A deleted account disappears for everyone else straight away and keeps everything it holds. It is erased when this window ends, unless its holder signs back in or an operator restores it.",
+      "label": "Keep accounts for (days)",
+      "placeholder": "Never erase",
+      "hint": "Counted from the moment each account was deleted, so changing this moves the date for ones already deleted.",
+      "neverHint": "Nothing is erased on a timer. Deleted accounts stay in the users table until somebody comes back or restores one.",
+      "saved_one": "Deleted accounts are kept for {{count}} day.",
+      "saved_other": "Deleted accounts are kept for {{count}} days.",
+      "savedNever": "Deleted accounts are kept indefinitely.",
+      "save": "Save how long accounts are kept"
     }
   },
   "account": {
@@ -1468,7 +1528,6 @@
     "removePasswordError": "Could not remove your password."
   },
   "privacy": {
-    "title": "Privacy",
     "dm": {
       "title": "Direct messages",
       "description": "Who can ask to message you, outside your connections.",
@@ -1480,7 +1539,7 @@
       "publicHint": "Anyone on Initiative.",
       "communitiesTitle": "Which communities count",
       "communitiesHint": "All count by default.",
-      "ageLocked": "Messaging is available to people aged 13 and over. You have not told us whether you are.",
+      "ageLocked": "Messaging is available to people aged 16 and over. You have not told us whether you are.",
       "confirmAge": "Confirm my age",
       "saved": "Saved.",
       "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
@@ -1499,9 +1558,6 @@
       "addHint": "Type someone's full handle, including the number.",
       "send": "Send request",
       "remove": "Remove",
-      "removeTitle": "Remove this connection?",
-      "removeKeepsChannel": "You share a community, so you will still be able to message each other.",
-      "removeEndsChannel": "This will also end your message channel with them.",
       "connected": "Connected {{date}}",
       "sent": "Request sent."
     },
@@ -1521,6 +1577,14 @@
       "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
       "empty": "You are not ignoring anyone.",
       "stop": "Stop ignoring"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "You haven't answered the cookie question in this browser yet. Until you do, nothing optional is switched on.",
+      "noneAllowed": "Nothing optional is switched on in this browser.",
+      "allowed": "Switched on in this browser: {{categories}}.",
+      "perBrowser": "Your answer follows your account, so a new browser or device won't ask again. Answered before you signed in, it stays in that browser until you do.",
+      "change": "Change"
     }
   },
   "twoFactor": {

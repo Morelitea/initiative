@@ -82,6 +82,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # invite redemption reads/creates/updates; row removal rides the FK cascade
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # One import's credential. Created by the connect request, read once by
+    # the worker, deleted when the job ends — all three on the system engine,
+    # and never updated, because a one-shot value is replaced by a new row
+    # rather than rotated in place.
+    "import_credentials": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Minted on first use, replaced by a re-issue, swept once the replaced
     # value stops resolving, and removed when the entity is erased.
     "identity_refs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -132,15 +137,33 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # to clear an anonymized account off other people's lists too — the row
     # survives the husk, so the FK cascade never fires for it.
     "profile_favorites": frozenset({"SELECT", "DELETE"}),
+    # Consent to the deployment's terms. Registration runs on the system
+    # engine, so the acceptance it records is written here; SELECT is for the
+    # same path asking whether an account already has one. Nothing updates a
+    # consent record, and the FK cascade off ``users`` is what removes it, so
+    # neither UPDATE nor DELETE is granted.
+    "legal_acceptances": frozenset({"SELECT", "INSERT"}),
     # An account is created on the system engine (registration, invite
     # redemption, provisioning from an identity provider), and its policy row is
     # seeded there from the operator default — hence INSERT. The other three are
     # written on the request path by the account holder; the system engine only
     # reads them for the guild-lifecycle sweeps and clears them on erasure.
     "user_dm_settings": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # An account's own payload is built on the system engine during
+    # registration, which is the SELECT. DELETE is for erasure sweeps; the FK
+    # cascade off ``users`` covers the ordinary case. The answer itself is
+    # written on the request path by the account holder, so no INSERT or
+    # UPDATE.
+    "user_cookie_consent": frozenset({"SELECT", "DELETE"}),
     # Seeded when an account is created, read on every fan-out to decide who
     # wants what, and updated by the settings endpoint.
     "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Notification email waiting to go out. The worker owns this table: it
+    # reads what is due, claims it, settles it and sweeps it, and the settings
+    # endpoint rewrites the due times when somebody changes when they read.
+    # The request path only ever appends (see SHARED_TABLE_APP_USER_GRANTS and
+    # the base-role REVOKE in the migration).
+    "email_outbox": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_dm_guild_optouts": frozenset({"SELECT", "DELETE"}),
     "contact_grants": frozenset({"SELECT", "DELETE"}),
     # SELECT also carries the notification fan-out: who, of a set of
@@ -224,10 +247,6 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # itself is written by the request path under its own role; what the system
     # engine does here is the one thing that crosses every account at once.
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Append-only. The system engine writes the record and the board reads it;
-    # UPDATE and DELETE are granted to nobody at all, here included, because a
-    # record that could be rewritten afterwards would not be one.
-    "audit_events": frozenset({"SELECT", "INSERT"}),
     # the system engine delivers push itself (background digests, PAM notices),
     # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
     # DELETE prunes tokens FCM reports as unregistered
@@ -267,9 +286,6 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Written and read on the system engine only — the request path never
-    # touches the log, in either direction.
-    "audit_events": None,
     # Minted on the system engine, behind the surfaces that hand a reference to
     # an outside party. SELECT covers the table and one policy admits the rows:
     # ``purpose = 'client'``, the sector an account's own access token names it
@@ -308,11 +324,21 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # A contacts list belongs to a signed-in account, and the bare pre-routing
     # login role serves nobody in particular.
     "profile_favorites": None,
+    # Read and written by an account about itself, after its session is
+    # routed. Nobody asks what somebody agreed to before then.
+    "legal_acceptances": None,
     # Read and written on the authenticated platform-tier path, never before a
     # session is routed.
     "user_dm_settings": None,
+    # Read and written by an account about itself, after its session is routed.
+    # A visitor who has not signed in keeps their answer in their own browser
+    # and asks the server for nothing.
+    "user_cookie_consent": None,
     # Read under the account's own role after routing, never before it.
     "user_notification_prefs": None,
+    # Written by a routed request for its recipient, never before routing and
+    # never read back on the request path at all.
+    "email_outbox": None,
     "user_dm_guild_optouts": None,
     "contact_grants": None,
     "user_ignores": None,
@@ -341,6 +367,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),
+    # Credentials are system-engine-only; no request-path role ever reads
+    # one back, which is why the table carries no policy either.
+    "import_credentials": None,
     # provider reads for the login page go via the system engine (AdminSessionDep),
     # not the bare login role
     "auth_providers": None,

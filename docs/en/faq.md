@@ -23,6 +23,13 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
     A paid hosted version is coming for people who'd rather not run a server, which is a completely reasonable thing to not want to do. See [Self-host or let us host it](self-host-or-hosted.md).
 
+??? question "Is all of it open source?"
+    The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
+
+    So are the [app kit](https://github.com/Morelitea/initiative-app-kit) and the [GitHub app](https://github.com/Morelitea/initiative-github), under MIT, if you fancy building an app of your own.
+
+    The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
+
 ??? question "Can I add tools that aren't built in?"
     Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/apps-and-marketplace.md).
 
@@ -55,29 +62,34 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ## The age question
 
 ??? question "Why am I being asked my date of birth?"
-    Because you're joining, or already in, a community that anyone signed in can find. Those are open to people you've never met, and you need to be **13 or older** to take part.
+    Because you're joining a community that anyone signed in can find — from the directory, or through an invite into one. Those are open to people you've never met, and you need to be **16 or older** to join one.
 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
     We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
 
-??? question "I'm not joining anything public. Why was I asked?"
-    Something put you in a listed community without you clicking Join: an admin added you, a single sign-on group sync did, an invite led into one, or a community you were already in listed itself. Any of those counts.
+??? question "It was just an invite from a friend. Why was I asked?"
+    Because the community it leads to is a listed one — anyone signed in can find it. The question follows the community, not the way in.
 
-    A community that hasn't listed itself never asks — not on an invite, not when you're added.
+    An invite to a community that hasn't listed itself never asks, and neither does anything else on Initiative.
+
+??? question "I've been in this community for months and it's only asking now"
+    Then nobody ever put the question to you: an admin added you, your workplace sign-in did, or the community listed itself after you joined. None of those had anyone at a keyboard to ask.
+
+    So it asks at the door instead, once. Everything else — your other communities, the rest of Initiative — stays open while you decide.
 
 ??? question "My account can't reach anybody"
     <a id="my-account-cant-message-anyone"></a>
 
-    If you can't join communities you can see, and the parts of Initiative open to people outside your own communities are closed to you, it's almost always the age question. Two things look alike:
+    If you can't join communities you can see, it's almost always the age question. Two things look alike:
 
     | What you see | What it is | What to do |
     |---|---|---|
-    | A date-of-birth screen you can't get past | You're in a listed community and haven't answered | Answer it. Once. |
-    | A screen saying you told us you're not old enough | Your account answered as under 13 | An admin can reset it — see below |
+    | A date-of-birth box when you click Join | You haven't answered yet | Answer it. Once. |
+    | A box saying you told us you're not old enough | Your account answered as under 16 | An admin can reset it — see below |
 
-    Either way, everything inside communities you were **invited** to still works.
+    Either way, everything inside the communities you already belong to still works, and so does the rest of Initiative. What the question stands in front of is joining a *listed* community.
 
     Extremely common, entirely fixable, and nobody is cross with you. Ask an administrator of your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
 

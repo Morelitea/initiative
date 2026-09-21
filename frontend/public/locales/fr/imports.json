@@ -1,12 +1,12 @@
 {
   "job": {
     "succeeded": "Import terminé.",
-    "failed": "L'import a échoué.",
-    "queued": "Import lancé — vous recevrez une notification quand il sera terminé."
+    "failed": "L'import a échoué."
   },
   "wizard": {
     "title": "Importer une sauvegarde",
     "back": "Retour",
+    "next": "Suivant",
     "close": "Fermer",
     "cancelUpload": "Annuler l'import",
     "upload": "Téléverser la sauvegarde",
@@ -16,8 +16,7 @@
       "hint": "Un .zip exporté depuis une sauvegarde de communauté ou d'initiative d'Initiative.",
       "notZip": "Ce fichier n'est pas une sauvegarde Initiative valide.",
       "readFailed": "Impossible de lire ce fichier de sauvegarde. Il est peut-être corrompu.",
-      "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}.",
-      "reading": "Lecture de la sauvegarde…"
+      "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}."
     },
     "peek": {
       "source": "Sauvegarde de {{name}}",
@@ -34,11 +33,18 @@
     "plan": {
       "prompt": "Vérifiez ce qui sera importé",
       "willCreate": "« {{name}} » sera importé comme nouvelle initiative « {{proposed}} »",
-      "toolCount": "{{tool}} : {{count}}",
       "skipped_one": "L'exportateur a laissé {{count}} élément hors de cette sauvegarde",
       "skipped_other": "L'exportateur a laissé {{count}} éléments hors de cette sauvegarde",
       "unknownTypes": "Les types de contenu inconnus seront ignorés : {{types}}",
       "note": "Chaque initiative de la sauvegarde est créée à neuf — rien d'existant n'est modifié. L'import s'exécute en arrière-plan."
+    },
+    "people": {
+      "prompt": "Qui sont ces personnes ici ?",
+      "note": "L'export désigne les personnes par l'identifiant qu'elles avaient à l'origine. Nous avons rempli ceux dont l'identifiant correspond exactement à un membre : vérifiez-les et indiquez qui sont les autres. Si vous laissez une ligne vide, ces commentaires gardent le nom avec lequel ils sont arrivés, sans être attribués à un compte.",
+      "comments_one": "{{count}} commentaire",
+      "comments_other": "{{count}} commentaires",
+      "unmapped": "Personne ici",
+      "pickerLabel": "Qui est {{name}} ici"
     },
     "progress": {
       "title": "Import en cours…",
@@ -87,6 +93,7 @@
     },
     "status": {
       "staged": "En attente de confirmation",
+      "fetching": "Lecture de la source",
       "queued": "En file",
       "running": "En cours",
       "done": "Terminé",
@@ -99,11 +106,12 @@
       "initiative-project": "Projet",
       "initiative-document": "Document",
       "initiative-queue": "File",
-      "initiative-counter-group": "Groupe de compteurs",
       "initiative-calendar": "Calendrier",
       "initiative-post": "Publication",
       "initiative-wiki": "Wiki",
-      "initiative-gallery": "Galerie"
+      "initiative-gallery": "Galerie",
+      "initiative-counter-group": "Groupe de compteurs",
+      "initiative-dashboard": "Tableau de bord"
     },
     "cancel": "Annuler",
     "viewReport": "Voir le rapport",

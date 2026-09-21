@@ -428,8 +428,7 @@
     "failed": "Dieser Status konnte nicht gespeichert werden."
   },
   "guilds": {
-    "title": "Communitys",
-    "empty": "Keine öffentlichen Communitys."
+    "title": "Communitys"
   },
   "trophyRail": "Trophäen"
 }

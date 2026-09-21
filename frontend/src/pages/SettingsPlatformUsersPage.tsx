@@ -12,6 +12,7 @@ import {
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -21,6 +22,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import {
   useAdminClearAgeBlock,
   useAdminReactivateUser,
+  useAdminRestoreUser,
   useAdminTriggerPasswordReset,
   useExportPlatformUsersCsv,
   usePlatformUsers,
@@ -59,16 +61,18 @@ const STATUS_ORDER: Record<string, number> = {
   active: 0,
   suspended: 1,
   deactivated: 2,
-  anonymized: 3,
+  // On its way out, and the one an operator is most likely to be looking for.
+  deleted: 3,
+  anonymized: 4,
 };
 
 export const SettingsPlatformUsersPage = () => {
-  const { t } = useTranslation(["settings", "common"]);
+  const { t, i18n } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
   const [resettingUserId, setResettingUserId] = useState<number | null>(null);
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState<{
     userId: number;
-    email: string;
+    handle: string;
   } | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
@@ -100,8 +104,8 @@ export const SettingsPlatformUsersPage = () => {
 
   const resetPassword = useAdminTriggerPasswordReset({
     onSuccess: (_data, userId) => {
-      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
-      toast.success(t("platformUsers.resetSuccess", { email: userEmail }));
+      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.resetSuccess", { handle }));
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
@@ -117,16 +121,26 @@ export const SettingsPlatformUsersPage = () => {
 
   const reactivateUser = useAdminReactivateUser({
     onSuccess: (_data, userId) => {
-      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
-      toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
+      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.reactivateSuccess", { handle }));
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.reactivateError"));
     },
   });
 
-  const handleResetPassword = (userId: number, email: string) => {
-    setResetPasswordConfirm({ userId, email });
+  const restoreUser = useAdminRestoreUser({
+    onSuccess: (_data, userId) => {
+      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.restoreSuccess", { handle }));
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "settings:platformUsers.restoreError"));
+    },
+  });
+
+  const handleResetPassword = (userId: number, handle: string) => {
+    setResetPasswordConfirm({ userId, handle });
   };
 
   const confirmResetPassword = () => {
@@ -204,16 +218,6 @@ export const SettingsPlatformUsersPage = () => {
       sortFn: "alphanumeric",
     },
     {
-      accessorKey: "email",
-      header: sortableHeader(t("platformUsers.columnEmail")),
-      // Shortened by the server (``AdminUserRead``), so this renders what
-      // arrived rather than shortening it here.
-      cell: ({ row }) => (
-        <p className="font-mono text-muted-foreground text-sm">{row.original.email}</p>
-      ),
-      enableSorting: true,
-    },
-    {
       id: "status",
       accessorFn: (row) => row.status,
       header: sortableHeader(t("platformUsers.columnStatus")),
@@ -222,6 +226,28 @@ export const SettingsPlatformUsersPage = () => {
         (STATUS_ORDER[rowA.original.status] ?? 99) - (STATUS_ORDER[rowB.original.status] ?? 99),
       cell: ({ row }) => {
         const platformUser = row.original;
+        // A deleted account is the one status with a date attached and a way
+        // back, so it is a tag rather than a word — the same tag a deleted
+        // community carries in the Communities table.
+        if (platformUser.status === "deleted") {
+          return (
+            <div className="space-y-0.5">
+              <Badge variant="destructive">{t("platformUsers.deleted")}</Badge>
+              {platformUser.purge_at ? (
+                <p className="text-muted-foreground text-xs">
+                  {t("platformUsers.erasedOn", {
+                    date: new Date(platformUser.purge_at).toLocaleDateString(
+                      i18n.resolvedLanguage ?? i18n.language,
+                      { year: "numeric", month: "short", day: "numeric" }
+                    ),
+                  })}
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-xs">{t("platformUsers.erasedNever")}</p>
+              )}
+            </div>
+          );
+        }
         const labelKey =
           platformUser.status === "active"
             ? "platformUsers.active"
@@ -279,9 +305,21 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.reactivate")}
               </DropdownMenuItem>
             )}
+            {/* Distinct from reactivating: nothing was dropped, so this puts
+                the account back exactly where it was. Its holder can do the
+                same thing by simply signing in. */}
+            {canReactivate && platformUser.status === "deleted" && (
+              <DropdownMenuItem
+                onSelect={() => restoreUser.mutate(platformUser.id)}
+                disabled={restoreUser.isPending}
+              >
+                <UserCheck className="h-4 w-4" />
+                {t("platformUsers.restore")}
+              </DropdownMenuItem>
+            )}
             {canReactivate && platformUser.status === "active" && (
               <DropdownMenuItem
-                onSelect={() => handleResetPassword(platformUser.id, platformUser.email)}
+                onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
                 disabled={isResetting || resetPassword.isPending}
               >
                 <Mail className="h-4 w-4" />
@@ -370,7 +408,7 @@ export const SettingsPlatformUsersPage = () => {
         onOpenChange={(open) => !open && setResetPasswordConfirm(null)}
         title={t("platformUsers.resetPassword")}
         description={t("platformUsers.resetDescription", {
-          email: resetPasswordConfirm?.email ?? "this user",
+          handle: resetPasswordConfirm?.handle ?? "this account",
         })}
         confirmLabel={t("common:send")}
         cancelLabel={t("common:cancel")}

@@ -13,25 +13,31 @@ creates.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.import_envelopes import WikiEnvelope, WikiPageEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import ensure_tag, parse_datetime, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
-from app.services.import_engine.importers._base import parse_envelope
+from app.services.import_engine.context import ImportContext
+from app.services.import_engine.importers._base import (
+    QuotesNobody,
+    grant_ownership,
+    parse_envelope,
+)
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
 
 
-class WikiImporter:
+class WikiImporter(QuotesNobody):
     envelope_type = "initiative-wiki"
     permission = PermissionKey.create_wikis
 
@@ -50,6 +56,7 @@ class WikiImporter:
         envelope: BaseModel,
         target_initiative: Initiative,
         importer: User,
+        context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: WikiEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
@@ -73,22 +80,13 @@ class WikiImporter:
         session.add(wiki)
         await session.flush()
 
-        session.add(
-            ResourceGrant(
-                resource_type="wiki",
-                resource_id=wiki.id,
-                user_id=importer.id,
-                role_id=None,
-                level=ResourceAccessLevel.owner,
-                guild_id=guild_id,
-                initiative_id=target_initiative.id,
-            )
+        await grant_ownership(
+            session,
+            tool=Tool.wiki,
+            entity_id=wiki.id,
+            target_initiative=target_initiative,
+            importer=importer,
         )
-
-        # The sharing has to be in the database before the content it governs:
-        # a flush orders its statements by table, not by the order things were
-        # added.
-        await session.flush()
 
         tags_created = 0
         tags_matched = 0
@@ -124,6 +122,10 @@ class WikiImporter:
                 is_draft=page_env.is_draft,
                 content=page_env.content or {},
                 created_by=importer.id,
+                # When it was written, where the envelope says so. Absent
+                # leaves the model's own default — the moment of the import,
+                # which is the only time this row can honestly claim.
+                **_page_timestamps(page_env),
             )
             session.add(row)
             await session.flush()
@@ -159,6 +161,24 @@ class WikiImporter:
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+def _page_timestamps(page_env: WikiPageEnvelope) -> dict[str, datetime]:
+    """The page's own times, where the envelope carried them.
+
+    Returned as kwargs so an absent or unparseable stamp falls through to the
+    model default rather than overwriting it — a restore that could not read a
+    date is not a restore that should claim the page has none.
+    """
+    stamps: dict[str, datetime] = {}
+    for field_name, raw in (
+        ("created_at", page_env.created_at),
+        ("updated_at", page_env.updated_at),
+    ):
+        parsed = parse_datetime(raw)
+        if parsed is not None:
+            stamps[field_name] = parsed
+    return stamps
 
 
 def _assign_slugs(pages: list[WikiPageEnvelope]) -> list[str]:

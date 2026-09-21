@@ -1258,25 +1258,6 @@ async def test_list_favorite_projects(
 
 
 @pytest.mark.integration
-async def test_mark_project_as_viewed(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Test marking a project as recently viewed."""
-    user = await acting_user(guild_role=GuildRole.member, initiative=True)
-    project = await create_project(session, user.initiative, user.user)
-
-    response = await client.post(
-        user.g(f"/projects/{project.id}/view"), headers=user.headers
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["entity_type"] == "project"
-    assert data["entity_id"] == project.id
-    assert "last_viewed_at" in data
-
-
-@pytest.mark.integration
 async def test_set_project_access_grants_user(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

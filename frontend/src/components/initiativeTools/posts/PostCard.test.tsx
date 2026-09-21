@@ -21,6 +21,10 @@ import { PostCard } from "./PostCard";
 // The headline is a router Link, so the card needs a router around it.
 const cardPage = (props: Parameters<typeof PostCard>[0]) => () => <PostCard {...props} />;
 
+/** One card, built from whatever this case varies. */
+const renderCard = (overrides: Parameters<typeof buildPost>[0] = {}, canPin?: boolean) =>
+  renderPage(cardPage({ post: buildPost(overrides), ...(canPin === undefined ? {} : { canPin }) }));
+
 // The body is a Lexical editor; mounting one per card is the cost the board's
 // small page size exists to bound, and none of it is what these cases are
 // about.
@@ -30,58 +34,64 @@ vi.mock("@/components/initiativeTools/posts/PostBody", () => ({
   ),
 }));
 
+const PINNED_AT = "2026-02-01T00:00:00.000Z";
+
 describe("PostCard", () => {
   it("shows the headline and the body", async () => {
-    const post = buildPost({ name: "Server maintenance Sunday" });
-    renderPage(cardPage({ post }));
+    renderCard({ name: "Server maintenance Sunday" });
 
     expect(await screen.findByText("Server maintenance Sunday")).toBeInTheDocument();
     expect(screen.getByTestId("post-body")).toBeInTheDocument();
   });
 
-  it("says a post is pinned, and until when if the pin ends", async () => {
-    const post = buildPost({
-      is_pinned: true,
-      pinned_at: "2026-02-01T00:00:00.000Z",
-      pin_expires_at: "2026-03-01T00:00:00.000Z",
-    });
-    renderPage(cardPage({ post }));
-
-    expect(await screen.findByText(/pinned until/i)).toBeInTheDocument();
-  });
-
-  it("says only that it is pinned when the pin has no end", async () => {
-    const post = buildPost({ is_pinned: true, pinned_at: "2026-02-01T00:00:00.000Z" });
-    renderPage(cardPage({ post }));
-
-    expect(await screen.findByText(/pinned to the top/i)).toBeInTheDocument();
-  });
-
   // A lapsed pin still carries pinned_at; the server decides `is_pinned`, and
   // the card must believe it rather than re-deriving from the columns.
-  it("treats a lapsed pin as not pinned", async () => {
-    const post = buildPost({
-      is_pinned: false,
-      pinned_at: "2026-01-01T00:00:00.000Z",
-      pin_expires_at: "2026-01-02T00:00:00.000Z",
-    });
-    const { container } = renderPage(cardPage({ post }));
+  it.each([
+    [
+      "says a post is pinned, and until when if the pin ends",
+      { is_pinned: true, pinned_at: PINNED_AT, pin_expires_at: "2026-03-01T00:00:00.000Z" },
+      /pinned until/i,
+    ],
+    [
+      "says only that it is pinned when the pin has no end",
+      { is_pinned: true, pinned_at: PINNED_AT },
+      /pinned to the top/i,
+    ],
+    [
+      "treats a lapsed pin as not pinned",
+      {
+        is_pinned: false,
+        pinned_at: "2026-01-01T00:00:00.000Z",
+        pin_expires_at: "2026-01-02T00:00:00.000Z",
+      },
+      null,
+    ],
+  ])("%s", async (_label, overrides, shown) => {
+    const { container } = renderCard(overrides);
     await screen.findByTestId("post-body");
 
-    expect(screen.queryByText(/pinned/i)).not.toBeInTheDocument();
-    expect(container.querySelector(".border-primary\\/40")).toBeNull();
+    if (shown) {
+      expect(screen.getByText(shown)).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText(/pinned/i)).not.toBeInTheDocument();
+      expect(container.querySelector(".border-primary\\/40")).toBeNull();
+    }
   });
 
   it("offers the pin control only to a reader who may pin", async () => {
-    const post = buildPost({ my_permission_level: "owner" });
-
-    const { unmount } = renderPage(cardPage({ post, canPin: false }));
+    const { unmount } = renderCard({ my_permission_level: "owner" }, false);
     await screen.findByTestId("post-body");
     expect(screen.queryByRole("button", { name: /pin/i })).not.toBeInTheDocument();
     unmount();
 
-    renderPage(cardPage({ post, canPin: true }));
+    renderCard({ my_permission_level: "owner" }, true);
     expect(await screen.findByRole("button", { name: /pin to top/i })).toBeInTheDocument();
+  });
+
+  it("offers unpinning on a post that is pinned", async () => {
+    renderCard({ is_pinned: true, pinned_at: PINNED_AT }, true);
+
+    expect(await screen.findByRole("button", { name: /unpin/i })).toBeInTheDocument();
   });
 
   // Both controls end the headline row together. Spacing them apart instead
@@ -99,124 +109,105 @@ describe("PostCard", () => {
   // Reacting is a read-level gesture, so it is offered on the board itself
   // rather than only after opening the post.
   it("offers reactions on the board", async () => {
-    renderPage(cardPage({ post: buildPost() }));
+    renderCard();
 
     expect(await screen.findByRole("button", { name: /add a reaction/i })).toBeInTheDocument();
   });
 
-  it("says how many comments a post has", async () => {
-    renderPage(cardPage({ post: buildPost({ comment_count: 3 }) }));
+  // "0 comments" reads as an absence; an invitation reads as a way in, so no
+  // card ever counts none.
+  it.each([
+    ["says how many comments a post has", { comment_count: 3 }, "3 comments"],
+    ["counts one comment as one", { comment_count: 1 }, "1 comment"],
+    [
+      "invites the first comment rather than counting none",
+      { comment_count: 0 },
+      /be the first to comment/i,
+    ],
+  ])("%s", async (_label, overrides, shown) => {
+    renderCard(overrides);
 
-    expect(await screen.findByText("3 comments")).toBeInTheDocument();
-  });
-
-  it("counts one comment as one", async () => {
-    renderPage(cardPage({ post: buildPost({ comment_count: 1 }) }));
-
-    expect(await screen.findByText("1 comment")).toBeInTheDocument();
-  });
-
-  // "0 comments" reads as an absence; an invitation reads as a way in.
-  it("invites the first comment rather than counting none", async () => {
-    renderPage(cardPage({ post: buildPost({ comment_count: 0 }) }));
-
-    expect(await screen.findByText(/be the first to comment/i)).toBeInTheDocument();
+    expect(await screen.findByText(shown)).toBeInTheDocument();
     expect(screen.queryByText(/0 comments/)).not.toBeInTheDocument();
   });
 
   it("says nothing about a thread that is turned off", async () => {
-    const post = buildPost({ comments_enabled: false, comment_count: 0 });
-    renderPage(cardPage({ post }));
+    renderCard({ comments_enabled: false, comment_count: 0 });
     await screen.findByTestId("post-body");
 
     expect(screen.queryByText(/be the first to comment/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/comment/i)).not.toBeInTheDocument();
   });
 
-  it("offers unpinning on a post that is pinned", async () => {
-    const post = buildPost({ is_pinned: true, pinned_at: "2026-02-01T00:00:00.000Z" });
-    renderPage(cardPage({ post, canPin: true }));
-
-    expect(await screen.findByRole("button", { name: /unpin/i })).toBeInTheDocument();
-  });
-
   // A card only reaches somebody who may see the notice, so a draft is on the
   // board of whoever wrote it and nobody else. It has to say so — otherwise it
   // reads as posted, and the author thinks a thing was announced that was not.
-  it("says a scheduled notice is not up yet, and when it will be", async () => {
-    const post = buildPost({
-      is_published: false,
-      published_at: null,
-      scheduled_for: "2026-03-01T09:00:00.000Z",
-    });
-    renderPage(cardPage({ post }));
+  it.each([
+    [
+      "says a scheduled notice is not up yet, and when it will be",
+      { is_published: false, published_at: null, scheduled_for: "2026-03-01T09:00:00.000Z" },
+      true,
+    ],
+    ["says nothing about scheduling on a notice that is up", {}, false],
+  ])("%s", async (_label, overrides, scheduled) => {
+    renderCard(overrides);
+    await screen.findByTestId("post-body");
 
-    expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /post now/i })).toBeInTheDocument();
+    if (scheduled) {
+      expect(screen.getByText(/scheduled for/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /post now/i })).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText(/scheduled for/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /post now/i })).not.toBeInTheDocument();
+    }
   });
 
   // Being on screen is what marks a notice read, so the only control here is
-  // the way back — and it belongs only on a notice that has one.
-  it("offers to mark a read notice unread", async () => {
-    // Somebody else's — see the pair at the end of this file for why an
-    // author is never offered it on their own.
-    renderPage(cardPage({ post: buildPost({ is_read: true, created_by: 999 }) }));
-
-    expect(await screen.findByRole("button", { name: /mark unread/i })).toBeInTheDocument();
-  });
-
-  it("offers nothing to mark on a notice still unread", async () => {
-    renderPage(cardPage({ post: buildPost({ is_read: false }) }));
+  // the way back — and it belongs only on a notice that has one. A notice you
+  // wrote is read by you and carries no receipt — the server refuses to record
+  // one for an author — so there is nothing to put back.
+  it.each([
+    [
+      "offers to mark a read notice of somebody else's unread",
+      { is_read: true, created_by: 999 },
+      true,
+    ],
+    ["offers nothing to mark on a notice still unread", { is_read: false }, false],
+    ["offers no mark-unread on a notice the reader wrote", { is_read: true, created_by: 1 }, false],
+  ])("%s", async (_label, overrides, offered) => {
+    renderCard(overrides);
     await screen.findByTestId("post-body");
 
-    expect(screen.queryByRole("button", { name: /mark unread/i })).not.toBeInTheDocument();
+    const control = screen.queryByRole("button", { name: /mark unread/i });
+    if (offered) {
+      expect(control).toBeInTheDocument();
+    } else {
+      expect(control).not.toBeInTheDocument();
+    }
   });
 
-  // Whether a notice landed is the point of putting it on a board, so the
-  // count is on the card rather than behind the post's own page.
   // A board that shows only what was said makes every notice read as the app's
   // own announcement. A notice is somebody saying something.
   it("signs the notice with whoever wrote it", async () => {
-    renderPage(cardPage({ post: buildPost() }));
+    renderCard();
 
     expect(await screen.findByText(/author/)).toBeInTheDocument();
   });
 
-  it("says how many have read it", async () => {
-    renderPage(cardPage({ post: buildPost({ read_count: 12 }) }));
-
-    expect(await screen.findByRole("button", { name: /read by 12/i })).toBeInTheDocument();
-  });
-
-  it("says nothing about a notice nobody has read", async () => {
-    renderPage(cardPage({ post: buildPost({ read_count: 0 }) }));
+  // Whether a notice landed is the point of putting it on a board, so the
+  // count is on the card rather than behind the post's own page.
+  it.each([
+    ["says how many have read it", { read_count: 12 }, true],
+    ["says nothing about a notice nobody has read", { read_count: 0 }, false],
+  ])("%s", async (_label, overrides, counted) => {
+    renderCard(overrides);
     await screen.findByTestId("post-body");
 
-    expect(screen.queryByRole("button", { name: /read by/i })).not.toBeInTheDocument();
-  });
-
-  it("says nothing about scheduling on a notice that is up", async () => {
-    renderPage(cardPage({ post: buildPost() }));
-    await screen.findByTestId("post-body");
-
-    expect(screen.queryByText(/scheduled for/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /post now/i })).not.toBeInTheDocument();
-  });
-
-  // A notice you wrote is read by you and carries no receipt — the server
-  // refuses to record one for an author — so there is nothing to put back.
-  it("offers no mark-unread on a notice the reader wrote", async () => {
-    const post = buildPost({ is_read: true, created_by: 1 });
-    renderPage(cardPage({ post }));
-
-    await screen.findByText(post.name);
-    expect(screen.queryByRole("button", { name: /mark unread/i })).not.toBeInTheDocument();
-  });
-
-  it("still offers it on somebody else's notice", async () => {
-    const post = buildPost({ is_read: true, created_by: 999 });
-    renderPage(cardPage({ post }));
-
-    expect(await screen.findByRole("button", { name: /mark unread/i })).toBeInTheDocument();
+    const receipt = screen.queryByRole("button", { name: /read by/i });
+    if (counted) {
+      expect(receipt).toHaveAccessibleName(/read by 12/i);
+    } else {
+      expect(receipt).not.toBeInTheDocument();
+    }
   });
 });

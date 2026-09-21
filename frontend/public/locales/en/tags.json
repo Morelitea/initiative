@@ -44,7 +44,9 @@
     "existingTags": "Existing tags",
     "noTagsFound": "No tags found.",
     "createTag": "Create \"{{name}}\"",
-    "selected": "{{count}} selected"
+    "selected": "{{count}} selected",
+    "filterLabel": "Tags",
+    "anyTag": "Any tag"
   },
   "tree": {
     "notTagged": "Not tagged",
@@ -59,6 +61,5 @@
   "createError": "Unable to create tag.",
   "updateError": "Unable to update tag.",
   "deleteError": "Unable to delete tag.",
-  "taskTagsError": "Unable to update task tags.",
   "toolTagsError": "Unable to update tags."
 }

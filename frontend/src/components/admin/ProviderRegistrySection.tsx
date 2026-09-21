@@ -38,6 +38,7 @@ interface ProviderFormState {
   scopes: string;
   role_claim_path: string;
   allow_jit: boolean;
+  asserts_second_factor: boolean;
   enabled: boolean;
 }
 
@@ -50,6 +51,7 @@ const EMPTY_FORM: ProviderFormState = {
   scopes: "openid email profile",
   role_claim_path: "",
   allow_jit: true,
+  asserts_second_factor: false,
   enabled: true,
 };
 
@@ -128,6 +130,7 @@ export const ProviderRegistrySection = ({
       scopes: provider.scopes ?? "",
       role_claim_path: provider.role_claim_path ?? "",
       allow_jit: provider.allow_jit,
+      asserts_second_factor: provider.asserts_second_factor ?? false,
       enabled: provider.enabled,
     });
     setClearSecret(false);
@@ -176,6 +179,7 @@ export const ProviderRegistrySection = ({
           scopes: form.scopes || null,
           role_claim_path: form.role_claim_path.trim() || null,
           allow_jit: form.allow_jit,
+          asserts_second_factor: form.asserts_second_factor,
           enabled: form.enabled,
           // Write-only secret: absent keeps, empty string clears.
           ...(clearSecret
@@ -448,6 +452,23 @@ export const ProviderRegistrySection = ({
                 checked={form.allow_jit}
                 onCheckedChange={(checked) =>
                   setForm((prev) => ({ ...prev, allow_jit: Boolean(checked) }))
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+              <div>
+                <Label htmlFor="provider-asserts-factor" className="font-medium">
+                  {t("authProviders.assertsSecondFactorLabel")}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t("authProviders.assertsSecondFactorHelp")}
+                </p>
+              </div>
+              <Switch
+                id="provider-asserts-factor"
+                checked={form.asserts_second_factor}
+                onCheckedChange={(checked) =>
+                  setForm((prev) => ({ ...prev, asserts_second_factor: Boolean(checked) }))
                 }
               />
             </div>

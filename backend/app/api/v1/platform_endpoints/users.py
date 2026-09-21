@@ -17,6 +17,8 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    FactorExemptSessionDep,
+    FactorExemptUser,
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
@@ -40,7 +42,6 @@ from app.core.security import (
     has_usable_password,
 )
 from app.core.user_input_validators import (
-    normalize_notification_time,
     normalize_reminder_minutes,
     normalize_timezone,
     normalize_week_starts_on,
@@ -56,12 +57,15 @@ from app.models.platform.guild import (
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import Presence, User, UserStatus
+from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
     CommunityGuildRead,
     GuildBannerRead,
     GuildCategory,
 )
 from app.schemas.platform.user import (
+    CookieConsentRead,
+    CookieConsentUpdate,
     UserEmailCreate,
     UserEmailListResponse,
     UserEmailRead,
@@ -101,10 +105,10 @@ from app.core.messages import (
     AddressMessages,
     AuthMessages,
     GuildMessages,
+    LegalMessages,
     UserMessages,
 )
 from app.services.auth import addresses
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
@@ -114,8 +118,10 @@ from app.services.tenant import app_delegations as app_delegations_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
+from app.services.platform import cookie_consent as cookie_consent_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
+from app.services.platform import legal as legal_service
 from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
@@ -166,9 +172,11 @@ GuildAdminContext = Annotated[
 
 @router.get("/me", response_model=UserRead)
 async def read_users_me(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: FactorExemptSessionDep,
+    current_user: FactorExemptUser,
 ) -> UserRead:
+    """Who you are. Reachable while the deployment's second-factor rule is
+    unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
@@ -180,11 +188,16 @@ async def read_users_me(
         session, user_id=current_user.id
     )
     payload.has_password = has_usable_password(current_user.hashed_password)
-    # The standing age gate. Costs a query only for an account that has not
-    # confirmed on a deployment that asks — it short-circuits on the column
-    # for everyone else, and stops for good once they answer.
-    payload.age_confirmation_required = (
-        await guilds_service.age_confirmation_outstanding(session, user=current_user)
+    # The hosted deployment's terms. Short-circuits on the deployment switch
+    # for every self-hoster, and costs one indexed count everywhere else.
+    payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
+        session, user=current_user
+    )
+    # Own-row read on the routed session. Null where this account has never
+    # answered, which is what lets a browser tell "never asked" from "asked,
+    # and allowed nothing".
+    payload.cookie_consent = _cookie_consent_read(
+        await cookie_consent_service.get_consent(session, user_id=current_user.id)
     )
     return payload
 
@@ -678,6 +691,19 @@ async def export_users_csv(
 
     csv_bytes = csv_export.build_csv(_GUILD_CSV_HEADERS, csv_rows)
 
+    # Nothing changed, so the endpoint has no commit of its own to ride: the
+    # record is the whole write.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBERS_EXPORTED,
+        actor_user_id=guild_context.membership.user_id,
+        guild_id=guild_context.guild_id,
+        target_type="guild",
+        target_id=guild_context.guild_id,
+        detail={"count": len(rows)},
+    )
+    await session.commit()
+
     if len(rows) == 1 and user_id:
         single_user = rows[0][0]
         filename = (
@@ -735,7 +761,7 @@ async def claim_my_username(
 
 #: The age below which somebody may not take part in the parts of the platform
 #: that are open to people they have not met.
-MINIMUM_AGE_YEARS = 13
+MINIMUM_AGE_YEARS = 16
 
 #: A bound on what counts as a date somebody could have been born on. Not a
 #: judgement about anyone — it is what separates a real answer from a typo.
@@ -760,10 +786,16 @@ async def confirm_my_age(
 ) -> UserRead:
     """Answer, once, whether this account is old enough for the open parts.
 
-    Asked of every account that belongs to a community anyone on the deployment
-    can find. The answer lives on the account rather than per community: it is a
-    fact about the person, and the second listed community they join asks
-    nothing.
+    Asked where somebody is about to join a community anyone on the deployment
+    can find, and nowhere else. The answer lives on the account rather than per
+    community: it is a fact about the person, and the second listed community
+    they join asks nothing.
+
+    **It gates the directory, not the deployment.** A community somebody was
+    invited to is theirs and whoever runs it to answer for, so nothing here
+    stands between them and it — an account that has never answered, or
+    answered under age, keeps every private community it belongs to and
+    everything in them.
 
     **The date is not kept.** It is read here, compared against the minimum, and
     goes out of scope with the request — there is no column for it, nothing logs
@@ -818,6 +850,70 @@ async def confirm_my_age(
         await session.refresh(current_user)
 
     return await users_service.to_self_read(current_user)
+
+
+def _cookie_consent_read(row: UserCookieConsent | None) -> CookieConsentRead | None:
+    return None if row is None else CookieConsentRead.model_validate(row)
+
+
+@router.put("/me/cookie-consent", response_model=CookieConsentRead)
+async def set_cookie_consent(
+    payload: CookieConsentUpdate,
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> CookieConsentRead:
+    """Record what this account allows to be kept in a browser.
+
+    The browser it was answered in keeps its own copy — a visitor who has not
+    signed in has no account to attach one to, and the answer is about that
+    browser either way. This is what carries it to a browser that has never
+    been asked, and carries a change of mind back to one that has.
+
+    Replaces rather than appends: the question is what applies now. Sending it
+    again with the same answer is a no-op apart from the stamp, which is what
+    two browsers compare to tell whose answer is the later one.
+    """
+    row = await cookie_consent_service.record_consent(
+        session,
+        user_id=current_user.id,
+        granted=payload.granted,
+        version=payload.version,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return CookieConsentRead.model_validate(row)
+
+
+@router.post("/me/legal-acceptance", response_model=UserRead)
+async def accept_legal_documents(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserRead:
+    """Agree to this deployment's terms and privacy policy.
+
+    For an account that never met the signup form — one an identity provider
+    provisioned on first sign-in. The form's own notice is the agreement for
+    everybody else, recorded as the account is created.
+
+    Saying it again appends: the table records acceptances, not a state, and
+    agreeing to a newer revision is a real event rather than a correction to
+    an old one. The screen only appears while something is outstanding, so in
+    practice this is written once.
+
+    A deployment with no terms of its own has nothing to accept, so this
+    answers 404 rather than writing an empty record.
+    """
+    if not legal_service.legal_documents_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=LegalMessages.NOT_CONFIGURED,
+        )
+    if await legal_service.acceptance_outstanding(session, user=current_user):
+        await legal_service.record_acceptance(session, user_id=current_user.id)
+        await session.commit()
+    payload = await users_service.to_self_read(current_user)
+    payload.legal_acceptance_required = False
+    return payload
 
 
 def _address_read(row) -> UserEmailRead:
@@ -1053,12 +1149,6 @@ async def update_users_me(
         normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:
             current_user.timezone = normalized_timezone
-    if "overdue_notification_time" in update_data:
-        normalized_time = normalize_notification_time(
-            update_data["overdue_notification_time"]
-        )
-        if normalized_time:
-            current_user.overdue_notification_time = normalized_time
     if "event_reminder_minutes_before" in update_data:
         # ``None`` is a valid value here (reminders off), so assign directly.
         current_user.event_reminder_minutes_before = normalize_reminder_minutes(
@@ -1122,34 +1212,17 @@ async def update_users_me(
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
+    if password:
+        # In the same transaction as the password itself, so the change and
+        # the record of it land together or not at all.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
+            actor_user_id=current_user.id,
+            detail={"via": "self_service"},
+        )
     await session.commit()
     await session.refresh(current_user)
-    if password:
-        # After the commit, and on its own: the password lands on the request
-        # session and ``audit_events`` is reached on the system engine, so the
-        # two cannot share a transaction. Recording afterwards means a failure
-        # here loses a record of a change that happened, rather than leaving
-        # one that asserts a change that did not.
-        #
-        # Reported rather than raised, for the same reason
-        # ``identity_refs.forget_user`` is: the password has already changed
-        # and the caller's session has already been replaced, so answering
-        # with an error would describe work that succeeded as failed and
-        # invite a retry of it.
-        try:
-            await audit_service.record(
-                admin_session,
-                event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
-                actor_user_id=current_user.id,
-                detail={"via": "self_service"},
-            )
-            await admin_session.commit()
-        except SQLAlchemyError:
-            await admin_session.rollback()
-            logger.warning(
-                "password change for user %s was not recorded in the audit log",
-                current_user.id,
-            )
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing
@@ -1351,7 +1424,9 @@ async def delete_own_account(
         )
 
     if request.action == "deactivate":
-        await users_service.deactivate_user(session, current_user.id)
+        await users_service.deactivate_user(
+            session, current_user.id, actor_user_id=current_user.id
+        )
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
@@ -1359,11 +1434,19 @@ async def delete_own_account(
         )
 
     # action == "soft_delete"
-    await users_service.soft_delete_user(session, current_user.id)
+    #
+    # Nothing is erased here. The account moves to ``deleted`` and keeps
+    # everything — memberships, initiative roles, the documents it owns — so
+    # that coming back restores it whole. It stops existing for everybody
+    # else immediately, and ``account_purge`` erases it when the deployment's
+    # window runs out. Signing in before then calls the whole thing off.
+    await users_service.request_account_deletion(
+        session, current_user.id, actor_user_id=current_user.id
+    )
     return AccountDeletionResponse(
         success=True,
         action="soft_delete",
-        message="Your account has been anonymized.",
+        message="Your account has been deleted.",
     )
 
 
@@ -1538,7 +1621,10 @@ async def claim_unowned_content(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
     counts = await ownership_service.claim_unowned_content(
-        session, guild_id=guild_context.guild_id, to_user_id=payload.new_owner_id
+        session,
+        guild_id=guild_context.guild_id,
+        to_user_id=payload.new_owner_id,
+        actor_user_id=current_admin.id,
     )
     await session.commit()
     return _transfer_payload(counts)
@@ -1596,7 +1682,11 @@ async def transfer_ownership(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
     counts = await ownership_service.transfer_content_ownership(
-        session, from_user_id=user_id, to_user_id=payload.new_owner_id
+        session,
+        from_user_id=user_id,
+        to_user_id=payload.new_owner_id,
+        guild_id=guild_context.guild_id,
+        actor_user_id=current_admin.id,
     )
     await session.commit()
     return _transfer_payload(counts)
@@ -1686,7 +1776,18 @@ async def delete_user(
     # And what they let this guild's apps do as them, for the same reason.
     await app_delegations_service.delete_member_delegations(session, user_id=user_id)
 
+    removed_role = membership.role
     await session.delete(membership)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+        actor_user_id=current_admin.id,
+        target_user_id=user_id,
+        guild_id=guild_context.guild_id,
+        target_type="guild",
+        target_id=guild_context.guild_id,
+        detail={"role": removed_role.value, "via": "admin"},
+    )
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.

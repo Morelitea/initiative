@@ -15,12 +15,26 @@ the exporter under sharing rules are simply absent everywhere.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from app.schemas.base import SanitizedBaseModel
 
 BACKUP_SCHEMA_VERSION = 1
 MIN_SUPPORTED_IMPORT_VERSION = 1
+
+
+class ManifestAttachTo(SanitizedBaseModel):
+    """Where an entry belongs once both ends of the archive exist.
+
+    A file document has one home — the initiative's document list — and this
+    says what it is *also* filed in, as the relation that is the second view
+    of it. It names the far end by **manifest entry path**, not by id, for the
+    reason every cross-entry reference does: an id means nothing until the
+    entry it names has been applied, and entries apply in tool order.
+    """
+
+    kind: str  # "wiki"
+    ref: str  # the far end's manifest entry path
 
 
 class ManifestEntry(SanitizedBaseModel):
@@ -33,13 +47,35 @@ class ManifestEntry(SanitizedBaseModel):
     schema_version: Optional[int] = None  # None for foreign formats
     entity_id: int
     title: str
-    initiative_id: int
+    # Absent for a guild-level entry — a thing the community owns directly
+    # rather than through one of its initiatives.
+    initiative_id: Optional[int] = None
     # Metadata for entries whose file format can't carry it itself
     # (file entries are raw blobs; envelopes carry their own tags/properties).
     tags: list[str] = []
     properties: list[dict] = []
     # ``assets/{storage_key}`` for file documents (the blob IS the document).
     asset: Optional[str] = None
+    # What this entry is filed in besides its own list, resolved after every
+    # entry has been applied. Absent for everything that is only where it is.
+    attach_to: Optional[ManifestAttachTo] = None
+
+
+class ManifestPerson(SanitizedBaseModel):
+    """Somebody the archive quotes, and how often.
+
+    A comment names its author by handle, inside an envelope. The plan reads
+    only the manifest, so the people an importer will be asked about are
+    inventoried here rather than found by opening every file — the same reason
+    the entry list exists.
+
+    ``comment_count`` is what makes the question worth asking: it says how
+    much of the archive hangs on getting this one row right.
+    """
+
+    handle: str
+    name: Optional[str] = None
+    comment_count: int = 0
 
 
 class ManifestAsset(SanitizedBaseModel):
@@ -58,7 +94,9 @@ class ManifestSkipped(SanitizedBaseModel):
     tool: str
     entity_id: int
     title: str
-    initiative_id: int
+    # Absent for a guild-level entry — a thing the community owns directly
+    # rather than through one of its initiatives.
+    initiative_id: Optional[int] = None
     reason: str  # "uploads_excluded" | ...
 
 
@@ -69,6 +107,41 @@ class ManifestInitiative(SanitizedBaseModel):
     color: Optional[str] = None
     # tool -> "included" | "excluded" | "disabled" (per-initiative flag off)
     tools: dict[str, str]
+    # Apply into an initiative that already exists, rather than creating one.
+    # An exporter never writes this — a backup describes where it came from,
+    # not where it is going. A foreign source (an Atlassian fetch) writes it,
+    # because a Jira project belongs in an initiative somebody already runs.
+    target_initiative_id: Optional[int] = None
+
+
+class ManifestGuildSection(SanitizedBaseModel):
+    """One guild-level file in the archive — what the community owns directly
+    rather than through an initiative.
+
+    Listed here for the same reason ``entries`` is: the import plan reads the
+    manifest and nothing else, so it must be able to see that a roster or a
+    tag vocabulary is present without opening every file. ``count`` is how
+    many records the file holds, which is what makes the section worth
+    reporting in a plan ("42 members, 17 tags").
+    """
+
+    key: str  # "settings" | "tags" | "members" | "apps"
+    path: str
+    count: int = 0
+
+
+class ManifestGuild(SanitizedBaseModel):
+    """The community the archive came from.
+
+    A model rather than a loose dict because a backup that cannot say what
+    the community was called, how it was configured, or who was in it is not
+    a backup of the community — only of the work done inside it.
+    """
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_community: bool = False
 
 
 class BackupManifest(SanitizedBaseModel):
@@ -78,12 +151,18 @@ class BackupManifest(SanitizedBaseModel):
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
-    guild: dict[str, Any]
+    guild: ManifestGuild
     include_uploads: bool
     initiatives: list[ManifestInitiative]
+    # Guild-level files: what the community owns outside its initiatives.
+    guild_sections: list[ManifestGuildSection] = []
     entries: list[ManifestEntry]
     assets: list[ManifestAsset]
     skipped: list[ManifestSkipped]
+    # Everyone the archive quotes. Absent in a backup taken before it was
+    # inventoried, which reads as "nobody to ask about" and leaves those
+    # comments to the exact-handle match.
+    people: list[ManifestPerson] = []
 
 
 class BackupToolEstimate(SanitizedBaseModel):
@@ -103,3 +182,10 @@ class BackupEstimate(SanitizedBaseModel):
     estimated_rows: int = 0
     max_rows: int = 0
     max_upload_bytes: int = 0
+    # Past this, the archive is written to the operator's destination rather
+    # than handed back as a download — so the wizard can say which of the two
+    # is going to happen before anybody submits.
+    max_download_bytes: int = 0
+    # Whether this deployment has a destination configured at all. Without
+    # one, an export over the download bound is refused instead of delivered.
+    delivery_available: bool = False

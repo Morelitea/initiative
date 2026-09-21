@@ -43,8 +43,6 @@
     }
   },
   "profile": {
-    "cardTitle": "Votre apparence",
-    "cardDescription": "Votre photo, le nom qu'emploieront les communautés qui affichent les vrais noms, et ce que vous faites.",
     "fullNameLabel": "Nom complet",
     "fullNamePlaceholder": "Votre nom",
     "currentPasswordLabel": "Mot de passe actuel",
@@ -58,7 +56,6 @@
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://exemple.com/avatar.jpg",
     "removeUploadedAvatar": "Supprimer l'avatar téléchargé",
-    "clearAvatarUrl": "Effacer l'URL de l'avatar",
     "passwordsMismatch": "Les mots de passe ne correspondent pas",
     "saveChanges": "Enregistrer les modifications",
     "saving": "Enregistrement…",
@@ -74,12 +71,6 @@
     },
     "usernameLabel": "Nom d'utilisateur",
     "usernameHelp": "C'est ainsi que les autres vous voient. Pour le modifier, adressez-vous à un modérateur.",
-    "statusLabel": "Statut",
-    "statusPlaceholder": "Qu'est-ce qui vous occupe ?",
-    "statusEmojiPlaceholder": "Émoji",
-    "statusHelp": "Affiché sur votre profil, que tout le monde peut ouvrir.",
-    "pictureTitle": "Votre photo",
-    "pictureDescription": "Téléversez-en une, ou pointez vers une image. Elle est enregistrée dès que vous la choisissez.",
     "timezoneLabel": "Fuseau horaire",
     "timezonePlaceholder": "Sélectionner un fuseau horaire",
     "timezoneEmpty": "Aucun fuseau horaire trouvé.",
@@ -264,7 +255,6 @@
   },
   "notifications": {
     "title": "Paramètres de notifications",
-    "description": "Contrôlez les notifications que vous recevez par canal. Les notifications en cloche apparaissent toujours quels que soient ces paramètres.",
     "pushNotifications": "Notifications push",
     "pushDescription": "Recevoir des alertes en temps réel sur votre appareil",
     "pushEnabled": "Activées",
@@ -276,12 +266,6 @@
     "timezone": "Fuseau horaire",
     "timezonePlaceholder": "Sélectionner un fuseau horaire",
     "timezoneEmpty": "Aucun fuseau horaire trouvé.",
-    "overdueTime": "Heure de rappel des retards",
-    "overdueTimeHelp": "Heure de rappel quotidien (utilise le fuseau horaire ci-dessus).",
-    "saveSchedule": "Enregistrer le calendrier",
-    "savingSchedule": "Enregistrement…",
-    "scheduleSuccess": "Calendrier de notifications mis à jour",
-    "scheduleError": "Impossible de mettre à jour le calendrier de notifications",
     "toggleError": "Impossible de mettre à jour les paramètres de notifications",
     "categoryHeader": "Catégorie",
     "categories": {
@@ -311,8 +295,6 @@
       "day_one": "{{count}} jour avant",
       "day_other": "{{count}} jours avant"
     },
-    "scheduleTitle": "Rappel quotidien",
-    "scheduleDescription": "Quand part le rappel des retards, et à quelle horloge.",
     "channelsTitle": "Ce dont on vous informe",
     "channelsDescription": "Une ligne par type de nouvelle, un interrupteur par canal. Rien n'est actif que vous n'ayez laissé actif.",
     "switchLabel": "{{category}} par {{channel}}",
@@ -360,6 +342,52 @@
         "personal": "Seulement ce qui me nomme",
         "nothing": "Rien"
       }
+    },
+    "timing": {
+      "title": "Quand vous êtes prévenu",
+      "description": "Les e-mails peuvent arriver aussitôt ou groupés. Rien n'est retenu sans que vous l'ayez demandé.",
+      "cadence": {
+        "label": "L'e-mail arrive",
+        "instant": "Tout de suite",
+        "hourly": "Une fois par heure",
+        "daily": "Une fois par jour",
+        "weekly": "Une fois par semaine",
+        "help": "Tout ce qui est retenu arrive en un seul message."
+      },
+      "day": "Le",
+      "time": "À",
+      "timeHelp": "Votre e-mail programmé, et le rappel des tâches en retard, partent à cette heure.",
+      "personalInstant": "Envoyer tout de suite ce qui m'est adressé",
+      "personalInstantHelp": "Mentions, réponses, tâches qui vous sont assignées, invitations et messages directs passent devant.",
+      "respectPresence": "Ne pas me déranger pendant que j'utilise Initiative",
+      "respectPresenceHelp": "Si vous êtes déjà là, la cloche vous l'a dit. L'e-mail attend quelques minutes et le mobile reste silencieux.",
+      "pause": {
+        "title": "Mettre les notifications en pause",
+        "description": "L'e-mail et le mobile s'arrêtent les jours que vous choisissez. La cloche continue de collecter, et vous recevez un récapitulatif à votre retour.",
+        "active": "En pause jusqu'au {{until}}",
+        "scheduled": "Pause du {{from}} au {{until}}",
+        "resume": "Reprendre",
+        "cancel": "Annuler",
+        "resumed": "Notifications réactivées",
+        "from": "Du",
+        "until": "Au",
+        "fromPlaceholder": "Aujourd'hui",
+        "untilPlaceholder": "Choisir un jour",
+        "confirm": "Mettre en pause",
+        "help": "Laissez le début vide pour commencer maintenant. Les deux jours sont compris.",
+        "note": "Les réinitialisations de mot de passe et les e-mails de connexion arrivent toujours. Ce ne sont pas des notifications."
+      },
+      "saved": "Enregistré",
+      "saveError": "Impossible de mettre à jour quand vous êtes prévenu"
+    },
+    "weekdays": {
+      "1": "lundi",
+      "2": "mardi",
+      "3": "mercredi",
+      "4": "jeudi",
+      "5": "vendredi",
+      "6": "samedi",
+      "7": "dimanche"
     }
   },
   "dangerZone": {
@@ -369,54 +397,23 @@
     "disconnectButton": "Se déconnecter",
     "deactivateTitle": "Désactiver le compte",
     "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
-    "permanentDeleteTitle": "Supprimer définitivement le compte",
-    "permanentDeleteDescription": "Supprimez complètement votre compte du système. Les projets seront transférés à d'autres utilisateurs. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] ». <bold>Cette action est irréversible.</bold>",
-    "permanentDeleteDescriptionText": "Supprimez complètement votre compte du système. Les projets seront transférés à d'autres utilisateurs. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] ».",
-    "cannotBeUndone": "Cette action est irréversible.",
+    "permanentDeleteTitle": "Supprimer le compte",
+    "permanentDeleteDescriptionText": "Votre compte disparaît immédiatement pour les autres. Rien n'est effacé dans l'immédiat : reconnectez-vous avant la fin du délai et la suppression est annulée, avec vos communautés et votre travail tels que vous les avez laissés. Ensuite, les projets sont transférés à d'autres, et les commentaires et documents restent mais affichent « [Utilisateur supprimé] ».",
+    "cannotBeUndone": "Se reconnecter est ce qui l'arrête.",
     "deactivateButton": "Désactiver le compte",
     "deleteButton": "Supprimer le compte"
   },
   "deleteAccount": {
     "title": "Supprimer le compte",
     "deactivateTitle": "Désactiver le compte",
-    "confirmTitle": "Êtes-vous sûr ?",
-    "close": "Fermer",
     "back": "Retour",
     "next": "Suivant",
     "cancel": "Annuler",
-    "loading": "Chargement…",
-    "checkingEligibility": "Vérification du statut du compte…",
-    "eligibilityError": "Impossible de vérifier l'éligibilité à la suppression du compte.",
-    "stepType": "Choisir le type de suppression",
-    "stepBlockers": "Résoudre les blocages",
-    "stepTransfer": "Transférer les projets",
-    "stepConfirm": "Confirmer la suppression",
-    "softDeleteTitle": "Désactiver le compte",
-    "softDeleteDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter, mais vos données seront préservées. Un administrateur peut réactiver votre compte.",
-    "hardDeleteTitle": "Supprimer définitivement le compte",
-    "hardDeleteDescription": "Votre compte sera définitivement supprimé. Vos projets doivent être transférés à d'autres membres. Les commentaires afficheront « [Utilisateur supprimé] ».",
-    "choose": "Choisir",
-    "selected": "Sélectionné",
-    "blockersTitle": "Blocages",
-    "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer votre compte :",
-    "warningsTitle": "Avertissements",
-    "lastAdminGuilds": "Vous êtes le dernier administrateur dans ces communautés. Vous devez promouvoir un autre membre ou partir avant de supprimer.",
-    "transferTitle": "Transférer les projets détenus",
-    "transferDescription": "Vous possédez les projets suivants. Choisissez un nouveau propriétaire pour chacun :",
-    "transferSelectPlaceholder": "Sélectionner le nouveau propriétaire",
-    "confirmDescription": "Cette action est irréversible. Entrez votre mot de passe et tapez DELETE MY ACCOUNT pour confirmer.",
-    "passwordLabel": "Mot de passe",
-    "confirmationLabel": "Tapez DELETE MY ACCOUNT",
-    "confirmationPlaceholder": "DELETE MY ACCOUNT",
-    "deleteMyAccount": "Supprimer mon compte",
     "deleting": "Suppression en cours…",
-    "deactivateMyAccount": "Désactiver mon compte",
-    "deactivating": "Désactivation en cours…",
     "deleteError": "Impossible de supprimer le compte",
     "chooseTypeDescription": "Choisissez comment vous souhaitez supprimer votre compte",
     "checkBlockersDescription": "Vérification de la possibilité de supprimer votre compte",
     "checkBlockersDeactivateDescription": "Vérification de la possibilité de désactiver votre compte",
-    "transferProjectsDescription": "Transférer la propriété des projets",
     "confirmDeletionDescription": "Confirmer la suppression du compte",
     "confirmDeactivationDescription": "Confirmer la désactivation du compte",
     "softDeleteLabel": "Désactiver le compte (Suppression douce)",
@@ -425,25 +422,17 @@
     "cannotDeactivate": "Impossible de désactiver le compte :",
     "resolveIssues": "Veuillez résoudre ces problèmes avant de supprimer votre compte.",
     "resolveIssuesDeactivate": "Veuillez résoudre ces problèmes avant de désactiver votre compte.",
-    "important": "Important :",
     "eligible": "Votre compte est éligible à la suppression.",
     "eligibleDeactivate": "Votre compte est éligible à la désactivation.",
-    "selectNewOwners": "Sélectionnez de nouveaux propriétaires pour vos projets avant de procéder à la suppression du compte.",
-    "selectNewOwnersDeactivate": "Sélectionnez de nouveaux propriétaires pour vos projets avant de procéder à la désactivation du compte.",
-    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
     "actionSerious": "Cette action est sérieuse :",
     "confirmPasswordLabel": "Confirmez votre mot de passe",
     "enterPassword": "Entrez votre mot de passe",
-    "typeToConfirm": "Tapez <1>DELETE MY ACCOUNT</1> pour confirmer",
     "typeToConfirmPrefix": "Tapez",
     "typeToConfirmSuffix": "pour confirmer",
-    "typeToConfirmCode": "DELETE MY ACCOUNT",
-    "agreeConsequences": "Je comprends que cette action est irréversible",
     "deactivateAccount": "Désactiver le compte",
     "deleteAccountButton": "Supprimer le compte",
     "checking": "Vérification…",
     "deactivateSuccess": "Compte désactivé avec succès",
-    "deleteSuccess": "Compte supprimé définitivement",
     "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
     "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère le serveur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
     "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
@@ -518,6 +507,13 @@
         "errorPrefix": "Échec : {{message}}"
       },
       "dismissAll": "tout fermer"
+    },
+    "cookieConsent": {
+      "title": "Choix de cookies",
+      "description": "Demander aux personnes qui arrivent ce que cette instance peut conserver dans leur navigateur.",
+      "toggleLabel": "Interroger les personnes qui arrivent sur les cookies",
+      "helpText": "Un sélecteur en bas de page la première fois que quelqu'un arrive : ce qui est essentiel, et un interrupteur pour le reste. Activez-le si cette instance a une porte d'entrée publique ; laissez-le désactivé pour un serveur où votre groupe arrive sur invitation, où il ne fait qu'encombrer.",
+      "scopeNote": "Le désactiver n'est pas un moyen d'éviter la question : c'est pour une instance où personne n'arrive sans y avoir été invité. Désactivé, tout ce qui est optionnel reste désactivé, car rien ne peut être activé sans accord."
     }
   },
   "email": {
@@ -557,23 +553,13 @@
     "loadError": "Impossible de charger les paramètres d'authentification.",
     "postLoginRedirect": "Redirection post-connexion :",
     "mobileCallback": "Callback de l'application mobile :",
-    "mappingsTitle": "Correspondances de revendications OIDC",
-    "mappingsDescription": "Associez les valeurs de revendications de votre fournisseur d'identité aux appartenances aux communautés et initiatives.",
-    "updateClaimPath": "Mettre à jour",
-    "updatingClaimPath": "Mise à jour…",
     "rulesTitle": "Règles de correspondance",
     "rulesDescription": "Associez les valeurs de revendications OIDC aux appartenances aux communautés et initiatives.",
     "addRule": "Ajouter une règle",
-    "addMapping": "Ajouter une correspondance",
     "noRules": "Aucune règle de correspondance configurée pour l'instant.",
-    "noMappings": "Aucune correspondance configurée. Ajoutez une correspondance pour assigner automatiquement les utilisateurs aux communautés et initiatives lorsqu'ils se connectent via OIDC.",
-    "loadingMappings": "Chargement des correspondances de revendications…",
-    "mappingsLoadError": "Impossible de charger les correspondances de revendications.",
     "mappingClaimValue": "Valeur de revendication",
     "mappingClaimValuePlaceholder": "ex. : equipe-ingenierie",
     "mappingTargetType": "Type de cible",
-    "mappingTargetGuild": "Communauté uniquement",
-    "mappingTargetInitiative": "Communauté + Initiative",
     "mappingTargetTypeGuild": "Communauté",
     "mappingTargetTypeInitiative": "Initiative",
     "mappingGuild": "Communauté",
@@ -583,12 +569,10 @@
     "mappingInitiativePlaceholder": "Sélectionner une initiative",
     "mappingInitiativeRole": "Rôle dans l'initiative",
     "mappingInitiativeRolePlaceholder": "Sélectionner un rôle",
-    "mappingSave": "Enregistrer",
     "mappingSaving": "Enregistrement…",
     "mappingCancel": "Annuler",
     "mappingEdit": "Modifier",
     "mappingDelete": "Supprimer",
-    "mappingDeleteConfirm": "Êtes-vous sûr de vouloir supprimer cette correspondance ?",
     "mappingCreateSuccess": "Correspondance créée",
     "mappingCreateError": "Impossible de créer la correspondance",
     "mappingUpdateSuccess": "Correspondance mise à jour",
@@ -597,10 +581,8 @@
     "mappingDeleteError": "Impossible de supprimer la correspondance",
     "mappingColumnClaim": "Valeur de revendication",
     "mappingColumnType": "Type",
-    "mappingColumnTarget": "Cible",
     "mappingColumnGuild": "Communauté",
     "mappingColumnGuildRole": "Rôle dans la communauté",
-    "mappingColumnRole": "Rôle",
     "mappingColumnInitiative": "Initiative",
     "mappingColumnInitiativeRole": "Rôle dans l'initiative",
     "mappingColumnActions": "Actions",
@@ -610,7 +592,6 @@
     "mappingRoleAdmin": "Administrateur",
     "mappingSelectGuildFirst": "Sélectionnez d'abord une communauté",
     "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
-    "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "deploymentTitle": "Cette installation",
@@ -640,12 +621,16 @@
       "guildsRequire_one": "{{count}} communauté exige une connexion via un fournisseur qui lui est propre.",
       "guildsRequire_other": "{{count}} communautés exigent une connexion via un fournisseur qui leur est propre.",
       "totp": {
-        "label": "Application d'authentification",
-        "help": "Un code d'une application, demandé après le mot de passe. Chacun l'active pour soi."
+        "label": "Activer l'authentification à deux facteurs",
+        "help": "Permettez aux gens de protéger leur compte avec un code issu d'une application d'authentification. Chacun l'active pour soi ; ici, il s'agit de savoir si le serveur la propose."
       },
       "passkey": {
         "label": "Clé d'accès",
         "help": "Une clé conservée sur un appareil ou dans un gestionnaire de mots de passe, qui répond à une invite au lieu d'un mot de passe. Chacun les ajoute pour soi."
+      },
+      "email_otp": {
+        "label": "OTP par e-mail",
+        "help": "Un code à usage unique envoyé à une adresse du compte, à saisir sur la page de connexion. Tout compte disposant d'une adresse peut l'utiliser : il reste désactivé jusqu'à ce que vous l'activiez."
       }
     },
     "sessionLifetime": {
@@ -655,7 +640,47 @@
       "placeholder": "Aucune limite",
       "hint": "Laissez vide pour n'imposer aucune limite. Une valeur inférieure à la fenêtre d'inactivité devient la seule chose qui met fin à une session. Les sessions web déjà ouvertes conservent leurs conditions d'origine ; les téléphones passent immédiatement sous une limite raccourcie.",
       "saved": "Limite de session enregistrée.",
-      "error": "Nous n'avons pas pu enregistrer la limite de session."
+      "error": "Nous n'avons pas pu enregistrer la limite de session.",
+      "idleLabel": "Minutes d'inactivité",
+      "idlePlaceholder": "Aucune limite",
+      "idleHint": "Combien de temps une session peut rester intouchée avant de se terminer. Laissez vide pour conserver la fenêtre définie au déploiement. Utiliser l'application compte comme y toucher : le délai ne s'écoule qu'une fois arrêté. Une communauté tenue au standard de conformité le raccourcit davantage pour ses membres."
+    },
+    "secondFactorRequirement": {
+      "title": "Authentification à deux facteurs",
+      "description": "Si les personnes ici doivent posséder un second facteur — une application d'authentification ou une clé d'accès — en plus d'un moyen de se connecter.",
+      "levels": {
+        "nobody": {
+          "label": "Personne n'y est tenu",
+          "help": "Chacun peut en configurer un, personne n'y est invité. Les communautés peuvent toujours en exiger un de leur côté."
+        },
+        "platform_roles": {
+          "label": "Les personnes ayant un rôle de plateforme",
+          "help": "Support, modération, exploitants et propriétaires — tous ceux dont la portée est le serveur entier et non les communautés auxquelles ils appartiennent."
+        },
+        "everyone": {
+          "label": "Tout le monde",
+          "help": "Chaque compte de ce serveur. La question n'est plus proposée aux communautés, puisqu'elle est déjà tranchée pour leurs membres."
+        }
+      },
+      "wouldAsk_one": "{{count}} personne n'en a pas encore. Il lui sera demandé d'en configurer un à sa prochaine ouverture de l'application.",
+      "wouldAsk_other": "{{count}} personnes n'en ont pas encore. Il leur sera demandé d'en configurer un à leur prochaine ouverture de l'application.",
+      "derivedCredentials": "Les clés d'API personnelles et l'application sur téléphone ne peuvent présenter aucun code : elles cessent donc de fonctionner pour les personnes concernées jusqu'à ce qu'elles configurent un facteur, et refonctionnent dès qu'elles l'ont fait.",
+      "unmet": "Configurez d'abord votre propre second facteur, puis enregistrez.",
+      "present": "Saisir un code",
+      "saved": "Enregistré. Les personnes concernées seront sollicitées à leur prochaine requête.",
+      "error": "Nous n'avons pas pu enregistrer cela.",
+      "noMethod": "Autorisez d'abord l'application d'authentification ou les clés d'accès : sans l'une ou l'autre, il n'y a rien à exiger.",
+      "providers": {
+        "title": "Fournisseurs dont la connexion compte",
+        "help": "Une connexion via l’un d’eux satisfait l’exigence ci-dessus, car le fournisseur indique avoir appliqué son propre second facteur. La même réponse que sur la page du fournisseur."
+      }
+    },
+    "factorMethods": {
+      "title": "Authentification à deux facteurs",
+      "description": "Ce que ce serveur propose comme second facteur. Savoir si quelqu'un doit en détenir un est le réglage suivant.",
+      "saved": "Authentification à deux facteurs mise à jour.",
+      "saveError": "Impossible de modifier l'authentification à deux facteurs.",
+      "followsWaysIn": "Une clé d'accès prouve l'appareil et la personne d'un seul geste : elle répond donc à ceci en plus d'ouvrir une session. L'activation des clés d'accès se décide sous « Moyens d'accès »."
     }
   },
   "platformUsers": {
@@ -666,21 +691,20 @@
     "filterPlaceholder": "Filtrer par identifiant…",
     "columnId": "ID utilisateur",
     "columnHandle": "Identifiant",
-    "columnEmail": "E-mail",
     "columnStatus": "Statut",
     "columnActions": "Actions",
     "active": "Actif",
     "resetPassword": "Réinitialiser le mot de passe",
-    "resetDescription": "Cela enverra un e-mail de réinitialisation de mot de passe à {{email}}.",
+    "resetDescription": "Envoyer une réinitialisation du mot de passe à {{handle}} ? Cette personne recevra un lien à l'adresse avec laquelle elle s'est inscrite.",
     "reactivate": "Réactiver",
     "exportUser": "Exporter",
     "exportAll": "Tout exporter en CSV",
     "exportError": "Impossible d'exporter les utilisateurs.",
     "deleteUser": "Supprimer l'utilisateur",
     "roleChangeError": "Impossible de changer le rôle de l'utilisateur",
-    "resetSuccess": "E-mail de réinitialisation du mot de passe envoyé à {{email}}",
+    "resetSuccess": "Réinitialisation du mot de passe envoyée pour {{handle}}.",
     "resetError": "Impossible d'envoyer la réinitialisation du mot de passe",
-    "reactivateSuccess": "{{email}} a été réactivé",
+    "reactivateSuccess": "{{handle}} peut se reconnecter.",
     "reactivateError": "Impossible de réactiver l'utilisateur",
     "permissionRequired": "Vous n'avez pas la permission de voir les utilisateurs de la plateforme.",
     "roles": {
@@ -692,7 +716,7 @@
     },
     "roleDescriptions": {
       "member": "Accès standard à ses propres communautés. Aucun privilège au niveau de la plateforme.",
-      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, communautés, audit) et peut demander un accès temporaire à une communauté.",
+      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, communautés) et peut demander un accès temporaire à une communauté.",
       "moderator": "Tout ce que peut faire le support, plus la gestion des utilisateurs (suspendre/réactiver) et la modération du contenu.",
       "operator": "Gère les utilisateurs, les communautés et les rôles sur toute la plateforme, avec accès aux données inter-communautés et approuve les demandes d'accès.",
       "owner": "Contrôle total, y compris la configuration de toute la plateforme (authentification, personnalisation, email, IA). Le seul rôle pouvant gérer la configuration."
@@ -730,46 +754,38 @@
       "role": "Rôle de plateforme",
       "roleLabel": "Rôle",
       "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
-    }
+    },
+    "deleted": "Supprimé",
+    "erasedOn": "Effacé le {{date}}",
+    "erasedNever": "Conservé indéfiniment",
+    "restore": "Restaurer le compte",
+    "restoreSuccess": "{{handle}} restauré.",
+    "restoreError": "Impossible de restaurer le compte. Veuillez réessayer."
   },
   "adminDeleteUser": {
-    "title": "Supprimer l'utilisateur",
     "subtitle": "Supprimer {{email}}",
-    "close": "Fermer",
     "back": "Retour",
     "next": "Suivant",
     "cancel": "Annuler",
     "loading": "Chargement…",
     "checkingEligibility": "Vérification de l'éligibilité à la suppression…",
-    "eligibilityError": "Impossible de vérifier l'éligibilité à la suppression.",
     "stepType": "Choisir le type de suppression",
     "stepBlockers": "Résoudre les blocages",
-    "stepTransfer": "Transférer les projets",
-    "stepConfirm": "Confirmer la suppression",
     "softDeleteTitle": "Désactiver l'utilisateur",
-    "softDeleteDescription": "L'utilisateur sera désactivé. Il ne pourra pas se connecter, mais ses données seront préservées. Vous pouvez réactiver son compte ultérieurement.",
+    "softDeleteDescription": "Le compte disparaît pour les autres et conserve tout ce qu'il détient. Il est effacé à la fin du délai de cette installation, sauf si son titulaire se reconnecte ou que vous le restaurez.",
     "hardDeleteTitle": "Supprimer définitivement l'utilisateur",
     "hardDeleteDescription": "L'utilisateur sera définitivement supprimé. Ses projets doivent être transférés. Les commentaires afficheront « [Utilisateur supprimé] ».",
-    "choose": "Choisir",
-    "selected": "Sélectionné",
     "blockersTitle": "Blocages",
     "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer cet utilisateur :",
-    "warningsTitle": "Avertissements",
     "guildBlockerTitle": "Dernier administrateur dans la communauté : {{guildName}}",
     "guildBlockerDescription": "Promouvoir un autre membre en administrateur :",
-    "initiativeBlockerTitle": "Seul chef de projet dans : {{initiativeName}}",
-    "initiativeBlockerDescription": "Promouvoir un autre membre en chef de projet :",
     "promoteToGuildAdmin": "Promouvoir en administrateur",
-    "promoteToInitiativePM": "Promouvoir en chef de projet",
-    "promoting": "Promotion en cours…",
     "promoteSuccess": "Rôle mis à jour",
     "promoteError": "Impossible de mettre à jour le rôle",
     "deleteGuild": "Supprimer la communauté",
     "deleteGuildConfirm": "Supprimer la communauté « {{guildName}} » ? Cela supprimera définitivement toutes les données de la communauté.",
     "deleteGuildSuccess": "Communauté supprimée",
     "deleteGuildError": "Impossible de supprimer la communauté",
-    "transferTitle": "Transférer les projets détenus",
-    "transferDescription": "Cet utilisateur possède les projets suivants. Choisissez un nouveau propriétaire pour chacun :",
     "transferSelectPlaceholder": "Sélectionner le nouveau propriétaire",
     "noUsersAvailable": "Aucun utilisateur disponible",
     "confirmTitle": "Confirmer la suppression",
@@ -780,8 +796,6 @@
     "deleting": "Suppression en cours…",
     "deactivateButton": "Désactiver l'utilisateur",
     "deactivating": "Désactivation en cours…",
-    "deleteSuccess": "Utilisateur supprimé",
-    "deactivateSuccess": "Utilisateur désactivé",
     "deleteError": "Impossible de supprimer l'utilisateur",
     "deactivateTitle": "Désactiver",
     "deactivateDescription": "L'utilisateur ne peut pas se connecter. Les informations personnelles sont conservées. Réversible depuis la page des utilisateurs.",
@@ -789,10 +803,8 @@
     "confirmDeactivate": "Désactiver {{email}} — il ne pourra pas se connecter mais ses données sont conservées.",
     "confirmDeactivateTitle": "Confirmer la désactivation",
     "confirmAnonymizeTitle": "Confirmer l'anonymisation",
-    "deleteInitiative": "Supprimer l'initiative",
-    "deleteInitiativeConfirm": "Supprimer l'initiative \"{{initiativeName}}\" ? Elle et tous ses projets, tâches, documents, files d'attente et événements seront envoyés à la corbeille. Vous pouvez restaurer l'arborescence entière depuis Paramètres → Corbeille avant la fin de la période de rétention.",
-    "deleteInitiativeSuccess": "Initiative supprimée",
-    "deleteInitiativeError": "Impossible de supprimer l'initiative"
+    "preferWindowLabel": "Supprimer avec le délai de récupération à la place",
+    "preferWindowHelp": "Le compte conserve tout et disparaît pour les autres. Il est effacé à la fin du délai, sauf si quelqu'un le récupère."
   },
   "accessGrants": {
     "title": "Demandes d'accès",
@@ -808,14 +820,15 @@
       "error": "Impossible d'activer l'accès d'urgence",
       "codeLabel": "Votre code d'authentification",
       "codePlaceholder": "123456, ou un code de récupération",
-      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence demande donc un code. Un code de récupération convient aussi.",
-      "codeNotEnrolled": "Aucune application d'authentification n'est configurée sur ce compte. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence."
+      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
+      "codeNotEnrolled": "Ce compte n'a ni application d'authentification ni clé d'accès. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence.",
+      "passkeySubmit": "Accès d'urgence avec une clé d'accès",
+      "passkeyPresenting": "En attente de votre clé d'accès…"
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",
     "guildIdLabel": "ID de la communauté",
     "guildIdPlaceholder": "ex. 42",
-    "levelLabel": "Niveau d'accès",
     "levelNone": "Aucun",
     "nothingAsked": "Choisissez l'accès au contenu, aux réglages, ou les deux.",
     "levelRead": "Lecture seule",
@@ -975,7 +988,6 @@
       "users": "Utilisateurs",
       "access": "Accès",
       "guilds": "Communautés",
-      "audit": "Audit",
       "announcements": "Annonces"
     }
   },
@@ -988,18 +1000,16 @@
     "filterByName": "Filtrer les communautés par nom",
     "unlimitedPlaceholder": "Illimité",
     "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
-    "overLimitHint": "{{name}} compte plus de membres que sa limite actuelle ne l'autorise.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
-    "usersSaved": "Limite d'utilisateurs mise à jour pour {{name}}.",
-    "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
     "statusInputLabel": "Statut de {{name}}",
     "statusSaved": "Statut de {{name}} mis à jour.",
     "statusSaveError": "Impossible de mettre à jour le statut de la communauté. Veuillez réessayer.",
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
-      "suspended": "Suspendu"
+      "suspended": "Suspendu",
+      "deleted": "Supprimée"
     },
     "suspendConfirm": {
       "title": "Suspendre {{name}} ?",
@@ -1009,7 +1019,6 @@
     "columns": {
       "id": "ID",
       "guild": "Communauté",
-      "members": "Membres",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
       "status": "Statut",
@@ -1018,7 +1027,9 @@
     "billing": {
       "noPlan": "Aucun forfait",
       "openLabel": "Ouvrir la facturation de {{name}}",
-      "openError": "Impossible d'ouvrir le portail de facturation."
+      "openError": "Impossible d'ouvrir le portail de facturation.",
+      "operatorLabel": "Opérations de facturation pour {{name}}",
+      "operations": "Opérations"
     },
     "sheet": {
       "open": "Gérer",
@@ -1032,6 +1043,7 @@
       "bannerHelp": "Leur permet d'envoyer une image de bannière. Sans cela elles choisissent une couleur, et une bannière déjà envoyée reste affichée.",
       "supportLabel": "Demandes d'aide",
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
+      "supportNeedsIntake": "Aucune destination pour une demande d’aide pour l’instant. Reliez le flux de support à un projet dans Administration › Réception, et ceci pourra être activé.",
       "authOption": {
         "restrictions": {
           "label": "Son propre standard de sécurité",
@@ -1044,9 +1056,38 @@
       },
       "usersLabel": "Membres",
       "storageLabel": "Limite de stockage",
-      "decidesForItself": "Ce qu'elle décide elle-même"
+      "decidesForItself": "Ce qu'elle décide elle-même",
+      "deleted": "Supprimée",
+      "narrowings": {
+        "title": "Qui elle compte comme les siens",
+        "help": "Cette communauté indique quelles arrivées via un fournisseur sont les siennes. Elle nomme elle-même les valeurs : votre accord est ce qui permet l’adhésion automatique — d’ici là, la connexion ne sert qu’aux personnes déjà présentes.",
+        "claims": "{{provider}} : {{claim}} vaut {{values}}",
+        "joinsOnArrival": "Demande que les arrivées correspondantes rejoignent aussitôt.",
+        "admitsOnly": "Admet les arrivées correspondantes ; n’ajoute personne.",
+        "agree": "Accepter",
+        "withdraw": "Retirer",
+        "error": "Impossible d’enregistrer cette réponse."
+      }
     },
-    "unlimited": "Sans limite"
+    "unlimited": "Sans limite",
+    "restore": {
+      "open": "Restaurer la communauté",
+      "purgesOn": "Supprimée. Tout son contenu sera détruit le {{date}}.",
+      "purgesSoon": "Supprimée. Tout son contenu sera détruit à la fin de la période de conservation.",
+      "retained": "D'ici là, rien n'a été supprimé : la restauration ramène la communauté telle qu'elle était, à l'exception de ses connexions aux applications.",
+      "title": "Restaurer {{name}}",
+      "seatDescription": "Il ne reste personne pour diriger cette communauté. Choisissez qui la reprend.",
+      "seatLabel": "Qui la dirige",
+      "seatPlaceholder": "Choisir un compte",
+      "seatEmpty": "Aucun compte trouvé.",
+      "seatHelp": "Cette personne en devient le superadministrateur : le siège qui nomme les autres, accède à la facturation et définit la connexion.",
+      "statusDescription": "Choisissez l'état dans lequel la communauté revient.",
+      "statusLabel": "Revient en",
+      "appsNote": "Ses connexions aux applications ont pris fin lors de la suppression et ne reviennent pas. Ses administrateurs peuvent les rétablir.",
+      "confirm": "Restaurer",
+      "done": "{{name}} restaurée.",
+      "error": "Impossible de restaurer la communauté. Veuillez réessayer."
+    }
   },
   "storage": {
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
@@ -1128,7 +1169,8 @@
       "requireFactor": "Exiger aussi un second facteur",
       "requireFactorHelp": "Les membres doivent avoir présenté un code de leur application d'authentification dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
       "requirePasskey": "Exiger aussi une clé d'accès",
-      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter."
+      "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
+      "factorRequiredByPlatform": "Votre serveur demande déjà un second facteur à tout le monde : il n'y a rien à ajouter ici."
     },
     "apiAccess": {
       "title": "Accès par API",
@@ -1166,8 +1208,8 @@
       "providerLabel": "Fournisseur",
       "providerPlaceholder": "Choisissez-en un",
       "claimLabel": "Quels comptes comptent comme les vôtres",
-      "claimHelp": "Un fournisseur comme Google se porte garant de toute personne ayant un compte : dites donc lesquels de ses comptes sont les vôtres — un domaine Workspace, ou un tenant. Laissez vide si le fournisseur ne couvre déjà que vos gens.",
-      "claimPlaceholder": "Vide pour toute personne dont il se porte garant",
+      "claimHelp": "Les communautés sont distinctes ici : indiquez quels comptes de ce fournisseur sont les vôtres — un domaine Google Workspace, un locataire Entra, un groupe. Seules ces personnes comptent comme votre communauté.",
+      "claimPlaceholder": "Choisissez ce qui identifie vos membres",
       "claimValuesLabel": "Valeurs acceptées",
       "claimValuesPlaceholder": "example.com, example.org",
       "autoJoinLabel": "Les ajouter à cette communauté",
@@ -1177,10 +1219,14 @@
         "hd": "Domaine Google Workspace",
         "tid": "Locataire Microsoft Entra",
         "groups": "Appartenance à un groupe",
-        "domain": "Domaine"
+        "domain": "Domaine",
+        "other": "Une autre revendication…"
       },
       "inherited": "Du déploiement",
-      "makeItOurs": "En faire la nôtre"
+      "makeItOurs": "En faire la nôtre",
+      "claimNameLabel": "Nom de la revendication",
+      "claimNamePlaceholder": "p. ex. org, realm",
+      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation."
     },
     "rules": {
       "title": "Où arrivent vos membres",
@@ -1232,7 +1278,7 @@
         },
         "narrowing": {
           "title": "Quelles personnes",
-          "prompt": "Indiquez quels comptes chez lui sont les vôtres, ou passez cette étape s'il ne réunit déjà que vos gens."
+          "prompt": "Indiquez quels comptes y comptent comme les vôtres."
         },
         "landing": {
           "title": "Où ils arrivent",
@@ -1248,6 +1294,15 @@
       "ruleHelp": "Facultatif. Nommez un groupe signalé par votre fournisseur et l'endroit où ses membres arrivent. Vous pourrez en ajouter d'autres ensuite.",
       "requireLabel": "Exiger que les membres passent par ce fournisseur",
       "requireHelp": "Les membres se connectent uniquement par ce biais. Vous pourrez le modifier plus tard."
+    },
+    "secondFactor": {
+      "title": "Second facteur",
+      "description": "Si l’accès à cette communauté en demande un.",
+      "allowLabel": "Exiger un second facteur",
+      "help": "Les membres doivent avoir présenté un second facteur dans cette session. Quels types comptent relève du serveur, pas de cette communauté : ils peuvent en ajouter un sans se déconnecter.",
+      "askedByPlatform": "Votre serveur demande déjà un second facteur à tout le monde ici ; il n’y a rien à ajouter.",
+      "saved": "Second facteur enregistré.",
+      "error": "Impossible d’enregistrer l’exigence de second facteur."
     }
   },
   "authProviders": {
@@ -1273,6 +1328,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Créer les comptes à la première connexion",
     "allowJitHelp": "Si désactivé, seuls les comptes existants peuvent se connecter avec ce fournisseur.",
+    "assertsSecondFactorLabel": "Sa parole vaut second facteur",
+    "assertsSecondFactorHelp": "Lorsque ce fournisseur indique avoir appliqué un second facteur, une connexion via celui-ci satisfait cette exigence. Laissez désactivé sauf si vous savez qu’il le signale fidèlement — les personnes qui passent par là devront alors fournir leur propre facteur.",
     "enabledLabel": "Activé",
     "save": "Enregistrer",
     "saving": "Enregistrement…",
@@ -1333,6 +1390,8 @@
       "authentik": "Le slug de l’application, pas le nom du fournisseur — l’issuer suit l’application.",
       "authelia": "Collez le secret client en clair, pas le hash que vous avez mis dans le YAML.",
       "pocketId": "Uniquement des passkeys, vos connexions en héritent sans rien faire de plus.",
+      "salesforce": "Les sandboxes et les organisations My Domain se connectent chacune à leur propre adresse ; utilisez celle dont vos équipes se servent plutôt que l'hôte de connexion générique.",
+      "dex": "L'adresse se termine par ce que votre configuration Dex indique comme issuer — /dex par convention. Elle doit correspondre exactement.",
       "custom": "Tout fournisseur qui parle OpenID Connect. Collez son adresse d’issuer — une URL .well-known fonctionne aussi."
     }
   },
@@ -1406,16 +1465,16 @@
     "title": "Annuaire des communautés",
     "description": "Permettez aux communautés de se référencer là où toute personne connectée peut les trouver et les rejoindre sans invitation.",
     "toggleLabel": "Proposer un annuaire des communautés",
-    "helpText": "Tant que c'est activé, un administrateur de communauté peut référencer sa communauté depuis les paramètres de la communauté, et « Rejoindre une communauté » apparaît à côté des communautés de chacun. Une fois désactivé, il n'y a rien à parcourir et aucune communauté ne peut se référencer.",
-    "reversibleNote": "Désactiver masque l'annuaire ; les communautés référencées le restent. En le réactivant, les mêmes communautés réapparaissent.",
+    "helpText": "Active l'annuaire public des communautés : une liste consultable des communautés qui ont choisi d'être trouvées. Les gens la parcourent et demandent à rejoindre, et « Rejoindre une communauté » apparaît à côté des leurs. Chaque communauté s'y inscrit depuis ses propres paramètres.",
+    "reversibleNote": "Le désactiver ferme l'annuaire. Les communautés inscrites le restent et réapparaissent dès que vous le réactivez.",
     "enabledToast": "L'annuaire des communautés est activé.",
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
     "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
-    "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 13 ans ou plus",
-    "ageGateHelpText": "Tant que ceci est actif, toute personne appartenant à une communauté référencée doit confirmer son âge une fois, et la réponse reste attachée à son compte. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
+    "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 16 ans ou plus",
+    "ageGateHelpText": "Tant que ceci est actif, toute personne qui rejoint une communauté référencée depuis l'annuaire doit confirmer son âge une fois, et la réponse reste attachée à son compte. Cela ne concerne que cette adhésion : les communautés sur invitation ne le demandent jamais. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
     "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
-    "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
+    "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge en rejoignant une communauté référencée.",
     "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus",
     "defaultDmLabel": "Messages privés pour les nouveaux comptes",
     "defaultDmHelpText": "Le réglage avec lequel un compte démarre. Il est lu une seule fois, à la création du compte : le modifier n'ouvre aucun compte existant et n'en ferme aucun. « Privé » est la valeur livrée ; avec elle, chacun devient joignable au moment où il le décide.",
@@ -1426,29 +1485,30 @@
     "directMessagesOffBody": "Mes messages disparaîtra pour tout le monde ici, et les messages déjà en route ne seront pas remis. Rien n'est supprimé : en réactivant, les conversations et les connexions existantes réapparaissent.",
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
-    "directMessagesDisabledToast": "Les messages privés sont désactivés."
-  },
-  "audit": {
-    "title": "Audit",
-    "description": "Ce qui a été fait aux comptes, par qui et quand. Les entrées sont conservées même après la suppression des comptes qu'elles nomment.",
-    "whenColumn": "Quand",
-    "actionColumn": "Action",
-    "actorColumn": "Effectué par",
-    "subjectColumn": "Concerne",
-    "subjectFilterPlaceholder": "Filtrer par ID de compte",
-    "departedAccount": "Compte n° {{id}} (supprimé)",
-    "empty": "Rien n'a encore été enregistré.",
-    "pageOf": "Page {{page}} sur {{total}} entrées",
-    "actions": {
-      "user.avatar_removed": "Photo de profil supprimée",
-      "auth.signed_in": "Connexion",
-      "auth.sign_in_failed": "Connexion refusée",
-      "auth.signed_out": "Déconnexion",
-      "auth.password_changed": "Mot de passe modifié",
-      "auth.passkey_registered": "Clé d'accès ajoutée",
-      "auth.passkey_removed": "Clé d'accès supprimée",
-      "auth.identity_linked": "Authentification unique liée",
-      "auth.refresh_reuse_detected": "Jeton de session réutilisé rejeté"
+    "directMessagesDisabledToast": "Les messages privés sont désactivés.",
+    "retention": {
+      "title": "Conservation des communautés supprimées",
+      "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",
+      "label": "Conserver les communautés (jours)",
+      "placeholder": "Ne jamais détruire",
+      "hint": "Compté à partir du moment où chaque communauté a été supprimée : modifier ce délai déplace donc aussi la date de celles déjà supprimées.",
+      "neverHint": "Rien n'est détruit à l'échéance d'un délai. Les communautés supprimées restent dans la liste ci-dessous jusqu'à ce que quelqu'un en restaure une.",
+      "saved_one": "Les communautés supprimées sont conservées {{count}} jour.",
+      "saved_other": "Les communautés supprimées sont conservées {{count}} jours.",
+      "savedNever": "Les communautés supprimées sont conservées indéfiniment.",
+      "save": "Enregistrer la durée de conservation des communautés"
+    },
+    "accountRetention": {
+      "title": "Conservation des comptes supprimés",
+      "description": "Un compte supprimé disparaît immédiatement pour les autres et conserve tout ce qu'il détient. Il est effacé à la fin de ce délai, sauf si son titulaire se reconnecte ou qu'un opérateur le restaure.",
+      "label": "Conserver les comptes (jours)",
+      "placeholder": "Ne jamais effacer",
+      "hint": "Compté à partir du moment où chaque compte a été supprimé : modifier ce délai déplace donc aussi la date de ceux déjà supprimés.",
+      "neverHint": "Rien n'est effacé à l'échéance d'un délai. Les comptes supprimés restent dans la table des utilisateurs jusqu'à ce que quelqu'un revienne ou en restaure un.",
+      "saved_one": "Les comptes supprimés sont conservés {{count}} jour.",
+      "saved_other": "Les comptes supprimés sont conservés {{count}} jours.",
+      "savedNever": "Les comptes supprimés sont conservés indéfiniment.",
+      "save": "Enregistrer la durée de conservation des comptes"
     }
   },
   "account": {
@@ -1468,7 +1528,6 @@
     "removePasswordError": "Impossible de supprimer votre mot de passe."
   },
   "privacy": {
-    "title": "Confidentialité",
     "dm": {
       "title": "Messages directs",
       "description": "Qui peut demander à vous écrire, en dehors de vos connexions.",
@@ -1480,7 +1539,7 @@
       "publicHint": "Tout le monde sur Initiative.",
       "communitiesTitle": "Quelles communautés comptent",
       "communitiesHint": "Toutes comptent par défaut.",
-      "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
+      "ageLocked": "La messagerie est réservée aux personnes de 16 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
       "confirmAge": "Confirmer mon âge",
       "saved": "Enregistré.",
       "platformDisabled": "Cette installation ne propose pas de messages privés : il n'y a donc rien à régler ici. S'ils sont réactivés, votre règle et vos listes reviennent telles quelles."
@@ -1499,9 +1558,6 @@
       "addHint": "Saisissez l'identifiant complet, numéro compris.",
       "send": "Envoyer la demande",
       "remove": "Retirer",
-      "removeTitle": "Retirer cette connexion ?",
-      "removeKeepsChannel": "Vous partagez une communauté, vous pourrez donc continuer à vous écrire.",
-      "removeEndsChannel": "Cela mettra aussi fin à votre canal de messages.",
       "connected": "Connectés le {{date}}",
       "sent": "Demande envoyée."
     },
@@ -1521,6 +1577,14 @@
       "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
       "empty": "Vous n'ignorez personne.",
       "stop": "Ne plus ignorer"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "Vous n'avez pas encore répondu à la question des cookies dans ce navigateur. D'ici là, rien d'optionnel n'est activé.",
+      "noneAllowed": "Rien d'optionnel n'est activé dans ce navigateur.",
+      "allowed": "Activé dans ce navigateur : {{categories}}.",
+      "perBrowser": "Votre réponse suit votre compte : un autre navigateur ou appareil ne repose pas la question. Donnée avant votre connexion, elle reste dans ce navigateur jusque-là.",
+      "change": "Modifier"
     }
   },
   "twoFactor": {

@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Code2,
   Compass,
+  Cookie,
   HelpCircle,
   KeyRound,
   Layers,
@@ -39,6 +40,7 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
 import { useTheme } from "@/hooks/useTheme";
+import { reopenConsent } from "@/lib/consent";
 import { CHANGELOG_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOL_ICONS, TOOLS, toolCamelPlural, toolNavLabelKey } from "@/lib/tools";
 
@@ -146,7 +148,7 @@ export const LandingCinematic = () => {
   const { t: tNav } = useTranslation("nav");
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
-  const { billing, config } = useAppConfig();
+  const { billing, config, cookieConsentEnabled } = useAppConfig();
   // Owned here rather than inside the section: the header only offers Pricing
   // once there is a price book to scroll to.
   const catalog = useBillingCatalog(billing?.url);
@@ -162,7 +164,7 @@ export const LandingCinematic = () => {
   // Somebody already signed in has no business on the front door.
   useEffect(() => {
     if (!loading && token) {
-      router.navigate({ to: "/tasks", replace: true });
+      router.navigate({ to: "/", replace: true });
     }
   }, [token, loading, router]);
 
@@ -911,6 +913,19 @@ export const LandingCinematic = () => {
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 {t("footer.changelog")}
               </a>
+              {/* Taking an answer back has to be as easy as giving one, and a
+                  landing-page reader has no settings page to go to. Only where
+                  the deployment asks the question at all. */}
+              {cookieConsentEnabled ? (
+                <button
+                  type="button"
+                  onClick={reopenConsent}
+                  className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Cookie className="h-4 w-4" aria-hidden="true" />
+                  {t("footer.cookies")}
+                </button>
+              ) : null}
             </nav>
             <p className="text-muted-foreground text-sm">
               {t("footer.copyright", { year: new Date().getFullYear() })}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
@@ -9,12 +10,15 @@ from sqlalchemy import func, or_, text
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
+    LIVE_STATUS_VALUES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -26,7 +30,8 @@ from app.models.platform.guild import (
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
+from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.services.platform import billing_ping
 
@@ -65,6 +70,10 @@ class AgeConfirmationRequiredError(Exception):
 
 class BannerColorError(Exception):
     """Raised when a banner colour is not a ``#rrggbb`` value."""
+
+
+class SupportIntakeMissingError(Exception):
+    """Raised when help requests are switched on with nowhere to send them."""
 
 
 # A guild whose seat cap is one can never admit a joiner, so listing it would
@@ -204,7 +213,17 @@ async def ensure_membership(
     role: GuildRole = GuildRole.member,
     force_role: bool = False,
     oidc_provider_id: int | None = None,
+    actor_user_id: int | None = None,
+    via: str = "direct",
+    invite_id: int | None = None,
 ) -> GuildMembership:
+    """Put ``user_id`` in ``guild_id``, or return the membership they hold.
+
+    ``actor_user_id`` is who brought them in; it defaults to the person joining,
+    which is what every self-service path is. ``via`` names the way in — the
+    value rides the record — and ``invite_id`` says which standing offer was
+    redeemed, where one was.
+    """
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
@@ -228,6 +247,21 @@ async def ensure_membership(
     # blocked. SSO/OIDC provisioning uses a separate insert path
     # (oidc_sync._create_guild_membership) and is intentionally exempt.
     await _assert_member_capacity(session, guild_id=guild_id)
+    # A listed community never gains somebody who has answered the age question
+    # as under the minimum, by any route. The paths with a person at the
+    # keyboard ask the question first (``assert_age_confirmed``); this is the
+    # floor under the ones without — a group sync, an admin adding somebody —
+    # where refusing an unanswered account would refuse nearly everybody, but
+    # an answered one is a fact already on the record.
+    # The guild is asked first and the account only if the answer is yes: a
+    # private guild is every guild on most deployments, and the rule does not
+    # apply to one, so it should not cost a lookup. ``is_listed_in_directory``
+    # itself stops at the deployment switch, so a deployment with no directory
+    # pays a settings read and nothing else.
+    if await is_listed_in_directory(
+        session, guild_id=guild_id
+    ) and await is_known_under_age(session, user_id=user_id):
+        raise AgeConfirmationRequiredError(GuildMessages.AGE_BELOW_MINIMUM)
     next_position = await _next_membership_position(session, user_id=user_id)
     membership = GuildMembership(
         guild_id=guild_id,
@@ -237,6 +271,23 @@ async def ensure_membership(
         oidc_provider_id=oidc_provider_id,
     )
     session.add(membership)
+    await session.flush()
+    detail: dict[str, object] = {"role": role.value, "via": via}
+    if invite_id is not None:
+        detail["invite_id"] = invite_id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_ADDED,
+        actor_user_id=actor_user_id if actor_user_id is not None else user_id,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail=detail,
+    )
+    # Written out here, where the caller's own context still applies. The
+    # enrolment below borrows the session for the guild's schema, and a record
+    # left pending would be carried into that excursion instead.
     await session.flush()
     # Belonging somewhere new can change what this account is asked for — a
     # listed community asks its members their age — and the person may have
@@ -517,11 +568,17 @@ async def list_memberships(
     for guild, membership in pairs:
         # A suspended guild disappears from its members' guild list; guild
         # ADMINS keep the entry so they can still reach the settings surface
-        # (billing / data ownership / danger zone stay theirs under any
-        # status). No status is serialized either way — the row is simply
-        # absent for members.
+        # (billing / data ownership / danger zone stay theirs while the guild
+        # is only suspended). No status is serialized either way — the row is
+        # simply absent for members.
+        #
+        # A DELETED guild disappears for everyone, admins included: there is no
+        # billing surface left to reach and the danger zone has already been
+        # used. Only a platform operator sees it, and only to restore it.
+        if guild.status == GuildStatus.deleted.value:
+            continue
         if (
-            guild.status == GuildStatus.suspended.value
+            guild.status not in LIVE_STATUS_VALUES
             and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
@@ -601,6 +658,28 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
+async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:
+    """Does this account already have the one free community it gets?"""
+    result = await session.exec(
+        select(GuildMembership.guild_id)
+        .join(
+            GuildAdministration,
+            GuildAdministration.guild_id == GuildMembership.guild_id,
+            isouter=True,
+        )
+        .where(
+            GuildMembership.user_id == user_id,
+            GuildMembership.role == GuildRole.superadmin,
+            or_(
+                GuildAdministration.plan_is_free.is_(None),
+                GuildAdministration.plan_is_free.is_(True),
+            ),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def create_guild(
     session: AsyncSession,
     *,
@@ -608,6 +687,7 @@ async def create_guild(
     description: str | None = None,
     creator: User | None = None,
     owner: User | None = None,
+    actor_user_id: int | None = None,
 ) -> Guild:
     """Create a guild's *shared* rows only — the guild row (public) and its
     admin membership (public). The guild-scoped seed rows (settings + default
@@ -616,7 +696,9 @@ async def create_guild(
 
     ``creator`` is who performed the creation and is recorded as such;
     ``owner`` is who gets the membership, defaulting to the creator. The row
-    therefore says both who made the guild and who it is for.
+    therefore says both who made the guild and who it is for. ``actor_user_id``
+    is who the record names as having done it, defaulting to whoever the guild
+    is for.
 
     That membership is ``superadmin``, the top of the guild ladder: whoever
     starts a community holds all of it, sign-in and billing included, and has
@@ -635,12 +717,26 @@ async def create_guild(
     )
     await _persist_new_guild(session, guild)
     first = owner or creator
+    owner_id = first.id if first else None
+    actor = actor_user_id if actor_user_id is not None else owner_id
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_CREATED,
+        actor_user_id=actor,
+        target_user_id=owner_id,
+        guild_id=guild.id,
+        target_type="guild",
+        target_id=guild.id,
+        detail={"owner_is_actor": actor == owner_id},
+    )
     if first:
         await ensure_membership(
             session,
             guild_id=guild.id,
             user_id=first.id,
             role=GuildRole.superadmin,
+            actor_user_id=actor,
+            via="created",
         )
     return guild
 
@@ -900,6 +996,18 @@ async def update_guild(
             support_enabled is not None
             and administration.support_enabled != support_enabled
         ):
+            # Switching it on offers the community's members a form. Where the
+            # deployment has bound no support stream, that form has nowhere to
+            # send what somebody writes in it, so the entitlement is refused
+            # until the deployment has somewhere to receive them. Switching it
+            # off is always allowed — a deployment that has stopped staffing
+            # help stops offering it.
+            from app.services.platform.intake import stream_is_bound
+
+            if support_enabled and not await stream_is_bound(IntakeStream.support):
+                raise SupportIntakeMissingError(
+                    GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED
+                )
             administration.support_enabled = support_enabled
             administration_updated = True
         if administration_updated:
@@ -992,7 +1100,10 @@ async def create_guild_invite(
     expires_at: datetime | None = None,
     max_uses: int | None = 1,
     invitee_email: str | None = None,
+    actor_user_id: int | None = None,
 ) -> GuildInvite:
+    """Mint an invite. ``actor_user_id`` names who for the record; without one
+    the invite is minted unrecorded."""
     # A full guild mints no new invites: every seat is taken, so any code handed
     # out now could only fail at redemption. Raises ``GuildCapacityError``.
     await _assert_member_capacity(session, guild_id=guild_id, claiming_seat=False)
@@ -1017,12 +1128,41 @@ async def create_guild_invite(
     )
     session.add(invite)
     await session.flush()
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_INVITE_CREATED,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+            target_type="guild_invite",
+            target_id=invite.id,
+            detail=_invite_detail(invite),
+        )
     return invite
 
 
+def _invite_detail(invite: GuildInvite) -> dict[str, object]:
+    """What an invite record carries: its terms, and whether it names somebody.
+
+    The code and the address it may be bound to are the invite itself, so
+    neither is here — ``addressed`` says only that one is set.
+    """
+    return {
+        "max_uses": invite.max_uses,
+        "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
+        "addressed": invite.invitee_email_encrypted is not None,
+    }
+
+
 async def delete_guild_invite(
-    session: AsyncSession, *, guild_id: int, invite_id: int
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    invite_id: int,
+    actor_user_id: int | None = None,
 ) -> None:
+    """Withdraw an invite. ``actor_user_id`` names who for the record; without
+    one the withdrawal is unrecorded."""
     stmt = select(GuildInvite).where(
         GuildInvite.id == invite_id,
         GuildInvite.guild_id == guild_id,
@@ -1030,11 +1170,33 @@ async def delete_guild_invite(
     result = await session.exec(stmt)
     invite = result.one_or_none()
     if invite:
+        if actor_user_id is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.GUILD_INVITE_REVOKED,
+                actor_user_id=actor_user_id,
+                guild_id=guild_id,
+                target_type="guild_invite",
+                target_id=invite.id,
+                detail=_invite_detail(invite),
+            )
         await session.delete(invite)
 
 
-async def delete_guild(session: AsyncSession, guild: Guild) -> None:
+async def delete_guild(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    actor_user_id: int | None = None,
+    via: str = "admin",
+    target_user_id: int | None = None,
+) -> None:
     """Delete a guild's shared rows.
+
+    ``actor_user_id`` names who for the record, ``via`` which surface they did
+    it from, and ``target_user_id`` the account the deletion was on behalf of
+    where there is one. Without an actor the deletion is unrecorded — the
+    compensating delete of a guild whose setup failed is that case.
 
     Under schema-per-guild the guild's content lives in its schema and is removed
     separately by ``deprovision_guild`` (``DROP SCHEMA … CASCADE``). Here we only
@@ -1065,8 +1227,225 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     the three call sites, so deleting a guild announces itself however it is
     reached.
     """
-    await _signal_members_present(session, guild_id=guild.id, action="membership")
-    await session.exec(delete(Guild).where(Guild.id == guild.id))
+    guild_id = guild.id
+    await _signal_members_present(session, guild_id=guild_id, action="membership")
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_DELETED,
+            actor_user_id=actor_user_id,
+            target_user_id=target_user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"via": via},
+        )
+    await session.exec(delete(Guild).where(Guild.id == guild_id))
+
+
+@dataclass(frozen=True)
+class CommunityDeletionNotice:
+    """What to write to whom after a community is deleted.
+
+    Gathered before the deletion rather than after: a community of one loses
+    its roster on the way out, so the people to tell have to be read while
+    they are still there.
+
+    ``purge_at`` is ``None`` where the deployment keeps deleted communities
+    indefinitely — then there is no date to name, only the fact that an
+    operator can put it back.
+    """
+
+    community_name: str
+    recipients: list[str]
+    purge_at: datetime | None
+
+
+async def _deletion_notice(
+    session: AsyncSession, guild: Guild
+) -> CommunityDeletionNotice:
+    """Who to tell that this community is gone, and by when it stops being
+    recoverable.
+
+    The people who run it. They are the ones who can ask an operator to put it
+    back, and the ones a community's own news belongs to; its members are told
+    by the community disappearing from their lists, which is what they can act
+    on. Proved addresses only, as account mail is.
+    """
+    from app.services.auth import addresses
+    from app.services.platform import guild_purge
+
+    running_it = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+    recipients: list[str] = []
+    for user_id in running_it:
+        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+
+    days = await guild_purge.retention_days(session)
+    deleted_at = datetime.now(timezone.utc)
+    return CommunityDeletionNotice(
+        community_name=guild.name,
+        # Sorted and de-duplicated: somebody holding two addresses gets one
+        # letter at each, and two admins are not two letters to the same box.
+        recipients=sorted(set(recipients)),
+        purge_at=guild_purge.purge_at(deleted_at, days) if days else None,
+    )
+
+
+async def soft_delete_guild(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    actor_user_id: int | None = None,
+    via: str = "admin",
+    target_user_id: int | None = None,
+) -> CommunityDeletionNotice:
+    """Delete a guild by moving it to ``deleted``, keeping everything.
+
+    The guild is mutated in place, so a caller holding it keeps it. What comes
+    back is the letter to write once the deletion is committed — gathered here
+    rather than by each call site, because a community of one loses its roster
+    on the way out and there would be nobody left to address.
+
+    The guild stops existing for everybody in it — absent from their lists,
+    refused on every path, admins included — but nothing is destroyed. The
+    shared rows, the ``guild_<id>`` schema and the stored blobs all stay where
+    they are, so a platform operator can put the community back inside the
+    retention window. ``guild_purge`` is what eventually does the destroying,
+    and does exactly what :func:`delete_guild` does today.
+
+    ``status_changed_at`` is the deletion time and therefore what the purge
+    date is counted from, which is why this stamps it unconditionally rather
+    than through :func:`set_guild_status` (a guild deleted twice would keep the
+    first stamp and be purged early).
+
+    A community of **one** is the single case where the roster goes with it.
+    That roster is a single row describing the person doing the deleting, and
+    somebody clearing out a community of their own is often on their way to
+    closing their account as well; a restore of one is seated from the wizard
+    like any other. Every larger community keeps its roster, because those rows
+    describe other people, and bringing the community back without them would
+    make a restore into a different community with the same name.
+
+    Everyone is poked first, for the same reason :func:`delete_guild` does it:
+    by the time this returns, every one of those people has an account that
+    says something different.
+    """
+    guild_id = guild.id
+    # Read while the roster is still there: a community of one loses it below.
+    notice = await _deletion_notice(session, guild)
+    await _signal_members_present(session, guild_id=guild_id, action="membership")
+    members = await count_members(session, guild_id=guild_id)
+    clear_roster = members <= 1
+    if actor_user_id is not None:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_DELETED,
+            actor_user_id=actor_user_id,
+            target_user_id=target_user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"via": via, "roster_cleared": clear_roster},
+        )
+    if clear_roster:
+        await session.exec(
+            delete(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    guild.status = GuildStatus.deleted.value
+    guild.status_changed_at = datetime.now(timezone.utc)
+    session.add(guild)
+    await session.flush()
+    return notice
+
+
+async def guild_has_seat(session: AsyncSession, *, guild_id: int) -> bool:
+    """Whether anybody in this guild can still run it.
+
+    The ``superadmin`` seat, specifically: it holds the sign-in configuration
+    and the billing portal, and a community without one cannot be configured by
+    anybody who is in it. Read before a restore, because restoring a guild
+    nobody can administer produces one that is live and unreachable.
+    """
+    held = (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).one()
+    return held > 0
+
+
+async def restore_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    status: GuildStatus,
+    seat_user_id: int | None = None,
+    actor_user_id: int,
+) -> Guild:
+    """Bring a deleted guild back at ``status``, seating ``seat_user_id``.
+
+    Raises :class:`ValueError` carrying a message code: the guild must be
+    ``deleted``, the status it returns at must not be, and a guild whose roster
+    no longer holds a seat must be given one — an account named here is made
+    its ``superadmin``.
+
+    The operator names the status rather than the guild remembering it. A
+    community suspended for nonpayment and then deleted should not come back
+    trading, and a column recording what it used to be would be one more thing
+    to keep correct for a decision somebody is making anyway.
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.status != GuildStatus.deleted.value:
+        raise ValueError(GuildMessages.GUILD_NOT_DELETED)
+    if status == GuildStatus.deleted:
+        raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+
+    await lock_guild_seats(session, guild_id)
+    seated: int | None = None
+    if not await guild_has_seat(session, guild_id=guild_id):
+        if seat_user_id is None:
+            raise ValueError(GuildMessages.GUILD_RESTORE_SEAT_REQUIRED)
+        user = await session.get(User, seat_user_id)
+        if user is None:
+            raise ValueError(GuildMessages.GUILD_OWNER_NOT_FOUND)
+        await ensure_membership(
+            session,
+            guild_id=guild_id,
+            user_id=seat_user_id,
+            role=GuildRole.superadmin,
+            force_role=True,
+            actor_user_id=actor_user_id,
+            via="restored",
+        )
+        seated = seat_user_id
+
+    guild.status = status.value
+    guild.status_changed_at = datetime.now(timezone.utc)
+    session.add(guild)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_RESTORED,
+        actor_user_id=actor_user_id,
+        target_user_id=seated,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"status": status.value, "seated": seated is not None},
+    )
+    await session.flush()
+    return guild
 
 
 async def get_invite_by_code(session: AsyncSession, *, code: str) -> GuildInvite | None:
@@ -1115,11 +1494,20 @@ async def redeem_invite_for_user(
     ):
         raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
+    # An invite into a listed community is still a way into a listed community.
+    # The rule belongs to the guild rather than to the route: anyone signed in
+    # can find it, so the deployment's age question applies however somebody
+    # arrived. A private guild asks nothing, which is every other invite.
+    if await is_listed_in_directory(session, guild_id=invite.guild_id):
+        await assert_age_confirmed(session, user=user)
+
     await ensure_membership(
         session,
         guild_id=invite.guild_id,
         user_id=user.id,
         role=GuildRole.member,
+        via="invite",
+        invite_id=invite.id,
     )
     invite.uses += 1
     session.add(invite)
@@ -1235,65 +1623,77 @@ async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> boo
     return bool((await session.exec(statement)).one())
 
 
-async def age_confirmation_outstanding(
-    session: AsyncSession,
-    *,
-    user: User,
-) -> bool:
-    """Whether this account owes the deployment an age confirmation.
+async def is_known_under_age(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether this account has answered the age question as under the minimum.
 
-    True when the deployment asks for one, the account has not given one, and
-    it belongs to at least one guild that is listed right now. That last clause
-    is why this is asked rather than stored: a guild lists itself long after
-    its members joined, and every member it already had owes the confirmation
-    from that moment — as does anyone a group sync or an admin put there, who
-    was never shown a form to tick.
+    Positive knowledge only. An account that has never been asked answers
+    ``False`` here, because "we do not know" is not "too young" — most accounts
+    have never been asked, since a private community never puts the question.
 
-    Which guilds count is ``community_listing_filters()``, the same list the
-    directory and the join it authorizes ask, so a guild that leaves the shelf
-    stops holding anybody to this in the same instant.
-
-    Reads another shape of the caller's own membership rows, so it wants a
-    session that can see ``guilds`` unfiltered (the system engine) or the
-    caller's own platform-tier session, which is scoped to exactly these rows.
+    Reads another account's ``users`` row, so it wants a session that can see
+    the table: the system engine, or the platform-tier session of the account
+    itself. A guild-routed session cannot, which is why the listing guard below
+    is asked before a request routes into its guild.
     """
-    from app.services.platform import app_settings as app_settings_service
-
-    if user.age_confirmed_at is not None:
-        return False
-    settings_row = await app_settings_service.get_app_settings(session)
-    # Two switches, both off-ramps: a deployment with no directory lists no
-    # guild for anyone to be in, and an owner may have asserted that every
-    # account here belongs to an adult.
-    if not (
-        settings_row.community_directory_enabled
-        and settings_row.community_age_gate_enabled
-    ):
-        return False
-    # One row is the whole answer — this is asked on every read of the caller's
-    # own account until they answer, so it stops at the first listed guild
-    # rather than counting them.
     statement = (
-        select(GuildMembership.guild_id)
-        .join(Guild, Guild.id == GuildMembership.guild_id)
-        .join(
-            GuildAdministration, GuildAdministration.guild_id == Guild.id, isouter=True
-        )
-        .where(GuildMembership.user_id == user.id, *community_listing_filters())
+        select(User.id)
+        .where(User.id == user_id, User.age_below_minimum_at.is_not(None))
         .limit(1)
     )
     return (await session.exec(statement)).first() is not None
 
 
+async def assert_may_list_with_members(session: AsyncSession, *, guild_id: int) -> None:
+    """Raise unless this guild may move onto the shelf with the members it has.
+
+    A listed community is open to anyone signed in, so the deployment's age
+    rule applies to it — and a guild that has been private until now collected
+    its members under no such rule. This is the one moment that can be
+    reconciled: on the way in, before it is listed.
+
+    Only accounts that have *answered* under the minimum count. An unanswered
+    account is not evidence of anything, and holding a listing until every
+    member has answered a question nobody has been asked would mean no private
+    guild could ever be listed.
+
+    **Asked on the transition only.** An already-listed guild is not re-checked,
+    so an admin editing a description never meets a failure about somebody
+    else's birthday, with nothing to do about it but remove them.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_age_gate_enabled(session):
+        return
+    statement = (
+        select(GuildMembership.user_id)
+        .join(User, User.id == GuildMembership.user_id)
+        .where(
+            GuildMembership.guild_id == guild_id,
+            User.age_below_minimum_at.is_not(None),
+        )
+        .limit(1)
+    )
+    if (await session.exec(statement)).first() is not None:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_UNDER_AGE_MEMBERS)
+
+
 async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
     """Raise unless this account may take a place in a listed guild.
 
-    The directory's Join button asks first and this backs it, so ticking the
-    box is what joins rather than what is checked afterwards. Every other way
-    into a listed guild — an invite, a group sync, an admin adding somebody —
-    lands the membership and is caught by
-    :func:`age_confirmation_outstanding` instead, which is the enforcement:
-    there is nobody at a keyboard on those paths to answer a question.
+    The only place the age question is enforced, and it guards one door: the
+    directory's. A listed guild is open to anyone signed in, so taking a seat
+    in one is the thing somebody has to be old enough for.
+
+    **Every other way into a guild is not this function's business.** An
+    invite, a group sync, an admin adding somebody — those are a community
+    choosing who belongs to it, which is the community's to answer for and not
+    the deployment's, and none of them come through here. An account that has
+    never answered is not held up anywhere else on the platform.
+
+    The directory's Join button asks first and this backs it, so answering is
+    what joins rather than what is checked afterwards. An account that answered
+    under age is refused with its own code: it is not being asked again, so a
+    reply telling it to answer would send it to a form that has nothing for it.
     """
     from app.services.platform import app_settings as app_settings_service
 
@@ -1301,6 +1701,8 @@ async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
         return
     if not await app_settings_service.community_age_gate_enabled(session):
         return
+    if user.age_below_minimum_at is not None:
+        raise AgeConfirmationRequiredError(GuildMessages.AGE_BELOW_MINIMUM)
     raise AgeConfirmationRequiredError(GuildMessages.AGE_CONFIRMATION_REQUIRED)
 
 
@@ -1456,6 +1858,7 @@ async def join_community_guild(
         guild_id=guild_id,
         user_id=user.id,
         role=GuildRole.member,
+        via="community",
     )
     return guild
 
@@ -1528,6 +1931,13 @@ async def must_keep_superadmin(
     enough that most guilds never held one. It is now every guild's, and it
     reaches further than sign-in.
 
+    A **deleted** community is exempt. The seat is held so that somebody can
+    always appoint another, reach the billing and change the sign-in — none of
+    which a deleted community has. Holding its seat therefore blocks nothing,
+    which is what lets somebody delete their community and then their account:
+    that sequence is the ordinary way out, and a rule written for live
+    communities must not stand in the middle of it.
+
     Call :func:`lock_guild_seats` first — this reads two things that have to
     agree with each other, and the lock is what makes the answer still true
     when the caller acts on it.
@@ -1536,14 +1946,27 @@ async def must_keep_superadmin(
     if membership is None or membership.role != GuildRole.superadmin:
         return False
 
+    guild = (
+        await session.exec(select(Guild.status).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild == GuildStatus.deleted.value:
+        return False
+
     others = (
         await session.exec(
             select(func.count())
             .select_from(GuildMembership)
+            .join(User, User.id == GuildMembership.user_id)
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id != user_id,
                 GuildMembership.role == GuildRole.superadmin,
+                # A seat held by an account on its way out is not one. That
+                # account keeps its membership for its whole window, so
+                # counting the row would let two seat holders each leave in
+                # turn — each one counting the other — and leave the community
+                # with nobody who can run it.
+                User.status != UserStatus.deleted,
             )
         )
     ).one()
@@ -1606,6 +2029,17 @@ async def remove_user_from_guild(
     from app.services.tenant import app_delegations as app_delegations_service
     from app.services.tenant import initiatives as initiatives_service
 
+    # Read before the delete below takes the row: the record says which standing
+    # the person held when they left.
+    previous_role = (
+        await session.exec(
+            select(GuildMembership.role).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+        )
+    ).one_or_none()
+
     # Remove from all initiatives in this guild
     await initiatives_service.remove_user_from_guild_initiatives(
         session,
@@ -1630,6 +2064,19 @@ async def remove_user_from_guild(
     # which pings only on a genuine insert (a no-op remove of a non-member
     # must not nudge billing).
     if result.rowcount:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            actor_user_id=user_id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={
+                "role": previous_role.value if previous_role else None,
+                "via": "left",
+            },
+        )
         # Same reason as the insert side: what is asked of this account can
         # change with where it belongs, and leaving is not always their doing.
         account_stream.queue_account_signal(session, user_id, "membership")

@@ -46,12 +46,6 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.announcementsManage],
       },
       {
-        value: "audit",
-        label: t("operatorDashboard.tabs.audit"),
-        path: "/settings/operator/audit",
-        capabilities: [Capability.auditRead],
-      },
-      {
         value: "access",
         label: t("operatorDashboard.tabs.access"),
         path: "/settings/operator/access",
@@ -62,9 +56,7 @@ export const OperatorDashboardLayout = () => {
   }, [t, user]);
 
   if (!canAccessOperatorDashboard(user)) {
-    return (
-      <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/settings"} replace />
-    );
+    return <Navigate to={canManagePlatformConfig(user) ? "/settings/platform" : "/"} replace />;
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";

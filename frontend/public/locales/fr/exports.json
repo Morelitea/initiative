@@ -46,10 +46,11 @@
       "disabled": "Non activé",
       "estimateFailed": "Impossible de charger l’estimation de taille.",
       "overRowLimit": "Cet export dépasse la limite de taille — excluez certains outils pour continuer.",
-      "overUploadLimit": "Les fichiers téléversés dépassent la limite de {{limit}} — excluez-les pour continuer."
+      "overUploadLimit": "Les fichiers téléversés dépassent la limite de {{limit}} — excluez-les pour continuer.",
+      "willBeDelivered": "Cette exportation dépasse {{limit}} : elle sera écrite dans le dossier d'exportation du serveur au lieu d'être téléchargée. L'administration du serveur pourra vous remettre le fichier.",
+      "noDestination": "Cette exportation dépasse {{limit}} et aucun dossier d'exportation n'est configuré sur ce serveur, elle ne peut donc pas être téléchargée. Demandez à l'administration du serveur d'en configurer un."
     },
     "report": {
-      "include": "Inclure",
       "documentNative": "Documents texte",
       "documentSpreadsheet": "Tableurs",
       "documentOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
@@ -82,14 +83,25 @@
     "initiativeDescription": "Téléchargez les données de cette initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
     "open": "Exporter…"
   },
+  "community": {
+    "lastExport": "Dernier export",
+    "none": "Personne n'a encore exporté cette communauté.",
+    "startedBy": "Lancé par {{name}}",
+    "startedByUnknown": "Lancé par un ancien membre",
+    "preparing": "Toujours en préparation — vous recevrez une notification dès que ce sera prêt.",
+    "expires": "Le téléchargement expire",
+    "delivered": "Écrit dans le dossier d'exportation du serveur — demandez le fichier à l'administration du serveur.",
+    "expiredNote": "L'archive a été supprimée depuis.",
+    "failedNote": "Rien n'a été exporté.",
+    "nextAvailable": "Prochain export possible"
+  },
   "table": {
     "title": "Exports récents",
-    "description": "Les exports terminés peuvent être retéléchargés jusqu’à leur expiration (7 jours). Les administrateurs de communauté voient les exports de tous les membres.",
+    "description": "Les exports terminés peuvent être retéléchargés jusqu’à leur expiration (7 jours). Cette liste couvre les exports de tous les membres.",
     "columns": {
       "export": "Export",
       "status": "Statut",
       "created": "Créé",
-      "expires": "Expire",
       "actions": "Actions"
     },
     "status": {
@@ -104,13 +116,14 @@
       "project": "Projet",
       "document": "Document",
       "queue": "File",
-      "counter-group": "Groupe de compteurs",
       "calendar": "Calendrier",
       "post": "Publication",
       "wiki": "Wiki",
       "initiative": "Initiative",
       "guild": "Communauté",
-      "gallery": "Galerie"
+      "gallery": "Galerie",
+      "counter-group": "Groupe de compteurs",
+      "dashboard": "Tableau de bord"
     },
     "download": "Télécharger",
     "empty": "Aucun export pour l’instant.",

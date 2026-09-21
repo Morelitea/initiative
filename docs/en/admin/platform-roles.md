@@ -18,7 +18,7 @@ Five rungs, each adding to the one below:
 | Role | What it can do |
 |---|---|
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
-| **Support** | Read-only visibility across the platform (users, communities, audit), can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
+| **Support** | Read-only visibility across the platform (users, communities), can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
 | **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate) and content moderation. |
 | **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, and writes [announcements](announcements.md). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
@@ -87,7 +87,7 @@ Ask for one, the other, or both. Each is approved and recorded on its own.
 !!! info "Breaking glass asks for your authenticator code"
     As soon as **anybody** who can break glass has set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks everybody for a code — theirs, at the moment they do it. One of your recovery codes works too, which matters, because the phone is the thing most likely to be missing in the hour you need this.
 
-    Nobody switches this on. It follows from who has enrolled, which means it can only ever be on while at least one person can satisfy it — there is no way to end up with a server nobody can break glass into. The flip side is worth knowing before it surprises you: if a colleague enrols and you haven't, your next break-glass is refused until you do. Setting one up takes about a minute, under **Security** in your own settings.
+    Nobody switches this on. It follows from who has enrolled, which means it can only ever be on while at least one person can satisfy it — there is no way to end up with a server nobody can break glass into. The flip side is worth knowing before it surprises you: if a colleague enrols and you haven't, your next break-glass is refused until you do. Setting one up takes about a minute, under **Security** in your own settings. If you've [required two-factor authentication for platform roles](configuration.md#requiring-two-factor-authentication), everybody who can break glass already has one and this never comes up.
 
 !!! info "Why it's built this way"
     Privileged access has to be deliberately taken, is scoped to one community, expires on its own, and leaves a record naming who took it and why. That's a stronger position than a permanent bypass nobody has to justify. More in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).

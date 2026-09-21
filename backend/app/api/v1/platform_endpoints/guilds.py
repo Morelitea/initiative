@@ -29,19 +29,24 @@ from app.core import auth_context
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.login_methods import LoginMethod
+from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.messages import BillingMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
+    AUTH_POLICY_UNMET_HEADER,
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
 )
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import (
+    get_admin_session,
+    set_rls_context,
+)
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     assignable_roles,
@@ -67,6 +72,8 @@ from app.schemas.platform.guild import (
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
+    GuildSecondFactorRead,
+    GuildSecondFactorUpdate,
     GuildAuthSettingsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
@@ -94,8 +101,10 @@ from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption, effective_options
 from app.models.platform.access_grant import AccessGrantPurpose
 from app.services.platform import access_grants as access_grants_service
+from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_claim
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
@@ -181,6 +190,8 @@ def _serialize_guild(
         enforce_compliance_session=(
             guild.enforce_compliance_session if is_admin else None
         ),
+        # Admins only: and of the second-factor control beside that.
+        require_second_factor=(guild.require_second_factor if is_admin else None),
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -263,6 +274,43 @@ async def _ensure_guild_superadmin(
     )
     await rls_service.require_guild_seat(session, guild_id=guild_id, user_id=user_id)
     return membership
+
+
+#: The guild fields a community's own admins edit, snapshotted either side of a
+#: PATCH so the record names which of them moved.
+_GUILD_PROFILE_FIELDS = (
+    "name",
+    "description",
+    "banner",
+    "is_community",
+    "categories",
+    "has_adult_content",
+    "show_member_names",
+)
+
+
+async def _record_guild_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    actor_user_id: int,
+    area: str,
+    before: dict[str, object],
+    after: dict[str, object],
+) -> None:
+    """Record one area of a guild's settings, when that area moved."""
+    changes = audit_service.changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"area": area, **changes},
+    )
 
 
 async def _set_guild_admin_rls(
@@ -541,6 +589,16 @@ async def create_guild(
 
     owner = await _resolve_guild_owner(session, guild_in, current_user)
 
+    if (
+        billing_service.billing_inbound_enabled()
+        and not user_has_capability(current_user, Capability.GUILDS_MANAGE)
+        and await guilds_service.holds_a_free_guild(session, user_id=owner.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=GuildMessages.FREE_COMMUNITY_ALREADY_HELD,
+        )
+
     # The guild's shared rows (guild + admin membership) live in public. Commit
     # them first so provisioning + the in-schema seed below run as a distinct,
     # compensatable step (on failure: deprovision + delete these committed rows).
@@ -550,6 +608,7 @@ async def create_guild(
         description=guild_in.description,
         creator=current_user,
         owner=owner,
+        actor_user_id=current_user.id,
     )
     await session.commit()
     if owner.id != current_user.id:
@@ -583,7 +642,9 @@ async def create_guild(
         stale = await guilds_service.get_guild(session, guild_id=guild.id)
         if stale:
             stale_id = stale.id
-            await guilds_service.delete_guild(session, stale)
+            await guilds_service.delete_guild(
+                session, stale, actor_user_id=current_user.id, via="provision_failed"
+            )
             await session.commit()
             await app_refs.forget_guild(guild_id=stale_id)
         raise HTTPException(
@@ -638,6 +699,7 @@ async def update_guild(
     guild_id: int,
     updates: GuildUpdate,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     membership = await _ensure_guild_admin(
@@ -645,11 +707,42 @@ async def update_guild(
         guild_id=guild_id,
         user_id=current_user.id,
     )
+    # Moving onto the shelf is measured against the roster the guild built
+    # while it was private, and only on the way in — asked before the request
+    # routes into its guild, because the answer lives in ``public.users``,
+    # which a guild-scoped role does not read. A guild already listed is not
+    # re-asked: the ways in keep it true from here, and failing an unrelated
+    # edit over a member's answer would leave an admin nothing to do but
+    # remove them.
+    if updates.is_community:
+        listed_before = (
+            await guilds_service.get_guild(admin_session, guild_id=guild_id)
+        ).is_community
+        if not listed_before:
+            try:
+                await guilds_service.assert_may_list_with_members(
+                    admin_session, guild_id=guild_id
+                )
+            except guilds_service.CommunityListingError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_provided = "banner" in updates.model_fields_set
+    # The state this PATCH is measured against. Read before the write, since the
+    # service edits the row in place.
+    before_profile = audit_service.snapshot(
+        await guilds_service.get_guild(session, guild_id=guild_id),
+        _GUILD_PROFILE_FIELDS,
+    )
+    retention_before = (
+        await guilds_service.get_guild_retention_days(session, guild_id)
+        if retention_days_provided
+        else None
+    )
     try:
         guild = await guilds_service.update_guild(
             session,
@@ -687,6 +780,27 @@ async def update_guild(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    await _record_guild_settings_change(
+        session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="profile",
+        before=before_profile,
+        after=audit_service.snapshot(guild, _GUILD_PROFILE_FIELDS),
+    )
+    if retention_days_provided:
+        await _record_guild_settings_change(
+            session,
+            guild_id=guild_id,
+            actor_user_id=current_user.id,
+            area="retention",
+            before={"retention_days": retention_before},
+            after={
+                "retention_days": await guilds_service.get_guild_retention_days(
+                    session, guild_id
+                )
+            },
+        )
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
@@ -1022,13 +1136,6 @@ async def _require_guild_auth_option(
         )
 
 
-#: Which part of the requirement the writer's own session came up short on.
-#: One refusal code covers four separate asks, so this is what tells the
-#: settings page which line of the form to point at. One of ``provider``,
-#: ``sso``, ``totp``, ``passkey``.
-AUTH_POLICY_UNMET_HEADER = "X-Auth-Policy-Unmet"
-
-
 def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
     """A refused requirement, naming the part of it that was refused."""
     return HTTPException(
@@ -1039,17 +1146,33 @@ def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
 
 
 def _auth_policy_read(
-    policy_row, provider_display_name: str | None = None
+    policy_row,
+    provider_display_name: str | None = None,
+    *,
+    factor_required_by_platform: bool = False,
 ) -> GuildAuthPolicyRead:
     if policy_row is None or policy_row.policy == "open":
-        return GuildAuthPolicyRead(policy="open")
+        return GuildAuthPolicyRead(
+            policy="open", factor_required_by_platform=factor_required_by_platform
+        )
     return GuildAuthPolicyRead(
         policy="required",
         provider_id=policy_row.provider_id,
         provider_slug=policy_row.provider_slug,
         provider_display_name=provider_display_name,
         require_methods=list(policy_row.require_methods or ()),
+        factor_required_by_platform=factor_required_by_platform,
     )
+
+
+async def _platform_asks_everyone(session) -> bool:
+    """Whether the deployment already asks every account for a second factor.
+
+    The one level that makes a community's own box redundant: asking the
+    platform rungs leaves a community's members untouched, so that box stays.
+    """
+    level = await auth_posture.second_factor_requirement(session)
+    return level is SecondFactorRequirement.everyone
 
 
 @router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
@@ -1075,6 +1198,7 @@ async def get_guild_auth_settings(
         else [],
         allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
+        require_second_factor=guild.require_second_factor,
     )
 
 
@@ -1099,7 +1223,11 @@ async def get_guild_auth_policy(
     if policy_row is not None and policy_row.provider_id is not None:
         provider = await admin_session.get(AuthProvider, policy_row.provider_id)
         display_name = provider.display_name if provider else None
-    return _auth_policy_read(policy_row, display_name)
+    return _auth_policy_read(
+        policy_row,
+        display_name,
+        factor_required_by_platform=await _platform_asks_everyone(admin_session),
+    )
 
 
 @router.put("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
@@ -1132,9 +1260,26 @@ async def set_guild_auth_policy(
     if payload.policy == "open":
         policy_row = await session.get(GuildAuthPolicy, guild_id)
         if policy_row is not None:
+            await audit_service.record(
+                session,
+                event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
+                actor_user_id=current_user.id,
+                guild_id=guild_id,
+                target_type="guild",
+                target_id=guild_id,
+                detail={
+                    "from": policy_row.policy,
+                    "to": "open",
+                    "provider_id": None,
+                    "require_methods": [],
+                },
+            )
             await session.delete(policy_row)
             await session.commit()
-        return GuildAuthPolicyRead(policy="open")
+        return GuildAuthPolicyRead(
+            policy="open",
+            factor_required_by_platform=await _platform_asks_everyone(admin_session),
+        )
 
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     # Hold the settings row for the rest of this transaction. An operator
@@ -1208,7 +1353,7 @@ async def set_guild_auth_policy(
                 GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
                 LoginMethod.totp.value,
             )
-        if not auth_context.session_mfa():
+        if SECOND_FACTOR_AMR not in auth_context.session_amr():
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.totp.value
             )
@@ -1224,13 +1369,23 @@ async def set_guild_auth_policy(
                 GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
                 LoginMethod.passkey.value,
             )
-        if not auth_context.session_passkey():
+        if not carries_passkey(auth_context.session_amr()):
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
                 LoginMethod.passkey.value,
             )
 
     policy_row = await session.get(GuildAuthPolicy, guild_id)
+    # No row is "open", so a guild that had none is moving from there.
+    was = (
+        ("open", None, [])
+        if policy_row is None
+        else (
+            policy_row.policy,
+            policy_row.provider_id,
+            list(policy_row.require_methods or ()),
+        )
+    )
     if policy_row is None:
         policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
     policy_row.policy = "required"
@@ -1238,8 +1393,27 @@ async def set_guild_auth_policy(
     policy_row.provider_slug = provider.slug if provider else None
     policy_row.require_methods = require_methods
     session.add(policy_row)
+    if was != ("required", policy_row.provider_id, require_methods):
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
+            actor_user_id=current_user.id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={
+                "from": was[0],
+                "to": "required",
+                "provider_id": policy_row.provider_id,
+                "require_methods": require_methods,
+            },
+        )
     await session.commit()
-    return _auth_policy_read(policy_row, provider.display_name if provider else None)
+    return _auth_policy_read(
+        policy_row,
+        provider.display_name if provider else None,
+        factor_required_by_platform=await _platform_asks_everyone(admin_session),
+    )
 
 
 @router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)
@@ -1271,10 +1445,81 @@ async def set_guild_api_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
+    before = {"allow_api_keys": guild.allow_api_keys}
     guild.allow_api_keys = payload.allow_api_keys
     admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="api_access",
+        before=before,
+        after={"allow_api_keys": guild.allow_api_keys},
+    )
     await admin_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
+
+
+@router.put("/{guild_id}/second-factor", response_model=GuildSecondFactorRead)
+async def set_guild_second_factor(
+    guild_id: int,
+    payload: GuildSecondFactorUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildSecondFactorRead:
+    """Ask for a second factor from everybody reaching this community.
+
+    The same seat as the two beside it, and separate from the sign-in
+    requirement on purpose: a community that lets its members arrive however
+    they like may still ask them to hold a factor, and lifting the sign-in
+    requirement does not lift this.
+
+    Which kinds of factor exist is the deployment's answer, and so is which
+    providers' own account of one counts. The community asks; it does not say
+    how the question is answered.
+    """
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    available = await auth_posture.second_factor_available(admin_session)
+    if payload.require_second_factor and not available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+        )
+    # The seat answers its own requirement before raising it — the same
+    # question the deployment's own setting asks, and the same answer: a
+    # factor held, or one this session presented.
+    if payload.require_second_factor and not await auth_posture.answers_the_rule(
+        admin_session, user=current_user
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            headers={AUTH_POLICY_UNMET_HEADER: LoginMethod.totp.value},
+        )
+    before = {"require_second_factor": guild.require_second_factor}
+    guild.require_second_factor = payload.require_second_factor
+    admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="second_factor",
+        before=before,
+        after={"require_second_factor": guild.require_second_factor},
+    )
+    await admin_session.commit()
+    return GuildSecondFactorRead(
+        require_second_factor=guild.require_second_factor, available=available
+    )
 
 
 @router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)
@@ -1308,8 +1553,17 @@ async def set_guild_session_limit(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
     changed = guild.enforce_compliance_session != payload.enforce_compliance_session
+    before = {"enforce_compliance_session": guild.enforce_compliance_session}
     guild.enforce_compliance_session = payload.enforce_compliance_session
     admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="session_limit",
+        before=before,
+        after={"enforce_compliance_session": guild.enforce_compliance_session},
+    )
     if changed:
         # Written before the sweep below, which reads the standard back off the
         # guild row to find whose phones it applies to.
@@ -1332,7 +1586,11 @@ async def delete_guild(
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(
+    # The seat, not an ordinary admin. Deleting a community is the one action
+    # an admin cannot undo and cannot be undone for them — only an operator
+    # can, and only inside the retention window — so it sits with the seat
+    # that is told about it and that a restore needs (``guild_has_seat``).
+    await _ensure_guild_superadmin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
@@ -1363,41 +1621,46 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # End the guild's app access while the schema is still there to read. The
-    # DROP below would take the rows with it silently, which would leave vendor
-    # grants outliving the guild that authorized them — so each app is told to
-    # let go first, and the intents are delivered once the deletion commits.
+    # End the guild's app access. The guild has withdrawn its authorization, so
+    # each app is told to let go now rather than at the end of the retention
+    # window — a restored guild comes back with its apps disconnected, and an
+    # admin reconnects them.
+    #
+    # On the REQUEST session, which is the one that can reach these rows: they
+    # live in the guild's own schema, and the grants that read and write them
+    # belong to the guild role as the request path assumes it. The system
+    # engine cannot stand in for it here.
+    #
+    # That makes this a separate transaction from the status write below, which
+    # the guild role in turn cannot do (``app_guild_base`` holds UPDATE on the
+    # identity columns a guild admin edits, and deliberately not on ``status``).
+    # The connections go first: a guild left live with its integrations ended
+    # is a thing its admin can see and put back, and the revocations are not
+    # dispatched until the deletion below has actually committed.
     await app_connections_service.delete_guild_connections(session)
-
-    # Delete the guild ROW first — reliable, and the guild is immediately gone from
-    # the app's point of view. Its ON DELETE CASCADE FKs clear the shared roster
-    # (memberships, invites, OIDC mappings, access grants). The guild-scoped data
-    # lives in the schema, which holds no FKs back to public.guilds, so the
-    # row delete isn't blocked by it. Runs as the assumed guild role, so the
-    # public.guilds guild_delete RLS policy (current_guild_id) matches.
-    await guilds_service.delete_guild(session, guild)
     await session.commit()
-    # See delete_guild: these live on another connection, so they go after the
-    # commit that made the deletion real.
+
+    # Move the guild to ``deleted`` and keep everything: the shared rows, the
+    # guild_<id> schema and the stored blobs all stay, so a platform operator
+    # can put the community back inside the retention window. Nothing is
+    # destroyed until guild_purge runs, which is when the shared row, the
+    # schema and the blobs go — the sequence this endpoint used to run inline.
+    #
+    # From here the guild is gone as far as everybody in it is concerned:
+    # absent from their guild lists and refused on every path, admins included.
+    guild_row = await guilds_service.get_guild(admin_session, guild_id=guild_id)
+    notice = await guilds_service.soft_delete_guild(
+        admin_session, guild_row, actor_user_id=current_user.id, via="admin"
+    )
+    await admin_session.commit()
+    # The receipt, once the deletion is a fact. Never allowed to fail it.
+    await email_service.announce_community_deleted(admin_session, notice)
+    # See soft_delete_guild: these live on another connection, so they go after
+    # the commit that made the deletion real.
     await app_refs.forget_guild(guild_id=guild_id)
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )
-
-    # Drop the schema + role as best-effort cleanup, on the provisioning engine's
-    # own connection — the guild role this request assumed ended with the commit
-    # above, so there is nothing here for DROP ROLE to trip over. With the
-    # cross-schema FKs gone, DROP SCHEMA only locks this guild's tables — no
-    # contention with the app's reads of public.guilds/users. A failed cleanup
-    # must NEVER undo the committed deletion: an orphaned, empty schema is
-    # harmless and reclaimed on a retry or the next provision of that id.
-    try:
-        await deprovision_guild(guild_id)
-    except Exception:
-        logger.exception(
-            "Schema/role cleanup for deleted guild %s failed (orphan is harmless)",
-            guild_id,
-        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -1426,6 +1689,7 @@ async def create_guild_invite(
             expires_at=invite_in.expires_at,
             max_uses=invite_in.max_uses,
             invitee_email=invite_in.invitee_email,
+            actor_user_id=current_user.id,
         )
     except guilds_service.GuildCapacityError as exc:
         raise HTTPException(
@@ -1453,7 +1717,10 @@ async def delete_guild_invite(
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     await guilds_service.delete_guild_invite(
-        session, guild_id=guild_id, invite_id=invite_id
+        session,
+        guild_id=guild_id,
+        invite_id=invite_id,
+        actor_user_id=current_user.id,
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1476,6 +1743,13 @@ async def accept_invite(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    except guilds_service.AgeConfirmationRequiredError as exc:
+        # The invite leads into a listed community, so the age question applies
+        # to it. Same code the directory's Join returns, so the SPA answers it
+        # the same way wherever the invite was opened.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
@@ -1599,10 +1873,25 @@ async def update_guild_membership(
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
             actor_user_id=current_user.id,
             target_user_id=user_id,
+            guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
+    elif previous_role != payload.role:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            guild_id=guild_id,
+            target_type="guild",
+            target_id=guild_id,
+            detail={"from": previous_role.value, "to": payload.role.value},
+        )
+    # Written out here, where this request's own context still applies: the
+    # reconciliation below borrows the session for the guild's schema.
+    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
     await guilds_service.align_admin_initiative_roles(
