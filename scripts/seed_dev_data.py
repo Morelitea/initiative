@@ -1039,13 +1039,15 @@ async def _create_operations_guild(
     ).one()
     seat.role = GuildRole.superadmin
     session.add(seat)
+    # Same order the community sections use: commit the shared rows, provision
+    # the schema and its roles, add the roster, then route in to write content.
+    await session.commit()
+    _expunge_guild_scoped(session)
+    await provision_guild(guild.id)
     await _add_guild_members(
         session, ids, guild, [operator, *members], admin_users=[operator]
     )
-    # Same order the community sections use: commit the shared rows, then route
-    # in to write the content. ``_create_guild`` provisioned the schema.
     await session.commit()
-    _expunge_guild_scoped(session)
     await set_rls_context(
         session, user_id=owner.id, guild_id=guild.id, guild_role="admin"
     )
