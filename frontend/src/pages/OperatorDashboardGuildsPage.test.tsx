@@ -116,6 +116,19 @@ vi.mock("@/hooks/useAdmin", () => ({
   usePlatformUsers: () => ({ data: [], isLoading: false }),
 }));
 
+// What the deployment has set up to receive operations work. The help-request
+// entitlement reads it: a community can only be offered the form where there is
+// somewhere to send what is written in it.
+let intakeBindings: { stream: string; enabled: boolean; project_id: number | null }[] = [
+  { stream: "support", enabled: true, project_id: 4 },
+];
+
+vi.mock("@/api/generated/intake/intake", () => ({
+  useReadIntakeSettingsApiV1SettingsIntakeGet: () => ({
+    data: { operations_guild_id: 9, bindings: intakeBindings },
+  }),
+}));
+
 import { OperatorDashboardGuildsPage } from "./OperatorDashboardGuildsPage";
 
 const renderPage = () =>
@@ -154,6 +167,7 @@ describe("OperatorDashboardGuildsPage", () => {
     restore.mockClear();
     mintHandoff.mockReset();
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
+    intakeBindings = [{ stream: "support", enabled: true, project_id: 4 }];
   });
 
   describe("the table", () => {
@@ -369,6 +383,13 @@ describe("OperatorDashboardGuildsPage", () => {
       await user.click(screen.getByLabelText(name));
 
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data });
+    });
+
+    it("cannot offer help requests where nothing receives them", async () => {
+      intakeBindings = [];
+      await openSheet("Capped Community");
+
+      expect(screen.getByLabelText("Help requests")).toBeDisabled();
     });
   });
 

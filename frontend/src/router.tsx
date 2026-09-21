@@ -30,7 +30,7 @@ export interface GuildContextValue {
   activeGuild: GuildRead | null;
   loading: boolean;
   error: string | null;
-  refreshGuilds: () => Promise<void>;
+  refreshGuilds: () => Promise<GuildRead[]>;
   switchGuild: (guildId: number) => Promise<void>;
   /** Push the server-held guild context + local state for a guild URL.
    * Awaited in the /c/$guildId beforeLoad so child routes can't fetch

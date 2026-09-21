@@ -47,6 +47,15 @@ export function isGuildScopedPath(path: string): boolean {
 }
 
 /**
+ * The community a guild-scoped path names, or null when it names none.
+ * @param path The path to read (e.g. "/c/5/projects/47")
+ */
+export function guildIdFromPath(path: string): number | null {
+  const match = path.match(/^\/c\/(\d+)(?:\/|$)/);
+  return match ? Number(match[1]) : null;
+}
+
+/**
  * Extract the sub-path from a guild-scoped path (everything after /c/:guildId).
  * @param path The full path
  * @returns The sub-path (e.g., "/projects/47" from "/c/5/projects/47")
