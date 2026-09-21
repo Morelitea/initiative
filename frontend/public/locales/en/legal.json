@@ -15,11 +15,29 @@
     "signOut": "Sign out"
   },
   "cookies": {
-    "label": "About cookies and browser storage",
-    "title": "A quick word about cookies",
-    "body": "{{appName}} keeps a few things in this browser: what keeps you signed in, the theme you picked, what you had open. That's the lot — no advertising, no analytics, and nothing following you around other sites.",
-    "spamCheck": "The sign-up form loads a spam check from {{provider}}, which sets a cookie of its own while you're on it.",
+    "label": "Cookie choices",
+    "title": "Your cookie choices",
+    "body": "{{appName}} needs a few things in this browser to work at all — what keeps you signed in, the theme you picked, what you had open. Beyond that, it's up to you.",
+    "spamCheck": "If you make an account, the sign-up form loads a spam check from {{provider}}, which sets a cookie of its own.",
     "readMore": "What's kept",
-    "acknowledge": "Got it"
+    "alwaysOn": "Always on",
+    "rejectAll": "Reject optional",
+    "acceptAll": "Accept all",
+    "choose": "Choose",
+    "save": "Save choices",
+    "categories": {
+      "necessary": {
+        "name": "Essential",
+        "description": "Signing in, your preferences, and what you had open. There is no version of Initiative without these."
+      },
+      "analytics": {
+        "name": "Analytics",
+        "description": "Which pages get used and where people get stuck, counted in aggregate to work out what to fix."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Which link brought you here, and reaching you about Initiative somewhere else."
+      }
+    }
   }
 }

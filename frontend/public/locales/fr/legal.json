@@ -15,11 +15,29 @@
     "signOut": "Se déconnecter"
   },
   "cookies": {
-    "label": "À propos des cookies et du stockage du navigateur",
-    "title": "Un mot sur les cookies",
-    "body": "{{appName}} conserve quelques éléments dans ce navigateur : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert. C'est tout — aucune publicité, aucune analyse, et rien qui vous suive sur d'autres sites.",
-    "spamCheck": "Le formulaire d'inscription charge une vérification anti-spam de {{provider}}, qui dépose son propre cookie pendant que vous y êtes.",
+    "label": "Vos choix de cookies",
+    "title": "Vos choix de cookies",
+    "body": "{{appName}} a besoin de quelques éléments dans ce navigateur pour fonctionner : ce qui vous garde connecté, le thème que vous avez choisi, ce que vous aviez ouvert. Au-delà, c'est vous qui décidez.",
+    "spamCheck": "Si vous créez un compte, le formulaire d'inscription charge une vérification anti-spam de {{provider}}, qui dépose son propre cookie.",
     "readMore": "Ce qui est conservé",
-    "acknowledge": "Compris"
+    "alwaysOn": "Toujours actifs",
+    "rejectAll": "Refuser les optionnels",
+    "acceptAll": "Tout accepter",
+    "choose": "Choisir",
+    "save": "Enregistrer mes choix",
+    "categories": {
+      "necessary": {
+        "name": "Essentiels",
+        "description": "La connexion, vos préférences et ce que vous aviez ouvert. Il n'existe pas de version d'Initiative sans eux."
+      },
+      "analytics": {
+        "name": "Mesure d'audience",
+        "description": "Quelles pages servent et où les gens bloquent, compté globalement pour savoir quoi corriger."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Le lien qui vous a amené ici, et la possibilité de vous parler d'Initiative ailleurs."
+      }
+    }
   }
 }

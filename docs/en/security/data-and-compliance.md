@@ -54,7 +54,11 @@ If we host it, your data lives where our service runs. For a group with a reside
 
 ## What is kept in your browser
 
-Initiative stores a small amount on the device you use it from. All of it is there to run what you asked for, and none of it is advertising, analytics, or anything that follows you to another site.
+Initiative stores a small amount on the device you use it from. What's essential is there to run what you asked for; anything beyond that is yours to switch on or off.
+
+### Essential
+
+Always present, because there is no version of Initiative without it.
 
 | What | Where | Why |
 |---|---|---|
@@ -66,20 +70,28 @@ Initiative stores a small amount on the device you use it from. All of it is the
 
 Signing out clears the session and renewal cookies. Clearing your browser's site data clears the rest; you'll land back on the sign-in page with default preferences.
 
-### The cookie notice
+### Optional
 
-A deployment can show arriving visitors a short notice saying the above. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**. It suits a deployment with a public front door.
+**Analytics** — which pages get used and where people get stuck, counted in aggregate. **Marketing** — which link brought you here, and reaching you about Initiative elsewhere.
 
-The notice explains rather than asks. Nothing listed above is optional, so dismissing it changes nothing and no part of Initiative waits on it. It appears once per browser.
+Both are **off until you switch them on**, and never switched on for you. Ignoring the question, closing the chooser, or never being asked all leave them off.
+
+### The cookie chooser
+
+A deployment can ask arriving visitors which of the optional categories it may use. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**. With it off, nothing optional is used at all, since nothing may be switched on that nobody agreed to.
+
+Where it is on, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click. You can change your mind at any time: the landing page's footer reopens the chooser, and so does **Cookies** under **User settings › Privacy**.
+
+Your answer is kept in your own browser, with the date and which version of the question it answered, and is never sent to the server — somebody reading the landing page has no account to attach it to. It applies to that browser, so a different browser or device asks again rather than inheriting it. If the categories change, you're asked again.
 
 ### The one outside company
 
-Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The cookie notice names the vendor where it applies.
+Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The chooser names the vendor where it applies.
 
-There is nothing else. Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
+Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
 
 !!! info "If you host it yourself"
-    The table above describes Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
+    The tables above describe Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
 
 ## Your data rights
 

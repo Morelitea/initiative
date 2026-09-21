@@ -483,18 +483,18 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
 
     light_accent_color: str
     dark_accent_color: str
-    #: Whether arriving visitors are shown the notice about what this
-    #: deployment keeps in their browser. Also on ``GET /config``, which is
-    #: where the SPA reads it; served here for the page that writes it.
-    cookie_notice_enabled: bool
+    #: Whether arriving visitors are asked what this deployment may keep in
+    #: their browser. Also on ``GET /config``, which is where the SPA reads it;
+    #: served here for the page that writes it.
+    cookie_consent_enabled: bool
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):
     light_accent_color: str
     dark_accent_color: str
-    #: Omitted leaves the notice as it was, so saving a colour does not
-    #: silently answer a separate question.
-    cookie_notice_enabled: bool | None = None
+    #: Omitted leaves it as it was, so saving a colour does not silently
+    #: answer a separate question.
+    cookie_consent_enabled: bool | None = None
 
 
 class CommunitySettingsResponse(SanitizedBaseModel):

@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { AgeGateDialog } from "@/components/auth/AgeGateDialog";
 import { SecondFactorStepUpDialog } from "@/components/auth/SecondFactorStepUpDialog";
 import { StepUpDialog } from "@/components/auth/StepUpDialog";
-import { CookieNotice } from "@/components/CookieNotice";
+import { CookieConsent } from "@/components/CookieConsent";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
@@ -39,7 +39,7 @@ const RootComponent = () => {
       <StepUpDialog />
       <SecondFactorStepUpDialog />
       <AgeGateDialog />
-      <CookieNotice />
+      <CookieConsent />
     </>
   );
 };

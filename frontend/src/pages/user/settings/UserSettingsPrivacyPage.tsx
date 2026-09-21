@@ -6,6 +6,7 @@ import { ContactRequestsSection } from "@/components/contacts/ContactRequestsSec
 import { DirectMessagePolicyField } from "@/components/contacts/DirectMessagePolicyField";
 import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSection";
 import { AgeConfirmationForm } from "@/components/contacts/UnreachableEmptyState";
+import { CookieChoicesSection } from "@/components/settings/CookieChoicesSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -45,11 +46,15 @@ export const UserSettingsPrivacyPage = () => {
   // switched off.
   if (!dmEnabled) {
     return (
-      <SettingsSection title={t("privacy.dm.title")}>
-        <p className="max-w-prose text-muted-foreground text-sm">
-          {t("privacy.dm.platformDisabled")}
-        </p>
-      </SettingsSection>
+      <div className="space-y-6">
+        <SettingsSection title={t("privacy.dm.title")}>
+          <p className="max-w-prose text-muted-foreground text-sm">
+            {t("privacy.dm.platformDisabled")}
+          </p>
+        </SettingsSection>
+        {/* Not about messaging, so it outlives messaging being switched off. */}
+        <CookieChoicesSection />
+      </div>
     );
   }
 
@@ -105,6 +110,8 @@ export const UserSettingsPrivacyPage = () => {
       <SettingsSection title={t("privacy.ignored.title")}>
         <IgnoredAccountsSection />
       </SettingsSection>
+
+      <CookieChoicesSection />
     </div>
   );
 };

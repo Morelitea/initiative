@@ -80,12 +80,11 @@ class AppConfig(BaseModel):
     # command palette and the per-person message controls. A database setting
     # like the two above, so it changes without a redeploy.
     direct_messages_enabled: bool
-    # Whether an arriving visitor is shown the notice about what this
-    # deployment keeps in their browser. Off by default, and unauthenticated by
-    # necessity -- the notice is for somebody who has not signed in and may
-    # never do so. A database setting like the three above, so it changes
-    # without a redeploy.
-    cookie_notice_enabled: bool
+    # Whether an arriving visitor is asked what this deployment may keep in
+    # their browser. Off by default, and unauthenticated by necessity -- the
+    # question is put to somebody who has not signed in and may never do so. A
+    # database setting like the three above, so it changes without a redeploy.
+    cookie_consent_enabled: bool
     # The ways in this deployment permits. The login page reads it to decide
     # whether to render the password form at all; the server refuses either
     # way, so this only decides what is offered. Unauthenticated by necessity —
@@ -137,7 +136,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
-        cookie_notice_enabled=app_settings.cookie_notice_enabled,
+        cookie_consent_enabled=app_settings.cookie_consent_enabled,
         login_methods=sorted(
             m.value for m in auth_posture.methods_from_row(app_settings)
         ),

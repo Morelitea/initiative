@@ -144,10 +144,10 @@ async def test_config_captcha_exposes_provider_and_site_key(
 
 
 @pytest.mark.integration
-async def test_config_says_the_cookie_notice_is_off_by_default(client: AsyncClient):
+async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient):
     """The SPA reads the switch here because the notice is for somebody who has
     not signed in. Off unless an owner turned it on."""
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
-    assert response.json()["cookie_notice_enabled"] is False
+    assert response.json()["cookie_consent_enabled"] is False

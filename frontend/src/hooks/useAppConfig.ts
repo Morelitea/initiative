@@ -63,12 +63,12 @@ export const useAppConfig = () => {
      *  also the default — the question is the safe thing to ask when we do not
      *  yet know, and the server refuses the join either way. */
     communityAgeGateEnabled: query.data?.community_age_gate_enabled ?? true,
-    /** Whether an arriving visitor is shown the notice about what this
-     *  deployment keeps in their browser. False until the config loads, and
-     *  false is also the default — it is a notice an owner turns on, not one
-     *  every deployment inherits, and a banner that appears a moment after the
-     *  page would read as something having gone wrong. */
-    cookieNoticeEnabled: query.data?.cookie_notice_enabled ?? false,
+    /** Whether an arriving visitor is asked what this deployment may keep in
+     *  their browser. False until the config loads, and false is also the
+     *  default — it is a question an owner turns on, not one every deployment
+     *  inherits, and a chooser that appears a moment after the page would read
+     *  as something having gone wrong. */
+    cookieConsentEnabled: query.data?.cookie_consent_enabled ?? false,
     /** Whether this deployment offers direct messages at all. True until the
      *  config loads, and true is also the default — messaging is what most
      *  deployments have, and hiding My Messages for a moment on every boot

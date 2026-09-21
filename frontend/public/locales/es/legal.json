@@ -15,11 +15,29 @@
     "signOut": "Cerrar sesión"
   },
   "cookies": {
-    "label": "Sobre las cookies y el almacenamiento del navegador",
-    "title": "Un apunte sobre las cookies",
-    "body": "{{appName}} guarda algunas cosas en este navegador: lo que mantiene tu sesión, el tema que elegiste y lo que tenías abierto. Nada más: sin publicidad, sin analítica y sin nada que te siga por otros sitios.",
-    "spamCheck": "El formulario de registro carga una comprobación antispam de {{provider}}, que coloca una cookie propia mientras estás en él.",
+    "label": "Opciones de cookies",
+    "title": "Tus opciones de cookies",
+    "body": "{{appName}} necesita algunas cosas en este navegador para funcionar: lo que mantiene tu sesión, el tema que elegiste y lo que tenías abierto. Más allá de eso, tú decides.",
+    "spamCheck": "Si creas una cuenta, el formulario de registro carga una comprobación antispam de {{provider}}, que coloca una cookie propia.",
     "readMore": "Qué se guarda",
-    "acknowledge": "Entendido"
+    "alwaysOn": "Siempre activas",
+    "rejectAll": "Rechazar opcionales",
+    "acceptAll": "Aceptar todas",
+    "choose": "Elegir",
+    "save": "Guardar opciones",
+    "categories": {
+      "necessary": {
+        "name": "Esenciales",
+        "description": "Iniciar sesión, tus preferencias y lo que tenías abierto. No existe una versión de Initiative sin ellas."
+      },
+      "analytics": {
+        "name": "Analítica",
+        "description": "Qué páginas se usan y dónde se atasca la gente, contado en conjunto para saber qué arreglar."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Qué enlace te trajo aquí, y poder hablarte de Initiative en otro sitio."
+      }
+    }
   }
 }

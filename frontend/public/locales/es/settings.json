@@ -508,12 +508,12 @@
       },
       "dismissAll": "descartar todo"
     },
-    "cookieNotice": {
-      "title": "Aviso de cookies",
-      "description": "Decir a quien llega qué guarda esta instalación en su navegador.",
-      "toggleLabel": "Mostrar un aviso de cookies a quien llega",
-      "helpText": "Un aviso breve en la parte inferior de la página la primera vez que alguien llega, que dice qué se guarda en su navegador y por qué. Actívalo si esta instalación tiene una puerta pública; déjalo desactivado en un servidor al que tu grupo llega por invitación, donde solo estorba.",
-      "scopeNote": "Explica en lugar de preguntar. Todo lo que se guarda hace falta para que funcione aquello a lo que alguien vino, así que descartarlo no cambia nada, y este interruptor tampoco: decide qué se dice, no qué funciona."
+    "cookieConsent": {
+      "title": "Opciones de cookies",
+      "description": "Preguntar a quien llega qué puede guardar esta instalación en su navegador.",
+      "toggleLabel": "Preguntar por las cookies a quien llega",
+      "helpText": "Un selector en la parte inferior de la página la primera vez que alguien llega: qué es esencial y un interruptor para lo que no lo es. Actívalo si esta instalación tiene una puerta pública; déjalo desactivado en un servidor al que tu grupo llega por invitación, donde solo estorba.",
+      "scopeNote": "Desactivarlo no es una forma de saltarse la pregunta: es para una instalación a la que nadie llega sin ser invitado. Con él desactivado, todo lo opcional queda desactivado, porque no puede activarse nada que nadie haya aceptado."
     }
   },
   "email": {
@@ -1577,6 +1577,14 @@
       "description": "No recibirás notificaciones cuando estas cuentas te mencionen, te respondan o reaccionen, y nada de lo que te envíen llegará: mensajes, solicitudes de mensaje, solicitudes de conexión. Seguiréis viendo la actividad del otro en las comunidades que compartís y podréis usar todas las herramientas con normalidad.",
       "empty": "No estás ignorando a nadie.",
       "stop": "Dejar de ignorar"
+    },
+    "cookies": {
+      "title": "Cookies",
+      "unanswered": "Aún no has respondido a la pregunta de las cookies en este navegador. Hasta que lo hagas, no hay nada opcional activado.",
+      "noneAllowed": "En este navegador no hay nada opcional activado.",
+      "allowed": "Activado en este navegador: {{categories}}.",
+      "perBrowser": "Se responde por navegador, no por cuenta: otro navegador u otro dispositivo vuelve a preguntar en lugar de heredar esto.",
+      "change": "Cambiar"
     }
   },
   "twoFactor": {
