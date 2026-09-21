@@ -1050,7 +1050,17 @@
       "usersLabel": "Miembros",
       "storageLabel": "Límite de almacenamiento",
       "decidesForItself": "Lo que decide por su cuenta",
-      "deleted": "Eliminada"
+      "deleted": "Eliminada",
+      "narrowings": {
+        "title": "A quién considera de los suyos",
+        "help": "Esta comunidad indica qué llegadas a través de un proveedor son suyas. Ella misma nombra los valores, así que su acuerdo es lo que permite el ingreso automático; hasta entonces la conexión solo sirve para quienes ya están dentro.",
+        "claims": "{{provider}}: {{claim}} es {{values}}",
+        "joinsOnArrival": "Pide que las llegadas coincidentes ingresen de inmediato.",
+        "admitsOnly": "Admite las llegadas coincidentes; no incorpora a nadie.",
+        "agree": "Aceptar",
+        "withdraw": "Retirar",
+        "error": "No se pudo guardar esa respuesta."
+      }
     },
     "unlimited": "Sin límite",
     "restore": {
@@ -1208,7 +1218,8 @@
       "inherited": "De la instalación",
       "makeItOurs": "Hacerla nuestra",
       "claimNameLabel": "Nombre de la reclamación",
-      "claimNamePlaceholder": "p. ej. org, realm"
+      "claimNamePlaceholder": "p. ej. org, realm",
+      "joinsOnceAgreed": "Las llegadas coincidentes ingresarán de inmediato en cuanto quien administra este servidor confirme que estos valores son suyos. Hasta entonces se les admite y el ingreso es por invitación."
     },
     "rules": {
       "title": "Dónde llega vuestra gente",

@@ -90,6 +90,20 @@ vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ billing: billingConfig }),
 }));
 
+// What each community says its own arrivals look like, and whether anybody
+// outside it has agreed.
+let narrowings: {
+  connection_id: number;
+  guild_id: number;
+  guild_name: string;
+  provider_display_name: string;
+  claim: string;
+  claim_values: string[];
+  auto_join: boolean;
+  agreed: boolean;
+}[] = [];
+const agreeNarrowing = vi.fn();
+
 vi.mock("@/api/generated/settings/settings", () => ({
   createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost: (
     guildId: number
@@ -110,6 +124,8 @@ vi.mock("@/hooks/useSettings", () => ({
     return { mutate, isPending: false };
   },
   useRestoreGuild: () => ({ mutate: restore, isPending: false }),
+  useGuildNarrowings: () => ({ data: narrowings, isLoading: false }),
+  useAgreeGuildNarrowing: () => ({ mutate: agreeNarrowing, isPending: false }),
 }));
 
 vi.mock("@/hooks/useAdmin", () => ({
@@ -168,6 +184,7 @@ describe("OperatorDashboardGuildsPage", () => {
     mintHandoff.mockReset();
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
     intakeBindings = [{ stream: "support", enabled: true, project_id: 4 }];
+    narrowings = [];
   });
 
   describe("the table", () => {
@@ -390,6 +407,54 @@ describe("OperatorDashboardGuildsPage", () => {
       await openSheet("Capped Community");
 
       expect(screen.getByLabelText("Help requests")).toBeDisabled();
+    });
+  });
+
+  describe("what a community counts as its own", () => {
+    const claiming = (agreed: boolean) => [
+      {
+        connection_id: 3,
+        guild_id: 7,
+        guild_name: "Capped Community",
+        provider_display_name: "Corp SSO",
+        claim: "hd",
+        claim_values: ["acme.example"],
+        auto_join: true,
+        agreed,
+      },
+    ];
+
+    it("says nothing where a community has claimed nothing", async () => {
+      await openSheet("Capped Community");
+
+      expect(screen.queryByText(/who it counts as its own/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the values and what agreeing would do", async () => {
+      narrowings = claiming(false);
+      await openSheet("Capped Community");
+
+      expect(screen.getByText(/hd is acme\.example/i)).toBeInTheDocument();
+      expect(screen.getByText(/join on sight/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^agree$/i })).toBeEnabled();
+    });
+
+    it("agrees that the values are theirs", async () => {
+      narrowings = claiming(false);
+      const user = await openSheet("Capped Community");
+
+      await user.click(screen.getByRole("button", { name: /^agree$/i }));
+
+      expect(agreeNarrowing).toHaveBeenCalledWith({ connectionId: 3, agreed: true });
+    });
+
+    it("offers to withdraw one already agreed", async () => {
+      narrowings = claiming(true);
+      const user = await openSheet("Capped Community");
+
+      await user.click(screen.getByRole("button", { name: /withdraw/i }));
+
+      expect(agreeNarrowing).toHaveBeenCalledWith({ connectionId: 3, agreed: false });
     });
   });
 

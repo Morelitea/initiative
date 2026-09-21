@@ -1050,7 +1050,17 @@
       "usersLabel": "Membres",
       "storageLabel": "Limite de stockage",
       "decidesForItself": "Ce qu'elle décide elle-même",
-      "deleted": "Supprimée"
+      "deleted": "Supprimée",
+      "narrowings": {
+        "title": "Qui elle compte comme les siens",
+        "help": "Cette communauté indique quelles arrivées via un fournisseur sont les siennes. Elle nomme elle-même les valeurs : votre accord est ce qui permet l’adhésion automatique — d’ici là, la connexion ne sert qu’aux personnes déjà présentes.",
+        "claims": "{{provider}} : {{claim}} vaut {{values}}",
+        "joinsOnArrival": "Demande que les arrivées correspondantes rejoignent aussitôt.",
+        "admitsOnly": "Admet les arrivées correspondantes ; n’ajoute personne.",
+        "agree": "Accepter",
+        "withdraw": "Retirer",
+        "error": "Impossible d’enregistrer cette réponse."
+      }
     },
     "unlimited": "Sans limite",
     "restore": {
@@ -1208,7 +1218,8 @@
       "inherited": "Du déploiement",
       "makeItOurs": "En faire la nôtre",
       "claimNameLabel": "Nom de la revendication",
-      "claimNamePlaceholder": "p. ex. org, realm"
+      "claimNamePlaceholder": "p. ex. org, realm",
+      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation."
     },
     "rules": {
       "title": "Où arrivent vos membres",

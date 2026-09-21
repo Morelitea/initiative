@@ -1040,7 +1040,17 @@
       "usersLabel": "Members",
       "storageLabel": "Storage limit",
       "decidesForItself": "What it decides for itself",
-      "deleted": "Deleted"
+      "deleted": "Deleted",
+      "narrowings": {
+        "title": "Who it counts as its own",
+        "help": "This community says which arrivals on a provider are its people. It names the values itself, so agreeing is what lets them join on arrival — until then the connection works only for the people already in it.",
+        "claims": "{{provider}}: {{claim}} is {{values}}",
+        "joinsOnArrival": "Asks that matching arrivals join on sight.",
+        "admitsOnly": "Admits matching arrivals; does not join anybody.",
+        "agree": "Agree",
+        "withdraw": "Withdraw",
+        "error": "Could not save that answer."
+      }
     },
     "unlimited": "No limit",
     "restore": {
@@ -1208,7 +1218,8 @@
       "inherited": "From the deployment",
       "makeItOurs": "Make it ours",
       "claimNameLabel": "Claim name",
-      "claimNamePlaceholder": "e.g. org, realm"
+      "claimNamePlaceholder": "e.g. org, realm",
+      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation."
     },
     "rules": {
       "title": "Where your people land",

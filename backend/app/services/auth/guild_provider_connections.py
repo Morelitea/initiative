@@ -41,6 +41,7 @@ from app.schemas.platform.settings import (
     GuildProviderConnectionUpdate,
 )
 from app.services import audit as audit_service
+from app.services.auth import narrowing_approval
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ def connection_read(
         claim_values=list(connection.claim_values or ()),
         enabled=connection.enabled,
         auto_join=connection.auto_join,
+        narrowing_approved=connection.narrowing_approved_at is not None,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -88,6 +90,9 @@ def default_read(
         enabled=default.enabled,
         # Never inherited: joining a community is the community's own say.
         auto_join=False,
+        # The deployment wrote these values itself, so there is nobody else to
+        # ask about them.
+        narrowing_approved=True,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -348,6 +353,7 @@ async def create_connection(
         provider.slug,
         row.id,
     )
+    await narrowing_approval.ask_for_agreement(session, row)
     return connection_read(row, provider)
 
 
@@ -361,13 +367,21 @@ async def update_connection(
 ) -> GuildProviderConnectionRead:
     row = await editable_connection(session, connection_id, guild_id=guild_id)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
+    asks_again = False
     data = payload.model_dump(exclude_unset=True)
     # The provider a connection is to is what it is; pointing an existing one
     # somewhere else would silently change who gets in. Disconnect and connect.
     if "claim" in data or "claim_values" in data:
+        was = (row.claim, tuple(row.claim_values or ()))
         row.claim, row.claim_values = clean_claim(
             data.get("claim", row.claim), data.get("claim_values", row.claim_values)
         )
+        # An agreement is about the values that were agreed. Writing different
+        # ones asks the question again.
+        if (row.claim, tuple(row.claim_values or ())) != was:
+            row.narrowing_approved_at = None
+            row.narrowing_approved_by = None
+            asks_again = True
     if "enabled" in data and data["enabled"] is not None:
         if not data["enabled"]:
             await _ensure_not_required(session, row, guild_id=guild_id)
@@ -394,6 +408,8 @@ async def update_connection(
         )
     await session.commit()
     await session.refresh(row)
+    if asks_again:
+        await narrowing_approval.ask_for_agreement(session, row)
     provider = await session.get(AuthProvider, row.provider_id)
     return connection_read(row, provider)
 
@@ -579,7 +595,10 @@ async def join_on_arrival(
         for connection in await admitting_connections(
             session, provider_id=provider_id, claims=claims
         )
-        if connection.auto_join
+        # And only where the values it counts as its own have been agreed: a
+        # community names them itself, and joining somebody to a community is
+        # not something it gets to do on its own word alone.
+        if connection.auto_join and connection.narrowing_approved_at is not None
     ]
 
     joined: list[int] = []
