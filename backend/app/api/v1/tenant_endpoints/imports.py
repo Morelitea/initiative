@@ -312,6 +312,11 @@ from app.schemas.tenant.import_job import (  # noqa: E402
     EnvelopeImportResponse,
     ImportJobRead,
 )
+from app.schemas.tenant.atlassian import (  # noqa: E402
+    AtlassianConnectRequest,
+    AtlassianConnectResponse,
+)
+from app.services.import_engine import atlassian as atlassian_service  # noqa: E402
 from app.services.import_engine import credentials as import_credentials  # noqa: E402
 from app.services.import_engine import engine as import_engine  # noqa: E402
 from app.services.import_engine.contract import (  # noqa: E402
@@ -383,6 +388,71 @@ async def import_envelope(
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content=ImportJobRead.model_validate(outcome).model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/atlassian/connect",
+    response_model=AtlassianConnectResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def connect_atlassian(
+    payload: AtlassianConnectRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> AtlassianConnectResponse:
+    """Prove an Atlassian API token and say what the site holds.
+
+    One request, because the two questions are the same one: the only honest
+    proof that a token works is using it, so connecting *is* the first
+    listing. It returns the Jira projects and Confluence spaces the token can
+    see, with rough counts, and the id of the stored credential the later
+    confirm quotes.
+
+    The credential is stored **after** the site answers, never before — a
+    token the site rejects is not worth a row. What is stored is short-lived
+    by construction: it carries the secret to the worker that picks the job
+    up and is deleted when that job ends, or swept at its deadline if no job
+    ever claims it.
+
+    Real membership of a writable guild, like every other import entry point.
+    Which initiative the work lands in is not asked here and not trusted from
+    here — the target and the create permission for it are resolved on the
+    confirm, and again by the worker at apply time.
+    """
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        # A break-glass or support grant reaches existing content; it does not
+        # get to make this server talk to somebody else's on its behalf.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+
+    try:
+        credential = atlassian_service.AtlassianCredential(
+            site_url=atlassian_service.normalize_site_url(payload.site_url),
+            email=payload.email.strip(),
+            api_token=payload.api_token,
+        )
+        jira, confluence = await atlassian_service.probe_site(credential)
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    credential_id = await import_credentials.store(
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+        provider="atlassian",
+        site_url=credential.site_url,
+        principal=credential.email,
+        secret=credential.api_token,
+    )
+    return AtlassianConnectResponse(
+        credential_id=credential_id,
+        site_url=credential.site_url,
+        jira=jira,
+        confluence=confluence,
     )
 
 

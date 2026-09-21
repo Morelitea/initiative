@@ -2478,3 +2478,118 @@ async def test_backup_structure_never_overwrites_what_is_already_there(
     )
     assert len(roles) == 1
     assert roles[0].display_name != "Renamed By The Archive"
+
+
+# ---------------------------------------------------------------------------
+# Atlassian connect
+# ---------------------------------------------------------------------------
+
+
+def _atlassian_site(*, jira_status=200, confluence_status=200):
+    """Stub one Atlassian site for the endpoint's egress."""
+    import httpx
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/rest/api/3/project/search" in url:
+            if jira_status != 200:
+                return httpx.Response(jira_status, json={})
+            return httpx.Response(
+                200, json={"values": [{"id": "1", "key": "ACME", "name": "Acme"}]}
+            )
+        if "/rest/api/3/search/approximate-count" in url:
+            return httpx.Response(200, json={"count": 12})
+        if "/wiki/api/v2/spaces" in url:
+            if confluence_status != 200:
+                return httpx.Response(confluence_status, json={})
+            return httpx.Response(
+                200, json={"results": [{"id": "9", "key": "DOCS", "name": "Docs"}]}
+            )
+        if "/wiki/rest/api/search" in url:
+            return httpx.Response(200, json={"totalSize": 4})
+        return httpx.Response(404, json={})
+
+    return fake_request
+
+
+async def _connect(client, actor, **overrides):
+    body = {
+        "site_url": "https://acme.atlassian.net",
+        "email": "someone@example.com",
+        "api_token": "shhh",
+        **overrides,
+    }
+    return await client.post(
+        actor.g("/imports/atlassian/connect"), headers=actor.headers, json=body
+    )
+
+
+async def test_connect_proves_the_token_and_says_what_is_there(
+    client, acting_user, session, monkeypatch
+):
+    """One request answers both of the connect step's questions, and hands
+    back the credential id a later confirm quotes."""
+    from app.models.platform.import_credential import ImportCredential
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", _atlassian_site())
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await _connect(client, a)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+
+    assert body["site_url"] == "https://acme.atlassian.net"
+    assert body["jira"]["available"] is True
+    assert [(p["key"], p["issue_count"]) for p in body["jira"]["projects"]] == [
+        ("ACME", 12)
+    ]
+    assert [(s["key"], s["page_count"]) for s in body["confluence"]["spaces"]] == [
+        ("DOCS", 4)
+    ]
+
+    # The token is stored, encrypted, and never comes back out.
+    assert "shhh" not in resp.text
+    row = await session.get(ImportCredential, body["credential_id"])
+    assert row is not None
+    assert row.guild_id == a.guild.id and row.created_by == a.user.id
+    assert "shhh" not in row.secret_encrypted
+
+
+async def test_a_rejected_token_stores_nothing(
+    client, acting_user, session, monkeypatch
+):
+    """A credential the site will not take is not worth a row."""
+    from sqlmodel import select
+
+    from app.models.platform.import_credential import ImportCredential
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _atlassian_site(jira_status=401),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await _connect(client, a)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_SOURCE_AUTH"
+    assert not (await session.exec(select(ImportCredential))).all()
+
+
+async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
+    client, acting_user, monkeypatch
+):
+    """http would put the token on the wire in the clear, so the address is
+    refused before anything is sent anywhere."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    async def never_called(*a, **kw):  # pragma: no cover - must not run
+        raise AssertionError("no request should be made for a refused address")
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", never_called)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await _connect(client, a, site_url="http://acme.atlassian.net")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_SOURCE_UNREACHABLE"
