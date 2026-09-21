@@ -47,6 +47,9 @@ interface MarkdownComposerProps {
   tools?: ToolbarItem[];
   /** Shrinks the chrome for a reply box or an inline edit. */
   compact?: boolean;
+  /** Which tab the field opens on. A surface whose text is usually read
+   *  before it is changed — a task's description — opens on `"preview"`. */
+  defaultMode?: ComposerMode;
   className?: string;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onSelect?: () => void;
@@ -76,13 +79,20 @@ export const MarkdownComposer = ({
   actions,
   tools,
   compact = false,
+  defaultMode = "write",
   className,
   onKeyDown,
   onSelect,
   onBlur,
 }: MarkdownComposerProps) => {
   const { t } = useTranslation("common");
-  const [mode, setMode] = useState<ComposerMode>("write");
+  // Opening on the preview is a way to *read* what is there, so it only makes
+  // sense once there is something to read: an empty field — or one whose text
+  // has not loaded yet — opens ready to type and settles on the caller's
+  // default when the text arrives. A tab the reader picks themselves stands.
+  const [chosenMode, setChosenMode] = useState<ComposerMode | null>(null);
+  const mode: ComposerMode =
+    chosenMode ?? (defaultMode === "preview" && !value.trim() ? "write" : defaultMode);
   const innerRef = useRef<HTMLTextAreaElement>(null);
   // Where the caret goes once the edited text has rendered. Applying it in an
   // effect rather than straight after `onChange` is what keeps it correct: the
@@ -170,7 +180,7 @@ export const MarkdownComposer = ({
   return (
     <Tabs
       value={mode}
-      onValueChange={(next) => setMode(next as ComposerMode)}
+      onValueChange={(next) => setChosenMode(next as ComposerMode)}
       className={cn(
         "rounded-md border border-input bg-transparent shadow-sm focus-within:ring-1 focus-within:ring-ring",
         className

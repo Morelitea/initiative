@@ -134,7 +134,7 @@ export const NotificationBell = () => {
       );
     }
     return (
-      <ScrollArea className="h-80">
+      <ScrollArea className="max-h-80 min-h-0">
         <ul className="divide-y">
           {notifications.map((notification) => (
             <li key={notification.id}>
@@ -207,8 +207,11 @@ export const NotificationBell = () => {
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80">
-        <div className="flex items-center justify-between border-b pb-2">
+      <PopoverContent
+        collisionPadding={8}
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-80 flex-col overflow-hidden"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b pb-2">
           <p className="font-semibold text-sm">{t("notifications.title")}</p>
           <Button
             variant="ghost"
@@ -222,7 +225,7 @@ export const NotificationBell = () => {
           </Button>
         </div>
         {renderContent()}
-        <div className="border-t pt-2">
+        <div className="shrink-0 border-t pt-2">
           <Button
             variant="ghost"
             size="sm"

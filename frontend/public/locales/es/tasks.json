@@ -155,7 +155,9 @@
     "batchAdded_one": "Se agregó {{count}} elemento",
     "batchAdded_other": "Se agregaron {{count}} elementos",
     "progress_one": "{{completed}}/{{total}} elemento",
-    "progress_other": "{{completed}}/{{total}} elementos"
+    "progress_other": "{{completed}}/{{total}} elementos",
+    "expandItem": "Mostrar el elemento completo",
+    "collapseItem": "Mostrar menos"
   },
   "prioritySelector": {
     "ariaLabel": "Prioridad: {{priority}}. Haz clic para cambiar.",

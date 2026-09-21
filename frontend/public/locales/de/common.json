@@ -167,7 +167,9 @@
   "lightbox": {
     "title": "Bild",
     "description": "Mit den Pfeiltasten oder durch Wischen zwischen Bildern wechseln.",
-    "position": "{{current}} / {{total}}"
+    "position": "{{current}} / {{total}}",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern"
   },
   "timeline": {
     "label": "Zu einem Monat springen",

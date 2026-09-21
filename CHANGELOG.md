@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pictures zoom** — a picture opened full screen can now be zoomed: pinch it on a phone, double-tap to jump in and back out, hold Ctrl and scroll on a trackpad, or use the two buttons in the top bar and the `+`, `-` and `0` keys. While it is larger than the screen a drag moves the picture around instead of turning the page, and it never travels further than there is picture to bring back. Letting go, or moving on to the next one, starts again at fit-to-screen. This is the same viewer the gallery, a document's attached image and an announcement all use, so all three gained it at once.
+
+### Changed
+
+- **A checklist line too long to read can be opened** — a step with more to say than the row could hold ran off the end of its field with no way to see the rest of it. A line that does not fit now carries a chevron that opens it to its full height, closes it again, and is absent from every line that fits. An opened line is still editable, and still saves the same way.
+- **A task's description opens as it reads** — the description field started on the writing tab, so arriving at a task meant looking at its markdown rather than at the task. It now opens showing the finished text, with **Write** a click away and the tab you pick staying picked. A task with nothing written yet still opens ready to type.
+- **The mark on a blocked task is a caution** — something waiting on another piece of work is a thing to know about, not a thing that has gone wrong, so the mark on its board card and in every task table is now amber rather than the grey it shared with everything else.
+- **A document card no longer counts its projects** — the card carried a badge saying how many projects a document was attached to, which was a number almost nobody needed and the one badge that showed up even when the answer was none. The links panel on the document itself says what it is attached to.
+
+### Fixed
+
+- **The notification panel fits the window** — it reserved the same tall box whether it held twenty notifications or two, and on a short window the bottom of it ran off the screen where the **See all** button could not be reached. It is now as tall as what is in it, and never taller than the space it has, with the list scrolling inside while the heading and the footer stay put.
+
 ## [0.71.0] - 2026-09-20
 
 ### Added

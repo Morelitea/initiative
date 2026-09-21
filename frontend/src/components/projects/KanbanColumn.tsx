@@ -360,7 +360,7 @@ const KanbanCardContent = memo(
           {blockedCount > 0 ? (
             <Badge
               variant="outline"
-              className="inline-flex items-center gap-1 text-xs"
+              className="inline-flex items-center gap-1 border-warning/40 text-warning text-xs"
               title={tRelations("blockers.label", { count: blockedCount })}
             >
               <Ban className="h-3.5 w-3.5" aria-hidden="true" />

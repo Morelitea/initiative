@@ -576,6 +576,7 @@ export const TaskEditPage = () => {
           id="task-description"
           value={description}
           onChange={setDescription}
+          defaultMode="preview"
           placeholder={t("edit.descriptionPlaceholder")}
           actions={
             aiEnabled ? (
