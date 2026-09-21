@@ -557,7 +557,7 @@ async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
     confirmation."""
     guild = await create_guild(session, name="To Delete")
     admin = await acting_user(
-        guild_role=GuildRole.admin, guild=guild, hashed_password=None
+        guild_role=GuildRole.superadmin, guild=guild, hashed_password=None
     )
     if credential == "federated identity":
         await create_federated_identity(session, admin.user, subject="sso-123")
