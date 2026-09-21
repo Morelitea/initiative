@@ -157,6 +157,16 @@ class Settings(BaseSettings):
     # where the app reaches Postgres through something that pools per
     # transaction, which cannot hold a subscription open.
     DATABASE_URL_LISTEN: str | None = None
+    # How long a pooled connection may live before it is retired and replaced.
+    #
+    # A backend permanently caches catalog entries for every table it touches
+    # and Postgres never shrinks CacheMemoryContext, so under schema-per-guild
+    # a long-lived connection's private memory grows with the number of guild
+    # schemas it has served. Only closing it gives that back. Postgres-side
+    # idle timeouts do not reach these: a pooled connection is handed out
+    # again long before it has been idle long enough to trip one, so age is
+    # the only bound that actually applies. 0 disables recycling.
+    DB_POOL_RECYCLE_SECONDS: int = 1800
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
