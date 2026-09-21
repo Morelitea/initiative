@@ -23,6 +23,14 @@ Scope, and why it is drawn here:
 * **``Sec-Fetch-Site: same-site`` is not accepted on its own**, because it
   includes sibling subdomains. Only ``same-origin`` is conclusive by itself;
   anything else is matched against the same origin allowlist CORS uses.
+* **A browser that sends no ``Sec-Fetch-*`` at all still has an answer.** Those
+  headers are only sent to origins the browser considers trustworthy -- HTTPS,
+  ``localhost`` or ``127.0.0.1`` -- so a deployment reached over plain HTTP at
+  a LAN name or address never gets the conclusive answer above, however
+  same-origin the request is. Comparing the ``Origin`` against the ``Host`` the
+  request was addressed to asks the same question from headers a browser always
+  sends, which is what keeps such a deployment writable without its operator
+  having to match ``APP_URL`` to it by hand.
 
 Detail beyond what the code does lives in the private tracker, per
 CLAUDE.md "Security-sensitive comments".
@@ -30,6 +38,8 @@ CLAUDE.md "Security-sensitive comments".
 
 from __future__ import annotations
 
+
+from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
@@ -65,7 +75,36 @@ def _carries_session_cookie(headers: Headers) -> bool:
     )
 
 
-def intent_is_proven(headers: Headers) -> bool:
+def _request_scheme(scope: Scope) -> str:
+    """The scheme the request arrived on, as an ``Origin`` would spell it.
+
+    A WebSocket scope says ``ws``/``wss`` where the handshake's ``Origin``
+    says ``http``/``https``. Behind a reverse proxy this is the forwarded
+    scheme when the server was started with ``--proxy-headers``
+    (``BEHIND_PROXY=true``), and the proxy's own scheme otherwise.
+    """
+    return "https" if scope.get("scheme") in {"https", "wss"} else "http"
+
+
+def _origin_is_the_requested_host(headers: Headers, origin: str, scheme: str) -> bool:
+    """Whether ``origin`` names the very host this request was addressed to.
+
+    Host and port must match exactly. The scheme has to agree too, with one
+    allowance: an ``https`` page reaching a server that sees ``http`` is a TLS
+    reverse proxy that did not forward the scheme, whereas the other direction
+    -- an ``http`` page writing to a request this server received over TLS --
+    is a different origin and is refused.
+    """
+    host = headers.get("host")
+    if not host:
+        return False
+    parts = urlsplit(origin)
+    if parts.netloc.lower() != host.lower():
+        return False
+    return parts.scheme == "https" or parts.scheme == scheme
+
+
+def intent_is_proven(headers: Headers, scheme: str = "http") -> bool:
     """Whether the request came from a page this deployment serves.
 
     ``Sec-Fetch-Site: same-origin`` is conclusive on its own and is checked
@@ -75,15 +114,25 @@ def intent_is_proven(headers: Headers) -> bool:
     other than the API -- still works. That list is the one CORS already
     credentials, so the two cannot drift apart.
 
-    Neither header present means the answer is no. Browsers send ``Origin`` on
-    an unsafe method as a matter of course.
+    Failing both, and only when the browser sent no ``Sec-Fetch-Site`` to
+    believe instead, the ``Origin`` is compared with the ``Host`` the request
+    was addressed to -- see the module docstring for why a same-origin request
+    can arrive with no fetch metadata on it.
+
+    No ``Origin`` header means the answer is no. Browsers send it on an unsafe
+    method as a matter of course.
     """
-    if headers.get("sec-fetch-site") == "same-origin":
+    fetch_site = headers.get("sec-fetch-site")
+    if fetch_site == "same-origin":
         return True
     origin = headers.get("origin")
     if origin is None:
         return False
-    return origin in settings.cors_origins
+    if origin in settings.cors_origins:
+        return True
+    if fetch_site is not None:
+        return False
+    return _origin_is_the_requested_host(headers, origin, scheme)
 
 
 class CsrfOriginMiddleware:
@@ -107,7 +156,9 @@ class CsrfOriginMiddleware:
             return
 
         headers = Headers(scope=scope)
-        if not _carries_session_cookie(headers) or intent_is_proven(headers):
+        if not _carries_session_cookie(headers) or intent_is_proven(
+            headers, _request_scheme(scope)
+        ):
             await self.app(scope, receive, send)
             return
 
@@ -131,7 +182,9 @@ class CsrfOriginMiddleware:
         has already run whatever the route does on accept.
         """
         headers = Headers(scope=scope)
-        if not _carries_session_cookie(headers) or intent_is_proven(headers):
+        if not _carries_session_cookie(headers) or intent_is_proven(
+            headers, _request_scheme(scope)
+        ):
             await self.app(scope, receive, send)
             return
 
