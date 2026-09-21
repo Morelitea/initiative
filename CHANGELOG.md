@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-09-20
+
 ### Added
 
 - **A server can say how long a session may sit untouched** — it could already set the longest anybody may stay signed in, but how long a session could be left alone was fixed when the server was deployed and changeable only by editing configuration and restarting. **Settings → Platform → Security** now asks for both. Leave it blank to keep the deployed window. Using the app counts as touching it, so the clock only runs down once somebody has stopped, and a community held to the twelve-hour standard still shortens it further for its own members — whichever is strictest wins.
