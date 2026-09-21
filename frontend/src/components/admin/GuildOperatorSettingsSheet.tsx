@@ -20,6 +20,7 @@ import type {
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { useReadIntakeSettingsApiV1SettingsIntakeGet } from "@/api/generated/intake/intake";
 import { GuildRestoreWizard } from "@/components/admin/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,10 @@ export const GuildOperatorSettingsSheet = ({
     },
   });
 
+  const intake = useReadIntakeSettingsApiV1SettingsIntakeGet({
+    query: { enabled: open, staleTime: 60_000 },
+  });
+
   // The drafts follow whichever community the sheet was opened for.
   if (guild && loadedFor !== guild.id) {
     setLoadedFor(guild.id);
@@ -128,6 +133,14 @@ export const GuildOperatorSettingsSheet = ({
     }
     patch({ max_users: limit });
   };
+
+  // Help requests become cases in the deployment's support stream, so the
+  // switch is only meaningful once something is bound to receive them. Read
+  // here rather than inferred from the community: the binding is the
+  // deployment's, one for all of them.
+  const supportBound = (intake.data?.bindings ?? []).some(
+    (binding) => binding.stream === "support" && binding.enabled && binding.project_id !== null
+  );
 
   const options = guild.auth_options ?? [];
   const toggleOption = (option: GuildAuthOption, checked: boolean) =>
@@ -276,14 +289,23 @@ export const GuildOperatorSettingsSheet = ({
             />
             <SettingRow
               label={t("guilds.sheet.supportLabel")}
-              help={t("guilds.sheet.supportHelp")}
+              help={
+                supportBound || guild.support_enabled
+                  ? t("guilds.sheet.supportHelp")
+                  : t("guilds.sheet.supportNeedsIntake")
+              }
               htmlFor="guild-support"
               control={
                 <Switch
                   id="guild-support"
                   checked={guild.support_enabled}
                   onCheckedChange={(checked) => patch({ support_enabled: Boolean(checked) })}
-                  disabled={update.isPending || deleted}
+                  // Switching it off stays available wherever it is on: a
+                  // deployment that has stopped staffing help stops offering
+                  // it, binding or no binding.
+                  disabled={
+                    update.isPending || deleted || (!supportBound && !guild.support_enabled)
+                  }
                 />
               }
             />

@@ -737,5 +737,6 @@
   "GUILD_RESTORE_SEAT_REQUIRED": "Choisissez qui dirigera la communauté avant de la restaurer.",
   "GUILD_STATUS_NOT_SETTABLE": "Une communauté se supprime depuis ses propres paramètres, pas ici.",
   "ADMIN_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer.",
-  "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion."
+  "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion.",
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Réglages › Administration › Réception."
 }

@@ -737,5 +737,6 @@
   "GUILD_RESTORE_SEAT_REQUIRED": "Elige quién dirigirá la comunidad antes de restaurarla.",
   "GUILD_STATUS_NOT_SETTABLE": "Una comunidad se elimina desde sus propios ajustes, no desde aquí.",
   "ADMIN_USER_NOT_DELETED": "Esa cuenta no se ha eliminado, así que no hay nada que restaurar.",
-  "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión."
+  "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión.",
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Ajustes › Administración › Recepción."
 }
