@@ -48,8 +48,6 @@
     "template": "Vorlage",
     "whiteboardLabel": "Whiteboard",
     "spreadsheetLabel": "Tabelle",
-    "projects_one": "{{count}} Projekt",
-    "projects_other": "{{count}} Projekte",
     "comments_one": "{{count}} Kommentar",
     "comments_other": "{{count}} Kommentare"
   },

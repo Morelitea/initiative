@@ -48,8 +48,6 @@
     "template": "Modèle",
     "whiteboardLabel": "Tableau blanc",
     "spreadsheetLabel": "Feuille de calcul",
-    "projects_one": "{{count}} projet",
-    "projects_other": "{{count}} projets",
     "comments_one": "{{count}} commentaire",
     "comments_other": "{{count}} commentaires"
   },

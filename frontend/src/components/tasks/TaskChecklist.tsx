@@ -13,10 +13,19 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Sparkles, SquareCheck, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Loader2,
+  Sparkles,
+  SquareCheck,
+  Trash2,
+} from "lucide-react";
 import {
   type ClipboardEvent,
   type KeyboardEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -39,6 +48,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useGenerateChecklist, useToggleChecklistItem, useUpdateTask } from "@/hooks/useTasks";
 import { newChecklistItemId } from "@/lib/checklist";
@@ -209,7 +219,10 @@ export const TaskChecklist = ({ taskId, items: serverItems, canEdit }: TaskCheck
     save(item.text.trim() ? current : current.filter((entry) => entry.id !== id));
   };
 
-  const handleItemKeyDown = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
+  const handleItemKeyDown = (
+    event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    index: number
+  ) => {
     const current = itemsRef.current;
     if (event.key === "Enter") {
       event.preventDefault();
@@ -386,7 +399,7 @@ type ChecklistItemRowProps = {
   onFocused: () => void;
   onTextChange: (value: string) => void;
   onTextBlur: () => void;
-  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onToggle: (done: boolean) => void;
   onDelete: () => void;
 };
@@ -403,7 +416,11 @@ const ChecklistItemRow = ({
   onDelete,
 }: ChecklistItemRowProps) => {
   const { t } = useTranslation("tasks");
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  // A line too long to fit is the only one worth offering to open, so the
+  // control appears from the text rather than sitting on every row.
+  const [expanded, setExpanded] = useState(false);
+  const [clipped, setClipped] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !canEdit,
@@ -415,6 +432,28 @@ const ChecklistItemRow = ({
       onFocused();
     }
   }, [shouldFocus, onFocused]);
+
+  // Whether the text runs past the end of the field — remeasured as it is
+  // typed and as the row's width changes, so the control comes and goes with
+  // the thing it is about.
+  useEffect(() => {
+    const field = inputRef.current;
+    if (!field || expanded) return;
+    const measure = () => setClipped(field.scrollWidth > field.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [item.text, expanded]);
+
+  // An opened line is as tall as what it holds, up to the point where it is
+  // better to scroll than to push the rest of the list off the screen.
+  useEffect(() => {
+    const field = inputRef.current;
+    if (!expanded || !field) return;
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  }, [expanded, item.text]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -429,7 +468,7 @@ const ChecklistItemRow = ({
         isDragging ? "opacity-80 shadow-sm" : ""
       }`}
     >
-      <div className="flex flex-1 items-center gap-2">
+      <div className={`flex flex-1 gap-2 ${expanded ? "items-start" : "items-center"}`}>
         {canEdit ? (
           <button
             type="button"
@@ -447,16 +486,43 @@ const ChecklistItemRow = ({
           disabled={!canEdit}
           aria-label={item.done ? t("checklist.markIncomplete") : t("checklist.markComplete")}
         />
-        <Input
-          ref={inputRef}
-          value={item.text}
-          placeholder={t("checklist.itemPlaceholder")}
-          onChange={(event) => onTextChange(event.target.value)}
-          onBlur={onTextBlur}
-          onKeyDown={onKeyDown}
-          disabled={!canEdit}
-          className={item.done ? "line-through" : undefined}
-        />
+        {expanded ? (
+          <Textarea
+            ref={inputRef as RefObject<HTMLTextAreaElement>}
+            value={item.text}
+            placeholder={t("checklist.itemPlaceholder")}
+            onChange={(event) => onTextChange(event.target.value)}
+            onBlur={onTextBlur}
+            onKeyDown={onKeyDown}
+            disabled={!canEdit}
+            rows={1}
+            className={`max-h-48 min-h-0 resize-none ${item.done ? "line-through" : ""}`}
+          />
+        ) : (
+          <Input
+            ref={inputRef as RefObject<HTMLInputElement>}
+            value={item.text}
+            placeholder={t("checklist.itemPlaceholder")}
+            onChange={(event) => onTextChange(event.target.value)}
+            onBlur={onTextBlur}
+            onKeyDown={onKeyDown}
+            disabled={!canEdit}
+            className={item.done ? "line-through" : undefined}
+          />
+        )}
+        {clipped || expanded ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0 self-start text-muted-foreground"
+            aria-label={expanded ? t("checklist.collapseItem") : t("checklist.expandItem")}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((open) => !open)}
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        ) : null}
       </div>
       {canEdit ? (
         <div className="flex items-center gap-1 self-end md:self-auto">

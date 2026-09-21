@@ -8,17 +8,34 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { MarkdownComposer } from "./MarkdownComposer";
 
 /** The composer is controlled, so a test drives it through its owner's state. */
-const Host = ({ initial = "" }: { initial?: string }) => {
+const Host = ({
+  initial = "",
+  defaultMode,
+}: {
+  initial?: string;
+  defaultMode?: "write" | "preview";
+}) => {
   const [value, setValue] = useState(initial);
   return (
     <>
-      <MarkdownComposer value={value} onChange={setValue} placeholder="Say something" />
+      <MarkdownComposer
+        value={value}
+        onChange={setValue}
+        placeholder="Say something"
+        defaultMode={defaultMode}
+      />
       <output>{value}</output>
     </>
   );
 };
 
 const field = () => screen.getByRole("textbox") as HTMLTextAreaElement;
+
+/** Preview-first with the text arriving after mount — a task description is
+ *  seeded from its query, not from the first render. */
+const LateHost = ({ value }: { value: string }) => (
+  <MarkdownComposer value={value} onChange={() => {}} defaultMode="preview" />
+);
 
 /**
  * jsdom lays nothing out, so the toolbar's measurements are stood in for: the
@@ -187,5 +204,36 @@ describe("MarkdownComposer", () => {
     // The empty item's marker comes off and the caret stays on that line, so
     // what follows sits directly under the list rather than a blank line below.
     expect(field()).toHaveValue("- first\nafter");
+  });
+
+  it("opens on the preview when the caller asks for it", () => {
+    renderWithProviders(<Host initial="## Plan" defaultMode="preview" />);
+
+    expect(screen.getByRole("heading", { name: "Plan" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("opens ready to type when preview-first has nothing to preview", () => {
+    renderWithProviders(<Host defaultMode="preview" />);
+
+    expect(field()).toBeInTheDocument();
+  });
+
+  it("settles on the preview once a late-loading draft arrives", async () => {
+    const { rerender } = renderWithProviders(<LateHost value="" />);
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+
+    rerender(<LateHost value="## Plan" />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Plan" })).toBeInTheDocument());
+  });
+
+  it("keeps the tab the reader picked", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Host initial="## Plan" defaultMode="preview" />);
+
+    await user.click(screen.getByRole("tab", { name: "Write" }));
+
+    expect(field()).toHaveValue("## Plan");
   });
 });
