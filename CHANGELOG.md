@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A server reached at its own address works again** — on a deployment reached over plain HTTP at a name or address other than the one set as `APP_URL` — a NAS, a box on the house network — ticking a checklist item, saving a change or opening anything live came back with “This request didn’t come from a page on this site”. Browsers only send the header that proves a request came from the page in front of you when the address is HTTPS or localhost, so there was nothing to read and the address people had typed was not the one configured. Such a request is now settled by comparing the page it came from against the address it was sent to, which needs no header and no configuration: a community reached at whatever address its server answers on writes, and its live views connect, without anybody editing a setting first.
 - **The notification panel fits the window** — it reserved the same tall box whether it held twenty notifications or two, and on a short window the bottom of it ran off the screen where the **See all** button could not be reached. It is now as tall as what is in it, and never taller than the space it has, with the list scrolling inside while the heading and the footer stay put.
 
 ## [0.71.0] - 2026-09-20
