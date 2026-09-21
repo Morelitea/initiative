@@ -727,7 +727,11 @@ async def _delete_guild(
 ) -> Response:
     await _seed_passkey(session, user)
     guild = await create_guild(session, name="Winding Down")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    # Deleting a community belongs to the seat, so this is what reaches the
+    # recent-proof gate at all.
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.superadmin
+    )
     return await client.request(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",

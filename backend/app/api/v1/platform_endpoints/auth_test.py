@@ -1152,8 +1152,11 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """The id_token's own account of the authentication — which methods, which
-    context class, when — is kept against the provider that performed it, and
-    its methods join the session's ``amr``."""
+    context class, when — is kept against the provider that performed it.
+
+    Its own vocabulary joins the session's ``amr`` too; the markers a rule
+    reads (``mfa``, ``hwk``, ``swk``) do so only where the operator has said
+    this provider's word counts, which nobody has here."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1194,9 +1197,10 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
             "acr": "phr",
         }
     }
-    # The session's own factors gain what the IdP named, alongside the marker
-    # that says which provider it was.
-    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
+    # The session gains the provider's own vocabulary and the marker naming
+    # it — but not ``mfa``, which this provider has not been said to be worth
+    # reading for. The record above keeps it either way.
+    assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
 
     import jwt as pyjwt
 
@@ -1204,6 +1208,52 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
         response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
     )
     assert claims["satd"] == auth_session.provider_auth
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_provider_whose_word_counts_contributes_its_factor(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Where the operator has said this provider reports a second factor
+    honestly, the marker it names reaches the session and answers a rule that
+    asks for one."""
+    await _enable_platform_oidc(session)
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    provider.asserts_second_factor = True
+    session.add(provider)
+    await session.commit()
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "sso-counted@example.com",
+            "username": "sso-counted",
+            "email_verified": True,
+            "amr": ["pwd", "mfa"],
+        },
+    )
+    assert response.status_code in (302, 307)
+
+    user = (
+        await session.exec(
+            select(User)
+            .join(UserEmail, UserEmail.user_id == User.id)
+            .where(UserEmail.email_hash == hash_email("sso-counted@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+
+    assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
 
 
 @pytest.mark.integration
