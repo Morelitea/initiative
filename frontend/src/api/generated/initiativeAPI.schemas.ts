@@ -1067,6 +1067,79 @@ export interface ArchiveResponse {
   archived_at?: string | null;
 }
 
+/**
+ * One Confluence space the token can see.
+ */
+export interface AtlassianConfluenceSpace {
+  id: string;
+  key: string;
+  name: string;
+  page_count?: number | null;
+}
+
+export interface AtlassianConfluenceProbe {
+  available?: boolean;
+  reason?: string | null;
+  spaces?: AtlassianConfluenceSpace[];
+}
+
+/**
+ * What somebody types into the connect step.
+ *
+ * ``site_url`` is the site as a person knows it —
+ * ``https://acme.atlassian.net``. Anything after the host is ignored: the
+ * products live at fixed paths under it, and a URL pasted from a browser's
+ * address bar is usually pointing at a board.
+ */
+export interface AtlassianConnectRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  site_url: string;
+  /**
+   * @minLength 1
+   * @maxLength 320
+   */
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  api_token: string;
+}
+
+/**
+ * One Jira project the token can see.
+ */
+export interface AtlassianJiraProject {
+  id: string;
+  key: string;
+  name: string;
+  issue_count?: number | null;
+}
+
+export interface AtlassianJiraProbe {
+  available?: boolean;
+  reason?: string | null;
+  projects?: AtlassianJiraProject[];
+}
+
+/**
+ * The connect step's answer: a credential to quote later, and what is
+ * on the site.
+ *
+ * ``credential_id`` names the stored credential. It is what a later confirm
+ * hands to the job so the worker can read the site — the token itself never
+ * comes back out of the server.
+ */
+export interface AtlassianConnectResponse {
+  credential_id: number;
+  site_url: string;
+  jira?: AtlassianJiraProbe;
+  confluence?: AtlassianConfluenceProbe;
+}
+
 export interface AttachmentUploadResponse {
   filename: string;
   url: string;

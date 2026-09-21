@@ -25,6 +25,11 @@ from app.core.config import settings
 #: from the router so this module stays free of app-layer imports.
 APP_SERVICE_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
 
+#: The most an Atlassian connect request may carry: a site URL, an account's
+#: address and an API token, with room to spare. Generous for three strings
+#: and still far too small to be worth anybody's while as a buffer.
+ATLASSIAN_CONNECT_MAX_REQUEST_BYTES = 16 * 1024
+
 # (path pattern, limit getter, machine-readable error code). Getters read
 # settings lazily — the limit is a property of request time, not boot time.
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
@@ -38,6 +43,15 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # over the cap the handler's bounded read enforces exactly.
         re.compile(r"^/api/v1/g/\d+/imports/backup$"),
         lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
+        "IMPORT_TOO_LARGE",
+    ),
+    (
+        # The Atlassian connect body is a URL, an address and a token. Three
+        # short strings have no business arriving as a megabyte, and this
+        # route reaches outward on what it is given, so the transport refuses
+        # an oversized one before a handler ever looks at it.
+        re.compile(r"^/api/v1/g/\d+/imports/atlassian/connect$"),
+        lambda: ATLASSIAN_CONNECT_MAX_REQUEST_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (

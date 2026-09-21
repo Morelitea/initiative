@@ -21,6 +21,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AtlassianConnectRequest,
+  AtlassianConnectResponse,
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
   ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
@@ -730,6 +732,117 @@ export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
 > => {
   return useMutation(
     getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Prove an Atlassian API token and say what the site holds.
+ *
+ * One request, because the two questions are the same one: the only honest
+ * proof that a token works is using it, so connecting *is* the first
+ * listing. It returns the Jira projects and Confluence spaces the token can
+ * see, with rough counts, and the id of the stored credential the later
+ * confirm quotes.
+ *
+ * The credential is stored **after** the site answers, never before — a
+ * token the site rejects is not worth a row. What is stored is short-lived
+ * by construction: it carries the secret to the worker that picks the job
+ * up and is deleted when that job ends, or swept at its deadline if no job
+ * ever claims it.
+ *
+ * Real membership of a writable guild, like every other import entry point.
+ * Which initiative the work lands in is not asked here and not trusted from
+ * here — the target and the create permission for it are resolved on the
+ * confirm, and again by the worker at apply time.
+ * @summary Connect Atlassian
+ */
+export const connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = (
+  guildId: number,
+  atlassianConnectRequest: BodyType<AtlassianConnectRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AtlassianConnectResponse>(
+    {
+      url: `/api/v1/g/${guildId}/imports/atlassian/connect`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: atlassianConnectRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+    TError,
+    { guildId: number; data: BodyType<AtlassianConnectRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+  TError,
+  { guildId: number; data: BodyType<AtlassianConnectRequest> },
+  TContext
+> => {
+  const mutationKey = ["connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+    { guildId: number; data: BodyType<AtlassianConnectRequest> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>
+>;
+export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationBody =
+  BodyType<AtlassianConnectRequest>;
+export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Connect Atlassian
+ */
+export const useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+      TError,
+      { guildId: number; data: BodyType<AtlassianConnectRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+  TError,
+  { guildId: number; data: BodyType<AtlassianConnectRequest> },
+  TContext
+> => {
+  return useMutation(
+    getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationOptions(options),
     queryClient
   );
 };
