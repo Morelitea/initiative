@@ -4,7 +4,9 @@
  * Three answers and one save. What satisfies it is the account holding a
  * factor — an authenticator or a passkey — or a session that presented one,
  * which is what an identity provider's own second factor looks like from
- * here.
+ * here. Which providers those are is the same per-provider answer the
+ * registry holds, mirrored below so it is visible where the requirement is
+ * set rather than a page away.
  *
  * Written here and enforced server-side, so what this page does is offer the
  * choice and state what it costs — never decide it.
@@ -19,9 +21,15 @@ import type { SecondFactorRequirement } from "@/api/generated/initiativeAPI.sche
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { usePlatformAuthSettings, useUpdateSecondFactorRequirement } from "@/hooks/useSettings";
+import {
+  useAuthProviders,
+  usePlatformAuthSettings,
+  useUpdateAuthProvider,
+  useUpdateSecondFactorRequirement,
+} from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 
@@ -135,6 +143,8 @@ const SecondFactorRequirementForm = ({
         </p>
       )}
 
+      <ProvidersThatCount />
+
       {unmet && (
         <Alert>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -164,5 +174,58 @@ const SecondFactorRequirementForm = ({
         </Button>
       </div>
     </SettingsSection>
+  );
+};
+
+/**
+ * Which providers' own account of a sign-in answers this requirement.
+ *
+ * The same ``asserts_second_factor`` the registry holds, shown here because
+ * this is where somebody decides who must hold a factor and therefore wants to
+ * know who already does. Ticking either place writes the one answer.
+ */
+const ProvidersThatCount = () => {
+  const { t } = useTranslation(["settings", "common"]);
+  const providersQuery = useAuthProviders();
+  const updateProvider = useUpdateAuthProvider();
+  const providers = providersQuery.data ?? [];
+
+  if (providersQuery.isLoading || providers.length === 0) return null;
+
+  return (
+    <div className="space-y-3 rounded-md border px-3 py-3">
+      <div className="space-y-1">
+        <p className="font-medium text-sm">{t("auth.secondFactorRequirement.providers.title")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("auth.secondFactorRequirement.providers.help")}
+        </p>
+      </div>
+      <ul className="space-y-2">
+        {providers.map((provider) => (
+          <li key={provider.id} className="flex items-center gap-3">
+            <Checkbox
+              id={`provider-counts-${provider.id}`}
+              checked={provider.asserts_second_factor ?? false}
+              disabled={updateProvider.isPending}
+              onCheckedChange={(checked) =>
+                updateProvider.mutate(
+                  {
+                    providerId: provider.id,
+                    data: { asserts_second_factor: Boolean(checked) },
+                  },
+                  {
+                    onError: (err: unknown) =>
+                      toast.error(getErrorMessage(err, "settings:authProviders.saveError")),
+                  }
+                )
+              }
+            />
+            <Label htmlFor={`provider-counts-${provider.id}`} className="font-normal">
+              {provider.display_name}
+            </Label>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 };

@@ -4158,6 +4158,7 @@ export interface GuildAuthSettingsRead {
   auth_options: GuildAuthOption[];
   allow_api_keys: boolean;
   enforce_compliance_session: boolean;
+  require_second_factor: boolean;
 }
 
 /**
@@ -4437,6 +4438,7 @@ export interface GuildRead {
   auth_options: GuildAuthOption[] | null;
   allow_api_keys: boolean | null;
   enforce_compliance_session: boolean | null;
+  require_second_factor: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
   show_member_names: boolean;
@@ -4444,6 +4446,21 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+}
+
+/**
+ * Whether reaching this community asks for a second factor.
+ */
+export interface GuildSecondFactorRead {
+  require_second_factor: boolean;
+  available: boolean;
+}
+
+/**
+ * Ask for one, or stop. Which kinds count is the deployment's answer.
+ */
+export interface GuildSecondFactorUpdate {
+  require_second_factor: boolean;
 }
 
 /**

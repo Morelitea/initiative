@@ -30,6 +30,7 @@ from app.testing.factories import (
     create_user,
     get_auth_token,
 )
+from app.testing.factories import NARROWED_CLAIM, NARROWED_VALUE
 from app.testing.oidc import ISSUER as OIDC_ISSUER, FakeIdp, mint_id_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -147,7 +148,9 @@ async def test_arriving_joins_where_the_community_said_so(
     )
     guild_id = guild.id
 
-    response = await _sign_in(client, fake_idp)
+    response = await _sign_in(
+        client, fake_idp, id_token_claims={NARROWED_CLAIM: NARROWED_VALUE}
+    )
 
     assert response.status_code in (302, 307), response.text
     arrived = await _who_just_signed_in(session)
@@ -364,7 +367,7 @@ async def test_any_of_ours_is_answered_by_the_connections(
 
     allowed = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
-        headers=_arrived_as(member, ours.id, None),
+        headers=_arrived_as(member, ours.id, {NARROWED_CLAIM: [NARROWED_VALUE]}),
     )
     blocked = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",

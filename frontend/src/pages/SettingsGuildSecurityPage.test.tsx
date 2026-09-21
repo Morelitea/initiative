@@ -58,6 +58,9 @@ let policy: {
 const savePolicy = vi.fn();
 const saveApiAccess = vi.fn();
 const saveSessionLimit = vi.fn();
+const saveSecondFactor = vi.fn();
+let requireSecondFactor: boolean | null = false;
+let secondFactorAvailable = true;
 const refreshGuilds = vi.fn(() => Promise.resolve());
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
@@ -72,12 +75,17 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
       auth_options: authOptions,
       allow_api_keys: allowApiKeys,
       enforce_compliance_session: sessionLimit,
+      require_second_factor: requireSecondFactor,
     },
     refreshGuilds,
   }),
 }));
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => guildId }));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({ secondFactorAvailable }),
+}));
 
 // ``useServer`` is left real: the render helper provides its context, and
 // mocking the module would take ``ServerContext`` with it.
@@ -88,6 +96,7 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
+  useUpdateGuildSecondFactor: () => ({ mutate: saveSecondFactor, isPending: false }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectableProviders: () => ({ data: connectable, isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
@@ -149,6 +158,8 @@ describe("SettingsGuildSecurityPage", () => {
     authOptions = ["restrictions", "providers"];
     allowApiKeys = true;
     sessionLimit = false;
+    requireSecondFactor = false;
+    secondFactorAvailable = true;
     connections = [
       connection(1, 11, "corp", "Corp SSO"),
       connection(2, 12, "contractors", "Contractors"),
@@ -241,6 +252,8 @@ describe("SettingsGuildSecurityPage", () => {
     // One rule, expressed by ticking what it asks for. `require_methods` is
     // sent rather than omitted: switching to a named provider is also how a
     // method requirement is cleared, so the empty list is the instruction.
+    // A second factor is not among them — it is asked for in the terms a
+    // session is held to, which a community with no rule at all still has.
     it.each([
       [
         "'any of ours' as a rule that names no provider",
@@ -255,16 +268,10 @@ describe("SettingsGuildSecurityPage", () => {
         { provider_id: 12, require_methods: [] },
       ],
       [
-        "a second factor alongside a named provider",
+        "a passkey alongside a named provider",
         "Contractors",
-        [/second factor/i],
-        { provider_id: 12, require_methods: ["totp"] },
-      ],
-      [
-        "a passkey alongside the code",
-        "Contractors",
-        [/second factor/i, /require a passkey/i],
-        { provider_id: 12, require_methods: ["totp", "passkey"] },
+        [/require a passkey/i],
+        { provider_id: 12, require_methods: ["passkey"] },
       ],
       [
         "a passkey on its own",
@@ -342,29 +349,55 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("asking for a second factor", () => {
-    it("is not offered where the deployment already asks everybody", async () => {
-      // Its own box has nothing to add, so the page says so instead of
-      // offering a tick that would change nothing.
-      policy = { ...policy, factor_required_by_platform: true };
-      const user = mounted();
+    // Its own control, in the terms a session is held to, because a community
+    // that asks nothing about how people arrive may still ask them to hold a
+    // factor — and choosing "open" deletes the rule row entirely.
+    const factorSwitch = () => screen.getByLabelText(/require a second factor/i);
 
-      await user.click(requirementRadio());
-
-      expect(screen.queryByLabelText(/second factor/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/already asks everybody/i)).toBeInTheDocument();
-      // A passkey is a different question, and still the community's.
-      expect(screen.getByLabelText(/require a passkey/i)).toBeInTheDocument();
-    });
-
-    it("reads a factor-only rule as one, not as 'any of ours'", async () => {
-      // require_methods is no longer a yes/no: a rule can name the factor and
-      // no provider, which is not the same as asking for the community's own
-      // single sign-on.
-      savedPolicy({ require_methods: ["totp"] });
+    it("is offered without asking anything about how people arrive", () => {
+      policy = { ...policy, policy: "open" };
       render();
 
-      expect(await screen.findByLabelText(/second factor/i)).toBeChecked();
-      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+      expect(factorSwitch()).toBeInTheDocument();
+      expect(factorSwitch()).not.toBeChecked();
+    });
+
+    it("saves through its own endpoint, naming no method", async () => {
+      const user = mounted();
+
+      await user.click(factorSwitch());
+
+      expect(saveSecondFactor).toHaveBeenCalledWith(
+        { require_second_factor: true },
+        expect.anything()
+      );
+      // Not folded into the sign-in rule, which is a separate save.
+      expect(savePolicy).not.toHaveBeenCalled();
+    });
+
+    it("reads what the community already asks for", () => {
+      requireSecondFactor = true;
+      render();
+
+      expect(factorSwitch()).toBeChecked();
+    });
+
+    it("is held where the deployment already asks everybody", () => {
+      // Its own answer has nothing to add, so it shows the deployment's and
+      // stops rather than offering a tick that would change nothing.
+      policy = { ...policy, factor_required_by_platform: true };
+      render();
+
+      expect(factorSwitch()).toBeChecked();
+      expect(factorSwitch()).toBeDisabled();
+      expect(screen.getByText(/already asks everybody/i)).toBeInTheDocument();
+    });
+
+    it("is not offered where the deployment permits no kind of factor", () => {
+      secondFactorAvailable = false;
+      render();
+
+      expect(screen.queryByLabelText(/require a second factor/i)).not.toBeInTheDocument();
     });
   });
 
@@ -413,15 +446,10 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     // What the rule wanted is what the page asks the global dialog for, and
-    // the unsaved choice survives the asking either way.
+    // the unsaved choice survives the asking either way. A second factor is
+    // not among them: it is asked for on its own control now, which saves by
+    // itself rather than through this form.
     it.each([
-      [
-        "a code",
-        /second factor/i,
-        "totp",
-        /enter a code from your authenticator app first/i,
-        /^enter a code$/i,
-      ],
       [
         "the passkey",
         /require a passkey/i,

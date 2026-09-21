@@ -346,6 +346,17 @@ async def set_login_methods(
     return row
 
 
+async def second_factor_available(session: AsyncSession) -> bool:
+    """Whether this deployment offers a second factor at all.
+
+    What a community's own requirement is offered against: with no kind of
+    factor permitted here, there is nothing for anybody to be asked to hold,
+    so the question is not put.
+    """
+    permitted = await resolve_login_methods(session)
+    return any(method in permitted for method in FACTOR_METHODS)
+
+
 async def _locked_settings(session: AsyncSession) -> AppSetting:
     """The settings row, held for the rest of this transaction."""
     await app_settings_service.ensure_settings_row(session)

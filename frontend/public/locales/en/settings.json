@@ -662,7 +662,11 @@
       "present": "Enter a code",
       "saved": "Saved. People this covers are asked at their next request.",
       "error": "We couldn't save that.",
-      "noMethod": "Permit the authenticator app or passkeys first — with neither offered there is nothing to ask people for."
+      "noMethod": "Permit the authenticator app or passkeys first — with neither offered there is nothing to ask people for.",
+      "providers": {
+        "title": "Providers whose sign-in counts",
+        "help": "A sign-in through one of these answers the requirement above, because the provider reports running a second factor of its own. The same answer as on the provider's own page."
+      }
     },
     "factorMethods": {
       "title": "Two-factor authentication",
@@ -1272,6 +1276,15 @@
       "ruleHelp": "Optional. Name a group your provider reports and where its people land. You can add more later.",
       "requireLabel": "Require members to arrive through this provider",
       "requireHelp": "Members sign in through it and nothing else. You can change this later."
+    },
+    "secondFactor": {
+      "title": "Second factor",
+      "description": "Whether reaching this community asks for one.",
+      "allowLabel": "Require a second factor",
+      "help": "Members must have presented a second factor in this session. Which kinds count is the deployment's answer, not this community's — they can add one without signing out.",
+      "askedByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add.",
+      "saved": "Second factor saved.",
+      "error": "Could not save the second-factor requirement."
     }
   },
   "authProviders": {

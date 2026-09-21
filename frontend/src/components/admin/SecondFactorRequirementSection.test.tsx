@@ -1,4 +1,5 @@
 import { act, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +18,12 @@ let onRequirementError:
 
 let settings: PlatformAuthSettingsResponse;
 
+let providers: { id: number; display_name: string; asserts_second_factor: boolean }[] = [
+  { id: 1, display_name: "Corp SSO", asserts_second_factor: false },
+  { id: 2, display_name: "Entra", asserts_second_factor: true },
+];
+const providerMutate = vi.fn();
+
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
   useUpdateSecondFactorRequirement: (options?: {
@@ -25,6 +32,10 @@ vi.mock("@/hooks/useSettings", () => ({
     onRequirementError = options?.onError;
     return { mutate: requirementMutate, isPending: false };
   },
+  // The mirror beside the answer: which providers' own account of a sign-in
+  // counts as presenting one.
+  useAuthProviders: () => ({ data: providers, isLoading: false }),
+  useUpdateAuthProvider: () => ({ mutate: providerMutate, isPending: false }),
 }));
 
 import { SecondFactorRequirementSection } from "./SecondFactorRequirementSection";
@@ -60,6 +71,10 @@ describe("SecondFactorRequirementSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     settings = structuredClone(base);
+    providers = [
+      { id: 1, display_name: "Corp SSO", asserts_second_factor: false },
+      { id: 2, display_name: "Entra", asserts_second_factor: true },
+    ];
   });
 
   it("starts on the stored answer", () => {
@@ -129,5 +144,33 @@ describe("SecondFactorRequirementSection", () => {
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio).toBeDisabled();
     }
+  });
+});
+
+describe("which providers' word counts", () => {
+  it("lists the deployment's providers with the answer each one holds", () => {
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    expect(screen.getByLabelText("Corp SSO")).not.toBeChecked();
+    expect(screen.getByLabelText("Entra")).toBeChecked();
+  });
+
+  it("writes the same answer the provider's own page holds", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    await user.click(screen.getByLabelText("Corp SSO"));
+
+    expect(providerMutate).toHaveBeenCalledWith(
+      { providerId: 1, data: { asserts_second_factor: true } },
+      expect.anything()
+    );
+  });
+
+  it("says nothing where the deployment has registered none", () => {
+    providers = [];
+    renderWithProviders(<SecondFactorRequirementSection />);
+
+    expect(screen.queryByText(/providers whose sign-in counts/i)).not.toBeInTheDocument();
   });
 });

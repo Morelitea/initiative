@@ -33,6 +33,7 @@ from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.actor import Actor
 from app.testing.factories import (
+    satisfied_claims_for,
     create_auth_provider,
     create_document,
     create_guild,
@@ -52,8 +53,16 @@ def _bearer(token: str) -> dict[str, str]:
 
 
 def _sat_headers(user: User, provider_ids: list[int]) -> dict[str, str]:
-    """A session that came in through those providers."""
-    return _bearer(get_auth_token(user, satisfied_providers=provider_ids))
+    """A session that came in through those providers, carrying what they
+    asserted: a community's connection is narrowed, so arriving through a
+    provider is not on its own what makes the arrival one of its own."""
+    return _bearer(
+        get_auth_token(
+            user,
+            satisfied_providers=provider_ids,
+            asserted_claims=satisfied_claims_for(*provider_ids),
+        )
+    )
 
 
 def _policy(guild_id: int) -> str:
@@ -576,7 +585,12 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
 
     # A satisfied session token joins.
     sat_user = await authenticate_ws_token(
-        get_auth_token(member.user, satisfied_providers=[provider_id]), session
+        get_auth_token(
+            member.user,
+            satisfied_providers=[provider_id],
+            asserted_claims=satisfied_claims_for(provider_id),
+        ),
+        session,
     )
     assert sat_user is not None
     assert satisfied_provider_ids() == frozenset({provider_id})
@@ -691,6 +705,7 @@ async def test_db_layer_blocks_unsatisfied_session(
         guild_id=guild_id,
         guild_role="admin",
         satisfied_providers=[provider_id],
+        satisfied_claims=satisfied_claims_for(provider_id),
     )
     assert await _visible_projects() == 1
 
@@ -968,7 +983,12 @@ async def _a_session_through_one_of_ours(
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
     return _bearer(
-        get_auth_token(user, amr=["oidc:whatever"], satisfied_providers=[provider.id])
+        get_auth_token(
+            user,
+            amr=["oidc:whatever"],
+            satisfied_providers=[provider.id],
+            asserted_claims=satisfied_claims_for(provider),
+        )
     )
 
 
@@ -1216,3 +1236,56 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
 
         assert read.status_code == 200, read.text
         assert read.json()["factor_required_by_platform"] is told
+
+
+# --- a second factor, asked for on its own -----------------------------------
+
+
+def _second_factor(guild_id: int) -> str:
+    """The surface the seat holds: what this community asks of a session."""
+    return f"/api/v1/guilds/{guild_id}/second-factor"
+
+
+@pytest.mark.integration
+async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
+    client, session: AsyncSession, acting_user
+):
+    """No sign-in rule, and still a requirement: the two are separate answers,
+    which is what lets a community that lets people arrive however they like
+    ask them to hold a factor."""
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+    # A session that has presented one; the seat has to answer its own ask.
+    headers = _bearer(get_auth_token(seat.user, amr=[SECOND_FACTOR_AMR]))
+
+    response = await client.put(
+        _second_factor(seat.guild.id),
+        json={"require_second_factor": True},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["require_second_factor"] is True
+    await session.refresh(seat.guild)
+    assert seat.guild.require_second_factor is True
+
+
+@pytest.mark.integration
+async def test_the_seat_answers_its_own_ask_first(
+    client, session: AsyncSession, acting_user
+):
+    """A requirement this session does not meet is refused, and the answer
+    names what is wanted so the page can ask for it."""
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+
+    response = await client.put(
+        _second_factor(seat.guild.id),
+        json={"require_second_factor": True},
+        headers=seat.headers,
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    await session.refresh(seat.guild)
+    assert seat.guild.require_second_factor is False

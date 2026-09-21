@@ -40,6 +40,8 @@ import type {
   GuildMembershipUpdate,
   GuildOrderUpdate,
   GuildRead,
+  GuildSecondFactorRead,
+  GuildSecondFactorUpdate,
   GuildSessionLimitRead,
   GuildSessionLimitUpdate,
   GuildUpdate,
@@ -2386,6 +2388,109 @@ export const useSetGuildApiAccessApiV1GuildsGuildIdApiAccessPut = <
 > => {
   return useMutation(
     getSetGuildApiAccessApiV1GuildsGuildIdApiAccessPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Ask for a second factor from everybody reaching this community.
+ *
+ * The same seat as the two beside it, and separate from the sign-in
+ * requirement on purpose: a community that lets its members arrive however
+ * they like may still ask them to hold a factor, and lifting the sign-in
+ * requirement does not lift this.
+ *
+ * Which kinds of factor exist is the deployment's answer, and so is which
+ * providers' own account of one counts. The community asks; it does not say
+ * how the question is answered.
+ * @summary Set Guild Second Factor
+ */
+export const setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut = (
+  guildId: number,
+  guildSecondFactorUpdate: BodyType<GuildSecondFactorUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildSecondFactorRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/second-factor`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildSecondFactorUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>,
+    TError,
+    { guildId: number; data: BodyType<GuildSecondFactorUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSecondFactorUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>,
+    { guildId: number; data: BodyType<GuildSecondFactorUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>
+>;
+export type SetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPutMutationBody =
+  BodyType<GuildSecondFactorUpdate>;
+export type SetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Second Factor
+ */
+export const useSetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>,
+      TError,
+      { guildId: number; data: BodyType<GuildSecondFactorUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildSecondFactorUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildSecondFactorApiV1GuildsGuildIdSecondFactorPutMutationOptions(options),
     queryClient
   );
 };

@@ -295,6 +295,18 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # Whether reaching this community asks for a second factor. The community
+    # asks for one; which kinds exist, and which providers' word counts as
+    # having presented one, are the deployment's answers.
+    #
+    # Here for the reason the two above are: it says what is asked of a session
+    # reaching this community, and the answer has to survive the guild lifting
+    # its sign-in requirement. Set by the guild's superadmin; read by the
+    # guild-access gate.
+    require_second_factor: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(

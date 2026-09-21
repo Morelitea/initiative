@@ -662,7 +662,11 @@
       "present": "Introducir un código",
       "saved": "Guardado. A quien le afecte se le pedirá en su siguiente petición.",
       "error": "No hemos podido guardarlo.",
-      "noMethod": "Permite antes la aplicación de autenticación o las claves de acceso: sin ninguna de las dos no hay nada que exigir."
+      "noMethod": "Permite antes la aplicación de autenticación o las claves de acceso: sin ninguna de las dos no hay nada que exigir.",
+      "providers": {
+        "title": "Proveedores cuyo inicio de sesión cuenta",
+        "help": "Un inicio de sesión a través de alguno de estos satisface el requisito anterior, porque el proveedor informa haber ejecutado un segundo factor propio. La misma respuesta que en la página del proveedor."
+      }
     },
     "factorMethods": {
       "title": "Autenticación en dos pasos",
@@ -1272,6 +1276,15 @@
       "ruleHelp": "Opcional. Nombre un grupo que informe su proveedor y dónde aterriza su gente. Puede añadir más después.",
       "requireLabel": "Exigir que los miembros entren por este proveedor",
       "requireHelp": "Los miembros inician sesión solo por ahí. Puede cambiarlo más adelante."
+    },
+    "secondFactor": {
+      "title": "Segundo factor",
+      "description": "Si entrar en esta comunidad exige uno.",
+      "allowLabel": "Exigir un segundo factor",
+      "help": "Los miembros deben haber presentado un segundo factor en esta sesión. Qué tipos cuentan lo decide el servidor, no esta comunidad: pueden añadir uno sin cerrar sesión.",
+      "askedByPlatform": "Su servidor ya pide un segundo factor a todo el mundo aquí, así que no hay nada que añadir.",
+      "saved": "Segundo factor guardado.",
+      "error": "No se pudo guardar el requisito de segundo factor."
     }
   },
   "authProviders": {

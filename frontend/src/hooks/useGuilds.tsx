@@ -129,6 +129,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // settings endpoint when opening Authentication.
   allow_api_keys: null,
   enforce_compliance_session: null,
+  require_second_factor: null,
   // A grant reaches one named guild directly; the directory is not how the
   // grantee got here, and this synthetic entry is never listed in it.
   is_community: false,
