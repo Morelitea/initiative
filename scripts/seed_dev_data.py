@@ -184,6 +184,8 @@ from app.services.tenant.filter_presets import (  # noqa: E402
 from app.models.tenant._mixins import ArchiveMixin, archive_models  # noqa: E402
 from app.services.tenant.archive import archive_entity  # noqa: E402
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
+from app.core.intake import IntakeStream  # noqa: E402
+from app.services.platform import intake_setup  # noqa: E402
 
 
 #: What the seeder calls the initiative it hangs each demo community's content
@@ -989,6 +991,88 @@ async def _seat_community_superadmin(
         seated += 1
     await session.flush()
     return seated
+
+
+#: The community this deployment's own operations work lands in. Named for the
+#: product rather than for a company: a deployment runs one of these, and what
+#: it is called is what everybody in it sees at the top of the list.
+OPERATIONS_GUILD_NAME = "Initiative"
+
+
+async def _create_operations_guild(
+    session: AsyncSession,
+    ids: IDTracker,
+    *,
+    owner: User,
+    operator: User,
+    members: list[User],
+) -> Guild:
+    """Seed the operations community, set up, with the ladder seated in it.
+
+    The platform ladder is a set of accounts with nowhere of their own to work
+    until this exists, which is what made every intake surface unreachable on a
+    fresh dev database. So it is seeded as an ordinary community with the
+    ladder mapped onto community roles: the platform owner takes the seat, the
+    operator administers it, and everybody else is a member.
+
+    Both halves, because either one missing leaves the streams unreachable: the
+    deployment's pointer (``app_settings.operations_guild_id``) and a binding
+    per stream, each set up from its committed blueprint the same way the
+    operator's own "set this up for me" does.
+    """
+    await set_rls_context(session)
+    guild = await _create_guild(
+        session,
+        ids,
+        name=OPERATIONS_GUILD_NAME,
+        description="Where this deployment's security, moderation, support and feedback work lands.",
+        creator=owner,
+    )
+    # The creator joins as admin; this community's seat is the platform owner's.
+    seat = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == owner.id,
+            )
+        )
+    ).one()
+    seat.role = GuildRole.superadmin
+    session.add(seat)
+    await _add_guild_members(
+        session, ids, guild, [operator, *members], admin_users=[operator]
+    )
+    # Same order the community sections use: commit the shared rows, then route
+    # in to write the content. ``_create_guild`` provisioned the schema.
+    await session.commit()
+    _expunge_guild_scoped(session)
+    await set_rls_context(
+        session, user_id=owner.id, guild_id=guild.id, guild_role="admin"
+    )
+
+    initiative, _, _ = await _create_initiative(
+        session,
+        ids,
+        guild=guild,
+        name="Operations",
+        description="The deployment's own cases: security, moderation, support and feedback.",
+        color="#dc2626",
+        pm_user=owner,
+        member_users=[operator, *members],
+    )
+    await session.commit()
+
+    await set_rls_context(session)
+    await intake_setup.set_operations_guild(session, guild.id)
+    await session.commit()
+    for stream in IntakeStream:
+        await intake_setup.provision_from_blueprint(
+            session, stream=stream, initiative_id=initiative.id, importer=owner
+        )
+    # provision_from_blueprint routes into the operations guild to write the
+    # binding; hand the session back at the public baseline the callers expect.
+    await set_rls_context(session)
+    return guild
 
 
 async def _create_guild(
@@ -11417,6 +11501,23 @@ async def seed() -> None:
         # directory fillers, which are seeded after communities 1-3.
         seated = await _seat_community_superadmin(session, ids, g_superadmin)
         print(f"  Seated the community superadmin in {seated} communities")
+        await session.commit()
+
+        # After that sweep, so the platform owner keeps the seat here rather
+        # than sharing it: this community's seat is a platform role, not the
+        # demo account the other communities get.
+        print("\n  --- Operations community: intake, set up ---")
+        ops_guild = await _create_operations_guild(
+            session,
+            ids,
+            owner=p_owner,
+            operator=p_operator,
+            members=[p_moderator, p_support, p_member],
+        )
+        print(
+            f"  {OPERATIONS_GUILD_NAME} (community {ops_guild.id}): "
+            f"{len(IntakeStream)} streams bound"
+        )
         await session.commit()
 
     _save_state(ids.data)

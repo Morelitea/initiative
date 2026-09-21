@@ -1032,6 +1032,7 @@
       "bannerHelp": "Erlaubt das Hochladen eines Bannerbilds. Ohne das wählen sie stattdessen eine Bannerfarbe; ein bereits hochgeladenes Banner bleibt sichtbar.",
       "supportLabel": "Hilfeanfragen",
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
+      "supportNeedsIntake": "Hilfeanfragen können derzeit nirgendwohin gesendet werden. Verknüpfen Sie den Support-Stream unter Administration › Annahme mit einem Projekt, dann lässt sich dies einschalten.",
       "authOption": {
         "restrictions": {
           "label": "Eigener Sicherheitsstandard",

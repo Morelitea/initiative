@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
@@ -69,6 +70,10 @@ class AgeConfirmationRequiredError(Exception):
 
 class BannerColorError(Exception):
     """Raised when a banner colour is not a ``#rrggbb`` value."""
+
+
+class SupportIntakeMissingError(Exception):
+    """Raised when help requests are switched on with nowhere to send them."""
 
 
 # A guild whose seat cap is one can never admit a joiner, so listing it would
@@ -991,6 +996,18 @@ async def update_guild(
             support_enabled is not None
             and administration.support_enabled != support_enabled
         ):
+            # Switching it on offers the community's members a form. Where the
+            # deployment has bound no support stream, that form has nowhere to
+            # send what somebody writes in it, so the entitlement is refused
+            # until the deployment has somewhere to receive them. Switching it
+            # off is always allowed — a deployment that has stopped staffing
+            # help stops offering it.
+            from app.services.platform.intake import stream_is_bound
+
+            if support_enabled and not await stream_is_bound(IntakeStream.support):
+                raise SupportIntakeMissingError(
+                    GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED
+                )
             administration.support_enabled = support_enabled
             administration_updated = True
         if administration_updated:

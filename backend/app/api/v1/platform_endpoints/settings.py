@@ -809,6 +809,13 @@ async def update_platform_guild_storage(
             guild = await guilds_service.set_guild_status(
                 session, guild_id=guild_id, status=payload.status
             )
+    except guilds_service.SupportIntakeMissingError as exc:
+        # Nowhere to send what the form would collect. The setup this asks for
+        # is the operator's own, one page over.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED,
+        ) from exc
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate

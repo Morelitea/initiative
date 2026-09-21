@@ -143,6 +143,9 @@ class GuildMessages:
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
     #: The guild's sign-in configuration asks for the seat above admin.
     GUILD_SUPERADMIN_REQUIRED = "GUILD_SUPERADMIN_REQUIRED"
+    #: Help requests were switched on with no support stream bound to
+    #: receive them.
+    SUPPORT_INTAKE_NOT_CONFIGURED = "SUPPORT_INTAKE_NOT_CONFIGURED"
     GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
     FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
     GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"

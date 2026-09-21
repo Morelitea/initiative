@@ -17,16 +17,24 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.intake import IntakeStream
+from app.core.messages import GuildMessages
+from app.db.session import set_rls_context
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
+from app.models.tenant.intake import IntakeBinding
 from app.services import email as email_service
 from app.testing import (
     create_auth_provider,
     create_guild,
     create_guild_membership,
+    create_initiative,
+    create_project,
     guild_administration,
 )
+from sqlmodel import select
 
 GUILDS = "/api/v1/settings/guilds"
 OIDC_MAPPINGS = "/api/v1/settings/oidc-mappings"
@@ -1185,3 +1193,81 @@ async def test_every_route_needs_an_account(
     )
 
     assert resp.status_code == 401, f"{method.upper()} {path}: {resp.status_code}"
+
+
+# --- help requests need somewhere to land -----------------------------------
+
+
+async def _bind_support_stream(session: AsyncSession) -> None:
+    """Give the deployment an operations guild with the support stream bound.
+
+    The same two halves the operator's Intake page writes: the pointer on the
+    settings singleton, and a binding inside the guild it names.
+    """
+    staff = await create_guild(session)
+    initiative = await create_initiative(session, staff, staff.creator)
+    project = await create_project(session, initiative, staff.creator)
+
+    await set_rls_context(session)
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    if row is None:
+        row = AppSetting(id=1)
+    row.operations_guild_id = staff.id
+    session.add(row)
+    await session.commit()
+
+    await set_rls_context(session, guild_id=staff.id, guild_role="admin")
+    session.add(IntakeBinding(stream=IntakeStream.support, project_id=project.id))
+    await session.commit()
+    await set_rls_context(session)
+
+
+@pytest.mark.integration
+async def test_help_requests_need_somewhere_to_go(client, session, owner):
+    """Switching the entitlement on offers a form. Refused while the deployment
+    has bound no support stream: the form would have nowhere to send what
+    somebody writes in it."""
+    guild = await create_guild(session)
+
+    response = await client.patch(
+        f"{GUILDS}/{guild.id}",
+        json={"support_enabled": True},
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED
+    assert (await guild_administration(session, guild)).support_enabled is False
+
+
+@pytest.mark.integration
+async def test_help_requests_switch_on_once_a_stream_is_bound(client, session, owner):
+    """With somewhere to receive them, the same call goes through."""
+    guild = await create_guild(session)
+    await _bind_support_stream(session)
+
+    response = await client.patch(
+        f"{GUILDS}/{guild.id}",
+        json={"support_enabled": True},
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert (await guild_administration(session, guild)).support_enabled is True
+
+
+@pytest.mark.integration
+async def test_help_requests_can_always_be_switched_off(client, session, owner):
+    """A deployment that has stopped staffing help stops offering it, whatever
+    became of the binding in the meantime."""
+    guild = await create_guild(session)
+    await guild_administration(session, guild, support_enabled=True)
+
+    response = await client.patch(
+        f"{GUILDS}/{guild.id}",
+        json={"support_enabled": False},
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert (await guild_administration(session, guild)).support_enabled is False
