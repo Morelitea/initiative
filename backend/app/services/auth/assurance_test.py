@@ -110,7 +110,11 @@ def test_an_acr_that_is_not_one_string_is_dropped(value):
 
 def test_the_session_amr_names_the_provider_and_what_it_used():
     assurance = read_assurance({"amr": ["mfa", "pwd"]})
-    assert session_amr("acme", assurance) == ["mfa", "oidc:acme", "pwd"]
+    assert session_amr("acme", assurance, asserts_second_factor=True) == [
+        "mfa",
+        "oidc:acme",
+        "pwd",
+    ]
 
 
 def test_the_session_amr_names_the_provider_even_when_the_idp_is_silent():
@@ -183,8 +187,30 @@ def test_a_provider_marks_itself_and_nothing_else():
 
 def test_an_identity_providers_own_values_are_left_alone():
     """The IdP's vocabulary travels untouched beside our marker."""
-    amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk"]))
+    amr = session_amr(
+        "corp", ProviderAssurance(amr=["mfa", "hwk"]), asserts_second_factor=True
+    )
     assert set(amr) == {"oidc:corp", "mfa", "hwk"}
+
+
+def test_a_provider_contributes_no_factor_until_the_operator_says_it_may():
+    """The markers a rule reads are this application's account of what it
+    verified. A provider contributes them where the operator has said that
+    provider's word counts, and not before."""
+    amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk", "pwd"]))
+
+    assert set(amr) == {"oidc:corp", "pwd"}
+
+
+def test_what_the_provider_named_besides_is_kept_either_way():
+    """Only the rule's own vocabulary is held back; the rest is the provider's
+    and nothing reads it."""
+    silent = session_amr("corp", ProviderAssurance(amr=["pwd", "kba"]))
+    counted = session_amr(
+        "corp", ProviderAssurance(amr=["pwd", "kba"]), asserts_second_factor=True
+    )
+
+    assert silent == counted == ["kba", "oidc:corp", "pwd"]
 
 
 def test_the_narrowing_claim_is_recorded_for_the_gate():

@@ -88,6 +88,17 @@ class AuthProvider(SQLModel, table=True):
     )
 
     # Just-in-time provisioning of unknown users on first login.
+    #: Whether this provider's own account of a sign-in may satisfy a request
+    #: for a second factor. An identity provider that ran one says so in its
+    #: ``amr``; whether that word is worth anything is a judgement about the
+    #: provider, and the operator who registered it is the one making it.
+    #: Off until they say otherwise, so a second factor means one this
+    #: deployment verified unless somebody has decided differently.
+    asserts_second_factor: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     allow_jit: bool = Field(
         sa_column=Column(Boolean, nullable=False, server_default=text("true"))
     )

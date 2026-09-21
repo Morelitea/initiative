@@ -1297,6 +1297,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Crear cuentas en el primer inicio de sesión",
     "allowJitHelp": "Si está desactivado, solo las cuentas existentes pueden iniciar sesión con este proveedor.",
+    "assertsSecondFactorLabel": "Su palabra cuenta como segundo factor",
+    "assertsSecondFactorHelp": "Cuando este proveedor indica que ejecutó un segundo factor, un inicio de sesión a través de él satisface ese requisito. Déjelo desactivado salvo que sepa que lo informa de forma fiable: a quienes entren por ahí se les pedirá un factor propio.",
     "enabledLabel": "Activado",
     "save": "Guardar",
     "saving": "Guardando…",

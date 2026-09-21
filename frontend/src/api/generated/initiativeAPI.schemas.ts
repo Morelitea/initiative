@@ -1088,6 +1088,7 @@ export interface AuthProviderAdminRead {
   scopes: string | null;
   role_claim_path: string | null;
   allow_jit: boolean;
+  asserts_second_factor: boolean;
   icon: string | null;
   button_style: string | null;
   secret_set: boolean;
@@ -1115,6 +1116,7 @@ export interface AuthProviderCreate {
   scopes?: string | null;
   role_claim_path?: string | null;
   allow_jit?: boolean;
+  asserts_second_factor?: boolean;
   icon?: string | null;
   button_style?: string | null;
 }
@@ -1161,6 +1163,7 @@ export interface AuthProviderUpdate {
   scopes?: string | null;
   role_claim_path?: string | null;
   allow_jit?: boolean | null;
+  asserts_second_factor?: boolean | null;
   icon?: string | null;
   button_style?: string | null;
 }

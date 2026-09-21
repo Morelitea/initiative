@@ -1297,6 +1297,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Konten bei erster Anmeldung erstellen",
     "allowJitHelp": "Wenn deaktiviert, können sich nur bestehende Konten mit diesem Anbieter anmelden.",
+    "assertsSecondFactorLabel": "Seine Aussage zählt als zweiter Faktor",
+    "assertsSecondFactorHelp": "Wenn dieser Anbieter meldet, einen zweiten Faktor geprüft zu haben, erfüllt eine Anmeldung über ihn eine entsprechende Anforderung. Lassen Sie dies aus, sofern Sie nicht wissen, dass er dies zuverlässig meldet — Anmeldende werden dann nach einem eigenen Faktor gefragt.",
     "enabledLabel": "Aktiviert",
     "save": "Speichern",
     "saving": "Wird gespeichert…",

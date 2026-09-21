@@ -27,6 +27,9 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     scopes: Optional[str] = None
     role_claim_path: Optional[str] = None
     allow_jit: bool
+    #: Whether this provider's own account of a sign-in may answer a
+    #: request for a second factor.
+    asserts_second_factor: bool = False
     #: Whether communities may connect to this provider. Off keeps one
     #: registered for a single customer out of everybody else's picker.
     icon: Optional[str] = None
@@ -62,6 +65,7 @@ class AuthProviderCreate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default="openid email profile", max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: bool = True
+    asserts_second_factor: bool = False
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
@@ -89,10 +93,18 @@ class AuthProviderUpdate(SanitizedBaseModel):
     scopes: Optional[str] = Field(default=None, max_length=512)
     role_claim_path: Optional[str] = Field(default=None, max_length=256)
     allow_jit: Optional[bool] = None
+    asserts_second_factor: Optional[bool] = None
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
-    @field_validator("display_name", "issuer", "client_id", "enabled", "allow_jit")
+    @field_validator(
+        "display_name",
+        "issuer",
+        "client_id",
+        "enabled",
+        "allow_jit",
+        "asserts_second_factor",
+    )
     @classmethod
     def _no_explicit_null(cls, value, info):
         """Absent means keep; an explicit null would strip config a login-ready

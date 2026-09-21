@@ -1297,6 +1297,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Créer les comptes à la première connexion",
     "allowJitHelp": "Si désactivé, seuls les comptes existants peuvent se connecter avec ce fournisseur.",
+    "assertsSecondFactorLabel": "Sa parole vaut second facteur",
+    "assertsSecondFactorHelp": "Lorsque ce fournisseur indique avoir appliqué un second facteur, une connexion via celui-ci satisfait cette exigence. Laissez désactivé sauf si vous savez qu’il le signale fidèlement — les personnes qui passent par là devront alors fournir leur propre facteur.",
     "enabledLabel": "Activé",
     "save": "Enregistrer",
     "saving": "Enregistrement…",

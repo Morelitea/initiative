@@ -1297,6 +1297,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Create accounts on first sign-in",
     "allowJitHelp": "When off, only existing accounts can sign in with this provider.",
+    "assertsSecondFactorLabel": "Its word counts for a second factor",
+    "assertsSecondFactorHelp": "When this provider says it ran a second factor, a sign-in through it answers a requirement for one. Leave it off unless you know it reports that honestly — people signing in through it are then asked for a factor of their own.",
     "enabledLabel": "Enabled",
     "save": "Save",
     "saving": "Saving…",
