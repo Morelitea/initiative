@@ -21,6 +21,7 @@ for and Jira does not.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
@@ -56,6 +57,23 @@ DEFAULT_TAG_COLOR = "#6366F1"
 #: reordering leaves room for, so a hand move after the import does not have
 #: to renumber the board.
 POSITION_STEP = 1000.0
+
+
+@dataclass
+class MappedProject:
+    """A project envelope and what mapping it cost.
+
+    The counts ride beside the envelope rather than inside it — the envelope
+    has to validate as the same document a project export writes, and a
+    casualty count is not part of that. They are what the plan shows somebody
+    before they commit to the import.
+    """
+
+    envelope: dict[str, Any]
+    #: ADF nodes no rule could render, summed over every description.
+    dropped_nodes: int = 0
+    #: Rows the search returned that were not usable as tasks.
+    skipped_issues: int = 0
 
 
 def map_priority(field: Any) -> TaskPriority:
@@ -198,12 +216,12 @@ def map_issue(
     position: float,
     status_names: set[str],
     default_status_name: str,
-) -> Optional[dict[str, Any]]:
+) -> Optional[tuple[dict[str, Any], int]]:
     """One Jira issue as a task in the envelope.
 
-    Returns ``None`` for something that is not an issue — the search API is
-    somebody else's, and a malformed row should be skipped rather than fail
-    the fetch.
+    Returns the task and how many ADF nodes its description lost, or ``None``
+    for something that is not an issue — the search API is somebody else's,
+    and a malformed row should be skipped rather than fail the fetch.
 
     The status is matched by name against the ones the project actually
     carries; an issue in a status the enumeration did not report (it can
@@ -265,7 +283,7 @@ def map_issue(
     updated = _timestamp(fields.get("updated"))
     if updated:
         task["updated_at"] = updated
-    return task
+    return task, rendered.dropped_nodes
 
 
 def _labels(fields: dict) -> list[str]:
@@ -334,7 +352,7 @@ def build_project_envelope(
     board_column_order: Optional[list[str]] = None,
     app_version: str,
     site_url: str | None = None,
-) -> dict[str, Any]:
+) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
 
     ``issues`` arrive in Rank order — the order the team dragged them into —
@@ -365,6 +383,8 @@ def build_project_envelope(
     )
 
     tasks: list[dict[str, Any]] = []
+    dropped_nodes = 0
+    skipped_issues = 0
     for index, issue in enumerate(issues):
         mapped = map_issue(
             issue,
@@ -372,8 +392,12 @@ def build_project_envelope(
             status_names=status_names,
             default_status_name=default_status_name,
         )
-        if mapped is not None:
-            tasks.append(mapped)
+        if mapped is None:
+            skipped_issues += 1
+            continue
+        task, lost = mapped
+        tasks.append(task)
+        dropped_nodes += lost
 
     project_fields = project if isinstance(project, dict) else {}
     description = adf_to_markdown(project_fields.get("description")).markdown
@@ -392,7 +416,7 @@ def build_project_envelope(
                 seen_tags.add(key)
                 tag_names.append(tag["name"])
 
-    return {
+    envelope = {
         "type": "initiative-project",
         "schema_version": 1,
         "app_version": app_version,
@@ -407,3 +431,8 @@ def build_project_envelope(
         "property_definitions": [],
         "tasks": tasks,
     }
+    return MappedProject(
+        envelope=envelope,
+        dropped_nodes=dropped_nodes,
+        skipped_issues=skipped_issues,
+    )

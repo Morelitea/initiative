@@ -177,12 +177,15 @@ def test_a_board_we_cannot_read_just_has_no_opinion(bad):
 
 
 def _map(issue, **kw):
-    return jm.map_issue(
+    """The task alone. ``map_issue`` also reports what the description lost,
+    which only the fetch's plan cares about."""
+    mapped = jm.map_issue(
         issue,
         position=kw.pop("position", 1000.0),
         status_names=kw.pop("status_names", {"To Do", "Done"}),
         default_status_name=kw.pop("default_status_name", "To Do"),
     )
+    return None if mapped is None else mapped[0]
 
 
 def test_an_issue_becomes_a_task():
@@ -285,7 +288,7 @@ def test_a_malformed_issue_is_skipped_not_fatal(bad):
 # --- the whole envelope ----------------------------------------------------
 
 
-def _envelope(**kw):
+def _mapped(**kw):
     return jm.build_project_envelope(
         project=kw.pop("project", {"key": "ACME", "name": "Acme Board"}),
         issue_type_statuses=kw.pop(
@@ -296,6 +299,10 @@ def _envelope(**kw):
         app_version="0.0.0-test",
         **kw,
     )
+
+
+def _envelope(**kw):
+    return _mapped(**kw).envelope
 
 
 def test_rank_order_becomes_position_order():
