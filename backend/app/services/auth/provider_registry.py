@@ -51,6 +51,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "scopes",
     "role_claim_path",
     "allow_jit",
+    "asserts_second_factor",
     "icon",
     "button_style",
 )
@@ -79,6 +80,7 @@ def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
         scopes=row.scopes,
         role_claim_path=row.role_claim_path,
         allow_jit=row.allow_jit,
+        asserts_second_factor=row.asserts_second_factor,
         icon=row.icon,
         button_style=row.button_style,
         secret_set=secret_set,

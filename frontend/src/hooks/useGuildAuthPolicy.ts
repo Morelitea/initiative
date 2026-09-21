@@ -26,6 +26,7 @@ import {
   getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut,
   setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
 import type {
@@ -39,6 +40,7 @@ import type {
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
+  GuildSecondFactorUpdate,
   GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -130,6 +132,14 @@ export const useUpdateGuildSessionLimit = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildSessionLimitUpdate) =>
       setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
+  });
+};
+
+/** Whether reaching this community asks for a second factor. */
+export const useUpdateGuildSecondFactor = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildSecondFactorUpdate) =>
+      setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut(guildId, data),
   });
 };
 

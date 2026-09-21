@@ -82,6 +82,12 @@ export const useAppConfig = () => {
      *  button that turns up a moment late reads better than one that was there
      *  and then vanished, and the browser has its own say besides. */
     passkeyLoginEnabled: query.data?.login_methods?.includes("passkey") ?? false,
+    /** Whether this deployment offers a second factor of any kind. What a
+     *  community's own requirement is offered against: with none permitted
+     *  here there is nothing to be asked to hold, so the question is not put. */
+    secondFactorAvailable:
+      (query.data?.login_methods?.includes("totp") ?? false) ||
+      (query.data?.login_methods?.includes("passkey") ?? false),
     /** Whether this deployment permits a one-time code sent to an address.
      *  False until the config loads, like the passkey button and for the same
      *  reason — and false is the default here too: it is the one way in an

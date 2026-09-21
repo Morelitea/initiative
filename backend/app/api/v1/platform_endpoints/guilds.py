@@ -72,6 +72,8 @@ from app.schemas.platform.guild import (
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
+    GuildSecondFactorRead,
+    GuildSecondFactorUpdate,
     GuildAuthSettingsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
@@ -188,6 +190,8 @@ def _serialize_guild(
         enforce_compliance_session=(
             guild.enforce_compliance_session if is_admin else None
         ),
+        # Admins only: and of the second-factor control beside that.
+        require_second_factor=(guild.require_second_factor if is_admin else None),
         # Guild identity, not administration: the directory publishes both to
         # strangers, so withholding them from the guild's own members would
         # only mean the settings page could not render its own state.
@@ -1194,6 +1198,7 @@ async def get_guild_auth_settings(
         else [],
         allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
+        require_second_factor=guild.require_second_factor,
     )
 
 
@@ -1453,6 +1458,68 @@ async def set_guild_api_access(
     )
     await admin_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
+
+
+@router.put("/{guild_id}/second-factor", response_model=GuildSecondFactorRead)
+async def set_guild_second_factor(
+    guild_id: int,
+    payload: GuildSecondFactorUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildSecondFactorRead:
+    """Ask for a second factor from everybody reaching this community.
+
+    The same seat as the two beside it, and separate from the sign-in
+    requirement on purpose: a community that lets its members arrive however
+    they like may still ask them to hold a factor, and lifting the sign-in
+    requirement does not lift this.
+
+    Which kinds of factor exist is the deployment's answer, and so is which
+    providers' own account of one counts. The community asks; it does not say
+    how the question is answered.
+    """
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    available = await auth_posture.second_factor_available(admin_session)
+    if payload.require_second_factor and not available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
+        )
+    # The seat answers its own requirement before raising it — the same
+    # question the deployment's own setting asks, and the same answer: a
+    # factor held, or one this session presented.
+    if payload.require_second_factor and not await auth_posture.answers_the_rule(
+        admin_session, user=current_user
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+            headers={AUTH_POLICY_UNMET_HEADER: LoginMethod.totp.value},
+        )
+    before = {"require_second_factor": guild.require_second_factor}
+    guild.require_second_factor = payload.require_second_factor
+    admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="second_factor",
+        before=before,
+        after={"require_second_factor": guild.require_second_factor},
+    )
+    await admin_session.commit()
+    return GuildSecondFactorRead(
+        require_second_factor=guild.require_second_factor, available=available
+    )
 
 
 @router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)

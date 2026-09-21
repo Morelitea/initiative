@@ -139,6 +139,9 @@ class GuildRead(GuildBase):
     # session standard. ``None`` for non-admin members, like the one above:
     # the settings surface that sets it is what reads it.
     enforce_compliance_session: Optional[bool] = None
+    # ADMIN-ONLY. Whether reaching this guild asks for a second factor.
+    # ``None`` for non-admin members, like the two above.
+    require_second_factor: Optional[bool] = None
     # Community directory opt-in and its subject tags. Guild identity, not
     # administration: every member sees them (they are published to strangers
     # anyway), and the settings page shows the controls to admins.
@@ -409,6 +412,7 @@ class GuildAuthSettingsRead(SanitizedBaseModel):
     auth_options: List[GuildAuthOption] = Field(default_factory=list)
     allow_api_keys: bool
     enforce_compliance_session: bool
+    require_second_factor: bool = False
 
 
 class GuildApiAccessRead(SanitizedBaseModel):
@@ -417,6 +421,23 @@ class GuildApiAccessRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     allow_api_keys: bool
+
+
+class GuildSecondFactorRead(SanitizedBaseModel):
+    """Whether reaching this community asks for a second factor."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    require_second_factor: bool
+    #: Whether the deployment offers a second factor at all. With none, there
+    #: is nothing for a community to ask for and the control is not offered.
+    available: bool = True
+
+
+class GuildSecondFactorUpdate(SanitizedBaseModel):
+    """Ask for one, or stop. Which kinds count is the deployment's answer."""
+
+    require_second_factor: bool
 
 
 class GuildApiAccessUpdate(SanitizedBaseModel):

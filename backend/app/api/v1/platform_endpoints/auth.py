@@ -1918,7 +1918,11 @@ async def _complete_provider_login(
             # exchange the app makes next. The same handoff the relay passkey
             # sign-in takes, for the same reason: this branch answers with a
             # redirect, so there is no session here to carry it.
-            amr=session_amr(provider_row.slug, read_assurance(completion.claims)),
+            amr=session_amr(
+                provider_row.slug,
+                read_assurance(completion.claims),
+                asserts_second_factor=provider_row.asserts_second_factor,
+            ),
         )
         # No session alongside this one: it answers with a redirect, and a
         # refresh token does not belong in a URL. ``POST /auth/device-token/
@@ -1956,6 +1960,7 @@ async def _complete_provider_login(
     # path never touches the ORM object again.
     user_id, token_version = user.id, user.token_version
     provider_id, provider_slug = provider_row.id, provider_row.slug
+    provider_asserts_factor = provider_row.asserts_second_factor
     # Return the browser to where the login started (a step-up hands the
     # guild page it interrupted): the login route stored a validated SPA
     # path in the short-lived cookie; re-validate before echoing it, and
@@ -1987,7 +1992,11 @@ async def _complete_provider_login(
             assurance,
             claims=read_narrowing(completion.claims, userinfo, narrowing),
         )
-    amr = session_amr(provider_slug, assurance)
+    amr = session_amr(
+        provider_slug,
+        assurance,
+        asserts_second_factor=provider_asserts_factor,
+    )
     satisfied = [provider_id]
     provider_auth = record_for_provider(
         None, provider_id=provider_id, assurance=assurance

@@ -662,7 +662,11 @@
       "present": "Code eingeben",
       "saved": "Gespeichert. Betroffene werden bei ihrer nächsten Anfrage gefragt.",
       "error": "Das konnte nicht gespeichert werden.",
-      "noMethod": "Erlaube zuerst die Authenticator-App oder Passkeys — ohne eines von beiden gibt es nichts zu verlangen."
+      "noMethod": "Erlaube zuerst die Authenticator-App oder Passkeys — ohne eines von beiden gibt es nichts zu verlangen.",
+      "providers": {
+        "title": "Anbieter, deren Anmeldung zählt",
+        "help": "Eine Anmeldung über einen davon erfüllt die obige Anforderung, da der Anbieter meldet, selbst einen zweiten Faktor geprüft zu haben. Dieselbe Angabe wie auf der Seite des Anbieters."
+      }
     },
     "factorMethods": {
       "title": "Zwei-Faktor-Authentifizierung",
@@ -1272,6 +1276,15 @@
       "ruleHelp": "Optional. Nennen Sie eine Gruppe, die Ihr Anbieter meldet, und wo ihre Leute landen. Weitere können Sie später hinzufügen.",
       "requireLabel": "Mitglieder müssen über diesen Anbieter kommen",
       "requireHelp": "Mitglieder melden sich nur darüber an. Sie können das später ändern."
+    },
+    "secondFactor": {
+      "title": "Zweiter Faktor",
+      "description": "Ob der Zugang zu dieser Community einen verlangt.",
+      "allowLabel": "Zweiten Faktor verlangen",
+      "help": "Mitglieder müssen in dieser Sitzung einen zweiten Faktor vorgelegt haben. Welche Arten zählen, entscheidet die Serverbetreiberin, nicht diese Community — ein Faktor lässt sich ohne Abmeldung hinzufügen.",
+      "askedByPlatform": "Ihr Server verlangt bereits von allen hier einen zweiten Faktor; es gibt nichts hinzuzufügen.",
+      "saved": "Zweiter Faktor gespeichert.",
+      "error": "Die Anforderung für den zweiten Faktor konnte nicht gespeichert werden."
     }
   },
   "authProviders": {
@@ -1297,6 +1310,8 @@
     "scopesLabel": "Scopes",
     "allowJitLabel": "Konten bei erster Anmeldung erstellen",
     "allowJitHelp": "Wenn deaktiviert, können sich nur bestehende Konten mit diesem Anbieter anmelden.",
+    "assertsSecondFactorLabel": "Seine Aussage zählt als zweiter Faktor",
+    "assertsSecondFactorHelp": "Wenn dieser Anbieter meldet, einen zweiten Faktor geprüft zu haben, erfüllt eine Anmeldung über ihn eine entsprechende Anforderung. Lassen Sie dies aus, sofern Sie nicht wissen, dass er dies zuverlässig meldet — Anmeldende werden dann nach einem eigenen Faktor gefragt.",
     "enabledLabel": "Aktiviert",
     "save": "Speichern",
     "saving": "Wird gespeichert…",

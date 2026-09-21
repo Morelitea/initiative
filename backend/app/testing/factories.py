@@ -2164,6 +2164,29 @@ async def create_auth_provider(
     return provider
 
 
+#: What :func:`create_guild_provider_connection` narrows on, and what
+#: :func:`satisfied_claims_for` answers it with. Named rather than written
+#: twice: a session only reaches a narrowed connection by asserting the value
+#: it counts, so the two have to agree.
+NARROWED_CLAIM = "hd"
+NARROWED_VALUE = "example.com"
+
+
+def satisfied_claims_for(*providers) -> dict:
+    """What a session has to carry to satisfy connections these providers serve.
+
+    Keyed by provider id and shaped as the gate reads it — a list, because the
+    claim a provider asserts may name more than one value. The same shape both
+    consumers take: ``get_auth_token(asserted_claims=...)`` for a credential,
+    and ``set_rls_context(satisfied_claims=...)`` for a routed session, which
+    serialises the integer keys to the strings the gate indexes by.
+    """
+    return {
+        int(getattr(provider, "id", provider)): {NARROWED_CLAIM: [NARROWED_VALUE]}
+        for provider in providers
+    }
+
+
 async def create_guild_provider_connection(
     session: AsyncSession,
     *,
@@ -2183,8 +2206,8 @@ async def create_guild_provider_connection(
     defaults = {
         "guild_id": guild.id,
         "provider_id": provider.id,
-        "claim": "hd",
-        "claim_values": ["example.com"],
+        "claim": NARROWED_CLAIM,
+        "claim_values": [NARROWED_VALUE],
         "enabled": True,
     }
     connection = GuildProviderConnection(**{**defaults, **overrides})

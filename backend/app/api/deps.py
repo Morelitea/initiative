@@ -686,6 +686,8 @@ async def _enforce_guild_auth_policy(
     guild_id: int,
     satisfied: frozenset[int] | str,
     markers: frozenset[str] = frozenset(),
+    *,
+    require_second_factor: bool = False,
 ) -> None:
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
@@ -707,6 +709,15 @@ async def _enforce_guild_auth_policy(
     """
     if satisfied == SYSTEM_SATISFIED:
         return
+    # Asked of everybody reaching this community, whatever it says about how
+    # they arrive — so it is read before a community with no sign-in rule
+    # returns. The answer names no provider and no kind of factor: the
+    # step-up says a factor is what is wanted.
+    if require_second_factor and SECOND_FACTOR_AMR not in markers:
+        raise GuildAccessError(
+            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            step_up_guild_id=guild_id,
+        )
     if policy is None or policy.policy == "open":
         return
 
@@ -942,6 +953,7 @@ async def _load_guild_context(
             guild_id,
             satisfied,
             auth_context.session_amr(),
+            require_second_factor=guild.require_second_factor,
         )
         # Every grantee gets the ``support`` role — a first-class identity for
         # PAM access rather than a ``member`` masquerade. It is the content
@@ -991,6 +1003,7 @@ async def _load_guild_context(
         guild_id,
         satisfied,
         auth_context.session_amr(),
+        require_second_factor=guild.require_second_factor,
     )
     return GuildContext(
         guild=guild,

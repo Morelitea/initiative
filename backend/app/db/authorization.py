@@ -89,11 +89,13 @@ AS $function$
         WHERE c.enabled
           AND (p_provider_id IS NULL OR c.provider_id = p_provider_id)
           AND c.provider_id = ANY(COALESCE(p_providers, ARRAY[]::integer[]))
-          -- A connection naming no claim counts everybody the provider does.
+          -- A connection names a claim and the values that count, or it
+          -- admits nobody. An arrangement that says who belongs by saying
+          -- nothing is not one this reads as everybody.
+          AND c.claim IS NOT NULL
+          AND c.claim_values IS NOT NULL
           AND (
-              c.claim IS NULL
-              OR c.claim_values IS NULL
-              OR EXISTS (
+              EXISTS (
                   SELECT 1
                   FROM jsonb_array_elements_text(
                       CASE
@@ -269,6 +271,20 @@ AS $function$
                       AND NOT public.guild_connection_satisfied(p.guild_id)
                   )
               )
+        )
+        AND NOT EXISTS (
+            -- Asked of everybody reaching this community, whatever it says
+            -- about how they arrive. Its own row rather than the policy's,
+            -- because a community that asks nothing about arrival holds no
+            -- policy row and still asks this. Unsatisfied is what this finds,
+            -- like the leg above it.
+            SELECT 1
+            FROM public.guilds g
+            WHERE g.id = NULLIF(
+                    current_setting('app.current_guild_id', true), ''
+                  )::int
+              AND g.require_second_factor
+              AND NOT ('mfa' = ANY(public.session_amr()))
         ))
 $function$
 

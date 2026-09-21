@@ -52,6 +52,16 @@ export interface ProviderPreset {
   blanks: PresetBlank[];
   /** Where there is something worth saying beyond the address. */
   hintKey?: PresetHintKey;
+  /**
+   * Whether this product documents an ``amr`` carrying ``mfa`` when a second
+   * factor ran, which is what makes its word worth reading. Ticks the box on
+   * the form; the operator changes it either way, since an IdP's configuration
+   * is theirs and not something a list here can know.
+   *
+   * Set only where the product says so. A provider that is silent here is
+   * asked about rather than guessed at — a wrong yes is worse than a question.
+   */
+  assertsSecondFactor?: boolean;
 }
 
 /** Offered in the order somebody scanning the grid would want them: the
@@ -74,6 +84,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "microsoft",
     name: "Microsoft Entra ID",
     slug: "microsoft",
+    assertsSecondFactor: true,
     template: "https://login.microsoftonline.com/{tenant}/v2.0",
     blanks: [
       {
@@ -87,6 +98,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "okta",
     name: "Okta",
     slug: "okta",
+    assertsSecondFactor: true,
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "oktaHost", example: "dev-12345.okta.com" }],
   },
@@ -94,6 +106,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "auth0",
     name: "Auth0",
     slug: "auth0",
+    assertsSecondFactor: true,
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "auth0Host", example: "your-tenant.eu.auth0.com" }],
   },

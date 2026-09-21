@@ -177,6 +177,8 @@ def policy_markers(amr: Iterable[str] | None) -> frozenset[str]:
 def session_amr(
     provider_slug: str,
     assurance: ProviderAssurance,
+    *,
+    asserts_second_factor: bool = False,
 ) -> list[str]:
     """The session-level ``amr`` one provider login contributes: our own marker
     naming the provider, plus the methods the IdP named.
@@ -185,9 +187,20 @@ def session_amr(
     matches; the IdP's own values are what an assurance-only policy reads. A
     policy asking for any of a community's providers is answered from the
     connections themselves, so no marker names a community.
+
+    The markers a rule can ask about (:data:`POLICY_AMR_MARKERS`) are this
+    application's own account of what it verified, so a provider only
+    contributes them where the operator has said that provider's word counts
+    (``auth_providers.asserts_second_factor``). Everything else the IdP names
+    is kept either way: it is the provider's vocabulary, and nothing reads it.
     """
     markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
-    return sorted({*markers, *assurance.amr})
+    named = (
+        assurance.amr
+        if asserts_second_factor
+        else (value for value in assurance.amr if value not in POLICY_AMR_MARKERS)
+    )
+    return sorted({*markers, *named})
 
 
 def record_for_provider(
