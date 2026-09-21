@@ -17,8 +17,8 @@ The request path reads and writes its own row and no other, through the two
 base roles it assumes. The system engine reads (an account's own payload is
 built on it during registration) and deletes; nothing else needs it.
 
-Revision ID: 20260921_0342
-Revises: 20260921_0341
+Revision ID: 20260921_0343
+Revises: 20260921_0342
 Create Date: 2026-09-21
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.config import settings
 
-revision = "20260921_0342"
-down_revision = "20260921_0341"
+revision = "20260921_0343"
+down_revision = "20260921_0342"
 branch_labels = None
 depends_on = None
 

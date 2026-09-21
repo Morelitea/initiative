@@ -16,16 +16,16 @@ the answer only governs what that browser loads.
 arrives writable, and no policy references it -- an ``ADD COLUMN`` is not a
 policy-bound write, so there is no RLS to lift.
 
-Revision ID: 20260921_0341
-Revises: 20260921_0340
+Revision ID: 20260921_0342
+Revises: 20260921_0341
 Create Date: 2026-09-21
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260921_0341"
-down_revision = "20260921_0340"
+revision = "20260921_0342"
+down_revision = "20260921_0341"
 branch_labels = None
 depends_on = None
 
