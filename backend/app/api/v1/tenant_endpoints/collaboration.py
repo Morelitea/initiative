@@ -52,6 +52,7 @@ from app.services.tenant.collaborative_resources import (
 )
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
 from app.services.tenant.relationships import Endpoint
@@ -249,7 +250,10 @@ async def _collaborate(
         # grant context was established above, and establish_guild_access already
         # proved guild reach, so the only open question is this level.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[spec.tool], resolved.governing, user.id
+            permissions_service.DAC_RESOURCES[spec.tool],
+            resolved.governing,
+            user.id,
+            context=require_guild_context(session),
         )
         if level is None:
             logger.warning(
@@ -293,7 +297,10 @@ async def _collaborate(
         if again is None:
             return False  # initiative removed (RLS hides it) or the row is gone
         current = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[spec.tool], again.governing, check_user.id
+            permissions_service.DAC_RESOURCES[spec.tool],
+            again.governing,
+            check_user.id,
+            context=require_guild_context(check_session),
         )
         if current is None:
             return False  # read access revoked
@@ -552,7 +559,10 @@ async def sync_document_content(
     # Write level via the shared DAC engine (guild-admin / break-glass / PAM /
     # explicit grants), against the context establish_guild_access set above.
     level = permissions_service.compute_permission(
-        permissions_service.DAC_RESOURCES[Tool.document], document, user.id
+        permissions_service.DAC_RESOURCES[Tool.document],
+        document,
+        user.id,
+        context=require_guild_context(session),
     )
     if level not in ("write", "owner"):
         logger.warning(

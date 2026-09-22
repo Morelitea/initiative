@@ -329,7 +329,7 @@ async def get_tag_entities(
     # own id — so the clause is built against each.
     def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
         return permissions_service.granted_scope_clause(
-            Tool.project, col, current_user.id, guild_id=guild_context.guild_id
+            Tool.project, col, current_user.id, context=guild_context
         )
 
     # Get tasks with this tag that user can access
@@ -384,7 +384,7 @@ async def get_tag_entities(
         Tool.document,
         Document.id,
         current_user.id,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     # Get documents with this tag that user can access

@@ -149,7 +149,7 @@ async def list_task_statuses(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="read",
     )
     return await task_statuses_service.list_statuses(session, project_id)
@@ -167,7 +167,7 @@ async def create_task_status(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -211,7 +211,7 @@ async def update_task_status(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     target = await _load_status_or_404(session, project_id, status_id)
@@ -271,7 +271,7 @@ async def reorder_task_statuses(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     if not reorder_in.items:
@@ -316,7 +316,7 @@ async def delete_task_status(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     target = await _load_status_or_404(session, project_id, status_id)

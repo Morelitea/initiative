@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -197,7 +197,7 @@ async def _guard_guild_admin_role(
     """Restrict which initiative roles a guild admin may be assigned.
 
     A guild admin already has complete access to every initiative in their
-    guild (see ``role_context.is_request_guild_admin``), so their membership
+    guild (see ``GuildContext.is_admin``), so their membership
     row carries a manager role — purely for manager-style features like
     notifications — and never a standard member or custom one. Every route that
     *creates* a row settles that itself
@@ -322,7 +322,10 @@ async def list_initiatives(
     )
     result = await session.exec(statement)
     initiatives = result.all()
-    return [serialize_initiative(initiative) for initiative in initiatives]
+    return [
+        serialize_initiative(initiative, context=guild_context)
+        for initiative in initiatives
+    ]
 
 
 @router.get("/directory", response_model=List[InitiativeDirectoryEntry])
@@ -401,7 +404,7 @@ async def join_initiative(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 # ============================================================================
@@ -498,7 +501,7 @@ async def _resolve_join_request(
         request_id=request.id,
         initiative_id=initiative.id,
         initiative_name=initiative.name,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         approved=approved,
     )
 
@@ -581,7 +584,7 @@ async def create_join_request(
             request_id=request_id,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             requester=current_user,
             message=payload.message,
         )
@@ -750,7 +753,7 @@ async def get_initiative(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=InitiativeMessages.NOT_A_MEMBER,
             )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 @router.post("/", response_model=InitiativeRead, status_code=status.HTTP_201_CREATED)
@@ -815,7 +818,7 @@ async def create_initiative(
     )
     await session.commit()
     initiative = await _get_initiative_or_404(initiative.id, session, guild_id)
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 @router.patch("/{initiative_id}", response_model=InitiativeRead)
@@ -871,7 +874,7 @@ async def update_initiative(
         if await _initiative_name_exists(
             session,
             update_data["name"],
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             exclude_initiative_id=initiative_id,
         ):
             raise HTTPException(
@@ -885,7 +888,7 @@ async def update_initiative(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 @router.delete("/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1459,7 +1462,7 @@ async def add_initiative_member(
         )
     guild_membership = await guilds_service.get_membership(
         session,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         user_id=user.id,
     )
     if not guild_membership:
@@ -1482,7 +1485,7 @@ async def add_initiative_member(
 
     await _guard_full_access_role(
         session,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         target_user_id=payload.user_id,
         role=requested_role,
         guild_role=guild_context.role,
@@ -1539,7 +1542,7 @@ async def add_initiative_member(
                 actor_user_id=current_user.id,
                 member_user_id=payload.user_id,
                 initiative_id=initiative_id,
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 detail={
                     "from_role_id": from_role_id,
                     "from": old_role.name if old_role else None,
@@ -1561,7 +1564,7 @@ async def add_initiative_member(
             actor_user_id=current_user.id,
             member_user_id=payload.user_id,
             initiative_id=initiative_id,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             detail={
                 "role_id": role_id,
                 "role": resolved_role.name,
@@ -1580,9 +1583,9 @@ async def add_initiative_member(
             recipient,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
         )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 @router.delete("/{initiative_id}/members/{user_id}", response_model=InitiativeRead)
@@ -1687,7 +1690,7 @@ async def remove_initiative_member(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)
 
 
 @router.patch("/{initiative_id}/members/{user_id}", response_model=InitiativeRead)
@@ -1724,13 +1727,13 @@ async def update_initiative_member(
     # standard member or custom role (they already have full access).
     await _guard_guild_admin_role(
         session,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         target_user_id=user_id,
         role=new_role,
     )
     await _guard_full_access_role(
         session,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         target_user_id=user_id,
         role=new_role,
         guild_role=guild_context.role,
@@ -1789,4 +1792,4 @@ async def update_initiative_member(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    return serialize_initiative(initiative)
+    return serialize_initiative(initiative, context=guild_context)

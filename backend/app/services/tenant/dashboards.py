@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -85,6 +86,7 @@ async def get_dashboard_for_export(
         DAC_RESOURCES[Tool.dashboard],
         dashboard,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     builtin = await builtin_listing_uids(session, [dashboard.listing_uid])

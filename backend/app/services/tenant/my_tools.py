@@ -26,6 +26,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db.guild_standing import GuildContext
+from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
@@ -74,15 +76,15 @@ def scope_conditions(
     tool: Tool,
     *,
     user_id: int,
-    guild_id: int,
+    context: GuildContext,
     search: Optional[str] = None,
     created_by_me: bool = False,
 ) -> list[ColumnElement[bool]]:
     """The WHERE legs for one guild's contribution to a cross-guild tool list.
 
     Called once per guild from inside :func:`cross_guild.gather_across_guilds`,
-    which has already routed the session into that guild's schema and
-    established the reader's role there.
+    which has already routed the session into that guild's schema and computed
+    the reader's standing there — which is ``context``.
     """
     model = tool_model(tool)
     conditions: list[ColumnElement[bool]] = []
@@ -103,11 +105,11 @@ def scope_conditions(
     if tool is Tool.post:
         # A scheduled notice has not gone up: it reaches only the people who
         # could edit it, here as on its own board.
-        conditions.append(posts_service.visibility_clause(user_id, guild_id=guild_id))
+        conditions.append(posts_service.visibility_clause(user_id, context=context))
 
     conditions.append(
         permissions_service.granted_scope_clause(
-            tool, model.id, user_id, guild_id=guild_id
+            tool, model.id, user_id, context=context
         )
     )
 
@@ -175,7 +177,7 @@ async def count_across_guilds(
             conditions = scope_conditions(
                 tool,
                 user_id=current_user.id,
-                guild_id=guild_id,
+                context=require_guild_context(guild_session),
                 created_by_me=created_by_me,
             )
             subquery = select(model.id).where(*conditions).subquery()

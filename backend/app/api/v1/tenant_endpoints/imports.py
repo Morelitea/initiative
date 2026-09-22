@@ -31,6 +31,7 @@ from app.schemas.tenant.import_data import (
 )
 from app.core.messages import ImportMessages
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services.tenant import import_service
 from app.services import permissions as permissions_service
 from app.services.tenant import filter_presets as filter_presets_service
@@ -82,7 +83,11 @@ async def _validate_project_write_access(
         )
 
     permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.project], project, user, access="write"
+        permissions_service.DAC_RESOURCES[Tool.project],
+        project,
+        user,
+        context=require_guild_context(session),
+        access="write",
     )
 
     return project

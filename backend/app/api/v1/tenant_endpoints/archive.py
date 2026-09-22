@@ -132,6 +132,7 @@ def _authorize(
         user,
         access="write",
         allow_frozen=True,
+        context=guild_context,
     )
 
 

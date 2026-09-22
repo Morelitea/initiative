@@ -324,9 +324,11 @@ async def _set_guild_admin_rls(
     one seam that routes a person into a community.
 
     The rung guard above this has already refused anyone who is not an
-    administrator; this establishes what the database will let them reach.
+    administrator; this establishes what the database will let them reach. The
+    routes here are the community's own configuration, which is what an
+    administrator keeps while its content is closed.
     """
-    return await establish_guild_access(session, user, guild_id)
+    return await establish_guild_access(session, user, guild_id, for_settings=True)
 
 
 @router.get("/", response_model=List[GuildRead])

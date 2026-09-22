@@ -40,7 +40,7 @@ from typing import Any, Optional
 import jwt
 from fastapi import HTTPException, status
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.config import settings
 from app.core.messages import AppServiceMessages, GuildAppMessages
 from app.core.security import (
@@ -208,10 +208,10 @@ async def mint_embed_handoff(
         ) from exc
 
     subject = await app_refs.ensure_app_ref(
-        guild_id=routed_guild_id(), app_install_id=app.id, user_id=user_id
+        guild_id=routed_guild_id(session), app_install_id=app.id, user_id=user_id
     )
     guild_ref = await app_refs.ensure_app_guild_ref(
-        guild_id=routed_guild_id(), app_install_id=app.id
+        guild_id=routed_guild_id(session), app_install_id=app.id
     )
 
     now = datetime.now(timezone.utc)

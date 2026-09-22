@@ -17,17 +17,13 @@ from typing import Annotated, Any, Awaitable, Callable, Optional
 
 from fastapi import Depends, HTTPException, status
 
-from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     GuildContext,
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.role_context import context_guild_id
-from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
 from app.db.initiative_rls import governing_path
-from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import PermissionKey
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -191,7 +187,7 @@ async def require_create(
     ``initiative_role_permits(..., create_<plural>, false)`` leg. This one runs
     first so the answer is a named 403.
     """
-    if rls_service.is_guild_admin(guild_context.role):
+    if guild_context.is_admin:
         return
     if await rls_service.check_initiative_permission(
         session,
@@ -211,14 +207,17 @@ def authorize(
     row: Any,
     user: Optional[User] = None,
     *,
+    context: Optional[GuildContext],
     access: str = "read",
     require_owner: bool = False,
     manage_access: bool = False,
-    guild_role: GuildRole | str | None = None,
     allow_frozen: bool = False,
 ) -> None:
-    """Feature gate → manage-via-grant block → DAC decision. Reads request-scoped
-    role/PAM context, so callers don't thread it.
+    """Feature gate → manage-via-grant block → DAC decision.
+
+    ``context`` is the reader's standing in the community, as the seam computed
+    it — the same object the session was routed with, so what this decides and
+    what the policies evaluate are the same facts.
 
     ``allow_frozen`` belongs to unarchiving and to nothing else — see
     ``permissions_service.require_access``."""
@@ -231,7 +230,8 @@ def authorize(
     if (
         manage_access
         and cfg.grant_cannot_manage_msg
-        and has_active_grant(context_guild_id())
+        and context is not None
+        and context.grant_content is not None
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=cfg.grant_cannot_manage_msg
@@ -240,17 +240,17 @@ def authorize(
         permissions_service.DAC_RESOURCES[cfg.dac_kind],
         row,
         user,
+        context=context,
         access=access,
         allow_frozen=allow_frozen,
         require_owner=require_owner,
-        guild_role=guild_role,
     )
     # Last, and only for somebody the sharing already admitted: a row that
     # exists before it is anybody's to read — a post that has not gone up.
     # Answering 404 here rather than 403 is the point; to a reader the
     # notice does not exist yet.
     if user is not None and permissions_service.hidden_from_reader(
-        cfg.dac_kind, row, user.id, guild_role=guild_role
+        cfg.dac_kind, row, user.id, context=context
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -294,24 +294,12 @@ async def load_authorized(
         kind,
         row,
         user,
+        context=guild_context,
         access=access,
         require_owner=require_owner,
         manage_access=manage_access,
-        guild_role=guild_context.role,
     )
     return row
-
-
-def my_permission_level(row: Any, kind: Tool, user: User) -> str | None:
-    """`my_permission_level` for the client — the DAC engine's answer.
-
-    The engine already reports ``owner`` for a request that reaches the whole
-    guild, so there is nothing to special-case ahead of it.
-    """
-    cfg = RESOURCE_ACCESS[kind]
-    return permissions_service.compute_permission(
-        permissions_service.DAC_RESOURCES[cfg.dac_kind], row, user.id
-    )
 
 
 # ── Unified grant-set flow ───────────────────────────────────────────────────
@@ -386,7 +374,7 @@ async def set_resource_grants(
         session,
         resource_type=kind,
         resource_id=row.id,
-        guild_id=routed_guild_id(),
+        guild_id=guild_context.guild_id,
         initiative_id=row.initiative_id,
         owner_id=ownership_service.owner_id_of(row),
         grants=grants,

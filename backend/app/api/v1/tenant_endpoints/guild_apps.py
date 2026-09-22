@@ -40,7 +40,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -355,6 +355,7 @@ async def list_guild_apps(
                 app,
                 install_state=await registration_lookup.install_state(app.definition),
                 avatar_url=avatars.get(app.listing_uid),
+                context=guild_context,
             )
             for app in apps
         ]
@@ -384,6 +385,7 @@ async def get_guild_app(
             session, app_id=app.id, user_id=current_user.id
         ),
         update_version=await app_updates_service.update_version(session, app),
+        context=guild_context,
     )
 
 
@@ -451,6 +453,7 @@ async def install_guild_app(
         app,
         install_state=await registration_lookup.install_state(app.definition),
         avatar_url=await _app_avatar(session, app),
+        context=guild_context,
     )
     await _count_install(listing.id)
     return installed
@@ -527,6 +530,7 @@ async def upgrade_guild_app(
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
         update_version=await app_updates_service.update_version(session, app),
+        context=guild_context,
     )
 
 
@@ -592,6 +596,7 @@ async def update_guild_app(
         app,
         install_state=await registration_lookup.install_state(app.definition),
         avatar_url=await _app_avatar(session, app),
+        context=guild_context,
     )
 
 
@@ -632,13 +637,13 @@ async def uninstall_guild_app(
     # what that app is sent. Switched off rather than deleted: the row records
     # what was going where, and a reinstall registers afresh.
     await webhook_subscriptions_service.deactivate_for_install(
-        session, guild_id=routed_guild_id(), app_install_id=app.id
+        session, guild_id=routed_guild_id(session), app_install_id=app.id
     )
     if app.config_secrets or app.config:
         revocation_service.queue_revocation(
             session,
             revocation_service.RevocationIntent(
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 app_id=app.id,
                 listing_uid=app.listing_uid,
                 connection_id="*",
@@ -652,7 +657,7 @@ async def uninstall_guild_app(
         retention_days=retention_days,
     )
     install_id = app.id
-    guild_id = routed_guild_id()
+    guild_id = routed_guild_id(session)
     listing_uid = app.listing_uid
     await session.delete(app)
     # Staged before the commit that removes the row, and reading the counts the
@@ -789,6 +794,7 @@ async def update_guild_app_config(
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
         update_version=await app_updates_service.update_version(session, app),
+        context=guild_context,
     )
 
 
@@ -983,7 +989,7 @@ async def connect_guild_app(
     return await _connect_start(
         registration,
         guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=routed_guild_id(), app_install_id=app.id
+            guild_id=routed_guild_id(session), app_install_id=app.id
         ),
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
@@ -1037,7 +1043,7 @@ async def _start_guild_connect(
     return await _connect_start(
         registration,
         guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=routed_guild_id(), app_install_id=app.id
+            guild_id=routed_guild_id(session), app_install_id=app.id
         ),
         connection_id=connection_id,
         connection_ref=connection_ref,
@@ -1145,7 +1151,7 @@ async def disconnect_guild_app(
             revocation_service.queue_revocation(
                 session,
                 revocation_service.RevocationIntent(
-                    guild_id=routed_guild_id(),
+                    guild_id=routed_guild_id(session),
                     app_id=app.id,
                     listing_uid=app.listing_uid,
                     connection_id=connection_id,

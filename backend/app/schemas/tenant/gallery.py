@@ -11,10 +11,9 @@ from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 
 
@@ -65,7 +64,7 @@ class GallerySummary(GalleryBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -127,7 +126,7 @@ class GalleryImageRead(SanitizedBaseModel):
 
     id: int
     gallery_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     #: What somebody called it, if they did. Surfaces fall back to
     #: ``original_filename``, which is at least what the uploader called it.
     title: Optional[str] = None
@@ -198,7 +197,7 @@ def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
 
 
 def serialize_gallery_summary(
-    gallery: "Gallery", *, user_id: Optional[int] = None
+    gallery: "Gallery", *, context: GuildContext, user_id: Optional[int] = None
 ) -> GallerySummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -208,7 +207,7 @@ def serialize_gallery_summary(
         name=gallery.name,
         description=gallery.description,
         initiative_id=gallery.initiative_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         created_by=gallery.created_by,
         created_at=gallery.created_at,
         updated_at=gallery.updated_at,
@@ -225,7 +224,7 @@ def serialize_gallery_summary(
             if cover is not None
         ],
         archived_at=gallery.archived_at,
-        **client_access(Tool.gallery, gallery, user_id),
+        **client_access(Tool.gallery, gallery, user_id, context=context),
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
         tags=annotated_tags(gallery),
@@ -234,18 +233,22 @@ def serialize_gallery_summary(
 
 
 def serialize_gallery(
-    gallery: "Gallery", *, user_id: Optional[int] = None
+    gallery: "Gallery", *, context: GuildContext, user_id: Optional[int] = None
 ) -> GalleryRead:
     return GalleryRead(
-        **serialize_gallery_summary(gallery, user_id=user_id).model_dump()
+        **serialize_gallery_summary(
+            gallery, context=context, user_id=user_id
+        ).model_dump()
     )
 
 
-def serialize_gallery_image(image: "GalleryImage") -> GalleryImageRead:
+def serialize_gallery_image(
+    image: "GalleryImage", *, context: GuildContext
+) -> GalleryImageRead:
     return GalleryImageRead(
         id=image.id,
         gallery_id=image.gallery_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         title=image.title,
         caption=image.caption,
         file_url=image.file_url,

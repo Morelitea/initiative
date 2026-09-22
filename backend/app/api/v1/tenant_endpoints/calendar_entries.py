@@ -81,7 +81,10 @@ async def list_calendar_entries(
             property_filters=property_filters,
         )
         events_out = [
-            serialize_calendar_event_summary(e, user_id=current_user.id) for e in events
+            serialize_calendar_event_summary(
+                e, user_id=current_user.id, context=guild_context
+            )
+            for e in events
         ]
 
     tasks_out = []

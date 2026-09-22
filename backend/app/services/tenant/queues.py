@@ -15,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.db import session as db_session
 from app.core.messages import QueueMessages
 from app.core.tools import Tool
 from app.services.permissions import (
@@ -111,6 +112,7 @@ async def get_queue_for_export(
         DAC_RESOURCES[Tool.queue],
         queue,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     return queue

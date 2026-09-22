@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
@@ -145,6 +146,7 @@ async def get_calendar_for_export(
         permissions_service.DAC_RESOURCES[Tool.calendar],
         calendar,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     await tags_service.annotate_tags(session, [calendar])

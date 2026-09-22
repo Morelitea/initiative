@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.api import resource_access
 from app.api.deps import (
     GuildContext,
@@ -118,12 +118,15 @@ async def _refetch_wiki(session: RLSSessionDep, wiki_id: int, *, user_id: int) -
     return wiki
 
 
-def _may_write(wiki: Wiki, current_user: User) -> bool:
+def _may_write(wiki: Wiki, current_user: User, *, context: GuildContext) -> bool:
     """Whether this person may write this wiki — guild admins and full-access
     initiative members included, which is why it goes through the DAC engine
     rather than reading grants directly."""
     level = permissions_service.compute_permission(
-        permissions_service.DAC_RESOURCES[Tool.wiki], wiki, current_user.id
+        permissions_service.DAC_RESOURCES[Tool.wiki],
+        wiki,
+        current_user.id,
+        context=context,
     )
     return level in ("write", "owner")
 
@@ -149,7 +152,9 @@ async def _load_page(
     # A draft is not part of the wiki for somebody who only reads it, so it is
     # missing rather than refused — the same answer they get for a page that
     # was never written.
-    if page is None or (page.is_draft and not _may_write(wiki, current_user)):
+    if page is None or (
+        page.is_draft and not _may_write(wiki, current_user, context=guild_context)
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WikiMessages.PAGE_NOT_FOUND,
@@ -173,7 +178,7 @@ async def read_wiki(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     hydrated = await _refetch_wiki(session, wiki_id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id)
+    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.post("/", response_model=WikiRead, status_code=status.HTTP_201_CREATED)
@@ -234,7 +239,7 @@ async def create_wiki(
         )
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id)
+    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.patch("/{wiki_id}", response_model=WikiRead)
@@ -288,7 +293,7 @@ async def update_wiki(
     session.add(wiki)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id)
+    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{wiki_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -327,7 +332,7 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_wiki(session, wiki_id, user_id=user.id)
-    return serialize_wiki(hydrated, user_id=user.id)
+    return serialize_wiki(hydrated, user_id=user.id, context=guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +356,9 @@ async def list_wiki_pages(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     rows = await wikis_service.load_list(
-        session, wiki, include_drafts=_may_write(wiki, current_user)
+        session,
+        wiki,
+        include_drafts=_may_write(wiki, current_user, context=guild_context),
     )
     await tags_service.annotate_tags(
         session, [row for row in rows if isinstance(row, WikiPage)]
@@ -360,9 +367,11 @@ async def list_wiki_pages(
     # a document's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
     items = [
-        serialize_wiki_page_summary(row)
+        serialize_wiki_page_summary(row, context=guild_context)
         if isinstance(row, WikiPage)
-        else serialize_document_as_page(row, wiki_id=wiki.id, position=spot)
+        else serialize_document_as_page(
+            row, wiki_id=wiki.id, position=spot, context=guild_context
+        )
         for spot, row in enumerate(rows)
     ]
     return WikiPageTree(items=items)
@@ -548,7 +557,7 @@ async def create_wiki_page(
     )
     await session.commit()
     await session.refresh(page)
-    return serialize_wiki_page(page)
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.get("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
@@ -563,7 +572,7 @@ async def read_wiki_page(
         session, wiki_id, page_id, current_user, guild_context
     )
     await tags_service.annotate_tags(session, [page])
-    return serialize_wiki_page(page)
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
@@ -599,7 +608,7 @@ async def update_wiki_page(
         await tags_service.set_entity_tags(
             session,
             tags_service.TAG_LINKS["wiki_page"],
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             entity_id=page.id,
             tag_ids=data["tag_ids"],
         )
@@ -613,7 +622,7 @@ async def update_wiki_page(
     await session.commit()
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])
-    return serialize_wiki_page(page)
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.post("/{wiki_id}/pages/{page_id}/move", response_model=WikiPageRead)
@@ -639,7 +648,7 @@ async def move_wiki_page(
     )
     await session.commit()
     await session.refresh(page)
-    return serialize_wiki_page(page)
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.delete("/{wiki_id}/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)

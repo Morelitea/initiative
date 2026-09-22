@@ -31,7 +31,7 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
@@ -150,7 +150,7 @@ async def grant(
             event_type=AuditEventType.DELEGATION_GRANTED,
             actor_user_id=actor_user_id,
             target_user_id=user_id,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             target_type="app",
             target_id=app.id,
             detail={"can_write": can_write, "via": via},
@@ -198,7 +198,7 @@ async def revoke(
             event_type=AuditEventType.DELEGATION_REVOKED,
             actor_user_id=actor_user_id,
             target_user_id=user_id,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             target_type="app",
             target_id=app_id,
             detail={"via": via},
@@ -237,7 +237,7 @@ async def revoke_all(
                 event_type=AuditEventType.DELEGATION_REVOKED,
                 actor_user_id=actor_user_id,
                 target_user_id=row.user_id,
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 target_type="app",
                 target_id=app_id,
                 detail={"via": via},

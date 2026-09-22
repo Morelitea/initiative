@@ -24,7 +24,7 @@ from app.core.login_methods import (
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
 )
-from app.core.pam_context import has_active_grant
+from app.db.session import guild_context
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user_dm_settings import DmPolicy
@@ -53,7 +53,8 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     # off-limits to grants), so the lazy INSERT would fault under RLS. Their
     # read is satisfied by a transient default — guild overrides simply don't
     # apply, which is correct for a non-member.
-    if has_active_grant(guild_id):
+    context = guild_context(session)
+    if context is not None and context.grant_content is not None:
         return GuildSetting()
     settings_row = GuildSetting()
     session.add(settings_row)

@@ -29,6 +29,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import ReactionMessages
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
+from app.db import session as db_session
 from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
@@ -166,13 +167,17 @@ async def _resolve_post(
         raise ReactionDisabledError(ReactionMessages.DISABLED)
     # A notice that has not gone up has nothing to react to, and saying
     # otherwise would say it exists.
-    if permissions_service.hidden_from_reader(Tool.post, post, cast(int, user.id)):
+    context = db_session.guild_context(session)
+    if permissions_service.hidden_from_reader(
+        Tool.post, post, cast(int, user.id), context=context
+    ):
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     try:
         permissions_service.require_access(
             permissions_service.DAC_RESOURCES[Tool.post],
             post,
             user,
+            context=context,
             access="read",
         )
     except Exception as exc:  # the DAC engine raises its own HTTP error type

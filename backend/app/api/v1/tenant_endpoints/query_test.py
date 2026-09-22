@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from app.core.messages import QueryMessages
+from app.db.session import rls_context_params
 from app.models.platform.guild import GuildRole
 from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
@@ -702,7 +703,7 @@ class TestEveryShippedDashboardReportsOnLiveWork:
     """
 
     async def test_none_of_them_counts_work_that_is_not_live(
-        self, client, acting_user, session
+        self, client, acting_user, session, reading_as
     ):
         from datetime import datetime, timezone
 
@@ -715,13 +716,11 @@ class TestEveryShippedDashboardReportsOnLiveWork:
         statements = list(TestEveryShippedDashboardDrawsItsShape._widgets())
         assert statements, "no shipped dashboard widgets were checked"
 
-        # What the request that runs a dashboard's tiles would have established:
-        # this reader, in this guild, under the query role.
-        context = {
-            "user_id": actor.user.id,
-            "guild_id": actor.guild.id,
-            "guild_role": "admin",
-        }
+        # What the request that runs a dashboard's tiles established: this
+        # reader's own routing and standing, taken off the session the seam
+        # routed rather than restated here.
+        reader = await reading_as(actor.user.id, actor.guild.id)
+        context = rls_context_params(reader)
 
         async def answers() -> dict[str, Any]:
             out = {}

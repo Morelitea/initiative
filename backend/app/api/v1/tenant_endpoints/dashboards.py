@@ -23,7 +23,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.api import resource_access
 from app.api.deps import (
     IncludeDeletedDep,
@@ -39,6 +39,7 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -373,7 +374,7 @@ async def create_dashboard(
     if listing_id is not None:
         await _count_install(listing_id)
     hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_dashboard(hydrated, user_id=current_user.id)
+    return serialize_dashboard(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.patch("/{dashboard_id}", response_model=DashboardRead)
@@ -430,7 +431,7 @@ async def update_dashboard(
         await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard.id)
-    return serialize_dashboard(hydrated, user_id=current_user.id)
+    return serialize_dashboard(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.post("/{dashboard_id}/upgrade", response_model=DashboardRead)
@@ -767,7 +768,7 @@ async def set_published_view(
             await _record_published_change(
                 session,
                 dashboard_id=dashboard_id,
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 initiative_id=dashboard.initiative_id,
                 actor_user_id=current_user.id,
                 kind=key[0],
@@ -782,7 +783,7 @@ async def set_published_view(
                 dashboard_id,
                 kind,
                 resource_id,
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 initiative_id=dashboard.initiative_id,
                 created_by=current_user.id,
             )
@@ -790,7 +791,7 @@ async def set_published_view(
         await _record_published_change(
             session,
             dashboard_id=dashboard_id,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             initiative_id=dashboard.initiative_id,
             actor_user_id=current_user.id,
             kind=kind,
@@ -902,7 +903,9 @@ async def _serialized_with_published(
     is whether these tiles are currently showing it, which is what a reader is
     told.
     """
-    read = serialize_dashboard(dashboard, user_id=user.id)
+    read = serialize_dashboard(
+        dashboard, context=require_guild_context(session), user_id=user.id
+    )
     grants = await published_views.published_by(session, dashboard.id)
     read.published_over = [
         PublishedOver(
@@ -942,4 +945,4 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_dashboard(session, dashboard_id)
-    return serialize_dashboard(hydrated, user_id=user.id)
+    return serialize_dashboard(hydrated, user_id=user.id, context=guild_context)

@@ -44,6 +44,7 @@ from app.api.v1.tenant_endpoints import documents as documents_endpoints
 from app.api.v1.tenant_endpoints import projects as projects_endpoints
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ListParam
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.db.query import page_has_next, paginate_sequence
 from app.models.platform.user import User
 from app.schemas.tenant.calendar import serialize_calendar_summary
@@ -403,7 +404,7 @@ async def list_across_guilds(
                 *my_tools_service.scope_conditions(
                     tool,
                     user_id=current_user.id,
-                    guild_id=guild_id,
+                    context=require_guild_context(guild_session),
                     search=search,
                     created_by_me=created_by_me,
                 )

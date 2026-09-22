@@ -11,7 +11,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.api import deps
-from app.core.role_context import is_request_guild_admin
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
@@ -60,12 +59,6 @@ def test_support_is_not_a_stored_role():
     assert GUILD_STORED_ROLES == frozenset(GuildRole) - {GuildRole.support}
 
 
-def test_the_context_helper_accepts_either_stored_role():
-    assert is_request_guild_admin(1, guild_role=GuildRole.admin)
-    assert is_request_guild_admin(1, guild_role=GuildRole.superadmin)
-    assert not is_request_guild_admin(1, guild_role=GuildRole.member)
-
-
 def test_an_ordinary_admin_cannot_hand_out_the_seat():
     """The separation: administering a community is not deciding who enters."""
     assert GuildRole.superadmin not in assignable_roles(GuildRole.admin)
@@ -97,6 +90,7 @@ def _context(role: GuildRole) -> GuildContext:
         user_id=2,
         guild_id=1,
         membership=GuildMembership(guild_id=1, user_id=2, role=role),
+        guild_role=role.value,
         standing_guild_id=1,
         admin=role in GUILD_ADMIN_ROLES,
         seat=role is GuildRole.superadmin,

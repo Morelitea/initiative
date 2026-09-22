@@ -28,7 +28,7 @@ from typing import Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
@@ -125,7 +125,7 @@ async def apply_version(
         revocation_service.queue_revocation(
             session,
             revocation_service.RevocationIntent(
-                guild_id=routed_guild_id(),
+                guild_id=routed_guild_id(session),
                 app_id=app.id,
                 listing_uid=app.listing_uid,
                 connection_id=connection_id,

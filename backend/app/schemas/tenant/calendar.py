@@ -12,10 +12,9 @@ from app.schemas.tenant.archive import ArchiveState
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.calendar import Calendar
 
 
@@ -61,7 +60,7 @@ class CalendarSummary(CalendarBase, ArchiveState):
     #: NULL on a guild-level calendar — one an app mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -92,7 +91,7 @@ class CalendarRead(CalendarSummary):
 
 
 def serialize_calendar_summary(
-    calendar: "Calendar", *, user_id: Optional[int] = None
+    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
 ) -> CalendarSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -103,12 +102,12 @@ def serialize_calendar_summary(
         description=calendar.description,
         color=calendar.color,
         initiative_id=calendar.initiative_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         created_by=calendar.created_by,
         created_at=calendar.created_at,
         updated_at=calendar.updated_at,
         archived_at=calendar.archived_at,
-        **client_access(Tool.calendar, calendar, user_id),
+        **client_access(Tool.calendar, calendar, user_id, context=context),
         comments_enabled=calendar.comments_enabled,
         tags=annotated_tags(calendar),
         grants=serialize_grants(calendar),
@@ -116,7 +115,7 @@ def serialize_calendar_summary(
 
 
 def serialize_calendar(
-    calendar: "Calendar", *, user_id: Optional[int] = None
+    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
 ) -> CalendarRead:
-    summary = serialize_calendar_summary(calendar, user_id=user_id)
+    summary = serialize_calendar_summary(calendar, context=context, user_id=user_id)
     return CalendarRead(**summary.model_dump())

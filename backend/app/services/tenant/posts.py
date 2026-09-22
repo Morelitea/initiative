@@ -21,6 +21,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db import session as db_session
+from app.db.guild_standing import GuildContext
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
@@ -90,7 +92,10 @@ def board_order(*, anchored: bool = False) -> list:
 
 
 def visibility_clause(
-    user_id: int, *, guild_id: int | None, initiative_id: int | None = None
+    user_id: int,
+    *,
+    context: GuildContext | None,
+    initiative_id: int | None = None,
 ) -> Any:
     """The WHERE leg hiding notices that have not gone up yet.
 
@@ -114,7 +119,7 @@ def visibility_clause(
             Tool.post,
             Post.id,
             user_id,
-            guild_id=guild_id,
+            context=context,
             initiative_id=initiative_id,
         ),
     )
@@ -291,7 +296,7 @@ async def load_member_profiles(
 
 
 async def mark_read(
-    session: AsyncSession, post_ids: Sequence[int], *, user_id: int, guild_id: int
+    session: AsyncSession, post_ids: Sequence[int], *, user_id: int
 ) -> int:
     """Record that this reader has seen these notices. Returns how many were new.
 
@@ -324,7 +329,7 @@ async def mark_read(
             select(Post.id).where(
                 Post.id.in_(tuple(post_ids)),
                 Post.created_by != user_id,
-                visibility_clause(user_id, guild_id=guild_id),
+                visibility_clause(user_id, context=db_session.guild_context(session)),
             )
         )
     ).all()
@@ -420,16 +425,20 @@ async def get_post_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.post.feature_disabled_code,
         )
+    context = db_session.guild_context(session)
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.post],
         post,
         current_user,
+        context=context,
         access="read",
     )
     # A notice that has not gone up is in no export either — the same gate the
     # read path applies, asked here because this seam resolves a caller-chosen
     # id rather than going through ``load_authorized``.
-    if permissions_service.hidden_from_reader(Tool.post, post, current_user.id):
+    if permissions_service.hidden_from_reader(
+        Tool.post, post, current_user.id, context=context
+    ):
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,

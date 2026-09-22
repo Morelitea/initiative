@@ -64,7 +64,11 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     # The public rows the gate needs come back together — the deployment's own
     # second-factor answer among them, rather than as a read of its own on
     # every guild request there is.
-    (gate_read,) = [stmt for stmt in sent if "guild_memberships" in stmt]
+    (gate_read,) = [
+        stmt
+        for stmt in sent
+        if "guild_memberships" in stmt and "guild_auth_policies" in stmt
+    ]
     assert "guild_auth_policies" in gate_read
     assert "app_settings" in gate_read
     assert sum("app_settings" in stmt for stmt in sent) == 1

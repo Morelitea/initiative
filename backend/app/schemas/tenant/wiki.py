@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -11,8 +11,9 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
 
 
 class WikiBase(SanitizedBaseModel):
@@ -73,7 +74,7 @@ class WikiSummary(WikiBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -207,7 +208,7 @@ class WikiPageSummary(SanitizedBaseModel):
 
     id: int
     wiki_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
@@ -291,7 +292,7 @@ class WikiPageLinks(SanitizedBaseModel):
 
 
 def serialize_wiki_summary(
-    wiki: "Any", *, user_id: Optional[int] = None
+    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
 ) -> WikiSummary:
     # Local import avoids a schema -> service import cycle.
     from app.core.tools import Tool
@@ -303,7 +304,7 @@ def serialize_wiki_summary(
         name=wiki.name,
         description=wiki.description,
         initiative_id=wiki.initiative_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         created_by=wiki.created_by,
         created_at=wiki.created_at,
         updated_at=wiki.updated_at,
@@ -317,7 +318,7 @@ def serialize_wiki_summary(
         accent_color=wiki.accent_color,
         template_page_id=wiki.template_page_id,
         archived_at=wiki.archived_at,
-        **client_access(Tool.wiki, wiki, user_id),
+        **client_access(Tool.wiki, wiki, user_id, context=context),
         comments_enabled=wiki.comments_enabled,
         comment_count=getattr(wiki, "comment_count", 0),
         tags=annotated_tags(wiki),
@@ -325,18 +326,24 @@ def serialize_wiki_summary(
     )
 
 
-def serialize_wiki(wiki: "Any", *, user_id: Optional[int] = None) -> WikiRead:
-    return WikiRead(**serialize_wiki_summary(wiki, user_id=user_id).model_dump())
+def serialize_wiki(
+    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
+) -> WikiRead:
+    return WikiRead(
+        **serialize_wiki_summary(wiki, context=context, user_id=user_id).model_dump()
+    )
 
 
-def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
+def serialize_wiki_page_summary(
+    page: "Any", *, context: GuildContext
+) -> WikiPageSummary:
     from app.schemas.tenant.tag import annotated_tags
     from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
         id=page.id,
         wiki_id=page.wiki_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         kind=WikiPageKind.page,
         parent_page_id=page.parent_page_id,
         position=page.position,
@@ -352,7 +359,7 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
 
 
 def serialize_document_as_page(
-    document: "Any", *, wiki_id: int, position: int
+    document: "Any", *, context: GuildContext, wiki_id: int, position: int
 ) -> WikiPageSummary:
     """A document, as the wiki's navigation draws it.
 
@@ -365,7 +372,7 @@ def serialize_document_as_page(
     return WikiPageSummary(
         id=document.id,
         wiki_id=wiki_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         kind=WikiPageKind.document,
         position=position,
         is_draft=False,
@@ -378,9 +385,9 @@ def serialize_document_as_page(
     )
 
 
-def serialize_wiki_page(page: "Any") -> WikiPageRead:
+def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:
     return WikiPageRead(
-        **serialize_wiki_page_summary(page).model_dump(),
+        **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},
         comment_count=getattr(page, "comment_count", 0),
     )

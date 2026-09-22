@@ -35,7 +35,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
@@ -728,7 +728,9 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
     placed = 0
     members = payload.get("members") or []
     if members:
-        handles = await load_guild_member_handles(session, guild_id=routed_guild_id())
+        handles = await load_guild_member_handles(
+            session, guild_id=routed_guild_id(session)
+        )
         already = {
             row
             for row in await session.exec(
@@ -798,7 +800,7 @@ async def _apply_file_entry(
                 content={},
                 initiative_id=initiative.id,
                 created_by=user.id,
-                file_url=f"/uploads/{routed_guild_id()}/{storage_key}",
+                file_url=f"/uploads/{routed_guild_id(session)}/{storage_key}",
                 # The original name lives in the manifest's asset record —
                 # the uploads row's filename IS the storage key.
                 original_filename=(
@@ -820,7 +822,7 @@ async def _apply_file_entry(
             for tag_name in entry.tags:
                 resolved = await ensure_tag(
                     session,
-                    guild_id=routed_guild_id(),
+                    guild_id=routed_guild_id(session),
                     name=tag_name,
                     color="#6b7280",
                 )

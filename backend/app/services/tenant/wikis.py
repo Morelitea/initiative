@@ -34,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
+from app.db import session as db_session
 from app.core.messages import WikiMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
@@ -542,6 +543,7 @@ async def get_wiki_for_export(
         permissions_service.DAC_RESOURCES[Tool.wiki],
         wiki,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     pages = await load_pages(session, wiki.id, page_order=wiki.page_order)

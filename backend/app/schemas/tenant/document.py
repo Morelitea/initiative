@@ -15,10 +15,9 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.document import (
         Document,
         DocumentFileVersion,
@@ -85,7 +84,7 @@ class DocumentSummary(DocumentBase, ArchiveState):
     # The owning guild — lets clients address guild-scoped actions (file
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -205,11 +204,14 @@ def _serialize_document_properties(document: "Document") -> List[PropertySummary
 def serialize_document_summary(
     document: "Document",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
     initiative = (
-        serialize_initiative(document.initiative) if document.initiative else None
+        serialize_initiative(document.initiative, context=context)
+        if document.initiative
+        else None
     )
     smart_link_url: Optional[str] = None
     if document.document_type == DocumentType.smart_link:
@@ -221,7 +223,7 @@ def serialize_document_summary(
 
     return DocumentSummary(
         id=document.id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         initiative_id=document.initiative_id,
         name=document.name,
         featured_image_url=document.featured_image_url,
@@ -245,7 +247,7 @@ def serialize_document_summary(
         original_filename=document.original_filename,
         smart_link_url=smart_link_url,
         archived_at=document.archived_at,
-        **client_access(Tool.document, document, user_id),
+        **client_access(Tool.document, document, user_id, context=context),
         yjs_updated_at=document.yjs_updated_at,
     )
 
@@ -253,13 +255,14 @@ def serialize_document_summary(
 def serialize_document(
     document: "Document",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     include_content: bool = True,
 ) -> DocumentRead:
     """The full document. ``include_content=False`` leaves the body out — every
     other field is unchanged, including the smart-link URL that is derived from
     it."""
-    summary = serialize_document_summary(document, user_id=user_id)
+    summary = serialize_document_summary(document, context=context, user_id=user_id)
     return DocumentRead(
         **summary.model_dump(),
         content=(document.content or {}) if include_content else {},

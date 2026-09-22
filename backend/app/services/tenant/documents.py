@@ -31,7 +31,7 @@ from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
-from app.db.session import routed_guild_id
+from app.db.session import guild_context, routed_guild_id
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -235,6 +235,7 @@ async def get_document_for_export(
         permissions_service.DAC_RESOURCES[Tool.document],
         document,
         current_user,
+        context=guild_context(session),
         access="read",
     )
     return document

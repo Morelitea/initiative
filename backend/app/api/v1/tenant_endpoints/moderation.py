@@ -27,7 +27,6 @@ from app.api.deps import (
 from app.core.messages import ModerationMessages
 from app.core.moderation import parse_target
 from app.models.platform.user import User
-from app.core.role_context import is_request_guild_admin, request_overrides_sharing
 from app.schemas.tenant.moderation import (
     InitiativeSharingRead,
     ModerationReportList,
@@ -214,13 +213,10 @@ async def read_initiative_sharing(
     initiative *membership*, which is right for reading the grants on a
     resource you can already reach and too wide for an aggregate over every
     resource in the initiative. The standing required is the one the moderation
-    tables admit — "Full access", or guild admin — read from the same
-    request context the sharing override itself uses.
+    tables admit — "Full access", or guild admin — read from the standing the
+    seam computed for this request.
     """
-    if not (
-        request_overrides_sharing(initiative_id)
-        or is_request_guild_admin(guild_context.guild_id)
-    ):
+    if not (guild_context.overrides_sharing(initiative_id) or guild_context.is_admin):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ModerationMessages.NOT_A_MODERATOR,
