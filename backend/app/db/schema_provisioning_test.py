@@ -12,9 +12,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
+from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
-    apply_template_rls,
     backfill_guild_schemas,
     drop_guild_schema,
     guild_readonly_role_name,
@@ -461,11 +461,8 @@ async def test_guild_schema_matches_guild_template(engine):
     FKs are intentionally absent (soft refs). This catches any fidelity gap in the
     live-reflection renderer."""
     schema = guild_schema_name(_GID_DRIFT)
-    # What a migration cannot render — RLS, capture, search — reaches the
-    # template from the registry at boot, and a test does not boot. Bring the
-    # canonical copy up to date first, or every registry-rendered object reads
-    # as drift in the schema that has one and the template that does not.
-    await apply_template_rls()
+    rendered = rendered_trigger_names()
+    rendered_cons = rendered_constraint_names()
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, _GID_DRIFT)
@@ -487,12 +484,17 @@ async def test_guild_schema_matches_guild_template(engine):
             async def cons(ns, t):  # CHECK/PK/UNIQUE
                 r = await conn.execute(
                     text(
-                        "SELECT pg_get_constraintdef(oid) d FROM pg_constraint "
+                        "SELECT conname n, pg_get_constraintdef(oid) d FROM pg_constraint "
                         "WHERE conrelid=(:ns||'.'||:t)::regclass AND contype IN ('c','p','u')"
                     ),
                     {"ns": ns, "t": t},
                 )
-                return sorted(_norm_constraint(x.d) for x in r)
+                # A constraint the registries render (the search index's
+                # entity-type CHECK) is not structure, for the same reason as
+                # the triggers below.
+                return sorted(
+                    _norm_constraint(x.d) for x in r if x.n not in rendered_cons
+                )
 
             async def intra_fks(ns, t):  # (target, ON DELETE) for guild->guild FKs only
                 r = await conn.execute(
@@ -528,13 +530,10 @@ async def test_guild_schema_matches_guild_template(engine):
                 return sorted(
                     re.sub(r"\bON \w+\.", "ON ", x.d)  # strip table schema
                     for x in r
-                    # Change-capture and search-index triggers are rendered
-                    # from their registries at provisioning time, not owned by
-                    # Alembic — the same treatment RLS policies get here, and
-                    # for the same reason: comparing them would assert the
-                    # template carries a frozen snapshot of whatever the
-                    # registry said.
-                    if not x.n.startswith(("capture_", "search_"))
+                    # Triggers the registries render (freeze, capture, search)
+                    # are not structure: a provisioned schema has them and the
+                    # template does not, and neither side is wrong about it.
+                    if x.n not in rendered
                 )
 
             drift = []

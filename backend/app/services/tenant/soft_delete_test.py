@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.schema_provisioning import guild_schema_name
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.project import Project
@@ -202,9 +203,10 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
     (``soft_delete_admin_purge``) that admits only a routed guild admin
     (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
     these tables (and thus their policies) live in the per-guild schemas, not
-    ``public`` — the canonical copy is the Alembic-maintained ``guild_template``
-    schema (created by migration 20260701_0126). The admin fixture can't
-    exercise the policy at runtime, so we inspect ``pg_policies`` in the template."""
+    ``public``, rendered from the registry when a guild is provisioned. The
+    admin fixture can't exercise the policy at runtime, so we inspect
+    ``pg_policies`` in a freshly provisioned guild schema."""
+    guild = await create_guild(session)
     expected = {
         "projects",
         "tasks",
@@ -221,9 +223,9 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         text(
             "SELECT tablename, policyname, cmd, permissive "
             "FROM pg_policies "
-            "WHERE schemaname = 'guild_template' "
+            "WHERE schemaname = :schema "
             "AND policyname = 'soft_delete_admin_purge'"
-        )
+        ).bindparams(schema=guild_schema_name(guild.id))
     )
     rows = result.all()
     found_tables = {row[0] for row in rows}

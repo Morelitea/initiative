@@ -334,38 +334,6 @@ async def _bootstrap_under_lock() -> None:
         await lock_conn.close()
 
 
-async def _refresh_template_rls() -> None:
-    """Put the registry-rendered RLS on ``guild_template``, as boot does.
-
-    Migrations deliberately do not render the registry — a historical migration
-    would freeze whatever it said the day it was written — so a guild table added
-    after the baseline snapshot reaches the template with structure but no
-    policies. Every real install closes that gap in ``backfill_guild_schemas``
-    moments after migrating; a database built by migrations alone never does, and
-    would leave the template a picture no guild schema matches.
-
-    Renders the registry directly rather than calling ``apply_template_rls``.
-    That helper goes through the provisioning bundle, which reflects structure
-    live from the app's own DATABASE_URL database — a database CI has no reason
-    to have built. The RLS half needs no reflection: it is a pure function of the
-    registry, so it can be rendered here and run against this worker's database.
-    """
-    from app.db.guild_ddl import TEMPLATE_SCHEMA, render_guild_rls_ddl
-
-    ddl = render_guild_rls_ddl()
-    engine = create_async_engine(TEST_DATABASE_URL)
-    try:
-        async with engine.begin() as conn:
-            raw = await conn.get_raw_connection()
-            await raw.driver_connection.execute(
-                f'SET search_path TO "{TEMPLATE_SCHEMA}", public;\n'
-                f"{ddl}\n"
-                "SET search_path TO public;"
-            )
-    finally:
-        await engine.dispose()
-
-
 async def _test_db_is_at_head() -> bool:
     """True when this worker's database already exists and is stamped at head.
 
@@ -402,8 +370,8 @@ async def _test_db_is_at_head() -> bool:
 
 def _run_test_migrations() -> None:
     """Ensure the worker's test database exists, apply the privileged bootstrap
-    and migrate it (serialized across workers by the advisory lock), refresh the
-    template's RLS the way boot does, then arm the statement_timeout net.
+    and migrate it (serialized across workers by the advisory lock), then arm the
+    statement_timeout net.
 
     The migration is skipped outright when the database is already at head — see
     ``_test_db_is_at_head``; the two steps after it run against this worker's OWN
@@ -423,7 +391,6 @@ def _run_test_migrations() -> None:
         # unlike any real one, with the app's tables owned by a login the app
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
-    asyncio.run(_refresh_template_rls())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
 
