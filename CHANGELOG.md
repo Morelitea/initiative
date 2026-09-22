@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.1] - 2026-09-21
+
 ### Added
 
 - **A person's name is the way to them** — a mention of somebody in a comment or a document was a badge and nothing more, and the name over a comment was plain text. Both now open that person's profile, and pointing at either one shows a card with the banner they are wearing, what they said they're up to, their trophies and when they joined. A mention also shows who that id is *now* rather than the name it was written with, so somebody who changes their name is renamed in every sentence that mentions them, in every comment and document, with none of them edited.
