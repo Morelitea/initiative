@@ -289,6 +289,49 @@ async def test_an_unreadable_project_is_counted_not_fatal(monkeypatch):
     assert report.unreadable_projects == ["LOCKED"]
 
 
+async def test_progress_hears_every_project_read_or_not(monkeypatch):
+    """The job row climbs one project at a time, and a locked project is
+    still a step taken — otherwise a fetch stuck behind it looks stalled."""
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/rest/api/3/project/LOCKED" in url:
+            return httpx.Response(403, json={})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": [_issue("ACME-1", "One")]})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    heard: list[tuple[int, int, list[str]]] = []
+
+    async def progress(report):
+        heard.append((report.projects, report.tasks, list(report.unreadable_projects)))
+
+    await _bundle(monkeypatch, project_keys=["ACME", "LOCKED"], progress=progress)
+
+    assert heard == [(1, 1, []), (1, 1, ["LOCKED"])]
+
+
+async def test_a_progress_listener_can_stop_the_walk(monkeypatch):
+    """What a cancel looks like from in here: the listener raises, and no
+    further project is asked for."""
+    calls = _site(monkeypatch, issues=[_issue("ACME-1", "One")])
+
+    class Stop(Exception):
+        pass
+
+    async def progress(report):
+        raise Stop
+
+    with pytest.raises(Stop):
+        await _bundle(monkeypatch, project_keys=["ACME", "OTHER"], progress=progress)
+    assert not any("/project/OTHER" in call["url"] for call in calls)
+
+
 async def test_every_project_unreadable_is_a_failure(monkeypatch):
     """That is the selection being wrong, not one project being locked."""
     _site(monkeypatch, project_status=403)

@@ -23,6 +23,7 @@ import type {
 import type {
   AtlassianConnectRequest,
   AtlassianConnectResponse,
+  AtlassianJiraImportRequest,
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
   ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
@@ -903,6 +904,118 @@ export const useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = <
   );
 };
 /**
+ * Start reading Jira projects into an initiative.
+ *
+ * Quotes the ``credential_id`` a connect returned, once: a connection backs
+ * one job. The job comes back ``queued``; the worker moves it to
+ * ``fetching`` while it reads the site, filling ``plan.atlassian`` with
+ * counts as it goes, and parks it at ``staged`` with the full plan — the
+ * people the projects name included — for
+ * ``POST /imports/jobs/{id}/confirm``, exactly as an uploaded backup waits.
+ *
+ * The initiative needs projects switched on and the caller needs to be able
+ * to create them there. That is checked now, again before the site is read,
+ * and again when the bundle is applied.
+ * @summary Start Jira Import
+ */
+export const startJiraImportApiV1GGuildIdImportsAtlassianJiraPost = (
+  guildId: number,
+  atlassianJiraImportRequest: BodyType<AtlassianJiraImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead>(
+    {
+      url: `/api/v1/g/${guildId}/imports/atlassian/jira`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: atlassianJiraImportRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationKey = () =>
+  ["startJiraImportApiV1GGuildIdImportsAtlassianJiraPost"] as const;
+
+export const getStartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>,
+    TError,
+    StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>,
+  TError,
+  StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getStartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>,
+    StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return startJiraImportApiV1GGuildIdImportsAtlassianJiraPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>
+>;
+export type StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationBody =
+  BodyType<AtlassianJiraImportRequest>;
+export type StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables = {
+  guildId: number;
+  data: BodyType<AtlassianJiraImportRequest>;
+};
+
+/**
+ * @summary Start Jira Import
+ */
+export const useStartJiraImportApiV1GGuildIdImportsAtlassianJiraPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>,
+      TError,
+      StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startJiraImportApiV1GGuildIdImportsAtlassianJiraPost>>,
+  TError,
+  StartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getStartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * The caller's import jobs, newest first (RLS scopes the rows: own rows,
  * or the whole guild for a guild admin).
  * @summary List Import Jobs
@@ -1234,9 +1347,12 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
 }
 
 /**
- * Cancel a job that hasn't started applying (staged or queued); its
- * staged payload is deleted. A running/terminal job is not cancellable —
- * 409 (an interrupted apply would leave half-committed content).
+ * Cancel a job that hasn't started applying (staged, queued, or still
+ * fetching from its source); its staged payload is deleted. A fetch writes
+ * nothing but that payload, so stopping one mid-read is safe — the worker
+ * notices at the next project and throws away what it had. A running or
+ * terminal job is not cancellable — 409 (an interrupted apply would leave
+ * half-committed content).
  * @summary Cancel Import Job
  */
 export const cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = (

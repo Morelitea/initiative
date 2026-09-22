@@ -13,6 +13,11 @@ artifact key); an interrupted import has already committed rows under the
 always-create policy, so a re-run would duplicate them. Stale running rows
 are failed closed with ``IMPORT_INTERRUPTED``.
 
+A queued job from a foreign source that has no payload yet is not applied but
+**fetched**: the site is read into a backup-shaped bundle and the job parks at
+``staged`` for its creator to review, exactly where an uploaded backup waits
+(see ``atlassian_job``).
+
 A stale ``fetching`` row is the one exception, and for the reason that makes
 the rule above right: a fetch writes no content row at all, only a payload in
 storage. There is nothing committed to duplicate, so the partial payload is
@@ -33,6 +38,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
@@ -40,6 +46,7 @@ from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.services.import_engine import atlassian_job
 from app.services.import_engine import credentials as import_credentials
 from app.services.import_engine import engine as import_engine
 from app.services.platform import accounts as accounts_service
@@ -165,6 +172,11 @@ async def _process_guild_jobs(
         )
     )
     for job in jobs:
+        if atlassian_job.awaits_fetch(job):
+            outcome = await _fetch(session, job, guild_id=guild_id)
+            if outcome is not None:
+                outcomes.append(outcome)
+            continue
         job.status = ImportJobStatus.running
         job.updated_at = now
         session.add(job)
@@ -195,6 +207,92 @@ async def _process_guild_jobs(
         await session.commit()
         outcomes.append(_outcome(job, guild_id))
     return outcomes
+
+
+async def _fetch(
+    session: AsyncSession, job: ImportJob, *, guild_id: int
+) -> JobOutcome | None:
+    """Read a foreign source into a bundle and park the job for review.
+
+    Ends in one of three places. **Staged**, with the bundle and its plan,
+    which is the wizard's review step and needs no notification — the person
+    is either watching the job or will find it waiting. **Failed**, with a
+    code, which does notify. Or **nowhere**, when the job was cancelled while
+    the site was being read: the bundle, if one got written, is thrown away
+    and the row is left as the cancel put it.
+
+    The credential goes in every case. A staged bundle holds everything the
+    apply needs, and a job that failed or was cancelled needs nothing.
+    """
+    job.status = ImportJobStatus.fetching
+    job.updated_at = datetime.now(timezone.utc)
+    session.add(job)
+    # Committed before the (slow) read, so a crash mid-fetch leaves a stale
+    # ``fetching`` row for the re-claim rule rather than a queued one that
+    # looks untouched.
+    await session.commit()
+
+    async def still_fetching() -> bool:
+        await session.refresh(job, with_for_update=True)
+        return job.status == ImportJobStatus.fetching
+
+    async def heartbeat(summary) -> None:
+        if not await still_fetching():
+            await session.commit()
+            raise atlassian_job.FetchCancelled
+        job.plan = {"atlassian": summary.model_dump(mode="json")}
+        job.updated_at = datetime.now(timezone.utc)
+        session.add(job)
+        await session.commit()
+
+    credential_id = _credential_id(job)
+    try:
+        staged = await atlassian_job.fetch(
+            job,
+            guild_id=guild_id,
+            open_user_session=_open_user_session,
+            progress=heartbeat,
+        )
+    except atlassian_job.FetchCancelled:
+        logger.info("import fetch stopped by cancel id=%s guild=%s", job.id, guild_id)
+        await import_credentials.discard(credential_id)
+        return None
+    except Exception as exc:  # fail closed: record a code, never content
+        logger.exception(
+            "import fetch failed id=%s guild=%s source=%s",
+            job.id,
+            guild_id,
+            job.source,
+        )
+        await import_credentials.discard(credential_id)
+        # Whatever failed may have been a heartbeat's write; start clean.
+        await session.rollback()
+        # A cancel that landed mid-read stays a cancel, not a failure.
+        if not await still_fetching():
+            await session.commit()
+            return None
+        job.status = ImportJobStatus.failed
+        job.error = _error_code(exc)
+        job.updated_at = datetime.now(timezone.utc)
+        session.add(job)
+        await session.commit()
+        return _outcome(job, guild_id)
+
+    await import_credentials.discard(credential_id)
+    if not await still_fetching():
+        import_engine.delete_payload(guild_id, staged.payload_ref)
+        await session.commit()
+        return None
+    now = datetime.now(timezone.utc)
+    job.status = ImportJobStatus.staged
+    job.payload_ref = staged.payload_ref
+    job.plan = staged.plan
+    job.updated_at = now
+    # The review gets a whole window of its own, however long the read took.
+    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
+    session.add(job)
+    await session.commit()
+    return None
 
 
 def _credential_id(job: ImportJob) -> int | None:
@@ -238,7 +336,10 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
     if payload is None:
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
 
-    if job.source == "backup":
+    if job.source in ("backup", atlassian_job.SOURCE):
+        # A fetched bundle is a backup-shaped zip filing into an initiative
+        # that exists, so it takes the backup path — which gates it by the
+        # create permission there rather than by the community's seat.
         from app.services.import_engine import backup as backup_service
 
         async with _open_user_session() as user_session:

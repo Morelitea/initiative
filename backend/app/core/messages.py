@@ -773,6 +773,10 @@ class ImportEngineMessages:
     IMPORT_SOURCE_PRIVATE_HOST = "IMPORT_SOURCE_PRIVATE_HOST"
     #: The request named nothing to bring over.
     IMPORT_SOURCE_NOTHING_SELECTED = "IMPORT_SOURCE_NOTHING_SELECTED"
+    #: The connection a job was started with is not there to use: it aged out,
+    #: another job already spent it, or it was never this person's. One code
+    #: for all three, because the fix is the same — connect again.
+    IMPORT_CREDENTIAL_UNAVAILABLE = "IMPORT_CREDENTIAL_UNAVAILABLE"
 
 
 class QueryMessages:

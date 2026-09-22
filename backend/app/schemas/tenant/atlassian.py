@@ -10,7 +10,7 @@ Nothing here holds a secret going out. The token travels in, once; what comes
 back names the site and what is on it.
 """
 
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import Field
 
@@ -77,6 +77,35 @@ class AtlassianJiraProbe(AtlassianProductProbe):
 
 class AtlassianConfluenceProbe(AtlassianProductProbe):
     spaces: List[AtlassianConfluenceSpace] = []
+
+
+#: A Jira project key as Jira itself allows one: a letter, then letters,
+#: digits or underscores. Checked because a key travels into a request path
+#: and a JQL clause on somebody else's server.
+JIRA_PROJECT_KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
+
+
+class AtlassianJiraImportRequest(SanitizedBaseModel):
+    """The choose step's answer: which projects, from which connection, into
+    which initiative.
+
+    Nothing is read from the site here. The request starts a job, and the
+    worker reads the projects into a bundle and parks it for review — the
+    plan the wizard shows next is filled in as that fetch goes.
+    """
+
+    #: What the connect step returned. Only the person who connected may quote
+    #: it, and only once.
+    credential_id: int
+    #: The initiative the projects land in. It has to exist, have projects
+    #: switched on, and let this person create them — checked now, and again
+    #: when the fetch starts and when the bundle is applied.
+    initiative_id: int
+    project_keys: List[
+        Annotated[
+            str, Field(min_length=1, max_length=50, pattern=JIRA_PROJECT_KEY_PATTERN)
+        ]
+    ] = Field(max_length=200)
 
 
 class AtlassianConnectResponse(SanitizedBaseModel):

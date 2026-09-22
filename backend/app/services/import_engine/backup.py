@@ -214,8 +214,13 @@ def plan_backup(
     taken = set(existing_initiative_names)
     initiatives: list[BackupPlanInitiative] = []
     for mi in manifest.initiatives:
-        proposed = unique_name(taken, mi.name)
-        taken.add(proposed)
+        if mi.target_initiative_id is not None:
+            # Filed into one that exists: no name is claimed, so none is
+            # proposed, and it cannot push a created one into a suffix.
+            proposed = mi.name
+        else:
+            proposed = unique_name(taken, mi.name)
+            taken.add(proposed)
         counts: dict[str, int] = {}
         for entry in manifest.entries:
             if entry.initiative_id == mi.id:
@@ -227,6 +232,7 @@ def plan_backup(
                 proposed_name=proposed,
                 tools=mi.tools,
                 entry_counts=counts,
+                target_initiative_id=mi.target_initiative_id,
             )
         )
     roster = member_ids_by_handle or {}

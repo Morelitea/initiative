@@ -100,6 +100,51 @@ async def store(
         return row.id  # ty: ignore[invalid-return-type] — committed row, id is set
 
 
+@dataclass(frozen=True)
+class CredentialSummary:
+    """What a credential is for, with no secret in it.
+
+    What the request path is allowed to know about a credential it is quoting:
+    enough to start a job with it and to say which site that job will read.
+    """
+
+    id: int
+    provider: str
+    site_url: str
+
+
+async def describe(
+    credential_id: int, *, guild_id: int, user_id: int
+) -> CredentialSummary | None:
+    """The credential somebody is quoting, if it is theirs to quote.
+
+    ``None`` unless the row exists, belongs to this guild **and** to this
+    person, and has not reached its deadline. An id arrives in a request body,
+    so it is data: whose it is gets checked here rather than assumed from the
+    fact that somebody knew the number. The secret is never decrypted — the
+    request path has no use for it.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        await set_rls_context(session)
+        row = (
+            await session.exec(
+                select(ImportCredential).where(
+                    ImportCredential.id == credential_id,
+                    ImportCredential.guild_id == guild_id,
+                    ImportCredential.created_by == user_id,
+                    ImportCredential.expires_at > datetime.now(timezone.utc),
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return CredentialSummary(
+            id=row.id,
+            provider=row.provider,
+            site_url=row.site_url,
+        )
+
+
 async def load(credential_id: int, *, guild_id: int) -> LoadedCredential | None:
     """The credential this job was given, or ``None``.
 
