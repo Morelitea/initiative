@@ -303,6 +303,15 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         return self.app_url_is_https
 
+    @property
+    def terminates_tls(self) -> bool:
+        """True when this server serves HTTPS itself rather than a proxy doing it.
+
+        Both halves, because that is what ``start.sh`` requires before it hands
+        uvicorn a certificate at all.
+        """
+        return bool(self.TLS_CERT_FILE and self.TLS_KEY_FILE)
+
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     # Extra browser origins allowed to make credentialed cross-origin requests,
@@ -881,6 +890,20 @@ class Settings(BaseSettings):
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
+
+    # Where the server finds its certificate and key when it serves HTTPS
+    # itself, instead of sitting behind a proxy that terminates TLS for it.
+    # Both together or neither — ``start.sh`` builds the uvicorn invocation
+    # from them and stops if only one is set.
+    #
+    # The key must be unencrypted: a passphrase would have to reach uvicorn on
+    # its command line, where the process table would carry it.
+    #
+    # The app never opens either file. It holds them to say at boot when they
+    # and ``APP_URL`` disagree, and the certificate is read once, at startup,
+    # so a renewed one takes effect on the next restart.
+    TLS_CERT_FILE: str | None = None
+    TLS_KEY_FILE: str | None = None
 
     # Global per-client default rate limit applied (via SlowAPIMiddleware) to
     # every route that lacks its own ``@limiter.limit(...)`` decorator. Uses the

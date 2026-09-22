@@ -187,6 +187,15 @@ async def lifespan(app: FastAPI):
                 "no_host": "not a whole URL, so it names no host",
             }.get(site_refusal, "plain http"),
         )
+    # Serving HTTPS and saying so are two settings, and only the second is
+    # what links, cookie flags and HSTS are built from.
+    if settings.terminates_tls and not settings.app_url_is_https:
+        logger.warning(
+            "TLS_CERT_FILE and TLS_KEY_FILE are set, so this deployment serves "
+            "HTTPS, but APP_URL (%s) is not https — point it at the https URL "
+            "people reach, so links, cookies and HSTS match what is served.",
+            settings.APP_URL,
+        )
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).

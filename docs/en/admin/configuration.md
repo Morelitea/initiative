@@ -98,7 +98,7 @@ Two things the page will stop you doing, both for the same reason: you can't req
 
 ## Running behind a reverse proxy
 
-For any real deployment you'll put Initiative behind a reverse proxy that handles HTTPS.
+For any real deployment you'll want Initiative behind HTTPS. A reverse proxy is the usual way; if you'd rather not run one, see [Serving HTTPS without a proxy](#serving-https-without-a-proxy) below.
 
 | Variable | What it does | Default |
 |---|---|---|
@@ -107,6 +107,26 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 
 !!! warning "Only enable proxy trust behind an actual proxy"
     `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
+
+## Serving HTTPS without a proxy
+
+Got a certificate already and no appetite for standing up a whole proxy to hold it? Point Initiative at the files and it serves HTTPS itself.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `TLS_CERT_FILE` | Path to the certificate, full chain. | — |
+| `TLS_KEY_FILE` | Path to its private key, unencrypted. | — |
+
+Mount both files into the container, set both variables, and set `APP_URL` to the matching `https://` address. Set one without the other and Initiative stops on startup and names the half you're missing.
+
+Three things worth knowing before you do:
+
+- **The certificate is read once, at startup.** Renew it, then restart the container — otherwise the old one carries on being served.
+- **The key can't have a passphrase.** Convert it first: `openssl rsa -in encrypted.key -out plain.key`.
+- **A proxy is still the easier road on the public internet.** Caddy and Traefik renew certificates by themselves, which is the part this leaves to you.
+
+!!! info "Getting the certificate is the hard bit"
+    This terminates TLS; it doesn't obtain anything. A machine on your own network — `nas.local`, a Tailscale address — can't get a certificate from Let's Encrypt the usual way, because there's no public name to prove you control. Your own CA or a DNS-01 challenge will do it. A self-signed one will have browsers showing a warning page and the Android app declining to connect at all.
 
 ## Keeping bots out (captcha)
 
