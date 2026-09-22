@@ -13,7 +13,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.db.session import set_rls_context
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
@@ -24,6 +23,7 @@ from app.testing import (
     create_initiative_member,
     create_project,
     create_user,
+    route_as,
 )
 
 
@@ -59,9 +59,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     await session.commit()
 
     # Act as the guild role with this member's (non-admin) context — RLS applies.
-    await set_rls_context(
-        session, user_id=member.id, guild_id=guild.id, guild_role="member"
-    )
+    await route_as(session, user_id=member.id, guild_id=guild.id)
     member_view = set((await session.exec(select(Project.name))).all())
     assert "A-Proj" in member_view, "member must see their own initiative's project"
     assert "B-Proj" not in member_view, (
@@ -69,9 +67,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     )
 
     # A guild admin (current_guild_role='admin') sees every initiative's content.
-    await set_rls_context(
-        session, user_id=member.id, guild_id=guild.id, guild_role="admin"
-    )
+    await route_as(session, user_id=member.id, guild_id=guild.id)
     admin_view = set((await session.exec(select(Project.name))).all())
     assert {"A-Proj", "B-Proj"} <= admin_view
 

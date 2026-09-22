@@ -132,7 +132,7 @@ async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
         IntakeStream.security, title="Refused sign-ins", body="Ten in fifteen minutes."
     )
     assert outcome is not None
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     task = (await session.exec(select(Task).where(Task.id == outcome.task_id))).one()
     assert task.project_id == body["project_id"]
 
@@ -190,7 +190,7 @@ async def test_unbinding_keeps_the_project(client, session, owner):
     assert response.status_code == 204
     assert await intake_service.open_case(IntakeStream.feedback, title="Idea") is None
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     assert (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one_or_none() is not None
@@ -344,7 +344,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     assert again.opened is True
     assert again.task_id != opened.task_id
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
     assert landed.project_id == elsewhere_id
     assert first.json()["project_id"] != elsewhere_id
@@ -500,7 +500,7 @@ async def test_a_binding_says_when_its_project_has_been_archived(
     assert created.json()["project_archived"] is False
     project_id = created.json()["project_id"]
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     project = (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one()

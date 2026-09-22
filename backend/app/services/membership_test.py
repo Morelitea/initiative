@@ -14,6 +14,7 @@ from app.testing.factories import (
     create_initiative_member,
     create_user,
 )
+from app.testing import route_as
 
 
 async def _setup(session: AsyncSession):
@@ -152,7 +153,5 @@ async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
     assert list((await session.exec(stmt())).all()) == [initiative.id]
 
     # Same outsider routed as a (non-)member with no grant: matches nothing.
-    await set_rls_context(
-        session, user_id=outsider.id, guild_id=guild.id, guild_role="member"
-    )
+    await route_as(session, user_id=outsider.id, guild_id=guild.id)
     assert list((await session.exec(stmt())).all()) == []

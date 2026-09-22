@@ -9,11 +9,10 @@ from __future__ import annotations
 import pytest
 from sqlmodel import select
 
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.queue import Queue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.testing import guild_of, create_queue, grant_role_permission
+from app.testing import guild_of, create_queue, grant_role_permission, route_as
 from app.testing.schema_harness import route_session_to_guild
 
 pytestmark = pytest.mark.integration
@@ -36,9 +35,7 @@ async def _shared(session, queue, user) -> None:
 
 async def _names(session, guild_id, actor, *, role: str = "member") -> list[str]:
     """Queue names the database hands back for a bare SELECT."""
-    await set_rls_context(
-        session, user_id=actor.user.id, guild_id=guild_id, guild_role=role
-    )
+    await route_as(session, user_id=actor.user.id, guild_id=guild_id)
     return sorted(await session.exec(select(Queue.name)))
 
 

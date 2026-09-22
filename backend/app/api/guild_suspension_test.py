@@ -33,6 +33,7 @@ from app.testing import (
     create_task,
     create_user,
     get_auth_headers,
+    route_as,
 )
 
 pytestmark = pytest.mark.integration
@@ -616,12 +617,10 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
     import sqlalchemy.exc
     from sqlalchemy import text as sa_text
 
-    from app.db.session import set_rls_context
-
     a = await acting_user(guild_role=GuildRole.admin)
 
     s = await role_session("app_user")
-    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
 
     # Identity columns: allowed.
     await s.exec(
@@ -643,9 +642,7 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
             "ARRAY['providers']::guild_auth_option[]",
         ),
     ]:
-        await set_rls_context(
-            s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
-        )
+        await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
         with pytest.raises(sqlalchemy.exc.ProgrammingError, match="permission denied"):
             await s.exec(
                 sa_text(f"UPDATE {table} SET {column} = {value} WHERE {key} = :gid"),
@@ -654,7 +651,7 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
         await s.rollback()
 
     # Reading its own caps is allowed — the settings page shows usage against them.
-    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
     readable = (
         await s.exec(
             sa_text(

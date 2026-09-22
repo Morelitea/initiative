@@ -67,7 +67,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.session import set_rls_context, set_system_guild_context
+from app.db.session import (
+    SYSTEM_SATISFIED,
+    set_rls_context,
+    set_system_guild_context,
+)
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -342,12 +346,22 @@ async def _drain_subscription(
     await set_system_guild_context(session, guild_id=guild_id)
     pending = await _pending_transactions(session, subscription, now=now)
 
-    await set_rls_context(
-        session,
-        user_id=subscription.created_by,
-        guild_id=guild_id,
-        satisfied_providers="system",
-    )
+    # The owner's own standing, established the way a request of theirs would
+    # establish it. An owner who has since lost their place in the community
+    # sees nothing, which settles the batch rather than holding it.
+    from app.api.deps import GuildAccessError, establish_guild_access
+    from app.models.platform.user import User
+
+    await set_rls_context(session)
+    owner = await session.get(User, subscription.created_by)
+    if owner is None:
+        return
+    try:
+        await establish_guild_access(
+            session, owner, guild_id, satisfied_providers=SYSTEM_SATISFIED
+        )
+    except GuildAccessError:
+        return
 
     for txn_id in pending:
         if not await _claim(session, subscription, txn_id, now=now):

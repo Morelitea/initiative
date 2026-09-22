@@ -32,7 +32,7 @@ async def _membership(
     session: AsyncSession, *, guild_id: int, initiative_id: int, user_id: int
 ) -> InitiativeMember | None:
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
     return (
         await session.exec(
             select(InitiativeMember).where(

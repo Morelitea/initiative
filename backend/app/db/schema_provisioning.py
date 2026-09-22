@@ -882,12 +882,14 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
                 # System routing: no user id, so the sign-in gate reads this as
                 # a system session; the index's own policy admits the write by
                 # the connection's login, which is the system engine's.
+                # Both names are built from the community's id, not from
+                # anything a request supplies, the way every other identifier
+                # in this module is.
                 await conn.exec_driver_sql(
                     f"SELECT set_config('search_path', '\"{schema}\", public', true),"
-                    " set_config('role', %s, true),"
+                    f" set_config('role', '{role}', true),"
                     " set_config('app.current_user_id', '', true),"
-                    " set_config('app.guild_auth_ok', 'true', true)",
-                    (role,),
+                    " set_config('app.guild_auth_ok', 'true', true)"
                 )
                 rows = (
                     await conn.execute(

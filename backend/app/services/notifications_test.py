@@ -59,6 +59,7 @@ from app.testing import (
     create_user,
     set_notification_prefs,
 )
+from app.testing import route_as
 
 
 async def _dispatch(session: AsyncSession) -> None:
@@ -203,7 +204,7 @@ async def test_event_reminder_fires_once_within_lead_window(
     assert len(await _reminders_for(session, attendee.id)) == 1
 
     # The dispatch ledger is guild-scoped; read it under the guild's context.
-    await set_rls_context(session, user_id=attendee.id, guild_id=guild.id)
+    await route_as(session, user_id=attendee.id, guild_id=guild.id)
     dispatches = await session.exec(
         select(EventReminderDispatch).where(
             EventReminderDispatch.user_id == attendee.id
@@ -681,7 +682,7 @@ async def _assignment_item_in_new_guild(
     await session.commit()
     await session.refresh(task)
     # digest items have no guild_id column, so route by search_path before insert.
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         TaskAssignmentDigestItem(
             user_id=user.id,
@@ -729,7 +730,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
 
     # Items were marked processed in each guild's own schema.
     for guild_id in (guild_a.id, guild_b.id):
-        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        await route_as(session, user_id=user.id, guild_id=guild_id)
         pending = (
             await session.exec(
                 select(TaskAssignmentDigestItem).where(
@@ -940,7 +941,7 @@ async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
 
     async def _row_count() -> int:
         session.expunge_all()
-        await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+        await route_as(session, user_id=user.id, guild_id=guild.id)
         rows = (await session.exec(select(TaskAssignmentDigestItem))).all()
         return len(rows)
 
@@ -1022,7 +1023,7 @@ async def _reaction_item_in_new_guild(
     # reacted to, so it cannot be queued against an id that resolves nowhere.
     comment = await create_comment(session, user, task=task, content=f"{label} thread")
 
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         ReactionDigestItem(
             user_id=user.id,
@@ -1072,7 +1073,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     assert {"\U0001f44d", "\U0001f389"} <= set(captured["body"])
 
     for guild_id in (guild_a.id, guild_b.id):
-        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        await route_as(session, user_id=user.id, guild_id=guild_id)
         pending = (
             await session.exec(
                 select(ReactionDigestItem).where(

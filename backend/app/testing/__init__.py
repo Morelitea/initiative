@@ -85,6 +85,7 @@ from app.testing.passkeys import (
     stub_assertion,
     stub_registration,
 )
+from app.testing.routing import route_as, route_system
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
@@ -159,5 +160,7 @@ __all__ = [
     "get_auth_headers",
     "get_auth_token",
     "guild_of",
+    "route_as",
     "route_session_to_guild",
+    "route_system",
 ]

@@ -141,12 +141,12 @@ SELECT
                WHEN bool_or(rung = 'admin') THEN 'admin'
              END
       FROM (
-        SELECT m.role AS rung
+        SELECT m.role::text AS rung
         FROM public.guild_memberships m
         WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
           AND m.role IN ('admin', 'superadmin')
         UNION ALL
-        SELECT g.access_level {_live_grant("settings")}
+        SELECT g.access_level::text {_live_grant("settings")}
       ) AS rungs
     ), ''), true) AS settings_rung,
   set_config('app.pam_read', (

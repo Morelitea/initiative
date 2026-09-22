@@ -15,11 +15,10 @@ import pytest
 from sqlmodel import select
 
 from app.core.role_context import set_active_role
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.services.tenant.search import search_scope_clause
-from app.testing import create_task
+from app.testing import create_task, route_as
 
 pytestmark = pytest.mark.integration
 
@@ -33,9 +32,7 @@ async def _search(
 ) -> list[str]:
     """Titles this user can read out of the index, through the one entry point."""
     set_active_role(guild_id, guild_role)
-    await set_rls_context(
-        session, user_id=user_id, guild_id=guild_id, guild_role=guild_role
-    )
+    await route_as(session, user_id=user_id, guild_id=guild_id)
     rows = await session.exec(
         select(SearchEntry.title).where(
             SearchEntry.entity_type == "task",

@@ -756,7 +756,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild.id)
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -769,7 +769,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild.id)
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)

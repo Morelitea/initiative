@@ -44,6 +44,7 @@ from app.testing.factories import (
     get_auth_token,
     guild_administration,
 )
+from app.testing import route_as
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -693,34 +694,29 @@ async def test_db_layer_blocks_unsatisfied_session(
         return len((await app_session.exec(select(Project))).all())
 
     # Unsatisfied member/admin session: nothing.
-    await set_rls_context(
-        app_session, user_id=user_id, guild_id=guild_id, guild_role="admin"
-    )
+    await route_as(app_session, user_id=user_id, guild_id=guild_id)
     assert await _visible_projects() == 0
 
     # Satisfied session: content visible.
-    await set_rls_context(
+    await route_as(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        guild_role="admin",
         satisfied_providers=[provider_id],
-        satisfied_claims=satisfied_claims_for(provider_id),
     )
     assert await _visible_projects() == 1
 
     # User-attributed system work carries the sentinel.
-    await set_rls_context(
+    await route_as(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        guild_role="admin",
         satisfied_providers=SYSTEM_SATISFIED,
     )
     assert await _visible_projects() == 1
 
     # Pure system routing (no user context) is not a session to gate.
-    await set_rls_context(app_session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(app_session, guild_id=guild_id)
     assert await _visible_projects() == 1
 
 

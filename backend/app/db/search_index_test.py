@@ -38,6 +38,7 @@ from app.testing import (
     create_project,
     create_tag,
     create_task,
+    route_as,
 )
 
 pytestmark = pytest.mark.integration
@@ -52,9 +53,7 @@ async def _entries(
     user_id: int | None = None,
     guild_role: str = "admin",
 ) -> list[SearchEntry]:
-    await set_rls_context(
-        session, user_id=user_id, guild_id=guild_id, guild_role=guild_role
-    )
+    await route_as(session, user_id=user_id, guild_id=guild_id)
     rows = await session.exec(
         select(SearchEntry)
         .where(
@@ -217,7 +216,7 @@ async def test_the_entry_is_full_text_searchable(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="quarterly vendor renewal")
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     found = await session.exec(
         text(
             "SELECT title FROM search_entries "

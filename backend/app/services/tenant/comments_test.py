@@ -12,7 +12,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.pam_context import set_active_grant
 from app.core.tools import Tool
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document
 from app.services.tenant.comments import (
     CommentPermissionError,
@@ -28,6 +27,7 @@ from app.testing import (
     create_project,
     create_task,
     create_user,
+    route_as,
 )
 
 
@@ -50,7 +50,7 @@ async def test_task_comment_access_honors_grant(session: AsyncSession, role_sess
     # question — so a session that bypasses row-level security cannot answer it,
     # and would say yes to everything below.
     reader = await role_session("app_user")
-    await set_rls_context(reader, user_id=grantee.id, guild_id=guild.id)
+    await route_as(reader, user_id=grantee.id, guild_id=guild.id)
 
     try:
         # No grant: a non-member is denied.
@@ -100,7 +100,7 @@ async def test_document_comment_access_honors_grant(
     assert ctx is not None
 
     reader = await role_session("app_user")
-    await set_rls_context(reader, user_id=grantee.id, guild_id=guild.id)
+    await route_as(reader, user_id=grantee.id, guild_id=guild.id)
 
     try:
         set_active_grant(None, None)
@@ -204,21 +204,11 @@ class TestCommentRlsLegs:
         ).bindparams(eid=entity.id)
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s,
-            user_id=outsider.id,
-            guild_id=guild.id,
-            guild_role=GuildRole.member.value,
-        )
+        await route_as(s, user_id=outsider.id, guild_id=guild.id)
         assert (await s.exec(count_sql)).scalar() == 0
 
         member = await role_session("app_user")
-        await set_rls_context(
-            member,
-            user_id=owner.id,
-            guild_id=guild.id,
-            guild_role=GuildRole.member.value,
-        )
+        await route_as(member, user_id=owner.id, guild_id=guild.id)
         assert (await s.exec(count_sql)).scalar() == 0  # outsider still sees none
         assert (await member.exec(count_sql)).scalar() == 1
         assert comment.id is not None

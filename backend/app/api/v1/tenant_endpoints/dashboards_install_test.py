@@ -20,9 +20,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.messages import MarketplaceMessages
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.testing import create_marketplace_listing, marketplace_uid
+from app.testing import route_as
 
 
 INSTALL_UID = marketplace_uid("sprinthealth")
@@ -470,7 +470,7 @@ class TestCatalogIsolation:
         await _enable(session, a.initiative)
 
         routed = await role_session("app_user")
-        await set_rls_context(routed, user_id=a.user.id, guild_id=a.guild.id)
+        await route_as(routed, user_id=a.user.id, guild_id=a.guild.id)
 
         found = (
             await routed.exec(

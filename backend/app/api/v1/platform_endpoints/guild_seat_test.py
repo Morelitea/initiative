@@ -15,6 +15,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
+from app.testing import route_as
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -87,22 +88,12 @@ async def test_postgres_refuses_the_write_to_anyone_but_the_seat(
     # runs as — this is the boundary under test.
     writer = await role_session("app_user")
 
-    await set_rls_context(
-        writer,
-        user_id=int(admin.id),
-        guild_id=int(guild.id),
-        guild_role="admin",
-    )
+    await route_as(writer, user_id=int(admin.id), guild_id=int(guild.id))
     with pytest.raises(DBAPIError):
         await writer.exec(insert.bindparams(g=int(guild.id)))
     await writer.rollback()
 
-    await set_rls_context(
-        writer,
-        user_id=int(seat.id),
-        guild_id=int(guild.id),
-        guild_role="admin",
-    )
+    await route_as(writer, user_id=int(seat.id), guild_id=int(guild.id))
     await writer.exec(insert.bindparams(g=int(guild.id)))
     await writer.rollback()
 

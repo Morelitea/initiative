@@ -278,6 +278,17 @@ async def create_guild(
     await session.flush()
     # Every guild has exactly one, created with it — same as the service path.
     session.add(GuildAdministration(guild_id=guild.id, **administration_data))
+    # And its creator administers it, also as the service path does. A routing
+    # is a lookup now, so a test whose guild had no members could not be routed
+    # into at all — which was never a state production could reach.
+    session.add(
+        GuildMembership(
+            user_id=creator.id,
+            guild_id=guild.id,
+            role=GuildRole.admin,
+            position=0,
+        )
+    )
 
     if commit:
         await session.commit()
@@ -361,7 +372,23 @@ async def create_guild_membership(
     }
 
     membership_data = {**defaults, **overrides}
-    membership = GuildMembership(**membership_data)
+    # The creator already has one (``create_guild`` seats them), so asking for
+    # theirs again says what role they should hold rather than adding a second
+    # row the table would refuse.
+    existing = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).one_or_none()
+    if existing is not None:
+        for field, value in membership_data.items():
+            setattr(existing, field, value)
+        membership = existing
+    else:
+        membership = GuildMembership(**membership_data)
     session.add(membership)
 
     if commit:

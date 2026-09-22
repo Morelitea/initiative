@@ -16,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
 from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
-from app.db.session import set_rls_context
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
@@ -30,6 +29,7 @@ from app.testing import (
     create_task,
     create_task_status,
     create_user,
+    route_as,
 )
 
 pytestmark = pytest.mark.database
@@ -54,9 +54,7 @@ async def routed(role_session, workspace):
     """The member's own session, routed into the guild — the request path."""
     user, guild, *_ = workspace
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     yield s
     # Every read here opens a transaction, and an open one holds locks the
     # per-test schema teardown then waits on.
@@ -73,9 +71,7 @@ async def admin_routed(role_session, workspace):
     """
     user, guild, *_ = workspace
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     yield s
     await s.rollback()
 
@@ -274,12 +270,7 @@ class TestAncestorFreeze:
         await session.commit()
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s,
-            user_id=bystander.id,
-            guild_id=guild.id,
-            guild_role=GuildRole.member.value,
-        )
+        await route_as(s, user_id=bystander.id, guild_id=guild.id)
         try:
             hidden = await s.exec(
                 text("SELECT count(*) FROM projects WHERE id = :id").bindparams(
@@ -586,9 +577,7 @@ class TestTrashedRowsAreOutOfSight:
 
     async def _routed_as(self, role_session, user, guild, guild_role):
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=guild_role
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         return s
 
     async def test_a_member_does_not_see_what_somebody_else_deleted(

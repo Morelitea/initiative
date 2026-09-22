@@ -28,6 +28,7 @@ from app.testing.factories import (
     create_task,
 )
 from app.testing.schema_harness import route_session_to_guild
+from app.testing import route_as
 
 pytestmark = pytest.mark.integration
 
@@ -135,7 +136,7 @@ async def test_purging_a_tag_takes_its_assignments(session: AsyncSession, acting
     session.add(tag)
     await session.commit()
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await hard_purge_entity(session, tag)
     await session.commit()
 
@@ -207,7 +208,7 @@ async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
     )
 
     async def reachable(guild_id: int) -> bool:
-        await set_rls_context(session, user_id=a.user.id, guild_id=guild_id)
+        await route_as(session, user_id=a.user.id, guild_id=guild_id)
         await route_session_to_guild(session, guild_id)
         return (
             await session.exec(

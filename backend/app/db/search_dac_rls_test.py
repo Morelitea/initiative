@@ -15,9 +15,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.db.session import set_override_initiatives, set_rls_context
-from app.testing import Actor
+from app.testing import Actor, route_as
 from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_tag, create_task
 
@@ -31,9 +31,7 @@ async def _unfiltered(
     session, guild_id: int, actor, *, role: str = "member"
 ) -> list[str]:
     """Titles the database hands back for a bare SELECT — no query-side gate."""
-    await set_rls_context(
-        session, user_id=actor.user.id, guild_id=guild_id, guild_role=role
-    )
+    await route_as(session, user_id=actor.user.id, guild_id=guild_id)
     rows = await session.exec(
         select(SearchEntry.title).where(SearchEntry.entity_type == "task")
     )
@@ -101,11 +99,23 @@ async def test_full_access_is_carried_into_the_database(
     # Without the override: refused, as above.
     assert await _unfiltered(session, a.guild.id, b) == []
 
-    # With it: admitted, without any grant being issued.
-    await set_rls_context(
-        session, user_id=b.user.id, guild_id=a.guild.id, guild_role="member"
-    )
-    await set_override_initiatives(session, (a.initiative.id,))
+    # With it: admitted, without any grant being issued. The override is a
+    # property of the role, so it is the role that gets it and the standing
+    # that reads it back.
+    member_role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == a.initiative.id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    ).one()
+    member_role.override_share_restrictions = True
+    session.add(member_role)
+    await session.commit()
+
+    context = await route_as(session, user_id=b.user.id, guild_id=a.guild.id)
+    assert context.override_initiatives == (a.initiative.id,)
     rows = await session.exec(
         select(SearchEntry.title).where(SearchEntry.entity_type == "task")
     )
@@ -121,9 +131,7 @@ async def test_guild_vocabulary_answers_to_no_sharing(
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     await create_tag(session, a.guild, name="urgent")
 
-    await set_rls_context(
-        session, user_id=b.user.id, guild_id=a.guild.id, guild_role="member"
-    )
+    await route_as(session, user_id=b.user.id, guild_id=a.guild.id)
     rows = await session.exec(
         select(SearchEntry.title).where(SearchEntry.entity_type == "tag")
     )
@@ -136,9 +144,7 @@ async def test_the_override_setting_defaults_to_empty(
     """An unset override must read as "no initiatives", not as an error that
     faults the policy for every row."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    await set_rls_context(
-        session, user_id=a.user.id, guild_id=a.guild.id, guild_role="member"
-    )
+    await route_as(session, user_id=a.user.id, guild_id=a.guild.id)
     value = (
         await session.exec(
             text("SELECT current_setting('app.override_initiatives', true)")

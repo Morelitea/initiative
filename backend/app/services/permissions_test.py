@@ -25,7 +25,6 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
-from app.db.session import set_rls_context
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
@@ -41,6 +40,7 @@ from app.services.permissions import (
     writable_scope_clause,
 )
 from app.testing.factories import TOOL_FACTORIES
+from app.testing import route_as
 
 ALL_TOOLS = list(DAC_RESOURCES)
 
@@ -315,12 +315,7 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     model = type(w.row)
 
     async def visible() -> bool:
-        await set_rls_context(
-            session,
-            user_id=w.co_member.user.id,
-            guild_id=w.guild.id,
-            guild_role=GuildRole.member.value,
-        )
+        await route_as(session, user_id=w.co_member.user.id, guild_id=w.guild.id)
         try:
             rows = (
                 await session.exec(select(model.id).where(model.id == w.row.id))
