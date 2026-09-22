@@ -10,7 +10,7 @@ table a later migration added and re-asserts the policies. The model is never
 used to build the DB: Alembic is the single source, applied per schema.
 Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
 guild-scoped queries into the schema, where the RLS policies (deferring to
-`public.initiative_access`) enforce initiative membership for non-admin roles.
+`initiative_access`) enforce initiative membership for non-admin roles.
 
 `backfill_guild_schemas` re-runs that idempotent provisioning for *every*
 existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
@@ -322,10 +322,10 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
 
     Schema-relative + idempotent (``ENABLE/FORCE`` + ``DROP POLICY IF EXISTS`` +
     ``CREATE POLICY``), so a re-run (provisioning, boot back-fill) re-asserts the
-    policies harmlessly. Policies defer to ``public.initiative_access`` (qualified,
-    so it resolves regardless of search_path); the per-table EXISTS joins resolve
-    against the guild-local tables. Requires ``public.initiative_access`` to exist
-    (created by migration 20260616_0110).
+    policies harmlessly. Policies defer to the schema's own ``initiative_access``,
+    rendered at the top of the same DDL so each policy binds the local copy; the
+    per-table EXISTS joins resolve against the guild-local tables. The
+    ``public`` functions those copies call are applied at boot before this runs.
     """
     ddl = (await get_provisioning_bundle()).rls_ddl
     raw = await conn.get_raw_connection()
@@ -390,6 +390,68 @@ async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
+
+
+async def strip_template_registry_objects(conn: AsyncConnection) -> int:
+    """Remove from ``guild_template`` what only a renderer would have put there.
+
+    Migrations shape the template and provisioning reflects its structure.
+    Boots before the template became structure-only also rendered the
+    registries into it: policies, and the freeze, capture and search
+    triggers. This drops those — every policy on a template table, every
+    trigger whose name the renderers produce, and any of the guild functions —
+    and leaves the migrations' own objects alone. Idempotent; a no-op once the template is clean.
+    Returns how many objects went.
+    """
+    from app.db.guild_ddl import TEMPLATE_SCHEMA, rendered_trigger_names
+
+    policies = (
+        await conn.execute(
+            text("SELECT tablename, policyname FROM pg_policies WHERE schemaname = :s"),
+            {"s": TEMPLATE_SCHEMA},
+        )
+    ).all()
+    for table, policy in policies:
+        await conn.execute(
+            text(f'DROP POLICY IF EXISTS "{policy}" ON "{TEMPLATE_SCHEMA}"."{table}"')
+        )
+    rendered = rendered_trigger_names()
+    triggers = [
+        (table, trigger)
+        for table, trigger in (
+            await conn.execute(
+                text(
+                    "SELECT c.relname, t.tgname FROM pg_trigger t "
+                    "JOIN pg_class c ON c.oid = t.tgrelid "
+                    "WHERE c.relnamespace = CAST(:s AS regnamespace) "
+                    "AND NOT t.tgisinternal"
+                ),
+                {"s": TEMPLATE_SCHEMA},
+            )
+        ).all()
+        if trigger in rendered
+    ]
+    for table, trigger in triggers:
+        await conn.execute(
+            text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{TEMPLATE_SCHEMA}"."{table}"')
+        )
+    # The functions the render now puts in a guild schema, should a render
+    # ever have been pointed at the template; dropped after the policies that
+    # would bind them.
+    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+
+    functions = 0
+    for name, args in GUILD_FUNCTION_SIGNATURES.items():
+        present = (
+            await conn.execute(
+                text("SELECT to_regprocedure(CAST(:sig AS text)) IS NOT NULL"),
+                {"sig": f"{TEMPLATE_SCHEMA}.{name}{args}"},
+            )
+        ).scalar()
+        if present:
+            await conn.execute(text(f'DROP FUNCTION "{TEMPLATE_SCHEMA}".{name}{args}'))
+            functions += 1
+    return len(policies) + len(triggers) + functions
 
 
 def _grant_statements(
@@ -630,6 +692,18 @@ async def backfill_guild_schemas() -> BackfillSummary:
     summary for the caller to log.
     """
     stamp = (await get_provisioning_bundle()).stamp
+
+    # The template carries structure only. Earlier boots rendered the
+    # registries into it as well, and those copies bind functions the
+    # registries have since moved into the guild schemas; nothing reads them,
+    # and the retirement step after this sweep needs them gone.
+    try:
+        async with db_session.provisioning_engine.begin() as conn:
+            stripped = await strip_template_registry_objects(conn)
+        if stripped:
+            logger.info("guild_template: removed %d rendered objects", stripped)
+    except Exception:  # noqa: BLE001 — never block boot on the template
+        logger.exception("guild_template clean-up failed")
 
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL

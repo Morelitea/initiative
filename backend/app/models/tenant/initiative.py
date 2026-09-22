@@ -34,7 +34,7 @@ class InitiativeJoinPolicy(str, Enum):
     """How a guild member may come to hold a membership row in an initiative.
 
     The policy governs *how a membership row comes to exist* — it is never
-    consulted by RLS. ``public.initiative_access`` still answers every access
+    consulted by RLS. ``initiative_access`` still answers every access
     question from ``initiative_members`` exactly as it did before.
 
     - ``private``: invisible outside its membership; a manager adds people by

@@ -554,7 +554,7 @@ async def target_previews(
     every reportable kind is covered here without a switch over kinds, and a
     kind added later arrives with one.
 
-    Narrowed by ``search_scope_clause``, the same ``public.resource_access``
+    Narrowed by ``search_scope_clause``, the same ``resource_access``
     call the table's own policies make. A moderator's standing already clears
     it for their initiative; a target they cannot reach comes back absent, and
     so does one that has since been deleted — the index drops with the row.

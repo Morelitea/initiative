@@ -1,6 +1,6 @@
 """Shared guild- and initiative-membership checks.
 
-Initiative scoping has **one** definition: the ``public.initiative_access`` SQL
+Initiative scoping has **one** definition: the ``initiative_access`` SQL
 function (initiative member OR guild admin OR PAM grant, read from the request
 GUCs). The guild-schema RLS policies call it, and ``initiative_scope_clause``
 here calls the *same* function — for the tables the policies deliberately do
@@ -58,7 +58,7 @@ def initiative_scope_clause(
     need_write: bool = False,
 ) -> ColumnElement[bool]:
     """Initiative-scope predicate for embedding in any SELECT — the **single
-    source of truth**: it defers to the ``public.initiative_access`` SQL function
+    source of truth**: it defers to the ``initiative_access`` SQL function
     (initiative member OR guild admin OR PAM grant, read from the request GUCs),
     the exact same predicate the guild-schema RLS policies use. There is one rule,
     in one place, called by both the database and the app.

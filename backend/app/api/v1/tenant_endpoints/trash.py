@@ -354,7 +354,7 @@ async def purge_trash_entity(
 
     Runs entirely on the routed guild-admin RLS session — no standing-BYPASSRLS
     ``app_admin`` connection. The guild-schema content tables carry PERMISSIVE
-    ``initiative_member_delete`` policies that defer to ``public.initiative_access``,
+    ``initiative_member_delete`` policies that defer to ``initiative_access``,
     whose guild-admin leg (``current_guild_role = 'admin'``) admits the routed
     admin for the hard delete, so the guild role itself does it.
     ``_load_trash_entity`` 404s unless the entity is in THIS guild's trash (and

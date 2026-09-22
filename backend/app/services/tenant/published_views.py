@@ -9,7 +9,7 @@ sees a smaller number is not a status board.
 A **published view** is how a dashboard says "these rows, for everybody who can
 open me". It is a grant rather than an impersonation: a ``resource_grants`` row
 whose grantee is the dashboard says the resource is readable *through* it, and
-``public.resource_access`` answers on that row only while
+``resource_access`` answers on that row only while
 ``app.via_dashboard_id`` names that dashboard — which the fetch path sets after
 the dashboard's own four gates have admitted the reader.
 

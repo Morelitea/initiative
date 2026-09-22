@@ -31,7 +31,7 @@ Where each command is caught:
 * **DELETE** — a BEFORE DELETE trigger.
 * **SELECT** — nothing. Reading frozen content is the point of keeping it.
 
-All of them walk the same declaration, ``public.resource_frozen(kind, id)``,
+All of them walk the same declaration, ``resource_frozen(kind, id)``,
 rendered below from the join chains already in ``app.db.initiative_rls``. A
 table names its first ancestor and the function walks the rest, so each policy
 and trigger carries one call rather than a chain of its own.
@@ -320,12 +320,9 @@ def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
         return None
     _tool, hops = walk
     if not hops:
-        return (
-            f"public.resource_frozen('initiatives', "
-            f"{alias}.initiative_id, {trashed_ok})"
-        )
+        return f"resource_frozen('initiatives', {alias}.initiative_id, {trashed_ok})"
     column, parent = hops[0]
-    return f"public.resource_frozen('{parent}', {alias}.{column}, {trashed_ok})"
+    return f"resource_frozen('{parent}', {alias}.{column}, {trashed_ok})"
 
 
 #: Every kind ``resource_frozen`` can be asked about: the tables a row can be
@@ -342,7 +339,7 @@ def _dispatch_tables() -> tuple[str, ...]:
 
 
 def render_resource_frozen_fn() -> str:
-    """``public.resource_frozen(kind, id, trashed_ok)`` — one walk, every caller.
+    """``resource_frozen(kind, id, trashed_ok)`` — one walk, every caller.
 
     A row that carries both lifecycle columns answers from itself and stops:
     the cascades already put its parent's state on it. Only a row with nothing
@@ -359,8 +356,8 @@ def render_resource_frozen_fn() -> str:
     deleting there is the lifecycle rather than a change to it. An archived one
     answers yes, and the delete is refused.
 
-    Created in ``public`` with no ``SET search_path``, like
-    ``public.initiative_access``, so it resolves the guild-local tables of
+    Rendered into each guild schema with no ``SET search_path``, like
+    ``initiative_access``, so it resolves the guild-local tables of
     whoever calls it.
     """
     arms = []
@@ -394,7 +391,7 @@ def render_resource_frozen_fn() -> str:
 
 
 _RESOURCE_FROZEN_FOR_GRANT_TEMPLATE = """
-CREATE OR REPLACE FUNCTION public.resource_frozen_for_grant(
+CREATE OR REPLACE FUNCTION resource_frozen_for_grant(
     kind text, rid bigint, trashed_ok boolean DEFAULT false
 ) RETURNS boolean LANGUAGE plpgsql STABLE AS $resource_frozen_for_grant$
 BEGIN
@@ -417,7 +414,7 @@ $resource_frozen_for_grant$;
 
 
 def render_resource_frozen_for_grant_fn() -> str:
-    """``public.resource_frozen_for_grant(tool, id, trashed_ok)`` — the freeze,
+    """``resource_frozen_for_grant(tool, id, trashed_ok)`` — the freeze,
     asked the way a grant has to ask it.
 
     A grant is what makes a resource reachable, so the FIRST one is written
@@ -438,7 +435,7 @@ def render_resource_frozen_for_grant_fn() -> str:
     """
     arms = "\n".join(
         f"      WHEN '{tool.value}' THEN\n"
-        f"        RETURN public.resource_frozen("
+        f"        RETURN resource_frozen("
         f"'{tool.plural}', rid, trashed_ok);"
         for tool in Tool
     )
@@ -651,7 +648,7 @@ def frozen_guard_trigger(table: str) -> str:
 
 
 _RESOURCE_FROZEN_TEMPLATE = """
-CREATE OR REPLACE FUNCTION public.resource_frozen(
+CREATE OR REPLACE FUNCTION resource_frozen(
     kind text, rid bigint, trashed_ok boolean DEFAULT false
 ) RETURNS boolean LANGUAGE plpgsql STABLE AS $resource_frozen$
 DECLARE
@@ -678,7 +675,7 @@ def _comments_leg(alias: str, trashed_ok: str) -> str:
     through another.
     """
     legs = [
-        f"({alias}.{column} IS NOT NULL AND public.resource_frozen("
+        f"({alias}.{column} IS NOT NULL AND resource_frozen("
         f"'{parent.table}', {alias}.{column}, {trashed_ok}))"
         for column, parent in COMMENT_PARENTS.items()
     ]
@@ -688,7 +685,7 @@ def _comments_leg(alias: str, trashed_ok: str) -> str:
 def _reactions_leg(alias: str, trashed_ok: str) -> str:
     """A reaction freezes with the thing it is on."""
     arms = " ".join(
-        f"WHEN '{target.value}' THEN public.resource_frozen("
+        f"WHEN '{target.value}' THEN resource_frozen("
         f"'{target.table}', {alias}.target_id, {trashed_ok})"
         for target in ReactionTarget
     )
@@ -704,7 +701,7 @@ def _edge_leg(alias: str, trashed_ok: str) -> str:
     ends = []
     for side in ("source", "target"):
         arms = " ".join(
-            f"WHEN '{kind.value}' THEN public.resource_frozen("
+            f"WHEN '{kind.value}' THEN resource_frozen("
             f"'{endpoint.table}', {alias}.{side}_id, {trashed_ok})"
             for kind, endpoint in ENDPOINT_KINDS.items()
         )
@@ -726,7 +723,7 @@ def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
     distinction, including the per-tool dispatch, so this leg is one call.
     """
     return (
-        f"COALESCE(public.resource_frozen_for_grant("
+        f"COALESCE(resource_frozen_for_grant("
         f"{alias}.resource_type, {alias}.resource_id, {trashed_ok}), false)"
     )
 
@@ -778,7 +775,7 @@ def freeze_leg(
     # freeze with the initiative and with nothing else.
     columns = SQLModel.metadata.tables[table].c
     if "initiative_id" in columns:
-        return f"public.resource_frozen('initiatives', {alias}.initiative_id, {flag})"
+        return f"resource_frozen('initiatives', {alias}.initiative_id, {flag})"
     return None
 
 

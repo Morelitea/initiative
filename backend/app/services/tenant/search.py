@@ -38,7 +38,7 @@ def search_scope_clause(
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``search_entries`` to rows this request may read.
 
-    Emits ``public.resource_access(...)`` — the same call the table's policies
+    Emits ``resource_access(...)`` — the same call the table's policies
     make — so the query and the database answer sharing through one
     implementation rather than two that have to agree. ``guild_id`` is accepted
     for symmetry with the other scope helpers; the decision reads the request's
@@ -56,7 +56,7 @@ def search_scope_clause(
 def writable_column(user_id: int):
     """Whether this request may CHANGE the row, not just see it.
 
-    The same ``public.resource_access`` call the gate makes, asked at write
+    The same ``resource_access`` call the gate makes, asked at write
     level and selected rather than filtered on. A picker needs it because not
     every link is the anchor's to make: a relation that describes its source is
     the source's to assert, so offering "this blocks that" for a thing somebody

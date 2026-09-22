@@ -295,7 +295,7 @@ async def list_initiatives(
 
     # `initiatives` is a structural table (not initiative-RLS-gated), so scope it
     # in the query. The guild-wide listing uses the ONE access rule —
-    # initiative_scope_clause defers to public.initiative_access (admin OR PAM OR
+    # initiative_scope_clause defers to initiative_access (admin OR PAM OR
     # member, from the request GUCs), the same predicate the content-table RLS
     # uses. A time-bound grantee holds no memberships in the guild, so their
     # session stays on that predicate too: the grant is what they navigate by.

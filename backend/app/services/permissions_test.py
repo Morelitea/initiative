@@ -305,7 +305,7 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
 
     Leaving an initiative does not sweep the grants written for you, so the row
     is still there naming you at owner. What answers it is the table's own
-    policy: every content table ANDs ``public.initiative_access`` onto its
+    policy: every content table ANDs ``initiative_access`` onto its
     sharing leg, so the resource stops being visible the moment the membership
     goes — asserted here as the guild role, against the database, because that
     is where the answer comes from.

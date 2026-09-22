@@ -40,7 +40,7 @@ async def _as_query_role(conn, statement: str):
     """Run one statement as the query role, routed as a request would be.
 
     The search path matters: the initiative-RLS policies defer to
-    ``public.initiative_access``, whose body names ``initiative_members``
+    ``initiative_access``, whose body names ``initiative_members``
     without a schema, so it resolves against the caller's path — the guild's
     own membership table.
     """

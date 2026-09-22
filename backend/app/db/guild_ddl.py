@@ -37,6 +37,7 @@ from app.db.initiative_rls import (
     render_endpoint_access_fn,
     InitiativePath,
 )
+from app.db.authorization import render_guild_authorization_functions
 from app.db.frozen import (
     FROZEN_TABLES,
     freeze_leg,
@@ -76,7 +77,7 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
 # Admit only a routed guild admin (the GUC ``set_rls_context`` writes from the
 # request's validated membership role; a break-glass full-admin is routed as a
 # synthetic guild admin and also sets it). Matches the guild-admin leg of
-# public.initiative_access exactly.
+# initiative_access exactly.
 _PURGE_GUARD_PREDICATE = (
     "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
 )
@@ -132,7 +133,7 @@ _HEADER = """\
 -- Initiative-member-level RLS for the per-guild CONTENT tables. Schema-relative
 -- (run with search_path = <guild_schema>, public). Idempotent.
 --
--- The access RULE lives in ONE place, public.initiative_access (initiative member
+-- The access RULE lives in ONE place, initiative_access (initiative member
 -- OR guild admin OR PAM, read from the request GUCs); each policy below is just the
 -- join that resolves a table's initiative id and defers to it. The per-table paths
 -- are the single source of truth in app/db/initiative_rls.py (INITIATIVE_PATHS).
@@ -167,7 +168,7 @@ _HEADER = """\
 -- Write commands additionally carry the LIFECYCLE freeze (app.db.frozen):
 -- archived and trashed content is read-only, and so is everything under it.
 -- INSERT carries a RESTRICTIVE policy deferring to one function,
--- public.resource_frozen(kind, id, trashed_ok), which walks the same join chains
+-- resource_frozen(kind, id, trashed_ok), which walks the same join chains
 -- the sharing legs are rendered from. UPDATE and DELETE are triggers, at the
 -- bottom of this file — telling an edit from an unarchive needs the old row and
 -- the new row together, which a policy never has. SELECT carries neither.
@@ -381,6 +382,8 @@ def render_guild_rls_ddl() -> str:
     # added to the graph reaches the gate the moment its entry does.
     out = (
         _HEADER
+        + "\n"
+        + render_guild_authorization_functions()
         + "\n"
         + render_endpoint_access_fn()
         + "\n"

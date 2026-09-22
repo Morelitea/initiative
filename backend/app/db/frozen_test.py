@@ -85,7 +85,7 @@ async def _frozen(
 ) -> bool:
     return (
         await s.exec(
-            text("SELECT public.resource_frozen(:kind, :rid, :trashed_ok)").bindparams(
+            text("SELECT resource_frozen(:kind, :rid, :trashed_ok)").bindparams(
                 kind=kind, rid=rid, trashed_ok=trashed_ok
             )
         )
@@ -160,9 +160,7 @@ class TestResourceFrozen:
     async def test_an_unknown_kind_and_a_null_id_are_not_frozen(self, routed):
         assert await _frozen(routed, "nothing_like_this", 1) is False
         assert (
-            await routed.exec(
-                text("SELECT public.resource_frozen('tasks', NULL::bigint)")
-            )
+            await routed.exec(text("SELECT resource_frozen('tasks', NULL::bigint)"))
         ).scalar() is False
 
 

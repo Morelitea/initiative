@@ -83,7 +83,7 @@ OUTBOX_CHANNEL = "event_outbox"
 #: The function name every per-table trigger calls. Created once in ``public``
 #: (not per guild schema): the body names content tables unqualified, so it
 #: resolves them through the caller's ``search_path`` — the routed guild schema —
-#: exactly as ``public.initiative_access`` does.
+#: exactly as ``initiative_access`` does.
 CAPTURE_FUNCTION = "public.capture_change"
 
 #: Columns whose changes are not worth reporting. ``updated_at`` moves on every

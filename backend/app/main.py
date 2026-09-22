@@ -213,6 +213,23 @@ async def lifespan(app: FastAPI):
             backfill.skipped,
             backfill.total,
         )
+    # Every schema the back-fill reached now binds its own copies of the
+    # guild functions, so the copies the migrations left in public can go.
+    # Postgres refuses each one that a schema still binds (a guild the
+    # back-fill skipped); those are logged and tried again next boot.
+    from app.db.authorization import ensure_public_copies_dropped
+
+    retired = await ensure_public_copies_dropped()
+    if retired.blocked:
+        logger.warning(
+            "public copies of guild functions still bound, kept for now: %s",
+            ", ".join(f"{name} ({count})" for name, count in retired.blocked.items()),
+        )
+    elif retired.dropped:
+        logger.info(
+            "public copies of guild functions retired: %s",
+            ", ".join(retired.dropped),
+        )
     # After the schemas, never before: the sweep writes through functions and
     # into a table whose shape the pass above is what brings up to date.
     await backfill_guild_search()

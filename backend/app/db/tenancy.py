@@ -17,7 +17,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 **Level 2 — initiative access boundary (within a guild schema):**
 
 - **Initiative-scoped** tables carry the four ``initiative_member_*`` RLS
-  policies deferring to ``public.initiative_access(...)``. They are declared once
+  policies deferring to ``initiative_access(...)``. They are declared once
   in ``app.db.initiative_rls.INITIATIVE_PATHS`` (table -> initiative path);
   ``INITIATIVE_SCOPED_TABLES`` is the keys of that registry, and
   the RLS DDL is rendered from it at provisioning time (``app.db.guild_ddl``).

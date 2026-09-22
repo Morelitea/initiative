@@ -1,10 +1,22 @@
 """The authorization functions the guild policies defer to.
 
 Every initiative-scoped table in every ``guild_<id>`` schema carries policies
-that call into one of these. They live in ``public`` and name guild tables
-**unqualified**, so one definition serves every guild: the routed
-``search_path`` is what binds ``initiative_members`` to the caller's own schema
+that call into one of these. They come in two kinds. The four in
+:data:`GUILD_AUTHORIZATION_FUNCTIONS` read only guild tables and are rendered
+into each guild schema beside the policies that call them (``guild_ddl``), so
+a community's access rules live inside its own boundary and a change rolls
+out schema by schema with the provisioning stamp. The six in
+:data:`AUTHORIZATION_FUNCTIONS` read shared tables and live in ``public``,
+applied once at boot. Both kinds name the tables they read unqualified, so the
+routed ``search_path`` binds ``initiative_members`` to the caller's own schema
 (see ``search_path_pinning_test``). Each runs as its caller.
+
+The guild four used to live in ``public`` too, one definition for every
+community. The migrations that created them there are frozen, so the copies
+they left are retired by :func:`drop_public_copies` on boot, after the guild
+back-fill has re-rendered every schema's policies against its local copy:
+Postgres refuses the drop while any policy still binds a public one, and the
+step reads that refusal as "not yet" and tries again next boot.
 
 **Why they are here and not only in a migration.** They used to exist solely
 inside the migrations that created them, carried forward by ``CREATE OR
@@ -30,26 +42,36 @@ a past revision does every time this file is edited. ``CREATE OR REPLACE``
 keeps the OID, so every policy deferring to the function picks the new body up
 unrewritten.
 
-The bodies name guild-local tables that are not on the ``search_path`` at
-creation time, so applying them needs ``check_function_bodies = false``. That
-is a statement about when names are resolved, not a relaxation of anything:
-resolution happens per call, against the caller's route.
+A guild copy is created with the guild schema first on the ``search_path``,
+so the tables its body names are resolved and checked at creation. Resolution
+at call time is still the caller's route, which is the same schema.
 """
 
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sqlalchemy.ext.asyncio import AsyncConnection
+    from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+
+#: SQLSTATE 2BP01: Postgres refusing a DROP because something still depends
+#: on the object.
+DEPENDENT_OBJECTS_STILL_EXIST_SQLSTATE = "2BP01"
 
 __all__ = [
     "AUTHORIZATION_FUNCTIONS",
+    "GUILD_AUTHORIZATION_FUNCTIONS",
+    "GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
+    "DropReport",
     "apply_authorization_functions",
     "authorization_functions_digest",
+    "drop_public_copies",
     "ensure_authorization_functions",
+    "ensure_public_copies_dropped",
+    "render_guild_authorization_functions",
 ]
 
 #: Gate 0a: the rule itself — does an authentication satisfy one of a
@@ -293,7 +315,7 @@ $function$
 #: Gate 2: the hard isolation boundary. Every initiative-scoped table's
 #: policies defer to this one function.
 INITIATIVE_ACCESS = """\
-CREATE OR REPLACE FUNCTION public.initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE
@@ -333,7 +355,7 @@ $function$
 
 #: Gate 2, narrowed: full standing in the initiative rather than membership.
 INITIATIVE_FULL_ACCESS = """\
-CREATE OR REPLACE FUNCTION public.initiative_full_access(p_initiative_id integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION initiative_full_access(p_initiative_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE
@@ -361,7 +383,7 @@ $function$
 
 #: Gate 3: what a member's role in the initiative permits.
 INITIATIVE_ROLE_PERMITS = """\
-CREATE OR REPLACE FUNCTION public.initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean)
+CREATE OR REPLACE FUNCTION initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean)
  RETURNS boolean
  LANGUAGE sql
  STABLE
@@ -394,7 +416,7 @@ $function$
 
 #: Gate 4: per-resource sharing (the ``resource_grants`` table).
 RESOURCE_ACCESS = """\
-CREATE OR REPLACE FUNCTION public.resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE
@@ -504,12 +526,41 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("session_amr", SESSION_AMR),
     ("platform_factor_satisfied", PLATFORM_FACTOR_SATISFIED),
     ("guild_auth_satisfied", GUILD_AUTH_SATISFIED),
+    ("guild_superadmin", GUILD_SUPERADMIN),
+)
+
+#: The four that read only guild tables. Rendered into every guild schema by
+#: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
+#: in this order: the SQL bodies are checked at creation, and each names only
+#: tables and the ``public`` functions above.
+GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
     ("resource_access", RESOURCE_ACCESS),
-    ("guild_superadmin", GUILD_SUPERADMIN),
 )
+
+#: Argument types of every function that lives in a guild schema — the four
+#: above plus the three ``frozen`` and ``initiative_rls`` render there. What
+#: ``DROP FUNCTION`` and ``pg_get_functiondef`` need to name one.
+GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
+    "initiative_access": "(integer, integer, boolean)",
+    "initiative_full_access": "(integer, boolean)",
+    "initiative_role_permits": "(integer, integer, text, boolean)",
+    "resource_access": "(text, integer, integer, integer, boolean)",
+    "resource_frozen": "(text, bigint, boolean)",
+    "resource_frozen_for_grant": "(text, bigint, boolean)",
+    "relationship_endpoint_access": "(text, integer, boolean)",
+}
+
+
+def render_guild_authorization_functions() -> str:
+    """The four guild functions as schema-relative DDL, for the RLS render.
+
+    Each text is one statement; the render is a script, so each is
+    terminated here.
+    """
+    return "\n".join(sql.rstrip() + ";" for _name, sql in GUILD_AUTHORIZATION_FUNCTIONS)
 
 
 def authorization_functions_digest() -> str:
@@ -520,7 +571,7 @@ def authorization_functions_digest() -> str:
     hashes what it renders rather than tracking a version by hand.
     """
     digest = hashlib.sha256()
-    for name, sql in AUTHORIZATION_FUNCTIONS:
+    for name, sql in AUTHORIZATION_FUNCTIONS + GUILD_AUTHORIZATION_FUNCTIONS:
         digest.update(name.encode())
         digest.update(sql.encode())
     return digest.hexdigest()[:16]
@@ -529,7 +580,7 @@ def authorization_functions_digest() -> str:
 async def apply_authorization_functions(conn: "AsyncConnection") -> None:
     """Create or replace every function in :data:`AUTHORIZATION_FUNCTIONS`.
 
-    Idempotent, and cheap enough to run unconditionally on boot: five
+    Idempotent, and cheap enough to run unconditionally on boot: six
     ``CREATE OR REPLACE`` statements against ``public``. ``CREATE OR REPLACE``
     keeps each function's OID, so the policies that reference it are untouched
     and no guild schema needs re-rendering.
@@ -538,8 +589,6 @@ async def apply_authorization_functions(conn: "AsyncConnection") -> None:
     """
     from sqlalchemy import text
 
-    # The bodies name guild-local tables, which are not on the path here.
-    await conn.execute(text("SET LOCAL check_function_bodies = false"))
     for _name, sql in AUTHORIZATION_FUNCTIONS:
         await conn.execute(text(sql))
 
@@ -548,11 +597,79 @@ async def ensure_authorization_functions() -> None:
     """Apply the functions on boot, over the provisioning engine.
 
     Called after the migrations and before the guild back-fill, so a schema
-    rendered in the same boot finds every function its policies name. Five
-    ``CREATE OR REPLACE`` statements on a healthy database — the same
-    unconditional-and-cheap shape as the grant heals either side of it.
+    rendered in the same boot finds every ``public`` function its own copies
+    call. Six ``CREATE OR REPLACE`` statements on a healthy database — the
+    same unconditional-and-cheap shape as the grant heals either side of it.
     """
     from app.db import session as db_session
 
     async with db_session.provisioning_engine.begin() as conn:
         await apply_authorization_functions(conn)
+
+
+@dataclass
+class DropReport:
+    """What :func:`drop_public_copies` did with each of the seven."""
+
+    dropped: list[str] = field(default_factory=list)
+    absent: list[str] = field(default_factory=list)
+    #: name -> how many policies or triggers still bind the ``public`` copy
+    blocked: dict[str, int] = field(default_factory=dict)
+
+
+_DEPENDENTS_SQL = """
+SELECT count(*) FROM pg_depend d
+WHERE d.refclassid = 'pg_proc'::regclass
+  AND d.refobjid = CAST(:sig AS regprocedure)
+  AND d.deptype = 'n'
+"""
+
+
+async def drop_public_copies(engine: "AsyncEngine") -> DropReport:
+    """Retire the ``public`` copies of the seven guild functions.
+
+    Runs after the guild back-fill. Each drop is its own transaction: a copy
+    still bound by a policy or trigger in a schema the back-fill has not
+    re-rendered is refused by Postgres, recorded with its dependent count, and
+    left for the next boot; the others are dropped. A copy that is already
+    gone is reported as absent. Nothing here touches a guild schema.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.db.errors import dbapi_sqlstate
+
+    report = DropReport()
+    for name, args in GUILD_FUNCTION_SIGNATURES.items():
+        sig = f"public.{name}{args}"
+        async with engine.connect() as conn:
+            exists = (
+                await conn.execute(
+                    text("SELECT to_regprocedure(CAST(:sig AS text)) IS NOT NULL"),
+                    {"sig": sig},
+                )
+            ).scalar()
+        if not exists:
+            report.absent.append(name)
+            continue
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(f"DROP FUNCTION {sig}"))
+        except DBAPIError as exc:
+            if dbapi_sqlstate(exc) != DEPENDENT_OBJECTS_STILL_EXIST_SQLSTATE:
+                raise
+            async with engine.connect() as conn:
+                count = (
+                    await conn.execute(text(_DEPENDENTS_SQL), {"sig": sig})
+                ).scalar()
+            report.blocked[name] = int(count or 0)
+            continue
+        report.dropped.append(name)
+    return report
+
+
+async def ensure_public_copies_dropped() -> DropReport:
+    """The boot step, over the provisioning engine (the copies' owner)."""
+    from app.db import session as db_session
+
+    return await drop_public_copies(db_session.provisioning_engine)

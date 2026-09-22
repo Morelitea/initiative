@@ -6,7 +6,7 @@ may read, write or own from the ``resource_grants`` rows on a resource.
 
 What is left here is what Postgres does not answer. The guild-schema policies
 apply this same sharing rule to every content table — gate 4, rendered from
-``app/db/initiative_rls.py`` and calling ``public.resource_access`` — so a
+``app/db/initiative_rls.py`` and calling ``resource_access`` — so a
 statement confined to one initiative needs no sharing clause of its own. The
 app layer keeps the decisions the policies do not express:
 
@@ -219,7 +219,7 @@ def listing_scope_clause(
 
     **Confined to one initiative, there is nothing to add.** The question is the
     reader's standing there, and the table's own policy already asked it: every
-    content table carries a sharing leg deferring to ``public.resource_access``
+    content table carries a sharing leg deferring to ``resource_access``
     (guild admin OR PAM at the level OR the "Full access" override OR a grant
     row), ANDed with initiative membership and the reader's initiative role.
     Restating it here would narrow nothing and consult ``resource_grants`` a
@@ -740,7 +740,7 @@ def require_access(
     bypass (admin/PAM/Full access) → effective DAC level vs requested access.
 
     No initiative-scope step. The row was loaded through a routed session, and
-    every content table's policy defers to ``public.initiative_access`` before
+    every content table's policy defers to ``initiative_access`` before
     anything here runs — a row belonging to an initiative the caller is not in
     does not arrive to be checked. What is left is the part the policies do not
     do: saying which refusal it is.
