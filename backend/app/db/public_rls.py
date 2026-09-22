@@ -572,14 +572,16 @@ PUBLIC_RLS: dict[str, TableRls] = {
             ),
         ),
     ),
+    # An invite is the administrator's: issued, listed and withdrawn on a
+    # routed request by the community's admin or a live settings grant at
+    # either rung. Redeeming and previewing one by code run on the system
+    # engine, which these do not bind.
     "guild_invites": TableRls(
         policies=(
-            Policy("guild_delete", DELETE, ("public",), using=guild_scoped("guild_id")),
-            Policy("guild_insert", INSERT, ("public",), check=guild_scoped("guild_id")),
-            Policy(
-                "guild_select", SELECT, ("public",), using=member_of_guild("guild_id")
-            ),
-            Policy("guild_update", UPDATE, ("public",), using=guild_scoped("guild_id")),
+            Policy("guild_delete", DELETE, ("public",), using=routed_admin("guild_id")),
+            Policy("guild_insert", INSERT, ("public",), check=routed_admin("guild_id")),
+            Policy("guild_select", SELECT, ("public",), using=routed_admin("guild_id")),
+            Policy("guild_update", UPDATE, ("public",), using=routed_admin("guild_id")),
         ),
     ),
     "guild_memberships": TableRls(
@@ -602,19 +604,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 DELETE,
                 ("public",),
                 using=routed_and_own("guild_id", "user_id"),
-            ),
-            Policy(
-                "guild_memberships_insert",
-                INSERT,
-                ("public",),
-                check=guild_scoped("guild_id"),
-            ),
-            Policy(
-                "guild_memberships_request_insert_member_only",
-                INSERT,
-                ("public",),
-                check=MEMBER_ROLE_ONLY,
-                restrictive=True,
             ),
             Policy(
                 "guild_memberships_select",
@@ -736,11 +725,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ),
                 using=OPEN,
             ),
-        ),
-    ),
-    "oidc_claim_mappings": TableRls(
-        policies=(
-            Policy("guild_isolation", ALL, ("public",), using=guild_scoped("guild_id")),
         ),
     ),
     "platform_ai_connections": TableRls(
@@ -1051,6 +1035,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "federated_identity_secrets": FORCED_NO_POLICY,
     "marketplace_registry_state": FORCED_NO_POLICY,
     "mfa_recovery_codes": FORCED_NO_POLICY,
+    "oidc_claim_mappings": FORCED_NO_POLICY,
     "user_api_keys": FORCED_NO_POLICY,
     "user_email_assertions": FORCED_NO_POLICY,
     "user_emails": FORCED_NO_POLICY,
