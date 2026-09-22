@@ -83,10 +83,6 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The seed behind an account's authenticator factor, Fernet at rest like
     # the secrets above it and re-keyed with them.
     ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
-    # One import job's credential for a foreign site. Almost always empty —
-    # a row lives for the length of one fetch — but a rotation that lands
-    # mid-import must not be what fails it.
-    ("import_credentials", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     # Pre-existing gap, found by the catalog-driven completeness test below: a
     # rotation left the object-storage credential under the old key.
@@ -112,6 +108,10 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 # login is what that policy's system leg names, so the SET ROLE into
 # guild_<id> reaches every member's row.
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
+    # One import job's secret for a foreign site. Almost always empty — a
+    # value lives for the length of one fetch — but a rotation that lands
+    # mid-import must not be what fails it.
+    ("import_jobs", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
     ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
 ]

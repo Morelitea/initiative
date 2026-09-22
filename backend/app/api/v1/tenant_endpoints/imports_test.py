@@ -1,4 +1,4 @@
-"""Tests for import parse endpoints — error response shape."""
+"""Tests for the import engine: envelopes, foreign files, Jira, backups."""
 
 import io
 import json
@@ -21,48 +21,6 @@ from app.testing.factories import (
     create_queue,
     create_task,
 )
-
-
-@pytest.mark.integration
-async def test_todoist_parse_bad_csv_opaque_error(client: AsyncClient, acting_user):
-    """Todoist CSV with a non-numeric INDENT triggers ValueError, returns the opaque constant."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/todoist/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"TYPE,CONTENT,INDENT\ntask,My Task,not-a-number",
-    )
-    assert response.status_code == 400
-    detail = response.json()["detail"]
-    assert detail == "IMPORT_PARSE_FAILED"
-    assert "Traceback" not in detail
-    assert "Error" not in detail
-
-
-@pytest.mark.integration
-async def test_vikunja_parse_bad_json_opaque_error(client: AsyncClient, acting_user):
-    """Malformed Vikunja JSON returns the constant, not a raw exception."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/vikunja/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"this is not json }{{{",
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "IMPORT_PARSE_FAILED"
-
-
-@pytest.mark.integration
-async def test_ticktick_parse_bad_csv_opaque_error(client: AsyncClient, acting_user):
-    """Malformed TickTick CSV returns the constant, not a raw exception."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/ticktick/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"\x00\x01\x02\x03binary garbage",
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "IMPORT_PARSE_FAILED"
 
 
 # ---------------------------------------------------------------------------
@@ -2519,9 +2477,7 @@ async def _connect(client, actor, **overrides):
 async def test_connect_proves_the_token_and_says_what_is_there(
     client, acting_user, session, monkeypatch
 ):
-    """One request answers both of the connect step's questions, and hands
-    back the credential id a later confirm quotes."""
-    from app.models.platform.import_credential import ImportCredential
+    """One request answers both of the connect step's questions."""
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _atlassian_site())
@@ -2540,21 +2496,16 @@ async def test_connect_proves_the_token_and_says_what_is_there(
         ("DOCS", 4)
     ]
 
-    # The token is stored, encrypted, and never comes back out.
+    # The connect keeps nothing and hands nothing back to quote: the token
+    # comes again with the request that starts an import.
     assert "shhh" not in resp.text
-    row = await session.get(ImportCredential, body["credential_id"])
-    assert row is not None
-    assert row.guild_id == a.guild.id and row.created_by == a.user.id
-    assert "shhh" not in row.secret_encrypted
+    assert "credential_id" not in body
 
 
-async def test_a_rejected_token_stores_nothing(
+async def test_a_rejected_token_is_an_error_not_a_connection(
     client, acting_user, session, monkeypatch
 ):
-    """A credential the site will not take is not worth a row."""
-    from sqlmodel import select
-
-    from app.models.platform.import_credential import ImportCredential
+    """A token the site will not take fails the connect."""
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(
@@ -2567,7 +2518,6 @@ async def test_a_rejected_token_stores_nothing(
     resp = await _connect(client, a)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_SOURCE_AUTH"
-    assert not (await session.exec(select(ImportCredential))).all()
 
 
 async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
@@ -2646,23 +2596,28 @@ def _jira_issue(key, summary, status="To Do", assignee=None):
     return {"key": key, "fields": fields}
 
 
-async def _start_jira(client, actor, credential_id, *, initiative_id, keys=("ACME",)):
+async def _start_jira(client, actor, *, initiative_id, keys=("ACME",), **overrides):
+    body = {
+        "site_url": "https://acme.atlassian.net",
+        "email": "someone@example.com",
+        "api_token": "shhh",
+        "initiative_id": initiative_id,
+        "project_keys": list(keys),
+        **overrides,
+    }
     return await client.post(
-        actor.g("/imports/atlassian/jira"),
-        headers=actor.headers,
-        json={
-            "credential_id": credential_id,
-            "initiative_id": initiative_id,
-            "project_keys": list(keys),
-        },
+        actor.g("/imports/atlassian/jira"), headers=actor.headers, json=body
     )
 
 
-async def _credential_row(session, credential_id):
-    from app.models.platform.import_credential import ImportCredential
+async def _job_secret(session, guild_id, job_id):
+    """The secret still on a job row, read as the system engine."""
+    from app.db.session import set_rls_context
 
     session.expunge_all()
-    return await session.get(ImportCredential, credential_id)
+    await set_rls_context(session, guild_id=guild_id)
+    job = await session.get(ImportJob, job_id)
+    return None if job is None else job.secret_encrypted
 
 
 async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
@@ -2690,8 +2645,7 @@ async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
-    credential_id = (await _connect(client, a)).json()["credential_id"]
-    resp = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    resp = await _start_jira(client, a, initiative_id=a.initiative.id)
     assert resp.status_code == 202, resp.text
     job = resp.json()
     assert job["status"] == ImportJobStatus.queued.value
@@ -2716,7 +2670,7 @@ async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
     assert (
         await session.exec(select(Project).where(Project.name == "ACME Board"))
     ).one_or_none() is None
-    assert await _credential_row(session, credential_id) is None
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
 
     confirmed = await client.post(
         a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
@@ -2754,11 +2708,8 @@ async def test_starting_a_jira_import_refuses_what_it_can_up_front(
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _jira_site())
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    credential_id = (await _connect(client, a)).json()["credential_id"]
 
-    nothing = await _start_jira(
-        client, a, credential_id, initiative_id=a.initiative.id, keys=()
-    )
+    nothing = await _start_jira(client, a, initiative_id=a.initiative.id, keys=())
     assert nothing.status_code == 400
     assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
 
@@ -2767,7 +2718,6 @@ async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     malformed = await _start_jira(
         client,
         a,
-        credential_id,
         initiative_id=a.initiative.id,
         keys=('ACME" OR project = "X',),
     )
@@ -2777,23 +2727,22 @@ async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     b = await acting_user(
         guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
     )
-    borrowed = await _start_jira(
-        client, b, credential_id, initiative_id=a.initiative.id
-    )
+    borrowed = await _start_jira(client, b, initiative_id=a.initiative.id)
     assert borrowed.status_code == 404
     assert borrowed.json()["detail"] == "IMPORT_CREDENTIAL_UNAVAILABLE"
 
     target = await _second_initiative(session, a, projects_enabled=False)
-    disabled = await _start_jira(client, a, credential_id, initiative_id=target.id)
+    disabled = await _start_jira(client, a, initiative_id=target.id)
     assert disabled.status_code == 400
     assert disabled.json()["detail"] == "IMPORT_TOOL_DISABLED"
 
-    first = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    first = await _start_jira(client, a, initiative_id=a.initiative.id)
     assert first.status_code == 202, first.text
-    # One connection backs one job.
-    second = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
-    assert second.status_code == 409
-    assert second.json()["detail"] == "IMPORT_CREDENTIAL_UNAVAILABLE"
+    # Each job carries its own secret, so a second import of the same site is
+    # an ordinary second job rather than a contested connection.
+    second = await _start_jira(client, a, initiative_id=a.initiative.id)
+    assert second.status_code == 202, second.text
+    assert second.json()["id"] != first.json()["id"]
 
 
 async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_token(
@@ -2810,17 +2759,14 @@ async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_tok
         atlassian_service, "request_public_target", _jira_site(locked=("ACME",))
     )
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    credential_id = (await _connect(client, a)).json()["credential_id"]
-    job_id = (
-        await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
-    ).json()["id"]
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
     assert job["error"] == "IMPORT_SOURCE_UNREACHABLE"
-    assert await _credential_row(session, credential_id) is None
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
 
     failed = [
         n
@@ -2858,12 +2804,10 @@ async def test_cancelling_a_fetch_stops_it_at_the_next_project(
     site = _jira_site(issues=[_jira_issue("ACME-1", "One")], on_request=cancel_mid_read)
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    credential_id = (await _connect(client, a)).json()["credential_id"]
     job_id = (
         await _start_jira(
             client,
             a,
-            credential_id,
             initiative_id=a.initiative.id,
             keys=("ACME", "BETA"),
         )
@@ -2875,4 +2819,128 @@ async def test_cancelling_a_fetch_stops_it_at_the_next_project(
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.cancelled.value
     assert not any("/project/BETA" in url for url in site.requested)
-    assert await _credential_row(session, credential_id) is None
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+
+# ---------------------------------------------------------------------------
+# Imports from another product's export file
+# ---------------------------------------------------------------------------
+
+TODOIST_CSV = (
+    "TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,"
+    "DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,meta,DEADLINE,DEADLINE_LANG\n"
+    "section,Doing,,,,,,,,,,,,,\n"
+    "task,Ship it,With detail,1,1,,,,,,,,,2026-03-09,\n"
+    "task,A step,,4,2,,,,,,,,,,\n"
+    "note,Said something,,,,Dana (42),,,,,,,,,\n"
+)
+
+
+async def _preview_foreign(client, actor, source, content):
+    return await client.post(
+        actor.g(f"/imports/foreign/{source}/preview"),
+        headers={**actor.headers, "Content-Type": "text/plain"},
+        content=content.encode(),
+    )
+
+
+async def test_preview_says_what_a_todoist_export_holds(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "todoist", TODOIST_CSV)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["source"] == "todoist"
+    # A Todoist CSV names one project and does not say which, so the step that
+    # follows collects a name rather than offering a choice.
+    assert body["picks_one"] is False
+    assert body["options"][0]["task_count"] == 1
+
+
+async def test_preview_of_an_unknown_product_is_refused(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "trello", "anything")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_UNKNOWN_SOURCE"
+
+
+async def test_preview_of_a_file_that_is_not_that_export_is_refused(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "vikunja", "this is not json }{{{")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_FILE_UNREADABLE"
+
+
+async def test_a_todoist_export_becomes_a_project(client, acting_user, session):
+    """The whole point: a foreign file lands as a project carrying what it
+    said — statuses from its sections, a checklist, a comment, a deadline —
+    through the same apply path an exported project takes."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": a.initiative.id,
+            "selection": "From Todoist",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["tasks"] == 1
+
+    project = (
+        await session.exec(select(Project).where(Project.name == "From Todoist"))
+    ).first()
+    assert project is not None
+    task = (await session.exec(select(Task).where(Task.project_id == project.id))).one()
+    assert task.title == "Ship it"
+    assert [item["text"] for item in task.checklist] == ["A step"]
+    assert task.due_date is not None
+
+
+async def test_importing_from_a_product_needs_the_create_permission(
+    client, acting_user, session
+):
+    """Nothing about arriving from another product widens who may create a
+    project here — it is the same gate the envelope route applies."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    other = await _second_initiative(session, a, create_projects_role="admin")
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=other,
+        initiative_role="member",
+    )
+    resp = await client.post(
+        b.g("/imports/foreign/todoist"),
+        headers=b.headers,
+        json={
+            "initiative_id": other.id,
+            "selection": "Nope",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "IMPORT_PERMISSION_REQUIRED"
+
+
+async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": 9_999_999,
+            "selection": "Nope",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 404

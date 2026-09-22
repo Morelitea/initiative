@@ -22,9 +22,9 @@ A stale ``fetching`` row is the one exception, and for the reason that makes
 the rule above right: a fetch writes no content row at all, only a payload in
 storage. There is nothing committed to duplicate, so the partial payload is
 thrown away and the job goes back in the queue to start over — keeping its
-credential, which is the one thing a restart still needs.
+secret, which is the one thing a restart still needs.
 
-Every other terminal transition here drops the job's credential along with its
+Every other terminal transition here clears the job's secret along with its
 payload. Both are things the job was lent rather than things it owns, and a
 job that is over needs neither.
 """
@@ -47,7 +47,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import atlassian_job
-from app.services.import_engine import credentials as import_credentials
 from app.services.import_engine import engine as import_engine
 from app.services.platform import accounts as accounts_service
 from app.services.import_engine.contract import ImportEngineError
@@ -133,7 +132,7 @@ async def _process_guild_jobs(
         job.error = ImportEngineMessages.IMPORT_INTERRUPTED
         job.updated_at = now
         import_engine.delete_payload(guild_id, job.payload_ref)
-        await import_credentials.discard(_credential_id(job))
+        job.secret_encrypted = None
         session.add(job)
         outcomes.append(_outcome(job, guild_id))
     if stale:
@@ -201,7 +200,7 @@ async def _process_guild_jobs(
             job.error = None
         job.updated_at = datetime.now(timezone.utc)
         import_engine.delete_payload(guild_id, job.payload_ref)
-        await import_credentials.discard(_credential_id(job))
+        job.secret_encrypted = None
         job.payload_ref = None
         session.add(job)
         await session.commit()
@@ -221,7 +220,7 @@ async def _fetch(
     the site was being read: the bundle, if one got written, is thrown away
     and the row is left as the cancel put it.
 
-    The credential goes in every case. A staged bundle holds everything the
+    The secret goes in every case. A staged bundle holds everything the
     apply needs, and a job that failed or was cancelled needs nothing.
     """
     job.status = ImportJobStatus.fetching
@@ -245,7 +244,6 @@ async def _fetch(
         session.add(job)
         await session.commit()
 
-    credential_id = _credential_id(job)
     try:
         staged = await atlassian_job.fetch(
             job,
@@ -255,7 +253,9 @@ async def _fetch(
         )
     except atlassian_job.FetchCancelled:
         logger.info("import fetch stopped by cancel id=%s guild=%s", job.id, guild_id)
-        await import_credentials.discard(credential_id)
+        job.secret_encrypted = None
+        session.add(job)
+        await session.commit()
         return None
     except Exception as exc:  # fail closed: record a code, never content
         logger.exception(
@@ -264,26 +264,30 @@ async def _fetch(
             guild_id,
             job.source,
         )
-        await import_credentials.discard(credential_id)
         # Whatever failed may have been a heartbeat's write; start clean.
         await session.rollback()
         # A cancel that landed mid-read stays a cancel, not a failure.
         if not await still_fetching():
+            job.secret_encrypted = None
+            session.add(job)
             await session.commit()
             return None
         job.status = ImportJobStatus.failed
         job.error = _error_code(exc)
+        job.secret_encrypted = None
         job.updated_at = datetime.now(timezone.utc)
         session.add(job)
         await session.commit()
         return _outcome(job, guild_id)
 
-    await import_credentials.discard(credential_id)
     if not await still_fetching():
         import_engine.delete_payload(guild_id, staged.payload_ref)
+        job.secret_encrypted = None
+        session.add(job)
         await session.commit()
         return None
     now = datetime.now(timezone.utc)
+    job.secret_encrypted = None
     job.status = ImportJobStatus.staged
     job.payload_ref = staged.payload_ref
     job.plan = staged.plan
@@ -293,17 +297,6 @@ async def _fetch(
     session.add(job)
     await session.commit()
     return None
-
-
-def _credential_id(job: ImportJob) -> int | None:
-    """The credential this job was lent, if it was lent one.
-
-    ``params`` is JSON that round-tripped through a request, so the value is
-    checked rather than trusted — and a job with no foreign source (every
-    backup, every envelope) simply has no such key.
-    """
-    raw = (job.params or {}).get("credential_id")
-    return raw if isinstance(raw, int) else None
 
 
 def _outcome(job: ImportJob, guild_id: int) -> JobOutcome:
@@ -437,13 +430,9 @@ async def process_import_gc() -> None:
             )
             for job in jobs:
                 import_engine.delete_payload(guild_id, job.payload_ref)
-                await import_credentials.discard(_credential_id(job))
+                job.secret_encrypted = None
                 job.status = ImportJobStatus.expired
                 job.payload_ref = None
                 job.updated_at = now
                 session.add(job)
             await session.commit()
-    # The backstop under every ``discard`` above: a credential whose job never
-    # reached a transition to be cleaned up by — a connect nobody finished, a
-    # wizard somebody closed — is removed on its own deadline.
-    await import_credentials.sweep_expired()
