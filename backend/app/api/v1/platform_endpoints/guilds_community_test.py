@@ -6,6 +6,8 @@ Covers the two endpoints a guild's opt-in unlocks —
 plus the guild-admin PATCH that sets the opt-in and its categories.
 """
 
+from collections.abc import Callable
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -891,27 +893,35 @@ def _tomorrow() -> str:
 ADULT_BIRTHDATE = _birthdate_for_age(30)
 
 
+# The dates are passed as callables rather than values: a parametrize list is
+# built at collection, which in a full run is up to an hour before the request
+# it describes. Two of these sit exactly on a day boundary, so a UTC midnight
+# in between turned "sixteen tomorrow" into sixteen today and "a date still to
+# come" into today. Computing each one in the body closes that window.
 @pytest.mark.parametrize(
-    "birthdate,expected_status,expected_detail",
+    "make_birthdate,expected_status,expected_detail",
     [
-        pytest.param(ADULT_BIRTHDATE, 200, None, id="an adult"),
+        pytest.param(lambda: ADULT_BIRTHDATE, 200, None, id="an adult"),
         pytest.param(
-            _birthdate_for_age(16), 200, None, id="sixteen today, on the boundary"
+            lambda: _birthdate_for_age(16),
+            200,
+            None,
+            id="sixteen today, on the boundary",
         ),
         pytest.param(
-            _birthdate_days_before_turning(16, 1),
+            lambda: _birthdate_days_before_turning(16, 1),
             422,
             "USER_AGE_BELOW_MINIMUM",
             id="sixteen tomorrow, so fifteen today",
         ),
         pytest.param(
-            _birthdate_for_age(14), 422, "USER_AGE_BELOW_MINIMUM", id="fourteen"
+            lambda: _birthdate_for_age(14), 422, "USER_AGE_BELOW_MINIMUM", id="fourteen"
         ),
         pytest.param(
-            _tomorrow(), 422, "USER_AGE_INVALID_BIRTHDATE", id="a date still to come"
+            _tomorrow, 422, "USER_AGE_INVALID_BIRTHDATE", id="a date still to come"
         ),
         pytest.param(
-            _birthdate_for_age(200),
+            lambda: _birthdate_for_age(200),
             422,
             "USER_AGE_INVALID_BIRTHDATE",
             id="a date nobody was born on",
@@ -922,7 +932,7 @@ async def test_the_age_a_birthdate_states_is_what_the_answer_turns_on(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
-    birthdate: str,
+    make_birthdate: Callable[[], str],
     expected_status: int,
     expected_detail: str | None,
 ):
@@ -931,6 +941,7 @@ async def test_the_age_a_birthdate_states_is_what_the_answer_turns_on(
     nobody could have been born on is refused separately, so the reply says
     which it was."""
     a = await acting_user("member", age_confirmed_at=None)
+    birthdate = make_birthdate()
 
     response = await client.post(
         "/api/v1/users/me/age-confirmation",
