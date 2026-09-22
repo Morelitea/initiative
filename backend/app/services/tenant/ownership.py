@@ -209,27 +209,41 @@ async def summarize_unowned_content(
 
 
 async def _clear_owner_grants(session: AsyncSession, *, tool: Tool, row: Any) -> None:
-    """Drop every user-held owner grant on one resource.
+    """Leave the resource with no owner grant at all.
 
-    Every one, not just the one the owner column names: the re-homing paths this
-    replaced could leave several rows at owner level on a single resource, and
-    "the owner" has to mean one person or nobody.
+    Every one, whoever holds it. Two shapes turn up beyond the single user row
+    the caller has in mind: several user rows at owner level (the re-homing
+    paths this replaced could upgrade every initiative manager at once), and a
+    row whose grantee is a *role* or the whole initiative, which the calendar
+    backfill in migration 0157 seeded before there was an index saying a
+    resource has one owner. That index counts a role's owner row like anyone
+    else's, so leaving one standing made the next owner collide with it.
+
+    A user's owner row is deleted: the caller is about to say who holds
+    ownership now. A role's or everyone's is demoted to ``write`` instead —
+    dropping it would take editing away from people who have it today, and the
+    sharing panel skips owner rows, so no admin ever saw one to decide about.
+    Nothing can collide with the demoted row: ``resource_grants_unique_grantee``
+    already allows each grantee one grant per resource.
     """
     grants = (
         await session.exec(
             select(ResourceGrant).where(
                 ResourceGrant.resource_type == tool.value,
                 ResourceGrant.resource_id == row.id,
-                ResourceGrant.user_id.is_not(None),
                 ResourceGrant.level == ResourceAccessLevel.owner,
             )
         )
     ).all()
     for grant in grants:
-        await session.delete(grant)
-    # Flush the deletes before any new owner row is added. The unit of work
-    # orders INSERTs ahead of DELETEs, so without this the incoming owner
-    # collides with the outgoing one on the single-owner index.
+        if grant.user_id is not None:
+            await session.delete(grant)
+        else:
+            grant.level = ResourceAccessLevel.write
+            session.add(grant)
+    # Flush before any new owner row is added. The unit of work orders INSERTs
+    # ahead of DELETEs, so without this the incoming owner collides with the
+    # outgoing one on the single-owner index.
     if grants:
         await session.flush()
 
