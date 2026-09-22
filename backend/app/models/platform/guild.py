@@ -357,11 +357,37 @@ class GuildRole(str, Enum):
     # Break-glass grantees are ``admin``, not this.
     support = "support"
 
+    def reaches(self, rung: "GuildRole") -> bool:
+        """Whether this rung carries what ``rung`` carries.
 
-#: Roles that carry a guild admin's authority. ``superadmin`` sits above
-#: ``admin``, so anything asking "is this an admin" means "admin or above".
+        The community's ladder asked as a comparison rather than as a set per
+        question: ``admin`` reaches ``member``, ``superadmin`` reaches both,
+        and a rung added between them needs no list updated. ``support`` is
+        below every rung — granted access is its own identity, and what it
+        reaches is its grant, not a place on this ladder.
+        """
+        return GUILD_LADDER.index(self) >= GUILD_LADDER.index(rung)
+
+
+#: The community's ladder, lowest rung first. ``support`` is the identity
+#: granted access carries and sits below a member: it is not a rung of the
+#: community, and nothing it holds comes from being on this list.
+#:
+#: One ordering, in one place. Asking whether a rung carries another's
+#: authority is :meth:`GuildRole.reaches`, and every set below derives from it
+#: rather than restating which rungs are which.
+GUILD_LADDER: tuple[GuildRole, ...] = (
+    GuildRole.support,
+    GuildRole.member,
+    GuildRole.admin,
+    GuildRole.superadmin,
+)
+
+#: Roles that carry a guild admin's authority — the ladder from ``admin`` up.
+#: Kept as a set because that is how most callers ask; it is derived, so the
+#: day a rung is added between them there is nothing here to remember.
 GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
-    {GuildRole.admin, GuildRole.superadmin}
+    role for role in GuildRole if role.reaches(GuildRole.admin)
 )
 
 #: What an ordinary guild admin may hand out. ``support`` is never persisted at

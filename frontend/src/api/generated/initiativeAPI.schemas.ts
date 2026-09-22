@@ -235,16 +235,6 @@ export interface AccessGrantRead {
   approved_by_email: string | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
-  /**
-   * Whether this grant runs the community it names, for its window.
-   *
-   * Both settings rungs do: the lower one is "what a guild admin
-   * administers". Answered here rather than by whatever reads the row, so
-   * a switcher entry built from a grant carries the same answer a guild's
-   * own payload does (``GuildRead.is_admin``). Which rung it is, is
-   * ``access_level`` — the community's own ladder, borrowed.
-   */
-  readonly administers_guild: boolean;
 }
 
 export type AccountDeletionRequestAction =
@@ -2333,7 +2323,6 @@ export interface ContactRead {
   full_name: string | null;
   profile_decorations: ProfileDecorationsOutput;
   guild_role: string | null;
-  is_guild_admin: boolean;
   presence: Presence;
   shared_guild_ids: number[];
 }
@@ -4562,7 +4551,7 @@ export interface GuildProviderConnectionUpdate {
  * the guilds router:
  *
  * - The fields below with no note are for **every member**: guild identity,
- *   the caller's own membership, the roster size, ``content_read_only``.
+ *   the caller's own rung, the roster size, ``content_read_only``.
  * - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
  *   retention window, lifecycle status, sign-in entitlement. They back
  *   admin-gated surfaces, so a regular member's payload leaves them ``None``.
@@ -4574,7 +4563,6 @@ export interface GuildRead {
   description: string | null;
   id: number;
   role: GuildRole;
-  is_admin: boolean;
   position: number;
   created_at: string;
   updated_at: string;
@@ -4864,7 +4852,6 @@ export interface UserSummary {
   full_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
   guild_role: string | null;
-  is_guild_admin: boolean;
 }
 
 /**
@@ -8210,7 +8197,6 @@ export interface UserGuildMember {
   initiative_roles: UserInitiativeRole[];
   full_name: string | null;
   guild_role: string | null;
-  is_guild_admin: boolean;
   oidc_managed: boolean;
 }
 

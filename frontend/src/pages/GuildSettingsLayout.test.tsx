@@ -7,7 +7,6 @@ import { renderPage } from "@/__tests__/helpers/render";
 // What this member is in this community, and what the operator has granted it.
 // Flipped per test.
 let guildRole = "superadmin";
-let isGuildAdmin = true;
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let reachesContent = true;
 let authOptions: string[] = ["restrictions", "providers"];
@@ -20,7 +19,6 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
       id: 4,
       name: "Test Community",
       role: guildRole,
-      is_admin: isGuildAdmin,
       grantSettingsLevel,
       reachesContent,
       auth_options: authOptions,
@@ -36,7 +34,6 @@ const render = () => renderPage(GuildSettingsLayout, { auth: { user: buildUser()
 describe("GuildSettingsLayout", () => {
   beforeEach(() => {
     guildRole = "superadmin";
-    isGuildAdmin = true;
     grantSettingsLevel = null;
     reachesContent = true;
     authOptions = ["restrictions", "providers"];
@@ -83,10 +80,11 @@ describe("GuildSettingsLayout", () => {
     expect(screen.queryByRole("tab", { name: /data/i })).not.toBeInTheDocument();
   });
 
-  it.each(["admin", "member"])("does not offer it to %s", async (role) => {
+  it("does not offer it to an ordinary admin", async () => {
     // Everything on that tab is the superadmin's to set, so an ordinary
-    // admin is not shown a page they could only look at.
-    guildRole = role;
+    // admin is not shown a page they could only look at. A member gets no
+    // settings section at all — see "turns a member with nothing away".
+    guildRole = "admin";
     render();
 
     expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
@@ -99,7 +97,6 @@ describe("GuildSettingsLayout", () => {
     // zone included. The entry carries the rung the server recorded on the
     // grant, which is what the seat is read from.
     guildRole = "superadmin";
-    isGuildAdmin = true;
     grantSettingsLevel = "superadmin";
     // A grantee's entry carries none of the community's own options; the page
     // reads the real ones for itself.
@@ -117,7 +114,6 @@ describe("GuildSettingsLayout", () => {
 
   it("gives an admin settings grantee what an admin administers, and no more", async () => {
     guildRole = "admin";
-    isGuildAdmin = true;
     grantSettingsLevel = "admin";
     render();
 
@@ -132,7 +128,6 @@ describe("GuildSettingsLayout", () => {
     // Initiatives and Trash are built on routes the server refuses to a grant
     // carrying no content level, so they are not offered.
     guildRole = "superadmin";
-    isGuildAdmin = true;
     grantSettingsLevel = "superadmin";
     reachesContent = false;
     render();
@@ -145,7 +140,6 @@ describe("GuildSettingsLayout", () => {
 
   it("turns a member with nothing away", async () => {
     guildRole = "member";
-    isGuildAdmin = false;
     render();
 
     expect(await screen.findByText(/permission/i)).toBeInTheDocument();

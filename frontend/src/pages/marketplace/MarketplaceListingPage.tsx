@@ -41,6 +41,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useGuildPath } from "@/lib/guildUrl";
 import { parseCommunityShelf } from "@/lib/marketplace";
+import { administersGuildContent } from "@/lib/permissions";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
@@ -65,7 +66,7 @@ export function MarketplaceListingPage() {
   const backToShelf = { kind: parseCommunityShelf(shelf ?? listing?.kind) };
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
-  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  const isGuildAdmin = administersGuildContent(activeGuild);
   // Whether this guild already has it. Every member may read the installs, so
   // this answers for the person asking as well as the one who could act.
   //

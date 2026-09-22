@@ -81,6 +81,29 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
   return canManagePlatformConfig(user) || canAccessOperatorDashboard(user);
 }
 
+/**
+ * The community's ladder, lowest rung first — the one ordering, mirroring
+ * `GUILD_LADDER` on the backend. `support` is the identity granted access
+ * carries and sits below a member: it is not a rung of the community.
+ */
+export const GUILD_LADDER = ["support", "member", "admin", "superadmin"] as const;
+
+/**
+ * Whether the rung `held` carries what `rung` carries.
+ *
+ * The ladder asked as a comparison rather than as a flag per question.
+ * Mirrors `GuildRole.reaches` on the backend, which is what actually decides;
+ * a rung the server has not sent, or one this build does not know, reaches
+ * nothing.
+ */
+export const rungReaches = (
+  held: string | null | undefined,
+  rung: (typeof GUILD_LADDER)[number]
+): boolean => {
+  const at = GUILD_LADDER.indexOf(held as (typeof GUILD_LADDER)[number]);
+  return at >= 0 && at >= GUILD_LADDER.indexOf(rung);
+};
+
 /** True when a server-computed per-resource permission level allows writing.
  * Reads `my_permission_level` — never derive this client-side. */
 /**
@@ -98,22 +121,22 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
  * window. The same rule `public.guild_superadmin` applies in the database.
  */
 export const holdsGuildSeat = (guild: { role?: string | null } | null | undefined): boolean =>
-  guild?.role === "superadmin";
+  rungReaches(guild?.role, "superadmin");
 
 /**
  * Whether this request administers the community's own configuration.
  *
  * Its settings, its roster and its invites, as distinct from the work inside
- * it. Read, not derived: the server answers it as `GuildRead.is_admin` — on a
- * membership row and on a live settings grant alike, at either rung, since
- * the lower of the two is "what a guild admin administers".
+ * it. The rung the server sent reaching `admin` — on a membership row and on
+ * a live settings grant alike, since the lower of the grant's two rungs is
+ * "what a guild admin administers".
  *
  * Not the same question as reaching the community's content: a settings grant
- * carries none. Use {@link reachesGuildContent} for that.
+ * carries none. Use {@link administersGuildContent} where the surface is built
+ * on the work rather than on the configuration.
  */
-export const administersGuild = (
-  guild: { is_admin?: boolean | null } | null | undefined
-): boolean => Boolean(guild?.is_admin);
+export const administersGuild = (guild: { role?: string | null } | null | undefined): boolean =>
+  rungReaches(guild?.role, "admin");
 
 /**
  * Whether this request reaches the community's content at all.
@@ -125,6 +148,17 @@ export const administersGuild = (
 export const reachesGuildContent = (
   guild: { reachesContent?: boolean } | null | undefined
 ): boolean => guild?.reachesContent !== false;
+
+/**
+ * Whether this request administers the community's *work*.
+ *
+ * Both halves: the rung reaches `admin`, and this entry reaches content at
+ * all. A settings grant runs a community's configuration and none of what is
+ * inside it, so the surfaces built on the work ask this one.
+ */
+export const administersGuildContent = (
+  guild: { role?: string | null; reachesContent?: boolean } | null | undefined
+): boolean => administersGuild(guild) && reachesGuildContent(guild);
 
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";

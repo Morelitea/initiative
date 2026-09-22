@@ -82,7 +82,7 @@ class GuildRead(GuildBase):
     the guilds router:
 
     - The fields below with no note are for **every member**: guild identity,
-      the caller's own membership, the roster size, ``content_read_only``.
+      the caller's own rung, the roster size, ``content_read_only``.
     - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
       retention window, lifecycle status, sign-in entitlement. They back
       admin-gated surfaces, so a regular member's payload leaves them ``None``.
@@ -96,14 +96,11 @@ class GuildRead(GuildBase):
 
     id: int
     #: The rung this caller holds in the community: the membership row's own,
-    #: or the one a live settings grant confers for its window. The seat is
-    #: this reading ``superadmin`` — there is no second field for it.
+    #: or the one a live settings grant confers for its window. It is the only
+    #: thing here that says what they may do — administering is this reaching
+    #: ``admin`` and the seat is it reaching ``superadmin``, asked of the
+    #: ladder rather than answered again as a flag apiece.
     role: GuildRole
-    #: Whether this caller administers the guild — the rung reaching ``admin``,
-    #: which is also the line this payload is split on. Computed here so a
-    #: surface asks the server one question instead of each screen deciding
-    #: what a rung means.
-    is_admin: bool = False
     position: int
     created_at: datetime
     updated_at: datetime

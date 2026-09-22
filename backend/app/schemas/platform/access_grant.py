@@ -155,19 +155,6 @@ class AccessGrantRead(SanitizedBaseModel):
             and self.expires_at > datetime.now(timezone.utc)
         )
 
-    @computed_field(return_type=bool)  # type: ignore[misc]
-    @property
-    def administers_guild(self) -> bool:
-        """Whether this grant runs the community it names, for its window.
-
-        Both settings rungs do: the lower one is "what a guild admin
-        administers". Answered here rather than by whatever reads the row, so
-        a switcher entry built from a grant carries the same answer a guild's
-        own payload does (``GuildRead.is_admin``). Which rung it is, is
-        ``access_level`` — the community's own ladder, borrowed.
-        """
-        return self.is_live and self.purpose == "settings"
-
 
 class BreakGlassRequirements(SanitizedBaseModel):
     """What a break-glass request will be asked for, before it is made.

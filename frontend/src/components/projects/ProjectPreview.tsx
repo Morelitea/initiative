@@ -15,6 +15,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { managesInitiative } from "@/hooks/useInitiativeAccess";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { administersGuildContent } from "@/lib/permissions";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +70,7 @@ export const ProjectCardLink = ({
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
+  const canPin = canPinProject(project, userId, administersGuildContent(activeGuild));
 
   return (
     <div className="relative">
@@ -168,7 +169,7 @@ export const ProjectRowLink = ({
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
+  const canPin = canPinProject(project, userId, administersGuildContent(activeGuild));
   return (
     <div className="relative">
       {dragHandleProps ? (

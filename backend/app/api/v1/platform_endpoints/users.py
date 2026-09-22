@@ -257,7 +257,6 @@ async def list_users(
     for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
-        member.is_guild_admin = guild_role in GUILD_ADMIN_ROLES
         member.oidc_managed = oidc_provider_id is not None
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
@@ -266,12 +265,9 @@ async def list_users(
 
 
 def _membership_standing(role: GuildRole | None) -> dict[str, object]:
-    """The two membership fields a picker row carries: the role to show, and
-    whether it administers the guild — which is the question a caller asks."""
-    return {
-        "guild_role": role.value if role is not None else None,
-        "is_guild_admin": role in GUILD_ADMIN_ROLES,
-    }
+    """The membership field a picker row carries: the rung, which is both what
+    a row shows and what a surface asks the ladder about."""
+    return {"guild_role": role.value if role is not None else None}
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)

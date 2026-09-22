@@ -49,7 +49,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { administersGuild, holdsGuildSeat } from "@/lib/permissions";
+import { administersGuild, holdsGuildSeat, rungReaches } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -161,7 +161,10 @@ export const SettingsUsersPage = () => {
   // Ownership can only be handed to a guild admin, so the picker is the guild's
   // admin roster rather than every member.
   const guildAdmins = useMemo(
-    () => (usersQuery.data ?? []).filter((m) => m.is_guild_admin && m.status !== "anonymized"),
+    () =>
+      (usersQuery.data ?? []).filter(
+        (m) => rungReaches(m.guild_role, "admin") && m.status !== "anonymized"
+      ),
     [usersQuery.data]
   );
 

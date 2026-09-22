@@ -39,7 +39,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { administersGuild } from "@/lib/permissions";
+import { administersGuild, rungReaches } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -229,7 +229,7 @@ export const SettingsInitiativesPage = () => {
     [usersQuery.data]
   );
   const adminUserIds = useMemo(
-    () => new Set(candidates.filter((candidate) => candidate.is_guild_admin).map((c) => c.id)),
+    () => new Set(candidates.filter((c) => rungReaches(c.guild_role, "admin")).map((c) => c.id)),
     [candidates]
   );
 

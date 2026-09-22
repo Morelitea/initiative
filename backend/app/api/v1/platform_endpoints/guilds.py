@@ -51,7 +51,6 @@ from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.models.platform.guild import (
-    GUILD_ADMIN_ROLES,
     assignable_roles,
     Guild,
     GuildCategory,
@@ -151,9 +150,10 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
     """
-    is_admin = membership.role in GUILD_ADMIN_ROLES
-    # Role decides, not the caller: passing the row for a member still serves a
-    # member's payload, so this stays the one place the split is made.
+    # The rung decides, not the caller: passing the row for a member still
+    # serves a member's payload, so this stays the one place the split is made.
+    # Not on the wire — a reader asks the ladder the same question.
+    is_admin = membership.role.reaches(GuildRole.admin)
     admin_row = administration if is_admin else None
     return GuildRead(
         id=guild.id,
@@ -162,7 +162,6 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=membership.role,
-        is_admin=is_admin,
         position=membership.position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,

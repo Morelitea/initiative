@@ -115,7 +115,6 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // community's own ladder, borrowed. A guild's own payload carries the same
   // field, so a screen asks one question whichever way it was reached.
   role: settingsGrantLevel(settingsGrant) ?? "member",
-  is_admin: settingsGrant?.administers_guild ?? false,
   // A settings grant carries no content access; a content grant is what does.
   reachesContent: grant.purpose === "content",
   position: Number.MAX_SAFE_INTEGER,

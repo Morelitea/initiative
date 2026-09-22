@@ -164,10 +164,10 @@ class UserGuildMember(UserGuildRead):
     """
 
     full_name: Optional[str] = None
-    guild_role: Optional[str] = None  # Set by the endpoint
-    #: Whether this member administers the guild — admin or above. The role is
-    #: here to be shown; this is here to be asked.
-    is_guild_admin: bool = False
+    #: The rung this member holds in the guild, set by the endpoint. Shown as
+    #: it stands, and asked of the ladder where a surface needs to know
+    #: whether it administers the place.
+    guild_role: Optional[str] = None
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
@@ -191,13 +191,10 @@ class UserSummary(UserIdentity):
 
     full_name: Optional[str] = None
     profile_decorations: Optional["ProfileDecorations"] = None
-    #: ``admin`` or ``member`` in the guild this was read under. Absent where
-    #: the caller asked outside a guild, which is why it is optional rather
-    #: than defaulted to the quieter of the two.
+    #: The rung this member holds in the guild this was read under. Absent
+    #: where the caller asked outside a guild, which is why it is optional
+    #: rather than defaulted to the quietest of them.
     guild_role: Optional[str] = None
-    #: Whether this member administers the guild being read — admin or above.
-    #: The role is here to be shown; this is here to be asked.
-    is_guild_admin: bool = False
 
 
 class UserSummaryListResponse(SanitizedBaseModel):
