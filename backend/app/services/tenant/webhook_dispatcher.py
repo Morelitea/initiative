@@ -155,7 +155,7 @@ async def dispatch_event(
     """Find matching subscriptions and POST the event to each.
 
     Matches require:
-      * subscription.guild_id == event guild_id (RLS already enforces)
+      * the subscription is in this community's schema (RLS already enforces)
       * subscription.event_types includes event_type
       * subscription.active is true
       * subscription.initiative_id is None OR equal to event initiative_id
@@ -185,7 +185,6 @@ async def dispatch_event(
         return
 
     statement = select(WebhookSubscription).where(
-        WebhookSubscription.guild_id == guild_id,
         WebhookSubscription.active.is_(True),
         # An app that is no longer installed is sent nothing, whatever its
         # subscriptions still say.

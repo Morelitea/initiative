@@ -586,11 +586,7 @@ async def list_memberships(
         retention: int | None = None
         administration: GuildAdministration | None = None
         if membership.role in GUILD_ADMIN_ROLES:
-            row = (
-                await session.exec(
-                    select(GuildSetting).where(GuildSetting.guild_id == guild.id)
-                )
-            ).one_or_none()
+            row = (await session.exec(select(GuildSetting).limit(1))).one_or_none()
             # No row yet → the 90-day default; an explicit NULL is the user's "never".
             retention = 90 if row is None else row.retention_days
             if row is not None:
@@ -652,7 +648,7 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     """Seed a guild_settings row. guild_settings is guild-scoped (it holds
     private config like API keys), so under schema-per-guild this must run with
     the session already routed to the guild's schema."""
-    settings_row = GuildSetting(guild_id=guild_id, retention_days=90)
+    settings_row = GuildSetting(retention_days=90)
     session.add(settings_row)
     await session.flush()
     return settings_row
@@ -1058,7 +1054,7 @@ async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int 
     collapses both to None and silently re-enables auto-purge for guilds
     that opted out.
     """
-    stmt = select(GuildSetting).where(GuildSetting.guild_id == guild_id)
+    stmt = select(GuildSetting).limit(1)
     result = await session.exec(stmt)
     row = result.one_or_none()
     if row is None:

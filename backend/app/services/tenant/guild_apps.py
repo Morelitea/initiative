@@ -92,7 +92,6 @@ async def _create_calendar(
     session: AsyncSession, *, guild_id: int, created_by: int, name: str
 ) -> int:
     calendar = Calendar(
-        guild_id=guild_id,
         # No initiative: this belongs to the guild. Its grants decide who reads
         # and writes it, exactly as for an initiative calendar.
         initiative_id=None,
@@ -108,7 +107,6 @@ async def _create_calendar(
             resource_id=calendar.id,
             user_id=created_by,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_id,
             initiative_id=None,
         )
     )
@@ -121,7 +119,6 @@ async def _create_calendar(
             resource_id=calendar.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild_id,
             initiative_id=None,
         )
     )
@@ -254,9 +251,7 @@ async def find_mounting_app(
     lock a calendar could be committed just as its app went away, and would then
     be live with nothing that reaches it and no removal that knows about it.
     """
-    apps = (
-        await session.exec(select(GuildApp).where(GuildApp.guild_id == guild_id))
-    ).all()
+    apps = (await session.exec(select(GuildApp))).all()
     for app in apps:
         if (app.definition or {}).get("app_kind") != "tool_instance":
             continue
@@ -363,7 +358,6 @@ async def install_app(
         name=name,
     )
     app = GuildApp(
-        guild_id=guild_id,
         listing_uid=listing_uid,
         listing_version=listing_version,
         app_kind=definition["app_kind"],

@@ -84,7 +84,6 @@ class Wiki(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(
         sa_column=Column(
             Integer,
@@ -258,7 +257,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field: ClassVar[str] = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     wiki_id: int = Field(
         sa_column=Column(
             Integer,

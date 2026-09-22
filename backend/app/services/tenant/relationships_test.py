@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.core.relationships import (
     ENDPOINT_KINDS,
     SPECS,
@@ -328,7 +329,6 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
             resource_id=owner.project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=owner.guild.id,
             initiative_id=owner.initiative.id,
         )
     )
@@ -445,7 +445,7 @@ async def test_two_guilds_events_do_not_share_attachments(
     for actor, event, _ in events:
         await route_session_to_guild(session, actor.guild.id)
         found = await documents_for_events(session, [event])
-        paired.append((event.guild_id, event.id, found.get(event.id, [])))
+        paired.append((guild_of(event), event.id, found.get(event.id, [])))
 
     assert len(paired) == 2, "one guild's events displaced the other's"
     for (_, event, doc), (_, _, found) in zip(events, paired):

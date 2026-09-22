@@ -53,7 +53,6 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
             resource_id=proj_a.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=init_a.id,
         )
     )

@@ -16,7 +16,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
-from app.testing import create_post, create_project, create_task
+from app.testing import guild_of, create_post, create_project, create_task
 from app.testing.schema_harness import route_session_to_guild
 
 THUMBS = "\N{THUMBS UP SIGN}"
@@ -24,14 +24,13 @@ PARTY = "\N{PARTY POPPER}"
 
 
 async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, entity.guild_id)
+    await route_session_to_guild(session, guild_of(entity))
     session.add(
         ResourceGrant(
             resource_type=tool.value,
             resource_id=entity.id,
             user_id=user.id,
             level=level,
-            guild_id=entity.guild_id,
             initiative_id=entity.initiative_id,
         )
     )
@@ -49,7 +48,7 @@ async def _posts_enabled(session, initiative) -> None:
 async def _strip_grants(session, tool: Tool, entity):
     """Leave only the creator's owner grant, so each test states the sharing
     it needs."""
-    await route_session_to_guild(session, entity.guild_id)
+    await route_session_to_guild(session, guild_of(entity))
     await session.exec(
         sa_delete(ResourceGrant).where(
             ResourceGrant.resource_type == tool.value,
@@ -233,7 +232,6 @@ class TestReactionToggle:
         find the reaction missing. The row already being there must read as the
         state converging, not as a duplicate-key crash."""
         from app.core.reactions import ReactionTarget
-        from app.models.tenant.comment import Comment
         from app.models.tenant.reaction import Reaction
         from sqlmodel import select
 
@@ -246,12 +244,8 @@ class TestReactionToggle:
         # Stand in for the request that got there first: the row exists, but
         # this call's own DELETE has already reported nothing to take back.
         await route_session_to_guild(session, a.guild.id)
-        comment = (
-            await session.exec(select(Comment).where(Comment.id == comment_id))
-        ).one()
         session.add(
             Reaction(
-                guild_id=comment.guild_id,
                 target_type=ReactionTarget.comment.value,
                 target_id=comment_id,
                 emoji=THUMBS,
@@ -283,7 +277,6 @@ class TestReactionToggle:
         that landed concurrently is still counted — and going over rolls the
         whole request back rather than leaving the extra behind."""
         from app.core.reactions import ReactionTarget
-        from app.models.tenant.comment import Comment
         from app.models.tenant.reaction import Reaction
         from sqlmodel import select
 
@@ -294,9 +287,6 @@ class TestReactionToggle:
         comment_id = await _comment_on_task(client, a, task.id)
 
         await route_session_to_guild(session, a.guild.id)
-        comment = (
-            await session.exec(select(Comment).where(Comment.id == comment_id))
-        ).one()
         # Fill the allowance behind the request's back. Keycap digits and the
         # regional indicators are the two cheap runs of distinct valid emoji.
         filler = [f"{n}\ufe0f\u20e3" for n in range(10)] + [
@@ -305,7 +295,6 @@ class TestReactionToggle:
         for emoji in filler:
             session.add(
                 Reaction(
-                    guild_id=comment.guild_id,
                     target_type=ReactionTarget.comment.value,
                     target_id=comment_id,
                     emoji=emoji,
@@ -496,7 +485,7 @@ class TestReactionAccess:
         assert created.status_code == 201
         comment_id = created.json()["id"]
 
-        await route_session_to_guild(session, project.guild_id)
+        await route_session_to_guild(session, guild_of(project))
         project.comments_enabled = False
         session.add(project)
         await session.commit()

@@ -83,7 +83,6 @@ async def test_list_projects_member_sees_initiative_projects(
         resource_id=project.id,
         user_id=member.user.id,
         level=ResourceAccessLevel.read,
-        guild_id=project.guild_id,
         initiative_id=project.initiative_id,
     )
     session.add(member_permission)
@@ -147,7 +146,6 @@ async def test_search_project_members_returns_write_access_set(
             resource_id=project.id,
             user_id=writer.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -157,7 +155,6 @@ async def test_search_project_members_returns_write_access_set(
             resource_id=project.id,
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -456,7 +453,6 @@ async def test_list_projects_slim_permission_for_member(
             resource_id=project.id,
             user_id=member.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -1301,7 +1297,6 @@ async def test_set_project_access_replaces_grants(
             resource_id=project.id,
             user_id=member.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -1763,7 +1758,6 @@ async def test_project_shows_all_members_document_to_member(
     doc = Document(
         name="Shared with everyone",
         initiative_id=initiative.id,
-        guild_id=guild.id,
         created_by=owner.user.id,
         document_type=DocumentType.native,
     )
@@ -1777,7 +1771,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=project.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
             ResourceGrant(
@@ -1785,7 +1778,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=doc.id,
                 user_id=owner.user.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
             ResourceGrant(
@@ -1793,7 +1785,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=doc.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
         ]
@@ -1922,7 +1913,6 @@ async def test_plain_write_cannot_set_the_default_view(
             resource_id=owner.project.id,
             user_id=editor.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=owner.project.guild_id,
             initiative_id=owner.project.initiative_id,
         )
     )
@@ -1973,7 +1963,6 @@ async def test_editing_other_fields_still_needs_only_write(
             resource_id=owner.project.id,
             user_id=editor.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=owner.project.guild_id,
             initiative_id=owner.project.initiative_id,
         )
     )

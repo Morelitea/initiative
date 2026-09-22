@@ -12,6 +12,8 @@ from app.schemas.tenant.archive import ArchiveState
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
@@ -59,7 +61,7 @@ class CalendarSummary(CalendarBase, ArchiveState):
     #: NULL on a guild-level calendar — one an app mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -101,7 +103,7 @@ def serialize_calendar_summary(
         description=calendar.description,
         color=calendar.color,
         initiative_id=calendar.initiative_id,
-        guild_id=calendar.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=calendar.created_by,
         created_at=calendar.created_at,
         updated_at=calendar.updated_at,

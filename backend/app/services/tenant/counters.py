@@ -223,7 +223,6 @@ async def duplicate_counter_group(
     copy. Adds the new rows to the session and flushes; the caller commits.
     """
     new_group = CounterGroup(
-        guild_id=guild_id,
         initiative_id=source.initiative_id,
         created_by=user_id,
         name=name,
@@ -239,7 +238,6 @@ async def duplicate_counter_group(
             user_id=user_id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_id,
             initiative_id=new_group.initiative_id,
         )
     )
@@ -255,7 +253,6 @@ async def duplicate_counter_group(
                     user_id=None,
                     role_id=grant.role_id,
                     level=grant.level,
-                    guild_id=guild_id,
                     initiative_id=new_group.initiative_id,
                 )
             )
@@ -267,7 +264,6 @@ async def duplicate_counter_group(
                     user_id=grant.user_id,
                     role_id=None,
                     level=grant.level,
-                    guild_id=guild_id,
                     initiative_id=new_group.initiative_id,
                 )
             )
@@ -283,7 +279,6 @@ async def duplicate_counter_group(
             continue
         session.add(
             Counter(
-                guild_id=guild_id,
                 counter_group_id=new_group.id,
                 name=counter.name,
                 color=counter.color,

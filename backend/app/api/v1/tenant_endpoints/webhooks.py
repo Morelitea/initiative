@@ -40,6 +40,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -104,7 +105,7 @@ async def _named(
     what a receiver reads here is what it will be sent.
     """
     guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
-        guild_id=row.guild_id,
+        guild_id=routed_guild_id(),
         app_install_id=row.app_install_id,
         subscription_id=row.id,
         actor_ids=(row.created_by,),

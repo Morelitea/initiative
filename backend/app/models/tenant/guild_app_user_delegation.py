@@ -55,7 +55,6 @@ class GuildAppUserDelegation(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
 
     app_id: int = Field(
         sa_column=Column(

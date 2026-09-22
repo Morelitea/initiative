@@ -11,6 +11,8 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 
 class WikiBase(SanitizedBaseModel):
@@ -71,7 +73,7 @@ class WikiSummary(WikiBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -205,7 +207,7 @@ class WikiPageSummary(SanitizedBaseModel):
 
     id: int
     wiki_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
@@ -301,7 +303,7 @@ def serialize_wiki_summary(
         name=wiki.name,
         description=wiki.description,
         initiative_id=wiki.initiative_id,
-        guild_id=wiki.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=wiki.created_by,
         created_at=wiki.created_at,
         updated_at=wiki.updated_at,
@@ -334,7 +336,7 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
     return WikiPageSummary(
         id=page.id,
         wiki_id=page.wiki_id,
-        guild_id=page.guild_id,
+        guild_id=require_routed_guild_id(),
         kind=WikiPageKind.page,
         parent_page_id=page.parent_page_id,
         position=page.position,
@@ -363,7 +365,7 @@ def serialize_document_as_page(
     return WikiPageSummary(
         id=document.id,
         wiki_id=wiki_id,
-        guild_id=document.guild_id,
+        guild_id=require_routed_guild_id(),
         kind=WikiPageKind.document,
         position=position,
         is_draft=False,

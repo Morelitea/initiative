@@ -62,7 +62,6 @@ async def _create_task(session, project, title="Test Task", checklist=None):
         title=title,
         project_id=project.id,
         task_status_id=status.id,
-        guild_id=project.guild_id,
         checklist=checklist or [],
     )
     session.add(task)
@@ -1229,13 +1228,11 @@ async def test_filter_tasks_by_status(
         title="Todo Task",
         project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=a.guild.id,
     )
     task2 = Task(
         title="Done Task",
         project_id=a.project.id,
         task_status_id=done_status.id,
-        guild_id=a.guild.id,
     )
     session.add(task1)
     session.add(task2)
@@ -1342,7 +1339,6 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
         title="Recurring Task",
         project_id=a.project.id,
         task_status_id=todo.id,
-        guild_id=a.guild.id,
         due_date=due,
         recurrence=recurrence,
         recurrence_strategy=strategy,
@@ -1422,7 +1418,6 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
         title="Feed frogs",
         project_id=a.project.id,
         task_status_id=todo.id,
-        guild_id=a.guild.id,
         due_date=due,
         recurrence=recurrence,
         recurrence_strategy="rolling",
@@ -1932,7 +1927,6 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
             resource_id=owner.project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=owner.guild.id,
             initiative_id=owner.initiative.id,
         )
     )

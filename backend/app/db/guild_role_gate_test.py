@@ -13,7 +13,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.queue import Queue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.testing import create_queue, grant_role_permission
+from app.testing import guild_of, create_queue, grant_role_permission
 from app.testing.schema_harness import route_session_to_guild
 
 pytestmark = pytest.mark.integration
@@ -21,14 +21,13 @@ pytestmark = pytest.mark.integration
 
 async def _shared(session, queue, user) -> None:
     """A read grant on the queue — gate 4 satisfied, so only gate 3 is left."""
-    await route_session_to_guild(session, queue.guild_id)
+    await route_session_to_guild(session, guild_of(queue))
     session.add(
         ResourceGrant(
             resource_type="queue",
             resource_id=queue.id,
             user_id=user.id,
             level=ResourceAccessLevel.read,
-            guild_id=queue.guild_id,
             initiative_id=queue.initiative_id,
         )
     )

@@ -14,6 +14,8 @@ from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.post import Post
@@ -123,7 +125,7 @@ class PostSummary(PostBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     #: Who wrote it, ready to draw: handle, picture, what they wear around it,
     #: and how they are appearing. The same shape a comment's author takes, so
@@ -354,7 +356,7 @@ def serialize_post_summary(
         id=post.id,
         name=post.name,
         initiative_id=post.initiative_id,
-        guild_id=post.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=post.created_by,
         author=(
             CommentAuthor.model_validate(post.creator)

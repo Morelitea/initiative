@@ -9,8 +9,11 @@ Schema-per-guild: tenant models live in per-guild Postgres schemas, never in
 ``public``. Every tenant factory therefore routes its session to the target
 guild's schema (``route_session_to_guild``) before reading or writing, derived
 from the parent object it receives — so factory calls are deterministic
-regardless of flush composition. Raw ``session.add()`` of tenant models in
-tests is covered by the fail-closed flush router in ``schema_harness``.
+regardless of flush composition. A tenant row carries no ``guild_id`` column,
+because the schema it lives in is what says which community it is, so the
+parent's community comes from ``guild_of`` — what the harness stamped on it as
+it was flushed. Raw ``session.add()`` of tenant models in tests is covered by
+the fail-closed flush router in ``schema_harness``.
 """
 
 import uuid
@@ -93,7 +96,7 @@ from app.services.tenant.initiatives import create_builtin_roles
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant.wikis import slugify_page_title
-from app.testing.schema_harness import route_session_to_guild
+from app.testing.schema_harness import guild_of, route_session_to_guild
 
 
 async def create_user(
@@ -502,7 +505,6 @@ async def create_initiative(
     defaults: dict[str, Any] = {
         "name": f"Test Initiative {datetime.now(timezone.utc).timestamp()}",
         "description": "A test initiative",
-        "guild_id": guild.id,
         # Every tool the initiative can switch on, switched on — derived from
         # the enum, so a new tool is usable the day it exists. A test about a
         # tool being OFF says so by overriding its own switch.
@@ -547,7 +549,6 @@ async def create_initiative(
             initiative_id=initiative.id,
             user_id=creator.id,
             role_id=pm_role.id,
-            guild_id=initiative.guild_id,
         )
         session.add(membership)
         await session.commit()
@@ -579,13 +580,12 @@ async def create_project(
     Example:
         project = await create_project(session, initiative, user, name="Test Project")
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
         "name": f"Test Project {datetime.now(timezone.utc).timestamp()}",
         "description": "A test project",
         "initiative_id": initiative.id,
-        "guild_id": initiative.guild_id,
         # Author and owner are different facts that happen to be the same person
         # for a freshly made project: the column below records who made it, the
         # grant further down records who administers it.
@@ -607,7 +607,6 @@ async def create_project(
                 resource_id=project.id,
                 user_id=owner.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=project.guild_id,
                 initiative_id=project.initiative_id,
             )
         )
@@ -635,7 +634,7 @@ async def create_task(
     """
     from sqlmodel import select as _select
 
-    await route_session_to_guild(session, project.guild_id)
+    await route_session_to_guild(session, guild_of(project))
 
     status = (
         await session.exec(
@@ -649,7 +648,6 @@ async def create_task(
     ).first()
     if status is None:
         status = TaskStatus(
-            guild_id=project.guild_id,
             project_id=project.id,
             name=status_category.value.replace("_", " ").title(),
             category=status_category,
@@ -662,7 +660,6 @@ async def create_task(
     defaults: dict[str, Any] = {
         "title": title or f"Test Task {datetime.now(timezone.utc).timestamp()}",
         "project_id": project.id,
-        "guild_id": project.guild_id,
         "task_status_id": status.id,
         "priority": TaskPriority.medium,
     }
@@ -679,7 +676,10 @@ async def create_task(
 
     for user in assignees or []:
         session.add(
-            TaskAssignee(task_id=task.id, user_id=user.id, guild_id=project.guild_id)
+            TaskAssignee(
+                task_id=task.id,
+                user_id=user.id,
+            )
         )
     if commit and assignees:
         await session.commit()
@@ -707,13 +707,12 @@ async def create_queue(
     Returns:
         Created Queue instance
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
         "name": f"Test Queue {datetime.now(timezone.utc).timestamp()}",
         "description": "A test queue",
         "initiative_id": initiative.id,
-        "guild_id": initiative.guild_id,
         "created_by": creator.id,
     }
 
@@ -731,7 +730,6 @@ async def create_queue(
                 resource_type="queue",
                 resource_id=queue.id,
                 user_id=creator.id,
-                guild_id=queue.guild_id,
                 initiative_id=queue.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -759,11 +757,10 @@ async def create_queue_item(
     Returns:
         Created QueueItem instance
     """
-    await route_session_to_guild(session, queue.guild_id)
+    await route_session_to_guild(session, guild_of(queue))
 
     defaults = {
         "queue_id": queue.id,
-        "guild_id": queue.guild_id,
         "label": f"Item {datetime.now(timezone.utc).timestamp()}",
         "position": 0,
         "is_visible": True,
@@ -803,7 +800,7 @@ async def create_initiative_member(
     from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     # Find the matching role for this initiative
     stmt = select(InitiativeRoleModel).where(
@@ -822,7 +819,6 @@ async def create_initiative_member(
         initiative_id=initiative.id,
         user_id=user.id,
         role_id=role.id,
-        guild_id=initiative.guild_id,
     )
     session.add(membership)
 
@@ -854,7 +850,7 @@ async def grant_role_permission(
     )
     from sqlmodel import select
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     role = (
         await session.exec(
             select(InitiativeRoleModel).where(
@@ -918,7 +914,7 @@ async def create_property_definition(
     Returns:
         Created PropertyDefinition instance
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     if name is None:
         name = f"Prop {datetime.now(timezone.utc).timestamp()}"
@@ -976,7 +972,7 @@ async def create_document_property_value(
     Returns:
         Created DocumentPropertyValue instance
     """
-    await route_session_to_guild(session, document.guild_id)
+    await route_session_to_guild(session, guild_of(document))
 
     row = DocumentPropertyValue(
         document_id=document.id,
@@ -1015,7 +1011,7 @@ async def create_task_property_value(
     Returns:
         Created TaskPropertyValue instance
     """
-    await route_session_to_guild(session, task.guild_id)
+    await route_session_to_guild(session, guild_of(task))
 
     row = TaskPropertyValue(
         task_id=task.id,
@@ -1046,10 +1042,9 @@ async def create_calendar(
     calendars-enabled — callers that need to test the feature flag should
     toggle that on the passed-in ``initiative``.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "created_by": creator.id,
         "name": name or f"Calendar {datetime.now(timezone.utc).timestamp()}",
@@ -1069,7 +1064,6 @@ async def create_calendar(
                 resource_id=calendar.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=calendar.guild_id,
                 initiative_id=calendar.initiative_id,
             )
         )
@@ -1079,7 +1073,6 @@ async def create_calendar(
                 resource_id=calendar.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=calendar.guild_id,
                 initiative_id=calendar.initiative_id,
             )
         )
@@ -1108,7 +1101,6 @@ async def create_guild_calendar(
 
     calendar = Calendar(
         **{
-            "guild_id": guild.id,
             "initiative_id": None,
             "created_by": creator.id,
             "name": name or "Community calendar",
@@ -1125,7 +1117,6 @@ async def create_guild_calendar(
             resource_id=calendar.id,
             user_id=creator.id,
             level=ResourceAccessLevel.owner,
-            guild_id=guild.id,
             initiative_id=None,
         )
     )
@@ -1137,7 +1128,6 @@ async def create_guild_calendar(
                 resource_id=calendar.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=guild.id,
                 initiative_id=None,
             )
         )
@@ -1169,7 +1159,6 @@ async def create_guild_app(
 
     app = GuildApp(
         **{
-            "guild_id": guild.id,
             "listing_uid": listing_uid,
             "listing_version": listing_version,
             "app_kind": definition.get("app_kind", "service"),
@@ -1245,11 +1234,10 @@ async def create_app_delegation(
     Written straight into the guild's schema, so a suite that is about what a
     delegated call may do does not have to walk the consent flow first.
     """
-    await route_session_to_guild(session, app.guild_id)
+    await route_session_to_guild(session, guild_of(app))
 
     row = GuildAppUserDelegation(
         **{
-            "guild_id": app.guild_id,
             "app_id": app.id,
             "user_id": user.id,
             "can_read": can_read,
@@ -1384,10 +1372,9 @@ async def create_dashboard(
     KPI widget so the row carries a realistic, already-normalized canvas; the
     initiative is expected to be dashboards-enabled.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "created_by": creator.id,
         "name": name or f"Dashboard {datetime.now(timezone.utc).timestamp()}",
@@ -1424,7 +1411,6 @@ async def create_dashboard(
                 resource_id=dashboard.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=dashboard.guild_id,
                 initiative_id=dashboard.initiative_id,
             )
         )
@@ -1434,7 +1420,6 @@ async def create_dashboard(
                 resource_id=dashboard.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=dashboard.guild_id,
                 initiative_id=dashboard.initiative_id,
             )
         )
@@ -1497,10 +1482,9 @@ async def create_post(
     initiative member can read it, which is what posting to a board means. The
     initiative is expected to be posts-enabled.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "created_by": creator.id,
         "name": name or f"Post {datetime.now(timezone.utc).timestamp()}",
@@ -1524,7 +1508,6 @@ async def create_post(
                 resource_id=post.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=post.guild_id,
                 initiative_id=post.initiative_id,
             )
         )
@@ -1534,7 +1517,6 @@ async def create_post(
                 resource_id=post.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=post.guild_id,
                 initiative_id=post.initiative_id,
             )
         )
@@ -1553,7 +1535,7 @@ async def create_post_poll(
 ) -> PostPoll:
     """Give a test post a question. Two choices by default — the shortest poll
     that is still a poll — in the order they are given."""
-    await route_session_to_guild(session, post.guild_id)
+    await route_session_to_guild(session, guild_of(post))
 
     defaults: dict[str, Any] = {
         "post_id": post.id,
@@ -1630,10 +1612,9 @@ async def create_gallery(
     every initiative member can read it. The initiative is expected to be
     galleries-enabled.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "created_by": creator.id,
         "name": name or f"Gallery {datetime.now(timezone.utc).timestamp()}",
@@ -1651,7 +1632,6 @@ async def create_gallery(
                 resource_id=gallery.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=gallery.guild_id,
                 initiative_id=gallery.initiative_id,
             )
         )
@@ -1661,7 +1641,6 @@ async def create_gallery(
                 resource_id=gallery.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=gallery.guild_id,
                 initiative_id=gallery.initiative_id,
             )
         )
@@ -1691,19 +1670,18 @@ async def create_gallery_image(
     """
     from app.services.storage import get_guild_storage
 
-    await route_session_to_guild(session, gallery.guild_id)
+    await route_session_to_guild(session, guild_of(gallery))
 
     data = png_bytes(width, height)
     filename = f"{uuid.uuid4().hex}.png"
-    file_url = f"/uploads/{gallery.guild_id}/{filename}"
+    file_url = f"/uploads/{guild_of(gallery)}/{filename}"
     if write_blob:
-        get_guild_storage(gallery.guild_id).write(
+        get_guild_storage(guild_of(gallery)).write(
             filename, data, content_type="image/png"
         )
     session.add(
         Upload(
             filename=filename,
-            guild_id=gallery.guild_id,
             created_by=uploader.id,
             size_bytes=len(data),
             content_type="image/png",
@@ -1711,7 +1689,6 @@ async def create_gallery_image(
     )
 
     defaults = {
-        "guild_id": gallery.guild_id,
         "gallery_id": gallery.id,
         "created_by": uploader.id,
         "title": title,
@@ -1728,7 +1705,6 @@ async def create_gallery_image(
     session.add(
         GalleryImageVersion(
             gallery_image_id=image.id,
-            guild_id=gallery.guild_id,
             version_number=1,
             file_url=image.file_url,
             thumbnail_url=image.thumbnail_url,
@@ -1763,11 +1739,10 @@ async def create_calendar_event(
     the timing should override ``start_at`` / ``end_at``. Events carry no
     grants of their own — access derives from the parent ``calendar``.
     """
-    await route_session_to_guild(session, calendar.guild_id)
+    await route_session_to_guild(session, guild_of(calendar))
 
     now = datetime.now(timezone.utc)
     defaults = {
-        "guild_id": calendar.guild_id,
         "calendar_id": calendar.id,
         "created_by": creator.id,
         "title": title or f"Event {now.timestamp()}",
@@ -1800,7 +1775,7 @@ async def create_calendar_event_property_value(
     Mirrors :func:`create_document_property_value` /
     :func:`create_task_property_value` for the event value table.
     """
-    await route_session_to_guild(session, event.guild_id)
+    await route_session_to_guild(session, guild_of(event))
 
     row = CalendarEventPropertyValue(
         event_id=event.id,
@@ -1829,10 +1804,9 @@ async def create_document(
     Defaults to a ``native`` (editor) document with empty content and an
     owner grant for ``creator``, mirroring the create endpoint's DAC setup.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "name": name or f"Test Document {datetime.now(timezone.utc).timestamp()}",
         "document_type": DocumentType.native,
@@ -1853,7 +1827,6 @@ async def create_document(
             resource_id=document.id,
             user_id=creator.id,
             level=ResourceAccessLevel.owner,
-            guild_id=document.guild_id,
             initiative_id=document.initiative_id,
         )
     )
@@ -1907,10 +1880,9 @@ async def create_comment(
     if len(provided) != 1:
         raise ValueError("pass exactly one comment parent")
     column, parent = next(iter(provided.items()))
-    await route_session_to_guild(session, parent.guild_id)
+    await route_session_to_guild(session, guild_of(parent))
 
     defaults = {
-        "guild_id": parent.guild_id,
         "content": content,
         "created_by": author.id,
         column: parent.id,
@@ -1940,9 +1912,8 @@ async def create_reaction(
     second reactable kind adds a keyword here and nothing has to remember the
     string.
     """
-    await route_session_to_guild(session, comment.guild_id)
+    await route_session_to_guild(session, guild_of(comment))
     defaults = {
-        "guild_id": comment.guild_id,
         "target_type": ReactionTarget.comment.value,
         "target_id": comment.id,
         "emoji": emoji,
@@ -1970,7 +1941,6 @@ async def create_tag(
     await route_session_to_guild(session, guild.id)
 
     defaults = {
-        "guild_id": guild.id,
         "name": name or f"tag-{datetime.now(timezone.utc).timestamp()}",
     }
     tag = Tag(**{**defaults, **overrides})
@@ -1986,14 +1956,13 @@ async def create_tag(
 async def assign_tag(session, entity, tag, *, commit: bool = False):
     """Put a tag on something — the edge a tagging surface writes.
 
-    ``guild_id`` is stated rather than left to the table's trigger: a tenant
-    write has to be routable at the moment it is added, and the tag already
-    knows which guild it belongs to.
+    The session is routed from the tag's own community first: a tenant write
+    has to land in a schema, and the edge itself names no community.
     """
     from app.services.tenant import tags as tags_service
 
+    await route_session_to_guild(session, guild_of(tag))
     row = tags_service.tag_edge(tags_service.spec_for(entity), entity.id, tag.id)
-    row.guild_id = tag.guild_id
     session.add(row)
     if commit:
         await session.commit()
@@ -2018,10 +1987,9 @@ async def create_task_status(
 ) -> TaskStatus:
     """Create a task status for ``project`` (does not deduplicate; use
     ``create_task`` when you just need a task in a given category)."""
-    await route_session_to_guild(session, project.guild_id)
+    await route_session_to_guild(session, guild_of(project))
 
     defaults = {
-        "guild_id": project.guild_id,
         "project_id": project.id,
         "name": name or category.value.replace("_", " ").title(),
         "category": category,
@@ -2047,10 +2015,9 @@ async def create_counter_group(
     **overrides: Any,
 ) -> CounterGroup:
     """Create a counter group with an owner grant for ``creator``."""
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "name": name or f"Test Counters {datetime.now(timezone.utc).timestamp()}",
         "created_by": creator.id,
@@ -2068,7 +2035,6 @@ async def create_counter_group(
                 resource_id=group.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=group.guild_id,
                 initiative_id=group.initiative_id,
             )
         )
@@ -2086,10 +2052,9 @@ async def create_counter(
     **overrides: Any,
 ) -> Counter:
     """Create a counter inside ``group``."""
-    await route_session_to_guild(session, group.guild_id)
+    await route_session_to_guild(session, guild_of(group))
 
     defaults = {
-        "guild_id": group.guild_id,
         "counter_group_id": group.id,
         "name": name or f"Counter {datetime.now(timezone.utc).timestamp()}",
     }
@@ -2116,7 +2081,6 @@ async def create_upload(
     await route_session_to_guild(session, guild.id)
 
     defaults = {
-        "guild_id": guild.id,
         "created_by": uploader.id,
         "filename": filename or f"file-{datetime.now(timezone.utc).timestamp()}.txt",
         "size_bytes": 1,
@@ -2338,10 +2302,9 @@ async def create_wiki(
     every initiative member can read it. The initiative is expected to be
     wikis-enabled.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
 
     defaults = {
-        "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "created_by": creator.id,
         "name": name or f"Wiki {datetime.now(timezone.utc).timestamp()}",
@@ -2359,7 +2322,6 @@ async def create_wiki(
                 resource_id=wiki.id,
                 user_id=creator.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=wiki.guild_id,
                 initiative_id=wiki.initiative_id,
             )
         )
@@ -2369,7 +2331,6 @@ async def create_wiki(
                 resource_id=wiki.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=wiki.guild_id,
                 initiative_id=wiki.initiative_id,
             )
         )
@@ -2393,12 +2354,11 @@ async def create_wiki_page(
     at the top of the wiki. What nests inside a page — its headings — is
     content, and lives in its body.
     """
-    await route_session_to_guild(session, wiki.guild_id)
+    await route_session_to_guild(session, guild_of(wiki))
 
     stamp = datetime.now(timezone.utc).timestamp()
     page_title = title or f"Page {stamp}"
     defaults: dict[str, Any] = {
-        "guild_id": wiki.guild_id,
         "wiki_id": wiki.id,
         "created_by": creator.id,
         "title": page_title,
@@ -2455,7 +2415,7 @@ async def create_tool_entity(
 async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
     """Flip on every toggleable tool's master switch, derived from the enum so a
     new tool is enabled here without an edit."""
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     fresh = await session.get(Initiative, initiative.id)
     assert fresh is not None
     for tool in TOGGLEABLE_TOOLS:

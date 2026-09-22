@@ -30,6 +30,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
+from app.core.routed_guild import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.pam_context import active_grant_level, grant_satisfies
 from app.core.role_context import (
@@ -677,7 +678,6 @@ async def replace_resource_grants(
         return ResourceGrant(
             resource_type=resource_type,
             resource_id=resource_id,
-            guild_id=guild_id,
             initiative_id=initiative_id,
             level=ResourceAccessLevel(level),
             **kw,
@@ -748,7 +748,7 @@ def require_access(
     ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving,
     which asks for write on a row that is archived by definition. The caller
     still needs the write level."""
-    guild_id = getattr(row, "guild_id", None)
+    guild_id = routed_guild_id()
     initiative_id = getattr(row, "initiative_id", None)
     # A frozen guild (read_only lifecycle status) caps EVERY real member at
     # read — before the bypass legs, so the guild-admin override can't clear
@@ -806,7 +806,7 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     caps it the same way and for the same reason: one place, so a document in
     the trash opens with its editor already read-only rather than failing on the
     first keystroke."""
-    guild_id = getattr(row, "guild_id", None)
+    guild_id = routed_guild_id()
     initiative_id = getattr(row, "initiative_id", None)
     level: str | None
     if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
@@ -841,7 +841,7 @@ def may_unarchive(resource: DacResource, row: Any, user_id: int) -> bool:
     """
     if getattr(row, "archived_at", None) is None:
         return False
-    guild_id = getattr(row, "guild_id", None)
+    guild_id = routed_guild_id()
     if content_read_only_active(guild_id):
         return False
     if ancestor_is_frozen(row):
@@ -927,7 +927,7 @@ def has_project_write_access(
     user: User,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
-    if content_read_only_active(getattr(project, "guild_id", None)):
+    if content_read_only_active(routed_guild_id()):
         return False
     return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",

@@ -67,7 +67,7 @@ async def _seed_populated_project(session: AsyncSession):
     todo_status = next(s for s in statuses if s.category == TaskStatusCategory.todo)
 
     # Project-level tag
-    tag = Tag(guild_id=guild.id, name="blocker", color="#FF0000")
+    tag = Tag(name="blocker", color="#FF0000")
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
@@ -85,7 +85,6 @@ async def _seed_populated_project(session: AsyncSession):
     # Task
     task = Task(
         project_id=project.id,
-        guild_id=guild.id,
         task_status_id=todo_status.id,
         title="Fix the thing",
         description="Important",
@@ -99,7 +98,12 @@ async def _seed_populated_project(session: AsyncSession):
     await session.commit()
     await session.refresh(task)
     await assign_tag(session, task, tag)
-    session.add(TaskAssignee(task_id=task.id, user_id=assignee.id, guild_id=guild.id))
+    session.add(
+        TaskAssignee(
+            task_id=task.id,
+            user_id=assignee.id,
+        )
+    )
     session.add(
         TaskPropertyValue(
             task_id=task.id,

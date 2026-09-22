@@ -55,6 +55,7 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.messages import AppDataMessages, AppServiceMessages, GuildAppMessages
 from app.core.security import (
     AppPlatformSigningNotConfiguredError,
@@ -606,7 +607,9 @@ def _cache_key(
             default=str,
         ).encode("utf-8")
     ).hexdigest()
-    return f"{app.guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
+    return (
+        f"{routed_guild_id()}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
+    )
 
 
 def _cache_get(key: str) -> Optional[AppDataResult]:
@@ -754,7 +757,7 @@ async def _call_app(
         # What this install calls the guild. The token and the body name it
         # the same way, because it is the only name the app has for it.
         guild_ref = await ensure_app_guild_ref(
-            guild_id=app.guild_id, app_install_id=app.id
+            guild_id=routed_guild_id(), app_install_id=app.id
         )
         try:
             token, _ = mint_context_token(

@@ -1232,14 +1232,6 @@ async def create_oidc_mapping(
         )
         if not initiative:
             raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        # Defence-in-depth: the lookup already routed into guild_<payload.guild_id>,
-        # so a found initiative's guild_id matches by construction. Retained to
-        # catch a data-integrity anomaly (an initiative row whose stored guild_id
-        # disagrees with its schema) rather than silently binding the mapping.
-        if initiative.guild_id != payload.guild_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
-            )
         if not role:
             raise HTTPException(
                 status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
@@ -1345,13 +1337,6 @@ async def update_oidc_mapping(
         )
         if not initiative:
             raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        # Defence-in-depth: structurally guaranteed now (the lookup routes into
-        # guild_<mapping.guild_id>), kept to catch a stored guild_id that disagrees
-        # with its schema rather than binding the mapping to a mismatched guild.
-        if initiative.guild_id != mapping.guild_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
-            )
         if not role:
             raise HTTPException(
                 status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND

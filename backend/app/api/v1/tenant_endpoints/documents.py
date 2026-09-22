@@ -141,7 +141,6 @@ async def get_initiative_or_404(
 ) -> Initiative:
     stmt = select(Initiative).where(
         Initiative.id == initiative_id,
-        Initiative.guild_id == guild_id,
     )
     result = await session.exec(stmt)
     initiative = result.one_or_none()
@@ -513,7 +512,6 @@ async def create_document(
     document = Document(
         name=name,
         initiative_id=initiative.id,
-        guild_id=guild_context.guild_id,
         document_type=requested_type,
         content=normalized_content,
         created_by=current_user.id,
@@ -530,7 +528,6 @@ async def create_document(
         user_id=current_user.id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=document.initiative_id,
     )
     session.add(owner_permission)
@@ -649,7 +646,6 @@ async def upload_document_file(
     # Track the upload in the uploads table for guild-scoped access control
     upload_record = Upload(
         filename=file_url.split("/")[-1],
-        guild_id=guild_context.guild_id,
         created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
@@ -661,7 +657,6 @@ async def upload_document_file(
     document = Document(
         name=name,
         initiative_id=initiative.id,
-        guild_id=guild_context.guild_id,
         content={},  # File documents have empty content
         created_by=current_user.id,
         document_type=DocumentType.file,
@@ -680,14 +675,12 @@ async def upload_document_file(
         user_id=current_user.id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=document.initiative_id,
     )
     # Record the initial version (v1). The documents row mirrors this version's
     # file fields; subsequent uploads add higher-numbered versions.
     initial_version = DocumentFileVersion(
         document_id=document.id,
-        guild_id=guild_context.guild_id,
         version_number=1,
         file_url=file_url,
         file_content_type=mime_type,
@@ -710,7 +703,6 @@ async def upload_document_file(
             role_id=None,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild_context.guild_id,
             initiative_id=document.initiative_id,
         )
     )
@@ -819,7 +811,6 @@ async def upload_document_version(
     # Track the new blob in the uploads table for guild-scoped access control.
     upload_record = Upload(
         filename=file_url.split("/")[-1],
-        guild_id=guild_context.guild_id,
         created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
@@ -836,7 +827,6 @@ async def upload_document_version(
 
     version = DocumentFileVersion(
         document_id=document_id,
-        guild_id=guild_context.guild_id,
         version_number=next_version,
         file_url=file_url,
         file_content_type=mime_type,
@@ -1585,7 +1575,7 @@ async def _load_download_document(
     doc = (
         await session.exec(
             select(Document)
-            .where(Document.id == document_id, Document.guild_id == guild_id)
+            .where(Document.id == document_id)
             .options(*_download_document_options())
         )
     ).one_or_none()

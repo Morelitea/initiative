@@ -293,7 +293,6 @@ async def test_another_apps_install_does_not_let_this_one_act(
     await route_session_to_guild(session, guild.id)
     session.add(
         GuildApp(
-            guild_id=guild.id,
             listing_uid=DELEGATE_LISTING_UID,
             listing_version="1.0.0",
             app_kind="service",

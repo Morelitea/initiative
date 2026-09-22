@@ -13,6 +13,8 @@ from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 from app.core.user_display import display_name
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -144,7 +146,7 @@ class CalendarEventSummary(CalendarEventBase):
     # filter/group by initiative without another fetch. NULL when the parent is
     # a guild-level calendar.
     initiative_id: Optional[int] = None
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
@@ -281,7 +283,7 @@ def serialize_calendar_event_summary(
         recurrence=_parse_recurrence(event),
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
-        guild_id=event.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,

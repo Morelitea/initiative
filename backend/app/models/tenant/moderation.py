@@ -41,11 +41,6 @@ class ModerationReport(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    guild_id: int = Field(
-        sa_column=Column(
-            Integer, ForeignKey("guilds.id", ondelete="CASCADE"), nullable=False
-        )
-    )
     # No index of its own: the migration's (initiative_id, outcome,
     # reported_at DESC) index leads on this column and answers both the
     # moderator's list and the open-report lookup.

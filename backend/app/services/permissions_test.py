@@ -93,7 +93,6 @@ class World:
         if level is not None:
             self.session.add(
                 ResourceGrant(
-                    guild_id=self.guild.id,
                     initiative_id=self.initiative_id,
                     resource_type=self.tool,
                     resource_id=self.row_id,
@@ -256,7 +255,6 @@ async def test_a_role_grant_elevates_over_a_users_own(
 
     session.add(
         ResourceGrant(
-            guild_id=w.guild.id,
             initiative_id=w.initiative_id,
             resource_type=Tool.project,
             resource_id=w.row_id,

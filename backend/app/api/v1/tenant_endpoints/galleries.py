@@ -309,7 +309,6 @@ def _store_blob(
     session.add(
         Upload(
             filename=file_url.split("/")[-1],
-            guild_id=guild_context.guild_id,
             created_by=user.id,
             size_bytes=len(contents),
             content_type=content_type,
@@ -409,7 +408,6 @@ async def create_gallery(
     )
 
     gallery = Gallery(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=gallery_in.name.strip(),
@@ -425,7 +423,6 @@ async def create_gallery(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
         )
     )
@@ -688,7 +685,6 @@ async def upload_gallery_image(
 
     now = datetime.now(timezone.utc)
     image = GalleryImage(
-        guild_id=guild_context.guild_id,
         gallery_id=gallery.id,
         title=(title or "").strip()[:255] or None,
         caption=(caption or "").strip() or None,
@@ -708,7 +704,6 @@ async def upload_gallery_image(
     session.add(
         GalleryImageVersion(
             gallery_image_id=image.id,
-            guild_id=guild_context.guild_id,
             version_number=1,
             file_url=file_url,
             thumbnail_url=thumbnail_url,
@@ -908,7 +903,6 @@ async def upload_gallery_image_version(
 
     version = GalleryImageVersion(
         gallery_image_id=image.id,
-        guild_id=guild_context.guild_id,
         version_number=await galleries_service.next_version_number(session, image.id),
         file_url=file_url,
         thumbnail_url=thumbnail_url,

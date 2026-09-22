@@ -21,6 +21,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import notifications as notifications_service
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
+    guild_of,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -82,7 +83,7 @@ async def test_a_due_notice_is_published_and_announced(session: AsyncSession):
     author_id, reader_id = author.id, reader.id
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     published = await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
 
@@ -100,7 +101,7 @@ async def test_a_notice_not_yet_due_is_left_alone(session: AsyncSession):
     reader_id = reader.id
     post_id = await _draft(session, initiative, author, due_in=timedelta(days=1))
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     assert await publish_due_posts(session, now=datetime.now(timezone.utc)) == []
     await session.commit()
 
@@ -116,7 +117,7 @@ async def test_a_second_pass_publishes_nothing_twice(session: AsyncSession):
     reader_id = reader.id
     await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     now = datetime.now(timezone.utc)
     assert len(await publish_due_posts(session, now=now)) == 1
     await session.commit()
@@ -131,7 +132,7 @@ async def test_a_trashed_draft_does_not_go_up(session: AsyncSession):
     author, reader, initiative, _ = await _board(session)
     reader_id = reader.id
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     row = (await session.exec(select(Post).where(Post.id == post_id))).one()
     row.deleted_at = datetime.now(timezone.utc)
     session.add(row)
@@ -155,7 +156,7 @@ async def test_the_announcement_follows_the_sharing_not_the_roster(
     await create_initiative_member(session, initiative, named)
 
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     # Replace the factory's all-members grant with one naming a single reader.
     grants = (
         await session.exec(
@@ -174,7 +175,6 @@ async def test_the_announcement_follows_the_sharing_not_the_roster(
             resource_id=post_id,
             user_id=named.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -200,7 +200,7 @@ async def test_somebody_who_ignores_the_author_is_not_told(session: AsyncSession
     await session.commit()
 
     await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
 
@@ -220,14 +220,14 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
 
     with patch.object(publication, "announce_post", _explode):
-        await route_session_to_guild(session, initiative.guild_id)
+        await route_session_to_guild(session, guild_of(initiative))
         with pytest.raises(RuntimeError):
             await publish_due_posts(session, now=datetime.now(timezone.utc))
 
     # Published, despite the failure after it — the claim was committed before
     # the fan-out began — and so never claimed again.
     session.expunge_all()
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     refreshed = (await session.exec(select(Post).where(Post.id == post_id))).one()
     assert refreshed.published_at is not None
     assert await publish_due_posts(session, now=datetime.now(timezone.utc)) == []
@@ -263,7 +263,7 @@ async def test_one_bad_recipient_does_not_cost_the_rest(session: AsyncSession):
     with patch.object(
         publication.notifications_service, "notify_post_published", _flaky
     ):
-        await route_session_to_guild(session, initiative.guild_id)
+        await route_session_to_guild(session, guild_of(initiative))
         await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
 

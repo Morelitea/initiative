@@ -23,6 +23,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.api import resource_access
 from app.api.deps import (
     IncludeDeletedDep,
@@ -323,7 +324,6 @@ async def create_dashboard(
         )
 
     dashboard = Dashboard(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=dashboard_in.name.strip(),
@@ -343,7 +343,6 @@ async def create_dashboard(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
         )
     )
@@ -768,7 +767,7 @@ async def set_published_view(
             await _record_published_change(
                 session,
                 dashboard_id=dashboard_id,
-                guild_id=dashboard.guild_id,
+                guild_id=routed_guild_id(),
                 initiative_id=dashboard.initiative_id,
                 actor_user_id=current_user.id,
                 kind=key[0],
@@ -783,7 +782,7 @@ async def set_published_view(
                 dashboard_id,
                 kind,
                 resource_id,
-                guild_id=dashboard.guild_id,
+                guild_id=routed_guild_id(),
                 initiative_id=dashboard.initiative_id,
                 created_by=current_user.id,
             )
@@ -791,7 +790,7 @@ async def set_published_view(
         await _record_published_change(
             session,
             dashboard_id=dashboard_id,
-            guild_id=dashboard.guild_id,
+            guild_id=routed_guild_id(),
             initiative_id=dashboard.initiative_id,
             actor_user_id=current_user.id,
             kind=kind,

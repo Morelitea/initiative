@@ -26,7 +26,7 @@ from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import set_notification_prefs
+from app.testing import guild_of, set_notification_prefs
 from app.testing.factories import create_initiative
 
 
@@ -92,14 +92,13 @@ async def _project_shared_with_the_initiative(session: AsyncSession, initiative,
     from app.testing.schema_harness import route_session_to_guild
 
     project = await create_project(session, initiative, owner, name="Shared work")
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     session.add(
         ResourceGrant(
             resource_type="project",
             resource_id=project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=initiative.guild_id,
             initiative_id=initiative.id,
         )
     )

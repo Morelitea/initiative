@@ -40,6 +40,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -631,13 +632,13 @@ async def uninstall_guild_app(
     # what that app is sent. Switched off rather than deleted: the row records
     # what was going where, and a reinstall registers afresh.
     await webhook_subscriptions_service.deactivate_for_install(
-        session, guild_id=app.guild_id, app_install_id=app.id
+        session, guild_id=routed_guild_id(), app_install_id=app.id
     )
     if app.config_secrets or app.config:
         revocation_service.queue_revocation(
             session,
             revocation_service.RevocationIntent(
-                guild_id=app.guild_id,
+                guild_id=routed_guild_id(),
                 app_id=app.id,
                 listing_uid=app.listing_uid,
                 connection_id="*",
@@ -651,7 +652,7 @@ async def uninstall_guild_app(
         retention_days=retention_days,
     )
     install_id = app.id
-    guild_id = app.guild_id
+    guild_id = routed_guild_id()
     listing_uid = app.listing_uid
     await session.delete(app)
     # Staged before the commit that removes the row, and reading the counts the
@@ -982,7 +983,7 @@ async def connect_guild_app(
     return await _connect_start(
         registration,
         guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=app.guild_id, app_install_id=app.id
+            guild_id=routed_guild_id(), app_install_id=app.id
         ),
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
@@ -1036,7 +1037,7 @@ async def _start_guild_connect(
     return await _connect_start(
         registration,
         guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=app.guild_id, app_install_id=app.id
+            guild_id=routed_guild_id(), app_install_id=app.id
         ),
         connection_id=connection_id,
         connection_ref=connection_ref,
@@ -1144,7 +1145,7 @@ async def disconnect_guild_app(
             revocation_service.queue_revocation(
                 session,
                 revocation_service.RevocationIntent(
-                    guild_id=app.guild_id,
+                    guild_id=routed_guild_id(),
                     app_id=app.id,
                     listing_uid=app.listing_uid,
                     connection_id=connection_id,

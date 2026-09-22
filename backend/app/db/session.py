@@ -546,6 +546,13 @@ async def set_rls_context(
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
     )
+    # Which community this session is now routed into, for the payloads that
+    # have to name one. Membership, a grant and a settings grant each name it in
+    # their own field, and any of the three is the community being read.
+    from app.core.routed_guild import set_routed_guild_id
+
+    set_routed_guild_id(guild_id or pam_guild_id or settings_guild_id)
+
     # Whether the account answers the deployment's own second-factor rule.
     # Ambient by default, from the context the request's gate resolved once —
     # the same shape ``establish_guild_access`` reads its satisfied set with,

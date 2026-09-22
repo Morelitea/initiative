@@ -38,7 +38,6 @@ class Queue(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     name: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(default=None)
@@ -94,7 +93,6 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field = "label"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     queue_id: int = Field(
         sa_column=Column(
             Integer,

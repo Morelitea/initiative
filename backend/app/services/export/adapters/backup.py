@@ -159,7 +159,6 @@ async def _resolve_scope(
         statement = (
             select(Initiative)
             .where(
-                Initiative.guild_id == guild_id,
                 initiative_scope_clause(user.id, Initiative.id),
             )
             .order_by(Initiative.id.asc())
@@ -173,7 +172,6 @@ async def _resolve_scope(
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     statement = select(Initiative).where(
         Initiative.id == initiative_id,
-        Initiative.guild_id == guild_id,
         initiative_scope_clause(user.id, Initiative.id),
     )
     initiative = (await session.exec(statement)).one_or_none()

@@ -165,7 +165,6 @@ async def get_document(
         .join(Document.initiative)
         .where(
             Document.id == document_id,
-            Initiative.guild_id == guild_id,
         )
         .options(*list_loader_options())
     )
@@ -356,7 +355,6 @@ async def duplicate_document(
                 new_upload_records.append(
                     Upload(
                         filename=fname,
-                        guild_id=effective_guild_id,
                         created_by=user_id,
                         size_bytes=fpath.stat().st_size if fpath.exists() else 0,
                         content_type=content_type,
@@ -369,7 +367,6 @@ async def duplicate_document(
     duplicated = Document(
         name=name,
         initiative_id=target_initiative_id,
-        guild_id=guild_id or source.guild_id,
         document_type=source.document_type,
         content=content_copy,
         created_by=user_id,
@@ -386,7 +383,6 @@ async def duplicate_document(
         user_id=user_id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_id or source.guild_id,
         initiative_id=duplicated.initiative_id,
     )
     session.add(owner_permission)

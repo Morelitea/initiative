@@ -82,7 +82,6 @@ async def grant_ownership(
             user_id=importer.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=target_initiative.guild_id,
             initiative_id=target_initiative.id,
         )
     )

@@ -46,6 +46,7 @@ from app.services.notifications import (
 )
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
+    guild_of,
     create_calendar,
     create_calendar_event,
     create_comment,
@@ -83,7 +84,6 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     attendee = CalendarEventAttendee(
         calendar_event_id=event.id,
         user_id=user.id,
-        guild_id=event.guild_id,
         rsvp_status=rsvp,
     )
     session.add(attendee)
@@ -91,7 +91,7 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     # Reminders are gathered in the attendee's own context, so they must be a
     # guild + initiative member to see the event under RLS (as the real app
     # enforces — you can only attend events in initiatives you belong to).
-    guild = await session.get(Guild, event.guild_id)
+    guild = await session.get(Guild, guild_of(event))
     await create_guild_membership(
         session, user=user, guild=guild, role=GuildRole.member
     )
@@ -113,7 +113,6 @@ def _unsaved_event(
 ) -> CalendarEvent:
     """In-memory event for the pure-unit formatting tests (never persisted)."""
     return CalendarEvent(
-        guild_id=1,
         calendar_id=1,
         created_by=1,
         title=title,
@@ -363,7 +362,6 @@ async def _overdue_task_in_new_guild(
         archived_at=datetime.now(timezone.utc) if project_archived else None,
     )
     status = TaskStatus(
-        guild_id=guild.id,
         project_id=project.id,
         name="Todo",
         category=TaskStatusCategory.todo,
@@ -374,7 +372,6 @@ async def _overdue_task_in_new_guild(
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id,
         project_id=project.id,
         task_status_id=status.id,
         title=f"{label} overdue",
@@ -385,7 +382,12 @@ async def _overdue_task_in_new_guild(
     session.add(task)
     await session.commit()
     await session.refresh(task)
-    session.add(TaskAssignee(task_id=task.id, user_id=user.id, guild_id=guild.id))
+    session.add(
+        TaskAssignee(
+            task_id=task.id,
+            user_id=user.id,
+        )
+    )
     await session.commit()
     return guild
 
@@ -660,7 +662,6 @@ async def _assignment_item_in_new_guild(
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     status = TaskStatus(
-        guild_id=guild.id,
         project_id=project.id,
         name="Todo",
         category=TaskStatusCategory.todo,
@@ -671,7 +672,6 @@ async def _assignment_item_in_new_guild(
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id,
         project_id=project.id,
         task_status_id=status.id,
         title=f"{label} task",

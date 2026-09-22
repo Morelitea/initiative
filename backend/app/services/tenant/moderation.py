@@ -228,7 +228,6 @@ async def _place_in_initiative(
 
         if existing is None:
             existing = ModerationReport(
-                guild_id=guild_id,
                 initiative_id=initiative_id,
                 target_type=target.value,
                 target_id=target_id,

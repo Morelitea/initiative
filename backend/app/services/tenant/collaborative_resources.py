@@ -90,8 +90,6 @@ async def _load_document(
     document = (await session.exec(statement)).one_or_none()
     if document is None:
         return None
-    if document.initiative and document.initiative.guild_id != guild_id:
-        return None
     return Collaborating(
         body=document, governing=document, initiative_id=document.initiative_id
     )
@@ -127,8 +125,6 @@ async def _load_wiki_page(
     )
     wiki = (await session.exec(statement)).one_or_none()
     if wiki is None:
-        return None
-    if wiki.initiative and wiki.initiative.guild_id != guild_id:
         return None
     return Collaborating(body=page, governing=wiki, initiative_id=wiki.initiative_id)
 

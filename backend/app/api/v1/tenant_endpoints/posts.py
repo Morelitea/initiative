@@ -397,7 +397,6 @@ async def create_post(
         else None
     )
     post = Post(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=post_in.name.strip(),
@@ -415,7 +414,6 @@ async def create_post(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
         )
     )

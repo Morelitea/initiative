@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -60,7 +61,7 @@ class PostImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: PostEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id()
 
         existing_names = {
             row
@@ -84,7 +85,6 @@ class PostImporter(QuotesNobody):
             name=unique_name(existing_names, name),
             body=env.body or {},
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
             # A restored notice is live on arrival. The schedule is not carried
             # for the same reason the pin is not: it said when this notice

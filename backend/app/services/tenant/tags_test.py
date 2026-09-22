@@ -69,7 +69,6 @@ async def test_a_tag_is_stored_as_an_edge_the_tagged_thing_owns(
     assert row.relationship_type == RelationshipType.tagged_with.value
     assert (row.source_type, row.source_id) == (SearchEntityType.task.value, task.id)
     assert (row.target_type, row.target_id) == (SearchEntityType.tag.value, tag.id)
-    assert row.guild_id == a.guild.id
 
 
 async def test_two_kinds_sharing_an_id_do_not_share_tags(

@@ -336,7 +336,6 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
                 resource_id=resource_id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=owner.guild.id,
                 initiative_id=owner.initiative.id,
             )
         )
@@ -782,7 +781,6 @@ async def test_asserting_a_link_from_something_you_may_read_but_not_edit(
             resource_id=theirs.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=theirs.guild_id,
             initiative_id=theirs.initiative_id,
         )
     )
@@ -825,7 +823,6 @@ async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
             resource_id=theirs.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=theirs.guild_id,
             initiative_id=theirs.initiative_id,
         )
     )

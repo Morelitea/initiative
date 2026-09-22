@@ -7,7 +7,6 @@ from sqlalchemy import (
     Column,
     Computed,
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     REAL,
@@ -136,10 +135,6 @@ class EntityRelationship(CreatedByMixin, table=True):
     #: Filled by trigger from the source endpoint. RLS does not read it — the
     #: schema is the tenant boundary — but cross-guild reads filter on it, so it
     #: is derived in the database where no write path can forget.
-    guild_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
-    )
 
     source_type: str = Field(sa_column=Column(String(32), nullable=False))
     source_id: int = Field(sa_column=Column(Integer, nullable=False))

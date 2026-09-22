@@ -750,7 +750,6 @@ async def _initiative_with_shared_project(
             resource_id=project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )

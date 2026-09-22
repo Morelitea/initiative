@@ -8,6 +8,7 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    guild_of,
     create_task,
     create_wiki_page,
 )
@@ -30,7 +31,7 @@ async def _tool_entity(session, tool: Tool, initiative, creator):
         session.add(initiative)
         await session.commit()
     entity = await TOOL_FACTORIES[tool](session, initiative, creator)
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     await session.exec(
         sa_delete(ResourceGrant).where(
             ResourceGrant.resource_type == tool.value,
@@ -43,14 +44,13 @@ async def _tool_entity(session, tool: Tool, initiative, creator):
 
 
 async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, entity.guild_id)
+    await route_session_to_guild(session, guild_of(entity))
     session.add(
         ResourceGrant(
             resource_type=tool.value,
             resource_id=entity.id,
             user_id=user.id,
             level=level,
-            guild_id=entity.guild_id,
             initiative_id=entity.initiative_id,
         )
     )

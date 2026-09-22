@@ -309,6 +309,7 @@ async def _drain_subscription(
     session: AsyncSession,
     subscription: WebhookSubscription,
     *,
+    guild_id: int,
     now: datetime,
 ) -> None:
     """Deliver one subscription's pending transactions, as its owner.
@@ -338,13 +339,13 @@ async def _drain_subscription(
     # is, so it is not reconsidered every pass. That is the one observable
     # change: a row the owner could not see when it was written is not held
     # back for them to gain access to later.
-    await set_system_guild_context(session, guild_id=subscription.guild_id)
+    await set_system_guild_context(session, guild_id=guild_id)
     pending = await _pending_transactions(session, subscription, now=now)
 
     await set_rls_context(
         session,
         user_id=subscription.created_by,
-        guild_id=subscription.guild_id,
+        guild_id=guild_id,
         satisfied_providers="system",
     )
 
@@ -372,7 +373,7 @@ async def _drain_subscription(
         # own registration gives it.
         actor_id = batch[0].actor_user_id
         guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
-            guild_id=subscription.guild_id,
+            guild_id=guild_id,
             app_install_id=subscription.app_install_id,
             subscription_id=subscription.id,
             actor_ids=() if actor_id is None else (actor_id,),
@@ -432,7 +433,7 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             subscription = await session.get(WebhookSubscription, subscription_id)
             if subscription is None or not subscription.active:
                 continue
-            await _drain_subscription(session, subscription, now=now)
+            await _drain_subscription(session, subscription, guild_id=guild_id, now=now)
         except Exception:
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",

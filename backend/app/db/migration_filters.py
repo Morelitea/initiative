@@ -44,8 +44,6 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
       emit. Metadata-declared indexes/uniques missing from the template are
       still created (a real model change); reflected-only ones are never
       dropped.
-    * ``guild_id`` columns are trigger-populated and DDL-owned (NOT NULL in
-      the schema, Optional in models) — their nullability is not a diff.
     """
 
     def include_object(obj, name, type_, reflected, compare_to) -> bool:
@@ -65,8 +63,6 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
             return False  # wholly artifact-owned (names + cross-schema omissions)
         if type_ in ("index", "unique_constraint", "check_constraint"):
             return not reflected or compare_to is not None  # never drop artifact-owned
-        if type_ == "column" and name == "guild_id":
-            return False  # trigger-populated; DDL owns its NOT NULL
         return True
 
     return include_object

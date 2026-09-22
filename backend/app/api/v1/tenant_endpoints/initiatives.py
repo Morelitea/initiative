@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
+from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
@@ -136,8 +137,6 @@ async def _get_initiative_or_404(
             .selectinload(InitiativeRoleModel.permissions),
         )
     )
-    if guild_id is not None:
-        statement = statement.where(Initiative.guild_id == guild_id)
     result = await session.exec(statement)
     initiative = result.one_or_none()
     if not initiative:
@@ -158,7 +157,6 @@ async def _initiative_name_exists(
     if not normalized:
         return False
     statement = select(Initiative.id).where(
-        Initiative.guild_id == guild_id,
         func.lower(Initiative.name) == normalized,
     )
     if exclude_initiative_id is not None:
@@ -313,7 +311,6 @@ async def list_initiatives(
     statement = (
         select(Initiative)
         .where(
-            Initiative.guild_id == guild_context.guild_id,
             scope_clause,
         )
         .options(
@@ -501,7 +498,7 @@ async def _resolve_join_request(
         request_id=request.id,
         initiative_id=initiative.id,
         initiative_name=initiative.name,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(),
         approved=approved,
     )
 
@@ -584,7 +581,7 @@ async def create_join_request(
             request_id=request_id,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
-            guild_id=initiative.guild_id,
+            guild_id=routed_guild_id(),
             requester=current_user,
             message=payload.message,
         )
@@ -729,7 +726,6 @@ async def get_initiative(
         select(Initiative)
         .where(
             Initiative.id == initiative_id,
-            Initiative.guild_id == guild_context.guild_id,
         )
         .options(
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
@@ -774,7 +770,6 @@ async def create_initiative(
     initiative = Initiative(
         name=initiative_in.name,
         description=initiative_in.description,
-        guild_id=guild_id,
         join_policy=initiative_in.join_policy.value,
         # One master switch per toggleable tool, derived — a new Tool member
         # flows through without touching this endpoint.
@@ -803,7 +798,6 @@ async def create_initiative(
             initiative_id=initiative.id,
             user_id=current_user.id,
             role_id=creator_role.id,
-            guild_id=guild_id,
         )
     )
     await _record_membership(
@@ -877,7 +871,7 @@ async def update_initiative(
         if await _initiative_name_exists(
             session,
             update_data["name"],
-            guild_id=initiative.guild_id,
+            guild_id=routed_guild_id(),
             exclude_initiative_id=initiative_id,
         ):
             raise HTTPException(
@@ -1465,7 +1459,7 @@ async def add_initiative_member(
         )
     guild_membership = await guilds_service.get_membership(
         session,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(),
         user_id=user.id,
     )
     if not guild_membership:
@@ -1488,7 +1482,7 @@ async def add_initiative_member(
 
     await _guard_full_access_role(
         session,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(),
         target_user_id=payload.user_id,
         role=requested_role,
         guild_role=guild_context.role,
@@ -1545,7 +1539,7 @@ async def add_initiative_member(
                 actor_user_id=current_user.id,
                 member_user_id=payload.user_id,
                 initiative_id=initiative_id,
-                guild_id=initiative.guild_id,
+                guild_id=routed_guild_id(),
                 detail={
                     "from_role_id": from_role_id,
                     "from": old_role.name if old_role else None,
@@ -1558,7 +1552,6 @@ async def add_initiative_member(
             initiative_id=initiative_id,
             user_id=payload.user_id,
             role_id=role_id,
-            guild_id=initiative.guild_id,
         )
         session.add(membership)
         created = True
@@ -1568,7 +1561,7 @@ async def add_initiative_member(
             actor_user_id=current_user.id,
             member_user_id=payload.user_id,
             initiative_id=initiative_id,
-            guild_id=initiative.guild_id,
+            guild_id=routed_guild_id(),
             detail={
                 "role_id": role_id,
                 "role": resolved_role.name,
@@ -1587,7 +1580,7 @@ async def add_initiative_member(
             recipient,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
-            guild_id=initiative.guild_id,
+            guild_id=routed_guild_id(),
         )
     return serialize_initiative(initiative)
 
@@ -1731,13 +1724,13 @@ async def update_initiative_member(
     # standard member or custom role (they already have full access).
     await _guard_guild_admin_role(
         session,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(),
         target_user_id=user_id,
         role=new_role,
     )
     await _guard_full_access_role(
         session,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(),
         target_user_id=user_id,
         role=new_role,
         guild_role=guild_context.role,

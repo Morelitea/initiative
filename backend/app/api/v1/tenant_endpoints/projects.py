@@ -230,7 +230,7 @@ async def _get_initiative_or_404(
         )
     )
     initiative = result.one_or_none()
-    if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
+    if not initiative:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=InitiativeMessages.NOT_FOUND,
@@ -731,7 +731,6 @@ async def _projects_by_ids(
         .join(Project.initiative)
         .where(
             Project.id.in_(tuple(project_ids)),
-            Initiative.guild_id == guild_id,
         )
         .options(
             selectinload(Project.grants).options(
@@ -941,7 +940,6 @@ async def create_project(
         description=description_value,
         initiative_id=initiative_id,
         is_template=project_in.is_template,
-        guild_id=guild_context.guild_id,
         # Deliberately not inherited from the template: a schedule belongs to
         # the run, not to the blueprint.
         start_date=project_in.start_date,
@@ -959,7 +957,6 @@ async def create_project(
         user_id=owner_id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=project.initiative_id,
     )
     session.add(owner_permission)
@@ -1100,7 +1097,6 @@ async def duplicate_project(
         description=source_project.description,
         initiative_id=initiative_id,
         is_template=False,
-        guild_id=guild_context.guild_id,
         start_date=source_project.start_date,
         end_date=source_project.end_date,
     )
@@ -1115,7 +1111,6 @@ async def duplicate_project(
             user_id=owner_id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=new_project.initiative_id,
         )
     )
@@ -1130,7 +1125,6 @@ async def duplicate_project(
                     user_id=membership.user_id,
                     role_id=None,
                     level=ResourceAccessLevel.read,
-                    guild_id=guild_context.guild_id,
                     initiative_id=new_project.initiative_id,
                 )
                 session.add(read_permission)

@@ -50,7 +50,6 @@ class ImportJob(CreatedByMixin, table=True):
     __tablename__ = "import_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     created_by: int = Field(foreign_key="users.id", nullable=False)
 
     # Envelope type ("initiative-document", …) or "backup".

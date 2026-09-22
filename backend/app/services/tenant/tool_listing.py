@@ -127,13 +127,13 @@ def base_conditions(
 ) -> list:
     """The WHERE legs every tool list and every tool count share.
 
-    The guild, the tool's switch, the initiative filter when one is named,
-    sharing, the search box and the tag filter. The archive leg is deliberately
+    The tool's switch, the initiative filter when one is named, sharing, the
+    search box and the tag filter. The community is the schema the statement
+    runs in, so it is not a leg. The archive leg is deliberately
     absent: a list answers ``archived`` and a count never does, so each caller
     appends the one it means (``archive.archive_filter_clause``).
     """
     conditions: list = [
-        model.guild_id == guild_id,
         initiative_switch_clause(
             model, enabled_column, guild_level_rows=guild_level_rows
         ),
@@ -237,7 +237,6 @@ async def count_tool_rows_by_initiative(
     rows this answers are initiative rows.
     """
     conditions = [
-        model.guild_id == guild_id,
         initiative_switch_clause(model, enabled_column),
         archive_service.archive_filter_clause(model, None),
         permissions_service.granted_scope_clause(

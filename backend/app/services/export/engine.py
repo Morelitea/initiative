@@ -185,7 +185,6 @@ async def start_export(
         raise ExportError(ExportMessages.EXPORT_JOB_LIMIT_REACHED, status_code=429)
 
     job = ExportJob(
-        guild_id=guild_id,
         created_by=user.id,
         source=source,
         template_id=adapter.template_id,

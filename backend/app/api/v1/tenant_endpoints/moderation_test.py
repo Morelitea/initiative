@@ -114,7 +114,6 @@ async def scene(session, acting_user):
     # report is only ever about a thing the reporter could reach.
     session.add(
         ResourceGrant(
-            guild_id=owner.guild.id,
             # The service sets this on every grant it writes; a hand-made one
             # without it is a grant no initiative-scoped read would find.
             initiative_id=owner.initiative.id,

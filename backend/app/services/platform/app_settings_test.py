@@ -87,7 +87,6 @@ async def test_guild_settings_gap_fill_joins_the_transaction(session: AsyncSessi
 
     started = (await session.exec(text("SELECT txid_current()"))).one()
     row = await get_or_create_guild_settings(session, guild.id)
-    assert row.guild_id == guild.id
     assert row.id is not None
     assert (await session.exec(text("SELECT txid_current()"))).one() == started
 

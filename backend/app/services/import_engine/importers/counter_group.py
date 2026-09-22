@@ -46,7 +46,6 @@ class CounterGroupImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: CounterGroupEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
 
         existing_names = {
             row
@@ -62,7 +61,6 @@ class CounterGroupImporter(QuotesNobody):
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(group)
@@ -84,7 +82,6 @@ class CounterGroupImporter(QuotesNobody):
             session.add(
                 Counter(
                     counter_group_id=group.id,
-                    guild_id=guild_id,
                     name=c.name,
                     color=c.color,
                     count=_dec(c.count),

@@ -25,6 +25,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.core.routed_guild import routed_guild_id
 from app.core.messages import ProjectExportMessages
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
@@ -105,7 +106,7 @@ async def import_project(
     # membership however the handle was resolved, and a mapped account is
     # known by its id rather than by a handle to look up.
     initiative_member_ids = frozenset(initiative_member_handles.values())
-    target_guild_id = target_initiative.guild_id
+    target_guild_id = routed_guild_id()
     if target_guild_id is None:
         # Initiatives are created with a guild (services/initiatives.py
         # requires it). Reaching here means data corruption, not user
@@ -131,7 +132,6 @@ async def import_project(
         start_date=envelope.project.start_date,
         end_date=envelope.project.end_date,
         initiative_id=target_initiative.id,
-        guild_id=target_guild_id,
     )
     session.add(project)
     await session.flush()  # populate project.id
@@ -144,7 +144,6 @@ async def import_project(
             user_id=importer.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=target_guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -156,7 +155,6 @@ async def import_project(
     for s in envelope.task_statuses:
         status_row = TaskStatus(
             project_id=project.id,
-            guild_id=target_guild_id,
             name=s.name,
             category=s.category,
             position=s.position,
@@ -307,7 +305,6 @@ async def _import_task(
 
     task = Task(
         project_id=project_id,
-        guild_id=guild_id,
         task_status_id=status_id,
         title=envelope_task.title,
         description=envelope_task.description,
@@ -381,7 +378,12 @@ async def _import_task(
         if uid in seen_user_ids:
             continue
         seen_user_ids.add(uid)
-        session.add(TaskAssignee(task_id=task.id, user_id=uid, guild_id=guild_id))
+        session.add(
+            TaskAssignee(
+                task_id=task.id,
+                user_id=uid,
+            )
+        )
 
     # Property values
     for pv in envelope_task.property_values:
@@ -422,7 +424,6 @@ async def _import_task(
         session.add(
             Comment(
                 task_id=task.id,
-                guild_id=guild_id,
                 content=body,
                 created_by=author_id,
                 imported_author_name=source_name,

@@ -193,8 +193,6 @@ def tagged_entity_ids(
         ),
         *_live_tag_edge(spec),
     ]
-    if guild_id is not None:
-        conditions.append(Tag.guild_id == guild_id)
     return (
         select(EntityRelationship.source_id)
         .join(Tag, Tag.id == EntityRelationship.target_id)
@@ -319,9 +317,7 @@ async def validate_guild_tag_ids(
     unique = list(dict.fromkeys(tag_ids))
     if not unique:
         return []
-    result = await session.exec(
-        select(Tag.id).where(Tag.id.in_(unique), Tag.guild_id == guild_id)
-    )
+    result = await session.exec(select(Tag.id).where(Tag.id.in_(unique)))
     if len(set(result.all())) != len(unique):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -2,6 +2,8 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.tools import TAG_TARGETS
@@ -72,7 +74,7 @@ class TagRead(TagBase):
     )
 
     id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_at: datetime
     updated_at: datetime
 

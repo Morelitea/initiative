@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import List, Literal, Optional
 
+from pydantic import Field as PydField
+from app.core.routed_guild import routed_guild_id
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
@@ -93,7 +95,7 @@ class ProjectRead(ProjectBase, ArchiveState):
     #: The community this project lives in — the one fact a cross-guild list
     #: needs to address the row, and what every other tool summary carries.
     #: Left out of the slim picker projection, which never leaves one guild.
-    guild_id: Optional[int] = None
+    guild_id: Optional[int] = PydField(default_factory=routed_guild_id)
     created_at: datetime
     updated_at: datetime
     is_template: bool

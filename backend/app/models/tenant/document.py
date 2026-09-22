@@ -50,9 +50,6 @@ class Document(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
     name: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(
@@ -161,9 +158,6 @@ class DocumentFileVersion(CreatedByMixin, table=True):
             nullable=False,
             index=True,
         )
-    )
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
     )
     version_number: int = Field(nullable=False)
     file_url: str = Field(sa_column=Column(String(length=512), nullable=False))

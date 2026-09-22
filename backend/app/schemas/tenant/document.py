@@ -15,6 +15,8 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import (
@@ -83,7 +85,7 @@ class DocumentSummary(DocumentBase, ArchiveState):
     # The owning guild — lets clients address guild-scoped actions (file
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -219,7 +221,7 @@ def serialize_document_summary(
 
     return DocumentSummary(
         id=document.id,
-        guild_id=document.guild_id,
+        guild_id=require_routed_guild_id(),
         initiative_id=document.initiative_id,
         name=document.name,
         featured_image_url=document.featured_image_url,

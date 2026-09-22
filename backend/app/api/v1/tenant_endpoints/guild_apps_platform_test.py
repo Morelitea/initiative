@@ -1068,7 +1068,6 @@ class TestUninstallStopsDeliveries:
 
         now = datetime.now(timezone.utc)
         theirs = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=app.id,
@@ -1082,7 +1081,6 @@ class TestUninstallStopsDeliveries:
         # A member's own, registered against a URL of their own: nothing to do
         # with this install, and untouched by its removal.
         mine = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=None,
@@ -1127,7 +1125,6 @@ class TestUninstallStopsDeliveries:
 
         now = datetime.now(timezone.utc)
         sub = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=app.id,

@@ -150,7 +150,6 @@ async def _member_connection(
 ) -> GuildAppUserConnection:
     await route_session_to_guild(session, guild.id)
     row = GuildAppUserConnection(
-        guild_id=guild.id,
         app_id=app.id,
         connection_id=connection_id,
         user_id=user.id,

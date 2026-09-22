@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -59,7 +60,7 @@ class WikiImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: WikiEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id()
         warnings: list[str] = []
 
         existing_names = {
@@ -74,7 +75,6 @@ class WikiImporter(QuotesNobody):
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(wiki)
@@ -115,7 +115,6 @@ class WikiImporter(QuotesNobody):
         for page_env, slug in zip(env.pages, slugs):
             row = WikiPage(
                 wiki_id=wiki.id,
-                guild_id=guild_id,
                 title=page_env.title,
                 slug=slug,
                 position=page_env.position,

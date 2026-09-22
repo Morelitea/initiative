@@ -41,6 +41,7 @@ from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.user_display import handle_of
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
@@ -164,7 +165,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
             # The account is gone; the notice still goes up, silently.
             logger.warning("Post %s published with no author to attribute", post.id)
             continue
-        await announce_post(session, post, author=author, guild_id=post.guild_id)
+        await announce_post(session, post, author=author, guild_id=routed_guild_id())
     return post_ids
 
 

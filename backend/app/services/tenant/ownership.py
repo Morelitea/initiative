@@ -285,7 +285,6 @@ async def set_resource_owner(
                 user_id=new_owner_id,
                 role_id=None,
                 level=ResourceAccessLevel.owner,
-                guild_id=row.guild_id,
                 initiative_id=row.initiative_id,
             )
         )

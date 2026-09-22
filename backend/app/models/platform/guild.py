@@ -22,8 +22,6 @@ from pydantic import ConfigDict
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
     from app.models.platform.guild_administration import GuildAdministration
-    from app.models.tenant.initiative import Initiative
-    from app.models.tenant.guild_setting import GuildSetting
 
 
 class GuildStatus(str, Enum):
@@ -320,11 +318,6 @@ class Guild(SQLModel, table=True):
     members: List["GuildMembership"] = Relationship(
         back_populates="guild",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    initiatives: List["Initiative"] = Relationship(back_populates="guild")
-    settings: Optional["GuildSetting"] = Relationship(
-        back_populates="guild",
-        sa_relationship_kwargs={"uselist": False},
     )
 
     @validates("is_community")

@@ -52,10 +52,6 @@ class Reaction(CreatedByMixin, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
-    )
     target_type: str = Field(sa_column=Column(String(32), nullable=False))
     target_id: int = Field(sa_column=Column(Integer, nullable=False))
     #: The emoji itself, as the grapheme cluster the client rendered. Stored

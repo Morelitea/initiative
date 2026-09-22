@@ -17,6 +17,7 @@ from typing import Annotated, Any, Awaitable, Callable, Optional
 
 from fastapi import Depends, HTTPException, status
 
+from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     GuildContext,
     get_current_active_user,
@@ -384,7 +385,7 @@ async def set_resource_grants(
         session,
         resource_type=kind,
         resource_id=row.id,
-        guild_id=row.guild_id,
+        guild_id=routed_guild_id(),
         initiative_id=row.initiative_id,
         owner_id=ownership_service.owner_id_of(row),
         grants=grants,

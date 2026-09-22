@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskPriority
 from app.testing.factories import (
@@ -45,7 +46,7 @@ async def _create_task(session, project, title="Test Task", *, created_by=None):
     await set_rls_context(
         session,
         user_id=project.created_by,
-        guild_id=project.guild_id,
+        guild_id=guild_of(project),
         guild_role="admin",
     )
     await task_statuses_service.ensure_default_statuses(session, project.id)
@@ -55,7 +56,6 @@ async def _create_task(session, project, title="Test Task", *, created_by=None):
         title=title,
         project_id=project.id,
         task_status_id=status.id,
-        guild_id=project.guild_id,
         created_by=created_by,
     )
     session.add(task)

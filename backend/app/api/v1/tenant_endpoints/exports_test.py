@@ -1003,7 +1003,6 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     key = "exports/424242.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
     job = ExportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="tasks",
         template_id="task-table",
@@ -1899,7 +1898,6 @@ async def test_initiative_backup_includes_read_only_projects(
             resource_id=theirs.id,
             user_id=exporter.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=theirs.guild_id,
             initiative_id=theirs.initiative_id,
         )
     )

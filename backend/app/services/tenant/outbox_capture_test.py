@@ -119,7 +119,6 @@ async def test_a_task_status_is_reported_against_its_project(session, acting_use
     before = len(await _outbox(session, a.guild.id))
     session.add(
         TaskStatus(
-            guild_id=a.guild.id,
             project_id=a.project.id,
             name="Blocked",
             position=99,
@@ -151,7 +150,6 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     before = len(await _outbox(session, a.guild.id))
     session.add(
         ResourceGrant(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             resource_type="project",
             resource_id=a.project.id,

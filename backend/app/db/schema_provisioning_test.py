@@ -98,10 +98,10 @@ async def test_writes_route_to_guild_schema_not_public(engine):
             # 9-char alpha color also exercises the widened tags.color column.
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#abcdef80', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#abcdef80', now(), now())"
                 ),
-                {"g": gid, "n": "iso-tag"},
+                {"n": "iso-tag"},
             )
             await conn.exec_driver_sql("SET search_path TO public")
 
@@ -119,10 +119,10 @@ async def test_writes_route_to_guild_schema_not_public(engine):
                 await conn.exec_driver_sql("SET search_path TO public")
                 await conn.execute(
                     text(
-                        "INSERT INTO tags (guild_id, name, color, created_at, "
-                        "updated_at) VALUES (:g, :n, '#abcdef80', now(), now())"
+                        "INSERT INTO tags (name, color, created_at, "
+                        "updated_at) VALUES (:n, '#abcdef80', now(), now())"
                     ),
-                    {"g": gid, "n": "unrouted-tag"},
+                    {"n": "unrouted-tag"},
                 )
     finally:
         async with engine.begin() as conn:
@@ -328,10 +328,10 @@ async def test_guild_role_can_write_in_its_own_schema(engine):
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#112233', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#112233', now(), now())"
                 ),
-                {"g": gid, "n": "written-by-role"},
+                {"n": "written-by-role"},
             )
             written = await conn.scalar(text("SELECT count(*) FROM tags"))
             await conn.exec_driver_sql("SET search_path TO public")
@@ -402,10 +402,10 @@ async def test_reprovision_preserves_existing_rows(engine):
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#445566', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#445566', now(), now())"
                 ),
-                {"g": gid, "n": "survivor"},
+                {"n": "survivor"},
             )
             await conn.exec_driver_sql("SET search_path TO public")
         async with engine.begin() as conn:
@@ -430,6 +430,7 @@ async def test_drop_guild_schema_is_safe_when_absent(engine):
 # --- drift guard: the provisioned guild schema must equal guild_template --------
 
 _GID_DRIFT = 990_120
+_GID_NO_GUILD_COLUMN = 990_122
 
 # The Alembic-maintained canonical guild schema (created by migration
 # 20260701_0126 by running guild_schema.sql + guild_rls.sql). Post-squash there
@@ -1282,3 +1283,39 @@ async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes,
     # Both ways to make the roles, so neither the operator who wants the app to
     # do it nor the one who wants the SQL has to go looking for the other.
     assert "python -m app.db.bootstrap --print-sql" in message
+
+
+@pytest.mark.database
+async def test_a_provisioned_schema_names_no_community(engine):
+    """A guild schema is what says which community it is, so no table in one
+    carries a ``guild_id`` column.
+
+    Read from the catalog rather than compared against a list, so it cannot
+    become a test of the exemptions that produced it: a table added later with
+    the column fails here without anyone remembering to add it anywhere.
+    """
+    schema = guild_schema_name(_GID_NO_GUILD_COLUMN)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_NO_GUILD_COLUMN)
+        async with engine.connect() as conn:
+            named = (
+                await conn.execute(
+                    text(
+                        "SELECT c.relname, a.attname FROM pg_attribute a "
+                        "JOIN pg_class c ON c.oid = a.attrelid "
+                        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                        "WHERE n.nspname = :ns AND c.relkind = 'r' "
+                        "AND a.attnum > 0 AND NOT a.attisdropped "
+                        "AND a.attname = 'guild_id' ORDER BY c.relname"
+                    ),
+                    {"ns": schema},
+                )
+            ).all()
+        assert named == [], (
+            "these tables still name their community in a column: "
+            f"{[row[0] for row in named]}"
+        )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_NO_GUILD_COLUMN)

@@ -534,7 +534,6 @@ async def _create_initiative_membership(
     im = InitiativeMember(
         initiative_id=initiative_id,
         user_id=user_id,
-        guild_id=guild_id,
         role_id=role_id,
         oidc_provider_id=provider_id,
     )

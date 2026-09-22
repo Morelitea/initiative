@@ -2480,7 +2480,9 @@ def _resolve_timezone(value: str | None) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[dict]:
+async def _overdue_tasks_for_user(
+    session: AsyncSession, user_id: int, guild_id: int
+) -> list[dict]:
     """Overdue tasks assigned to the user *in the currently routed guild schema*.
 
     Run once per guild via ``gather_across_guilds`` (the session is routed into
@@ -2493,7 +2495,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
     Tasks list already applies.
     """
     stmt = (
-        select(Task, Project.name, Project.id, Initiative.guild_id)
+        select(Task, Project.name, Project.id)
         .join(Project, Task.project_id == Project.id)
         .join(Initiative, Project.initiative_id == Initiative.id)
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
@@ -2513,7 +2515,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
     rows = result.all()
     tasks: list[dict] = []
     for row in rows:
-        task, project_name, project_id, guild_id = row
+        task, project_name, project_id = row
         target_path = _task_target_path(task.id, project_id)
         tasks.append(
             {
@@ -2634,7 +2636,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             guild_ids,
             # _uid default-binds user_id so the closure doesn't capture the loop
             # variable by reference (B023).
-            lambda routed, _gid, _uid=user_id: _overdue_tasks_for_user(routed, _uid),
+            lambda routed, gid, _uid=user_id: _overdue_tasks_for_user(
+                routed, _uid, gid
+            ),
             satisfied_providers=SYSTEM_SATISFIED,
         )
         if not tasks:
