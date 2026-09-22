@@ -433,6 +433,7 @@ async def test_drop_guild_schema_is_safe_when_absent(engine):
 
 _GID_DRIFT = 990_120
 _GID_NO_GUILD_COLUMN = 990_122
+_GID_NO_CROSS_SCHEMA_FK = 990_123
 
 # The Alembic-maintained canonical guild schema (created by migration
 # 20260701_0126 by running guild_schema.sql + guild_rls.sql). Post-squash there
@@ -459,9 +460,12 @@ async def test_guild_schema_matches_guild_template(engine):
     """A provisioned guild schema must be a structurally faithful CLONE of the
     ``guild_template`` schema it was rendered from (``app.db.guild_ddl`` reflects
     the live template) — same columns/types/nullability/defaults, CHECK/PK/UNIQUE,
-    indexes (incl. opclasses), and intra-schema FK ON DELETE rules. Cross-schema
-    FKs are intentionally absent (soft refs). This catches any fidelity gap in the
-    live-reflection renderer."""
+    indexes (incl. opclasses), and FK ON DELETE rules. This catches any fidelity
+    gap in the live-reflection renderer.
+
+    Every key counts, not only the ones that stay inside the schema: since
+    20260922_0349 the template holds none that leave either, so the comparison
+    can be whole, and one that came back would read here as the drift it is."""
     schema = guild_schema_name(_GID_DRIFT)
     rendered = rendered_trigger_names()
     rendered_cons = rendered_constraint_names()
@@ -498,15 +502,14 @@ async def test_guild_schema_matches_guild_template(engine):
                     _norm_constraint(x.d) for x in r if x.n not in rendered_cons
                 )
 
-            async def intra_fks(ns, t):  # (target, ON DELETE) for guild->guild FKs only
+            async def fks(ns, t):  # (target, ON DELETE) for every key on the table
                 r = await conn.execute(
                     text(
                         "SELECT tgt.relname g, con.confdeltype::text d FROM pg_constraint con "
                         "JOIN pg_class tgt ON tgt.oid=con.confrelid "
-                        "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f' "
-                        "AND tgt.relname = ANY(:gs)"
+                        "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f'"
                     ),
-                    {"ns": ns, "t": t, "gs": list(GUILD_SCOPED_TABLES)},
+                    {"ns": ns, "t": t},
                 )
                 return {(x.g, x.d) for x in r}
 
@@ -544,7 +547,7 @@ async def test_guild_schema_matches_guild_template(engine):
                     drift.append(f"columns: {t}")
                 if await cons(_TEMPLATE_SCHEMA, t) != await cons(schema, t):
                     drift.append(f"constraints: {t}")
-                if await intra_fks(_TEMPLATE_SCHEMA, t) != await intra_fks(schema, t):
+                if await fks(_TEMPLATE_SCHEMA, t) != await fks(schema, t):
                     drift.append(f"foreign keys: {t}")
                 if await idx(_TEMPLATE_SCHEMA, t) != await idx(schema, t):
                     drift.append(f"indexes: {t}")
@@ -554,6 +557,49 @@ async def test_guild_schema_matches_guild_template(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)
+
+
+_CROSS_SCHEMA_FKS = text(
+    "SELECT cl.relname tbl, con.conname name, "
+    "       tgt.relnamespace::regnamespace::text || '.' || tgt.relname tgt "
+    "FROM pg_constraint con "
+    "JOIN pg_class cl ON cl.oid = con.conrelid "
+    "JOIN pg_class tgt ON tgt.oid = con.confrelid "
+    "WHERE con.contype = 'f' "
+    "  AND cl.relnamespace = CAST(:s AS regnamespace) "
+    "  AND tgt.relnamespace <> cl.relnamespace "
+    "ORDER BY 1, 2"
+)
+
+
+async def test_no_key_reaches_out_of_a_guild_schema(engine):
+    """A guild schema holds no foreign key to a table outside it.
+
+    Provisioning renders intra-schema keys only, so one written into a
+    migration reaches ``guild_template`` and no guild — a rule the database
+    states in the one place it is never enforced. 20260922_0349 removed the
+    twenty-three that had collected that way, and
+    ``migration_filters.strip_cross_schema_foreign_keys`` keeps autogenerate
+    from writing the next one; this is the catalog saying so.
+    """
+    schema = guild_schema_name(_GID_NO_CROSS_SCHEMA_FK)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_NO_CROSS_SCHEMA_FK)
+
+        async with engine.connect() as conn:
+            for ns in (_TEMPLATE_SCHEMA, schema):
+                found = [
+                    f"{ns}.{r.tbl}.{r.name} -> {r.tgt}"
+                    for r in await conn.execute(_CROSS_SCHEMA_FKS, {"s": ns})
+                ]
+                assert found == [], (
+                    "foreign keys point out of the guild schema, where no guild "
+                    f"would ever enforce them: {found}"
+                )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_NO_CROSS_SCHEMA_FK)
 
 
 async def test_the_template_strip_removes_only_what_a_render_put_there(engine):

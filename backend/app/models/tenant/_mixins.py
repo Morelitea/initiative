@@ -118,12 +118,15 @@ class CreatedByMixin(SQLModel):
     ``SoftDeleteMixin.deleted_by`` above: both say who, neither carries an
     ``_id`` suffix.
 
-    ``foreign_key`` here is ORM metadata — it is what lets relationships like
-    ``Task.creator`` resolve their join — not a constraint in the guild
-    schemas. Guild content lives in a per-guild schema and ``users`` in
-    ``public``, and the guild DDL carries a cross-schema user FK on only a
-    handful of tables, so no delete rule is declared for a rule the database
-    would not hold.
+    ``foreign_key`` here is SQLAlchemy metadata, never a constraint: guild
+    content lives in a per-guild schema and ``users`` in ``public``, and a
+    guild schema holds no key out of it (20260922_0349). What it is for is
+    saying that this integer names a *person*, which is what gives a filter on
+    ``created_by`` a member picker instead of a number box
+    (``app.services.fields.derive``). Reading an author goes through
+    ``MemberProfile``, whose relationships spell out their own join because
+    the target is a view — so no delete rule is declared for a rule the
+    database would not hold.
 
     That makes ``created_by`` a **weak reference**, and deliberately so: it
     survives the erasure of the account it names, which is what keeps an old
