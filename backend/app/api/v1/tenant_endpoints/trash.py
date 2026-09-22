@@ -162,14 +162,9 @@ async def _list_trashed_for_model(
     session: AsyncSession,
     model: type[SQLModel],
     *,
-    guild_id: int,
     only_deleted_by: Optional[int],
 ) -> list[SQLModel]:
-    stmt = (
-        select_including_deleted(model)
-        .where(model.deleted_at.is_not(None))
-        .where(model.guild_id == guild_id)
-    )
+    stmt = select_including_deleted(model).where(model.deleted_at.is_not(None))
     if only_deleted_by is not None:
         stmt = stmt.where(model.deleted_by == only_deleted_by)
 
@@ -213,7 +208,6 @@ async def _collect_trash_items(
         rows = await _list_trashed_for_model(
             session,
             model,
-            guild_id=guild_id,
             only_deleted_by=only_deleted_by,
         )
         for row in rows:
@@ -264,7 +258,6 @@ async def _load_trash_entity(
     *,
     entity_type: EntityType,
     entity_id: int,
-    guild_id: int,
     for_update: bool = False,
 ) -> SQLModel:
     """Load a trashed entity (404 unless it's in this guild's trash and still
@@ -285,11 +278,7 @@ async def _load_trash_entity(
             detail=TrashMessages.UNKNOWN_ENTITY_TYPE,
         )
     model, _ = spec
-    stmt = (
-        select_including_deleted(model)
-        .where(model.id == entity_id)
-        .where(model.guild_id == guild_id)
-    )
+    stmt = select_including_deleted(model).where(model.id == entity_id)
     if for_update:
         stmt = stmt.with_for_update()
     result = await session.exec(stmt)
@@ -318,7 +307,6 @@ async def restore_trash_entity(
         session,
         entity_type=entity_type,
         entity_id=entity_id,
-        guild_id=guild_context.guild_id,
     )
 
     # Permission: regular users can only restore their own deletions.
@@ -385,7 +373,6 @@ async def purge_trash_entity(
         session,
         entity_type=entity_type,
         entity_id=entity_id,
-        guild_id=guild_context.guild_id,
         for_update=True,
     )
     await hard_purge_entity(session, entity)
