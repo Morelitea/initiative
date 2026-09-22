@@ -1,9 +1,13 @@
 import { screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildUserSummary } from "@/__tests__/factories";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage, renderWithProviders } from "@/__tests__/helpers/render";
 
 import { CommentContent } from "./CommentContent";
+import { CommentReferences } from "./CommentReferences";
 
 const renderContent = (content: string) =>
   renderWithProviders(<CommentContent content={content} />);
@@ -11,6 +15,22 @@ const renderContent = (content: string) =>
 /** Entity mentions render a router `Link`, so they need a mounted router. */
 const renderLinkedContent = (content: string) =>
   renderPage(() => <CommentContent content={content} />);
+
+/** A mention of somebody links to them only once the thread has resolved who
+ *  they are, which is what `CommentReferences` asks for. */
+const renderResolvedContent = (content: string, disableLinks = false) =>
+  renderPage(() => (
+    <CommentReferences contents={[content]}>
+      <CommentContent content={content} disableLinks={disableLinks} />
+    </CommentReferences>
+  ));
+
+const answerWithPeople = (...people: ReturnType<typeof buildUserSummary>[]) =>
+  server.use(
+    http.get("*/api/v1/g/:guildId/users/search", () =>
+      HttpResponse.json({ items: people, total: people.length, page: 1, page_size: 100 })
+    )
+  );
 
 describe("CommentContent", () => {
   it("renders markdown inline formatting", () => {
@@ -54,10 +74,35 @@ describe("CommentContent", () => {
     expect(container.querySelector("br")).not.toBeNull();
   });
 
-  it("renders a user mention as a badge, not a link", () => {
+  it("renders a user mention nobody has resolved as the words it was written with", () => {
+    // A profile is addressed by username and number, and a mention stores
+    // neither — so there is no link to make until somebody says who id 12 is.
     const { container } = renderContent("thanks @[Ada Lovelace](12)!");
 
     expect(screen.getByText("@Ada Lovelace")).toBeInTheDocument();
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("links a mention to the profile of whoever that id is now", async () => {
+    answerWithPeople(
+      buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" })
+    );
+
+    renderResolvedContent("thanks @[Ada Lovelace](12)!");
+
+    // Named by who they are today, not by what the comment was written with.
+    const link = await screen.findByRole("link", { name: "@Ada King" });
+    expect(link).toHaveAttribute("href", "/u/ada0007");
+  });
+
+  it("keeps a mention out of a link when the body itself is one", async () => {
+    answerWithPeople(
+      buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" })
+    );
+
+    const { container } = renderResolvedContent("thanks @[Ada Lovelace](12)!", true);
+
+    expect(await screen.findByText("@Ada King")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeNull();
   });
 
