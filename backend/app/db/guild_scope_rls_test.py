@@ -36,7 +36,7 @@ async def _access(
     return (
         await session.exec(
             text(
-                "SELECT public.initiative_access(:initiative_id, :user_id, :need_write)"
+                "SELECT initiative_access(:initiative_id, :user_id, :need_write)"
             ).bindparams(initiative_id=initiative_id, user_id=user_id, need_write=write)
         )
     ).scalar()

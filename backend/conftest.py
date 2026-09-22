@@ -352,6 +352,25 @@ async def _apply_public_rls() -> None:
         await engine.dispose()
 
 
+async def _retire_public_authorization_copies() -> None:
+    """Drop the ``public`` copies of the guild functions, as boot does after
+    the back-fill. The migrations create them; a provisioned schema binds its
+    own; a fresh database has nothing bound to them, so the drop goes through
+    here. A copy something still binds is left, as boot leaves it."""
+    from app.db.authorization import drop_public_copies
+    from app.db.schema_provisioning import strip_template_registry_objects
+
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        # As the boot back-fill does first: a template that earlier runs
+        # rendered the registries into still binds the public copies.
+        async with engine.begin() as conn:
+            await strip_template_registry_objects(conn)
+        await drop_public_copies(engine)
+    finally:
+        await engine.dispose()
+
+
 async def _test_db_is_at_head() -> bool:
     """True when this worker's database already exists and is stamped at head.
 
@@ -410,6 +429,7 @@ def _run_test_migrations() -> None:
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
     asyncio.run(_apply_public_rls())
+    asyncio.run(_retire_public_authorization_copies())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
 

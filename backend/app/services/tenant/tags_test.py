@@ -212,7 +212,7 @@ async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
         return (
             await session.exec(
                 text(
-                    "SELECT public.relationship_endpoint_access('task', :id, false)"
+                    "SELECT relationship_endpoint_access('task', :id, false)"
                 ).bindparams(id=task_id)
             )
         ).one()[0]

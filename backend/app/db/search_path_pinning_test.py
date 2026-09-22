@@ -1,10 +1,9 @@
 """Name resolution for the shared functions is a property of the route.
 
-``public.initiative_access`` and ``public.capture_change`` name guild tables
-unqualified — that is exactly what lets one definition in ``public`` serve every
-``guild_<id>`` schema, rather than one copy per guild. The routed
-``search_path`` is therefore what binds those names, so it names every schema
-they may resolve in, in priority order, ending at ``pg_temp``
+``initiative_access`` (a copy in each guild schema) and ``public.capture_change``
+(one definition for every schema) both name guild tables unqualified. The
+routed ``search_path`` is therefore what binds those names, so it names every
+schema they may resolve in, in priority order, ending at ``pg_temp``
 (``app.db.session._search_path``).
 
 These run under the real ``app_user`` login with a routed context rather than
@@ -90,7 +89,7 @@ class TestInitiativeAccessBindsTheRoutedSchema:
 
         granted = (
             await routed.exec(
-                text("SELECT public.initiative_access(:i, :u, false)").bindparams(
+                text("SELECT initiative_access(:i, :u, false)").bindparams(
                     i=first.id, u=owner.id
                 )
             )
@@ -119,7 +118,7 @@ class TestInitiativeAccessBindsTheRoutedSchema:
         )
         granted = (
             await s.exec(
-                text("SELECT public.initiative_access(:i, :u, false)").bindparams(
+                text("SELECT initiative_access(:i, :u, false)").bindparams(
                     i=first.id, u=outsider.id
                 )
             )

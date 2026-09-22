@@ -54,7 +54,7 @@ async def _accessible_initiative_ids(
     """The initiative rooms this user may join in the already-established guild.
 
     Reuses the single source of truth — ``initiative_scope_clause`` →
-    ``public.initiative_access`` — so the rooms a socket joins are exactly the
+    ``initiative_access`` — so the rooms a socket joins are exactly the
     initiatives whose content it could read over REST: member initiatives, plus
     every initiative for a guild admin / PAM / break-glass session (those legs
     come free from the GUCs ``establish_guild_access`` set). A guild member who

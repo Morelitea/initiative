@@ -45,6 +45,7 @@ _OWN_ROW_POLICIES = {
 _GID_POLICIES = 990_201
 _GID_PURGE = 990_202
 _GID_OWN_ROW = 990_203
+_GID_FUNCTIONS = 990_204
 
 # EVERY soft-delete table carries the RESTRICTIVE admin-only purge guard. They split
 # by how RLS reaches the table: initiative-scoped ones already have RLS (for the
@@ -56,27 +57,64 @@ _GUILD_LEVEL_PURGE = frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
 
 
 @pytest.mark.database
-async def test_initiative_access_is_the_only_access_function(engine):
-    """One source of truth: the legacy ``is_initiative_member`` access rule must
-    be gone (dropped in migration 0111), and ``initiative_access`` must exist."""
-    async with engine.connect() as conn:
-        legacy = (
-            await conn.execute(
-                text(
-                    "SELECT count(*) FROM pg_proc WHERE proname = 'is_initiative_member'"
+async def test_a_provisioned_schema_holds_its_own_authorization_functions(engine):
+    """The functions a schema's policies call live in that schema, and no
+    policy in it binds a function anywhere else. The legacy
+    ``is_initiative_member`` rule stays gone (dropped in migration 0111)."""
+    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+
+    schema = guild_schema_name(_GID_FUNCTIONS)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_FUNCTIONS)
+        async with engine.connect() as conn:
+            local = {
+                r[0]
+                for r in await conn.execute(
+                    text(
+                        "SELECT proname FROM pg_proc "
+                        "WHERE pronamespace = CAST(:s AS regnamespace)"
+                    ),
+                    {"s": schema},
                 )
+            }
+            outside = (
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT DISTINCT n.nspname || '.' || f.proname "
+                            "FROM pg_policy p "
+                            "JOIN pg_class c ON c.oid = p.polrelid "
+                            "JOIN pg_depend d ON d.classid = 'pg_policy'::regclass "
+                            "AND d.objid = p.oid "
+                            "JOIN pg_proc f ON d.refclassid = 'pg_proc'::regclass "
+                            "AND f.oid = d.refobjid "
+                            "JOIN pg_namespace n ON n.oid = f.pronamespace "
+                            "WHERE c.relnamespace = CAST(:s AS regnamespace) "
+                            "AND n.nspname <> CAST(:name AS text) ORDER BY 1"
+                        ),
+                        {"s": schema, "name": schema},
+                    )
+                )
+                .scalars()
+                .all()
             )
-        ).scalar()
-        current = (
-            await conn.execute(
-                text("SELECT count(*) FROM pg_proc WHERE proname = 'initiative_access'")
-            )
-        ).scalar()
-    assert legacy == 0, (
-        "public.is_initiative_member still exists — initiative_access is meant to "
-        "be the single initiative access rule (see migration 0111)."
+            legacy = (
+                await conn.execute(
+                    text(
+                        "SELECT count(*) FROM pg_proc WHERE proname = 'is_initiative_member'"
+                    )
+                )
+            ).scalar()
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_FUNCTIONS)
+    assert local == set(GUILD_FUNCTION_SIGNATURES), (
+        f"{schema} holds {sorted(local)}; expected exactly "
+        f"{sorted(GUILD_FUNCTION_SIGNATURES)}"
     )
-    assert current >= 1, "public.initiative_access is missing."
+    assert outside == [], f"policies in {schema} bind functions outside it: {outside}"
+    assert legacy == 0, "is_initiative_member still exists (see migration 0111)"
 
 
 @pytest.mark.database

@@ -14,7 +14,7 @@ Security layers managed here:
      Enforced in application code: ``require_guild_admin()``,
      ``is_guild_admin()``, ``require_guild_membership()``.
   3. Initiative membership — PERMISSIVE RLS on every guild-schema content
-     table, all deferring to ``public.initiative_access()`` (the single
+     table, all deferring to ``initiative_access()`` (the single
      source of truth: initiative member OR guild admin OR PAM grant).
   4. Initiative RBAC — Application-level feature access via PermissionKey
 

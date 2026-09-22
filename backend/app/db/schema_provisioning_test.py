@@ -15,6 +15,8 @@ import app.db.schema_provisioning as schema_provisioning
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
+    apply_guild_rls,
+    strip_template_registry_objects,
     backfill_guild_schemas,
     drop_guild_schema,
     guild_readonly_role_name,
@@ -552,6 +554,62 @@ async def test_guild_schema_matches_guild_template(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)
+
+
+async def test_the_template_strip_removes_only_what_a_render_put_there(engine):
+    """``guild_template`` carries structure. Boots before it became
+    structure-only rendered the registries into it; the boot back-fill now
+    strips those, and must leave the migrations' own triggers where they are."""
+    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+
+    async def counts(conn):
+        policies = await conn.scalar(
+            text("SELECT count(*) FROM pg_policies WHERE schemaname = :s"),
+            {"s": _TEMPLATE_SCHEMA},
+        )
+        names = [
+            r[0]
+            for r in await conn.execute(
+                text(
+                    "SELECT t.tgname FROM pg_trigger t JOIN pg_class c "
+                    "ON c.oid = t.tgrelid WHERE NOT t.tgisinternal "
+                    "AND c.relnamespace = CAST(:s AS regnamespace)"
+                ),
+                {"s": _TEMPLATE_SCHEMA},
+            )
+        ]
+        rendered = rendered_trigger_names()
+        functions = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_proc WHERE proname = ANY(:n) "
+                "AND pronamespace = CAST(:s AS regnamespace)"
+            ),
+            {"n": list(GUILD_FUNCTION_SIGNATURES), "s": _TEMPLATE_SCHEMA},
+        )
+        return (
+            int(policies),
+            sum(n in rendered for n in names),
+            sum(n not in rendered for n in names),
+            int(functions),
+        )
+
+    # What an earlier boot did: render the registry into the template.
+    async with engine.begin() as conn:
+        await apply_guild_rls(conn, _TEMPLATE_SCHEMA)
+    async with engine.connect() as conn:
+        policies, rendered, own, functions = await counts(conn)
+    assert policies > 0 and rendered > 0 and functions == len(GUILD_FUNCTION_SIGNATURES)
+
+    async with engine.begin() as conn:
+        removed = await strip_template_registry_objects(conn)
+    async with engine.connect() as conn:
+        after = await counts(conn)
+    assert after == (0, 0, own, 0), after
+    assert removed == policies + rendered + functions
+
+    # And once clean, there is nothing to do.
+    async with engine.begin() as conn:
+        assert await strip_template_registry_objects(conn) == 0
 
 
 async def test_public_schema_has_no_tenant_tables(engine):

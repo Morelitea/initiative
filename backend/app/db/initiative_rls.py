@@ -2,7 +2,7 @@
 
 Each per-guild CONTENT table that is scoped to initiative membership is declared
 exactly once here, in ``INITIATIVE_PATHS`` — mapping the table to *how a row
-resolves its initiative* for ``public.initiative_access(...)``. From that one
+resolves its initiative* for ``initiative_access(...)``. From that one
 declaration we derive:
 
 - ``INITIATIVE_SCOPED_TABLES`` (``app.db.tenancy`` re-exports it and folds it
@@ -161,7 +161,7 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     reads it applies the tool switches.
     """
     return (
-        f"public.resource_access({tool}, {resource_id}, {_UID}, "
+        f"resource_access({tool}, {resource_id}, {_UID}, "
         f"{initiative}, {'true' if write else 'false'})"
     )
 
@@ -199,13 +199,11 @@ def _tool_gate(
 
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
-    legs.append(
-        f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
-    )
+    legs.append(f"initiative_role_permits({initiative}, {_UID}, '{key}', {default})")
 
     if not creating:
         legs.append(
-            f"public.resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"resource_access('{tool.value}', {resource_id}, {_UID}, "
             f"{initiative}, {'true' if write else 'false'})"
         )
 
@@ -327,19 +325,21 @@ _PAM_ANY = (
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
+    return (
+        f"initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
+    )
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
     """Defer to the narrower standing: full access in this initiative.
 
-    ``public.initiative_full_access`` reads ``app.override_initiatives`` — the
+    ``initiative_full_access`` reads ``app.override_initiatives`` — the
     GUC the request already sets from the reader's roles, and the one
-    ``public.resource_access`` already consults for the sharing override. So a
+    ``resource_access`` already consults for the sharing override. So a
     table taking this path is reachable by whoever already sees everything in
     the initiative, and by the guild admin, and by nobody else.
     """
-    return f"public.initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
+    return f"initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
 
 
 def direct_full_access() -> InitiativePath:
@@ -796,7 +796,7 @@ def _relationship_end(
 #: instead of one EXISTS per kind per end: the policy stays a few hundred bytes
 #: and the per-kind walk is planned once per session inside the function, where
 #: inlining it made every statement on the table plan a thousand-node tree.
-ENDPOINT_ACCESS_FN = "public.relationship_endpoint_access"
+ENDPOINT_ACCESS_FN = "relationship_endpoint_access"
 
 
 def _endpoint_dac(endpoint: EndpointKind) -> DacPath | None:
@@ -1015,7 +1015,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
         for tool in Tool
     )
     role_arms = " ".join(
-        f"WHEN '{tool.value}' THEN public.initiative_role_permits("
+        f"WHEN '{tool.value}' THEN initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
         f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
         for tool in Tool

@@ -3,7 +3,7 @@
 These bypass the app layer entirely: they set the guild RLS context and run a raw
 ``SELECT`` as the assumed guild role, so a missing/incorrect policy fails the
 assertion (the app-layer ``membership.py`` clause can't paper over it). Proves the
-``public.initiative_access`` policies on the guild content tables actually enforce
+``initiative_access`` policies on the guild content tables actually enforce
 initiative-membership for non-admin guild roles.
 """
 

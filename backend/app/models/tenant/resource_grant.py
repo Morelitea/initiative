@@ -135,7 +135,7 @@ class ResourceGrant(CreatedByMixin, table=True):
     #: The dashboard this resource is readable *through*. A published view: the
     #: tile shows the same rows to everyone the dashboard reaches, rather than
     #: each viewer's own. It answers only while a request is drawing that
-    #: dashboard — see ``public.resource_access`` and ``app.via_dashboard_id``.
+    #: dashboard — see ``resource_access`` and ``app.via_dashboard_id``.
     dashboard_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
