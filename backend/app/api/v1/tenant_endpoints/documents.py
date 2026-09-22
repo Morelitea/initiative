@@ -47,7 +47,7 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, require_guild_context
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
@@ -293,7 +293,7 @@ def _file_download_response(
 
 
 def visible_document_conditions(
-    guild_id: int,
+    context: GuildContext,
     user_id: int,
     *,
     initiative_id: Optional[int] = None,
@@ -317,7 +317,7 @@ def visible_document_conditions(
         Document,
         Initiative.documents_enabled,
         user_id,
-        guild_id=guild_id,
+        context=context,
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
@@ -359,9 +359,11 @@ async def serialize_document_page(
     await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     attached = await attached_projects(session, documents)
+    context = require_guild_context(session)
     return [
         serialize_document_summary(
             document,
+            context=context,
             user_id=user.id,
             projects=attached.get(document.id, []),
         )
@@ -398,7 +400,7 @@ async def get_document_counts(
         )
 
     conditions = visible_document_conditions(
-        guild_context.guild_id,
+        guild_context,
         current_user.id,
         initiative_id=initiative_id,
         search=search,
@@ -564,6 +566,7 @@ async def create_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -725,6 +728,7 @@ async def upload_document_file(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1026,6 +1030,7 @@ async def read_document(
         document,
         user_id=current_user.id,
         include_content=include_content,
+        context=guild_context,
     )
 
 
@@ -1153,6 +1158,7 @@ async def update_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1208,6 +1214,7 @@ async def duplicate_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1240,7 +1247,7 @@ async def copy_document(
             document,
             current_user,
             access="write",
-            guild_role=guild_context.role,
+            context=guild_context,
         )
     target_initiative = await get_initiative_or_404(
         session,
@@ -1286,6 +1293,7 @@ async def copy_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1501,6 +1509,7 @@ async def set_document_properties(
     return serialize_document(
         refreshed,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1521,7 +1530,7 @@ async def read_after_write(
         guild_id=guild_context.guild_id,
         user_id=user.id,
     )
-    return serialize_document(hydrated, user_id=user.id)
+    return serialize_document(hydrated, user_id=user.id, context=guild_context)
 
 
 def _download_document_options():
@@ -1551,10 +1560,11 @@ async def _load_download_document(
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.
 
-    Returns ``(document, guild_role)`` — role ``None`` for PAM grantees — or
-    ``(None, None)`` when there's no access, no schema, or no such document in
-    the addressed guild. All of those are an indistinguishable 404 to the
-    caller, so existence is never confirmed across guilds.
+    Returns ``(document, context)`` — the standing the seam computed for this
+    reader in that community — or ``(None, None)`` when there's no access, no
+    schema, or no such document in the addressed guild. All of those are an
+    indistinguishable 404 to the caller, so existence is never confirmed across
+    guilds.
     """
     from app.db.schema_provisioning import guild_schema_name
 
@@ -1587,12 +1597,7 @@ async def _load_download_document(
             .options(*_download_document_options())
         )
     ).one_or_none()
-    # A real member threads their guild role into the access check's guild-admin
-    # leg; a PAM/break-glass grantee gets ``None`` here — their reach is the
-    # scoped grant / admin role already in the established context, not a guild
-    # role on the row.
-    guild_role = None if ctx.is_pam else ctx.role
-    return doc, guild_role
+    return doc, ctx
 
 
 @router.get("/{document_id}/download", include_in_schema=False)
@@ -1612,7 +1617,7 @@ async def download_document_file(
     # These two routes resolve the guild themselves rather than through
     # ``get_guild_membership``, so they ask the same question it does.
     guild_id = addressed_guild_id(request, guild_id)
-    document, guild_role = await _load_download_document(
+    document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
     if document is None:
@@ -1629,10 +1634,8 @@ async def download_document_file(
             status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
-    # ``guild_role`` feeds the initiative-scope gate's guild-admin leg — the
-    # routed session has no request role context of its own here.
     resource_access.authorize(
-        Tool.document, document, current_user, access="read", guild_role=guild_role
+        Tool.document, document, current_user, access="read", context=context
     )
 
     logger.info(
@@ -1665,7 +1668,7 @@ async def download_document_file_version(
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""
     guild_id = addressed_guild_id(request, guild_id)
-    document, guild_role = await _load_download_document(
+    document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
     if document is None:
@@ -1683,7 +1686,7 @@ async def download_document_file_version(
         )
 
     resource_access.authorize(
-        Tool.document, document, current_user, access="read", guild_role=guild_role
+        Tool.document, document, current_user, access="read", context=context
     )
 
     version_result = await session.exec(

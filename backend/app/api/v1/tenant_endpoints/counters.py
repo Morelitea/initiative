@@ -18,7 +18,7 @@ from fastapi import (
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     IncludeDeletedDep,
@@ -60,6 +60,7 @@ from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
 from app.api import resource_access
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 
@@ -95,7 +96,7 @@ async def _emit_counter(
     commit). One streaming spine; rooms are guild-namespaced (group ids are
     per-schema)."""
     if guild_id is None:
-        guild_id = routed_guild_id()
+        guild_id = routed_guild_id(session)
         if guild_id is None:
             return
     await stream_authority.emit(guild_id, "counter_group", group_id, event_type, data)
@@ -177,6 +178,7 @@ async def read_counter_group(
     return serialize_counter_group(
         group,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -237,6 +239,7 @@ async def create_counter_group(
     return serialize_counter_group(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -279,6 +282,7 @@ async def duplicate_counter_group(
     return serialize_counter_group(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -317,6 +321,7 @@ async def update_counter_group(
     result = serialize_counter_group(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
     if updated:
         await _emit_counter(
@@ -348,6 +353,7 @@ async def delete_counter_group(
         group,
         current_user,
         require_owner=True,
+        context=guild_context,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -424,7 +430,7 @@ async def add_counter(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
-    result = serialize_counter(hydrated)
+    result = serialize_counter(hydrated, context=guild_context)
     await _emit_counter(
         session, group_id, "counter_added", result.model_dump(mode="json")
     )
@@ -521,7 +527,7 @@ async def update_counter(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
-    result = serialize_counter(hydrated)
+    result = serialize_counter(hydrated, context=guild_context)
     await _emit_counter(
         session, group_id, "counter_updated", result.model_dump(mode="json")
     )
@@ -572,6 +578,8 @@ async def _commit_and_broadcast_count(
     session: RLSSessionDep,
     group_id: int,
     counter: Counter,
+    *,
+    context: GuildContext,
 ) -> CounterRead:
     await session.commit()
     hydrated = await counters_service.get_counter(
@@ -581,7 +589,7 @@ async def _commit_and_broadcast_count(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
-    result = serialize_counter(hydrated)
+    result = serialize_counter(hydrated, context=context)
     await _emit_counter(
         session, group_id, "count_changed", result.model_dump(mode="json")
     )
@@ -616,7 +624,7 @@ async def read_counter(
         guild_context,
         access="read",
     )
-    return serialize_counter(counter)
+    return serialize_counter(counter, context=guild_context)
 
 
 @router.post("/{group_id}/counters/{counter_id}/set", response_model=CounterRead)
@@ -638,7 +646,9 @@ async def set_counter_count(
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.set_count(session, counter, payload.count)
-    return await _commit_and_broadcast_count(session, group_id, counter)
+    return await _commit_and_broadcast_count(
+        session, group_id, counter, context=guild_context
+    )
 
 
 @router.post("/{group_id}/counters/{counter_id}/increment", response_model=CounterRead)
@@ -659,7 +669,9 @@ async def increment_counter(
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.increment_counter(session, counter)
-    return await _commit_and_broadcast_count(session, group_id, counter)
+    return await _commit_and_broadcast_count(
+        session, group_id, counter, context=guild_context
+    )
 
 
 @router.post("/{group_id}/counters/{counter_id}/decrement", response_model=CounterRead)
@@ -680,7 +692,9 @@ async def decrement_counter(
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.decrement_counter(session, counter)
-    return await _commit_and_broadcast_count(session, group_id, counter)
+    return await _commit_and_broadcast_count(
+        session, group_id, counter, context=guild_context
+    )
 
 
 @router.post("/{group_id}/counters/{counter_id}/reset", response_model=CounterRead)
@@ -701,7 +715,9 @@ async def reset_counter(
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
     await counters_service.reset_counter(session, counter)
-    return await _commit_and_broadcast_count(session, group_id, counter)
+    return await _commit_and_broadcast_count(
+        session, group_id, counter, context=guild_context
+    )
 
 
 @router.post("/{group_id}/reset-all", response_model=CounterGroupRead)
@@ -726,6 +742,7 @@ async def reset_all_counters(
     result = serialize_counter_group(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
     await _emit_counter(
         session, group_id, "counters_reset", result.model_dump(mode="json")
@@ -758,6 +775,7 @@ async def sort_counters(
     result = serialize_counter_group(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
     await _emit_counter(
         session, group_id, "counters_reordered", result.model_dump(mode="json")
@@ -783,7 +801,7 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_group(session, group_id)
-    return serialize_counter_group(hydrated, user_id=user.id)
+    return serialize_counter_group(hydrated, user_id=user.id, context=guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -873,7 +891,10 @@ async def websocket_counter_group(
         # applied inside compute_* through the active role context that
         # establish_guild_access set, so no separate admin check is needed.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[Tool.counter_group], group, user.id
+            permissions_service.DAC_RESOURCES[Tool.counter_group],
+            group,
+            user.id,
+            context=require_guild_context(session),
         )
         if level is None:
             logger.warning(
@@ -899,6 +920,7 @@ async def websocket_counter_group(
                 permissions_service.DAC_RESOURCES[Tool.counter_group],
                 grp,
                 check_user.id,
+                context=require_guild_context(check_session),
             )
             is not None
         )

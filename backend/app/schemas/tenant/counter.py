@@ -14,10 +14,9 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.counter import Counter, CounterGroup
 
 
@@ -115,7 +114,7 @@ class CounterRead(SanitizedBaseModel):
 
     id: int
     counter_group_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     name: str
     color: Optional[str] = None
     count: str
@@ -167,7 +166,7 @@ class CounterGroupSummary(CounterGroupBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
@@ -222,11 +221,11 @@ def _format_optional_decimal(value: Optional[Decimal]) -> Optional[str]:
     return _format_decimal(value) if value is not None else None
 
 
-def serialize_counter(counter: "Counter") -> CounterRead:
+def serialize_counter(counter: "Counter", *, context: GuildContext) -> CounterRead:
     return CounterRead(
         id=counter.id,
         counter_group_id=counter.counter_group_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         name=counter.name,
         color=counter.color,
         count=_format_decimal(counter.count),
@@ -249,6 +248,7 @@ def _active_counters(group: "CounterGroup") -> list:
 def serialize_counter_group_summary(
     group: "CounterGroup",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
 ) -> CounterGroupSummary:
     # Local import avoids a schema -> service import cycle.
@@ -259,11 +259,11 @@ def serialize_counter_group_summary(
         name=group.name,
         description=group.description,
         initiative_id=group.initiative_id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         created_by=group.created_by,
         counter_count=len(_active_counters(group)),
         archived_at=group.archived_at,
-        **client_access(Tool.counter_group, group, user_id),
+        **client_access(Tool.counter_group, group, user_id, context=context),
         created_at=group.created_at,
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,
@@ -275,11 +275,12 @@ def serialize_counter_group_summary(
 def serialize_counter_group(
     group: "CounterGroup",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
 ) -> CounterGroupRead:
-    summary = serialize_counter_group_summary(group, user_id=user_id)
+    summary = serialize_counter_group_summary(group, context=context, user_id=user_id)
     counters = sorted(_active_counters(group), key=lambda c: c.position)
     return CounterGroupRead(
         **summary.model_dump(),
-        counters=[serialize_counter(c) for c in counters],
+        counters=[serialize_counter(c, context=context) for c in counters],
     )

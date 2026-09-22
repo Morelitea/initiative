@@ -7,8 +7,6 @@ states)."""
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 from pydantic import ConfigDict
 
 from app.models.tenant.import_job import ImportJobStatus
@@ -22,7 +20,7 @@ class ImportJobRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     source: str
     params: dict[str, Any]

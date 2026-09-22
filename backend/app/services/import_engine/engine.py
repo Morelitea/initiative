@@ -21,7 +21,7 @@ from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
@@ -268,7 +268,7 @@ async def apply_one_envelope(
 
     context = ImportContext(
         people=await resolve_people_map(
-            session, guild_id=routed_guild_id(), raw=people_map
+            session, guild_id=routed_guild_id(session), raw=people_map
         )
     )
     result = await importer.apply(

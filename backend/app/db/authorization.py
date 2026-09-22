@@ -331,13 +331,24 @@ SYSTEM_SESSION = (
     " WHERE r.rolname = session_user AND r.rolbypassrls)"
 )
 
+#: The community this session reads: a member routes with
+#: ``app.current_guild_id``, a content grantee with ``app.pam_guild_id`` and a
+#: settings grantee with ``app.settings_guild_id``. Whichever names one is the
+#: one community the session is in.
+ROUTED_COMMUNITY = (
+    "COALESCE("
+    "NULLIF(current_setting('app.current_guild_id'::text, true), ''::text),"
+    " NULLIF(current_setting('app.pam_guild_id'::text, true), ''::text),"
+    " NULLIF(current_setting('app.settings_guild_id'::text, true), ''::text))"
+)
+
 #: The standing on this session was computed for the community it is routed
 #: into. A standing means nothing outside the community it came from —
 #: initiative 5 is a different row in every schema — so every leg that reads
 #: one says which community it belongs to first.
 STANDING_IS_THIS_GUILD = (
-    "current_setting('app.standing_guild_id'::text, true)"
-    " IS NOT DISTINCT FROM current_setting('app.current_guild_id'::text, true)"
+    "NULLIF(current_setting('app.standing_guild_id'::text, true), ''::text)"
+    f" IS NOT DISTINCT FROM {ROUTED_COMMUNITY}"
 )
 
 #: The reader administers this community: the membership row's own answer, as
@@ -345,6 +356,15 @@ STANDING_IS_THIS_GUILD = (
 GUILD_ADMIN = (
     f"({STANDING_IS_THIS_GUILD}"
     " AND current_setting('app.guild_admin'::text, true) = 'true'::text)"
+)
+
+#: This request administers the community's configuration: a live settings
+#: grant, at either rung, as the standing statement read it from the rows.
+#: Its own axis — what a grant reaches of the community's settings — beside
+#: :data:`GUILD_ADMIN`, which only a membership row answers.
+SETTINGS_ADMIN = (
+    f"({STANDING_IS_THIS_GUILD}"
+    " AND current_setting('app.settings_rung'::text, true) <> ''::text)"
 )
 
 #: A live grant covers this request, at whichever level the command asks for.

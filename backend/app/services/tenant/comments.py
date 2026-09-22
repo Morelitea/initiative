@@ -29,7 +29,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db import session as db_session
 from app.core.messages import (
     CommentMessages,
     TaskMessages,
@@ -475,6 +475,7 @@ async def _ensure_parent_access(
     and gets the project's sharing without the project's switch: its thread
     belongs to the task, not to the project's tool surface.
     """
+    context = db_session.guild_context(session)
     if ctx.extra is not None and not ctx.extra.anchor_switch:
         # An extra whose thread is its own: admitted by the anchor's sharing,
         # asked none of its switches. The task is the one, and its context
@@ -497,11 +498,11 @@ async def _ensure_parent_access(
         # exists. Asked before the sharing decision below, because the answer
         # for anyone who could edit it is the ordinary one.
         if permissions_service.hidden_from_reader(
-            target.tool, ctx.resource, cast(int, user.id)
+            target.tool, ctx.resource, cast(int, user.id), context=context
         ):
             raise CommentNotFoundError(target.not_found)
 
-    if permissions_service.request_bypasses_dac(routed_guild_id(), access=access):
+    if permissions_service.request_bypasses_dac(context, access=access):
         return
     if await _shares_resource(
         session,

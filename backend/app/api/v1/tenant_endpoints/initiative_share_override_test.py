@@ -14,12 +14,8 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import set_active_grant
-from app.core.role_context import (
-    set_active_role,
-    set_override_sharing_initiatives,
-)
-from app.models.platform.guild import GuildRole
+from app.db.guild_standing import GuildContext
+from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -88,9 +84,14 @@ def test_request_overrides_sharing_bypasses_dac():
     """A "Full access" initiative bypasses DAC (incl. owner-only ops), scoped to
     that initiative; compute_permission reports owner there and nothing extra
     elsewhere."""
-    set_active_role(None, None)
-    set_active_grant(None, None)
-    set_override_sharing_initiatives(frozenset({42}))
+    context = GuildContext(
+        guild=Guild(id=1, name="g"),
+        user_id=7,
+        guild_id=1,
+        guild_role=GuildRole.member.value,
+        standing_guild_id=1,
+        override_initiatives=(42,),
+    )
 
     class _Row:
         def __init__(self, guild_id, initiative_id):
@@ -99,27 +100,28 @@ def test_request_overrides_sharing_bypasses_dac():
             self.grants = []
             self.initiative = None
 
-    try:
-        assert request_bypasses_dac(1, initiative_id=42, access="write") is True
-        # Ignores require_owner — a moderator may manage sharing.
-        assert (
-            request_bypasses_dac(
-                1, initiative_id=42, access="write", require_owner=True
-            )
-            is True
+    assert request_bypasses_dac(context, initiative_id=42, access="write") is True
+    # Ignores require_owner — a moderator may manage sharing.
+    assert (
+        request_bypasses_dac(
+            context, initiative_id=42, access="write", require_owner=True
         )
-        # Scope-bound: a different initiative is not covered.
-        assert request_bypasses_dac(1, initiative_id=99, access="write") is False
-        assert (
-            compute_permission(DAC_RESOURCES["project"], _Row(1, 42), user_id=7)
-            == "owner"
+        is True
+    )
+    # Scope-bound: a different initiative is not covered.
+    assert request_bypasses_dac(context, initiative_id=99, access="write") is False
+    assert (
+        compute_permission(
+            DAC_RESOURCES["project"], _Row(1, 42), user_id=7, context=context
         )
-        assert (
-            compute_permission(DAC_RESOURCES["project"], _Row(1, 99), user_id=7)
-            != "owner"
+        == "owner"
+    )
+    assert (
+        compute_permission(
+            DAC_RESOURCES["project"], _Row(1, 99), user_id=7, context=context
         )
-    finally:
-        set_override_sharing_initiatives(None)
+        != "owner"
+    )
 
 
 # ── The built-in roles as created ────────────────────────────────────────────

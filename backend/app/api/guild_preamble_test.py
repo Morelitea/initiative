@@ -64,7 +64,11 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     # The public rows the gate needs come back together — the deployment's own
     # second-factor answer among them, rather than as a read of its own on
     # every guild request there is.
-    (gate_read,) = [stmt for stmt in sent if "guild_memberships" in stmt]
+    (gate_read,) = [
+        stmt
+        for stmt in sent
+        if "guild_memberships" in stmt and "guild_auth_policies" in stmt
+    ]
     assert "guild_auth_policies" in gate_read
     assert "app_settings" in gate_read
     assert sum("app_settings" in stmt for stmt in sent) == 1
@@ -72,8 +76,12 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     # rather than read and then written back through the whole context, which
     # is why the full context is written once and not twice.
     (override,) = [stmt for stmt in sent if "initiative_members" in stmt]
-    assert override.startswith("SELECT set_config(")
-    assert sum("app.current_guild_id" in stmt for stmt in sent) == 2
+    assert override.lstrip().startswith("SELECT")
+    assert "set_config(" in override
+    # Three mentions, and each is one of the three steps: the gate's own
+    # context, the routing, and the standing reading back the community the
+    # routing just named.
+    assert sum("app.current_guild_id" in stmt for stmt in sent) == 3
 
 
 @pytest.mark.database

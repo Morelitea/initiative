@@ -385,7 +385,7 @@ async def read_gallery(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     await annotate_gallery_rows(session, [gallery])
-    return serialize_gallery(gallery, user_id=current_user.id)
+    return serialize_gallery(gallery, user_id=current_user.id, context=guild_context)
 
 
 @router.post("/", response_model=GalleryRead, status_code=status.HTTP_201_CREATED)
@@ -446,7 +446,7 @@ async def create_gallery(
         )
     await session.commit()
     hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id)
+    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.patch("/{gallery_id}", response_model=GalleryRead)
@@ -488,7 +488,7 @@ async def update_gallery(
         await session.commit()
 
     hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id)
+    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -535,7 +535,7 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_gallery(session, gallery_id, user_id=user.id)
-    return serialize_gallery(hydrated, user_id=user.id)
+    return serialize_gallery(hydrated, user_id=user.id, context=guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -605,7 +605,7 @@ async def list_gallery_images(
     await tags_service.annotate_tags(session, images)
     await galleries_service.annotate_version_counts(session, images)
     return GalleryImageListResponse(
-        items=[serialize_gallery_image(i) for i in images],
+        items=[serialize_gallery_image(i, context=guild_context) for i in images],
         total_count=total_count,
         page=page,
         page_size=page_size,
@@ -730,7 +730,7 @@ async def upload_gallery_image(
         raise
 
     hydrated = await _refetch_image(session, gallery.id, image.id)
-    return serialize_gallery_image(hydrated)
+    return serialize_gallery_image(hydrated, context=guild_context)
 
 
 @router.get("/{gallery_id}/images/{image_id}", response_model=GalleryImageRead)
@@ -745,7 +745,7 @@ async def read_gallery_image(
         session, gallery_id, image_id, current_user, guild_context
     )
     await galleries_service.annotate_version_counts(session, [image])
-    return serialize_gallery_image(image)
+    return serialize_gallery_image(image, context=guild_context)
 
 
 @router.patch("/{gallery_id}/images/{image_id}", response_model=GalleryImageRead)
@@ -779,7 +779,7 @@ async def update_gallery_image(
     session.add(image)
     await session.commit()
     hydrated = await _refetch_image(session, gallery.id, image.id)
-    return serialize_gallery_image(hydrated)
+    return serialize_gallery_image(hydrated, context=guild_context)
 
 
 @router.delete(

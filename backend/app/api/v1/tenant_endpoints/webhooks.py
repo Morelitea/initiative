@@ -40,7 +40,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.routed_guild import routed_guild_id
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -97,7 +96,7 @@ async def _validate_target_url(url: str) -> None:
 
 
 async def _named(
-    row: WebhookSubscription, *, dead_letter_count: int
+    row: WebhookSubscription, *, guild_id: int, dead_letter_count: int
 ) -> WebhookSubscriptionRead:
     """One subscription, with the guild and its creator named for its receiver.
 
@@ -105,7 +104,7 @@ async def _named(
     what a receiver reads here is what it will be sent.
     """
     guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
-        guild_id=routed_guild_id(),
+        guild_id=guild_id,
         app_install_id=row.app_install_id,
         subscription_id=row.id,
         actor_ids=(row.created_by,),
@@ -169,7 +168,13 @@ async def create_subscription(
 
     return WebhookSubscriptionCreated(
         # A subscription that was just created has no delivery history yet.
-        **(await _named(subscription, dead_letter_count=0)).model_dump(),
+        **(
+            await _named(
+                subscription,
+                guild_id=guild_context.guild_id,
+                dead_letter_count=0,
+            )
+        ).model_dump(),
         hmac_secret=secret,
     )
 
@@ -188,7 +193,14 @@ async def list_subscriptions(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id for row in rows]
     )
-    return [await _named(row, dead_letter_count=counts.get(row.id, 0)) for row in rows]
+    return [
+        await _named(
+            row,
+            guild_id=guild_context.guild_id,
+            dead_letter_count=counts.get(row.id, 0),
+        )
+        for row in rows
+    ]
 
 
 @router.patch(
@@ -230,7 +242,11 @@ async def update_subscription(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id]
     )
-    return await _named(row, dead_letter_count=counts.get(row.id, 0))
+    return await _named(
+        row,
+        guild_id=guild_context.guild_id,
+        dead_letter_count=counts.get(row.id, 0),
+    )
 
 
 @router.delete(

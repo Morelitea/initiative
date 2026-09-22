@@ -26,8 +26,7 @@ from app.testing import (
 )
 from app.core.search import SearchEntityType
 from app.services.tenant.collaborative_resources import resource_for
-from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role
+from app.db.guild_standing import GuildContext
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.services import permissions as permissions_service
@@ -58,34 +57,38 @@ async def test_collaboration_guild_admin_gets_full_access(
     assert resolved is not None
     document = resolved.body
 
-    set_active_grant(None, None)
-
-    # No active guild-role context (what a hand-rolled handler that forgot to set
-    # it would leave): the admin holds no grant and isn't an initiative member, so
-    # the engine resolves no access.
-    set_active_role(None, None)
+    # No standing (what a hand-rolled handler that skipped the seam would
+    # leave): the admin holds no grant and isn't an initiative member, so the
+    # engine resolves no access.
     assert (
         permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[Tool.document], document, admin.user.id
+            permissions_service.DAC_RESOURCES[Tool.document],
+            document,
+            admin.user.id,
+            context=None,
         )
         is None
     )
 
-    # With the guild-admin role recorded — as establish_guild_access now does for
-    # every transport — the engine's guild-admin bypass returns full ("owner")
-    # access.
-    set_active_role(owner.guild.id, GuildRole.admin.value)
-    try:
-        assert (
-            permissions_service.compute_permission(
-                permissions_service.DAC_RESOURCES[Tool.document],
-                document,
-                admin.user.id,
-            )
-            == "owner"
+    # With the standing the seam computes for every transport, the engine's
+    # guild-admin leg returns full ("owner") access.
+    as_admin = GuildContext(
+        guild=owner.guild,
+        user_id=admin.user.id,
+        guild_id=owner.guild.id,
+        guild_role=GuildRole.admin.value,
+        standing_guild_id=owner.guild.id,
+        admin=True,
+    )
+    assert (
+        permissions_service.compute_permission(
+            permissions_service.DAC_RESOURCES[Tool.document],
+            document,
+            admin.user.id,
+            context=as_admin,
         )
-    finally:
-        set_active_role(None, None)
+        == "owner"
+    )
 
 
 @pytest.mark.integration

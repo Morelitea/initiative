@@ -35,8 +35,18 @@ async def route_as(
     request path gives.
     """
     from app.api.deps import establish_guild_access
+    from app.core import auth_context
     from app.db.session import set_rls_context
 
+    # What this session's credential proved, the way the validator records it
+    # on a request: the seam reads it for the community's sign-in rule, and
+    # passes it on to the GUC the policies read.
+    if satisfied_providers is not None:
+        auth_context.set_satisfied_providers(
+            satisfied_providers
+            if isinstance(satisfied_providers, str)
+            else frozenset(satisfied_providers)
+        )
     await set_rls_context(session, user_id=user_id)
     user = (await session.exec(select(User).where(User.id == user_id))).one()
     return await establish_guild_access(

@@ -198,6 +198,7 @@ _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
     "set_config('app.pam_guild_id', :pgid, true), "
+    "set_config('app.settings_guild_id', :setgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
@@ -290,6 +291,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "uid": "",
             "gid": "",
             "pgid": "",
+            "setgid": "",
             "pr": "false",
             "pw": "false",
             "satp": "",
@@ -416,6 +418,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
+        "setgid": str(int(settings_guild_id)) if settings_guild_id is not None else "",
         "amr": amr,
         "prole": platform_role or "",
         "pfac": pfac,
@@ -599,13 +602,6 @@ async def set_rls_context(
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
     )
-    # Which community this session is now routed into, for the payloads that
-    # have to name one. Membership, a grant and a settings grant each name it in
-    # their own field, and any of the three is the community being read.
-    from app.core.routed_guild import set_routed_guild_id
-
-    set_routed_guild_id(guild_id or pam_guild_id or settings_guild_id)
-
     # Whether the account answers the deployment's own second-factor rule.
     # Ambient by default, from the context the request's gate resolved once —
     # the same shape ``establish_guild_access`` reads its satisfied set with,
@@ -719,10 +715,63 @@ def routed_guild_id(session: AsyncSession) -> int | None:
     guild. Anything keyed by one of them outside the database needs the guild
     beside it, and where the id was read through a routed session, that routing
     is the answer.
+
+    Membership, a content grant and a settings grant each name the community in
+    their own field, and any of the three is the community this session reads.
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
-    guild_id = params.get("guild_id", params.get("system_guild_id"))
-    return int(guild_id) if guild_id is not None else None
+    for key in ("guild_id", "system_guild_id", "pam_guild_id", "settings_guild_id"):
+        guild_id = params.get(key)
+        if guild_id is not None:
+            return int(guild_id)
+    return None
+
+
+def require_routed_guild_id(session: AsyncSession) -> int:
+    """The guild this session is routed to, for a payload that has to name one.
+
+    A serializer runs inside the routed session that read its rows, so there is
+    one. Raising beats reporting a community nobody routed into.
+    """
+    guild_id = routed_guild_id(session)
+    if guild_id is None:
+        raise RuntimeError(
+            "no community is routed on this session; set_rls_context must run "
+            "before guild content is serialized"
+        )
+    return guild_id
+
+
+def guild_context(session: AsyncSession) -> GuildContext | None:
+    """The standing this session was routed with, or ``None``.
+
+    The context *is* part of the stored routing parameters, so reading it here
+    and reading the routed community are one lookup rather than two that can
+    disagree. A context whose community is not the one the session is routed to
+    is not returned: a cross-guild gather re-routes between communities, and a
+    standing means nothing outside the one it was computed in.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
+    context = params.get("context")
+    if context is None:
+        return None
+    return context if context.guild_id == routed_guild_id(session) else None
+
+
+def require_guild_context(session: AsyncSession) -> GuildContext:
+    """The standing this session was routed with, for a caller that needs one.
+
+    Raising beats deciding on a standing nobody computed: every leg of one
+    answers no when it is missing, which reads as a refusal rather than as the
+    missing routing it is.
+    """
+    context = guild_context(session)
+    if context is None:
+        raise RuntimeError(
+            "no standing is recorded on this session; establish_guild_access "
+            "must run before a decision is made from one"
+        )
+    return context
 
 
 async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:

@@ -41,7 +41,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 from sqlmodel import SQLModel
 
-from app.core.routed_guild import routed_guild_id, set_routed_guild_id
+from app.db.session import routed_guild_id
 
 from app.db.session import _RLS_ESTABLISHED_INFO_KEY, _RLS_PARAMS_INFO_KEY
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -113,7 +113,6 @@ async def route_session_to_guild(session, guild_id: int) -> None:
     gid = int(guild_id)
     sp = f"guild_{gid}, public"
     _record_pin(session, sp)
-    set_routed_guild_id(gid)
     conn = await session.connection()
     result = await conn.exec_driver_sql(_pin_sql(sp))
     result.close()
@@ -148,7 +147,6 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
         # transaction too (a factory that commits then reads back).
         _record_pin(session, sp)
         conn.exec_driver_sql(_pin_sql(sp)).close()
-        set_routed_guild_id(gid)
         for obj in rows:
             remember_guild(obj, gid)
         return
@@ -166,7 +164,6 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
             "(see app/testing/schema_harness.py)."
         )
     routed = int(search_path.split("guild_", 1)[1].split(",", 1)[0].strip().strip('"'))
-    set_routed_guild_id(routed)
     for obj in rows:
         remember_guild(obj, routed)
 
@@ -179,7 +176,7 @@ def _stamp_on_load(session: Session, instance) -> None:
         return
     if getattr(instance, _GUILD_ATTR, None) is not None:
         return
-    gid = routed_guild_id()
+    gid = routed_guild_id(session)
     if gid is None:
         pin = session.info.get(_PIN_INFO_KEY) or ""
         if pin.startswith("guild_"):

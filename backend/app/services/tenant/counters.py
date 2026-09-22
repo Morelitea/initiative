@@ -6,6 +6,7 @@ Initiative; Counters are independent numeric values clamped to optional
 """
 
 from datetime import datetime, timezone
+from app.db import session as db_session
 from app.core.tools import Tool
 from decimal import Decimal
 from typing import Optional
@@ -103,6 +104,7 @@ async def get_counter_group_for_export(
         DAC_RESOURCES[Tool.counter_group],
         group,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     return group

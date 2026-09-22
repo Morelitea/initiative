@@ -30,19 +30,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
-from app.core.role_context import context_guild_id
 from app.core.audit_events import AuditEventType
-from app.core.pam_context import active_grant_level, grant_satisfies
-from app.core.role_context import (
-    content_read_only_active,
-    is_request_guild_admin,
-    request_overrides_sharing,
-)
+from app.db.guild_standing import GuildContext
 from app.services import audit as audit_service
 from app.services.membership import NO_SCOPE_COLUMN
 from app.core.tools import Tool
 
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership
 from app.models.tenant.project import Project
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
@@ -59,8 +53,20 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 _LEVEL_RANK = {"read": 0, "write": 1, "owner": 2}
 
 
-def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | None:
-    """Raise an effective permission string to the active PAM grant's level.
+def _frozen_community(context: GuildContext | None) -> bool:
+    """Whether this request reads a community whose content is on hold.
+
+    The routed role (``guild_<id>_ro``) refuses the write either way; the app
+    layer agrees so every derived level reports read rather than offering an
+    affordance the database will reject.
+    """
+    return context is not None and context.content_read_only
+
+
+def lift_level_for_grant(
+    dac_level: str | None, context: GuildContext | None
+) -> str | None:
+    """Raise an effective permission string to the request's grant level.
 
     The ``my_permission_level`` surfaced to the client drives whether edit
     affordances render. A PAM grantee has no permission rows, so DAC alone
@@ -72,9 +78,9 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
     Shared by projects, documents, queues, and counter groups so the level the
     UI sees is consistent across every resource a grant covers.
     """
-    if guild_id is None:
+    if context is None:
         return dac_level
-    grant = active_grant_level(guild_id)  # "read" | "read_write" | None
+    grant = context.grant_content  # "read" | "read_write" | None
     if grant is None:
         return dac_level
     grant_level = "write" if grant == "read_write" else "read"
@@ -141,34 +147,25 @@ def _granted_resource_ids(
 
 
 def request_bypasses_dac(
-    guild_id: int | None,
+    context: GuildContext | None,
     *,
     initiative_id: int | None = None,
     access: str = "read",
     require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
 ) -> bool:
     """The single "sees/edits regardless of DAC rows?" check — satisfying PAM
-    grant OR guild admin OR initiative "Full access". Defined once so a call site
-    can't apply one leg and drop the other (the regression that hid a guild
-    admin's tasks).
+    grant OR guild admin OR initiative "Full access". One wrapper over
+    :meth:`GuildContext.bypasses_dac` so a call site cannot apply one leg and
+    drop another (the regression that hid a guild admin's tasks).
 
-    The initiative "Full access" leg (``request_overrides_sharing``) is the
-    initiative-scoped sibling of the guild-admin leg: like guild admin, it
-    ignores ``require_owner`` (a full-access PM may manage an item's sharing —
-    an owner-only operation — within their initiative).
-
-    A guild-scoped resource always carries a ``guild_id`` (the override set is
-    itself computed within a guild context), so no ``guild_id`` means no guild
-    context to reason about — fail closed before any leg, including the override
-    one."""
-    if guild_id is None:
+    Every leg is a fact of the reader's standing in one community, so a request
+    with no standing has nothing to read them off and answers no.
+    """
+    if context is None:
         return False
-    if grant_satisfies(guild_id, access=access, require_owner=require_owner):
-        return True
-    if is_request_guild_admin(guild_id, guild_role=guild_role):
-        return True
-    return request_overrides_sharing(initiative_id)
+    return context.bypasses_dac(
+        initiative_id=initiative_id, access=access, require_owner=require_owner
+    )
 
 
 def granted_scope_clause(
@@ -176,7 +173,7 @@ def granted_scope_clause(
     id_col: ColumnElement[int],
     user_id: int,
     *,
-    guild_id: int | None,
+    context: GuildContext | None,
     access: str = "read",
 ) -> ColumnElement[bool]:
     """The WHERE leg for a listing that **spans initiatives** — the cross-guild
@@ -201,7 +198,7 @@ def granted_scope_clause(
     A statement already confined to one initiative asks nothing here — see
     :func:`listing_scope_clause`.
     """
-    if grant_satisfies(guild_id, access=access):
+    if context is not None and context.grant_satisfies(access=access):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id))
 
@@ -211,7 +208,7 @@ def listing_scope_clause(
     id_col: ColumnElement[int],
     user_id: int,
     *,
-    guild_id: int | None,
+    context: GuildContext | None,
     initiative_id: int | None = None,
     access: str = "read",
 ) -> ColumnElement[bool]:
@@ -235,7 +232,7 @@ def listing_scope_clause(
     """
     if initiative_id is not None:
         return true()
-    return granted_scope_clause(tool, id_col, user_id, guild_id=guild_id, access=access)
+    return granted_scope_clause(tool, id_col, user_id, context=context, access=access)
 
 
 def writable_scope_clause(
@@ -243,7 +240,7 @@ def writable_scope_clause(
     id_col: ColumnElement[int],
     user_id: int,
     *,
-    guild_id: int | None,
+    context: GuildContext | None,
     initiative_id: int | None = None,
 ) -> ColumnElement[bool]:
     """The listing rule narrowed to what the reader may CHANGE.
@@ -258,9 +255,9 @@ def writable_scope_clause(
     been granted does.
     """
     if initiative_id is not None:
-        if request_bypasses_dac(guild_id, initiative_id=initiative_id, access="write"):
+        if request_bypasses_dac(context, initiative_id=initiative_id, access="write"):
             return true()
-    elif grant_satisfies(guild_id, access="write"):
+    elif context is not None and context.grant_satisfies(access="write"):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id, levels=WRITE_LEVELS))
 
@@ -418,8 +415,7 @@ def may_write(
     row: Any,
     user_id: int,
     *,
-    guild_id: int | None,
-    guild_role: GuildRole | str | None = None,
+    context: GuildContext | None,
 ) -> bool:
     """Whether this caller could change the row.
 
@@ -430,10 +426,9 @@ def may_write(
     whether the row is this person's at all.
     """
     if request_bypasses_dac(
-        guild_id,
+        context,
         initiative_id=getattr(row, "initiative_id", None),
         access="write",
-        guild_role=guild_role,
     ):
         return True
     level = effective_level(resource, row, user_id)
@@ -445,7 +440,7 @@ def hidden_from_reader(
     row: Any,
     user_id: int,
     *,
-    guild_role: GuildRole | str | None = None,
+    context: GuildContext | None,
 ) -> bool:
     """Whether this row exists but is not yet this caller's to see.
 
@@ -457,13 +452,7 @@ def hidden_from_reader(
     visible = READ_VISIBLE.get(kind)
     if visible is None or visible(row):
         return False
-    return not may_write(
-        DAC_RESOURCES[kind],
-        row,
-        user_id,
-        guild_id=context_guild_id(),
-        guild_role=guild_role,
-    )
+    return not may_write(DAC_RESOURCES[kind], row, user_id, context=context)
 
 
 #: One grantee of a resource: ``("user", id)``, ``("role", id)`` or
@@ -731,9 +720,9 @@ def require_access(
     row: Any,
     user: User,
     *,
+    context: GuildContext | None,
     access: str = "read",
     require_owner: bool = False,
-    guild_role: GuildRole | str | None = None,
     allow_frozen: bool = False,
 ) -> None:
     """Raise 403 unless ``user`` may act on ``row``: frozen-guild read cap →
@@ -748,7 +737,6 @@ def require_access(
     ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving,
     which asks for write on a row that is archived by definition. The caller
     still needs the write level."""
-    guild_id = context_guild_id()
     initiative_id = getattr(row, "initiative_id", None)
     # A frozen guild (read_only lifecycle status) caps EVERY real member at
     # read — before the bypass legs, so the guild-admin override can't clear
@@ -756,7 +744,7 @@ def require_access(
     # override the status by design. The Postgres role (guild_<id>_ro) would
     # refuse the write anyway; failing here keeps the app layer in agreement
     # and the error clean.
-    if content_read_only_active(guild_id) and (access != "read" or require_owner):
+    if _frozen_community(context) and (access != "read" or require_owner):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
         )
@@ -769,11 +757,10 @@ def require_access(
             detail=CommonMessages.CONTENT_IS_FROZEN,
         )
     if request_bypasses_dac(
-        guild_id,
+        context,
         initiative_id=initiative_id,
         access=access,
         require_owner=require_owner,
-        guild_role=guild_role,
     ):
         return
     effective = effective_level(resource, row, user.id)
@@ -796,7 +783,9 @@ def require_access(
         )
 
 
-def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | None:
+def compute_permission(
+    resource: DacResource, row: Any, user_id: int, *, context: GuildContext | None
+) -> str | None:
     """``my_permission_level`` for the client: guild admin / initiative "Full
     access" → owner, else effective DAC level lifted to any active PAM grant.
     A frozen guild (read_only lifecycle status) caps the result at read — the
@@ -806,21 +795,24 @@ def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | N
     caps it the same way and for the same reason: one place, so a document in
     the trash opens with its editor already read-only rather than failing on the
     first keystroke."""
-    guild_id = context_guild_id()
     initiative_id = getattr(row, "initiative_id", None)
     level: str | None
-    if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
+    if context is not None and (
+        context.is_admin or context.overrides_sharing(initiative_id)
+    ):
         level = "owner"
     else:
-        level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
-    if level is not None and content_read_only_active(guild_id):
+        level = lift_level_for_grant(effective_level(resource, row, user_id), context)
+    if level is not None and _frozen_community(context):
         return "read"
     if level is not None and row_is_frozen(row):
         return "read"
     return level
 
 
-def may_unarchive(resource: DacResource, row: Any, user_id: int) -> bool:
+def may_unarchive(
+    resource: DacResource, row: Any, user_id: int, *, context: GuildContext | None
+) -> bool:
     """Whether the caller may take this row back out of the archive.
 
     ``compute_permission`` caps a frozen row at read so that every edit
@@ -841,19 +833,22 @@ def may_unarchive(resource: DacResource, row: Any, user_id: int) -> bool:
     """
     if getattr(row, "archived_at", None) is None:
         return False
-    guild_id = context_guild_id()
-    if content_read_only_active(guild_id):
+    if _frozen_community(context):
         return False
     if ancestor_is_frozen(row):
         return False
     initiative_id = getattr(row, "initiative_id", None)
-    if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
+    if context is not None and (
+        context.is_admin or context.overrides_sharing(initiative_id)
+    ):
         return True
-    level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+    level = lift_level_for_grant(effective_level(resource, row, user_id), context)
     return level in ("write", "owner")
 
 
-def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
+def client_access(
+    tool: Tool, row: Any, user_id: int | None, *, context: GuildContext | None
+) -> dict[str, Any]:
     """The two access fields a tool's read schema carries, answered together.
 
     They are a pair. One says what may be done to the row as it stands — capped
@@ -870,8 +865,10 @@ def client_access(tool: Tool, row: Any, user_id: int | None) -> dict[str, Any]:
         return {"my_permission_level": None, "can_unarchive": False}
     resource = DAC_RESOURCES[tool]
     return {
-        "my_permission_level": compute_permission(resource, row, user_id),
-        "can_unarchive": may_unarchive(resource, row, user_id),
+        "my_permission_level": compute_permission(
+            resource, row, user_id, context=context
+        ),
+        "can_unarchive": may_unarchive(resource, row, user_id, context=context),
     }
 
 
@@ -883,7 +880,7 @@ async def can_administer_project(
     project: Project,
     user: User,
     *,
-    guild_role: GuildRole | str | None = None,
+    context: GuildContext | None,
 ) -> bool:
     """Whether the user may configure the project itself.
 
@@ -894,9 +891,14 @@ async def can_administer_project(
     """
     from app.services import rls as rls_service  # local: rls imports this module
 
-    if rls_service.is_guild_admin(guild_role):
+    if context is not None and context.is_admin:
         return True
-    if compute_permission(DAC_RESOURCES[Tool.project], project, user.id) == "owner":
+    if (
+        compute_permission(
+            DAC_RESOURCES[Tool.project], project, user.id, context=context
+        )
+        == "owner"
+    ):
         return True
     if project.initiative_id:
         return await rls_service.is_initiative_manager(
@@ -912,10 +914,10 @@ async def require_project_admin(
     project: Project,
     user: User,
     *,
-    guild_role: GuildRole | str | None = None,
+    context: GuildContext | None,
 ) -> None:
     """Raise 403 unless the user may configure the project (see above)."""
-    if not await can_administer_project(session, project, user, guild_role=guild_role):
+    if not await can_administer_project(session, project, user, context=context):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ProjectMessages.ADMIN_REQUIRED,
@@ -925,9 +927,11 @@ async def require_project_admin(
 def has_project_write_access(
     project: Project,
     user: User,
+    *,
+    context: GuildContext | None,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
-    if content_read_only_active(context_guild_id()):
+    if _frozen_community(context):
         return False
     return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",

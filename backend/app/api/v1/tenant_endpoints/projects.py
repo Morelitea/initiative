@@ -54,6 +54,7 @@ from app.api import resource_access
 from app.core.user_display import handle_of
 from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
@@ -500,7 +501,7 @@ def project_load_options(*, slim: bool = False) -> list:
 def visible_project_conditions(
     user_id: int,
     *,
-    guild_id: int,
+    context: GuildContext,
     archived: Optional[bool],
     template: Optional[bool],
     search: Optional[str] = None,
@@ -520,7 +521,7 @@ def visible_project_conditions(
         Project,
         Initiative.projects_enabled,
         user_id,
-        guild_id=guild_id,
+        context=context,
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
@@ -543,7 +544,10 @@ async def _visible_projects(
     DAC: Projects with explicit ProjectPermission OR role-based permission.
     """
     conditions = visible_project_conditions(
-        current_user.id, guild_id=guild_id, archived=archived, template=template
+        current_user.id,
+        context=require_guild_context(session),
+        archived=archived,
+        template=template,
     )
     base_statement = select(Project).where(*conditions).options(*project_load_options())
     result = await session.exec(base_statement)
@@ -587,11 +591,13 @@ async def _project_reads_with_order(
         sorted_projects = sorted(projects, key=sort_key)
 
     attached = await _documents_for_projects(session, sorted_projects)
+    context = require_guild_context(session)
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
         payloads.append(
             _build_project_payload(
                 project,
+                context=context,
                 sort_order=order_map.get(project.id),
                 favorite_ids=favorite_ids,
                 view_map=view_map,
@@ -602,7 +608,9 @@ async def _project_reads_with_order(
     return payloads
 
 
-def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRead]:
+def _slim_project_reads(
+    projects: List[Project], user_id: int, *, context: GuildContext
+) -> List[ProjectRead]:
     """Build lightweight ``ProjectRead`` rows for the slim projection.
 
     Carries only ``{id, name, icon, initiative_id, my_permission_level}`` plus
@@ -625,7 +633,10 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 is_template=project.is_template,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
-                **permissions_service.client_access(Tool.project, project, user_id),
+                guild_id=context.guild_id,
+                **permissions_service.client_access(
+                    Tool.project, project, user_id, context=context
+                ),
             )
         )
     return reads
@@ -645,7 +656,9 @@ async def serialize_project_page(
     queries — that is what makes it slim.
     """
     if slim:
-        return _slim_project_reads(projects, current_user.id)
+        return _slim_project_reads(
+            projects, current_user.id, context=require_guild_context(session)
+        )
     return await _project_reads_with_order(
         session, current_user, projects, preserve_order=True
     )
@@ -785,6 +798,7 @@ def _project_owner(project: Project) -> Optional[UserPublic]:
 def _build_project_payload(
     project: Project,
     *,
+    context: GuildContext,
     sort_order: Optional[float],
     favorite_ids: set[int],
     view_map: dict[int, datetime],
@@ -793,13 +807,14 @@ def _build_project_payload(
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
-        payload.initiative = serialize_initiative(project.initiative)
+        payload.initiative = serialize_initiative(project.initiative, context=context)
     project_id = project.id or 0
     summary = getattr(project, "_task_summary", None)
     if not isinstance(summary, ProjectTaskSummary):
         summary = ProjectTaskSummary()
     return payload.model_copy(
         update={
+            "guild_id": context.guild_id,
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
@@ -808,7 +823,9 @@ def _build_project_payload(
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
-            **permissions_service.client_access(Tool.project, project, user_id),
+            **permissions_service.client_access(
+                Tool.project, project, user_id, context=context
+            ),
             "owner_id": ownership_service.owner_id_of(project),
             "owner": _project_owner(project),
         }
@@ -865,7 +882,9 @@ async def list_writable_projects(
     writable_projects = [
         project
         for project in projects
-        if permissions_service.has_project_write_access(project, current_user)
+        if permissions_service.has_project_write_access(
+            project, current_user, context=guild_context
+        )
     ]
     return await _project_reads_with_order(
         session,
@@ -1238,13 +1257,14 @@ async def favorite_projects(
                 project,
                 current_user,
                 access="read",
-                guild_role=guild_context.role,
+                context=guild_context,
             )
         except HTTPException:
             continue
         payloads.append(
             _build_project_payload(
                 project,
+                context=guild_context,
                 sort_order=None,
                 favorite_ids=favorite_ids,
                 view_map=view_map,
@@ -1424,7 +1444,9 @@ async def search_project_members(
         # offered as someone to assign work to while the suspension lasts.
         if user.status == UserStatus.suspended:
             continue
-        if permissions_service.has_project_write_access(project, user):
+        if permissions_service.has_project_write_access(
+            project, user, context=guild_context
+        ):
             assignable.append(user)
             seen.add(user.id)
 
@@ -1505,7 +1527,7 @@ async def update_project(
     view_mode_value = update_data.pop("default_view_mode", sentinel)
     if pinned_value is not sentinel or view_mode_value is not sentinel:
         can_administer = await permissions_service.can_administer_project(
-            session, project, current_user, guild_role=guild_context.role
+            session, project, current_user, context=guild_context
         )
         if not can_administer:
             raise HTTPException(
@@ -1679,9 +1701,15 @@ async def count_project_export_rows(
         project_id, session, guild_id, user_id=current_user.id
     )
     # The loader above eager-loads the grants and memberships the decision
-    # reads. No guild role is threaded: an export replays on a worker, where
-    # the request-scoped role context is what answers.
-    resource_access.authorize(Tool.project, project, current_user, access=access)
+    # reads. The standing is the session's own: an export replays on a worker,
+    # where the routing it ran under is what answers.
+    resource_access.authorize(
+        Tool.project,
+        project,
+        current_user,
+        context=require_guild_context(session),
+        access=access,
+    )
     return (
         await session.exec(
             select(func.count()).select_from(Task).where(Task.project_id == project.id)
@@ -1707,9 +1735,15 @@ async def build_project_export_for_user(
         project_id, session, guild_id, user_id=current_user.id
     )
     # The loader above eager-loads the grants and memberships the decision
-    # reads. No guild role is threaded: an export replays on a worker, where
-    # the request-scoped role context is what answers.
-    resource_access.authorize(Tool.project, project, current_user, access=access)
+    # reads. The standing is the session's own: an export replays on a worker,
+    # where the routing it ran under is what answers.
+    resource_access.authorize(
+        Tool.project,
+        project,
+        current_user,
+        context=require_guild_context(session),
+        access=access,
+    )
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,

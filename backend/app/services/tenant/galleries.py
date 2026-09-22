@@ -33,6 +33,7 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
@@ -416,6 +417,7 @@ async def get_gallery_for_export(
         permissions_service.DAC_RESOURCES[Tool.gallery],
         gallery,
         current_user,
+        context=db_session.guild_context(session),
         access="read",
     )
     images = list(

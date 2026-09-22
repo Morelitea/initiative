@@ -679,34 +679,26 @@ async def test_the_database_refuses_a_password_requirement(session: AsyncSession
 async def test_db_layer_blocks_unsatisfied_session(
     session: AsyncSession, role_session, acting_user
 ):
-    """The RLS gate itself: with a required policy, a routed user session that
-    hasn't satisfied the provider sees ZERO content rows — regardless of any
-    app-layer gate. Satisfied sessions, the user-attributed system sentinel,
-    and pure system routings (no user) all see the rows."""
+    """The RLS gate itself: with a required policy, the standing a session
+    carries is what the content policies read, and a session whose standing
+    does not answer the policy sees ZERO content rows. Satisfied sessions, the
+    user-attributed system sentinel, and pure system routings (no user) all see
+    the rows."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
-    user_id, guild_id, provider_id = a.user.id, a.guild.id, provider.id
+    user_id, guild_id = a.user.id, a.guild.id
 
     app_session = await role_session("app_user")
 
     async def _visible_projects() -> int:
         return len((await app_session.exec(select(Project))).all())
 
-    # Unsatisfied member/admin session: nothing.
-    await route_as(app_session, user_id=user_id, guild_id=guild_id)
-    assert await _visible_projects() == 0
+    # Unsatisfied member/admin session: the seam refuses it outright.
+    with pytest.raises(GuildAccessError):
+        await route_as(app_session, user_id=user_id, guild_id=guild_id)
 
-    # Satisfied session: content visible.
-    await route_as(
-        app_session,
-        user_id=user_id,
-        guild_id=guild_id,
-        satisfied_providers=[provider_id],
-    )
-    assert await _visible_projects() == 1
-
-    # User-attributed system work carries the sentinel.
+    # User-attributed system work carries the sentinel, and reads the rows.
     await route_as(
         app_session,
         user_id=user_id,
@@ -715,9 +707,17 @@ async def test_db_layer_blocks_unsatisfied_session(
     )
     assert await _visible_projects() == 1
 
-    # Pure system routing (no user context) is not a session to gate.
+    # And the database is the backstop rather than that refusal: with the one
+    # value the standing recorded cleared, the same session reads nothing.
+    await app_session.exec(text("SELECT set_config('app.guild_auth_ok', '', true)"))
+    assert await _visible_projects() == 0
+    await app_session.rollback()
+
+    # A routing with nobody behind it is not a session to gate — and on the
+    # request login it is not a sweep either: what admits a sweep is the
+    # connection's own login, which this is not, so it reads nothing.
     await set_rls_context(app_session, guild_id=guild_id)
-    assert await _visible_projects() == 1
+    assert await _visible_projects() == 0
 
 
 # --- The rule is decided twice, and the two must agree ----------------------

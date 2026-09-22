@@ -14,10 +14,9 @@ from app.models.tenant.initiative import (
     PermissionKey,
 )
 from app.schemas.platform.user import UserPublic, UserSummary
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.initiative import (
         Initiative,
         InitiativeMember,
@@ -211,7 +210,10 @@ class InitiativeRead(InitiativeBase):
     )
 
     id: int
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    #: The community this initiative was read in. Set by
+    #: :func:`serialize_initiative`; a payload pydantic builds while validating
+    #: another carries none until that serializer replaces it.
+    guild_id: Optional[int] = None
     is_default: bool = False
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None
@@ -354,7 +356,9 @@ def member_tool_flags(
     return flags
 
 
-def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
+def serialize_initiative(
+    initiative: "Initiative", *, context: "GuildContext"
+) -> InitiativeRead:
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -380,7 +384,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         )
     return InitiativeRead(
         id=initiative.id,
-        guild_id=require_routed_guild_id(),
+        guild_id=context.guild_id,
         name=initiative.name,
         description=initiative.description,
         color=initiative.color,

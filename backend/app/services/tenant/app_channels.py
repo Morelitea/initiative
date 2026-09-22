@@ -37,7 +37,7 @@ from typing import Any, Optional, Sequence
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_service_registration import AppServiceRegistration
@@ -142,13 +142,16 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     await set_rls_context(session, guild_id=guild_id, read_only=read_only)
 
 
-async def _install_guild_ref(app: GuildApp) -> str:
+async def _install_guild_ref(session: AsyncSession, app: GuildApp) -> str:
     """What this install calls the guild it is in.
 
     Every payload on this channel names the guild by it, because it is the only
-    name the app on the other end has for it.
+    name the app on the other end has for it. The community is the one the
+    session read the install from.
     """
-    return await ensure_app_guild_ref(guild_id=routed_guild_id(), app_install_id=app.id)
+    return await ensure_app_guild_ref(
+        guild_id=routed_guild_id(session), app_install_id=app.id
+    )
 
 
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
@@ -184,7 +187,7 @@ async def install_summaries(
         ).all()
         summaries.extend(
             [
-                _summarize(app, await _install_guild_ref(app))
+                _summarize(app, await _install_guild_ref(session, app))
                 for app in rows
                 if owns_install(app, registration)
             ]
@@ -320,7 +323,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
 
     state = app_config_service.config_state(app)
     return {
-        "guild_ref": await _install_guild_ref(app),
+        "guild_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "listing_uid": app.listing_uid,
         "listing_version": app.listing_version,
@@ -487,7 +490,7 @@ async def report_config_state(
     await session.commit()
     await session.refresh(app)
     return {
-        "guild_ref": await _install_guild_ref(app),
+        "guild_ref": await _install_guild_ref(session, app),
         "install_id": app.id,
         "config_state": app.config_state,
         "config_state_detail": app.config_state_detail,
@@ -734,6 +737,6 @@ async def emit_event(
     await dispatch_event(
         session,
         event_type=event_type,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         payload=payload,
     )

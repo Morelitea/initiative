@@ -4,8 +4,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 from pydantic import ConfigDict
 
 from app.core.tools import TRASH_TARGETS
@@ -29,7 +27,7 @@ class TrashItem(SanitizedBaseModel):
     # The guild the entity lives in. Within a single guild's trash this is
     # constant, but the cross-guild ``/me/trash`` view merges several guilds,
     # so the client needs it to address restore/purge (which are guild-scoped).
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     name: str
     deleted_at: datetime
     deleted_by_id: Optional[int] = None

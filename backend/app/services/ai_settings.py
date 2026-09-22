@@ -27,7 +27,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
@@ -752,7 +752,7 @@ async def update_guild_connection(
             session,
             event_type=AuditEventType.AI_CONNECTION_UPDATED,
             actor_user_id=actor_user_id,
-            guild_id=routed_guild_id(),
+            guild_id=routed_guild_id(session),
             target_type="ai_connection",
             target_id=row.id,
             detail={
@@ -772,7 +772,7 @@ async def delete_guild_connection(
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
-    guild_id = routed_guild_id()
+    guild_id = routed_guild_id(session)
     await session.delete(row)
     await audit_service.record(
         session,

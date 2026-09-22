@@ -243,7 +243,7 @@ async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -
 def board_conditions(
     user_id: int,
     *,
-    guild_id: int,
+    context: GuildContext,
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
@@ -266,14 +266,14 @@ def board_conditions(
         Post,
         Initiative.posts_enabled,
         user_id,
-        guild_id=guild_id,
+        context=context,
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
     )
     conditions.append(
         posts_service.visibility_clause(
-            user_id, guild_id=guild_id, initiative_id=initiative_id
+            user_id, context=context, initiative_id=initiative_id
         )
     )
     if unread:
@@ -325,7 +325,7 @@ async def get_post_timeline(
 
     scope = board_conditions(
         current_user.id,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         initiative_id=initiative_id,
         search=search,
         unread=unread,
@@ -365,7 +365,7 @@ async def read_post(
     await post_polls_service.annotate_poll_state(
         session, [post], user_id=current_user.id
     )
-    return serialize_post(post, user_id=current_user.id)
+    return serialize_post(post, user_id=current_user.id, context=guild_context)
 
 
 @router.post("/", response_model=PostRead, status_code=status.HTTP_201_CREATED)
@@ -456,7 +456,7 @@ async def create_post(
 
     await session.commit()
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.patch("/{post_id}", response_model=PostRead)
@@ -535,7 +535,7 @@ async def update_post(
         await session.commit()
 
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.put("/{post_id}/pin", response_model=PostRead)
@@ -600,7 +600,7 @@ async def set_post_pin(
     # Pinning reorders the whole board, not just this row.
 
     hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -682,7 +682,7 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_post(session, post_id, user_id=user.id)
-    return serialize_post(hydrated, user_id=user.id)
+    return serialize_post(hydrated, user_id=user.id, context=guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -712,7 +712,6 @@ async def mark_posts_read(
         session,
         body.post_ids,
         user_id=current_user.id,
-        guild_id=guild_context.guild_id,
     )
     await session.commit()
     return PostReadReceipt(marked=marked)
@@ -838,7 +837,7 @@ async def set_post_poll(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{post_id}/poll", response_model=PostRead)
@@ -865,7 +864,7 @@ async def delete_post_poll(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.put("/{post_id}/poll/vote", response_model=PostRead)
@@ -926,7 +925,7 @@ async def vote_on_post_poll(
     # Everybody watching the poll is watching the tallies.
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{post_id}/poll/vote", response_model=PostRead)
@@ -957,7 +956,7 @@ async def retract_post_poll_vote(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.get("/{post_id}/poll/voters", response_model=PollVoters)

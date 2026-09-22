@@ -25,7 +25,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.messages import ProjectExportMessages
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
@@ -106,7 +106,7 @@ async def import_project(
     # membership however the handle was resolved, and a mapped account is
     # known by its id rather than by a handle to look up.
     initiative_member_ids = frozenset(initiative_member_handles.values())
-    target_guild_id = routed_guild_id()
+    target_guild_id = routed_guild_id(session)
     if target_guild_id is None:
         # Initiatives are created with a guild (services/initiatives.py
         # requires it). Reaching here means data corruption, not user

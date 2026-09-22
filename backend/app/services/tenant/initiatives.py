@@ -11,7 +11,7 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
 from app.db.session import rls_context_params
@@ -126,7 +126,7 @@ async def resolve_membership_role(
     is the caller's error to report.
     """
     if await is_guild_admin_member(
-        session, guild_id=routed_guild_id(), user_id=user_id
+        session, guild_id=routed_guild_id(session), user_id=user_id
     ):
         if requested is not None and requested.is_manager:
             return requested
@@ -798,7 +798,7 @@ async def self_join(
             actor_user_id if actor_user_id is not None else _acting_user_id(session)
         ),
         target_user_id=user_id,
-        guild_id=routed_guild_id(),
+        guild_id=routed_guild_id(session),
         target_type="initiative",
         target_id=initiative.id,
         detail={"role_id": role.id, "role": role.name, "via": via},

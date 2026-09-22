@@ -7,7 +7,7 @@ guild-access gate and every session-routing seam (``establish_guild_access``,
 ``get_guild_session``, ``gather_across_guilds``) read it to feed the guild
 auth-policy check and the ``app.satisfied_providers`` GUC behind
 ``public.guild_auth_satisfied()``, without the value being threaded through
-every helper between the validator and the sink (mirroring ``role_context``).
+every helper between the validator and the sink.
 
 Alongside it, what each of those providers asserted for the claims some
 community narrows it by — its token's ``satd`` claim — which the same gate

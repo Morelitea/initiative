@@ -59,7 +59,7 @@ async def _require_manageable_project(
         session,
         project_id,
         user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="read",
     )
     if project.archived_at is not None:
@@ -68,7 +68,7 @@ async def _require_manageable_project(
             detail=ProjectMessages.IS_ARCHIVED,
         )
     await permissions_service.require_project_admin(
-        session, project, user, guild_role=guild_context.role
+        session, project, user, context=guild_context
     )
     return project
 
@@ -101,12 +101,12 @@ async def list_filter_presets(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="read",
     )
     presets = await filter_presets_service.list_presets(session, project_id)
     can_manage = await permissions_service.can_administer_project(
-        session, project, current_user, guild_role=guild_context.role
+        session, project, current_user, context=guild_context
     )
     return FilterPresetListResponse(
         items=[FilterPresetRead.model_validate(preset) for preset in presets],

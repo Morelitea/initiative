@@ -31,12 +31,6 @@ from app.models.platform.app_setting import AppSetting
 from app.services.platform import auth_posture
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
-from app.core.pam_context import set_active_grant
-from app.core.role_context import (
-    set_active_role,
-    set_content_read_only_guild,
-    set_override_sharing_initiatives,
-)
 from app.core.messages import (
     AuthMessages,
     DirectMessageMessages,
@@ -829,6 +823,8 @@ async def _load_guild_context(
     current_user: User,
     guild_id: int,
     satisfied: frozenset[int] | str = frozenset(),
+    *,
+    for_settings: bool = False,
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
 
@@ -843,6 +839,13 @@ async def _load_guild_context(
     auto-delegation guard (token-guild must equal path-guild) lives in
     ``get_guild_membership``, where both values exist — WS / keepalive callers
     have no delegation token, so the shared resolver never deals with one.
+
+    ``for_settings`` is the community's own configuration surface, which a
+    guild administrator reaches while its content is closed to everybody: a
+    community on hold or suspended, and one whose sign-in policy this session
+    does not answer, still has an administrator to run it. The rung guard on
+    those routes has already refused anyone who does not administer it; what
+    this establishes is the standing the database reads.
     """
     # A suspended account reaches no guild. Ahead of the branches below so it
     # holds for membership and for a grant alike, and it answers with the same
@@ -918,8 +921,9 @@ async def _load_guild_context(
         )
     membership, guild, policy, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status: the statuses
-    # that serve members are named, and every other one is refused.
-    if guild.status not in LIVE_STATUS_VALUES:
+    # that serve members are named, and every other one is refused. Content
+    # only — running the community is what an administrator keeps.
+    if not for_settings and guild.status not in LIVE_STATUS_VALUES:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
     # A listed community is open to anyone signed in, so the deployment's age
@@ -930,7 +934,12 @@ async def _load_guild_context(
     #
     # Free in the common case: it stops on the account's own column, which is
     # already loaded, for everyone who has answered.
-    if current_user.age_confirmed_at is None and guild.is_community and age_gate_on:
+    if (
+        not for_settings
+        and current_user.age_confirmed_at is None
+        and guild.is_community
+        and age_gate_on
+    ):
         raise GuildAccessError(
             GuildMessages.AGE_BELOW_MINIMUM
             if current_user.age_below_minimum_at is not None
@@ -939,21 +948,24 @@ async def _load_guild_context(
     # And the deployment's own question, off the row the gate read carried.
     if await platform_factor_unmet(session, current_user, level=asked):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
-    await _enforce_guild_auth_policy(
-        session,
-        policy,
-        guild_id,
-        satisfied,
-        auth_context.session_amr(),
-        require_second_factor=guild.require_second_factor,
-    )
+    if not for_settings:
+        await _enforce_guild_auth_policy(
+            session,
+            policy,
+            guild_id,
+            satisfied,
+            auth_context.session_amr(),
+            require_second_factor=guild.require_second_factor,
+        )
     return GuildContext(
         guild=guild,
         user_id=current_user.id,
         guild_id=guild_id,
         membership=membership,
         guild_role=membership.role.value,
-        content_read_only=(guild.status == GuildStatus.read_only.value),
+        content_read_only=(
+            not for_settings and guild.status == GuildStatus.read_only.value
+        ),
     )
 
 
@@ -1161,7 +1173,7 @@ async def apply_guild_session_context(
             satisfied_claims=auth_context.satisfied_claims(),
             session_amr=auth_context.session_amr(),
         )
-        return await _record_standing(session, guild_context)
+        return await apply_guild_standing(session, guild_context)
 
     if guild_context.is_pam:
         _note_privileged_request(current_user, guild_context)
@@ -1186,7 +1198,7 @@ async def apply_guild_session_context(
             satisfied_claims=auth_context.satisfied_claims(),
             session_amr=auth_context.session_amr(),
         )
-        return await _record_standing(session, guild_context)
+        return await apply_guild_standing(session, guild_context)
 
     await set_rls_context(
         session,
@@ -1204,29 +1216,7 @@ async def apply_guild_session_context(
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
     )
-    return await _record_standing(session, guild_context)
-
-
-async def _record_standing(
-    session: AsyncSession, guild_context: GuildContext
-) -> GuildContext:
-    """Run the standing statement and hand back the completed context.
-
-    The contextvars the sync access checks read are written from that one
-    object, so what the policies evaluate and what the app layer believes come
-    from the same row.
-    """
-    context = await apply_guild_standing(session, guild_context)
-    set_active_grant(
-        context.guild_id if context.grant_content else None, context.grant_content
-    )
-    set_active_role(
-        context.guild_id if context.membership is not None else None,
-        context.role.value if context.membership is not None else None,
-    )
-    set_override_sharing_initiatives(frozenset(context.override_initiatives))
-    set_content_read_only_guild(context.guild_id if context.content_read_only else None)
-    return context
+    return await apply_guild_standing(session, guild_context)
 
 
 async def get_guild_session(
@@ -1263,6 +1253,8 @@ async def establish_guild_access(
     current_user: User,
     guild_id: int,
     satisfied_providers: frozenset[int] | str | None = None,
+    *,
+    for_settings: bool = False,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
     point for callers that can't use the REST dependency chain.
@@ -1288,7 +1280,7 @@ async def establish_guild_access(
         else satisfied_providers
     )
     guild_context = await _load_guild_context(
-        session, current_user, guild_id, satisfied=satisfied
+        session, current_user, guild_id, satisfied=satisfied, for_settings=for_settings
     )
     return await apply_guild_session_context(
         session, current_user, guild_context, satisfied=satisfied

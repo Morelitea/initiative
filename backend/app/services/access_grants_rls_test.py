@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import set_active_grant
 from app.db.schema_provisioning import guild_schema_name
 from app.db.session import set_rls_context
 from app.models.tenant.counter import CounterGroup
@@ -26,6 +25,7 @@ from app.testing import (
     create_queue,
     create_user,
 )
+from app.testing.schema_harness import route_session_to_guild
 
 
 async def _set_app_user(session: AsyncSession) -> None:
@@ -128,7 +128,9 @@ async def test_pam_read_grant_sees_only_granted_guild(
 
 
 @pytest.mark.integration
-async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncSession):
+async def test_grantee_guild_settings_lazy_create_does_not_fault(
+    session: AsyncSession, reading_as
+):
     """``get_or_create_guild_settings`` must not try to INSERT for a grantee.
 
     guild_settings is a config table off-limits to grants, so the lazy create
@@ -143,25 +145,17 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
     )
     guild = await create_guild(session, creator=owner)  # no guild_settings row seeded
 
-    try:
-        await _set_app_user(session)
-        await set_rls_context(
-            session,
-            user_id=support.id,
-            pam_guild_id=guild.id,
-            pam_read=True,
-            pam_write=False,
-        )
-        set_active_grant(guild.id, "read")
+    # Live READ grant scoped to the guild, entered through the seam.
+    await create_access_grant(session, user=support, guild=guild)
+    reader = await reading_as(support.id, guild.id)
 
-        # Pre-fix this raised InsufficientPrivilegeError on the INSERT.
-        row = await app_settings_service.get_or_create_guild_settings(session, guild.id)
-        assert row.id is None, "grantee settings must be transient, not persisted"
-    finally:
-        set_active_grant(None, None)
-        await _reset_role(session)
+    # Pre-fix this raised InsufficientPrivilegeError on the INSERT.
+    row = await app_settings_service.get_or_create_guild_settings(reader, guild.id)
+    assert row.id is None, "grantee settings must be transient, not persisted"
+    await reader.rollback()
 
     # Nothing was written.
+    await route_session_to_guild(session, guild.id)
     persisted = (
         await session.exec(
             text("SELECT count(*) FROM guild_settings"),

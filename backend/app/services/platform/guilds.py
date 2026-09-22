@@ -601,19 +601,23 @@ async def list_memberships(
             continue
         retention: int | None = None
         administration: GuildAdministration | None = None
-        if membership.role in GUILD_ADMIN_ROLES:
-            # An excursion into the guild's own schema for two guild-level
-            # rows, and back out. It routes with the community alone, which is
-            # what the seam is for when a *person* is being routed: this list
-            # has already decided who may see what, and a sidebar of twenty
-            # communities is not twenty access establishments.
-            async with guild_schema_context(session, guild_id=guild.id):
+        row: GuildSetting | None = None
+        # An excursion into the guild's own schema, and back out. It routes
+        # with the community alone, which is what the seam is for when a
+        # *person* is being routed: this list has already decided who may see
+        # what, and a sidebar of twenty communities is not twenty access
+        # establishments. The roster size is counted inside it because the
+        # ``guild_memberships_select`` policy shows sibling rows only while
+        # that community is the routed one.
+        async with guild_schema_context(session, guild_id=guild.id):
+            if membership.role in GUILD_ADMIN_ROLES:
                 row, administration = await _guild_admin_rows(session, guild.id)
+            member_count = await count_members(session, guild_id=guild.id)
+        if membership.role in GUILD_ADMIN_ROLES:
             # No row yet → the 90-day default; an explicit NULL is the user's "never".
             retention = 90 if row is None else row.retention_days
             if row is not None:
                 session.expunge(row)
-        member_count = await count_members(session, guild_id=guild.id)
         out.append((guild, membership, retention, member_count, administration))
 
     # Restore the user-only context the caller (UserSessionDep) handed us.

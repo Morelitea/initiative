@@ -13,10 +13,9 @@ from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 from app.core.user_display import display_name
-from pydantic import Field as PydField
-from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.calendar_event import CalendarEvent
 
 
@@ -146,7 +145,7 @@ class CalendarEventSummary(CalendarEventBase):
     # filter/group by initiative without another fetch. NULL when the parent is
     # a guild-level calendar.
     initiative_id: Optional[int] = None
-    guild_id: int = PydField(default_factory=require_routed_guild_id)
+    guild_id: int
     created_by: int
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
@@ -245,6 +244,7 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
 def serialize_calendar_event_summary(
     event: "CalendarEvent",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
@@ -256,7 +256,9 @@ def serialize_calendar_event_summary(
     # (with grants + initiative.memberships) eager-loaded.
     calendar = event.calendar
     my_permission_level = (
-        compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
+        compute_permission(
+            DAC_RESOURCES[Tool.calendar], calendar, user_id, context=context
+        )
         if user_id is not None and calendar is not None
         else None
     )
@@ -286,7 +288,7 @@ def serialize_calendar_event_summary(
         recurrence=_parse_recurrence(event),
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
-        guild_id=guild_id if guild_id is not None else require_routed_guild_id(),
+        guild_id=guild_id if guild_id is not None else context.guild_id,
         created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,
@@ -302,10 +304,11 @@ def serialize_calendar_event_summary(
 def serialize_calendar_event(
     event: "CalendarEvent",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     documents: Sequence[Related] = (),
 ) -> CalendarEventRead:
-    summary = serialize_calendar_event_summary(event, user_id=user_id)
+    summary = serialize_calendar_event_summary(event, context=context, user_id=user_id)
     return CalendarEventRead(
         **summary.model_dump(),
         attendees=_serialize_attendees(event),

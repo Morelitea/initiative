@@ -51,7 +51,7 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
-from app.core.routed_guild import routed_guild_id
+from app.db.session import routed_guild_id
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -93,6 +93,7 @@ from app.services.fields.spec import FieldContext, SortContext
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
     ProjectMessages,
@@ -469,9 +470,10 @@ def _task_to_list_read(
 ) -> TaskListRead:
     """Convert Task model to lightweight TaskListRead schema.
 
-    A guild-scoped list leaves ``guild_id`` to the route. A cross-guild list
-    passes the community each row came from, and its name, because rows
-    from several schemas are merged after the session has moved on.
+    ``guild_id`` is the community the row was read in — the route's for a
+    guild-scoped list, and for a cross-guild one the schema each row came
+    from, because rows from several are merged after the session has moved on.
+    ``guild_name`` goes with it, for the same reason.
     """
     from app.schemas.tenant.task import TaskAssigneeSummary
 
@@ -512,7 +514,7 @@ def _task_to_list_read(
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
         blocked_by_open_count=getattr(task, "blocked_by_open_count", 0),
-        guild_id=guild_id if guild_id is not None else routed_guild_id(),
+        guild_id=guild_id,
         guild_name=guild_name,
         project_name=project.name if project else None,
         initiative_id=initiative.id if initiative else None,
@@ -776,7 +778,7 @@ async def _get_project_with_access(
     project_id: int,
     user: User,
     *,
-    guild_id: int,
+    context: GuildContext,
     access: str = "read",
 ) -> Project:
     """Load the project a task hangs off, and authorize against it.
@@ -814,7 +816,11 @@ async def _get_project_with_access(
 
     # project.grants is eager-loaded above; the DAC engine reads it.
     resource_access.authorize(
-        resource_access.governing_tool("tasks"), project, user, access=access
+        resource_access.governing_tool("tasks"),
+        project,
+        user,
+        access=access,
+        context=context,
     )
 
     return project
@@ -825,13 +831,13 @@ async def _ensure_can_manage(
     project_id: int,
     user: User,
     *,
-    guild_id: int,
+    context: GuildContext,
 ) -> Project:
     project = await _get_project_with_access(
         session,
         project_id,
         user,
-        guild_id=guild_id,
+        context=context,
         access="write",
     )
     return project
@@ -870,7 +876,7 @@ def _confining_project_id(
 async def _allowed_project_ids(
     session: SessionDep,
     user: User,
-    guild_id: int,
+    context: GuildContext,
     *,
     include_templates: bool = False,
     project_id: Optional[int] = None,
@@ -894,7 +900,7 @@ async def _allowed_project_ids(
         # stays here rather than resting on the table's own policy.
         conditions.append(
             permissions_service.granted_scope_clause(
-                Tool.project, Project.id, user.id, guild_id=guild_id
+                Tool.project, Project.id, user.id, context=context
             )
         )
     if not include_templates:
@@ -1325,7 +1331,7 @@ async def _load_property_definitions_across_guilds(
 async def _guild_task_query_builder(
     session,
     current_user: User,
-    guild_id: int,
+    context: GuildContext,
     *,
     q: _TaskListQuery,
     include_archived: bool,
@@ -1342,7 +1348,7 @@ async def _guild_task_query_builder(
     allowed_ids = await _allowed_project_ids(
         session,
         current_user,
-        guild_id,
+        context,
         include_templates=q.project_id is not None,
         # Access takes the strict reading, not the one that decides whether
         # templates join the set.
@@ -1354,7 +1360,7 @@ async def _guild_task_query_builder(
         access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
     filter_fields = _build_task_filter_fields(
-        guild_id=guild_id,
+        guild_id=context.guild_id,
         current_user_id=current_user.id,
         property_definitions=q.property_definitions,
     )
@@ -1387,7 +1393,11 @@ async def count_tasks_for_export(
     inline-vs-job auto-select and the export size ceiling."""
     q = await _parse_task_list_query(session, conditions, sorting, tz)
     build = await _guild_task_query_builder(
-        session, current_user, guild_id, q=q, include_archived=include_archived
+        session,
+        current_user,
+        require_guild_context(session),
+        q=q,
+        include_archived=include_archived,
     )
     if build is None:
         return 0
@@ -1411,7 +1421,11 @@ async def query_tasks_for_export(
     eager loads the export payload needs."""
     q = await _parse_task_list_query(session, conditions, sorting, tz)
     build = await _guild_task_query_builder(
-        session, current_user, guild_id, q=q, include_archived=include_archived
+        session,
+        current_user,
+        require_guild_context(session),
+        q=q,
+        include_archived=include_archived,
     )
     if build is None:
         return []
@@ -1452,7 +1466,11 @@ async def query_tasks_for_detailed_export(
     so their comments are in reachable initiatives)."""
     q = await _parse_task_list_query(session, conditions, sorting, tz)
     build = await _guild_task_query_builder(
-        session, current_user, guild_id, q=q, include_archived=include_archived
+        session,
+        current_user,
+        require_guild_context(session),
+        q=q,
+        include_archived=include_archived,
     )
     if build is None:
         return [], {}
@@ -1630,7 +1648,7 @@ async def query_guild_tasks(
     build = await _guild_task_query_builder(
         session,
         current_user,
-        guild_context.guild_id,
+        guild_context,
         q=q,
         include_archived=include_archived,
     )
@@ -1661,7 +1679,8 @@ async def query_guild_tasks(
     await _annotate_tasks(session, tasks)
     await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
-    return [_task_to_list_read(task) for task in tasks]
+    guild_id = routed_guild_id(session)
+    return [_task_to_list_read(task, guild_id=guild_id) for task in tasks]
 
 
 async def query_my_tasks_list(
@@ -1743,7 +1762,7 @@ async def list_tasks(
     _build_non_global_query = await _guild_task_query_builder(
         session,
         current_user,
-        guild_context.guild_id,
+        guild_context,
         q=q,
         include_archived=include_archived,
     )
@@ -1784,7 +1803,8 @@ async def list_tasks(
     await _annotate_tasks(session, tasks)
     await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
-    items = [_task_to_list_read(task) for task in tasks]
+    guild_id = routed_guild_id(session)
+    items = [_task_to_list_read(task, guild_id=guild_id) for task in tasks]
     return TaskListResponse(
         **build_paginated_response(
             items=items,
@@ -1807,7 +1827,7 @@ async def create_task(
         session,
         task_in.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="write",
     )
 
@@ -1913,7 +1933,7 @@ async def read_task(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="read",
     )
     return task
@@ -1937,7 +1957,7 @@ async def update_task(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="write",
     )
 
@@ -2096,14 +2116,14 @@ async def move_task(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     target_project = await _get_project_with_access(
         session,
         move_in.target_project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="write",
     )
     if target_project.is_template:
@@ -2183,7 +2203,7 @@ async def duplicate_task(
         session,
         original_task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     # Get next sort order for the new task
@@ -2298,7 +2318,7 @@ async def delete_task(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     from app.services.platform import guilds as guilds_service
@@ -2332,7 +2352,7 @@ async def reorder_tasks(
         session,
         reorder_in.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     task_ids = [item.id for item in reorder_in.items]
@@ -2448,7 +2468,7 @@ async def archive_done_tasks(
         session,
         project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     # Build the query to find done tasks
@@ -2512,7 +2532,7 @@ async def toggle_checklist_item(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     now = datetime.now(timezone.utc)
@@ -2596,7 +2616,7 @@ async def generate_task_checklist(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="write",
     )
 
@@ -2642,7 +2662,7 @@ async def generate_task_description(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
         access="write",
     )
 
@@ -2688,7 +2708,7 @@ async def set_task_tags(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     task_id_to_update = task.id
@@ -2746,7 +2766,7 @@ async def set_task_properties(
         session,
         task.project_id,
         current_user,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     task_id_to_update = task.id

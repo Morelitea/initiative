@@ -35,6 +35,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db.guild_standing import GuildContext
 from app.db.query import apply_pagination, clamp_page
 from app.models.tenant.initiative import Initiative
 from app.services import permissions as permissions_service
@@ -119,7 +120,7 @@ def base_conditions(
     enabled_column,
     user_id: int,
     *,
-    guild_id: int,
+    context: GuildContext,
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[Sequence[int]] = None,
@@ -141,7 +142,7 @@ def base_conditions(
             tool,
             model.id,
             user_id,
-            guild_id=guild_id,
+            context=context,
             initiative_id=initiative_id,
         ),
     ]
@@ -158,7 +159,7 @@ def base_conditions(
                 tags_service.tagged_entity_ids(
                     tags_service.TOOL_TAG_LINKS[tool],
                     tuple(tag_ids),
-                    guild_id=guild_id,
+                    guild_id=context.guild_id,
                 )
             )
         )
@@ -225,7 +226,7 @@ async def count_tool_rows_by_initiative(
     enabled_column,
     *,
     user_id: int,
-    guild_id: int,
+    context: GuildContext,
     extra_conditions: Sequence[Any] = (),
 ) -> dict[int, int]:
     """How many of this tool each initiative holds for this reader.
@@ -240,7 +241,7 @@ async def count_tool_rows_by_initiative(
         initiative_switch_clause(model, enabled_column),
         archive_service.archive_filter_clause(model, None),
         permissions_service.granted_scope_clause(
-            tool, model.id, user_id, guild_id=guild_id
+            tool, model.id, user_id, context=context
         ),
         *extra_conditions,
     ]

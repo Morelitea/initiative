@@ -331,13 +331,13 @@ def override_sharing_initiatives_select(user_id: int):
     """Select the initiative ids (in the routed guild schema) where the user
     holds a role with ``override_share_restrictions`` ("Full access") — the set
     the request's DAC override consults
-    (``role_context.request_overrides_sharing``).
+    (:meth:`app.db.guild_standing.GuildContext.overrides_sharing`).
 
     One indexed read over the user's memberships, joined to their role. Handed
-    out as a statement rather than a result because the guild dependency folds
+    out as a statement rather than a result because the standing statement folds
     it into the ``set_config`` that records the answer
-    (:func:`app.db.session.apply_override_initiatives`), so this stays the one
-    place that says which initiatives those are.
+    (:data:`app.db.guild_standing.STANDING_SQL`), so this stays the one place
+    that says which initiatives those are.
     """
     from sqlmodel import select
 
