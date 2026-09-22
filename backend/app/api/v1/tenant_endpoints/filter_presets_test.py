@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import filter_presets as filter_presets_service
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.integration
 
 
 def _url(project, suffix: str = "/") -> str:
-    return f"/api/v1/g/{project.guild_id}/projects/{project.id}/filter-presets{suffix}"
+    return f"/api/v1/g/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"
 
 
 async def _grant(session: AsyncSession, project, user, level: ResourceAccessLevel):
@@ -28,7 +29,6 @@ async def _grant(session: AsyncSession, project, user, level: ResourceAccessLeve
             resource_id=project.id,
             user_id=user.id,
             level=level,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )

@@ -13,6 +13,8 @@ from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.queue import Queue, QueueItem
@@ -146,7 +148,7 @@ class QueueSummary(QueueBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     current_round: int
     is_active: bool
@@ -256,7 +258,7 @@ def serialize_queue_summary(
         name=queue.name,
         description=queue.description,
         initiative_id=queue.initiative_id,
-        guild_id=queue.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=queue.created_by,
         current_round=queue.current_round,
         is_active=queue.is_active,

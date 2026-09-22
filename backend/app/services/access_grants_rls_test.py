@@ -45,7 +45,6 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
     init_a = await create_initiative(session, guild_a, owner)
     proj_a = await create_project(session, init_a, owner, name="Alpha")
     doc_a = Document(
-        guild_id=guild_a.id,
         initiative_id=init_a.id,
         name="Alpha Doc",
         content={},
@@ -195,7 +194,6 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
     init = await create_initiative(session, guild, owner)
     queue = await create_queue(session, init, owner, name="Ops Queue")
     cg = CounterGroup(
-        guild_id=guild.id,
         initiative_id=init.id,
         name="Stats",
         created_by=owner.id,

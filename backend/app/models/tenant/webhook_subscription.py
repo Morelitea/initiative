@@ -31,14 +31,6 @@ class WebhookSubscription(CreatedByMixin, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    guild_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("guilds.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
-    )
     initiative_id: Optional[int] = Field(
         default=None,
         sa_column=Column(

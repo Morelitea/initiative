@@ -824,12 +824,12 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     await route_session_to_guild(session, guild.id)
     await session.exec(
         # double-check no setting row exists (factory shouldn't create one)
-        select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+        select(GuildSetting).limit(1)
     )
     assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
-    setting = GuildSetting(guild_id=guild.id, retention_days=30)
+    setting = GuildSetting(retention_days=30)
     session.add(setting)
     await session.commit()
     await route_session_to_guild(session, guild.id)
@@ -859,7 +859,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     await create_guild_membership(
         session, user=user, guild=guild_30, role=GuildRole.admin
     )
-    session.add(GuildSetting(guild_id=guild_30.id, retention_days=30))
+    session.add(GuildSetting(retention_days=30))
     await session.commit()
 
     # A guild with no settings row should fall back to the 90-day default.

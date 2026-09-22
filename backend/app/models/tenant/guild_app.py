@@ -48,11 +48,10 @@ class GuildApp(CreatedByMixin, table=True):
         # One install per listing. Enforced here rather than by the endpoint's
         # look-before-insert alone: two installs arriving together would both
         # find nothing and both create a calendar.
-        UniqueConstraint("guild_id", "listing_uid", name="guild_apps_unique_listing"),
+        UniqueConstraint("listing_uid", name="guild_apps_unique_listing"),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
 
     # Provenance, exactly as an installed dashboard records it: the uid is the
     # identity that means the same listing on every deployment.

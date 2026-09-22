@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.core.messages import AuthProviderMessages, SettingsMessages
 from app.models.platform.guild import GuildRole
 from app.testing.factories import (
@@ -53,7 +54,7 @@ async def _a_role(session: AsyncSession, initiative) -> tuple[int, str]:
     from app.models.tenant.initiative import InitiativeRoleModel
     from app.testing.schema_harness import route_session_to_guild
 
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     row = (
         await session.exec(
             select(InitiativeRoleModel)

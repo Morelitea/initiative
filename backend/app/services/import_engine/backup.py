@@ -35,6 +35,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
@@ -727,7 +728,7 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
     placed = 0
     members = payload.get("members") or []
     if members:
-        handles = await load_guild_member_handles(session, guild_id=initiative.guild_id)
+        handles = await load_guild_member_handles(session, guild_id=routed_guild_id())
         already = {
             row
             for row in await session.exec(
@@ -746,7 +747,6 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
                 InitiativeMember(
                     initiative_id=initiative.id,
                     user_id=user_id,
-                    guild_id=initiative.guild_id,
                     role_id=role.id if role is not None else None,
                 )
             )
@@ -797,9 +797,8 @@ async def _apply_file_entry(
                 document_type=DocumentType.file,
                 content={},
                 initiative_id=initiative.id,
-                guild_id=initiative.guild_id,
                 created_by=user.id,
-                file_url=f"/uploads/{initiative.guild_id}/{storage_key}",
+                file_url=f"/uploads/{routed_guild_id()}/{storage_key}",
                 # The original name lives in the manifest's asset record —
                 # the uploads row's filename IS the storage key.
                 original_filename=(
@@ -821,7 +820,7 @@ async def _apply_file_entry(
             for tag_name in entry.tags:
                 resolved = await ensure_tag(
                     session,
-                    guild_id=initiative.guild_id,
+                    guild_id=routed_guild_id(),
                     name=tag_name,
                     color="#6b7280",
                 )
@@ -949,7 +948,6 @@ async def _restore_assets(
         session.add(
             Upload(
                 filename=asset.storage_key,
-                guild_id=guild_id,
                 created_by=user.id,
                 size_bytes=len(data),
                 content_type=asset.content_type,

@@ -19,6 +19,7 @@ from app.db.errors import dbapi_sqlstate
 from app.db.frozen import FROZEN_SQLSTATE
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.testing import (
+    guild_of,
     create_calendar,
     create_guild,
     create_initiative,
@@ -62,7 +63,7 @@ async def _make_role_the_owner(session: AsyncSession, calendar, *, role_id: int)
             " role_id, level, created_at, all_initiative_members) "
             "VALUES (:gid, :iid, 'calendar', :cid, NULL, :rid, 'owner', now(), false)"
         ).bindparams(
-            gid=calendar.guild_id,
+            gid=guild_of(calendar),
             iid=calendar.initiative_id,
             cid=calendar.id,
             rid=role_id,

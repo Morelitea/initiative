@@ -49,13 +49,8 @@ async def record_view(
 ) -> RecentView:
     """Upsert a recent-view row, then prune per-user to the user's cap.
 
-    The DB trigger ``fn_recent_views_set_guild_id`` populates ``guild_id``
-    from the underlying entity, so callers don't pass it.
-
     ``persist=False`` returns a transient (unsaved) row instead of writing.
-    PAM grantees have no ``current_guild_id``, so the recent_views guild
-    policies would reject their INSERT; their browsing is also transient by
-    design, so we simply don't record it.
+    A PAM grantee's browsing is transient by design, so it is not recorded.
     """
     cap = clamp_recent_limit(limit)
     now = datetime.now(timezone.utc)

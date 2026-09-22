@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.messages import ImportEngineMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
@@ -70,7 +71,7 @@ class DocumentImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: DocumentEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id()
         warnings: list[str] = []
 
         content = _decode_content(env, warnings, guild_id)
@@ -92,7 +93,6 @@ class DocumentImporter(QuotesNobody):
             document_type=DocumentType(env.document_type),
             content=content,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(document)

@@ -39,9 +39,8 @@ class PostPoll(CreatedByMixin, table=True):
 
     A table of its own rather than columns on ``posts`` because a poll is five
     settings and a list of options that most notices do not have, and the board
-    reads ``posts`` on every page. It carries no ``initiative_id`` or
-    ``guild_id``: it is reached through its post, and that is also how RLS
-    resolves it.
+    reads ``posts`` on every page. It carries no ``initiative_id``: it is
+    reached through its post, and that is also how RLS resolves it.
 
     The four switches are the ones a poll actually needs, and each is a
     different question:

@@ -44,7 +44,7 @@ def _normalize_optional_string(value: str | None) -> str | None:
 
 
 async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSetting:
-    stmt = select(GuildSetting).where(GuildSetting.guild_id == guild_id)
+    stmt = select(GuildSetting).limit(1)
     result = await session.exec(stmt)
     settings_row = result.one_or_none()
     if settings_row:
@@ -54,8 +54,8 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     # read is satisfied by a transient default — guild overrides simply don't
     # apply, which is correct for a non-member.
     if has_active_grant(guild_id):
-        return GuildSetting(guild_id=guild_id)
-    settings_row = GuildSetting(guild_id=guild_id)
+        return GuildSetting()
+    settings_row = GuildSetting()
     session.add(settings_row)
     # Flushed, not committed: a guild's settings row is normally seeded when the
     # guild is made (``guilds.create_guild_settings``), so getting here means

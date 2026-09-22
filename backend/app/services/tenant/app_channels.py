@@ -37,6 +37,7 @@ from typing import Any, Optional, Sequence
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.messages import AppChannelMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_service_registration import AppServiceRegistration
@@ -149,7 +150,7 @@ async def _install_guild_ref(app: GuildApp) -> str:
     Every payload on this channel names the guild by it, because it is the only
     name the app on the other end has for it.
     """
-    return await ensure_app_guild_ref(guild_id=app.guild_id, app_install_id=app.id)
+    return await ensure_app_guild_ref(guild_id=routed_guild_id(), app_install_id=app.id)
 
 
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
@@ -735,6 +736,6 @@ async def emit_event(
     await dispatch_event(
         session,
         event_type=event_type,
-        guild_id=app.guild_id,
+        guild_id=routed_guild_id(),
         payload=payload,
     )

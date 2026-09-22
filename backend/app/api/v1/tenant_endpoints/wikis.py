@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.routed_guild import routed_guild_id
 from app.api import resource_access
 from app.api.deps import (
     GuildContext,
@@ -195,7 +196,6 @@ async def create_wiki(
     )
 
     wiki = Wiki(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=wiki_in.name.strip(),
@@ -211,7 +211,6 @@ async def create_wiki(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
         )
     )
@@ -516,7 +515,6 @@ async def create_wiki_page(
             content = deepcopy(template.content or {})
 
     page = WikiPage(
-        guild_id=guild_context.guild_id,
         wiki_id=wiki.id,
         created_by=current_user.id,
         parent_page_id=page_in.parent_page_id,
@@ -601,7 +599,7 @@ async def update_wiki_page(
         await tags_service.set_entity_tags(
             session,
             tags_service.TAG_LINKS["wiki_page"],
-            guild_id=page.guild_id,
+            guild_id=routed_guild_id(),
             entity_id=page.id,
             tag_ids=data["tag_ids"],
         )

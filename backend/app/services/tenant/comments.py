@@ -29,6 +29,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.messages import (
     CommentMessages,
     TaskMessages,
@@ -314,7 +315,6 @@ async def _get_task_context(
         .join(Initiative, Initiative.id == Project.initiative_id)
         .where(
             Task.id == task_id,
-            Initiative.guild_id == guild_id,
         )
     )
     result = await session.exec(stmt)
@@ -400,10 +400,6 @@ async def _get_tool_context(
         )
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
-        return None
-    initiative = row.initiative
-    owner_guild = initiative.guild_id if initiative is not None else row.guild_id
-    if owner_guild != guild_id:
         return None
     return _ParentContext(
         column=target.column,
@@ -505,8 +501,7 @@ async def _ensure_parent_access(
         ):
             raise CommentNotFoundError(target.not_found)
 
-    guild_id = anchor_row.guild_id
-    if permissions_service.request_bypasses_dac(guild_id, access=access):
+    if permissions_service.request_bypasses_dac(routed_guild_id(), access=access):
         return
     if await _shares_resource(
         session,
@@ -801,7 +796,7 @@ async def _load_task_with_assignees(
         select(Task, Project, Initiative)
         .join(Project, Project.id == Task.project_id)
         .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(Task.id == task_id, Initiative.guild_id == guild_id)
+        .where(Task.id == task_id)
         .options(selectinload(Task.assignees))
     )
     result = await session.exec(stmt)

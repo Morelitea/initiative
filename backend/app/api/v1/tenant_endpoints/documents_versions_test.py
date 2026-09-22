@@ -109,7 +109,6 @@ async def test_upload_version_creates_v2_and_mirrors_document(
             resource_id=doc["id"],
             user_id=writer.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -170,7 +169,6 @@ async def test_upload_version_read_user_forbidden(
             resource_id=doc["id"],
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -301,7 +299,6 @@ async def test_list_versions_read_user_allowed_and_ordered(
             resource_id=doc["id"],
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -582,7 +579,6 @@ async def test_delete_version_non_owner_forbidden(
             resource_id=doc["id"],
             user_id=writer.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )

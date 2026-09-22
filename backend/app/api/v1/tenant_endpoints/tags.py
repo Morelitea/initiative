@@ -57,7 +57,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Tag:
     """Fetch a tag by ID, ensuring it belongs to the specified guild."""
-    stmt = select(Tag).where(Tag.id == tag_id, Tag.guild_id == guild_id)
+    stmt = select(Tag).where(Tag.id == tag_id)
     result = await session.exec(stmt)
     tag = result.one_or_none()
     if tag is None:
@@ -75,7 +75,6 @@ async def _check_duplicate_name(
 ) -> None:
     """Check for case-insensitive duplicate tag name within guild."""
     stmt = select(Tag).where(
-        Tag.guild_id == guild_id,
         func.lower(Tag.name) == name.lower().strip(),
     )
     if exclude_tag_id is not None:
@@ -95,11 +94,7 @@ async def list_tags(
     guild_context: GuildContextDep,
 ) -> Sequence[Tag]:
     """List all tags in the current guild."""
-    stmt = (
-        select(Tag)
-        .where(Tag.guild_id == guild_context.guild_id)
-        .order_by(Tag.name.asc())
-    )
+    stmt = select(Tag).order_by(Tag.name.asc())
     result = await session.exec(stmt)
     return result.all()
 
@@ -115,7 +110,6 @@ async def create_tag(
     await _check_duplicate_name(session, guild_context.guild_id, tag_in.name)
 
     tag = Tag(
-        guild_id=guild_context.guild_id,
         name=tag_in.name.strip(),
         color=tag_in.color,
     )

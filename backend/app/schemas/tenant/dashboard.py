@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.tools import Tool
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -95,7 +97,7 @@ class DashboardSummary(DashboardBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -289,7 +291,7 @@ def serialize_dashboard_summary(
         name=dashboard.name,
         description=dashboard.description,
         initiative_id=dashboard.initiative_id,
-        guild_id=dashboard.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=dashboard.created_by,
         created_at=dashboard.created_at,
         updated_at=dashboard.updated_at,

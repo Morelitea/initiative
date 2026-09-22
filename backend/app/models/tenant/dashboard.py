@@ -44,7 +44,6 @@ class Dashboard(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(
         sa_column=Column(
             Integer,

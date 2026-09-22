@@ -107,9 +107,7 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
     from app.models.tenant.queue import QueueItem as QI
 
     for i, label in enumerate(["Aria", "Brock"]):
-        session.add(
-            QI(queue_id=queue.id, guild_id=a.guild.id, label=label, position=float(i))
-        )
+        session.add(QI(queue_id=queue.id, label=label, position=float(i)))
     await session.commit()
 
     envelope = await _export_json(client, a, "/exports/queue", {"queue_id": queue.id})
@@ -158,7 +156,6 @@ async def test_envelope_import_roundtrips_counter_group(client, acting_user, ses
     session.add(
         C(
             counter_group_id=group.id,
-            guild_id=a.guild.id,
             name="GP",
             count=Decimal("42.5"),
             step=Decimal("1"),
@@ -517,7 +514,6 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = ImportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
@@ -974,9 +970,7 @@ async def test_backup_rejects_asset_key_with_path_components(
     blob = get_guild_storage(a.guild.id).open_readable("keep.pdf")
     assert blob is not None and blob.path.read_bytes() == original
     await route_session_to_guild(session, a.guild.id)
-    rows = (
-        await session.exec(select(Upload).where(Upload.guild_id == a.guild.id))
-    ).all()
+    rows = (await session.exec(select(Upload))).all()
     assert [u.filename for u in rows] == ["keep.pdf"]
 
 
@@ -1844,7 +1838,6 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
     job = ImportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="atlassian",
         params={"initiative_id": a.initiative.id},

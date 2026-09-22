@@ -56,7 +56,7 @@ async def test_insert_records_the_acting_user(session: AsyncSession):
     guild, queue, actor = await _workspace(session)
 
     await _route(session, guild.id, actor.id)
-    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="check the wiring")
+    item = QueueItem(queue_id=queue.id, label="check the wiring")
     session.add(item)
     await session.flush()
 
@@ -99,7 +99,6 @@ async def test_an_explicit_author_is_kept(session: AsyncSession):
     await _route(session, guild.id, actor.id)
     item = QueueItem(
         queue_id=queue.id,
-        guild_id=guild.id,
         label="imported",
         created_by=original.id,
     )
@@ -116,7 +115,7 @@ async def test_an_edit_by_someone_else_leaves_the_author(session: AsyncSession):
     await create_guild_membership(session, user=editor, guild=guild)
 
     await _route(session, guild.id, author.id)
-    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="first draft")
+    item = QueueItem(queue_id=queue.id, label="first draft")
     session.add(item)
     await session.flush()
     item_id = item.id
@@ -134,7 +133,7 @@ async def test_a_system_session_stamps_nothing(session: AsyncSession):
     guild, queue, _ = await _workspace(session)
 
     await _route(session, guild.id, None)
-    item = QueueItem(queue_id=queue.id, guild_id=guild.id, label="swept up by a job")
+    item = QueueItem(queue_id=queue.id, label="swept up by a job")
     session.add(item)
     await session.flush()
 

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Field, SQLModel
@@ -17,9 +16,9 @@ RECENT_ENTITY_TYPES: tuple[str, ...] = tuple(t.value for t in RECENTABLE_TOOLS)
 class RecentView(SQLModel, table=True):
     """Polymorphic record of a recently opened guild-scoped entity.
 
-    Composite primary key is ``(user_id, entity_type, entity_id)``. ``guild_id``
-    is populated by a DB trigger from the underlying entity table so RLS can
-    enforce isolation without us re-deriving it in Python.
+    Composite primary key is ``(user_id, entity_type, entity_id)``. The row is
+    in its community's schema, which is what says which community it is; RLS
+    resolves the initiative through the entity the row names.
     """
 
     __tablename__ = "recent_views"
@@ -28,9 +27,6 @@ class RecentView(SQLModel, table=True):
     # DDL: unbounded TEXT constrained by ck_recent_views_entity_type, not length
     entity_type: str = Field(sa_column=Column(Text, primary_key=True, nullable=False))
     entity_id: int = Field(primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     last_viewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

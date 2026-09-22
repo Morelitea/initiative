@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
@@ -58,7 +59,7 @@ class GalleryImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: GalleryEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id()
         warnings: list[str] = []
 
         existing_names = {
@@ -75,7 +76,6 @@ class GalleryImporter(QuotesNobody):
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(gallery)
@@ -126,7 +126,6 @@ class GalleryImporter(QuotesNobody):
                 continue
             row = GalleryImage(
                 gallery_id=gallery.id,
-                guild_id=guild_id,
                 title=image_env.title,
                 caption=image_env.caption,
                 file_url=f"/uploads/{guild_id}/{key}",

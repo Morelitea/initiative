@@ -19,7 +19,7 @@ from app.db.soft_delete_filter import select_including_deleted
 from app.services.tenant import archive as archive_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.soft_delete import soft_delete_entity
-from app.testing import route_session_to_guild
+from app.testing import guild_of, route_session_to_guild
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -49,7 +49,7 @@ async def test_create_status_uses_category_defaults(
     project, headers = await _setup_project(session)
 
     response = await client.post(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/",
         json={"name": "Review", "category": "todo"},
         headers=headers,
     )
@@ -67,7 +67,7 @@ async def test_create_status_respects_explicit_color_icon(
     project, headers = await _setup_project(session)
 
     response = await client.post(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/",
         json={
             "name": "Shipping",
             "category": "in_progress",
@@ -91,7 +91,7 @@ async def test_patch_updates_color_and_icon(client: AsyncClient, session: AsyncS
     todo = next(s for s in statuses if s.category == TaskStatusCategory.todo)
 
     response = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/{todo.id}",
         json={"color": "#123456", "icon": "star"},
         headers=headers,
     )
@@ -117,7 +117,7 @@ async def test_patch_category_change_keeps_existing_color_icon(
 
     # First set explicit custom color/icon
     first = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/{todo.id}",
         json={"color": "#ABCDEF", "icon": "flag"},
         headers=headers,
     )
@@ -125,7 +125,7 @@ async def test_patch_category_change_keeps_existing_color_icon(
 
     # Now change category only — color/icon should remain untouched
     second = await client.patch(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/{todo.id}",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/{todo.id}",
         json={"category": "in_progress"},
         headers=headers,
     )
@@ -143,7 +143,7 @@ async def test_create_status_rejects_invalid_hex_color(
     project, headers = await _setup_project(session)
 
     response = await client.post(
-        f"/api/v1/g/{project.guild_id}/projects/{project.id}/task-statuses/",
+        f"/api/v1/g/{guild_of(project)}/projects/{project.id}/task-statuses/",
         json={
             "name": "Bad color",
             "category": "todo",
@@ -378,7 +378,7 @@ async def test_initiative_statuses_cover_the_guild_for_an_admin(
 
 async def _grant_full_access(session: AsyncSession, initiative, user) -> None:
     """Turn on "Full access" for the role ``user`` holds in ``initiative``."""
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     membership = (
         await session.exec(
             select(InitiativeMember).where(

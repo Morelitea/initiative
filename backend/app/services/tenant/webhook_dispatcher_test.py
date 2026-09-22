@@ -122,7 +122,6 @@ async def _make_subscription(
     """Helper: create a sub bound to a real guild+user so FKs hold."""
     now = datetime.now(timezone.utc)
     sub = WebhookSubscription(
-        guild_id=guild.id,
         initiative_id=initiative_id,
         created_by=user.id,
         app_install_id=app_install_id,

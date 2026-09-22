@@ -447,7 +447,6 @@ def build_calendar_events(
                 continue
 
             event = CalendarEvent(
-                guild_id=guild_id,
                 calendar_id=calendar_id,
                 title=data["summary"][:255],
                 description=data["description"],

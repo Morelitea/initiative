@@ -27,6 +27,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
@@ -664,7 +665,6 @@ async def create_guild_connection(
     # Guild connections are always public-only (scope="guild" => no private).
     await _validate_connection_base_url(payload.provider, base_url, "guild")
     row = GuildAIConnection(
-        guild_id=guild_id,
         created_by=user_id,
         label=payload.label.strip(),
         provider=payload.provider.value,
@@ -754,7 +754,7 @@ async def update_guild_connection(
             session,
             event_type=AuditEventType.AI_CONNECTION_UPDATED,
             actor_user_id=actor_user_id,
-            guild_id=row.guild_id,
+            guild_id=routed_guild_id(),
             target_type="ai_connection",
             target_id=row.id,
             detail={
@@ -774,7 +774,7 @@ async def delete_guild_connection(
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
-    guild_id = row.guild_id
+    guild_id = routed_guild_id()
     await session.delete(row)
     await audit_service.record(
         session,
@@ -930,7 +930,6 @@ async def set_member_key(
     else:
         session.add(
             GuildAIMemberKey(
-                guild_id=guild_id,
                 user_id=user.id,  # type: ignore[arg-type]
                 connection_scope=payload.scope.value,
                 connection_id=payload.connection_id,
@@ -980,7 +979,6 @@ async def set_member_pref(
     else:
         session.add(
             GuildAIMemberPref(
-                guild_id=guild_id,
                 user_id=user.id,  # type: ignore[arg-type]
                 connection_scope=payload.scope.value,
                 connection_id=payload.connection_id,

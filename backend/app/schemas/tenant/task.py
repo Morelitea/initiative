@@ -3,6 +3,8 @@ from string import ascii_letters, digits
 from typing import Final, List, Literal, Optional
 from uuid import uuid4
 
+from pydantic import Field as PydField
+from app.core.routed_guild import routed_guild_id
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
@@ -302,7 +304,7 @@ class TaskListRead(TaskBase):
     #: edges whose far end has not finished. Only kinds with a reading of
     #: "finished" count — see :mod:`app.db.blocking`.
     blocked_by_open_count: int = 0
-    guild_id: Optional[int] = None
+    guild_id: Optional[int] = PydField(default_factory=routed_guild_id)
     guild_name: Optional[str] = None
     project_name: Optional[str] = None
     initiative_id: Optional[int] = None

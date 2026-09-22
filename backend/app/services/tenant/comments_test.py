@@ -85,7 +85,6 @@ async def test_document_comment_access_honors_grant(
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
     document = Document(
-        guild_id=guild.id,
         initiative_id=init.id,
         name="Doc",
         content={},

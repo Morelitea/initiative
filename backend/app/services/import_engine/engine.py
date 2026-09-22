@@ -21,6 +21,7 @@ from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.routed_guild import routed_guild_id
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
@@ -89,7 +90,6 @@ async def load_target_initiative(
         await session.exec(
             select(Initiative).where(
                 Initiative.id == initiative_id,
-                Initiative.guild_id == guild_id,
             )
         )
     ).one_or_none()
@@ -221,7 +221,6 @@ async def start_envelope_import(
         guild_id, json.dumps(envelope).encode("utf-8"), suffix="json"
     )
     job = ImportJob(
-        guild_id=guild_id,
         created_by=user.id,
         source=envelope_type,
         params={"initiative_id": initiative.id},
@@ -269,7 +268,7 @@ async def apply_one_envelope(
 
     context = ImportContext(
         people=await resolve_people_map(
-            session, guild_id=target_initiative.guild_id, raw=people_map
+            session, guild_id=routed_guild_id(), raw=people_map
         )
     )
     result = await importer.apply(

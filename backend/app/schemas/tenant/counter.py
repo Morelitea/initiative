@@ -14,6 +14,8 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.counter import Counter, CounterGroup
@@ -113,7 +115,7 @@ class CounterRead(SanitizedBaseModel):
 
     id: int
     counter_group_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     name: str
     color: Optional[str] = None
     count: str
@@ -165,7 +167,7 @@ class CounterGroupSummary(CounterGroupBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
@@ -224,7 +226,7 @@ def serialize_counter(counter: "Counter") -> CounterRead:
     return CounterRead(
         id=counter.id,
         counter_group_id=counter.counter_group_id,
-        guild_id=counter.guild_id,
+        guild_id=require_routed_guild_id(),
         name=counter.name,
         color=counter.color,
         count=_format_decimal(counter.count),
@@ -257,7 +259,7 @@ def serialize_counter_group_summary(
         name=group.name,
         description=group.description,
         initiative_id=group.initiative_id,
-        guild_id=group.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=group.created_by,
         counter_count=len(_active_counters(group)),
         archived_at=group.archived_at,

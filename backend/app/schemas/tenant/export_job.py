@@ -5,6 +5,8 @@ carries exported content — the artifact is fetched via the download route."""
 from datetime import datetime
 from typing import Any, Optional
 
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 from pydantic import ConfigDict, Field, computed_field
 
 from app.models.tenant.export_job import ExportJobStatus
@@ -17,7 +19,7 @@ class ExportJobRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     source: str
     template_id: str

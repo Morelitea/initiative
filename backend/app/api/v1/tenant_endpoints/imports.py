@@ -60,7 +60,6 @@ async def _validate_project_write_access(
         .join(Project.initiative)
         .where(
             Project.id == project_id,
-            Initiative.guild_id == guild_id,
         )
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
@@ -584,12 +583,7 @@ async def upload_backup(
         )
 
     existing_names = {
-        row
-        for row in (
-            await session.exec(
-                select(Initiative.name).where(Initiative.guild_id == guild_id)
-            )
-        ).all()
+        row for row in (await session.exec(select(Initiative.name))).all()
     }
     # The guild's own roster, so the plan can suggest who each name in the
     # archive is. Read on the request's routed session, so it is the roster
@@ -607,7 +601,6 @@ async def upload_backup(
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     job = ImportJob(
-        guild_id=guild_id,
         created_by=current_user.id,
         source="backup",
         params={},

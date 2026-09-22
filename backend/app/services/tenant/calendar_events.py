@@ -123,7 +123,6 @@ async def set_event_attendees(
         attendee = CalendarEventAttendee(
             calendar_event_id=event.id,
             user_id=user_id,
-            guild_id=guild_id,
         )
         session.add(attendee)
 
@@ -154,7 +153,6 @@ async def set_event_documents(
     if document_ids:
         docs_stmt = select(Document.id).where(
             Document.id.in_(document_ids),
-            Document.guild_id == guild_id,
         )
         docs_result = await session.exec(docs_stmt)
         valid_ids = set(docs_result.all())

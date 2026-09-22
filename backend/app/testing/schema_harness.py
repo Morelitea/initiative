@@ -11,15 +11,16 @@ Two cooperating layers make direct sessions schema-native:
 
 1. **Explicit routing** — ``route_session_to_guild(session, guild_id)`` pins
    the session's ``search_path`` at ``guild_<id>, public``. Every tenant
-   factory calls it from its parent object's ``guild_id`` before touching the
-   database, so factory reads *and* writes are deterministic regardless of
-   flush composition or ordering.
+   factory calls it from ``guild_of(parent)`` before touching the database, so
+   factory reads *and* writes are deterministic regardless of flush composition
+   or ordering. A guild-scoped row carries no ``guild_id`` column, so
+   ``guild_of`` reads what the harness stamped on it as it was flushed.
 2. **A fail-closed ``before_flush`` net** for raw ``session.add(...)`` in
    tests: a flush that carries guild-scoped rows for exactly one guild is
-   routed to that guild's schema; a flush spanning two guilds, or one whose
-   tenant rows carry no ``guild_id`` while the session was never routed,
-   raises immediately with a pointer here — instead of surfacing later as a
-   cryptic ``UndefinedTableError`` from an unrouted query.
+   routed to that guild's schema; a flush spanning two guilds, or one on a
+   session that was never routed, raises immediately with a pointer here —
+   instead of surfacing later as a cryptic ``UndefinedTableError`` from an
+   unrouted query.
 
 Routing is **transaction-local**, mirroring production: the pin lives in
 ``session.info`` and a ``after_begin`` listener re-applies it at the start of
@@ -44,6 +45,13 @@ from app.db.tenancy import GUILD_SCOPED_TABLES
 
 _installed = False
 
+#: Which community a factory-made row belongs to, stamped on the instance as it
+#: is flushed. A guild-scoped table carries no ``guild_id`` column — the schema
+#: it lives in is what says which community it is — so a test holding a row has
+#: no way to ask it. This is that answer, recorded where the routing decision is
+#: already known, and it is test infrastructure: nothing in ``app/`` reads it.
+_GUILD_ATTR = "_factory_guild_id"
+
 _PIN_INFO_KEY = "guild_search_path_pin"
 _PIN_STAMP_KEY = "guild_search_path_pin_at"
 
@@ -61,6 +69,29 @@ def clear_search_path_pin(session) -> None:
     once its production params are cleared."""
     session.info.pop(_PIN_INFO_KEY, None)
     session.info.pop(_PIN_STAMP_KEY, None)
+
+
+def remember_guild(obj, guild_id: int):
+    """Record which community a row belongs to, and return the row."""
+    setattr(obj, _GUILD_ATTR, int(guild_id))
+    return obj
+
+
+def guild_of(obj) -> int:
+    """The community a factory-made row belongs to.
+
+    Set as the row is flushed, from the schema it was routed into. A row that
+    never went through a routed session has no answer, and saying so beats
+    guessing one.
+    """
+    guild_id = getattr(obj, _GUILD_ATTR, None)
+    if guild_id is None:
+        raise RuntimeError(
+            f"{type(obj).__name__} was not created through a routed session, so "
+            "which community it belongs to is unknown. Use the factories in "
+            "app.testing, or call route_session_to_guild(session, guild_id)."
+        )
+    return int(guild_id)
 
 
 def _pin_sql(search_path: str) -> str:
@@ -97,7 +128,7 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
     if not rows:
         return
     gids = {
-        int(gid) for obj in rows if (gid := getattr(obj, "guild_id", None)) is not None
+        int(gid) for obj in rows if (gid := getattr(obj, _GUILD_ATTR, None)) is not None
     }
     if len(gids) > 1:
         raise RuntimeError(
@@ -113,19 +144,25 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
         # transaction too (a factory that commits then reads back).
         _record_pin(session, sp)
         conn.exec_driver_sql(_pin_sql(sp)).close()
+        for obj in rows:
+            remember_guild(obj, gid)
         return
-    # Tenant rows without a guild_id column (property values, junctions):
-    # they must inherit an existing guild route — falling through to public
-    # would hit tables that no longer exist there.
+    # Rows whose community nothing has recorded yet: they inherit the route the
+    # session is already on — falling through to public would hit tables that do
+    # not exist there — and are stamped with it on the way past, so a test
+    # holding one can still ask which community it is in.
     search_path = conn.exec_driver_sql("SHOW search_path").scalar() or ""
     if "guild_" not in search_path:
         names = sorted({type(obj).__name__ for obj in rows})
         raise RuntimeError(
-            f"Tenant write for {names} carries no guild_id and the session is "
-            "not routed to a guild schema. Use the factories in app.testing, "
-            "or call route_session_to_guild(session, guild_id) first "
+            f"Tenant write for {names} on a session that is not routed to a "
+            "guild schema. Use the factories in app.testing, or call "
+            "route_session_to_guild(session, guild_id) first "
             "(see app/testing/schema_harness.py)."
         )
+    routed = int(search_path.split("guild_", 1)[1].split(",", 1)[0].strip().strip('"'))
+    for obj in rows:
+        remember_guild(obj, routed)
 
 
 def _replay_search_path_pin(session: Session, transaction, connection) -> None:

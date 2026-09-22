@@ -82,11 +82,9 @@ async def recent_comments(
     handled by RLS on the joined parent tables.
     """
     user_id = current_user.id
-    guild_id = guild_context.guild_id
 
     conditions = [
         Comment.parent_comment_id.is_(None),
-        Comment.guild_id == guild_id,
     ]
     # A comment is reached through its parent — the task's project, or the
     # tool entity itself — so the sharing gate is applied per kind, each leg a

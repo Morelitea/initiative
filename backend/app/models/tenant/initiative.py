@@ -24,7 +24,6 @@ from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMi
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.platform.guild import Guild
     from app.models.tenant.document import Document
     from app.models.tenant.queue import Queue
     from app.models.tenant.calendar import Calendar
@@ -217,9 +216,6 @@ class InitiativeMember(SQLModel, table=True):
 
     initiative_id: int = Field(foreign_key="initiatives.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     role_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -378,7 +374,6 @@ class Initiative(
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     name: str = Field(index=True, nullable=False)
     description: Optional[str] = Field(default=None)
     color: Optional[str] = Field(
@@ -422,7 +417,6 @@ class Initiative(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     projects: List["Project"] = Relationship(back_populates="initiative")
-    guild: Optional["Guild"] = Relationship(back_populates="initiatives")
     documents: List["Document"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

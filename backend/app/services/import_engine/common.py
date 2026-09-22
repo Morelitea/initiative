@@ -81,13 +81,11 @@ async def ensure_tag(
     rule — otherwise an import could mint a case-variant duplicate that the
     endpoints would reject with a 409.
     """
-    stmt = select(Tag).where(
-        Tag.guild_id == guild_id, func.lower(Tag.name) == name.strip().lower()
-    )
+    stmt = select(Tag).where(func.lower(Tag.name) == name.strip().lower())
     existing = (await session.exec(stmt)).one_or_none()
     if existing is not None:
         return TagResolved(id=existing.id, created=False)
-    tag = Tag(guild_id=guild_id, name=name, color=color)
+    tag = Tag(name=name, color=color)
     session.add(tag)
     await session.flush()
     return TagResolved(id=tag.id, created=True)

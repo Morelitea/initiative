@@ -231,7 +231,6 @@ async def test_transfer_to_an_existing_grantee_upgrades_one_row(session):
             resource_id=project.id,
             user_id=admin.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -458,7 +457,6 @@ async def _make_role_the_owner(session, *, tool: Tool, row, role_id: int):
             user_id=None,
             role_id=role_id,
             level=ResourceAccessLevel.owner,
-            guild_id=row.guild_id,
             initiative_id=row.initiative_id,
         )
     )

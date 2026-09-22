@@ -39,7 +39,6 @@ class Calendar(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     # NULL means a guild-level calendar: it belongs to the guild rather than to
     # any initiative, and who may read or write it is decided by its grants.
     # Everything else about a calendar — its events, its UI, its permission

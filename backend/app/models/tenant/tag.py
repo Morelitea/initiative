@@ -2,13 +2,13 @@ from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, String
-from sqlmodel import Field, Relationship
+from sqlmodel import Field
 from pydantic import ConfigDict
 
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.platform.guild import Guild
+    pass
 
 
 class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
@@ -23,7 +23,6 @@ class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
     )
@@ -39,5 +38,3 @@ class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-
-    guild: Optional["Guild"] = Relationship()

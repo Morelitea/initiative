@@ -460,7 +460,7 @@ async def query_guild_calendar_events(
     list of ids is a page of them, and events on whatever fell off the end would
     simply not be drawn.
     """
-    conditions = [CalendarEvent.guild_id == guild_context.guild_id]
+    conditions: list = []
 
     if guild_scope:
         conditions.append(
@@ -640,7 +640,6 @@ async def create_calendar_event(
         recurrence_json = event_in.recurrence.model_dump_json()
 
     event = CalendarEvent(
-        guild_id=guild_context.guild_id,
         calendar_id=event_in.calendar_id,
         created_by=current_user.id,
         title=event_in.title.strip(),
@@ -914,7 +913,6 @@ async def update_rsvp(
         attendee = CalendarEventAttendee(
             calendar_event_id=event.id,
             user_id=current_user.id,
-            guild_id=guild_context.guild_id,
         )
 
     attendee.rsvp_status = rsvp_in.rsvp_status

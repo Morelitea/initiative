@@ -206,7 +206,6 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     session.add(
         Upload(
             filename="note.txt",
-            guild_id=guild.id,
             created_by=admin.id,
             size_bytes=5,
         )

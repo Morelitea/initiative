@@ -53,7 +53,6 @@ class DashboardImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: DashboardEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
 
         existing_names = set(
             (
@@ -74,7 +73,6 @@ class DashboardImporter(QuotesNobody):
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
             definition=definition,
             config=dict(env.config or {}),

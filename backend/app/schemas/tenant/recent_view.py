@@ -6,6 +6,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 from pydantic import ConfigDict
 
 from app.core.tools import RECENTABLE_TOOLS
@@ -40,7 +42,7 @@ class RecentItemRead(SanitizedBaseModel):
 
     entity_type: RecentEntityType
     entity_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     # The initiative the entity lives in, which its URL addresses. NULL for a
     # guild-level entity — only calendars have any — which keeps a guild route.
     initiative_id: Optional[int] = None

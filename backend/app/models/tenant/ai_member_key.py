@@ -33,9 +33,6 @@ class GuildAIMemberKey(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True, index=True
-    )
     user_id: int = Field(
         sa_column=Column(
             Integer,

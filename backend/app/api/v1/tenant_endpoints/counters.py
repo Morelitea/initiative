@@ -18,6 +18,7 @@ from fastapi import (
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.routed_guild import routed_guild_id
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     IncludeDeletedDep,
@@ -94,11 +95,7 @@ async def _emit_counter(
     commit). One streaming spine; rooms are guild-namespaced (group ids are
     per-schema)."""
     if guild_id is None:
-        guild_id = (
-            await session.exec(
-                select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
-            )
-        ).one_or_none()
+        guild_id = routed_guild_id()
         if guild_id is None:
             return
     await stream_authority.emit(guild_id, "counter_group", group_id, event_type, data)
@@ -203,7 +200,6 @@ async def create_counter_group(
     )
 
     group = CounterGroup(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=group_in.name.strip(),
@@ -218,7 +214,6 @@ async def create_counter_group(
         user_id=current_user.id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=group.initiative_id,
     )
     session.add(owner_perm)
@@ -408,7 +403,6 @@ async def add_counter(
     )
 
     counter = Counter(
-        guild_id=group.guild_id,
         counter_group_id=group.id,
         name=counter_in.name.strip(),
         color=counter_in.color,
@@ -860,7 +854,7 @@ async def websocket_counter_group(
             return
 
         group = await counters_service.get_counter_group(session, group_id)
-        if not group or group.guild_id != guild_id:
+        if not group:
             logger.warning(
                 f"Counter WS: group {group_id} not found in guild {guild_id}"
             )

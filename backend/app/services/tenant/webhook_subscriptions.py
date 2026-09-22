@@ -88,10 +88,8 @@ async def list_subscriptions(
     ``guild_id`` filter here is defense-in-depth so test fixtures that
     don't set the RLS context still see correct results.
     """
-    statement = (
-        select(WebhookSubscription)
-        .where(WebhookSubscription.guild_id == guild_id)
-        .order_by(WebhookSubscription.created_at.desc())
+    statement = select(WebhookSubscription).order_by(
+        WebhookSubscription.created_at.desc()
     )
     result = await session.exec(statement)
     return list(result.all())
@@ -136,7 +134,6 @@ async def get_subscription(
     """
     statement = select(WebhookSubscription).where(
         WebhookSubscription.id == subscription_id,
-        WebhookSubscription.guild_id == guild_id,
     )
     if for_update:
         statement = statement.with_for_update()
@@ -177,7 +174,6 @@ async def create_subscription(
     now = datetime.now(timezone.utc)
 
     subscription = WebhookSubscription(
-        guild_id=guild_id,
         initiative_id=payload.initiative_id,
         created_by=created_by,
         app_install_id=app_install_id,
@@ -301,7 +297,6 @@ async def deactivate_for_install(
     rows = (
         await session.exec(
             select(WebhookSubscription).where(
-                WebhookSubscription.guild_id == guild_id,
                 WebhookSubscription.app_install_id == app_install_id,
                 WebhookSubscription.active.is_(True),
             )

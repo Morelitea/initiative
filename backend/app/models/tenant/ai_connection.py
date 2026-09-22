@@ -23,9 +23,6 @@ class GuildAIConnection(CreatedByMixin, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True, index=True
-    )
     label: str = Field(sa_column=Column(String(100), nullable=False))
     provider: str = Field(sa_column=Column(String(50), nullable=False))
     base_url: Optional[str] = Field(

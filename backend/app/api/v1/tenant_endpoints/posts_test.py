@@ -772,7 +772,6 @@ async def test_an_editor_can_see_a_draft(
             resource_id=draft.id,
             user_id=editor.user.id,
             level="write",
-            guild_id=author.guild.id,
             initiative_id=author.initiative.id,
         )
     )

@@ -11,6 +11,8 @@ from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
@@ -63,7 +65,7 @@ class GallerySummary(GalleryBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -125,7 +127,7 @@ class GalleryImageRead(SanitizedBaseModel):
 
     id: int
     gallery_id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     #: What somebody called it, if they did. Surfaces fall back to
     #: ``original_filename``, which is at least what the uploader called it.
     title: Optional[str] = None
@@ -206,7 +208,7 @@ def serialize_gallery_summary(
         name=gallery.name,
         description=gallery.description,
         initiative_id=gallery.initiative_id,
-        guild_id=gallery.guild_id,
+        guild_id=require_routed_guild_id(),
         created_by=gallery.created_by,
         created_at=gallery.created_at,
         updated_at=gallery.updated_at,
@@ -243,7 +245,7 @@ def serialize_gallery_image(image: "GalleryImage") -> GalleryImageRead:
     return GalleryImageRead(
         id=image.id,
         gallery_id=image.gallery_id,
-        guild_id=image.guild_id,
+        guild_id=require_routed_guild_id(),
         title=image.title,
         caption=image.caption,
         file_url=image.file_url,

@@ -440,7 +440,6 @@ async def _require_initiative_reader(
     """Resolve the initiative in this guild and confirm the caller is in it."""
     stmt = select(Initiative.id).where(
         Initiative.id == initiative_id,
-        Initiative.guild_id == guild_context.guild_id,
     )
     if (await session.exec(stmt)).first() is None:
         raise HTTPException(

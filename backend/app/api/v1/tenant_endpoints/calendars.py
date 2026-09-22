@@ -158,7 +158,6 @@ async def create_calendar(
     initiative_id = initiative.id if initiative is not None else None
 
     calendar = Calendar(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative_id,
         created_by=current_user.id,
         name=calendar_in.name.strip(),
@@ -175,7 +174,6 @@ async def create_calendar(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative_id,
         )
     )

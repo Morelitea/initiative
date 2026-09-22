@@ -237,7 +237,6 @@ async def test_update_and_delete_follow_the_dac_levels(
             resource_id=gallery.id,
             user_id=b.user.id,
             level="write",
-            guild_id=gallery.guild_id,
             initiative_id=gallery.initiative_id,
         )
     )
@@ -951,7 +950,6 @@ async def test_deleting_a_version_is_the_owners_call(
             resource_id=gallery.id,
             user_id=b.user.id,
             level="write",
-            guild_id=gallery.guild_id,
             initiative_id=gallery.initiative_id,
         )
     )

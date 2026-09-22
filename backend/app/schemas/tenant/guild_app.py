@@ -19,6 +19,8 @@ from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.guild_apps import app_artifacts
+from pydantic import Field as PydField
+from app.core.routed_guild import require_routed_guild_id
 
 
 class GuildAppInstall(SanitizedBaseModel):
@@ -115,7 +117,7 @@ class GuildAppRead(SanitizedBaseModel):
     )
 
     id: int
-    guild_id: int
+    guild_id: int = PydField(default_factory=require_routed_guild_id)
     listing_uid: str
     listing_version: str
     app_kind: str
@@ -355,7 +357,7 @@ def serialize_guild_app(
     service_state = install_state or InstallState()
     return GuildAppRead(
         id=app.id,
-        guild_id=app.guild_id,
+        guild_id=require_routed_guild_id(),
         listing_uid=app.listing_uid,
         listing_version=app.listing_version,
         app_kind=app.app_kind,

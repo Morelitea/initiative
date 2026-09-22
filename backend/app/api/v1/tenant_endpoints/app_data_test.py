@@ -52,7 +52,12 @@ from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
-from app.testing import create_dashboard, create_guild_app, route_session_to_guild
+from app.testing import (
+    guild_of,
+    create_dashboard,
+    create_guild_app,
+    route_session_to_guild,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -611,10 +616,9 @@ class TestContextToken:
 
 async def _connect(session: AsyncSession, *, app, user_id: int, ref: str) -> None:
     """Give one member a completed per-member connection."""
-    await route_session_to_guild(session, app.guild_id)
+    await route_session_to_guild(session, guild_of(app))
     session.add(
         GuildAppUserConnection(
-            guild_id=app.guild_id,
             app_id=app.id,
             connection_id="github",
             user_id=user_id,
@@ -644,7 +648,6 @@ class TestConnections:
         await route_session_to_guild(session, a.guild.id)
         session.add(
             GuildAppUserConnection(
-                guild_id=app.guild_id,
                 app_id=app.id,
                 connection_id="github",
                 user_id=a.user.id,

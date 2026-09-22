@@ -539,12 +539,9 @@ async def _fetch_task(
         .join(Project.initiative)
         .where(
             Task.id == task_id,
-            Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.guild),
+            selectinload(Task.project).selectinload(Project.initiative),
             selectinload(Task.assignees),
             selectinload(Task.creator),
             selectinload(Task.task_status),
@@ -785,7 +782,6 @@ async def _get_project_with_access(
         .join(Project.initiative)
         .where(
             Project.id == project_id,
-            Initiative.guild_id == guild_id,
         )
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
@@ -879,7 +875,6 @@ async def _allowed_project_ids(
     those markers sit beside.
     """
     conditions = [
-        Initiative.guild_id == guild_id,
         Project.archived_at.is_(None),
     ]
     if project_id is None:
@@ -908,9 +903,7 @@ def _global_task_options():
     ``selectinload``, which is what it is for.
     """
     return (
-        joinedload(Task.project)
-        .joinedload(Project.initiative)
-        .joinedload(Initiative.guild),
+        joinedload(Task.project).joinedload(Project.initiative),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.property_values).selectinload(
@@ -1312,7 +1305,7 @@ async def _guild_task_query_builder(
     default, project DAC, filter conditions) as a statement-builder closure.
     Shared by ``list_tasks`` and the tasks export so an export always matches
     the on-screen list. Returns ``None`` when no project is reachable."""
-    access_conditions = [Initiative.guild_id == guild_id]
+    access_conditions: list = []
 
     if not include_archived:
         access_conditions.append(Task.archived_at.is_(None))
@@ -1619,9 +1612,7 @@ async def query_guild_tasks(
     if window is not None:
         base = base.where(window)
     statement = base.options(
-        selectinload(Task.project)
-        .selectinload(Project.initiative)
-        .selectinload(Initiative.guild),
+        selectinload(Task.project).selectinload(Project.initiative),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.property_values).selectinload(
@@ -1742,9 +1733,7 @@ async def list_tasks(
     count_stmt = select(func.count()).select_from(count_subq)
 
     statement = _build_non_global_query(select(Task)).options(
-        selectinload(Task.project)
-        .selectinload(Project.initiative)
-        .selectinload(Initiative.guild),
+        selectinload(Task.project).selectinload(Project.initiative),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.property_values).selectinload(
@@ -2152,7 +2141,6 @@ async def duplicate_task(
         .join(Project.initiative)
         .where(
             Task.id == task_id,
-            Initiative.guild_id == guild_context.guild_id,
         )
     )
     task_result = await session.exec(task_stmt)
@@ -2268,7 +2256,6 @@ async def delete_task(
         .join(Project.initiative)
         .where(
             Task.id == task_id,
-            Initiative.guild_id == guild_context.guild_id,
         )
     )
     task_result = await session.exec(task_stmt)
@@ -2326,7 +2313,6 @@ async def reorder_tasks(
         .join(Project.initiative)
         .where(
             Task.id.in_(tuple(task_ids)),
-            Initiative.guild_id == guild_context.guild_id,
         )
         .options(selectinload(Task.assignees), selectinload(Task.task_status))
     )
@@ -2399,9 +2385,7 @@ async def reorder_tasks(
     refreshed_stmt = (
         select(Task)
         .options(
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.guild),
+            selectinload(Task.project).selectinload(Project.initiative),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
             selectinload(Task.creator),
