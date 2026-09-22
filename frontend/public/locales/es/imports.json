@@ -11,6 +11,47 @@
     "cancelUpload": "Cancelar importación",
     "upload": "Subir copia de seguridad",
     "start": "Iniciar importación",
+    "source": {
+      "prompt": "¿De dónde viene esto?",
+      "names": {
+        "backup": "Copia de seguridad de Initiative",
+        "todoist": "Todoist",
+        "ticktick": "TickTick",
+        "vikunja": "Vikunja"
+      },
+      "descriptions": {
+        "backup": "Un .zip exportado de Initiative, restaurado tal como estaba.",
+        "todoist": "Un proyecto exportado en CSV.",
+        "ticktick": "Un CSV de copia de seguridad con todas las listas.",
+        "vikunja": "El data.json de una exportación de Vikunja."
+      }
+    },
+    "file": {
+      "prompt": "Elige tu archivo de exportación",
+      "hint": "Sube el archivo que exportaste de {{source}}.",
+      "where": {
+        "todoist": "Menú del proyecto → Exportar → Exportar como CSV",
+        "ticktick": "Ajustes → Copia de seguridad → Descargar copia",
+        "vikunja": "Ajustes → Exportar datos: descomprime y elige data.json"
+      },
+      "nothingInIt": "No hay nada que importar en ese archivo.",
+      "unreadable": "Ese archivo no corresponde a esta exportación. Comprueba que elegiste el correcto.",
+      "todoistOmitsCompleted": "Todoist no incluye las tareas completadas en su exportación, así que solo llegará el trabajo pendiente."
+    },
+    "choose": {
+      "prompt": "¿Qué debe pasar, y adónde?",
+      "whichLabel": "Qué importar",
+      "whichPlaceholder": "Elige uno",
+      "option_one": "{{name}} — {{count}} tarea",
+      "option_other": "{{name}} — {{count}} tareas",
+      "nameLabel": "Nombra el proyecto",
+      "namePlaceholder": "Importado de Todoist",
+      "taskCount_one": "{{count}} tarea por importar",
+      "taskCount_other": "{{count}} tareas por importar",
+      "initiativeLabel": "Iniciativa",
+      "initiativePlaceholder": "Elige una iniciativa",
+      "note": "Esto llega como un proyecto nuevo. Sus columnas se convierten en estados, y sus etiquetas, fechas y comentarios vienen con él."
+    },
     "pick": {
       "prompt": "Elige un archivo de copia de seguridad",
       "hint": "Un .zip exportado desde una copia de seguridad de comunidad o iniciativa de Initiative.",

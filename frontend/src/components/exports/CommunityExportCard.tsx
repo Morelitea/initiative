@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuilds } from "@/hooks/useGuilds";
 import { downloadExportArtifact } from "@/lib/exportDownload";
+import { holdsGuildSeat } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
 
 const ACTIVE = new Set(["queued", "running"]);
@@ -48,7 +50,14 @@ function displayStatus(job: ExportJobRead): string {
 export function CommunityExportCard() {
   const { t } = useTranslation("exports");
   const guildId = useActiveGuildId();
+  const { activeGuild } = useGuilds();
   const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Taking the whole community out in one file is the seat's errand, which
+  // the server checks on request and again when the job renders. The card
+  // says the same thing, rather than resting on which tab it happens to sit
+  // in.
+  const heldBySeat = holdsGuildSeat(activeGuild);
 
   const statusQuery = useReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGet(guildId, {
     query: {
@@ -73,6 +82,10 @@ export function CommunityExportCard() {
       });
     }
   };
+
+  if (!heldBySeat) {
+    return null;
+  }
 
   return (
     <Card>
