@@ -20,6 +20,11 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 | **Smart link** | An embedded view of something that lives somewhere else — a video, a shared file. |
 | **Upload** | An actual file: PDF, Word, Excel, PowerPoint, images, and more. |
 
+Got the file on your desktop already? Drag it anywhere onto the documents
+page — any view — and **Create Document** opens on the **Upload** tab with it
+ready to go. Or drop it on the box in that tab instead of hunting for it in a
+file picker.
+
 !!! info "50 MB per uploaded file"
     Plenty for almost anything that isn't video. For the things that are, use a **Smart link** to point at wherever it already lives instead.
 

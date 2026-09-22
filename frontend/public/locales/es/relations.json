@@ -23,10 +23,13 @@
   "addError": "No se pudo crear ese enlace.",
   "removeError": "No se pudo quitar ese enlace.",
   "added": "Enlazado.",
+  "uploaded": "Subido y enlazado.",
+  "dropzone": "Suelta para subir y enlazar",
   "removed": "Enlace eliminado.",
   "dialog": {
     "title": "Añadir un enlace",
     "description": "Busca primero la cosa y luego di cómo se relacionan.",
+    "descriptionUpload": "Busca primero la cosa, o sube un archivo, y luego di cómo se relacionan.",
     "entity": "Cosa",
     "entityPlaceholder": "Buscar por nombre…",
     "noResults": "No hay coincidencias.",
@@ -34,7 +37,14 @@
     "sentenceLabel": "Cómo se relacionan",
     "submit": "Añadir enlace",
     "submitting": "Añadiendo…",
-    "readOnlyTarget": "Algunos enlaces solo pueden crearse desde algo que puedas cambiar, y esto solo puedes leerlo."
+    "submitUpload": "Subir y enlazar",
+    "uploading": "Subiendo…",
+    "readOnlyTarget": "Algunos enlaces solo pueden crearse desde algo que puedas cambiar, y esto solo puedes leerlo.",
+    "upload": {
+      "prompt": "O sube un archivo para enlazarlo. Suéltalo aquí, o",
+      "name": "Nombre",
+      "remove": "Elegir otra cosa"
+    }
   },
   "card": {
     "kindLinked": "{{kind}} · enlazado {{date}}",

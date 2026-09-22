@@ -23,10 +23,13 @@
   "addError": "That link could not be made.",
   "removeError": "That link could not be removed.",
   "added": "Linked.",
+  "uploaded": "Uploaded and linked.",
+  "dropzone": "Drop to upload and link",
   "removed": "Link removed.",
   "dialog": {
     "title": "Add a link",
     "description": "Find the thing first, then say how the two relate.",
+    "descriptionUpload": "Find the thing first, or upload a file, then say how the two relate.",
     "entity": "Thing",
     "entityPlaceholder": "Search by name…",
     "noResults": "Nothing matches.",
@@ -34,7 +37,14 @@
     "sentenceLabel": "How the two relate",
     "submit": "Add link",
     "submitting": "Adding…",
-    "readOnlyTarget": "Some links can only be made from something you can change, and you can only read that."
+    "submitUpload": "Upload and link",
+    "uploading": "Uploading…",
+    "readOnlyTarget": "Some links can only be made from something you can change, and you can only read that.",
+    "upload": {
+      "prompt": "Or upload a file to link. Drop it here, or",
+      "name": "Name",
+      "remove": "Pick something else instead"
+    }
   },
   "card": {
     "kindLinked": "{{kind}} · linked {{date}}",

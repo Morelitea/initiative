@@ -23,10 +23,13 @@
   "addError": "Diese Verknüpfung konnte nicht erstellt werden.",
   "removeError": "Diese Verknüpfung konnte nicht entfernt werden.",
   "added": "Verknüpft.",
+  "uploaded": "Hochgeladen und verknüpft.",
+  "dropzone": "Zum Hochladen und Verknüpfen ablegen",
   "removed": "Verknüpfung entfernt.",
   "dialog": {
     "title": "Verknüpfung hinzufügen",
     "description": "Such zuerst das Objekt, sag dann, wie die beiden zusammenhängen.",
+    "descriptionUpload": "Such zuerst das Objekt oder lade eine Datei hoch, sag dann, wie die beiden zusammenhängen.",
     "entity": "Objekt",
     "entityPlaceholder": "Nach Namen suchen…",
     "noResults": "Keine Treffer.",
@@ -34,7 +37,14 @@
     "sentenceLabel": "Wie die beiden zusammenhängen",
     "submit": "Verknüpfung hinzufügen",
     "submitting": "Wird hinzugefügt…",
-    "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen."
+    "submitUpload": "Hochladen und verknüpfen",
+    "uploading": "Wird hochgeladen…",
+    "readOnlyTarget": "Manche Verknüpfungen lassen sich nur von etwas aus erstellen, das du ändern kannst — das hier kannst du nur lesen.",
+    "upload": {
+      "prompt": "Oder lade eine Datei hoch, um sie zu verknüpfen. Leg sie hier ab, oder",
+      "name": "Name",
+      "remove": "Stattdessen etwas anderes wählen"
+    }
   },
   "card": {
     "kindLinked": "{{kind}} · verknüpft {{date}}",

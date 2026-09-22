@@ -189,6 +189,11 @@
     "unavailable": "This device has no camera to take a photo with.",
     "failed": "That photo could not be read. Try again."
   },
+  "fileDrop": {
+    "release": "Drop it here",
+    "unsupported": "That kind of file can't be uploaded here.",
+    "tooLarge": "That file is larger than this server accepts."
+  },
   "archiveError": "Couldn't archive that. Please try again.",
   "unarchiveError": "Couldn't unarchive that. Please try again.",
   "markdownEditor": {

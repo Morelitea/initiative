@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -148,5 +148,57 @@ describe("DocumentsView documents/templates states", () => {
 
     expect(await screen.findByText("No templates yet")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start writing" })).not.toBeInTheDocument();
+  });
+});
+
+describe("DocumentsView file drop", () => {
+  const brief = () => new File(["%PDF"], "site-brief.pdf", { type: "application/pdf" });
+  const drag = (files: File[]) => ({ dataTransfer: { types: ["Files"], files } });
+
+  const renderAs = (view: "tags" | "grid" | "list", canCreate: boolean) => {
+    stubDocuments([buildDocumentSummary({ name: "Existing" })]);
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
+      items: { "documents:view-mode": view },
+    });
+    const Page = () => <DocumentsView fixedInitiativeId={INITIATIVE_ID} canCreate={canCreate} />;
+    return renderPage(Page, { queryClient });
+  };
+
+  // The view is the container the toolbar and every view render into.
+  const viewRoot = async () =>
+    (await screen.findByRole("button", { name: /new document/i })).closest(
+      ".relative.space-y-6"
+    ) as HTMLElement;
+
+  it.each(["tags", "grid", "list"] as const)(
+    "opens a new upload holding a file dropped on the %s view",
+    async (view) => {
+      renderAs(view, true);
+
+      const root = await viewRoot();
+      fireEvent.dragEnter(root, drag([]));
+      expect(screen.getByText("Drop to upload a document")).toBeInTheDocument();
+      fireEvent.drop(root, drag([brief()]));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByRole("tab", { name: /upload file/i })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+      expect(within(dialog).getByText("site-brief.pdf")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("Title")).toHaveValue("site-brief");
+    }
+  );
+
+  it("takes no drop from somebody who may not create documents", async () => {
+    const { container } = renderAs("list", false);
+
+    await screen.findByText("Existing");
+    const root = container.querySelector(".relative.space-y-6") as HTMLElement;
+    fireEvent.dragEnter(root, drag([]));
+    expect(screen.queryByText("Drop to upload a document")).not.toBeInTheDocument();
+    fireEvent.drop(root, drag([brief()]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

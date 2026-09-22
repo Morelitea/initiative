@@ -10,6 +10,30 @@ import {
   Sheet,
 } from "lucide-react";
 
+/** What an uploaded document may be, as a file picker's `accept` list. */
+export const DOCUMENT_UPLOAD_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
+
+/** What a document made from a file is called until somebody names it. */
+export function nameWithoutExtension(filename: string): string {
+  return filename.replace(/\.[^/.]+$/, "") || filename;
+}
+
+/**
+ * Whether a file's extension is on an `accept` list of extensions.
+ *
+ * A file picker filters by `accept` itself; a file dropped from the desktop
+ * skips the picker, so a drop target has to ask.
+ */
+export function matchesAccept(filename: string, accept: string): boolean {
+  const ext = getFileExtension(filename);
+  if (!ext) return false;
+  return accept
+    .split(",")
+    .map((token) => token.trim().toLowerCase())
+    .includes(`.${ext}`);
+}
+
 /**
  * Format bytes to a human-readable string.
  * @param bytes - Number of bytes
