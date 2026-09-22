@@ -859,6 +859,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     await create_guild_membership(
         session, user=user, guild=guild_30, role=GuildRole.admin
     )
+    await route_session_to_guild(session, guild_30.id)
     session.add(GuildSetting(retention_days=30))
     await session.commit()
 

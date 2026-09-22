@@ -155,7 +155,7 @@ async def test_every_subscription_in_a_guild_is_drained(
 
     drained: list[int] = []
 
-    async def _record(session_, subscription, *, now):
+    async def _record(session_, subscription, *, guild_id, now):
         drained.append(subscription.id)
 
     monkeypatch.setattr(poller, "_drain_subscription", _record)

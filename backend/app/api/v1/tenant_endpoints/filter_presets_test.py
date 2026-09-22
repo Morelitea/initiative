@@ -407,8 +407,7 @@ async def test_presets_are_scoped_to_their_project(
     presets = await _seed(session, a.project)
 
     response = await client.patch(
-        f"/api/v1/g/{other.guild_id}/projects/{other.id}"
-        f"/filter-presets/{presets[0].id}",
+        f"/api/v1/g/{a.guild.id}/projects/{other.id}/filter-presets/{presets[0].id}",
         json={"name": "Stolen"},
         headers=a.headers,
     )

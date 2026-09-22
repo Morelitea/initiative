@@ -1423,8 +1423,7 @@ async def get_oidc_mapping_options(
                 )
             ).all()
             initiatives_payload.extend(
-                {"id": i.id, "name": i.name, "guild_id": i.guild_id}
-                for i in initiatives
+                {"id": i.id, "name": i.name, "guild_id": g["id"]} for i in initiatives
             )
             roles_payload.extend(
                 {

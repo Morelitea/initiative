@@ -180,13 +180,16 @@ class TestVirtualFields:
             allowed_fields("tasks", _ctx())["assignee_ids"](FilterOp.in_, ["nope"])
         assert excinfo.value.status_code == 400
 
-    def test_tags_are_scoped_to_the_requesting_guild(self):
-        """The guild leg is what stops a tag id from another community
-        matching; it comes from the context, not from the filter."""
+    def test_tags_resolve_within_the_routed_community(self):
+        """A tag id names a row in the routed schema and nothing else: the
+        clause walks the relationship edges and carries no guild leg, because
+        the schema the statement runs in is the community."""
         clause = allowed_fields("tasks", _ctx(guild_id=1234))["tag_ids"](
             FilterOp.in_, [1]
         )
-        assert "1234" in _sql(clause)
+        sql = _sql(clause)
+        assert "relationships" in sql and "tags" in sql
+        assert "1234" not in sql
 
     def test_initiative_ids_resolve_through_projects(self):
         clause = allowed_fields("tasks", _ctx())["initiative_ids"](FilterOp.in_, [3])

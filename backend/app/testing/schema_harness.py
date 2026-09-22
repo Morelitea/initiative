@@ -39,6 +39,9 @@ import time
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session
+from sqlmodel import SQLModel
+
+from app.core.routed_guild import routed_guild_id, set_routed_guild_id
 
 from app.db.session import _RLS_ESTABLISHED_INFO_KEY, _RLS_PARAMS_INFO_KEY
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -110,6 +113,7 @@ async def route_session_to_guild(session, guild_id: int) -> None:
     gid = int(guild_id)
     sp = f"guild_{gid}, public"
     _record_pin(session, sp)
+    set_routed_guild_id(gid)
     conn = await session.connection()
     result = await conn.exec_driver_sql(_pin_sql(sp))
     result.close()
@@ -144,6 +148,7 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
         # transaction too (a factory that commits then reads back).
         _record_pin(session, sp)
         conn.exec_driver_sql(_pin_sql(sp)).close()
+        set_routed_guild_id(gid)
         for obj in rows:
             remember_guild(obj, gid)
         return
@@ -161,8 +166,40 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
             "(see app/testing/schema_harness.py)."
         )
     routed = int(search_path.split("guild_", 1)[1].split(",", 1)[0].strip().strip('"'))
+    set_routed_guild_id(routed)
     for obj in rows:
         remember_guild(obj, routed)
+
+
+def _stamp_on_load(session: Session, instance) -> None:
+    """``loaded_as_persistent``: a row read through a routed session is that
+    community's. Stamped so a test can hand a queried row to a factory the
+    way it hands one the factories made."""
+    if getattr(instance, "__tablename__", None) not in GUILD_SCOPED_TABLES:
+        return
+    if getattr(instance, _GUILD_ATTR, None) is not None:
+        return
+    gid = routed_guild_id()
+    if gid is None:
+        pin = session.info.get(_PIN_INFO_KEY) or ""
+        if pin.startswith("guild_"):
+            gid = int(pin[len("guild_") :].split(",", 1)[0].strip().strip('"'))
+    if gid is not None:
+        remember_guild(instance, gid)
+
+
+def _keep_guild_keyword(target, args, kwargs) -> None:
+    """``init``: a tenant row built with ``guild_id=`` names its community.
+
+    The tables carry no such column, so the model would drop the keyword on
+    the floor. Kept here as the row's routing instead, the way a factory
+    records it, so ``session.add`` on an unrouted session still knows where
+    the row goes — the contract CLAUDE.md states for raw tenant writes.
+    """
+    if getattr(target, "__tablename__", None) not in GUILD_SCOPED_TABLES:
+        return
+    if "guild_id" in kwargs and "guild_id" not in type(target).model_fields:
+        remember_guild(target, kwargs.pop("guild_id"))
 
 
 def _replay_search_path_pin(session: Session, transaction, connection) -> None:
@@ -196,4 +233,6 @@ def install_guild_routing() -> None:
         # subclass (the sync session under AsyncSession), not just base Session.
         event.listen(Session, "before_flush", _route_before_flush, propagate=True)
         event.listen(Session, "after_begin", _replay_search_path_pin, propagate=True)
+        event.listen(SQLModel, "init", _keep_guild_keyword, propagate=True)
+        event.listen(Session, "loaded_as_persistent", _stamp_on_load, propagate=True)
         _installed = True

@@ -130,9 +130,8 @@ async def list_my_calendar_entries(
             start_after=start_after,
             start_before=start_before,
         )
-        events_out = [
-            serialize_calendar_event_summary(e, user_id=current_user.id) for e in events
-        ]
+        # Already serialized inside each guild's own routed fetch.
+        events_out = events
 
     tasks_out = []
     if include_tasks:

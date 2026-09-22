@@ -40,6 +40,7 @@ from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.user import User
 from app.core.messages import CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
+    CalendarEventSummary,
     CalendarEventCreate,
     CalendarEventUpdate,
     CalendarEventRead,
@@ -186,17 +187,19 @@ async def query_my_calendar_events(
     guild_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
-) -> list[CalendarEvent]:
+) -> list[CalendarEventSummary]:
     """Shared cross-guild calendar-event query for ``list_my_calendar_events``
     and the ``/me/calendar-entries`` aggregate.
 
     Schema-per-guild: events live in per-guild schemas, so no single query can
     span guilds. Visit each of the user's
     guild schemas (routed to the user's own RLS context, so guild isolation +
-    DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``.
+    DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``. Each
+    event is serialized inside the guild it was read from, so the summary
+    carries that guild and the level the reader holds there.
     """
 
-    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+    async def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         # Guild calendars included: this is the user's own calendar view, one of
         # the two places their events show (the app's page is the other).
         conditions = [calendars_service.tool_enabled_clause()]
@@ -211,7 +214,16 @@ async def query_my_calendar_events(
             .where(*conditions)
             .options(*_calendar_event_loader_options())
         )
-        return _exec_events(guild_session, stmt)
+        # Serialized here, while the session is still routed into THIS guild:
+        # the summary names the guild and computes the reader's level from the
+        # role held there, and both would read the last guild visited if it
+        # waited for the merge.
+        return [
+            serialize_calendar_event_summary(
+                event, user_id=current_user.id, guild_id=guild_id
+            )
+            for event in await _exec_events(guild_session, stmt)
+        ]
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -249,10 +261,7 @@ async def list_my_calendar_events(
     start = (page - 1) * page_size
     page_events = events[start : start + page_size]
 
-    items = [
-        serialize_calendar_event_summary(e, user_id=current_user.id)
-        for e in page_events
-    ]
+    items = page_events
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
         items=items,
@@ -310,24 +319,24 @@ async def export_my_calendar_events_ics(
             )
         )
 
-        async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
+        async def _run() -> list[tuple[int, CalendarEvent, list[Related]]]:
             found = await _exec_events(guild_session, stmt)
             await tags_service.annotate_tags(guild_session, found)
             # Read while this session is still routed to THIS guild — edges live
             # in its schema — and paired with their event on the way out, so
             # nothing downstream has to key them. Ids repeat across schemas.
             documents = await ical_service.documents_for_events(guild_session, found)
-            return [(event, documents.get(event.id, [])) for event in found]
+            return [(guild_id, event, documents.get(event.id, [])) for event in found]
 
         return _run()
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
-    events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    events.sort(key=lambda pair: (pair[0].start_at, pair[0].guild_id, pair[0].id))
+    rows = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    rows.sort(key=lambda row: (row[1].start_at, row[0], row[1].id))
 
-    ics_bytes = ical_service.events_to_ical(events)
+    ics_bytes = ical_service.events_to_ical([(event, docs) for _, event, docs in rows])
     return Response(
         content=ics_bytes,
         media_type="text/calendar",
