@@ -1,36 +1,22 @@
-"""Mandatory Access Control — RLS and guild/initiative-level security.
+"""Initiative-level access helpers and the sharing pickers' roster queries.
 
-This module centralizes all Row-Level Security (RLS) related application
-logic, guild-level access checks, and initiative-level access checks.
-It is the single source of truth for understanding what the database
-enforces and for performing access checks in the application layer.
+What the database enforces is the guild schema's own policies and functions
+(``app/db/authorization.py``); what a request holds is its standing
+(``GuildContext``, built by the seam in ``app/api/deps``). This module keeps the
+questions those two do not answer as a value: who manages an initiative, which
+of its members a role permits, and the roster and override queries the sharing
+surfaces list from.
 
-Security layers managed here:
-  1. Guild isolation  — PERMISSIVE RLS: guild_id = current_guild_id
-     All guild members can *read* data within their guild.
-  2. Guild RBAC       — Only guild admins may write/update/delete
-     guild-scoped configuration (guild settings, invites, initiatives).
-     Members can only read and participate via subsequent layers.
-     Enforced in application code: ``require_guild_admin()``,
-     ``is_guild_admin()``, ``require_guild_membership()``.
-  3. Initiative membership — PERMISSIVE RLS on every guild-schema content
-     table, all deferring to ``initiative_access()`` (the single
-     source of truth: initiative member OR guild admin OR PAM grant).
-  4. Initiative RBAC — Application-level feature access via PermissionKey
-
-The complementary DAC (Discretionary Access Control) layer for
-project/document-level permissions lives in ``permissions.py``.
+The guild-level questions that used to live here — is this an admin, does
+this account hold the seat, is there a membership row — are the standing's:
+``GuildContext.is_admin``, ``.seat``, ``.reaches``.
 """
 
 from __future__ import annotations
 
-from fastapi import HTTPException, status
-from sqlalchemy import func
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
@@ -41,105 +27,6 @@ from app.models.platform.user import User
 
 # Re-export the RLS context helper so callers can import from a single place.
 from app.db.session import set_rls_context  # noqa: F401
-
-
-# ---------------------------------------------------------------------------
-# Guild-level access checks
-# ---------------------------------------------------------------------------
-
-
-def is_guild_admin(guild_role: GuildRole) -> bool:
-    """Whether the role carries a guild admin's authority.
-
-    ``superadmin`` sits above ``admin``, so it answers yes here — the
-    question is authority, and it has an admin's.
-    """
-    return guild_role in GUILD_ADMIN_ROLES
-
-
-def require_guild_admin(guild_role: GuildRole) -> None:
-    """Raise HTTPException(403) unless the guild role is admin.
-
-    Use this for operations that only guild admins may perform:
-    creating initiatives, managing guild settings, managing invites, etc.
-    """
-    if guild_role not in GUILD_ADMIN_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
-        )
-
-
-async def holds_guild_seat(
-    session: AsyncSession, *, guild_id: int, user_id: int
-) -> bool:
-    """Whether this account holds ``guild_id``'s top seat.
-
-    Asked of ``public.guild_superadmin``, the same function the policies on
-    ``guild_auth_policies`` defer to — so the rule has one definition and this
-    reads it rather than restating it against a Python enum. The pattern is
-    ``initiative_scope_clause``'s: the app and the database agree because they
-    are the same SQL.
-
-    Exact, not "or above". An ordinary ``admin`` answers no here and yes to
-    :func:`is_guild_admin`: running a community, and deciding who may enter it
-    or what it is billed for, are different jobs.
-    """
-    return bool(
-        (await session.exec(select(func.guild_superadmin(guild_id, user_id)))).one()
-    )
-
-
-async def require_guild_seat(
-    session: AsyncSession, *, guild_id: int, user_id: int
-) -> None:
-    """Raise HTTPException(403) unless this account holds the guild's seat.
-
-    Use this for the guild's sign-in configuration and its billing portal.
-    Every other guild-admin operation wants :func:`require_guild_admin`.
-    """
-    if not await holds_guild_seat(session, guild_id=guild_id, user_id=user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
-        )
-
-
-async def get_guild_membership(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> GuildMembership | None:
-    """Look up a user's guild membership."""
-    from sqlmodel import select
-
-    stmt = select(GuildMembership).where(
-        GuildMembership.guild_id == guild_id,
-        GuildMembership.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    return result.one_or_none()
-
-
-async def require_guild_membership(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> GuildMembership:
-    """Return the membership or raise 403."""
-    membership = await get_guild_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user_id,
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.NOT_GUILD_MEMBER,
-        )
-    return membership
 
 
 # ---------------------------------------------------------------------------

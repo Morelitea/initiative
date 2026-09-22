@@ -316,6 +316,42 @@ class GuildContext:
         return self.admin
 
     @property
+    def rung(self) -> "GuildRole":
+        """The rung this request administers the community at.
+
+        The membership row's, or the one a live settings grant lends for its
+        window. Where :attr:`role` names who somebody *is* here — and answers
+        ``support`` for granted access — this names what they may run, which
+        is what a decision about the roster or the seat asks.
+        """
+        from app.models.platform.guild import GuildRole
+
+        if self.membership is None and self.settings_rung is not None:
+            return GuildRole(self.settings_rung)
+        return self.role
+
+    def reaches(self, rung: "GuildRole") -> bool:
+        """Whether this request carries what ``rung`` carries, by the standing.
+
+        The community's ladder asked of a request rather than of a row: the
+        seat is what ``guild_superadmin()`` computed, the admin rung is the
+        membership row's fact or a settings grant at either rung, and the
+        member rung is a membership row. ``support`` is below every rung —
+        granted access is its own identity — so every request reaches it.
+        """
+        from app.models.platform.guild import GuildRole
+
+        if rung is GuildRole.superadmin:
+            return self.seat
+        if rung is GuildRole.admin:
+            return self.admin or self.settings_rung is not None
+        if rung is GuildRole.member:
+            return self.guild_role is not None and GuildRole(self.guild_role).reaches(
+                GuildRole.member
+            )
+        return True
+
+    @property
     def reaches_seat(self) -> bool:
         """Whether the community's top seat is within this request's reach.
 

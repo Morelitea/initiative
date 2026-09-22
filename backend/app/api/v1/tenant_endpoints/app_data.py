@@ -61,7 +61,6 @@ from app.schemas.tenant.app_data import (
     AppWidgetCatalogResponse,
     AppWidgetRead,
 )
-from app.services import rls as rls_service
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.service_apps import app_widget_type
 
@@ -280,7 +279,7 @@ async def read_app_data(
             endpoint_id=endpoint_id,
             raw_params=params,
             user_id=current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+            is_guild_admin=guild_context.is_admin,
         )
     except app_data_service.AppDataError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
@@ -395,7 +394,7 @@ async def read_app_param_options(
             param_key=param,
             raw_params=params,
             user_id=current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+            is_guild_admin=guild_context.is_admin,
         )
     except app_data_service.AppDataError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc

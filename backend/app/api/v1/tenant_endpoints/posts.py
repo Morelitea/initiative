@@ -565,7 +565,7 @@ async def set_post_pin(
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context
     )
-    if not rls_service.is_guild_admin(guild_context.role):
+    if not guild_context.is_admin:
         is_manager = await rls_service.is_initiative_manager(
             session, initiative_id=post.initiative_id, user=current_user
         )

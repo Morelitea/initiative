@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
-from typing import Annotated, List, Optional
+from typing import Annotated, List
 
 from fastapi import (
     APIRouter,
@@ -17,10 +17,13 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    SeatContextDep,
+    SeatWriteContextDep,
+    SettingsRLSSessionDep,
+    require_guild_roles,
     GuildContext,
     SeatSessionDep,
     SeatWriteSessionDep,
-    SessionDep,
     UploadUserDep,
     UserSessionDep,
     establish_guild_access,
@@ -34,7 +37,7 @@ from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
-from app.core.messages import AccessGrantMessages, BillingMessages, GuildMessages
+from app.core.messages import BillingMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
     AUTH_POLICY_UNMET_HEADER,
@@ -55,7 +58,6 @@ from app.models.platform.guild import (
     assignable_roles,
     Guild,
     GuildCategory,
-    GuildMembership,
     GuildRole,
     GuildStatus,
 )
@@ -103,8 +105,6 @@ from app.services.auth import (
 )
 from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption, effective_options
-from app.models.platform.access_grant import AccessGrantPurpose
-from app.services.platform import access_grants as access_grants_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
@@ -117,19 +117,43 @@ from app.services.platform import guilds as guilds_service
 from app.services.realtime import manager as realtime_manager
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
-from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 router = APIRouter()
+
+# The community's configuration surface, by rung. Established ``for_settings``
+# — what an administrator keeps while the content is closed, and what a
+# settings grant may serve — and, for a route that changes something, asking a
+# grantee for the ``read_write`` grant beside the rung.
+GuildSettingsAdmin = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin, settings=True))
+]
+GuildSettingsAdminWrite = Annotated[
+    GuildContext,
+    Depends(require_guild_roles(GuildRole.admin, settings=True, write=True)),
+]
+GuildSettingsSeatWrite = Annotated[
+    GuildContext,
+    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+]
 logger = logging.getLogger(__name__)
+
+
+def _position_of(guild_context: GuildContext) -> int:
+    """Where the caller keeps this community in their list; a grantee has no
+    place in it."""
+    membership = guild_context.membership
+    return membership.position if membership is not None else 0
 
 
 def _serialize_guild(
     guild: Guild,
-    membership: GuildMembership,
+    *,
+    role: GuildRole,
+    position: int,
     retention_days: int | None = None,
     member_count: int = 0,
     administration: GuildAdministration | None = None,
@@ -157,7 +181,7 @@ def _serialize_guild(
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
     # Not on the wire — a reader asks the ladder the same question.
-    is_admin = membership.role.reaches(GuildRole.admin)
+    is_admin = role.reaches(GuildRole.admin)
     admin_row = administration if is_admin else None
     return GuildRead(
         id=guild.id,
@@ -165,8 +189,8 @@ def _serialize_guild(
         description=guild.description,
         created_at=guild.created_at,
         updated_at=guild.updated_at,
-        role=membership.role,
-        position=membership.position,
+        role=role,
+        position=position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
         member_count=member_count,
@@ -219,101 +243,6 @@ def _serialize_guild(
     )
 
 
-async def _guild_membership_of(
-    session: SessionDep,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> GuildMembership:
-    """Return the caller's membership in ``guild_id``."""
-    await set_rls_context(session, user_id=user_id)
-    return await rls_service.require_guild_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user_id,
-    )
-
-
-async def _settings_grantee(
-    session: SessionDep, *, guild_id: int, user_id: int
-) -> Optional[GuildMembership]:
-    """Return a support context for a live settings grant, if present."""
-    grant = await access_grants_service.get_live_grant(
-        session,
-        user_id=user_id,
-        guild_id=guild_id,
-        purpose=AccessGrantPurpose.settings,
-    )
-    if grant is None:
-        return None
-    return GuildMembership(guild_id=guild_id, user_id=user_id, role=GuildRole.support)
-
-
-async def _require_write_grant(
-    session: SessionDep, *, guild_id: int, user_id: int
-) -> None:
-    """A settings rung reads; changing what it reaches takes a ``read_write``
-    content grant beside it."""
-    grant = await access_grants_service.get_live_grant(
-        session,
-        user_id=user_id,
-        guild_id=guild_id,
-        purpose=AccessGrantPurpose.content,
-    )
-    if grant is None or grant.access_level != "read_write":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AccessGrantMessages.WRITE_GRANT_REQUIRED,
-        )
-
-
-async def _ensure_guild_admin(
-    session: SessionDep,
-    *,
-    guild_id: int,
-    user_id: int,
-    write: bool = False,
-) -> GuildMembership:
-    """Require a guild admin, or a settings grant at either rung.
-
-    ``write`` is the route changing something: a grantee then also needs a
-    ``read_write`` content grant beside the rung."""
-    await set_rls_context(session, user_id=user_id)
-    # Either rung reaches what a guild admin administers.
-    grantee = await _settings_grantee(session, guild_id=guild_id, user_id=user_id)
-    if grantee is not None:
-        if write:
-            await _require_write_grant(session, guild_id=guild_id, user_id=user_id)
-        return grantee
-    membership = await _guild_membership_of(session, guild_id=guild_id, user_id=user_id)
-    rls_service.require_guild_admin(membership.role)
-    return membership
-
-
-async def _ensure_guild_superadmin(
-    session: SessionDep,
-    *,
-    guild_id: int,
-    user_id: int,
-    write: bool = False,
-) -> GuildMembership:
-    """Require the guild seat or an equivalent settings grant.
-
-    ``write`` is the route changing something: a lent seat then also needs a
-    ``read_write`` content grant beside the rung."""
-    await set_rls_context(session, user_id=user_id)
-    grantee = await _settings_grantee(session, guild_id=guild_id, user_id=user_id)
-    membership = grantee or await _guild_membership_of(
-        session, guild_id=guild_id, user_id=user_id
-    )
-    await rls_service.require_guild_seat(session, guild_id=guild_id, user_id=user_id)
-    if write and grantee is not None:
-        await _require_write_grant(session, guild_id=guild_id, user_id=user_id)
-    return membership
-
-
-#: The guild fields a community's own admins edit, snapshotted either side of a
-#: PATCH so the record names which of them moved.
 _GUILD_PROFILE_FIELDS = (
     "name",
     "description",
@@ -357,23 +286,6 @@ async def _record_guild_settings_change(
     )
 
 
-async def _set_guild_admin_rls(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    user: User,
-) -> GuildContext:
-    """Route a validated guild administrator into ``guild_id``, through the
-    one seam that routes a person into a community.
-
-    The rung guard above this has already refused anyone who is not an
-    administrator; this establishes what the database will let them reach. The
-    routes here are the community's own configuration, which is what an
-    administrator keeps while its content is closed.
-    """
-    return await establish_guild_access(session, user, guild_id, for_settings=True)
-
-
 @router.get("/", response_model=List[GuildRead])
 async def list_guilds(
     session: UserSessionDep,
@@ -402,7 +314,8 @@ async def list_guilds(
         payloads.append(
             _serialize_guild(
                 guild,
-                membership,
+                role=membership.role,
+                position=membership.position,
                 retention_days=retention_days,
                 member_count=member_count,
                 administration=administration,
@@ -548,7 +461,8 @@ async def join_community_guild(
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
     return _serialize_guild(
         guild,
-        membership,
+        role=membership.role,
+        position=membership.position,
         member_count=member_count,
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
@@ -718,7 +632,8 @@ async def create_guild(
     administration = await guilds_service.get_administration(session, guild_id=guild.id)
     return _serialize_guild(
         guild,
-        membership,
+        role=membership.role,
+        position=membership.position,
         member_count=member_count,
         administration=administration,
     )
@@ -727,15 +642,9 @@ async def create_guild(
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
 async def list_guild_invites(
     guild_id: int,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildSettingsAdmin,
+    session: SettingsRLSSessionDep,
 ) -> List[GuildInviteRead]:
-    await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)
     return [GuildInviteRead.model_validate(invite) for invite in invites]
 
@@ -743,17 +652,12 @@ async def list_guild_invites(
 @router.patch("/{guild_id}", response_model=GuildRead)
 async def update_guild(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     updates: GuildUpdate,
-    session: SessionDep,
+    session: SettingsRLSSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
-    membership = await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-        write=True,
-    )
     # Moving onto the shelf is measured against the roster the guild built
     # while it was private, and only on the way in — asked before the request
     # routes into its guild, because the answer lives in ``public.users``,
@@ -774,7 +678,6 @@ async def update_guild(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
                 ) from exc
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
@@ -855,7 +758,8 @@ async def update_guild(
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return _serialize_guild(
         guild,
-        membership,
+        role=guild_context.rung,
+        position=_position_of(guild_context),
         retention_days=retention_days,
         member_count=member_count,
         administration=administration,
@@ -878,8 +782,8 @@ async def update_guild(
 @router.get("/{guild_id}/entitlements", response_model=GuildEntitlementsRead)
 async def read_guild_entitlements(
     guild_id: int,
-    session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildSettingsAdmin,
+    session: SettingsRLSSessionDep,
 ) -> GuildEntitlementsRead:
     """What an operator has turned on for this guild, for its own admins.
 
@@ -889,7 +793,6 @@ async def read_guild_entitlements(
     admin does — it is how their settings page knows to offer the banner
     colour alone rather than an upload that would come back refused.
     """
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return GuildEntitlementsRead(
         guild_id=guild_id,
@@ -983,14 +886,12 @@ async def _store_guild_images(
 @router.put("/{guild_id}/icon", response_model=GuildRead)
 async def set_guild_icon(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     icon: UploadFile = File(...),
 ) -> GuildRead:
     """Replace the guild's icon. One square picture, resized by the client."""
-    membership = await _ensure_guild_admin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await _store_guild_images(
         session,
         guild_id=guild_id,
@@ -999,32 +900,31 @@ async def set_guild_icon(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, membership=membership
+        session, guild_id=guild_id, user=current_user, guild_context=guild_context
     )
 
 
 @router.delete("/{guild_id}/icon", response_model=GuildRead)
 async def clear_guild_icon(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Remove the guild's icon. It falls back to its lettered avatar."""
-    membership = await _ensure_guild_admin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await images_service.clear_images(
         session, guild_id=guild_id, variants=[GuildImageVariant.icon]
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, membership=membership
+        session, guild_id=guild_id, user=current_user, guild_context=guild_context
     )
 
 
 @router.put("/{guild_id}/banner", response_model=GuildRead)
 async def set_guild_banner(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     full: UploadFile = File(...),
@@ -1036,9 +936,6 @@ async def set_guild_banner(
     renditions and sends them together, so a guild is never left showing a new
     card over an old front page.
     """
-    membership = await _ensure_guild_admin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     if administration is not None and not administration.banner_image_enabled:
         # Only uploading is gated. The banner surface stays, a banner the guild
@@ -1056,26 +953,24 @@ async def set_guild_banner(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, membership=membership
+        session, guild_id=guild_id, user=current_user, guild_context=guild_context
     )
 
 
 @router.delete("/{guild_id}/banner", response_model=GuildRead)
 async def clear_guild_banner(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Remove the guild's banner. Both surfaces fall back to their plain form."""
-    membership = await _ensure_guild_admin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await images_service.clear_images(
         session, guild_id=guild_id, variants=list(BANNER_VARIANTS)
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, membership=membership
+        session, guild_id=guild_id, user=current_user, guild_context=guild_context
     )
 
 
@@ -1084,7 +979,7 @@ async def _guild_payload_after_image_change(
     *,
     guild_id: int,
     user: User,
-    membership: GuildMembership,
+    guild_context: GuildContext,
 ) -> GuildRead:
     """The guild as its admin now sees it, so the SPA needs no follow-up read.
 
@@ -1106,7 +1001,8 @@ async def _guild_payload_after_image_change(
         )
     return _serialize_guild(
         guild,
-        membership,
+        role=guild_context.rung,
+        position=_position_of(guild_context),
         retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
@@ -1264,12 +1160,10 @@ def _notification_policy_read(
 )
 async def get_guild_notification_policy(
     guild_id: int,
-    session: SessionDep,
+    _guild_context: SeatContextDep,
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildNotificationPolicyRead:
     """What this community's notifications may leave the app carrying."""
-    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
     await _require_guild_auth_option(
         admin_session, guild_id, GuildAuthOption.restrictions
     )
@@ -1288,8 +1182,8 @@ async def get_guild_notification_policy(
 )
 async def set_guild_notification_policy(
     guild_id: int,
+    _guild_context: SeatWriteContextDep,
     payload: GuildNotificationPolicyUpdate,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildNotificationPolicyRead:
@@ -1306,9 +1200,6 @@ async def set_guild_notification_policy(
     inside the app is unaffected, and so is what an account is sent about
     itself — a sign-in code and a password reset are not notifications.
     """
-    await _ensure_guild_superadmin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await _require_guild_auth_option(
         admin_session, guild_id, GuildAuthOption.restrictions
     )
@@ -1339,9 +1230,8 @@ async def set_guild_notification_policy(
 @router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
 async def get_guild_auth_policy(
     guild_id: int,
-    session: SessionDep,
+    _guild_context: GuildSettingsAdmin,
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildAuthPolicyRead:
     """The guild's sign-in requirement. Guild admin only (the settings UI);
     a blocked session learns the required provider from the step-up 401's
@@ -1351,7 +1241,6 @@ async def get_guild_auth_policy(
     enforced through changes to it (the gate in ``deps.py`` and
     ``public.guild_auth_satisfied()`` read the policy row and nothing else).
     An admin who cannot see what is set cannot clear it."""
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     display_name = None
     if policy_row is not None and policy_row.provider_id is not None:
@@ -1548,8 +1437,8 @@ async def set_guild_auth_policy(
 @router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)
 async def set_guild_api_access(
     guild_id: int,
+    _guild_context: SeatWriteContextDep,
     payload: GuildApiAccessUpdate,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildApiAccessRead:
@@ -1565,9 +1454,6 @@ async def set_guild_api_access(
     used, so switching this back on restores them rather than leaving somebody
     to mint replacements.
     """
-    await _ensure_guild_superadmin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await _require_guild_auth_option(
         admin_session, guild_id, GuildAuthOption.restrictions
     )
@@ -1594,8 +1480,8 @@ async def set_guild_api_access(
 @router.put("/{guild_id}/second-factor", response_model=GuildSecondFactorRead)
 async def set_guild_second_factor(
     guild_id: int,
+    _guild_context: SeatWriteContextDep,
     payload: GuildSecondFactorUpdate,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildSecondFactorRead:
@@ -1610,9 +1496,6 @@ async def set_guild_second_factor(
     providers' own account of one counts. The community asks; it does not say
     how the question is answered.
     """
-    await _ensure_guild_superadmin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await _require_guild_auth_option(
         admin_session, guild_id, GuildAuthOption.restrictions
     )
@@ -1658,8 +1541,8 @@ async def set_guild_second_factor(
 @router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)
 async def set_guild_session_limit(
     guild_id: int,
+    _guild_context: SeatWriteContextDep,
     payload: GuildSessionLimitUpdate,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildSessionLimitRead:
@@ -1676,9 +1559,6 @@ async def set_guild_session_limit(
     ones already issued are brought under the standard here — which can sign a
     phone out at once, where it signed in longer ago than the standard allows.
     """
-    await _ensure_guild_superadmin(
-        session, guild_id=guild_id, user_id=current_user.id, write=True
-    )
     await _require_guild_auth_option(
         admin_session, guild_id, GuildAuthOption.restrictions
     )
@@ -1715,9 +1595,10 @@ async def set_guild_session_limit(
 )
 async def delete_guild(
     guild_id: int,
+    _guild_context: GuildSettingsSeatWrite,
     http_request: Request,
     request: GuildDeletionRequest,
-    session: SessionDep,
+    session: SettingsRLSSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
@@ -1725,13 +1606,6 @@ async def delete_guild(
     # an admin cannot undo and cannot be undone for them — only an operator
     # can, and only inside the retention window — so it sits with the seat
     # that is told about it and that a restore needs (``guild_has_seat``).
-    await _ensure_guild_superadmin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-        write=True,
-    )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
 
     # Re-check the password, where the account holds one to re-check — the
@@ -1807,17 +1681,11 @@ async def delete_guild(
 )
 async def create_guild_invite(
     guild_id: int,
+    _guild_context: GuildSettingsAdminWrite,
     invite_in: GuildInviteCreate,
-    session: SessionDep,
+    session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildInviteRead:
-    await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-        write=True,
-    )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     try:
         invite = await guilds_service.create_guild_invite(
             session,
@@ -1843,17 +1711,11 @@ async def create_guild_invite(
 )
 async def delete_guild_invite(
     guild_id: int,
+    _guild_context: GuildSettingsAdminWrite,
     invite_id: int,
-    session: SessionDep,
+    session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-        write=True,
-    )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     await guilds_service.delete_guild_invite(
         session,
         guild_id=guild_id,
@@ -1903,7 +1765,8 @@ async def accept_invite(
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
     return _serialize_guild(
         guild,
-        membership,
+        role=membership.role,
+        position=membership.position,
         member_count=member_count,
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
@@ -1920,6 +1783,7 @@ async def accept_invite(
 )
 async def update_guild_membership(
     guild_id: int,
+    guild_context: GuildSettingsAdminWrite,
     user_id: int,
     payload: GuildMembershipUpdate,
     session: AdminSessionDep,
@@ -1934,12 +1798,6 @@ async def update_guild_membership(
     # Runs on the system engine (AdminSessionDep): the guild role holds no UPDATE
     # on guild_memberships, so a role change happens only here, after the
     # guild-admin check — never under a request-path role. See migration 0145.
-    caller = await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-        write=True,
-    )
 
     if user_id == current_user.id:
         raise HTTPException(
@@ -1958,7 +1816,7 @@ async def update_guild_membership(
     # operator seats the first one — that is the only part a guild cannot do
     # for itself — and from then on a superadmin may seat another. An
     # ordinary admin may do neither, which is the separation.
-    if payload.role not in assignable_roles(caller.role):
+    if payload.role not in assignable_roles(guild_context.rung):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
@@ -1978,7 +1836,7 @@ async def update_guild_membership(
     # *locked* row, so the role this decides on is the role as it stands now.
     if (
         target_membership.role == GuildRole.superadmin
-        and caller.role != GuildRole.superadmin
+        and guild_context.rung != GuildRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

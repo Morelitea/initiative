@@ -62,7 +62,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
-from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
     DocumentCountsResponse,
@@ -187,7 +186,7 @@ async def _require_initiative_access(
     *,
     initiative_id: int,
     user: User,
-    guild_role: GuildRole,
+    guild_context: GuildContext,
     require_manager: bool = False,
     permission_key: PermissionKey | None = None,
 ) -> None:
@@ -197,11 +196,11 @@ async def _require_initiative_access(
         session: Database session
         initiative_id: Initiative to check access for
         user: User to check
-        guild_role: User's guild role (admins bypass checks)
+        guild_context: the reader's standing (an admin passes)
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
         permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
     """
-    if rls_service.is_guild_admin(guild_role):
+    if guild_context.is_admin:
         return
     membership = await initiatives_service.get_initiative_membership(
         session,
@@ -486,7 +485,7 @@ async def create_document(
         session,
         initiative_id=initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = document_in.name.strip()
@@ -592,7 +591,7 @@ async def upload_document_file(
         session,
         initiative_id=initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = name.strip()
@@ -1260,7 +1259,7 @@ async def copy_document(
         session,
         initiative_id=target_initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = (payload.name or document.name).strip()

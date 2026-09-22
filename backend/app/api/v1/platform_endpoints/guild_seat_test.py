@@ -1,6 +1,8 @@
 """The guild's top seat: who gets it, and who Postgres lets write as it."""
 
 import pytest
+from sqlalchemy import func
+from sqlmodel import select
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -8,7 +10,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
-from app.services import rls as rls_service
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -55,9 +56,11 @@ async def test_the_seat_is_read_from_postgres_not_from_the_enum(
 
     for user, expected in ((seat, True), (admin, False)):
         await set_rls_context(session, user_id=int(user.id))
-        held = await rls_service.holds_guild_seat(
-            session, guild_id=int(guild.id), user_id=int(user.id)
-        )
+        held = (
+            await session.exec(
+                select(func.guild_superadmin(int(guild.id), int(user.id)))
+            )
+        ).one()
         assert held is expected
 
 

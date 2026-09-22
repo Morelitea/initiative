@@ -23,6 +23,7 @@ from app.api.deps import (
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
+    require_seat,
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
@@ -431,26 +432,6 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
     return value
 
 
-def _require_guild_seat(guild_context: GuildContext) -> None:
-    """A whole community's archive belongs to the seat.
-
-    The community's every initiative in one file is not the same errand as
-    running the community, so it sits with the seat rather than with an
-    ordinary admin — beside the other things only that seat decides.
-
-    Lent as well as held: a ``superadmin`` settings grant is the seat for its
-    window, and taking the community out is one of the things that seat does.
-    Content access is a separate axis, and this route reads content — a grant
-    carrying none is refused at the session, before this.
-    """
-
-    if not guild_context.seat:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED,
-        )
-
-
 async def _guild_export_available_at(session) -> Optional[datetime]:
     """When the next whole-community export may start — ``None`` for now.
 
@@ -522,7 +503,7 @@ async def estimate_aggregate_export(
     from app.services.export.adapters.backup import estimate_backup
 
     if scope == "guild":
-        _require_guild_seat(guild_context)
+        require_seat(guild_context)
     try:
         return await estimate_backup(
             session,
@@ -640,7 +621,7 @@ async def export_guild(
     only (held outright; the adapter re-checks at render time so a vacated
     seat fails the job closed), and once per cooldown window. Always returns
     ``202`` with a queued job to poll and download."""
-    _require_guild_seat(guild_context)
+    require_seat(guild_context)
     await _require_guild_cooldown_elapsed(session)
     try:
         result = await start_export(
@@ -697,7 +678,7 @@ async def read_guild_export_status(
     Seat-only, like the export it describes. Two bounded reads: the newest
     ``guild`` job, and the cooldown the create route enforces.
     """
-    _require_guild_seat(guild_context)
+    require_seat(guild_context)
     latest = (
         await session.exec(
             select(ExportJob)

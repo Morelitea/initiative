@@ -63,7 +63,6 @@ from app.models.platform.access_grant import (
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
-    GUILD_ADMIN_ROLES,
     Guild,
     GuildMembership,
     GuildRole,
@@ -1091,43 +1090,53 @@ def _raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
 
 
 def holds_guild_role(context: GuildContext, *roles: GuildRole) -> bool:
-    """Whether this request answers a guard asking for any of ``roles``.
+    """Whether this request reaches any of ``roles``, by the standing.
 
-    Asking for ``admin`` asks for admin *or above*, so a superadmin satisfies
-    every guard an ordinary admin satisfies — the seat sits above ``admin``,
-    and this is the one place that has to know it for all of them.
-
-    A live settings grant answers at its own rung. It confers no content access
-    with it: the session is still routed as the grant's read/write level says.
-
-    The predicate behind :func:`require_guild_roles`, separate from it because
-    some endpoints ask the same question part-way through a handler rather than
-    at the door — and the two must never drift into different answers.
+    :meth:`GuildContext.reaches` is the one answer — a rung asked for is that
+    rung or above, a settings grant answers at the rung it lends — and this
+    is its form for a guard naming several. Kept beside
+    :func:`require_guild_roles` because some endpoints ask part-way through
+    a handler rather than at the door, and the two must not drift.
     """
-    accepted = frozenset(roles)
-    if GuildRole.admin in accepted:
-        accepted |= GUILD_ADMIN_ROLES
-    if not accepted:
+    if not roles:
         return True
-    if any(context.settings_rung_reaches(role) for role in accepted):
-        return True
-    return context.role in accepted
+    return any(context.reaches(role) for role in roles)
 
 
-def require_guild_roles(*roles: GuildRole) -> Callable:
-    """Guard an endpoint on the caller's role in the guild named by the path.
+def require_seat(
+    context: GuildContext, *, detail: str = GuildMessages.GUILD_SUPERADMIN_REQUIRED
+) -> None:
+    """Raise 403 unless this request holds the community's seat, by the
+    standing — the membership row's, or lent by a settings grant at that
+    rung."""
+    if not context.seat:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
-    See :func:`holds_guild_role`, which is what it asks.
+
+def require_guild_roles(
+    *roles: GuildRole, settings: bool = False, write: bool = False
+) -> Callable:
+    """Guard an endpoint on the caller's rung in the guild named by the path.
+
+    See :func:`holds_guild_role`, which is what it asks. ``settings`` puts the
+    guard on the community's configuration surface — established by
+    :func:`get_guild_settings_context`, which a settings grant may serve and
+    an administrator keeps while the content is closed. ``write`` is a route
+    that changes something: a grantee is then also asked for the
+    ``read_write`` grant beside the rung (:func:`require_grant_writes`).
     """
+    establish = get_guild_settings_context if settings else get_guild_membership
 
     async def dependency(
-        context: Annotated[GuildContext, Depends(get_guild_membership)],
+        context: Annotated[GuildContext, Depends(establish)],
     ) -> GuildContext:
         if not holds_guild_role(context, *roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_PERMISSION_REQUIRED,
             )
+        if write:
+            require_grant_writes(context)
         return context
 
     return dependency
@@ -1258,6 +1267,37 @@ async def apply_guild_session_context(
     return await apply_guild_standing(session, guild_context)
 
 
+async def get_guild_settings_context(
+    request: Request,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_id: Annotated[int, Path(description="Guild this request configures")],
+) -> GuildContext:
+    """The establishment seam for a request to the community's own
+    configuration and roster.
+
+    :func:`get_guild_membership` for the surface an administrator keeps while
+    the content is closed, and the one a settings grant may serve: the same
+    lookup, routing and standing, established ``for_settings`` — so the
+    community's sign-in rule, its lifecycle status and the deployment's age
+    question, which govern its work, do not stand between an administrator and
+    the settings that govern them.
+    """
+    guild_id = addressed_guild_id(request, guild_id)
+    key_guild = getattr(request.state, "api_key_guild_id", None)
+    if key_guild is not None and key_guild != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    try:
+        return await establish_guild_access(
+            session, current_user, guild_id, for_settings=True
+        )
+    except GuildAccessError as exc:
+        _raise_for_guild_access(exc)
+
+
 async def get_guild_session(
     session: SessionDep,
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
@@ -1280,10 +1320,20 @@ async def get_guild_session(
 
 async def get_guild_settings_session(
     session: SessionDep,
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    _guild_context: Annotated[GuildContext, Depends(get_guild_settings_context)],
 ) -> AsyncSession:
-    """The same session for a community-configuration request, which a
-    settings-only grant may serve."""
+    """The session :func:`get_guild_settings_context` routed, for the
+    community's configuration and roster."""
+    return session
+
+
+async def get_guild_settings_write_session(
+    session: SessionDep,
+    guild_context: Annotated[GuildContext, Depends(get_guild_settings_context)],
+) -> AsyncSession:
+    """The same session, for a configuration route that changes something: a
+    grantee is asked for the ``read_write`` grant beside the rung."""
+    require_grant_writes(guild_context)
     return session
 
 
@@ -1377,22 +1427,34 @@ def require_grant_writes(context: GuildContext) -> None:
         )
 
 
-async def get_guild_seat_write_session(
-    session: SessionDep,
+async def get_guild_seat_write_context(
     context: Annotated[GuildContext, Depends(get_guild_seat_context)],
-) -> AsyncSession:
-    """The seat's session, for a route that changes what the seat holds.
+) -> GuildContext:
+    """The seat, for a route that changes what the seat holds.
 
     Held by the membership row, the seat writes. Lent by a settings grant, it
     reads, and writes only beside a live ``read_write`` content grant."""
     require_grant_writes(context)
+    return context
+
+
+async def get_guild_seat_write_session(
+    session: SessionDep,
+    _context: Annotated[GuildContext, Depends(get_guild_seat_write_context)],
+) -> AsyncSession:
+    """The session :func:`get_guild_seat_write_context` routed."""
     return session
 
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
+SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
+SettingsWriteSessionDep = Annotated[
+    AsyncSession, Depends(get_guild_settings_write_session)
+]
 SeatContextDep = Annotated[GuildContext, Depends(get_guild_seat_context)]
+SeatWriteContextDep = Annotated[GuildContext, Depends(get_guild_seat_write_context)]
 SeatSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_session)]
 SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_session)]
 

@@ -21,22 +21,18 @@ from app.models.platform.guild import (
     GuildRole,
     assignable_roles,
 )
-from app.services import rls as rls_service
 
 pytestmark = pytest.mark.unit
 
 
 def test_a_superadmin_carries_an_admins_authority():
-    assert rls_service.is_guild_admin(GuildRole.superadmin)
+    assert GuildRole.superadmin.reaches(GuildRole.admin)
     assert GuildRole.superadmin in GUILD_ADMIN_ROLES
-    # And the check that raises agrees with the one that answers.
-    rls_service.require_guild_admin(GuildRole.superadmin)
 
 
 def test_a_member_still_does_not():
-    assert not rls_service.is_guild_admin(GuildRole.member)
-    with pytest.raises(Exception):
-        rls_service.require_guild_admin(GuildRole.member)
+    assert not GuildRole.member.reaches(GuildRole.admin)
+    assert GuildRole.member not in GUILD_ADMIN_ROLES
 
 
 def test_the_gate_asks_one_question_about_three_roles():

@@ -20,6 +20,7 @@ from app.api.deps import (
     FactorExemptSessionDep,
     FactorExemptUser,
     RLSSessionDep,
+    SettingsContextDep,
     SettingsRLSSessionDep,
     SessionDep,
     UserSessionDep,
@@ -229,7 +230,7 @@ async def get_user_stats(
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    guild_context: SettingsContextDep,
 ) -> List[UserGuildMember]:
     """The community's roster.
 
