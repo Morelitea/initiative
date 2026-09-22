@@ -277,6 +277,7 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: true,
         enableSorting: true,
         sortFn: "alphanumeric",
+        size: 150,
       },
       {
         // Never rendered as a column of its own (see effectiveColumnVisibility);
@@ -297,6 +298,7 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
         enableSorting: true,
         sortFn: "alphanumeric",
+        size: 150,
       },
       {
         id: "completed",
@@ -348,6 +350,9 @@ const ProjectTasksTableViewComponent = ({
         enableSorting: true,
         sortFn: "alphanumeric",
         enableHiding: false,
+        // The widest column, so it takes the largest share of whatever space
+        // the others leave over.
+        size: 360,
       },
       {
         id: "start date",
@@ -366,6 +371,7 @@ const ProjectTasksTableViewComponent = ({
         cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
         enableSorting: true,
         sortFn: dateSortingFn,
+        size: 150,
       },
       {
         id: "due date",
@@ -390,6 +396,7 @@ const ProjectTasksTableViewComponent = ({
         ),
         enableSorting: true,
         sortFn: dateSortingFn,
+        size: 150,
       },
       {
         accessorKey: "priority",
@@ -410,6 +417,7 @@ const ProjectTasksTableViewComponent = ({
           return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
         },
         sortFn: prioritySortingFn,
+        size: 140,
       },
       {
         id: "tags",
@@ -490,6 +498,8 @@ const ProjectTasksTableViewComponent = ({
           );
         },
         enableHiding: false,
+        // Wide enough for the w-40 status trigger plus cell padding.
+        size: 190,
       },
     ],
     [
