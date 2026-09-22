@@ -9,6 +9,7 @@ import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/cl
 
 // What the server says about this community and this member. Flipped per test.
 let guildRole = "superadmin";
+let holdsSeat = true;
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
 let authOptions: string[] | null = ["restrictions", "providers"];
@@ -71,6 +72,7 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
       id: guildId,
       name: "Test Community",
       role: guildRole,
+      holds_seat: holdsSeat,
       grantSettingsLevel,
       auth_options: authOptions,
       allow_api_keys: allowApiKeys,
@@ -153,6 +155,7 @@ describe("SettingsGuildSecurityPage", () => {
     saveSessionLimit.mockClear();
     refreshGuilds.mockClear();
     guildRole = "superadmin";
+    holdsSeat = true;
     grantSettingsLevel = null;
     guildId = 4;
     authOptions = ["restrictions", "providers"];
@@ -318,6 +321,7 @@ describe("SettingsGuildSecurityPage", () => {
       // The whole page is the seat's, so there is nothing here to render
       // read-only. The tab is hidden the same way; this is the direct-URL half.
       guildRole = role;
+      holdsSeat = false;
       const { container } = render();
 
       expect(container).toBeEmptyDOMElement();
@@ -330,6 +334,7 @@ describe("SettingsGuildSecurityPage", () => {
 
     it("gives a superadmin settings grantee the current controls", () => {
       guildRole = "member";
+      holdsSeat = true;
       grantSettingsLevel = "superadmin";
       authOptions = null;
       allowApiKeys = null;
@@ -570,6 +575,7 @@ describe("SettingsGuildSecurityPage", () => {
 
     it("is the seat's, not an ordinary admin's", () => {
       guildRole = "admin";
+      holdsSeat = false;
       render();
 
       expect(control()).not.toBeInTheDocument();

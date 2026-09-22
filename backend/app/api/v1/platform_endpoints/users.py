@@ -20,6 +20,7 @@ from app.api.deps import (
     FactorExemptSessionDep,
     FactorExemptUser,
     RLSSessionDep,
+    SettingsRLSSessionDep,
     SessionDep,
     UserSessionDep,
     get_current_active_user,
@@ -226,10 +227,16 @@ async def get_user_stats(
 
 @guild_router.get("/", response_model=List[UserGuildMember])
 async def list_users(
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
+    """The community's roster.
+
+    On the configuration session rather than the content one: who is in a
+    community is part of running it, which is what a settings grant reaches
+    and what an administrator keeps while its content is closed.
+    """
     stmt = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)

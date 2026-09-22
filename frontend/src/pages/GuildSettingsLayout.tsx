@@ -7,13 +7,18 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
-import { holdsGuildSeat } from "@/lib/permissions";
+import { administersGuild, holdsGuildSeat, reachesGuildContent } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
-  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  // Running the community: held as its admin, or lent by a settings grant at
+  // either rung. Separate from reaching the work inside it, which a settings
+  // grant does not — the tabs built on content are dropped below rather than
+  // rendered into refusals.
+  const administers = administersGuild(activeGuild);
+  const reachesContent = reachesGuildContent(activeGuild);
   // The seat above admin, which holds this community's sign-in and its
   // integrations — held outright, or lent for a window by a settings grant.
   const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
@@ -57,11 +62,17 @@ export const GuildSettingsLayout = () => {
             },
           ]
         : []),
-      {
-        value: "initiatives",
-        label: t("guildLayout.tabs.initiatives"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
-      },
+      ...(reachesContent
+        ? [
+            {
+              value: "initiatives",
+              label: t("guildLayout.tabs.initiatives"),
+              path: urlGuildId
+                ? guildPath(urlGuildId, "/settings/initiatives")
+                : "/settings/initiatives",
+            },
+          ]
+        : []),
       // What the community hands to somebody outside it — an AI provider, an
       // app — is the seat's to decide, the way its sign-in is. An ordinary
       // admin runs the community; these say who else gets to see it.
@@ -76,11 +87,15 @@ export const GuildSettingsLayout = () => {
             },
           ]
         : []),
-      {
-        value: "trash",
-        label: t("guildLayout.tabs.trash"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
-      },
+      ...(reachesContent
+        ? [
+            {
+              value: "trash",
+              label: t("guildLayout.tabs.trash"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
+            },
+          ]
+        : []),
       // Taking the community's every initiative out in one file, or putting
       // one back, reaches as far as deleting it does — so it sits with the
       // same seat. An ordinary admin runs the community; this one moves it.
@@ -107,9 +122,9 @@ export const GuildSettingsLayout = () => {
       });
     }
     return tabs;
-  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin]);
+  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent]);
 
-  const canViewSettings = isGuildAdmin || isSuperadmin;
+  const canViewSettings = administers;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
   // them (users, initiatives, integrations, trash, security) would only render
   // errors. Keep the surfaces that stay functional: the general tab (identity,
@@ -118,10 +133,6 @@ export const GuildSettingsLayout = () => {
   const workingTabs = isSuspended
     ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
     : guildSettingsTabs;
-  const seatOnly = new Set(["security", "integrations"]);
-  const availableTabs = isGuildAdmin
-    ? workingTabs
-    : workingTabs.filter((tab) => seatOnly.has(tab.value));
 
   if (!canViewSettings) {
     return (
@@ -147,7 +158,7 @@ export const GuildSettingsLayout = () => {
     path: extractSubPath(tab.path),
   }));
 
-  const activeTab = matchActiveTab(tabSubPaths, normalizedPath, availableTabs[0]?.value ?? "guild");
+  const activeTab = matchActiveTab(tabSubPaths, normalizedPath, workingTabs[0]?.value ?? "guild");
 
   // A read-only or suspended guild shows the admin a prominent notice pointing
   // them to the platform operator (the status reaches admins only — see the
@@ -179,7 +190,7 @@ export const GuildSettingsLayout = () => {
         )}
       </div>
       <SettingsTabsNav
-        tabs={availableTabs}
+        tabs={workingTabs}
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />

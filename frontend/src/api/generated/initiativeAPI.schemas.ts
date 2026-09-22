@@ -235,6 +235,22 @@ export interface AccessGrantRead {
   approved_by_email: string | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
+  /**
+   * Whether this grant runs the community it names, for its window.
+   *
+   * Both settings rungs do: the lower one is "what a guild admin
+   * administers". Answered here rather than by whatever reads the row, so
+   * a switcher entry built from a grant carries the same answer a guild's
+   * own payload does (``GuildRead.is_admin``).
+   */
+  readonly administers_guild: boolean;
+  /**
+   * Whether this grant is the community's top seat, for its window.
+   *
+   * The ``superadmin`` rung, beside :attr:`administers_guild` and for the
+   * same reason (``GuildRead.holds_seat``).
+   */
+  readonly holds_guild_seat: boolean;
 }
 
 export type AccountDeletionRequestAction =
@@ -4554,6 +4570,7 @@ export interface GuildRead {
   id: number;
   role: GuildRole;
   is_admin: boolean;
+  holds_seat: boolean;
   position: number;
   created_at: string;
   updated_at: string;

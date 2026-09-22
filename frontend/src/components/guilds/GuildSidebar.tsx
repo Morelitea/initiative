@@ -783,14 +783,13 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
       void switchGuild(guildId);
     }
     // A settings-only grant deliberately carries no content authority. Land
-    // it on the one page it can use instead of sending it through a denied
+    // it on the section it can use instead of sending it through a denied
     // guild-content request on the dashboard.
-    const destination =
+    const settingsOnly =
       guild?.accessType === "grant" &&
       guild.grantAccessLevel == null &&
-      guild.grantSettingsLevel === "superadmin"
-        ? "/settings/security"
-        : "/";
+      guild.grantSettingsLevel != null;
+    const destination = settingsOnly ? "/settings" : "/";
     router.navigate({ to: guildPath(guildId, destination) });
   };
 

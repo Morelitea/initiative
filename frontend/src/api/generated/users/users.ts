@@ -2970,6 +2970,11 @@ export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
   );
 };
 /**
+ * The community's roster.
+ *
+ * On the configuration session rather than the content one: who is in a
+ * community is part of running it, which is what a settings grant reaches
+ * and what an administrator keeps while its content is closed.
  * @summary List Users
  */
 export const listUsersApiV1GGuildIdUsersGet = (

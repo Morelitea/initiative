@@ -49,6 +49,11 @@ export type GuildEntry = GuildRead & {
   /** The separate settings rung held for this community. It never confers
    * content access and must not be represented as a roster role. */
   grantSettingsLevel?: "admin" | "superadmin" | null;
+  /** Whether this entry reaches the community's work at all. A settings-only
+   * grant does not — the server refuses every content route for one — so the
+   * surfaces built on content are not offered with it. Absent means yes,
+   * which is what a membership is. */
+  reachesContent?: boolean;
 };
 
 interface GuildContextValue {
@@ -107,9 +112,13 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // arrives and says so.
   online_count: 0,
   role: "member",
-  // A placeholder until the guild's own payload arrives and says what this
-  // grant reaches; the server settles it there.
-  is_admin: false,
+  // What this grant reaches, as the server answered it on the grant itself —
+  // the same two questions a guild's own payload answers, so a screen asks
+  // one question whichever way the community was reached.
+  is_admin: settingsGrant?.administers_guild ?? false,
+  holds_seat: settingsGrant?.holds_guild_seat ?? false,
+  // A settings grant carries no content access; a content grant is what does.
+  reachesContent: grant.purpose === "content",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,

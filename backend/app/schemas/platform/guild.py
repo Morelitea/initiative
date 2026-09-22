@@ -96,11 +96,16 @@ class GuildRead(GuildBase):
 
     id: int
     role: GuildRole
-    #: Whether this membership administers the guild — admin or above.
-    #: Computed where the payload is already split by it, so a surface asks
-    #: the server one question instead of each screen deciding what the
-    #: role means.
+    #: Whether this caller administers the guild — admin or above, or a live
+    #: settings grant at either rung. Computed where the payload is already
+    #: split by it, so a surface asks the server one question instead of each
+    #: screen deciding what a role or a grant means.
     is_admin: bool = False
+    #: Whether this caller holds the guild's top seat — its sign-in, its
+    #: integrations, its data and its deletion. The membership row says
+    #: ``superadmin``, or a live settings grant does. Server-computed for the
+    #: same reason ``is_admin`` is: the rule lives in one place.
+    holds_seat: bool = False
     position: int
     created_at: datetime
     updated_at: datetime

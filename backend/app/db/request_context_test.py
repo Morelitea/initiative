@@ -103,11 +103,21 @@ def test_a_settings_grant_is_its_own_guild_route():
 def test_a_settings_grant_cannot_carry_content_authority():
     for kwargs in (
         {"guild_id": 3},
-        {"pam_guild_id": 3, "pam_read": True},
         {"scope_initiative_id": 11},
     ):
         with pytest.raises(ContextShapeError):
             classify(user_id=7, settings_guild_id=3, **kwargs)
+
+
+def test_the_two_grants_of_a_pair_name_one_community():
+    """Break-glass is a content grant and a settings grant issued together.
+    Each names the community on its own axis, and it is the same one."""
+    shape = classify(user_id=7, settings_guild_id=3, pam_guild_id=3, pam_read=True)
+    assert isinstance(shape, PamGrantee)
+    assert (shape.pam_guild_id, shape.settings_guild_id) == (3, 3)
+
+    with pytest.raises(ContextShapeError):
+        classify(user_id=7, settings_guild_id=4, pam_guild_id=3, pam_read=True)
 
 
 def test_a_person_needs_the_standing_the_seam_computes():

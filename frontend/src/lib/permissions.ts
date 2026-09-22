@@ -86,18 +86,48 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
 /**
  * Whether this request holds the community's top seat.
  *
- * The seat owns what a community is billed for, how people get into it, and
- * what it hands to anyone outside it — so every affordance leading to the
- * billing portal, the Authentication tab, AI or apps asks this, and an
- * ordinary admin is not shown a button the server refuses.
+ * The seat owns what a community is billed for, how people get into it, what
+ * it hands to anyone outside it, and what takes it out in one file — so every
+ * affordance leading to the billing portal, the Authentication tab, AI, apps,
+ * Data or the danger zone asks this, and an ordinary admin is not shown a
+ * button the server refuses.
  *
- * Two ways to hold it: the membership row, or a live settings grant at the
- * superadmin rung, which is the seat lent to somebody for a window. Mirrors
- * the backend's ``public.guild_superadmin``, which is what actually decides.
+ * Read, not derived: the server answers it on the guild's own payload
+ * (`GuildRead.holds_seat`) and on the grant a switcher entry is built from
+ * (`AccessGrantRead.holds_guild_seat`), by the same rule
+ * `public.guild_superadmin` applies in the database — the membership row, or
+ * a live settings grant at the superadmin rung, which is the seat lent to
+ * somebody for a window.
  */
 export const holdsGuildSeat = (
-  guild: { role?: string | null; grantSettingsLevel?: string | null } | null | undefined
-): boolean => guild?.role === "superadmin" || guild?.grantSettingsLevel === "superadmin";
+  guild: { holds_seat?: boolean | null } | null | undefined
+): boolean => Boolean(guild?.holds_seat);
+
+/**
+ * Whether this request administers the community's own configuration.
+ *
+ * Its settings, its roster and its invites, as distinct from the work inside
+ * it. Read, not derived: the server answers it as `GuildRead.is_admin` — on a
+ * membership row and on a live settings grant alike, at either rung, since
+ * the lower of the two is "what a guild admin administers".
+ *
+ * Not the same question as reaching the community's content: a settings grant
+ * carries none. Use {@link reachesGuildContent} for that.
+ */
+export const administersGuild = (
+  guild: { is_admin?: boolean | null } | null | undefined
+): boolean => Boolean(guild?.is_admin);
+
+/**
+ * Whether this request reaches the community's content at all.
+ *
+ * A member does. Somebody reaching the community by a content grant does. A
+ * settings-only grant does not — the server refuses every `/g/{id}` content
+ * route for one — so the surfaces built on content are not offered with it.
+ */
+export const reachesGuildContent = (
+  guild: { reachesContent?: boolean } | null | undefined
+): boolean => guild?.reachesContent !== false;
 
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";

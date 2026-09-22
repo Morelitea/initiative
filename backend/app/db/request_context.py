@@ -104,6 +104,12 @@ class PamGrantee:
     not part of this shape. Membership and a grant are recorded separately;
     this class having no field for the other one is what keeps them apart.
 
+    ``settings_guild_id`` is the other half of a pair: break-glass is a content
+    grant and a settings grant issued together, and each names the community on
+    its own axis. The two must name the same one. The content half is what
+    settles the role; the settings half is what the shared tables' own policies
+    read.
+
     It does narrow like any other routed read: the query surface replays a
     request's own context with the reader flag and a scope added, and a
     grantee reaching that surface is replayed the same way a member is.
@@ -115,6 +121,7 @@ class PamGrantee:
     tier: Optional[str] = None
     read: bool = False
     write: bool = False
+    settings_guild_id: Optional[int] = None
     satisfied_providers: Optional[Sequence[int] | str] = None
     scope_initiative_id: Optional[int] = None
     via_dashboard_id: Optional[int] = None
@@ -196,14 +203,21 @@ def classify(**kwargs) -> RequestContext:
         )
 
     if _set(settings_guild_id):
-        if _set(guild_id) or pam_named or routing_named or narrowing_named:
+        if _set(guild_id) or routing_named or narrowing_named:
             raise ContextShapeError(
                 "a settings grant is routed separately from membership and "
                 "content grants"
             )
-        return SettingsGrantee(
-            settings_guild_id=int(settings_guild_id), user_id=user_id, tier=tier
-        )
+        if not pam_named:
+            return SettingsGrantee(
+                settings_guild_id=int(settings_guild_id), user_id=user_id, tier=tier
+            )
+        # The pair: falls through to the grant shape below, which records the
+        # settings axis beside the content one.
+        if int(settings_guild_id) != int(kwargs.get("pam_guild_id") or 0):
+            raise ContextShapeError(
+                "a grant pair reaches one community, named on both axes"
+            )
 
     if pam_named:
         if _set(guild_id):
@@ -225,6 +239,9 @@ def classify(**kwargs) -> RequestContext:
             tier=tier,
             read=bool(kwargs.get("pam_read")),
             write=bool(kwargs.get("pam_write")),
+            settings_guild_id=(
+                int(settings_guild_id) if _set(settings_guild_id) else None
+            ),
             satisfied_providers=kwargs.get("satisfied_providers"),
             scope_initiative_id=kwargs.get("scope_initiative_id"),
             via_dashboard_id=kwargs.get("via_dashboard_id"),
