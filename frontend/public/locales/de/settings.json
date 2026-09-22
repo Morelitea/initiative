@@ -1709,6 +1709,52 @@
   },
   "platformSecurity": {
     "title": "Sicherheit",
-    "description": "Wie lange jemand angemeldet bleiben darf, bevor eine erneute Anmeldung nötig ist."
+    "description": "Wie lange jemand angemeldet bleiben darf und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
+  },
+  "notificationDelivery": {
+    "title": "Benachrichtigungen, die die App verlassen",
+    "description": "Diese Grenzen gelten für jede Community. Eine Community kann sie für sich verschärfen, aber keine kann sie lockern.",
+    "saved": "Benachrichtigungseinstellungen gespeichert",
+    "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    "push": {
+      "label": "Mobile Benachrichtigungen",
+      "onHelp_one": "Benachrichtigungen erreichen Telefone über Apple und Google. Dieser Server hält {{count}} Geräteregistrierung.",
+      "onHelp_other": "Benachrichtigungen erreichen Telefone über Apple und Google. Dieser Server hält {{count}} Geräteregistrierungen.",
+      "offHelp": "Dieser Server sendet nichts an ein Telefon, lehnt neue Geräteregistrierungen ab und hält keine."
+    },
+    "email": {
+      "label": "E-Mail-Benachrichtigungen",
+      "onHelp": "Benachrichtigungen erreichen Postfächer in dem Rhythmus, den jede Person gewählt hat.",
+      "offHelp": "Es wird keine Benachrichtigungs-E-Mail gesendet. Anmeldecodes, Adressbestätigungen, Passwort-Zurücksetzungen und Kontohinweise gehen weiterhin raus."
+    },
+    "redact": {
+      "label": "Details in Benachrichtigungen ausblenden",
+      "onHelp": "Eine Benachrichtigung, die die App verlässt, nennt nur die Art des Ereignisses – „Du wurdest in einem Kommentar erwähnt“. In der App steht alles.",
+      "offHelp": "Eine Benachrichtigung, die die App verlässt, nennt, worum es geht: wer gehandelt hat und woran."
+    }
+  },
+  "guildNotifications": {
+    "title": "Benachrichtigungen, die die App verlassen",
+    "description": "Was die Benachrichtigungen dieser Community mitnehmen, wenn sie die App verlassen. Der Server beantwortet dieselben drei Fragen für alle; es gilt die strengere Antwort.",
+    "saved": "Benachrichtigungseinstellungen gespeichert",
+    "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    "push": {
+      "label": "Mobile Benachrichtigungen",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone der Mitglieder.",
+      "offHelp": "Zu dieser Community wird nichts an ein Telefon gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
+      "platformHelp": "Dieser Server sendet nichts an ein Telefon – hier gibt es nichts zu entscheiden."
+    },
+    "email": {
+      "label": "E-Mail-Benachrichtigungen",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Postfächer der Mitglieder.",
+      "offHelp": "Zu dieser Community wird keine Benachrichtigungs-E-Mail gesendet. Anmeldecodes und Passwort-Zurücksetzungen gehören zum Konto und gehen weiterhin raus.",
+      "platformHelp": "Dieser Server sendet keine Benachrichtigungs-E-Mail – hier gibt es nichts zu entscheiden."
+    },
+    "redact": {
+      "label": "Details in Benachrichtigungen ausblenden",
+      "onHelp": "Benachrichtigungen zu dieser Community nennen nur die Art des Ereignisses, sobald sie die App verlassen. Hier sehen Mitglieder alles.",
+      "offHelp": "Benachrichtigungen zu dieser Community nennen, worum es geht, sobald sie die App verlassen.",
+      "platformHelp": "Dieser Server blendet Details überall aus – diese Community ist bereits abgedeckt."
+    }
   }
 }

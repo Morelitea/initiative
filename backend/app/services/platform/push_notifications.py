@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.notification import NotificationType
-from app.services.platform import push_tokens
+from app.services.platform import notification_policy, push_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +237,21 @@ async def send_push_notification(
     return await _send_to_fcm(push_token, title, body, data, channel_id)
 
 
+async def _recipient_locale(user_id: int) -> str:
+    """The language one recipient reads, read on the system engine.
+
+    Only asked for when a redacted line has to be written and the caller had no
+    locale in hand; the recipient's account is not the sending session's to
+    read, the same way their notification settings are not.
+    """
+    from app.db.session import AdminSessionLocal
+    from app.models.platform.user import User
+
+    async with AdminSessionLocal() as admin_session:
+        user = await admin_session.get(User, user_id)
+        return (getattr(user, "locale", None) if user else None) or "en"
+
+
 async def send_push_to_user(
     session: AsyncSession,
     user_id: int,
@@ -245,8 +260,16 @@ async def send_push_to_user(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     only_device_token_ids: Optional[set[int]] = None,
+    guild_id: Optional[int] = None,
+    locale: Optional[str] = None,
+    policy: Optional["notification_policy.NotificationPolicy"] = None,
 ) -> int:
     """Send push notification to all of a user's devices.
+
+    Every push in the app leaves through here, which is where the deployment's
+    and the community's answers about what may reach a phone are applied: one
+    of them declining sends nothing, and either of them asking for a redacted
+    notification replaces the wording with the kind of thing that happened.
 
     Args:
         session: Database session
@@ -257,6 +280,14 @@ async def send_push_to_user(
         data: Optional data payload
         only_device_token_ids: Restrict delivery to these installations. Used by
             categories that only make sense on a device set up for them.
+        guild_id: The community this notification belongs to, whose own answer
+            applies alongside the deployment's. ``None`` for a notification that
+            belongs to no community — a message, a connection, an account
+            notice — which the deployment alone answers for.
+        locale: The recipient's language, for a redacted line. Read from their
+            account when a redacted line is needed and this was not given.
+        policy: An answer the caller already resolved, for a fan-out that would
+            otherwise ask once per recipient.
 
     Returns:
         Number of successful deliveries
@@ -274,6 +305,15 @@ async def send_push_to_user(
     if not tokens:
         logger.debug(f"No push tokens found for user {user_id}")
         return 0
+
+    if policy is None:
+        policy = await notification_policy.load(guild_id)
+    if not policy.push:
+        return 0
+    if policy.redact:
+        title, body = notification_policy.redacted_push(
+            notification_type, locale or await _recipient_locale(user_id)
+        )
 
     successful = 0
     tokens_to_delete = []

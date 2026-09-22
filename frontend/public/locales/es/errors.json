@@ -237,6 +237,7 @@
   "QUEUE_ITEM_NOT_HELD": "Este elemento no está retenido",
   "QUEUES_NOT_ENABLED": "Las colas no están habilitadas para esta iniciativa",
   "NOTIFICATION_NOT_FOUND": "Notificación no encontrada",
+  "PUSH_NOTIFICATIONS_DISABLED": "Este servidor no envía notificaciones push.",
   "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
   "QUERY_INVALID_SORT_FIELDS": "Campos de ordenamiento no válidos",
   "QUERY_UNPARSEABLE": "Esto no es SQL que esta versión pueda leer.",

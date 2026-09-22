@@ -4276,6 +4276,9 @@ export interface GuildAuthSettingsRead {
   allow_api_keys: boolean;
   enforce_compliance_session: boolean;
   require_second_factor: boolean;
+  allow_push_notifications: boolean;
+  allow_email_notifications: boolean;
+  redact_notification_content: boolean;
 }
 
 /**
@@ -4468,6 +4471,28 @@ export interface GuildNarrowingPending {
   claim_values: string[];
   auto_join: boolean;
   agreed: boolean;
+}
+
+/**
+ * What this community's notifications may leave the app carrying.
+ */
+export interface GuildNotificationPolicyRead {
+  allow_push_notifications: boolean;
+  allow_email_notifications: boolean;
+  redact_notification_content: boolean;
+  push_allowed_by_platform: boolean;
+  email_allowed_by_platform: boolean;
+  redacted_by_platform: boolean;
+}
+
+/**
+ * Set them. Each one restricts this community's notifications and nothing
+ * else: no switch here relaxes what the deployment has already said.
+ */
+export interface GuildNotificationPolicyUpdate {
+  allow_push_notifications: boolean;
+  allow_email_notifications: boolean;
+  redact_notification_content: boolean;
 }
 
 export type GuildNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
@@ -5647,6 +5672,26 @@ export interface NotificationPreferencesUpdate {
   pause_until?: string | null;
   clear_pause?: boolean;
   respect_presence?: boolean | null;
+}
+
+/**
+ * What this deployment permits a notification to leave the app carrying.
+ *
+ * Three answers, each also asked of every community; the stricter of the pair
+ * applies, so a community may decline what this permits and never the other
+ * way round.
+ */
+export interface NotificationSettingsResponse {
+  push_notifications_enabled: boolean;
+  email_notifications_enabled: boolean;
+  redact_notification_content: boolean;
+  push_tokens_held: number;
+}
+
+export interface NotificationSettingsUpdate {
+  push_notifications_enabled: boolean;
+  email_notifications_enabled: boolean;
+  redact_notification_content: boolean;
 }
 
 export interface OIDCClaimMappingCreate {

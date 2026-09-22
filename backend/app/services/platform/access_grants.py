@@ -204,6 +204,7 @@ async def _push_and_email(
                 "type": notification_type.value,
                 "target_path": "/settings/admin/access",
             },
+            locale=locale,
         )
     except Exception as exc:  # best effort
         logger.error("PAM push notification failed: %s", exc, exc_info=True)

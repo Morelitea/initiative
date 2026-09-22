@@ -50,7 +50,8 @@
     "assignedBy": "zugewiesen von <strong>{{name}}</strong>",
     "inProject": "in <strong>{{projectName}}</strong>",
     "footer": "Besuche Initiative, um die Aufgaben zu prüfen.",
-    "textBody": "Hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:"
+    "textBody": "Hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:",
+    "redactedItem": "Dir wurde eine Aufgabe zugewiesen"
   },
   "mention": {
     "document": {
@@ -142,7 +143,8 @@
     "taskDetail": "Projekt: <strong>{{projectName}}</strong>, fällig am <strong>{{dueDate}}</strong>",
     "footer": "Besuche Initiative, um wieder auf Kurs zu kommen.",
     "textBody_one": "Du hast {{count}} überfällige Aufgabe:",
-    "textBody_other": "Du hast {{count}} überfällige Aufgaben:"
+    "textBody_other": "Du hast {{count}} überfällige Aufgaben:",
+    "redactedItem": "Eine Aufgabe ist überfällig"
   },
   "accessGrant": {
     "buttonLabel": "Zugriffs-Dashboard öffnen",
@@ -209,7 +211,8 @@
     "body": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:",
     "line": "von <strong>{{name}}</strong> auf",
     "footer": "Öffne Initiative, um die Unterhaltung zu sehen.",
-    "textBody": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:"
+    "textBody": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:",
+    "redactedItem": "Jemand hat auf einen deiner Beiträge reagiert"
   },
   "quietHours": {
     "summary": {

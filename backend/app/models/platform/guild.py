@@ -305,6 +305,39 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # What this community's notifications may leave the app carrying. Three
+    # answers, each also asked of the deployment on ``app_settings``; the
+    # stricter of the pair applies, so a community can decline what the
+    # deployment permits and never the reverse.
+    #
+    # Here rather than on ``GuildAdministration`` for the reason the three above
+    # are: it says what is done on this community's behalf, and the answer has
+    # to survive the guild lifting its sign-in requirement. Set by the guild's
+    # superadmin; read where a notification is sent.
+    #
+    # Whether this community's notifications may reach a phone.
+    allow_push_notifications: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether they may reach a mailbox. The notification half of email only:
+    # what an account is sent about itself, and about signing in, is not this
+    # community's to switch off.
+    allow_email_notifications: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether a notification about this community may say what it is about once
+    # it has left the app. Set, it reduces to the kind of thing that happened,
+    # and the community itself is where the rest of it is. The bell inside the
+    # app still says everything.
+    redact_notification_content: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(

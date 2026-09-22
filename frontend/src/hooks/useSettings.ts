@@ -29,6 +29,8 @@ import type {
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   LoginMethodsUpdate,
+  NotificationSettingsResponse,
+  NotificationSettingsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
@@ -57,6 +59,7 @@ import {
   getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
   getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
+  getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
   getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
   getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
@@ -65,6 +68,7 @@ import {
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
   getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
+  getNotificationSettingsApiV1SettingsNotificationsGet,
   getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
@@ -82,6 +86,7 @@ import {
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
+  updateNotificationSettingsApiV1SettingsNotificationsPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
@@ -329,6 +334,32 @@ export const useUpdateCommunitySettings = (
  * Where sign-in is configured, which ways in are permitted, and what changing
  * either would cost. Owner only.
  */
+/**
+ * What this deployment permits a notification to leave the app carrying, and
+ * how many device tokens switching push off would drop.
+ */
+export const useNotificationSettings = (options?: QueryOpts<NotificationSettingsResponse>) =>
+  useQuery<NotificationSettingsResponse>({
+    queryKey: getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey(),
+    queryFn: () => getNotificationSettingsApiV1SettingsNotificationsGet(),
+    ...options,
+  });
+
+/**
+ * Set the three answers. Switching push off also drops the device tokens the
+ * deployment was holding, so the count the page shows moves with the write.
+ */
+export const useUpdateNotificationSettings = (
+  options?: MutationOpts<NotificationSettingsResponse, NotificationSettingsUpdate>
+) =>
+  useApiMutation<NotificationSettingsResponse, NotificationSettingsUpdate>(
+    {
+      mutationFn: (data) => updateNotificationSettingsApiV1SettingsNotificationsPut(data),
+      invalidate: () => invalidate(q.notificationSettings()),
+    },
+    options
+  );
+
 export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettingsResponse>) =>
   useQuery<PlatformAuthSettingsResponse>({
     queryKey: getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey(),

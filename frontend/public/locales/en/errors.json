@@ -251,6 +251,7 @@
   "COUNTER_STEP_MUST_BE_POSITIVE": "Step must be a positive number",
   "COUNTER_OUT_OF_RANGE": "Value is outside the allowed range",
   "NOTIFICATION_NOT_FOUND": "Notification not found",
+  "PUSH_NOTIFICATIONS_DISABLED": "This server does not send push notifications.",
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",
   "QUERY_UNPARSEABLE": "That is not SQL this build can read.",

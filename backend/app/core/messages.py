@@ -842,6 +842,9 @@ class QueryMessages:
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"
+    #: This deployment does not send push notifications, so there is nothing
+    #: for a device to register against.
+    PUSH_DISABLED = "PUSH_NOTIFICATIONS_DISABLED"
 
 
 class AnnouncementMessages:

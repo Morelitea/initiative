@@ -151,6 +151,68 @@
       "body": "{{actor}} accepted your message request"
     }
   },
+  "redacted": {
+    "mentions": {
+      "title": "You were mentioned",
+      "body": "Open Initiative to see where."
+    },
+    "replies": {
+      "title": "You have a reply",
+      "body": "Open Initiative to read it."
+    },
+    "comments": {
+      "title": "New comment",
+      "body": "Open Initiative to read it."
+    },
+    "reactions": {
+      "title": "New reaction",
+      "body": "Open Initiative to see it."
+    },
+    "assignments": {
+      "title": "New task assignment",
+      "body": "Open Initiative to see it."
+    },
+    "due_dates": {
+      "title": "Overdue tasks",
+      "body": "Open Initiative to see them."
+    },
+    "membership": {
+      "title": "Your membership changed",
+      "body": "Open Initiative to see what changed."
+    },
+    "approvals": {
+      "title": "Something is waiting on you",
+      "body": "Open Initiative to review it."
+    },
+    "posts": {
+      "title": "New post",
+      "body": "Open Initiative to read it."
+    },
+    "events": {
+      "title": "An event changed",
+      "body": "Open Initiative to see it."
+    },
+    "event_reminders": {
+      "title": "Upcoming event",
+      "body": "Open Initiative to see it."
+    },
+    "direct_messages": {
+      "title": "New message",
+      "body": "Open Initiative to read it."
+    },
+    "connections": {
+      "title": "A connection update",
+      "body": "Open Initiative to see it."
+    },
+    "jobs": {
+      "title": "A job you started finished",
+      "body": "Open Initiative to see it."
+    },
+    "account": {
+      "title": "An account notice",
+      "body": "Open Initiative to read it."
+    }
+  },
   "quietHours": {
     "summary": {
       "title": "While you were away",

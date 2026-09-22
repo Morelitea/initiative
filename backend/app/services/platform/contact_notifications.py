@@ -154,4 +154,5 @@ async def _write(
         title,
         body,
         data={"type": notification_type.value, **data},
+        locale=getattr(recipient, "locale", None) or "en",
     )

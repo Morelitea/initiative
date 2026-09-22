@@ -22,10 +22,13 @@ import {
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
   getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey,
+  getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
   getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
+  getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut,
   setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut,
   setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
@@ -37,6 +40,8 @@ import type {
   GuildAuthSettingsRead,
   GuildClaimRuleCreate,
   GuildClaimRulesResponse,
+  GuildNotificationPolicyRead,
+  GuildNotificationPolicyUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
@@ -132,6 +137,30 @@ export const useUpdateGuildSessionLimit = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildSessionLimitUpdate) =>
       setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
+  });
+};
+
+/**
+ * What this community's notifications may leave the app carrying, beside what
+ * the deployment already asks of every community.
+ */
+export const useGuildNotificationPolicy = (
+  guildId: number,
+  options?: QueryOpts<GuildNotificationPolicyRead>
+) => {
+  return useQuery<GuildNotificationPolicyRead>({
+    queryKey: getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey(guildId),
+    queryFn: () => getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
+/** Set the three answers; the page refetches to pick up the deployment's. */
+export const useUpdateGuildNotificationPolicy = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildNotificationPolicyUpdate) =>
+      setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut(guildId, data),
   });
 };
 

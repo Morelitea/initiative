@@ -414,6 +414,16 @@ const platformAuthSettings = (): Spec => ({
   personalExact: ["/api/v1/settings/auth/platform"],
 });
 
+/** What this deployment permits a notification to leave the app carrying. */
+const notificationSettings = (): Spec => ({
+  personalExact: ["/api/v1/settings/notifications"],
+});
+
+/** The same three answers for one community. */
+const guildNotificationPolicy = (guildId: number): Spec => ({
+  personalExact: [`/api/v1/guilds/${guildId}/notification-policy`],
+});
+
 /** Where each stream of operations work lands, and what it could land in. */
 const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
 
@@ -682,6 +692,8 @@ export const q = {
   calendarEvent,
   commentsOnResource,
   communitySettings,
+  guildNotificationPolicy,
+  notificationSettings,
   platformAuthSettings,
   intakeOptions,
   intakeSettings,

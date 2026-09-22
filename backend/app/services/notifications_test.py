@@ -445,8 +445,11 @@ def _capture_push(monkeypatch) -> list[dict]:
     sent: list[dict] = []
 
     async def _fake_push(
-        *, session, user_id, notification_type, title, body, data=None
+        *, session, user_id, notification_type, title, body, data=None, **rest
     ):
+        # ``rest`` carries what the seam resolves for itself — the community
+        # whose answer applies, the recipient's language. Accepted and recorded
+        # so a caller that stops passing one is visible here.
         sent.append(
             {
                 "user_id": user_id,
@@ -454,6 +457,7 @@ def _capture_push(monkeypatch) -> list[dict]:
                 "title": title,
                 "body": body,
                 "data": data or {},
+                **rest,
             }
         )
         return 1

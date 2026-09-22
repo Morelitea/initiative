@@ -251,6 +251,7 @@
   "COUNTER_STEP_MUST_BE_POSITIVE": "Die Schrittweite muss eine positive Zahl sein",
   "COUNTER_OUT_OF_RANGE": "Der Wert liegt außerhalb des zulässigen Bereichs",
   "NOTIFICATION_NOT_FOUND": "Benachrichtigung nicht gefunden",
+  "PUSH_NOTIFICATIONS_DISABLED": "Dieser Server sendet keine Push-Benachrichtigungen.",
   "QUERY_INVALID_CONDITIONS": "Ungültige Filterbedingungen",
   "QUERY_INVALID_SORT_FIELDS": "Ungültige Sortierfelder",
   "QUERY_UNPARSEABLE": "Das ist kein SQL, das diese Version lesen kann.",

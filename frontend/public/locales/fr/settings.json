@@ -1709,6 +1709,52 @@
   },
   "platformSecurity": {
     "title": "Sécurité",
-    "description": "Combien de temps une personne peut rester connectée avant de devoir se reconnecter."
+    "description": "Combien de temps quelqu'un peut rester connecté, et ce qu'une notification emporte en quittant l'application."
+  },
+  "notificationDelivery": {
+    "title": "Notifications qui quittent l'application",
+    "description": "Ces limites s'appliquent à toutes les communautés. Une communauté peut les resserrer pour elle-même ; aucune ne peut les élargir.",
+    "saved": "Paramètres de notification enregistrés",
+    "error": "Impossible d'enregistrer les paramètres de notification",
+    "push": {
+      "label": "Notifications mobiles",
+      "onHelp_one": "Les notifications atteignent les téléphones via Apple et Google. Ce serveur conserve {{count}} enregistrement d'appareil.",
+      "onHelp_other": "Les notifications atteignent les téléphones via Apple et Google. Ce serveur conserve {{count}} enregistrements d'appareils.",
+      "offHelp": "Ce serveur n'envoie rien à un téléphone, refuse les nouveaux enregistrements d'appareils et n'en conserve aucun."
+    },
+    "email": {
+      "label": "Notifications par e-mail",
+      "onHelp": "Les notifications atteignent les boîtes aux lettres au rythme que chacun a choisi.",
+      "offHelp": "Aucun e-mail de notification n'est envoyé. Les codes de connexion, les confirmations d'adresse, les réinitialisations de mot de passe et les avis de compte partent toujours."
+    },
+    "redact": {
+      "label": "Masquer les détails des notifications",
+      "onHelp": "Une notification qui quitte l'application indique le type d'événement — « Vous avez été mentionné dans un commentaire ». L'application montre le reste.",
+      "offHelp": "Une notification qui quitte l'application indique de quoi il s'agit : qui a agi, et sur quoi."
+    }
+  },
+  "guildNotifications": {
+    "title": "Notifications qui quittent l'application",
+    "description": "Ce que les notifications de cette communauté emportent en partant. Le serveur répond aux trois mêmes questions pour tout le monde, et la réponse la plus stricte s'applique.",
+    "saved": "Paramètres de notification enregistrés",
+    "error": "Impossible d'enregistrer les paramètres de notification",
+    "push": {
+      "label": "Notifications mobiles",
+      "onHelp": "Les notifications de cette communauté atteignent les téléphones des membres.",
+      "offHelp": "Rien de cette communauté n'est envoyé à un téléphone. Les membres gardent la cloche, et l'e-mail s'il est actif.",
+      "platformHelp": "Ce serveur n'envoie rien à un téléphone : il n'y a rien à décider ici."
+    },
+    "email": {
+      "label": "Notifications par e-mail",
+      "onHelp": "Les notifications de cette communauté atteignent les boîtes aux lettres des membres.",
+      "offHelp": "Aucun e-mail de notification n'est envoyé au sujet de cette communauté. Les codes de connexion et les réinitialisations de mot de passe appartiennent au compte et partent toujours.",
+      "platformHelp": "Ce serveur n'envoie pas d'e-mail de notification : il n'y a rien à décider ici."
+    },
+    "redact": {
+      "label": "Masquer les détails des notifications",
+      "onHelp": "Les notifications concernant cette communauté indiquent le type d'événement une fois sorties de l'application. Ici, les membres voient tout.",
+      "offHelp": "Les notifications concernant cette communauté indiquent de quoi il s'agit une fois sorties de l'application.",
+      "platformHelp": "Ce serveur masque les détails partout : cette communauté est déjà couverte."
+    }
   }
 }

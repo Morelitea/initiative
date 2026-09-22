@@ -1709,6 +1709,52 @@
   },
   "platformSecurity": {
     "title": "Seguridad",
-    "description": "Cuánto tiempo puede alguien mantener la sesión iniciada antes de volver a iniciarla."
+    "description": "Cuánto tiempo puede alguien seguir con la sesión iniciada y qué lleva una notificación al salir de la aplicación."
+  },
+  "notificationDelivery": {
+    "title": "Notificaciones que salen de la aplicación",
+    "description": "Estos límites rigen para todas las comunidades. Una comunidad puede endurecerlos para sí misma; ninguna puede ampliarlos.",
+    "saved": "Ajustes de notificaciones guardados",
+    "error": "No se pudieron guardar los ajustes de notificaciones",
+    "push": {
+      "label": "Notificaciones móviles",
+      "onHelp_one": "Las notificaciones llegan a los teléfonos a través de Apple y Google. Este servidor guarda {{count}} registro de dispositivo.",
+      "onHelp_other": "Las notificaciones llegan a los teléfonos a través de Apple y Google. Este servidor guarda {{count}} registros de dispositivos.",
+      "offHelp": "Este servidor no envía nada a un teléfono, rechaza nuevos registros de dispositivos y no guarda ninguno."
+    },
+    "email": {
+      "label": "Notificaciones por correo",
+      "onHelp": "Las notificaciones llegan a los buzones con la frecuencia que cada persona haya elegido.",
+      "offHelp": "No se envía ningún correo de notificación. Los códigos de inicio de sesión, las confirmaciones de dirección, los restablecimientos de contraseña y los avisos de cuenta siguen saliendo."
+    },
+    "redact": {
+      "label": "Ocultar los detalles de las notificaciones",
+      "onHelp": "Una notificación que sale de la aplicación dice el tipo de cosa que ocurrió: «Te mencionaron en un comentario». La aplicación muestra el resto.",
+      "offHelp": "Una notificación que sale de la aplicación dice de qué trata: quién actuó y sobre qué."
+    }
+  },
+  "guildNotifications": {
+    "title": "Notificaciones que salen de la aplicación",
+    "description": "Qué llevan las notificaciones de esta comunidad al salir. El servidor responde las mismas tres preguntas para todos, y rige la respuesta más estricta.",
+    "saved": "Ajustes de notificaciones guardados",
+    "error": "No se pudieron guardar los ajustes de notificaciones",
+    "push": {
+      "label": "Notificaciones móviles",
+      "onHelp": "Las notificaciones de esta comunidad llegan a los teléfonos de los miembros.",
+      "offHelp": "No se envía nada de esta comunidad a un teléfono. Los miembros conservan la campana, y el correo si está activo.",
+      "platformHelp": "Este servidor no envía nada a un teléfono, así que aquí no hay nada que decidir."
+    },
+    "email": {
+      "label": "Notificaciones por correo",
+      "onHelp": "Las notificaciones de esta comunidad llegan a los buzones de los miembros.",
+      "offHelp": "No se envía correo de notificación sobre esta comunidad. Los códigos de inicio de sesión y los restablecimientos de contraseña son de la cuenta y siguen saliendo.",
+      "platformHelp": "Este servidor no envía correo de notificación, así que aquí no hay nada que decidir."
+    },
+    "redact": {
+      "label": "Ocultar los detalles de las notificaciones",
+      "onHelp": "Las notificaciones sobre esta comunidad dicen el tipo de cosa que ocurrió al salir de la aplicación. Aquí los miembros lo ven todo.",
+      "offHelp": "Las notificaciones sobre esta comunidad dicen de qué tratan al salir de la aplicación.",
+      "platformHelp": "Este servidor oculta los detalles en todas partes, así que esta comunidad ya está cubierta."
+    }
   }
 }
