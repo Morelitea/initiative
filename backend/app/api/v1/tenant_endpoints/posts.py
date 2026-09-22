@@ -190,7 +190,7 @@ def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
     from its author rather than merely stop them editing it.
     """
     if permissions_service.request_bypasses_dac(
-        guild_context.guild_id,
+        guild_context,
         initiative_id=post.initiative_id,
         access="write",
     ):
