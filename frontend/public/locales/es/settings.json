@@ -1718,8 +1718,9 @@
     "error": "No se pudieron guardar los ajustes de notificaciones",
     "push": {
       "label": "Notificaciones móviles",
-      "onHelp_one": "Las notificaciones llegan a los teléfonos a través de Apple y Google. Este servidor guarda {{count}} registro de dispositivo.",
-      "onHelp_other": "Las notificaciones llegan a los teléfonos a través de Apple y Google. Este servidor guarda {{count}} registros de dispositivos.",
+      "onHelp": "Las notificaciones llegan a los teléfonos a través de Apple y Google.",
+      "holding_one": "Desactivarlo también descarta el {{count}} registro de dispositivo que guarda este servidor.",
+      "holding_other": "Desactivarlo también descarta los {{count}} registros de dispositivos que guarda este servidor.",
       "offHelp": "Este servidor no envía nada a un teléfono, rechaza nuevos registros de dispositivos y no guarda ninguno."
     },
     "email": {

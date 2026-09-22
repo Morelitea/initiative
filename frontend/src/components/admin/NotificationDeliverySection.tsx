@@ -50,11 +50,17 @@ export const NotificationDeliverySection = () => {
     {
       id: "platform-push-notifications",
       label: t("notificationDelivery.push.label"),
-      help: saved.push_notifications_enabled
-        ? // Said before the write rather than after it: switching this off
-          // drops the device tokens the deployment is holding.
-          t("notificationDelivery.push.onHelp", { count: saved.push_tokens_held })
-        : t("notificationDelivery.push.offHelp"),
+      // What switching off would cost is said before the write rather than
+      // after it — and only where there is something to drop, so a deployment
+      // nobody has installed the app on reads one plain line instead of a
+      // count of zero.
+      help: !saved.push_notifications_enabled
+        ? t("notificationDelivery.push.offHelp")
+        : saved.push_tokens_held > 0
+          ? `${t("notificationDelivery.push.onHelp")} ${t("notificationDelivery.push.holding", {
+              count: saved.push_tokens_held,
+            })}`
+          : t("notificationDelivery.push.onHelp"),
       checked: saved.push_notifications_enabled,
       change: (next: boolean) => flip({ push_notifications_enabled: next }),
     },

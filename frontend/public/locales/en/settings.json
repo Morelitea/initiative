@@ -1718,8 +1718,9 @@
     "error": "Could not save notification settings",
     "push": {
       "label": "Mobile notifications",
-      "onHelp_one": "Notifications reach phones through Apple and Google. This server holds {{count}} device registration.",
-      "onHelp_other": "Notifications reach phones through Apple and Google. This server holds {{count}} device registrations.",
+      "onHelp": "Notifications reach phones through Apple and Google.",
+      "holding_one": "Switching this off also drops the {{count}} device registration this server holds.",
+      "holding_other": "Switching this off also drops the {{count}} device registrations this server holds.",
       "offHelp": "This server sends nothing to a phone, declines new device registrations, and holds none."
     },
     "email": {
