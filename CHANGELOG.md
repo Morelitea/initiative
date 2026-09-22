@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.2] - 2026-09-21
+
+### Fixed
+
+- **Upgrading to 0.71.1 no longer stops at startup** — on a server that had ever trashed, archived or purged one of the shared calendars created for it last month, 0.71.1 refused to start: the repair it carried for those calendars' ownership was blocked by the same rule that keeps trashed and archived content read-only, and the server tried the upgrade again on every restart. Nothing was changed on such a server — the upgrade stepped back each time — so 0.71.0 runs against it as before. The repair now sets that rule aside for the one statement and puts it back after, and a failure inside it would name its real cause instead of the aftermath. If 0.71.1 started for you, it did the same thing this does and there is nothing further to run.
+
 ## [0.71.1] - 2026-09-21
 
 ### Added
