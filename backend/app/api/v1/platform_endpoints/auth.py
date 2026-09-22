@@ -1146,10 +1146,9 @@ async def logout(
     A native client authenticating with a device token consumes that row too —
     the token is one installed client's, so consuming it is the same per-device
     scope by another name.
-
-    (``admin_session`` is a SEPARATE, deliberate session: ``auth_sessions`` is
-    reached on the system engine, as everywhere else that touches it.)
     """
+    # ``admin_session`` is a SEPARATE, deliberate session: ``auth_sessions`` is
+    # reached on the system engine, as everywhere else that touches it.
     if current_user is not None:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("DeviceToken "):
