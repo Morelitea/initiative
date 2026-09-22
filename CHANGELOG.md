@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Uploading a file works for everyone who may create documents, not just community admins** — uploading a document as a regular initiative member failed with an error, because the file's first version (and a picture's cover image) was written before the upload's owner had been recorded, and the database refused both. They're now written after, and admins and members alike can upload again.
 - **Tags are cut to the room they have, not to twelve characters** — every tag name was shortened to twelve characters per segment before it was ever drawn, so `Documentation` came out as `Document...` even in a column with three times the space for it. The name is now drawn in full and the browser trims it, with an ellipsis, exactly where it runs out of room; the whole name is still on hover. The tag picker also keeps its tags inside its box now, which the old character limit had been hiding.
 - **The task table's columns stop shifting as you scroll** — the table view keeps only the rows in view, and the browser was sizing the columns from whatever those happened to be, so every scroll re-measured against different content and the columns jumped. Widths now come from the columns themselves and hold still from the first row to the last.
 
