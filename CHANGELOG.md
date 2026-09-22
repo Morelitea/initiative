@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **A clock you can choose** — **My Settings → Interface → Time format** decides whether times read as `1:30 PM` or `13:30`, and it applies everywhere one is shown: calendars and their hour gutters, event times and the half-hour pickers that set them, task due dates and their tooltips, message timestamps, and every date-and-time in settings. The default, **Browser default**, follows your browser's language exactly as before, so nothing changes until you pick a side. (Your operating system's own 12/24-hour setting isn't something a browser can see, which is why picking one here is the only way to say it.)
+- **Choose what a kanban card shows** — the board gets a **Fields** menu, the counterpart to the table's *Columns*. Turn off what a project doesn't use — priority, dates, tags, the checklist bar, comment and blocker counts, any custom property — and the cards get shorter and quicker to scan. It's called *Fields* rather than *Columns* because on a board the columns are your statuses. Choices are remembered per project, and a board you haven't touched still shows everything.
 
 ### Fixed
 
