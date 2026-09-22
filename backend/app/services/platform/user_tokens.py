@@ -404,6 +404,31 @@ async def revoke_active_device_tokens(
     )
 
 
+async def revoke_other_device_tokens(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    keep_token_id: Optional[int] = None,
+) -> int:
+    """Consume every active device token for a user bar one. Returns the count.
+
+    The counterpart to :func:`revoke_active_device_tokens` for the account's
+    own "sign out everywhere else": ``keep_token_id`` is the device asking, so
+    it is not signed out by its own button. Left unset, nothing is spared.
+
+    Does not commit — the caller owns the surrounding transaction.
+    """
+    stmt = sql_update(UserToken).where(
+        UserToken.user_id == user_id,
+        UserToken.purpose == UserTokenPurpose.device_auth,
+        UserToken.consumed_at.is_(None),
+    )
+    if keep_token_id is not None:
+        stmt = stmt.where(UserToken.id != keep_token_id)
+    result = await session.exec(stmt.values(consumed_at=datetime.now(timezone.utc)))
+    return result.rowcount
+
+
 async def revoke_device_tokens_first(
     session: AsyncSession,
     *,
