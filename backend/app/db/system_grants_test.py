@@ -14,6 +14,7 @@ import pytest
 
 from app.db.system_grants import (
     GRANTABLE_SHARED_TABLES,
+    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
     VALID_GRANT_VERBS,
@@ -25,6 +26,7 @@ pytestmark = pytest.mark.unit
 _MATRICES = [
     ("app_admin", SHARED_TABLE_SYSTEM_GRANTS),
     ("app_user", SHARED_TABLE_APP_USER_GRANTS),
+    ("app_guild_base", SHARED_TABLE_APP_GUILD_BASE_GRANTS),
 ]
 
 

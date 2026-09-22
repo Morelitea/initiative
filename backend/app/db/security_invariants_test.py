@@ -31,6 +31,7 @@ from app.db.user_columns import (
     PUBLISHED_COLUMNS,
 )
 from app.db.system_grants import (
+    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
 )
@@ -203,6 +204,18 @@ async def test_app_admin_grants_match_audited_matrix(engine):
 async def test_app_user_grants_match_audited_matrix(engine):
     live = await _table_grants_for(engine, "app_user")
     _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
+
+
+async def test_app_guild_base_grants_match_audited_matrix(engine):
+    """The guild floor's reach into ``public`` is what the registry says.
+
+    ``app_guild_base`` is what every ``guild_<id>`` role inherits, and it is
+    granted by the schema default rather than table by table — so this is the
+    check that a shared table added later has had its reach decided (an entry
+    in the registry, and a ``REVOKE`` in the migration where that entry says
+    ``None``) instead of inherited."""
+    live = await _table_grants_for(engine, "app_guild_base")
+    _assert_matrix("app_guild_base", live, SHARED_TABLE_APP_GUILD_BASE_GRANTS)
 
 
 async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):

@@ -1,10 +1,7 @@
-"""Single source of truth for the audited per-table GRANTs the two directly-
-granted login roles hold on the shared (``public``) tables.
+"""Single source of truth for the audited per-table GRANTs the request-path
+Postgres roles hold on the shared (``public``) tables.
 
-Two Postgres login roles carry *enumerated* per-table privileges on the shared
-schema; the routed ``guild_<id>`` / ``platform_<tier>`` roles instead inherit
-public access from ``app_guild_base`` / ``platform_base`` defaults, so they are
-not listed here:
+Three roles are recorded here, one matrix each:
 
 * **``app_admin``** — the system engine (BYPASSRLS trusted-batch actor). Its
   security boundary *is* exactly this grant set: a new shared table gives the
@@ -13,8 +10,18 @@ not listed here:
 * **``app_user``** — the bare login role serving the pre-routing /
   unauthenticated surface (RLS-enforced, no ``SET ROLE`` yet).
   ``SHARED_TABLE_APP_USER_GRANTS``.
+* **``app_guild_base``** — the floor every ``guild_<id>`` role inherits, so
+  the reach of a routed community session into ``public``. It is granted the
+  other way round: the schema default gives it full DML on a new table, and the
+  migration that adds the table takes back what it does not want.
+  ``SHARED_TABLE_APP_GUILD_BASE_GRANTS`` records where that has landed, table
+  by table, so a new table's reach is a decision here rather than a default.
 
-Historically these matrices were the audited product of migrations
+The platform floor, ``platform_base``, is granted the same way and is not yet
+recorded. The read-only guild floor, ``app_guild_base_ro``, is derived from
+``app_guild_base`` (``guild_base_ro_parity_test``) rather than listed.
+
+Historically the first two matrices were the audited product of migrations
 20260702_0129 (``app_admin``) and _0130 (``app_user``), folded into the
 post-squash reconciler 20260702_0126. **Migrations remain the immutable record
 of when a grant changed** (they still run the actual ``GRANT``/``REVOKE``);
@@ -38,6 +45,7 @@ from app.db.tenancy import SHARED_TABLES
 __all__ = [
     "SHARED_TABLE_SYSTEM_GRANTS",
     "SHARED_TABLE_APP_USER_GRANTS",
+    "SHARED_TABLE_APP_GUILD_BASE_GRANTS",
     "NON_MODEL_SHARED_TABLES",
     "GRANTABLE_SHARED_TABLES",
     "VALID_GRANT_VERBS",
@@ -412,6 +420,161 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "billing_jti_blocklist": None,
     "alembic_version": None,
     # system-engine-only status singleton; no request role reads it
+    "storage_backfill_state": None,
+}
+
+
+# table -> the verbs the GUILD FLOOR (``app_guild_base``) holds, or ``None``.
+# Every ``guild_<id>`` role inherits this set, so it is the reach of a routed
+# community session into ``public``. Unlike the two above it was never granted
+# table by table: the schema default gives a new table full DML, and the
+# migration that adds a table takes back what it does not want (or the
+# security tests catch one that forgot). Each entry below says which it is.
+# Column-scoped grants live in the column ACL, not the table ACL, and are
+# asserted separately in security_invariants_test.
+SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
+    # 0144 and 0202 revoked every table-level verb from the guild floor: an
+    # account's own record is read and written under a platform tier, and the
+    # guild-routed path names a member through the guild_member_profiles view
+    # (0220). Asserted by test_the_guild_path_holds_nothing_on_the_users_table.
+    "users": None,
+    # 0138 revoked INSERT and UPDATE at the table level. UPDATE survives as
+    # column grants on the identity columns a community's admin edits (name,
+    # description, banner, categories, is_community, has_adult_content,
+    # show_member_names, updated_at — 0138, 0196, 0200, 0203). guild_select
+    # narrows SELECT to the routed community and the reader's own; guild_delete
+    # admits the routed admin.
+    "guilds": frozenset({"SELECT", "DELETE"}),
+    # 0179: read-only for every request-path role; a community reads its own
+    # caps and plan label (guild_administration_select).
+    "guild_administration": frozenset({"SELECT"}),
+    # 0145 revoked UPDATE — ``role`` is the system engine's column — and 0266
+    # re-granted it on ``position`` alone, as a column grant. What remains at
+    # the table level is joining (INSERT, member-only policy), leaving (DELETE
+    # of the reader's own row) and reading the routed community's roster.
+    "guild_memberships": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # The schema default, never narrowed. The four guild_* policies admit a
+    # member of the invite's community.
+    "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0146 moved every write to the system engine for all request-path roles
+    # (test_access_grants_are_writable_only_by_the_system_engine). SELECT is
+    # narrowed to the reader's own grants by access_grants_self.
+    "access_grants": frozenset({"SELECT"}),
+    # 0338: the credential is the system engine's from creation to deletion.
+    "import_credentials": None,
+    # 0249: minted and resolved on the system engine and the bare login role.
+    "identity_refs": None,
+    # Deployment settings are read from inside a community as from anywhere
+    # (app_settings_read, TO public); writes are the owner's, under RLS.
+    "app_settings": frozenset({"SELECT"}),
+    # 0164: the catalog is browsed under a guild role or a platform tier.
+    "marketplace_listings": frozenset({"SELECT"}),
+    "marketplace_listing_versions": frozenset({"SELECT"}),
+    "app_service_registrations": None,
+    "app_service_nonces": None,
+    "marketplace_registry_state": None,
+    # Served to anyone holding the digest, so read under every request role.
+    "marketplace_media": frozenset({"SELECT"}),
+    # 0200: no table grant; the routed path holds a column-scoped SELECT on
+    # (guild_id, variant, sha256), asserted in security_invariants_test.
+    "guild_images": None,
+    # 0201: any role reads any avatar; the self_* policies narrow the three
+    # writes to the caller's own row, granted to all three floors alike.
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0213: a member reads their own library from inside a community
+    # (user_decoration_self_read); grants are issued on the system engine.
+    "user_decorations": frozenset({"SELECT"}),
+    # Platform-tier path only: every policy on these is TO platform_base, and
+    # the migration that added each took the schema default back.
+    "profile_favorites": None,
+    "legal_acceptances": None,
+    "user_dm_settings": None,
+    # 0343: own-row policies for the guild floor on SELECT, INSERT and UPDATE,
+    # so a member's answer follows them into a community. DELETE carries no
+    # policy for this floor, and a grant admits no row without one.
+    "user_cookie_consent": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0245: the same shape — own-row SELECT, INSERT and UPDATE for the guild
+    # floor; a member reads and changes their own preferences from inside a
+    # community. DELETE carries no policy here either.
+    "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0320: a routed request appends the notification email for its recipient;
+    # reading, claiming and settling are the worker's, on the system engine.
+    "email_outbox": frozenset({"INSERT"}),
+    # 0225: the direct-message transport and its reach tables grant the guild
+    # floor nothing; every policy on them is TO platform_base.
+    "user_dm_guild_optouts": None,
+    "contact_grants": None,
+    "user_ignores": None,
+    "dm_devices": None,
+    "dm_one_time_keys": None,
+    "dm_conversations": None,
+    "dm_conversation_members": None,
+    "dm_queue": None,
+    # Owner-managed under RLS on the platform path; read by the system engine.
+    "platform_ai_connections": None,
+    # The schema default, never narrowed. guild_isolation (FOR ALL) narrows
+    # every verb to the routed community's own mappings.
+    "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0131, 0133, 0142: the login provider registry, its secrets and the
+    # identity links are the system engine's; each migration took the schema
+    # default back from both floors.
+    "auth_providers": None,
+    "auth_provider_secrets": None,
+    "federated_identities": None,
+    "federated_identity_secrets": None,
+    # 0147 granted SELECT — the gate reads the requirement before routing —
+    # and 0297 the three writes, each narrowed by a seat policy to the routed
+    # community's own row and to a holder of guild_superadmin.
+    "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0308: the read floor reads the gate; the writes are the system engine's.
+    "guild_provider_connections": frozenset({"SELECT"}),
+    "platform_provider_defaults": frozenset({"SELECT"}),
+    # 0132, 0261, 0262, 0290, 0307: sessions, addresses, factors and
+    # challenges are resolved on the system engine before an account is
+    # known; each migration took the schema default back from both floors.
+    "auth_sessions": None,
+    "user_emails": None,
+    "user_email_assertions": None,
+    "user_passkeys": None,
+    "user_totp": None,
+    "user_totp_secrets": None,
+    "mfa_recovery_codes": None,
+    "auth_challenges": None,
+    # The schema default, never narrowed. user_view_preferences_self_scope
+    # (FOR ALL, TO public) narrows every verb to the reader's own rows.
+    "user_view_preferences": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0245 records the decision: a notification is written by the actor for
+    # its recipient on the routed session, in the same transaction as the
+    # content that caused it, and the table carries no policy for the request
+    # path. Reading and dismissing run under a platform tier.
+    "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0218: read from inside a community as from the platform path, within the
+    # live window (announcement_live_read); receipts are written under a
+    # platform tier only.
+    "announcements": frozenset({"SELECT"}),
+    "announcement_reads": None,
+    "announcement_images": frozenset({"SELECT"}),
+    # 0156: system-engine-only, no request-path grant.
+    "user_api_keys": None,
+    # The next three carry the schema default, which no migration has
+    # narrowed, and no policy. A token is resolved on the bare login role
+    # before a request is routed (SHARED_TABLE_APP_USER_GRANTS), device
+    # registration runs under a platform tier (platform_endpoints/push.py),
+    # and the redemption path and its janitor run on the bare login role and
+    # the system engine. Recorded as the catalog stands; each narrowing is a
+    # migration's decision with its own test.
+    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "auto_delegation_jti_blocklist": frozenset(
+        {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    ),
+    # 0134: the billing boundary took both floors back; only the SET ROLE
+    # initiative_billing role reaches these.
+    "billing_event_log": None,
+    "billing_jti_blocklist": None,
+    "alembic_version": None,
+    # _ensure_table takes both floors back at creation
+    # (app.services.storage_backfill).
     "storage_backfill_state": None,
 }
 
