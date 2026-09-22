@@ -1,12 +1,17 @@
 """Settings rows: where they come from, and what asking for one costs."""
 
+import logging
+
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings as app_config
+from app.core.login_methods import DEFAULT_LOGIN_METHODS
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import (
     GLOBAL_SETTINGS_ID,
+    _build_default_app_settings,
     ensure_settings_row,
     get_app_settings,
     get_or_create_guild_settings,
@@ -89,3 +94,66 @@ async def test_guild_settings_gap_fill_joins_the_transaction(session: AsyncSessi
     # Asking again answers with the row already there, same transaction still.
     assert (await get_or_create_guild_settings(session, guild.id)).id == row.id
     assert (await session.exec(text("SELECT txid_current()"))).one() == started
+
+
+# --- The sign-in posture the env seeds ------------------------------------
+
+DEFAULT_METHODS = [m.value for m in DEFAULT_LOGIN_METHODS]
+
+
+def _seed_env(monkeypatch, methods, *, mail: bool = True) -> None:
+    monkeypatch.setattr(app_config, "AUTH_LOGIN_METHODS", methods)
+    monkeypatch.setattr(app_config, "SMTP_HOST", "smtp.example.com" if mail else None)
+    monkeypatch.setattr(
+        app_config, "SMTP_FROM_ADDRESS", "app@example.com" if mail else None
+    )
+
+
+def test_env_decides_the_ways_in_of_a_fresh_row(monkeypatch):
+    """AUTH_LOGIN_METHODS is stored the way the settings page stores it."""
+    _seed_env(monkeypatch, ["sso", "passkey", "totp", "email_otp"])
+    assert _build_default_app_settings().login_methods == [
+        "email_otp",
+        "passkey",
+        "sso",
+        "totp",
+    ]
+
+
+def test_env_unset_keeps_the_default(monkeypatch):
+    _seed_env(monkeypatch, None)
+    assert _build_default_app_settings().login_methods == DEFAULT_METHODS
+
+
+def test_env_value_this_version_does_not_know_is_dropped_and_said(monkeypatch, caplog):
+    _seed_env(monkeypatch, ["sso", "magic_link"])
+    with caplog.at_level(logging.WARNING):
+        assert _build_default_app_settings().login_methods == ["sso"]
+    assert "magic_link" in caplog.text
+
+
+def test_env_with_no_way_to_begin_keeps_the_default(monkeypatch, caplog):
+    """The column's CHECK would refuse the row; falling back keeps the
+    deployment one somebody can still configure."""
+    _seed_env(monkeypatch, ["totp"])
+    with caplog.at_level(logging.WARNING):
+        assert _build_default_app_settings().login_methods == DEFAULT_METHODS
+    assert "begin a session" in caplog.text
+
+
+def test_env_emailed_code_needs_a_mail_server(monkeypatch, caplog):
+    """The rule the settings page enforces on the way up, applied to the seed."""
+    _seed_env(monkeypatch, ["sso", "email_otp"], mail=False)
+    with caplog.at_level(logging.WARNING):
+        assert _build_default_app_settings().login_methods == ["sso"]
+    assert "mail server" in caplog.text
+
+
+async def test_env_seeds_the_row_once(session: AsyncSession, monkeypatch):
+    """The env decides a row it creates, and never one that already exists."""
+    _seed_env(monkeypatch, ["sso", "passkey"])
+    assert (await seed_app_settings(session)).login_methods == ["passkey", "sso"]
+
+    _seed_env(monkeypatch, ["password"])
+    assert (await seed_app_settings(session)).login_methods == ["passkey", "sso"]
+    assert (await get_app_settings(session)).login_methods == ["passkey", "sso"]

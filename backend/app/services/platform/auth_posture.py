@@ -1,7 +1,11 @@
 """Which ways in this deployment permits.
 
 The one read of the setting, and the one write. Everything that gates a
-sign-in route asks here, so the rules live in exactly one place.
+sign-in route asks here, so the rules live in exactly one place. (A fresh
+deployment's first value is the env's, ``AUTH_LOGIN_METHODS`` — seeded once
+into the settings row when it is created, see
+``app_settings._seeded_login_methods`` — and every change after that is
+:func:`set_login_methods`.)
 """
 
 from __future__ import annotations

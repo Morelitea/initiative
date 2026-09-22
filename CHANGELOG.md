@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A deployment can be told its ways in before anybody signs in** — `AUTH_LOGIN_METHODS=sso,passkey,totp,email_otp` in the environment seeds **Settings → Platform → Authentication** on the first boot, the way `OIDC_*` seeds the provider, so a server meant to run without passwords never has them on. Read once, when the settings row is first created; after that the page owns it and the variable is ignored. A value this version does not know is dropped with a line in the log, and a list with nothing that can begin a session — or one asking for the emailed code with no mail server configured — keeps the default.
+
 ### Changed
 
 - **Trophies say who you are, not what you're holding** — most were named for the object drawn on them: Backpack, Tent, Bat, Cat, Cup. Renamed across sixteen packs — Books, Cinema, Drama, Education, Gaming, Nature, Observatory, Pets, Soundcheck, Spooky, Sports, Tea, Travel, Winter, Zen and Plants — to say what they mean instead: a backpack is now **Hiker**, a tent is **Camping fanatic**, a bat is **A little batty**, a cat is **Cat person**. Faith, disability, family, First Nations, heritage, Pride and the country flags were left alone — those already say exactly what they are.
