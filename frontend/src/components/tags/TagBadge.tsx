@@ -19,13 +19,6 @@ interface TagBadgeProps {
   className?: string;
 }
 
-const MAX_SEGMENT_LENGTH = 12;
-
-function truncateSegment(segment: string, maxLength: number): string {
-  if (segment.length <= maxLength) return segment;
-  return segment.slice(0, maxLength - 3) + "...";
-}
-
 export function TagBadge({
   tag,
   to,
@@ -43,12 +36,15 @@ export function TagBadge({
   const textColor = getContrastingTextColor(tag.color) === "#0F172A" ? "#000000" : "#FFFFFF";
   const isClickable = !!handleClick || !!to;
 
-  // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")
-  const segments = tag.name.split("/");
-  const displayName = segments.map((s) => truncateSegment(s, MAX_SEGMENT_LENGTH)).join("/");
+  // No character cap: the badge is `max-w-full` and its label is `truncate`,
+  // so the browser cuts the name exactly where the room runs out and nowhere
+  // earlier. A cap measured in characters can only ever be wrong — it cut
+  // "Documentation" down in a column with space for three times that, and
+  // 12 characters of a proportional font is a different width per tag anyway.
+  // The full name is on `title` either way.
 
   const sharedClassName = cn(
-    "inline-flex max-w-full items-center gap-1 rounded-md font-medium",
+    "inline-flex min-w-0 max-w-full items-center gap-1 rounded-md font-medium",
     size === "sm" && "px-1.5 py-0.5 text-xs",
     size === "md" && "px-2 py-1 text-sm",
     isClickable && "cursor-pointer hover:opacity-80",
@@ -68,7 +64,7 @@ export function TagBadge({
         e.preventDefault();
         onRemove();
       }}
-      className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
+      className="ml-0.5 shrink-0 rounded-sm hover:opacity-70 focus:outline-none"
       aria-label={t("badge.remove", { name: tag.name })}
     >
       <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
@@ -81,7 +77,7 @@ export function TagBadge({
       return (
         <span className={sharedClassName} style={sharedStyle} title={tag.name}>
           <Link to={to} className="truncate hover:underline">
-            {displayName}
+            {tag.name}
           </Link>
           {removeButton}
         </span>
@@ -89,7 +85,7 @@ export function TagBadge({
     }
     return (
       <Link to={to} className={sharedClassName} style={sharedStyle} title={tag.name}>
-        <span className="truncate">{displayName}</span>
+        <span className="truncate">{tag.name}</span>
       </Link>
     );
   }
@@ -123,7 +119,7 @@ export function TagBadge({
       style={sharedStyle}
       title={tag.name}
     >
-      <span className="truncate">{displayName}</span>
+      <span className="truncate">{tag.name}</span>
       {removeButton}
     </span>
   );
