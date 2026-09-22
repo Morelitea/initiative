@@ -719,7 +719,13 @@ def _comments_dac() -> DacPath:
                 leg = _dac_two_hop(
                     parent.table, parent.tool_fk, parent.governed_by.plural, col
                 )
-            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
+            rendered = leg.predicate(t, command, w)
+            if rendered != ANSWERED:
+                legs.append(f"({t}.{col} IS NOT NULL AND {rendered})")
+        # Every parent's own policy answered, so the walk above is the whole
+        # of it and there is nothing to AND on.
+        if not legs:
+            return ANSWERED
         return "(" + " OR ".join(legs) + ")"
 
     return DacPath(predicate=build)
@@ -730,12 +736,22 @@ def comments_path() -> InitiativePath:
     declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
 
     def build(t: str, w: bool) -> str:
-        legs = [
-            f"({t}.{p.column} IS NOT NULL AND EXISTS ("
-            f"SELECT 1 FROM {p.frm} WHERE {p.tie} = {t}.{p.column} "
-            f"AND {_access(p.initiative, w)}))"
-            for p in _COMMENT_PARENTS
-        ]
+        legs = []
+        for p in _COMMENT_PARENTS:
+            if not w and parent_answers_for_reads(p.table):
+                # The parent alone, without the hop past it: its own SELECT
+                # policy is what walks the rest of the way.
+                nearest = p.frm.split(" JOIN ")[0]
+                legs.append(
+                    f"({t}.{p.column} IS NOT NULL AND EXISTS ("
+                    f"SELECT 1 FROM {nearest} WHERE {p.tie} = {t}.{p.column}))"
+                )
+                continue
+            legs.append(
+                f"({t}.{p.column} IS NOT NULL AND EXISTS ("
+                f"SELECT 1 FROM {p.frm} WHERE {p.tie} = {t}.{p.column} "
+                f"AND {_access(p.initiative, w)}))"
+            )
         return "(" + " OR ".join(legs) + ")"
 
     def locate(r: str) -> str:

@@ -908,7 +908,7 @@ async def _load_guild_context(
         # identity granted access carries — and clears no guard of its own.
         return GuildContext(
             guild=guild,
-            user_id=current_user.id,  # ty: ignore[invalid-argument-type]
+            user_id=current_user.id,
             grant=grant,
             settings_grant=settings_grant,
         )
@@ -945,7 +945,7 @@ async def _load_guild_context(
     )
     return GuildContext(
         guild=guild,
-        user_id=current_user.id,  # ty: ignore[invalid-argument-type]
+        user_id=current_user.id,
         membership=membership,
         content_read_only=(guild.status == GuildStatus.read_only.value),
     )
