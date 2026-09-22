@@ -213,12 +213,7 @@ async def seed_initiative(
     ``guild_<id>``'s empty tables and left no initiative in them.
     """
     existing = (
-        await session.exec(
-            select(Initiative).where(
-                Initiative.guild_id == guild_id,
-                Initiative.name == name,
-            )
-        )
+        await session.exec(select(Initiative).where(Initiative.name == name))
     ).one_or_none()
     if existing is not None:
         await session.refresh(existing, attribute_names=["memberships"])
@@ -227,7 +222,6 @@ async def seed_initiative(
     initiative = Initiative(
         name=name,
         description="Seeded by scripts/seed_dev_data.py",
-        guild_id=guild_id,
         color=SEED_INITIATIVE_COLOR,
     )
     session.add(initiative)
@@ -242,7 +236,6 @@ async def seed_initiative(
             initiative_id=initiative.id,
             user_id=creator.id,
             role_id=role.id,
-            guild_id=guild_id,
         )
     )
     await session.flush()
@@ -265,8 +258,8 @@ def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
 
     ``tagged_with`` is directional — a tag is a label, so the edge describes the
     thing carrying it — which is why the tagged entity is always the source.
-    ``guild_id`` is stated rather than left to the table's trigger: a tenant
-    write has to be routable when it is added, and the tag knows its guild.
+    The session is already routed to the community the tag is in, which is what
+    says where the edge lands.
     """
     return EntityRelationship(
         source_type=kind,
@@ -275,7 +268,6 @@ def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
         target_type="tag",
         target_id=tag.id,
         provenance="manual",
-        guild_id=tag.guild_id,
         created_at=datetime.now(timezone.utc),
     )
 
@@ -304,7 +296,6 @@ def _attachment_edge(
         target_type=target[0],
         target_id=target[1],
         provenance="manual",
-        guild_id=guild_id,
         created_by=created_by,
         created_at=datetime.now(timezone.utc),
     )
@@ -1170,7 +1161,6 @@ async def _create_initiative(
             f"_create_initiative() got unexpected keyword argument(s): {', '.join(unknown)}"
         )
     initiative = Initiative(
-        guild_id=guild.id,
         name=name,
         description=description,
         color=color,
@@ -1208,7 +1198,6 @@ async def _create_initiative(
     pm_member = InitiativeMember(
         initiative_id=initiative.id,
         user_id=pm_user.id,
-        guild_id=guild.id,
         role_id=pm_role.id,
     )
     session.add(pm_member)
@@ -1221,7 +1210,6 @@ async def _create_initiative(
         m = InitiativeMember(
             initiative_id=initiative.id,
             user_id=user.id,
-            guild_id=guild.id,
             role_id=member_role.id,
         )
         session.add(m)
@@ -1529,7 +1517,6 @@ async def _create_project(
     # the seed is about to give it. The date is remembered and stamped once the
     # project holds everything it is meant to hold.
     project = Project(
-        guild_id=guild.id,
         name=name,
         icon=icon,
         description=description,
@@ -1549,7 +1536,6 @@ async def _create_project(
         resource_type="project",
         resource_id=project.id,
         user_id=owner.id,
-        guild_id=guild.id,
         initiative_id=project.initiative_id,
         level=ResourceAccessLevel.owner,
     )
@@ -1561,7 +1547,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             user_id=user.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=ResourceAccessLevel.write,
         )
@@ -1573,7 +1558,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             user_id=user.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=ResourceAccessLevel.read,
         )
@@ -1585,7 +1569,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             role_id=role.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=level,
         )
@@ -1596,7 +1579,6 @@ async def _create_project(
         p = ResourceGrant(
             resource_type="project",
             resource_id=project.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=general_access,
             all_initiative_members=True,
@@ -1700,7 +1682,6 @@ async def _create_tasks(
         due = td.get("due_days")
         start = td.get("start_days")
         task = Task(
-            guild_id=guild.id,
             project_id=td["project_id"],
             task_status_id=status.id,
             title=td["title"],
@@ -1726,7 +1707,10 @@ async def _create_tasks(
         for assignee_name in td.get("assignees", []):
             user = all_users.get(assignee_name)
             if user:
-                a = TaskAssignee(task_id=task.id, user_id=user.id, guild_id=guild.id)
+                a = TaskAssignee(
+                    task_id=task.id,
+                    user_id=user.id,
+                )
                 session.add(a)
                 ids.add("task_assignees", {"task_id": task.id, "user_id": user.id})
 
@@ -1746,7 +1730,7 @@ async def _create_tags(
     """Create tags for a guild."""
     tags: dict[str, Tag] = {}
     for name, color in tag_defs:
-        tag = Tag(guild_id=guild.id, name=name, color=color)
+        tag = Tag(name=name, color=color)
         session.add(tag)
         await session.flush()
         tags[name] = tag
@@ -1813,7 +1797,6 @@ async def _create_documents(
         # common case) or a ready-made ``content`` blob with the
         # ``document_type`` that goes with it.
         doc = Document(
-            guild_id=guild.id,
             initiative_id=dd["initiative_id"],
             name=dd["title"],
             content=dd.get("content") or _doc(dd["paragraphs"]),
@@ -1830,7 +1813,6 @@ async def _create_documents(
             resource_type="document",
             resource_id=doc.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=doc.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -1845,7 +1827,6 @@ async def _create_documents(
                     resource_type="document",
                     resource_id=doc.id,
                     user_id=w.id,
-                    guild_id=guild.id,
                     initiative_id=doc.initiative_id,
                     level=ResourceAccessLevel.write,
                 )
@@ -1861,7 +1842,6 @@ async def _create_documents(
                     resource_type="document",
                     resource_id=doc.id,
                     user_id=r.id,
-                    guild_id=guild.id,
                     initiative_id=doc.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -1875,7 +1855,6 @@ async def _create_documents(
                 resource_type="document",
                 resource_id=doc.id,
                 role_id=role.id,
-                guild_id=guild.id,
                 initiative_id=doc.initiative_id,
                 level=level,
             )
@@ -1886,7 +1865,6 @@ async def _create_documents(
             dp = ResourceGrant(
                 resource_type="document",
                 resource_id=doc.id,
-                guild_id=guild.id,
                 initiative_id=doc.initiative_id,
                 level=dd["general_access"],
                 all_initiative_members=True,
@@ -1951,7 +1929,6 @@ async def _create_comments(
         task = tasks.get(cd.get("task_title", ""))
         doc = docs.get(cd.get("doc_title", ""))
         comment = Comment(
-            guild_id=guild.id,
             content=cd["content"],
             created_by=author.id,
             task_id=task.id if task else None,
@@ -1973,7 +1950,6 @@ async def _create_favorites(
         fav = ProjectFavorite(
             user_id=user.id,
             project_id=project.id,
-            guild_id=guild.id,
         )
         session.add(fav)
         ids.add("project_favorites", {"user_id": user.id, "project_id": project.id})
@@ -1992,7 +1968,6 @@ async def _create_recent_views(
             user_id=user.id,
             entity_type="project",
             entity_id=project.id,
-            guild_id=guild.id,
         )
         session.add(view)
         ids.add(
@@ -2049,7 +2024,7 @@ async def _create_guild_settings(
     **kwargs,
 ) -> GuildSetting:
     """Create or update guild settings."""
-    gs = GuildSetting(guild_id=guild.id, **kwargs)
+    gs = GuildSetting(**kwargs)
     session.add(gs)
     await session.flush()
     ids.add("guild_settings", gs.id)
@@ -2130,7 +2105,6 @@ async def _create_queues(
     for qd in queue_defs:
         creator = all_users[qd["created_by"]]
         queue = Queue(
-            guild_id=guild.id,
             initiative_id=qd["initiative_id"],
             name=qd["name"],
             description=qd.get("description"),
@@ -2147,7 +2121,6 @@ async def _create_queues(
             resource_type="queue",
             resource_id=queue.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=queue.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -2168,7 +2141,6 @@ async def _create_queues(
                     resource_type="queue",
                     resource_id=queue.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=queue.initiative_id,
                     level=ResourceAccessLevel.write,
                 )
@@ -2189,7 +2161,6 @@ async def _create_queues(
                     resource_type="queue",
                     resource_id=queue.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=queue.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -2208,7 +2179,6 @@ async def _create_queues(
                 resource_type="queue",
                 resource_id=queue.id,
                 role_id=role.id,
-                guild_id=guild.id,
                 initiative_id=queue.initiative_id,
                 level=level,
             )
@@ -2226,7 +2196,6 @@ async def _create_queues(
             ga = ResourceGrant(
                 resource_type="queue",
                 resource_id=queue.id,
-                guild_id=guild.id,
                 initiative_id=queue.initiative_id,
                 level=qd["general_access"],
                 all_initiative_members=True,
@@ -2245,7 +2214,6 @@ async def _create_queues(
                 if linked_user:
                     user_id = linked_user.id
             qi = QueueItem(
-                guild_id=guild.id,
                 queue_id=queue.id,
                 label=item_def["label"],
                 position=item_def.get("position", 0),
@@ -2336,7 +2304,6 @@ async def _create_counter_groups(
     for gd in group_defs:
         creator = all_users[gd["created_by"]]
         group = CounterGroup(
-            guild_id=guild.id,
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
@@ -2351,7 +2318,6 @@ async def _create_counter_groups(
             resource_type="counter_group",
             resource_id=group.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=group.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -2372,7 +2338,6 @@ async def _create_counter_groups(
                     resource_type="counter_group",
                     resource_id=group.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=group.initiative_id,
                     level=grant.get("level", ResourceAccessLevel.write),
                 )
@@ -2391,7 +2356,6 @@ async def _create_counter_groups(
                 resource_type="counter_group",
                 resource_id=group.id,
                 role_id=grant["role_id"],
-                guild_id=guild.id,
                 initiative_id=group.initiative_id,
                 level=grant.get("level", ResourceAccessLevel.read),
             )
@@ -2409,7 +2373,6 @@ async def _create_counter_groups(
             ga = ResourceGrant(
                 resource_type="counter_group",
                 resource_id=group.id,
-                guild_id=guild.id,
                 initiative_id=group.initiative_id,
                 level=gd["general_access"],
                 all_initiative_members=True,
@@ -2427,7 +2390,6 @@ async def _create_counter_groups(
         # Counters
         for cd in gd.get("counters", []):
             counter = Counter(
-                guild_id=guild.id,
                 counter_group_id=group.id,
                 name=cd["name"],
                 color=cd.get("color"),
@@ -2576,7 +2538,6 @@ async def _create_dashboards(
         )
 
         dashboard = Dashboard(
-            guild_id=guild.id,
             initiative_id=dd["initiative_id"],
             name=dd["name"],
             description=dd.get("description"),
@@ -2671,7 +2632,6 @@ async def _create_calendar_events(
             # palette color derived from its id).
             initiative = await session.get(Initiative, ed["initiative_id"])
             calendar = Calendar(
-                guild_id=guild.id,
                 initiative_id=ed["initiative_id"],
                 name="Default Calendar",
                 color=(initiative.color if initiative else None)
@@ -2687,7 +2647,6 @@ async def _create_calendar_events(
                     resource_type="calendar",
                     resource_id=calendar.id,
                     user_id=creator.id,
-                    guild_id=guild.id,
                     initiative_id=calendar.initiative_id,
                     level=ResourceAccessLevel.owner,
                 )
@@ -2696,7 +2655,6 @@ async def _create_calendar_events(
                 ResourceGrant(
                     resource_type="calendar",
                     resource_id=calendar.id,
-                    guild_id=guild.id,
                     initiative_id=calendar.initiative_id,
                     level=ResourceAccessLevel.read,
                     all_initiative_members=True,
@@ -2704,7 +2662,6 @@ async def _create_calendar_events(
             )
         recurrence_raw = ed.get("recurrence")
         event = CalendarEvent(
-            guild_id=guild.id,
             calendar_id=calendar.id,
             title=ed["title"],
             description=ed.get("description"),
@@ -2727,7 +2684,6 @@ async def _create_calendar_events(
             attendee = CalendarEventAttendee(
                 calendar_event_id=event.id,
                 user_id=user.id,
-                guild_id=guild.id,
                 rsvp_status=att.get("rsvp_status", RSVPStatus.pending),
             )
             session.add(attendee)
@@ -2810,7 +2766,6 @@ async def _create_posts(
     for pd in post_defs:
         creator = all_users[pd["created_by"]]
         post = Post(
-            guild_id=guild.id,
             initiative_id=pd["initiative_id"],
             name=pd["name"],
             body=pd.get("body") or {},
@@ -2836,7 +2791,6 @@ async def _create_posts(
                 resource_type="post",
                 resource_id=post.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=post.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -2847,7 +2801,6 @@ async def _create_posts(
                 ResourceGrant(
                     resource_type="post",
                     resource_id=post.id,
-                    guild_id=guild.id,
                     initiative_id=post.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -2859,7 +2812,6 @@ async def _create_posts(
                     resource_type="post",
                     resource_id=post.id,
                     user_id=all_users[name].id,
-                    guild_id=guild.id,
                     initiative_id=post.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -3016,7 +2968,6 @@ async def _create_wikis(
     for wd in wiki_defs:
         creator = all_users[wd["created_by"]]
         wiki = Wiki(
-            guild_id=guild.id,
             initiative_id=wd["initiative_id"],
             name=wd["name"],
             description=wd.get("description"),
@@ -3037,7 +2988,6 @@ async def _create_wikis(
                 resource_type="wiki",
                 resource_id=wiki.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=wiki.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -3048,7 +2998,6 @@ async def _create_wikis(
                 ResourceGrant(
                     resource_type="wiki",
                     resource_id=wiki.id,
-                    guild_id=guild.id,
                     initiative_id=wiki.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -3065,7 +3014,6 @@ async def _create_wikis(
             author = all_users[pd.get("created_by", wd["created_by"])]
             title = pd["title"]
             page = WikiPage(
-                guild_id=guild.id,
                 wiki_id=wiki.id,
                 position=position,
                 is_draft=pd.get("is_draft", False),
@@ -3167,7 +3115,6 @@ async def _create_galleries(
     for gd in gallery_defs:
         creator = all_users[gd["created_by"]]
         gallery = Gallery(
-            guild_id=guild.id,
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
@@ -3183,7 +3130,6 @@ async def _create_galleries(
                 resource_type="gallery",
                 resource_id=gallery.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=gallery.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -3194,7 +3140,6 @@ async def _create_galleries(
                 ResourceGrant(
                     resource_type="gallery",
                     resource_id=gallery.id,
-                    guild_id=guild.id,
                     initiative_id=gallery.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -3232,7 +3177,6 @@ async def _create_galleries(
                 session.add(
                     Upload(
                         filename=filename,
-                        guild_id=guild.id,
                         created_by=uploader.id,
                         size_bytes=len(png),
                         content_type="image/png",
@@ -3249,7 +3193,6 @@ async def _create_galleries(
                     session.add(
                         Upload(
                             filename=thumb_name,
-                            guild_id=guild.id,
                             created_by=uploader.id,
                             size_bytes=len(thumbnail.data),
                             content_type=thumbnail.content_type,
@@ -3259,7 +3202,6 @@ async def _create_galleries(
                 version_at = created_at + timedelta(days=3 * (number - 1))
                 if image is None:
                     image = GalleryImage(
-                        guild_id=guild.id,
                         gallery_id=gallery.id,
                         title=im.get("title"),
                         caption=im.get("caption"),
@@ -3287,7 +3229,6 @@ async def _create_galleries(
                 session.add(
                     GalleryImageVersion(
                         gallery_image_id=image.id,
-                        guild_id=guild.id,
                         version_number=number,
                         file_url=file_url,
                         thumbnail_url=thumbnail_url,
@@ -3749,7 +3690,6 @@ async def seed() -> None:
             m = InitiativeMember(
                 initiative_id=g1_default_init.id,
                 user_id=user.id,
-                guild_id=g1_id,
                 role_id=pm_role.id,
             )
             session.add(m)
@@ -7026,7 +6966,6 @@ async def seed() -> None:
             m = InitiativeMember(
                 initiative_id=g2_default_init.id,
                 user_id=user.id,
-                guild_id=g2_id,
                 role_id=g2_def_member_role.id,
             )
             session.add(m)
@@ -9040,7 +8979,6 @@ async def seed() -> None:
             m = InitiativeMember(
                 initiative_id=g3_default_init.id,
                 user_id=user.id,
-                guild_id=g3_id,
                 role_id=g3_def_member_role.id,
             )
             session.add(m)
