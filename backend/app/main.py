@@ -131,8 +131,13 @@ async def lifespan(app: FastAPI):
     # them (app.db.authorization). Before the back-fill below, so a schema
     # rendered in this same boot finds each one its policies name.
     from app.db.authorization import ensure_authorization_functions
+    from app.db.public_rls import ensure_public_rls
 
     await ensure_authorization_functions()
+    # The shared tables' row security, from its registry (app.db.public_rls),
+    # the way the guild schemas get theirs from INITIATIVE_PATHS. Stamped on
+    # the public schema, so a boot with nothing changed does nothing.
+    await ensure_public_rls()
     # Re-run the idempotent per-guild provisioning for every guild so any
     # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a

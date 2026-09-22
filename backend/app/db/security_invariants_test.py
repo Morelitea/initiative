@@ -30,6 +30,7 @@ from app.db.user_columns import (
     PUBLIC_PROFILE_COLUMNS,
     PUBLISHED_COLUMNS,
 )
+from app.db.public_rls import PUBLIC_RLS
 from app.db.system_grants import (
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
@@ -38,73 +39,9 @@ from app.db.system_grants import (
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
-# Shared tables that carry (FORCEd) row-level security.
-_RLS_SHARED_TABLES = {
-    "access_grants",
-    "announcement_images",
-    "announcement_reads",
-    "announcements",
-    "app_service_nonces",
-    "app_service_registrations",
-    "app_settings",
-    "auth_provider_secrets",
-    "auth_providers",
-    "auth_sessions",
-    "billing_event_log",
-    "contact_grants",
-    "dm_conversation_members",
-    "dm_conversations",
-    "dm_devices",
-    "dm_one_time_keys",
-    "dm_queue",
-    "federated_identities",
-    "federated_identity_secrets",
-    "guild_administration",
-    "guild_auth_policies",
-    "guild_images",
-    "guild_invites",
-    "guild_memberships",
-    "guild_provider_connections",
-    "guilds",
-    "identity_refs",
-    "legal_acceptances",
-    "marketplace_listing_versions",
-    "marketplace_listings",
-    "marketplace_media",
-    "marketplace_registry_state",
-    "oidc_claim_mappings",
-    "platform_ai_connections",
-    "platform_provider_defaults",
-    "profile_favorites",
-    "storage_backfill_state",
-    "user_api_keys",
-    "user_avatars",
-    "user_decorations",
-    "user_dm_guild_optouts",
-    "user_cookie_consent",
-    "user_dm_settings",
-    "user_emails",
-    "user_email_assertions",
-    # The account's second factor, its seed, the codes that stand in for it,
-    # and a sign-in held between its password and its code. Forced with no
-    # policies: no request-path role is granted anything on them.
-    "user_totp",
-    "user_totp_secrets",
-    "mfa_recovery_codes",
-    "auth_challenges",
-    # WebAuthn credentials, on the same terms: forced with no policies, so
-    # nothing but the system engine reads or writes one.
-    "user_passkeys",
-    # One import job's credential for a foreign site, on the same terms:
-    # forced with no policies, because no request-path role ever reads one
-    # back — it is written by the connect request and read by the worker,
-    # both on the system engine.
-    "import_credentials",
-    "user_ignores",
-    "user_notification_prefs",
-    "user_view_preferences",
-    "users",
-}
+# Shared tables that carry (FORCEd) row-level security: what the registry in
+# app.db.public_rls says is on. The catalog is the other side of the check.
+_RLS_SHARED_TABLES = {t for t, rls in PUBLIC_RLS.items() if rls.enabled}
 
 
 @pytest.fixture(autouse=True)

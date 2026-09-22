@@ -334,6 +334,24 @@ async def _bootstrap_under_lock() -> None:
         await lock_conn.close()
 
 
+async def _apply_public_rls() -> None:
+    """Put the registry's policies on the shared tables, as boot does.
+
+    A shared table's policies come from ``app.db.public_rls`` rather than its
+    migration, and a deployment applies them in ``ensure_public_rls`` moments
+    after migrating. This is that step for the worker's own database, run on
+    every session so a registry edit reaches a database that was migrated
+    before it."""
+    from app.db.public_rls import apply_public_rls_if_changed
+
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        async with engine.begin() as conn:
+            await apply_public_rls_if_changed(conn)
+    finally:
+        await engine.dispose()
+
+
 async def _test_db_is_at_head() -> bool:
     """True when this worker's database already exists and is stamped at head.
 
@@ -391,6 +409,7 @@ def _run_test_migrations() -> None:
         # unlike any real one, with the app's tables owned by a login the app
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
+    asyncio.run(_apply_public_rls())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
 
