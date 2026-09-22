@@ -185,7 +185,9 @@ def test_a_batch_is_one_transaction_whole():
 
 
 @pytest.mark.integration
-async def test_ledger_delivers_each_transaction_once(session, acting_user, monkeypatch):
+async def test_ledger_delivers_each_transaction_once(
+    session, role_session, acting_user, monkeypatch
+):
     """A drain marks each pending transaction delivered, and a second pass over
     the same log sends nothing further."""
     from app.models.platform.guild import GuildRole
@@ -220,11 +222,13 @@ async def test_ledger_delivers_each_transaction_once(session, acting_user, monke
 
     monkeypatch.setattr(poller, "deliver", _accept)
 
-    await poller._drain_guild(session, guild_id, now=datetime.now(timezone.utc))
+    system = await role_session("app_admin")
+
+    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     first_pass = len(sent)
     assert first_pass > 0, "no transaction was delivered"
 
-    await poller._drain_guild(session, guild_id, now=datetime.now(timezone.utc))
+    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     assert len(sent) == first_pass, (
         "a settled transaction was delivered twice — the ledger row should make "
         "it ineligible on every later pass"
@@ -232,7 +236,9 @@ async def test_ledger_delivers_each_transaction_once(session, acting_user, monke
 
 
 @pytest.mark.integration
-async def test_a_refused_batch_is_retried_not_lost(session, acting_user, monkeypatch):
+async def test_a_refused_batch_is_retried_not_lost(
+    session, role_session, acting_user, monkeypatch
+):
     """A refusal leaves the transaction pending, so it comes back once its
     backoff expires rather than being skipped."""
     from app.models.platform.guild import GuildRole
@@ -266,12 +272,14 @@ async def test_a_refused_batch_is_retried_not_lost(session, acting_user, monkeyp
 
     monkeypatch.setattr(poller, "deliver", _refuse)
 
-    await poller._drain_guild(session, guild_id, now=datetime.now(timezone.utc))
+    system = await role_session("app_admin")
+
+    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     assert len(attempts) == 1
 
     # Past the backoff, the same batch is offered again under the same id.
     later = datetime.now(timezone.utc) + timedelta(hours=2)
-    await poller._drain_guild(session, guild_id, now=later)
+    await poller._drain_guild(system, guild_id, now=later)
     assert len(attempts) == 2, "a refused batch was dropped instead of retried"
     assert attempts[0] == attempts[1], (
         "the retry carried a different event_id, so a receiver deduping on it "
@@ -281,7 +289,7 @@ async def test_a_refused_batch_is_retried_not_lost(session, acting_user, monkeyp
 
 @pytest.mark.integration
 async def test_repeated_refusals_escalate_the_backoff(
-    session, acting_user, monkeypatch
+    session, role_session, acting_user, monkeypatch
 ):
     """The schedule has to be applied, not merely defined.
 
@@ -319,10 +327,12 @@ async def test_repeated_refusals_escalate_the_backoff(
 
     monkeypatch.setattr(poller, "deliver", _refuse)
 
+    system = await role_session("app_admin")
+
     intervals: list[float] = []
     moment = datetime.now(timezone.utc)
     for _ in range(3):
-        await poller._drain_guild(session, guild_id, now=moment)
+        await poller._drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
         row = (
             await session.exec(
@@ -345,7 +355,7 @@ async def test_repeated_refusals_escalate_the_backoff(
 
 @pytest.mark.integration
 async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
-    session, acting_user, monkeypatch
+    session, role_session, acting_user, monkeypatch
 ):
     """A target that never comes back used to be retried at the final backoff
     step forever, holding every later transaction hostage behind it — there
@@ -391,10 +401,12 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     monkeypatch.setattr(poller, "deliver", _refuse)
 
+    system = await role_session("app_admin")
+
     txn_a: int | None = None
     moment = datetime.now(timezone.utc)
     for _ in range(len(poller._BACKOFF_SECONDS)):
-        await poller._drain_guild(session, guild_id, now=moment)
+        await poller._drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
         row = (
             await session.exec(
@@ -427,7 +439,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     await session.commit()
 
     # This pass is what exhausts the first batch's schedule.
-    await poller._drain_guild(session, guild_id, now=moment)
+    await poller._drain_guild(system, guild_id, now=moment)
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
     dead_row = (
@@ -458,7 +470,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     # the second transaction continuing to retry on its own schedule — the
     # dead-lettered batch is never attempted again, however far forward the
     # next pass looks.
-    await poller._drain_guild(session, guild_id, now=moment + timedelta(days=365))
+    await poller._drain_guild(system, guild_id, now=moment + timedelta(days=365))
     assert attempted.count(event_id_a) == attempts_on_a_so_far + 1, (
         "a dead-lettered batch was retried — it should never be attempted again"
     )

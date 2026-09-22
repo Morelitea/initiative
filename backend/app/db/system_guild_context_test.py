@@ -30,7 +30,7 @@ OUTBOX_SCAN_MIGRATION = (
     Path(__file__).resolve().parents[2]
     / "alembic"
     / "versions"
-    / "20260921_0345_the_poller_scans_the_log_as_the_system.py"
+    / "20260921_0346_the_poller_scans_the_log_as_the_system.py"
 )
 
 pytestmark = pytest.mark.integration
@@ -90,6 +90,7 @@ _EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS = {
     ("webhook_deliveries", "subscription_id", "SELECT"),
     ("webhook_deliveries", "txn_id", "SELECT"),
     ("webhook_deliveries", "delivered_at", "SELECT"),
+    ("webhook_deliveries", "dead_lettered_at", "SELECT"),
     ("webhook_deliveries", "next_attempt_at", "SELECT"),
 }
 

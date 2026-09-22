@@ -9,7 +9,7 @@ the scan covers the whole log every pass to find the handful still owed.  Ten
 subscriptions over a few thousand rows is a poller that never finishes a pass
 and a database pinned at its CPU limit.
 
-Grant the system login the two log columns that scan reads and the four ledger
+Grant the system login the two log columns that scan reads and the five ledger
 columns it checks against, so it keeps BYPASSRLS for that one query.  Which rows
 of a transaction the owner may see is still read in the owner's context.
 Provisioning contains the same matrix for guilds created after this migration;
@@ -24,8 +24,8 @@ from alembic import op
 
 from app.db.guild_migrations import guild_schema_names
 
-revision = "20260921_0345"
-down_revision = "20260921_0344"
+revision = "20260921_0346"
+down_revision = "20260921_0345"
 branch_labels = None
 depends_on = None
 
@@ -33,7 +33,7 @@ depends_on = None
 SYSTEM_OUTBOX_SCAN_GRANTS: dict[str, tuple[str, ...]] = {
     "event_outbox": ("SELECT (id, txn_id)",),
     "webhook_deliveries": (
-        "SELECT (subscription_id, txn_id, delivered_at, next_attempt_at)",
+        "SELECT (subscription_id, txn_id, delivered_at, dead_lettered_at, next_attempt_at)",
     ),
 }
 

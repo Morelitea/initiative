@@ -328,7 +328,7 @@ async def _drain_subscription(
     # thousand rows is a poller that never finishes a pass and a database
     # pinned at its CPU limit: measured 3.5s a scan owner-side against 1.7ms
     # system-side, on the same rows. Keeping app_admin's BYPASSRLS costs only
-    # the two log columns this reads and the ledger's four, granted in
+    # the two log columns this reads and the ledger's five, granted in
     # SYSTEM_GUILD_MAINTENANCE_GRANTS.
     #
     # What the OWNER may see is still decided by RLS, on the per-transaction

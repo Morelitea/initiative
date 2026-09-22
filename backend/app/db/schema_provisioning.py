@@ -162,7 +162,7 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     # The other half of that scan: what the ledger already records as settled
     # or leased for a subscription, so only the remainder is named.
     "webhook_deliveries": (
-        "SELECT (subscription_id, txn_id, delivered_at, next_attempt_at)",
+        "SELECT (subscription_id, txn_id, delivered_at, dead_lettered_at, next_attempt_at)",
     ),
     "search_entries": (
         "SELECT (entity_type, entity_id)",
