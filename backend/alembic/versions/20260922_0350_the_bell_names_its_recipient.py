@@ -25,8 +25,8 @@ uses, and ``app_guild_base_ro`` derives its SELECT from it.
 
 from alembic import op
 
-revision = "20260922_0349"
-down_revision = "20260922_0348"
+revision = "20260922_0350"
+down_revision = "20260922_0349"
 branch_labels = None
 depends_on = None
 
