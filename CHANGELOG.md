@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A person's name is the way to them** — a mention of somebody in a comment or a document was a badge and nothing more, and the name over a comment was plain text. Both now open that person's profile, and pointing at either one shows a card with the banner they are wearing, what they said they're up to, their trophies and when they joined. A mention also shows who that id is *now* rather than the name it was written with, so somebody who changes their name is renamed in every sentence that mentions them, in every comment and document, with none of them edited.
 - **Pictures zoom** — a picture opened full screen can now be zoomed: pinch it on a phone, double-tap to jump in and back out, hold Ctrl and scroll on a trackpad, or use the two buttons in the top bar and the `+`, `-` and `0` keys. While it is larger than the screen a drag moves the picture around instead of turning the page, and it never travels further than there is picture to bring back. Letting go, or moving on to the next one, starts again at fit-to-screen. This is the same viewer the gallery, a document's attached image and an announcement all use, so all three gained it at once.
 
 ### Changed

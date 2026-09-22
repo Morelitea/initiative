@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { useCommentReferences } from "@/components/comments/CommentReferences";
+import { MENTION_BADGE, UserMention } from "@/components/user/UserMention";
 import { useGuilds } from "@/hooks/useGuilds";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
@@ -36,8 +37,6 @@ type SpanProps = ComponentPropsWithoutRef<"span"> & { node?: unknown };
 type AnchorProps = ComponentPropsWithoutRef<"a"> & { node?: unknown };
 type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 
-const MENTION_BADGE = "rounded bg-primary/10 px-1 py-0.5 font-medium text-primary text-sm";
-
 /** Mentions reach here as spans carrying their type, id, and label — the shape
  *  `remarkMentions` folds them into. Every other span passes through. */
 const buildMentionSpan = (linked: boolean) =>
@@ -57,10 +56,9 @@ const buildMentionSpan = (linked: boolean) =>
 
     if (type === "user") {
       // The name is read, not trusted: a comment written a year ago says what
-      // that person is called today. The label it was written with stands in
-      // while the answer is on its way, and for good once they are gone.
-      const live = id ? references.people.get(Number(id)) : undefined;
-      return <span className={MENTION_BADGE}>@{live ?? label}</span>;
+      // that person is called today. The chip resolves it, links to them, and
+      // shows who they are on hover.
+      return <UserMention userId={id ? Number(id) : null} fallback={label} disableLink={!linked} />;
     }
 
     // A mention carries only an id, and an entity's address names its

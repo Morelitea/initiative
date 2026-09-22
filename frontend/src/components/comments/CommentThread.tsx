@@ -7,6 +7,7 @@ import { ReportButton } from "@/components/moderation/ReportButton";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { UserHoverLink } from "@/components/user/UserHoverLink";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 
@@ -146,7 +147,15 @@ export const CommentThread = ({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
-              <span className="font-medium text-foreground">{displayName}</span>
+              {/* The name is the way to the person, the same as a mention of
+                  them is. An imported author and an erased account are names
+                  with nobody behind them, so they stay words. */}
+              <UserHoverLink
+                user={anonymizedAuthor || importedAuthorName ? null : comment.author}
+                className="font-medium text-foreground"
+              >
+                {displayName}
+              </UserHoverLink>
               {importedAuthorName && (
                 <span className="whitespace-nowrap">{t("importedAuthor")}</span>
               )}

@@ -14,6 +14,7 @@ import { DocumentOutlineTracker } from "@/components/documents/DocumentOutline";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { MentionedPeopleScope } from "@/hooks/useMentionedPeople";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 import { getUserColorHsl } from "@/lib/userColor";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -135,56 +136,58 @@ export function Editor({
           </div>
         </div>
       )}
-      {/* Outside the composer on purpose: chips and references render as Lexical
-          decorators, which the composer portals in itself. Only something above
-          it is an ancestor of all of them. */}
+      {/* Outside the composer on purpose: chips, references and mentions render
+          as Lexical decorators, which the composer portals in itself. Only
+          something above it is an ancestor of all of them. */}
       <SmartChipScope>
-        <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
-          <TooltipProvider>
-            <Plugins
-              showToolbar={showToolbar}
-              readOnly={readOnly}
-              collaborative={useCollaborativeMode}
-              cursorsContainerRef={cursorsContainerRef}
-              initiativeId={initiativeId}
-              subject={subject}
-              supportsEntityMentions={supportsEntityMentions}
-              variant={variant}
-              maxLength={maxLength}
-              compact={compact}
-              onWikilinkNavigate={onWikilinkNavigate}
-              onCreateReferencedThing={onCreateReferencedThing}
-            />
-
-            {/* Publishes the headings to a `DocumentOutlineScope`, where the
-                page's contents list reads them. Inert without one. */}
-            <DocumentOutlineTracker />
-
-            {useCollaborativeMode && providerFactory && (
-              <LexicalCollaboration>
-                <CollaborationPlugin
-                  id="main"
-                  providerFactory={providerFactory}
-                  initialEditorState={initialEditorStateForCollab}
-                  shouldBootstrap={true}
-                  username={userName}
-                  cursorColor={userColor.current}
-                  cursorsContainerRef={cursorsContainerRef}
-                />
-              </LexicalCollaboration>
-            )}
-
-            {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
-              <OnChangePlugin
-                ignoreSelectionChange={true}
-                onChange={(editorState) => {
-                  onChange?.(editorState);
-                  onSerializedChange?.(editorState.toJSON());
-                }}
+        <MentionedPeopleScope>
+          <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
+            <TooltipProvider>
+              <Plugins
+                showToolbar={showToolbar}
+                readOnly={readOnly}
+                collaborative={useCollaborativeMode}
+                cursorsContainerRef={cursorsContainerRef}
+                initiativeId={initiativeId}
+                subject={subject}
+                supportsEntityMentions={supportsEntityMentions}
+                variant={variant}
+                maxLength={maxLength}
+                compact={compact}
+                onWikilinkNavigate={onWikilinkNavigate}
+                onCreateReferencedThing={onCreateReferencedThing}
               />
-            )}
-          </TooltipProvider>
-        </LexicalExtensionComposer>
+
+              {/* Publishes the headings to a `DocumentOutlineScope`, where the
+                page's contents list reads them. Inert without one. */}
+              <DocumentOutlineTracker />
+
+              {useCollaborativeMode && providerFactory && (
+                <LexicalCollaboration>
+                  <CollaborationPlugin
+                    id="main"
+                    providerFactory={providerFactory}
+                    initialEditorState={initialEditorStateForCollab}
+                    shouldBootstrap={true}
+                    username={userName}
+                    cursorColor={userColor.current}
+                    cursorsContainerRef={cursorsContainerRef}
+                  />
+                </LexicalCollaboration>
+              )}
+
+              {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
+                <OnChangePlugin
+                  ignoreSelectionChange={true}
+                  onChange={(editorState) => {
+                    onChange?.(editorState);
+                    onSerializedChange?.(editorState.toJSON());
+                  }}
+                />
+              )}
+            </TooltipProvider>
+          </LexicalExtensionComposer>
+        </MentionedPeopleScope>
       </SmartChipScope>
     </div>
   );

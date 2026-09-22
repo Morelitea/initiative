@@ -172,7 +172,9 @@ export function MentionsPlugin({ initiativeId }: MentionsPluginProps): JSX.Eleme
         if (nodeToReplace) {
           nodeToReplace.replace(mentionNode);
         }
-        mentionNode.select();
+        // A decorator has no text to put a caret in, so the caret goes after
+        // it — which is where the writer was going to type anyway.
+        mentionNode.selectNext();
         closeMenu();
       });
     },
