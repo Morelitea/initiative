@@ -26,6 +26,7 @@ import {
   type KanbanCardFields,
   kanbanFieldsStorageKey,
 } from "@/components/projects/kanbanFields";
+import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { Badge } from "@/components/ui/badge";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
@@ -45,7 +46,7 @@ type ProjectTasksKanbanViewProps = {
   canReorderTasks: boolean;
   canOpenTask: boolean;
   taskHref: (taskId: number) => string;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   sensors: DndContextProps["sensors"];
   activeTask: TaskListRead | null;
   onDragStart: (event: DragStartEvent) => void;
@@ -201,7 +202,7 @@ const TaskDragOverlay = ({
   visibleFields,
 }: {
   task: TaskListRead;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   visibleFields: KanbanCardFields;
 }) => {
   const { t } = useTranslation("projects");

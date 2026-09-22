@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Upload a file straight into a link** — **Add link** on a task, document, project or any other tool now takes a file as well as something that already exists. Choose one, or drag it onto the Connections panel, and it becomes a document in the same initiative, already linked — attached, unless you pick a different relationship. It's offered only to people who have documents in that initiative and may create them. Dropping works on the documents page as well: drag a file anywhere onto it, in any view, and *New document* opens on its **Upload** tab holding it — and that tab's box takes a dropped file too.
 
+### Changed
+
+- **Priorities you can tell apart at a glance** — the priority dropdowns on the task form and in bulk edit put a coloured dot beside each option, and **High** now has a colour of its own: amber, the app's warning colour, where it used to share Medium's. The same amber carries through to the priority badge on the table and on kanban cards, so Low, Medium, High and Urgent each read differently.
+
 ### Fixed
 
 - **Uploading a file works for everyone who may create documents, not just community admins** — uploading a document as a regular initiative member failed with an error, because the file's first version (and a picture's cover image) was written before the upload's owner had been recorded, and the database refused both. They're now written after, and admins and members alike can upload again.
