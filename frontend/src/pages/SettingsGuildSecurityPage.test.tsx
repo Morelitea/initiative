@@ -90,6 +90,18 @@ vi.mock("@/hooks/useAppConfig", () => ({
 // ``useServer`` is left real: the render helper provides its context, and
 // mocking the module would take ``ServerContext`` with it.
 
+// What this community answers about notifications, and the deployment's own
+// answer above it. Read by the section the page renders at the bottom.
+const notificationPolicy = {
+  allow_push_notifications: true,
+  allow_email_notifications: true,
+  redact_notification_content: false,
+  push_allowed_by_platform: true,
+  email_allowed_by_platform: true,
+  redacted_by_platform: false,
+};
+const saveNotificationPolicy = vi.fn();
+
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
   useGuildAuthSettings: () => ({ data: grantedAuthSettings, refetch: vi.fn() }),
@@ -97,6 +109,8 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
   useUpdateGuildSecondFactor: () => ({ mutate: saveSecondFactor, isPending: false }),
+  useGuildNotificationPolicy: () => ({ data: notificationPolicy, isLoading: false }),
+  useUpdateGuildNotificationPolicy: () => ({ mutate: saveNotificationPolicy, isPending: false }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectableProviders: () => ({ data: connectable, isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
