@@ -213,6 +213,7 @@
   "USER_API_KEY_GUILD_FORBIDDEN": "Vous ne pouvez limiter une clé qu'à une communauté dont vous êtes membre.",
   "USER_INVALID_TIMEZONE": "Fuseau horaire invalide",
   "USER_INVALID_WEEK_START": "Le début de semaine doit être entre 0 (dimanche) et 6 (samedi)",
+  "USER_INVALID_TIME_FORMAT": "Le format de l'heure doit être system, 12 ou 24",
   "USER_INVALID_REMINDER_MINUTES": "Délai de rappel invalide",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Effet de fin de tâche inconnu",
   "USER_PLATFORM_ROLE_WRONG_ENDPOINT": "Les modifications de rôle de plateforme doivent utiliser l'endpoint administrateur",

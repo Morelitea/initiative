@@ -28,6 +28,11 @@ import {
 } from "@/lib/taskCompletionFeedback";
 import type { ThemeColors } from "@/lib/themes";
 import { getTheme, getThemeList } from "@/lib/themes";
+import {
+  parseTimeFormat,
+  TIME_FORMAT_PREFERENCES,
+  type TimeFormatPreference,
+} from "@/lib/timeFormat";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -204,6 +209,9 @@ export const UserSettingsInterfacePage = ({
 }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
+  const [timeFormat, setTimeFormat] = useState<TimeFormatPreference>(() =>
+    parseTimeFormat(user.time_format)
+  );
   const [recentTabsLimit, setRecentTabsLimit] = useState(
     user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT
   );
@@ -226,6 +234,7 @@ export const UserSettingsInterfacePage = ({
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
+    setTimeFormat(parseTimeFormat(user.time_format));
     setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
@@ -238,6 +247,9 @@ export const UserSettingsInterfacePage = ({
     onSuccess: async (_, variables) => {
       if (variables.week_starts_on !== undefined) {
         setWeekStartsOn(Number(variables.week_starts_on));
+      }
+      if (variables.time_format !== undefined) {
+        setTimeFormat(parseTimeFormat(variables.time_format));
       }
       if (variables.recent_tabs_limit !== undefined) {
         setRecentTabsLimit(Number(variables.recent_tabs_limit));
@@ -270,6 +282,7 @@ export const UserSettingsInterfacePage = ({
     onError: () => {
       toast.error(t("interface.updateError"));
       setWeekStartsOn(user.week_starts_on ?? 0);
+      setTimeFormat(parseTimeFormat(user.time_format));
       setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
@@ -369,6 +382,32 @@ export const UserSettingsInterfacePage = ({
               {WEEK_START_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={String(option.value)}>
                   {t(option.labelKey as never)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Preference>
+
+        <Preference
+          label={t("interface.timeFormat.label")}
+          description={t("interface.timeFormat.description")}
+        >
+          <Select
+            value={timeFormat}
+            onValueChange={(next) => {
+              const value = parseTimeFormat(next);
+              setTimeFormat(value);
+              updateInterfacePrefs.mutate({ time_format: value });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>{t(`interface.timeFormat.options.${timeFormat}` as never)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_FORMAT_PREFERENCES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`interface.timeFormat.options.${value}` as never)}
                 </SelectItem>
               ))}
             </SelectContent>

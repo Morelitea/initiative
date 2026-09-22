@@ -511,6 +511,7 @@ export interface AdminUserRead {
   presence: Presence;
   profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
+  time_format: string;
   recent_tabs_limit: number;
   timezone: string;
   event_reminder_minutes_before: number | null;
@@ -8240,6 +8241,7 @@ export interface UserRead {
   presence: Presence;
   profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
+  time_format: string;
   recent_tabs_limit: number;
   timezone: string;
   event_reminder_minutes_before: number | null;
@@ -8272,6 +8274,7 @@ export interface UserSelfUpdate {
   presence?: Presence | null;
   profile_decorations?: ProfileDecorationsInput | null;
   week_starts_on?: number | null;
+  time_format?: string | null;
   recent_tabs_limit?: number | null;
   timezone?: string | null;
   event_reminder_minutes_before?: number | null;

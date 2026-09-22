@@ -139,6 +139,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     custom_status: { emoji: null, text: null },
     profile_decorations: { banner: null, frame: null, trophies: [] },
     week_starts_on: 0,
+    time_format: "system",
     timezone: "America/New_York",
     ...overrides,
   };

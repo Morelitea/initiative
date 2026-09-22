@@ -4,13 +4,13 @@
 export const DEFAULT_DURATION_MINUTES = 60;
 const DAY_END_MINUTES = 23 * 60 + 30; // last selectable slot (23:30)
 
-// Half-hour time slots: { value: "HH:MM", label: "h:MM AM/PM" }.
+// Half-hour time slots, as the `HH:MM` values a Select binds to. The label a
+// reader sees is `formatClockSlot(value)` at render time, because it depends on
+// the account's clock convention and this list is built once per module.
 export const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
+  const hour = String(Math.floor(i / 2)).padStart(2, "0");
   const minute = i % 2 === 0 ? "00" : "30";
-  const hh = String(hour).padStart(2, "0");
-  const label = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute} ${hour < 12 ? "AM" : "PM"}`;
-  return { value: `${hh}:${minute}`, label };
+  return { value: `${hour}:${minute}` };
 });
 
 export const toMinutes = (slot: string): number => {

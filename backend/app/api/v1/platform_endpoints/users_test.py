@@ -688,6 +688,34 @@ async def test_a_setting_outside_its_range_is_refused(
         assert in_detail in response.json()["detail"].lower()
 
 
+async def test_time_format_round_trip(client, acting_user):
+    """Each clock convention round-trips, and a new account answers "system"."""
+    a = await acting_user()
+
+    me = await client.get("/api/v1/users/me", headers=a.headers)
+    assert me.status_code == 200
+    assert me.json()["time_format"] == "system"
+
+    for value in ("12", "24", "system"):
+        response = await client.patch(
+            "/api/v1/users/me", headers=a.headers, json={"time_format": value}
+        )
+        assert response.status_code == 200, value
+        assert response.json()["time_format"] == value
+
+
+async def test_time_format_rejects_unknown(client, acting_user):
+    """A convention the app has no name for never reaches the column."""
+    a = await acting_user()
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=a.headers, json={"time_format": "48"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TIME_FORMAT"
+
+
 async def test_task_completion_visual_feedback_round_trip(client, acting_user):
     """Each known visual-feedback option round-trips through PATCH /users/me."""
     a = await acting_user()

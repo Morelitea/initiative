@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A clock you can choose** — **My Settings → Interface → Time format** decides whether times read as `1:30 PM` or `13:30`, and it applies everywhere one is shown: calendars and their hour gutters, event times and the half-hour pickers that set them, task due dates and their tooltips, message timestamps, and every date-and-time in settings. The default, **Browser default**, follows your browser's language exactly as before, so nothing changes until you pick a side. (Your operating system's own 12/24-hour setting isn't something a browser can see, which is why picking one here is the only way to say it.)
+
 ### Fixed
 
 - **The task table's columns stop shifting as you scroll** — the table view keeps only the rows in view, and the browser was sizing the columns from whatever those happened to be, so every scroll re-measured against different content and the columns jumped. Widths now come from the columns themselves and hold still from the first row to the last.

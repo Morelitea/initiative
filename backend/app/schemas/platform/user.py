@@ -560,6 +560,8 @@ class UserRead(UserBase):
     presence: Presence = Presence.online
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
+    #: "system" (follow the browser locale), "12", or "24".
+    time_format: str = "system"
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
     event_reminder_minutes_before: Optional[int] = 15
@@ -691,6 +693,7 @@ class UserSelfUpdate(SanitizedBaseModel):
     # look, and a partial write would have no way to say "take the frame off".
     profile_decorations: Optional[ProfileDecorations] = None
     week_starts_on: Optional[int] = None
+    time_format: Optional[str] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
     event_reminder_minutes_before: Optional[int] = None

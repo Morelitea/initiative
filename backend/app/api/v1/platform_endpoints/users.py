@@ -44,6 +44,7 @@ from app.core.security import (
 from app.core.user_input_validators import (
     normalize_reminder_minutes,
     normalize_timezone,
+    normalize_time_format,
     normalize_week_starts_on,
 )
 from app.db.session import get_admin_session, set_rls_context
@@ -1141,6 +1142,10 @@ async def update_users_me(
         normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
         if normalized_week_start is not None:
             current_user.week_starts_on = normalized_week_start
+    if "time_format" in update_data:
+        normalized_time_format = normalize_time_format(update_data["time_format"])
+        if normalized_time_format is not None:
+            current_user.time_format = normalized_time_format
     if "recent_tabs_limit" in update_data:
         current_user.recent_tabs_limit = recent_views_service.clamp_recent_limit(
             update_data["recent_tabs_limit"]

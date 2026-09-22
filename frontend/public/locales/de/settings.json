@@ -213,6 +213,15 @@
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
     "weekStartsOnDescription": "Wähle, welcher Tag in Kalendern und Datumsauswahlfeldern zuerst angezeigt wird.",
+    "timeFormat": {
+      "label": "Zeitformat",
+      "description": "Uhrzeiten als 1:30 PM oder 13:30 anzeigen. Der Browser-Standard folgt der Sprache deines Browsers, die von der Uhr-Einstellung deines Betriebssystems nicht verändert wird.",
+      "options": {
+        "system": "Browser-Standard",
+        "12": "12-Stunden (1:30 PM)",
+        "24": "24-Stunden (13:30)"
+      }
+    },
     "recentTabsLimit": "Aktuelle Elemente in der Tab-Leiste",
     "recentTabsLimitDescription": "Wie viele kürzlich geöffnete Elemente in der Tab-Leiste der Kopfzeile behalten werden (1–100).",
     "language": "Sprache",

@@ -213,6 +213,15 @@
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
     "weekStartsOnDescription": "Choose which day to show first on calendars and date pickers.",
+    "timeFormat": {
+      "label": "Time format",
+      "description": "Show clock times as 1:30 PM or 13:30. Browser default follows your browser's language, which your operating system's clock setting does not change.",
+      "options": {
+        "system": "Browser default",
+        "12": "12-hour (1:30 PM)",
+        "24": "24-hour (13:30)"
+      }
+    },
     "recentTabsLimit": "Recent items in tab bar",
     "recentTabsLimitDescription": "How many recently-opened items to keep in the header tab bar (1–100).",
     "language": "Language",

@@ -4,6 +4,8 @@ import { memo, useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { hour12Option } from "@/lib/timeFormat";
 
 type DateCellProps = {
   date: string | null | undefined;
@@ -19,6 +21,8 @@ type DateCellProps = {
  */
 export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) => {
   const dateLocale = useDateLocale();
+  // Read so the memoized tooltip is rebuilt when the account changes clocks.
+  const timeFormat = useTimeFormat();
   const time = useMemo(() => {
     if (!date) {
       return null;
@@ -48,9 +52,10 @@ export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) =>
             day: "numeric",
             hour: "numeric",
             minute: "2-digit",
+            hour12: hour12Option(),
           })
         : null,
-    [time, dateLocale]
+    [time, dateLocale, timeFormat]
   );
 
   if (snapshot == null) {

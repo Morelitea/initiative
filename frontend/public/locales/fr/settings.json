@@ -213,6 +213,15 @@
     "colorThemeDescription": "Choisissez un thème de couleur pour l'application.",
     "weekStartsOn": "La semaine commence le",
     "weekStartsOnDescription": "Choisissez quel jour afficher en premier sur les calendriers et sélecteurs de date.",
+    "timeFormat": {
+      "label": "Format de l'heure",
+      "description": "Affiche les heures sous la forme 1:30 PM ou 13:30. Le réglage par défaut du navigateur suit la langue du navigateur, que le réglage d'horloge de votre système d'exploitation ne modifie pas.",
+      "options": {
+        "system": "Par défaut du navigateur",
+        "12": "12 heures (1:30 PM)",
+        "24": "24 heures (13:30)"
+      }
+    },
     "recentTabsLimit": "Éléments récents dans la barre d'onglets",
     "recentTabsLimitDescription": "Nombre d'éléments récemment ouverts à conserver dans la barre d'onglets de l'en-tête (1–100).",
     "language": "Langue",

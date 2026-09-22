@@ -215,6 +215,7 @@
   "USER_API_KEY_GUILD_FORBIDDEN": "Du kannst einen Schlüssel nur auf eine Community beschränken, der du angehörst.",
   "USER_INVALID_TIMEZONE": "Ungültige Zeitzone",
   "USER_INVALID_WEEK_START": "Der Wochenstart muss zwischen 0 (Sonntag) und 6 (Samstag) liegen",
+  "USER_INVALID_TIME_FORMAT": "Das Zeitformat muss system, 12 oder 24 sein",
   "USER_INVALID_REMINDER_MINUTES": "Ungültige Vorlaufzeit für die Erinnerung",
   "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Unbekannter Effekt für die Aufgabenabschluss-Rückmeldung",
   "USER_PLATFORM_ROLE_WRONG_ENDPOINT": "Änderungen der Plattformrolle müssen den Admin-Endpunkt verwenden",

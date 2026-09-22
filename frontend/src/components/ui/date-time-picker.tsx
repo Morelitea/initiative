@@ -8,6 +8,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { dateTimePattern } from "@/lib/timeFormat";
 import { cn } from "@/lib/utils";
 
 interface DateTimePickerProps {
@@ -93,6 +95,8 @@ export const DateTimePicker = ({
 }: DateTimePickerProps) => {
   const { t } = useTranslation(["dates", "common"]);
   const { user } = useAuth();
+  // Read so the typed and trigger labels re-render on a clock change.
+  useTimeFormat();
   const selectedDate = value
     ? includeTime
       ? new Date(value)
@@ -110,7 +114,7 @@ export const DateTimePicker = ({
 
   // Human-friendly representation of the current value for the manual-entry field.
   const displayValue = selectedDate
-    ? format(selectedDate, includeTime ? "MMM d, yyyy h:mm a" : "MMM d, yyyy")
+    ? format(selectedDate, includeTime ? dateTimePattern("MMM d, yyyy") : "MMM d, yyyy")
     : "";
   const [inputValue, setInputValue] = React.useState(displayValue);
   // Keep the text field in sync whenever the committed value changes.
@@ -237,7 +241,7 @@ export const DateTimePicker = ({
         >
           <CalendarIcon className="h-4 w-4" />
           {selectedDate ? (
-            format(selectedDate, includeTime ? "PP p" : "PP")
+            format(selectedDate, includeTime ? dateTimePattern("PP") : "PP")
           ) : (
             <span>{placeholder ?? defaultPlaceholder}</span>
           )}
