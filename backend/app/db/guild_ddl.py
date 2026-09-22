@@ -509,13 +509,15 @@ def _schema_relative_index(indexdef: str) -> str:
     return indexdef + ";"
 
 
-# The guild_id denormalization triggers. The trigger FUNCTIONS are shared (in
-# public, no pinned search_path) and read the parent table unqualified, so under
-# search_path=<guild_schema>,public they populate guild_id from the guild's own
-# rows. They must live in each guild schema or NOT NULL guild_id inserts fail.
+# The migration-owned triggers (``tr_<t>_set_created_by``, migration 0188). The
+# trigger FUNCTIONS are shared in public with no pinned search_path, so under
+# search_path=<guild_schema>,public they act on the guild's own rows. Triggers
+# the registries render (freeze, capture, search) are not structure and are
+# left out by name below — see ``rendered_trigger_names`` — so a template that
+# still carries them from an earlier boot contributes nothing of theirs here.
 _TRIGGER_SQL = text(  # noqa: S608 — interpolates only the _SRC_SCHEMA literal
     f"""
-    SELECT cl.relname AS tbl, pg_get_triggerdef(tg.oid) AS triggerdef
+    SELECT cl.relname AS tbl, tg.tgname AS name, pg_get_triggerdef(tg.oid) AS triggerdef
     FROM pg_trigger tg
     JOIN pg_class cl ON cl.oid = tg.tgrelid
     JOIN pg_namespace n ON n.oid = cl.relnamespace AND n.nspname = '{_SRC_SCHEMA}'
@@ -531,6 +533,46 @@ def _schema_relative_trigger(triggerdef: str) -> str:
     triggerdef = triggerdef.replace("CREATE TRIGGER ", "CREATE OR REPLACE TRIGGER ")
     triggerdef = triggerdef.replace(f" ON {_SRC_SCHEMA}.", " ON ")
     return triggerdef + ";"
+
+
+_TRIGGER_NAME_RE = re.compile(r"CREATE (?:OR REPLACE )?TRIGGER (\w+)")
+_CONSTRAINT_NAME_RE = re.compile(r"ADD CONSTRAINT (\w+)")
+
+
+def _registry_ddl() -> str:
+    """Everything the registries render into a guild schema, as one text."""
+    from app.db.event_capture import render_guild_capture_ddl
+    from app.db.search_index import render_guild_search_ddl
+
+    return "\n".join(
+        (
+            render_guild_rls_ddl(),
+            render_guild_capture_ddl(),
+            render_guild_search_ddl(None),
+        )
+    )
+
+
+def rendered_trigger_names() -> frozenset[str]:
+    """Every trigger name the registries render into a guild schema.
+
+    Read off the rendered DDL itself — the freeze triggers in the RLS render,
+    the change-capture triggers, the search-index triggers — so the set is
+    whatever the renderers currently produce, with no list to keep in step.
+    The structure reflection and the clone-fidelity test both use it to tell a
+    migration-owned object from a rendered one.
+    """
+    return frozenset(_TRIGGER_NAME_RE.findall(_registry_ddl()))
+
+
+def rendered_constraint_names() -> frozenset[str]:
+    """Every constraint name the registries render into a guild schema.
+
+    Today that is the search index's entity-type CHECK, which names the
+    indexed set and is re-asserted per guild so a source added to the registry
+    is admitted everywhere. Read off the rendered DDL, like the triggers.
+    """
+    return frozenset(_CONSTRAINT_NAME_RE.findall(_registry_ddl()))
 
 
 def _guard(conname: str, body: str) -> str:
@@ -562,11 +604,17 @@ async def render_guild_schema_ddl(engine: AsyncEngine) -> str:
             await conn.execute(_TRIGGER_SQL, {"t": sorted(GUILD_SCOPED_TABLES)})
         ).fetchall()
 
+    rendered = rendered_trigger_names()
+    rendered_constraints = rendered_constraint_names()
     indexes = [_schema_relative_index(r.indexdef) for r in index_rows]
-    triggers = [_schema_relative_trigger(r.triggerdef) for r in trigger_rows]
+    triggers = [
+        _schema_relative_trigger(r.triggerdef)
+        for r in trigger_rows
+        if r.name not in rendered
+    ]
     checks, fks = [], []
     for r in rows:
-        if r.contype == "c":
+        if r.contype == "c" and r.conname not in rendered_constraints:
             checks.append(
                 _guard(
                     r.conname,
@@ -594,7 +642,7 @@ async def render_guild_schema_ddl(engine: AsyncEngine) -> str:
         + "\n".join(checks)
         + "\n\n-- intra-schema FOREIGN KEYs\n"
         + "\n".join(fks)
-        + "\n\n-- guild_id denormalization triggers (functions are shared in public)\n"
+        + "\n\n-- migration-owned triggers (functions are shared in public)\n"
         + "\n".join(triggers)
         + "\n"
     )
