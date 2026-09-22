@@ -40,7 +40,7 @@ export const SettingsGuildDangerZonePage = () => {
 
   // The whole phrase is uppercased, including the guild name, so casing
   // never trips up the confirmation. Mirrors the backend check.
-  const expectedPhrase = activeGuild ? `DELETE GUILD ${activeGuild.name.toUpperCase()}` : "";
+  const expectedPhrase = activeGuild ? `DELETE COMMUNITY ${activeGuild.name.toUpperCase()}` : "";
   const canConfirmDelete =
     deleteConfirmText === expectedPhrase && (passwordless || password.length > 0);
 

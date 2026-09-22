@@ -207,7 +207,7 @@ class TestDefinitions:
             definition={
                 "app_kind": "tool_instance",
                 "tool": "calendar",
-                "default_name": "Guild calendar",
+                "default_name": "Community calendar",
             },
         )
         manifest.pop("avatar_url", None)
@@ -224,7 +224,7 @@ class TestDefinitions:
             definition={
                 "app_kind": "tool_instance",
                 "tool": "calendar",
-                "default_name": "Guild calendar",
+                "default_name": "Community calendar",
             },
         )
         manifest["avatar_url"] = "https://cdn.example.test/icon.svg"
@@ -240,7 +240,7 @@ class TestDefinitions:
                 definition={
                     "app_kind": "tool_instance",
                     "tool": "calendar",
-                    "default_name": "Guild calendar",
+                    "default_name": "Community calendar",
                     "unexpected": "dropped",
                 },
             ),
@@ -250,7 +250,7 @@ class TestDefinitions:
         assert version.definition == {
             "app_kind": "tool_instance",
             "tool": "calendar",
-            "default_name": "Guild calendar",
+            "default_name": "Community calendar",
         }
 
     async def test_a_service_app_reaches_the_catalog_as_data(self, session):

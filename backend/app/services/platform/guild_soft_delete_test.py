@@ -56,7 +56,7 @@ async def _delete_via_danger_zone(
         headers=headers,
         json={
             "password": PASSWORD,
-            "confirmation_text": f"DELETE GUILD {guild.name.upper()}",
+            "confirmation_text": f"DELETE COMMUNITY {guild.name.upper()}",
         },
     )
     assert response.status_code == 204, response.text

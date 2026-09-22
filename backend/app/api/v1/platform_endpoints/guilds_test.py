@@ -498,14 +498,14 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
     [
         pytest.param(
             "testpassword123",
-            "DELETE GUILD TO DELETE",
+            "DELETE COMMUNITY TO DELETE",
             204,
             None,
             id="the password and the phrase",
         ),
         pytest.param(
             "wrongpassword",
-            "DELETE GUILD TO DELETE",
+            "DELETE COMMUNITY TO DELETE",
             400,
             "GUILD_INVALID_PASSWORD",
             id="a password that does not match",
@@ -579,7 +579,7 @@ async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",
         headers=await _just_signed_in(session, admin.user),
-        json={"confirmation_text": "DELETE GUILD TO DELETE"},
+        json={"confirmation_text": "DELETE COMMUNITY TO DELETE"},
     )
 
     assert response.status_code == 204, response.text
@@ -601,7 +601,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
         headers=admin.headers,
         json={
             "password": "wrongpassword",
-            "confirmation_text": "DELETE GUILD TO DELETE",
+            "confirmation_text": "DELETE COMMUNITY TO DELETE",
         },
     )
 
@@ -857,7 +857,7 @@ ADMIN_ONLY_ROUTES = (
     (
         "DELETE",
         "/api/v1/guilds/{guild}",
-        {"password": "testpassword123", "confirmation_text": "DELETE GUILD X"},
+        {"password": "testpassword123", "confirmation_text": "DELETE COMMUNITY X"},
     ),
     ("POST", "/api/v1/guilds/{guild}/invites", {"max_uses": 1}),
     ("GET", "/api/v1/guilds/{guild}/invites", None),
