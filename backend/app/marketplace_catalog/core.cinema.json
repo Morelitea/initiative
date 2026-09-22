@@ -8,8 +8,8 @@
   "long_description": "A marquee with the bulbs chasing, a drive-in on the second feature, and the beam with the dust hanging in it. A reel or a running filmstrip to sit around your face. Then popcorn, a ticket stub, a clapper, a projector and the chair with somebody's name on the back.",
   "avatar_url": "/decorations/banners/cinema-screening.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "A marquee, a drive-in, a filmstrip, and four more to wear.",
+  "version": "1.2.0",
+  "release_notes": "Trophies renamed to say who you are, not what you're holding.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -27,7 +27,7 @@
       {
         "id": "cinema.clapper",
         "slot": "trophy",
-        "name": "Clapperboard"
+        "name": "Filmmaker"
       },
       {
         "id": "cinema.marquee",
@@ -47,22 +47,22 @@
       {
         "id": "cinema.popcorn",
         "slot": "trophy",
-        "name": "Popcorn"
+        "name": "Movie night regular"
       },
       {
         "id": "cinema.ticket",
         "slot": "trophy",
-        "name": "Ticket"
+        "name": "Stays for the credits"
       },
       {
         "id": "cinema.projector",
         "slot": "trophy",
-        "name": "Projector"
+        "name": "Film buff"
       },
       {
         "id": "cinema.chair",
         "slot": "trophy",
-        "name": "Director's chair"
+        "name": "Backseat director"
       }
     ]
   }
