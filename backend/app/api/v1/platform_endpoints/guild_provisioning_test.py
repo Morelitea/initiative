@@ -98,7 +98,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
         headers=headers,
         json={
             "password": "testpassword123",
-            "confirmation_text": "DELETE GUILD DEL PROV",
+            "confirmation_text": "DELETE COMMUNITY DEL PROV",
         },
     )
     assert resp.status_code == 204
@@ -178,7 +178,7 @@ async def test_purge_succeeds_even_if_deprovision_fails(
         headers=headers,
         json={
             "password": "testpassword123",
-            "confirmation_text": "DELETE GUILD TEARDOWN FAIL",
+            "confirmation_text": "DELETE COMMUNITY TEARDOWN FAIL",
         },
     )
     assert resp.status_code == 204

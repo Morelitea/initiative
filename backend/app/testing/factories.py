@@ -1111,7 +1111,7 @@ async def create_guild_calendar(
             "guild_id": guild.id,
             "initiative_id": None,
             "created_by": creator.id,
-            "name": name or "Guild calendar",
+            "name": name or "Community calendar",
             **overrides,
         }
     )

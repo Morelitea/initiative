@@ -36,7 +36,7 @@ vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
 const app = (overrides: Partial<GuildAppRead> = {}) =>
   ({
     id: 1,
-    name: "Guild calendar",
+    name: "Community calendar",
     tool: "calendar",
     enabled: true,
     artifacts: [{ type: "calendar", id: 12 }],
@@ -78,7 +78,7 @@ describe("AppsSection", () => {
   it("lists installed apps for a member", async () => {
     apps = [app()];
     render(false);
-    expect(await screen.findByText("Guild calendar")).toBeInTheDocument();
+    expect(await screen.findByText("Community calendar")).toBeInTheDocument();
     // No add affordance: installing is a guild-admin action.
     expect(screen.queryByText("Add an app")).toBeNull();
     expect(screen.getByText("Browse the app store")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("AppsSection", () => {
   it("links an app to what it mounted", async () => {
     apps = [app()];
     render(false);
-    const link = (await screen.findByText("Guild calendar")).closest("a");
+    const link = (await screen.findByText("Community calendar")).closest("a");
     // The list, not one of them: a member may add calendars to the app, so its
     // entry leads to everything it holds.
     expect(link?.getAttribute("href")).toContain("/calendars");
@@ -99,7 +99,7 @@ describe("AppsSection", () => {
     // that most needs a row.
     apps = [app({ artifacts: [] })];
     render(false);
-    const link = (await screen.findByText("Guild calendar")).closest("a");
+    const link = (await screen.findByText("Community calendar")).closest("a");
     expect(link?.getAttribute("href")).toContain("/calendars");
   });
 
@@ -109,14 +109,14 @@ describe("AppsSection", () => {
     apps = [app({ enabled: false })];
     render(true);
     await screen.findByText("Apps");
-    expect(screen.queryByText("Guild calendar")).toBeNull();
+    expect(screen.queryByText("Community calendar")).toBeNull();
   });
 
   it("still offers the store to a member when every app is disabled", async () => {
     apps = [app({ enabled: false })];
     render(false);
     expect(await screen.findByText("Browse the app store")).toBeInTheDocument();
-    expect(screen.queryByText("Guild calendar")).toBeNull();
+    expect(screen.queryByText("Community calendar")).toBeNull();
   });
 
   it("opens a service app's own page", async () => {
@@ -137,7 +137,7 @@ describe("AppsSection", () => {
   it("draws the listing's artwork rather than a generic icon", async () => {
     apps = [app({ avatar_url: "/marketplace/calendar.svg" })];
     render(false);
-    const entry = await screen.findByText("Guild calendar");
+    const entry = await screen.findByText("Community calendar");
     const artwork = entry.closest("a")?.querySelector("img");
     expect(artwork?.getAttribute("src")).toBe("/marketplace/calendar.svg");
   });
@@ -198,8 +198,8 @@ describe("AppsSection", () => {
       }),
     ];
     render(false);
-    await screen.findByText("Guild calendar");
-    expect(screen.getByLabelText("Guild calendar settings")).toBeInTheDocument();
+    await screen.findByText("Community calendar");
+    expect(screen.getByLabelText("Community calendar settings")).toBeInTheDocument();
     expect(screen.getByLabelText("GitHub settings")).toBeInTheDocument();
   });
 

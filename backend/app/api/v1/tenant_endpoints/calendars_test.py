@@ -23,7 +23,7 @@ from app.testing import (
 CALENDAR_APP = {
     "app_kind": "tool_instance",
     "tool": "calendar",
-    "default_name": "Guild calendar",
+    "default_name": "Community calendar",
 }
 
 
@@ -34,7 +34,7 @@ async def _install_calendar_app(session, guild, creator):
         guild,
         creator,
         definition=CALENDAR_APP,
-        name="Guild calendar",
+        name="Community calendar",
         app_kind="tool_instance",
     )
 

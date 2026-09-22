@@ -4357,7 +4357,7 @@ export interface GuildCreate {
  * document, membership, invite, and settings row it owns, so the
  * endpoint gates on two confirmations:
  *
- * - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
+ * - ``confirmation_text`` must equal ``DELETE COMMUNITY <NAME>`` (the whole
  *   phrase uppercased) so the action can't be triggered by a stray click.
  * - ``password`` is the current user's password. An account that holds
  *   none — one that signs in with a passkey or through an identity

@@ -696,12 +696,12 @@ class TestGuildCalendarEvents:
     ):
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
-        await create_guild_calendar(session, a.guild, a.user, name="Guild calendar")
+        await create_guild_calendar(session, a.guild, a.user, name="Community calendar")
         await create_calendar(session, a.initiative, a.user, name="Team calendar")
 
         every = await client.get(a.g("/calendars/"), headers=a.headers)
         assert sorted(c["name"] for c in every.json()["items"]) == [
-            "Guild calendar",
+            "Community calendar",
             "Team calendar",
         ]
 

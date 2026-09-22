@@ -2,10 +2,10 @@
   "uid": "H4TC7RN2WQ5JXB",
   "public_id": "core.guild-calendar",
   "kind": "app",
-  "name": "Guild calendar",
+  "name": "Community calendar",
   "publisher": "Initiative",
-  "description": "Calendars your whole guild shares — holidays, meetups, and one for each of you.",
-  "long_description": "Give your guild calendars of its own — for game nights, holidays, a recurring meetup, or just for yourself, rather than for one initiative.\n\nIt arrives with one calendar, and any member can add more. Every member sees a new calendar the moment it lands. Want only officers posting to it? Adjust its sharing, same as any calendar.\n\nRemoving the app sends its calendars to the trash, so nothing is lost by accident.",
+  "description": "Calendars your whole community shares — holidays, meetups, and one for each of you.",
+  "long_description": "Give your community calendars of its own — for game nights, holidays, a recurring meetup, or just for yourself, rather than for one initiative.\n\nIt arrives with one calendar, and any member can add more. Every member sees a new calendar the moment it lands. Want only officers posting to it? Adjust its sharing, same as any calendar.\n\nRemoving the app sends its calendars to the trash, so nothing is lost by accident.",
   "avatar_url": "/marketplace/core-guild-calendar.svg",
   "images": [],
   "version": "1.0.0",
@@ -13,6 +13,6 @@
   "definition": {
     "app_kind": "tool_instance",
     "tool": "calendar",
-    "default_name": "Guild calendar"
+    "default_name": "Community calendar"
   }
 }

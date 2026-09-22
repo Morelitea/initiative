@@ -55,7 +55,7 @@ def _tool_definition(**overrides) -> dict:
     return {
         "app_kind": "tool_instance",
         "tool": "calendar",
-        "default_name": "Guild calendar",
+        "default_name": "Community calendar",
         **overrides,
     }
 
@@ -67,7 +67,7 @@ async def calendar_app(session: AsyncSession):
         uid=CALENDAR_APP_UID,
         public_id="tests.auditcalendar",
         kind="app",
-        name="Guild calendar",
+        name="Community calendar",
         definition=_tool_definition(),
     )
 
@@ -187,7 +187,7 @@ class TestManaging:
             public_id="tests.auditupgrade",
             kind="app",
             version="1.1.0",
-            definition=_tool_definition(default_name="Guild calendar v2"),
+            definition=_tool_definition(default_name="Community calendar v2"),
         )
         capfd.readouterr()
         upgraded = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)

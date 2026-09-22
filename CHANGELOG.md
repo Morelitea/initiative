@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A couple of corners still said "guild"** — the phrase a community's Danger Zone tab asks you to type to confirm deletion, and the name the calendar app installs under, hadn't caught up with the rest of the app's move to "community." Confirming deletion now asks for `DELETE COMMUNITY <NAME>`, and the app installs as "Community calendar."
+
 ## [0.71.2] - 2026-09-21
 
 ### Fixed
