@@ -30,6 +30,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { formatDateTime } from "@/lib/formatDate";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
@@ -220,7 +221,7 @@ const TaskDragOverlay = ({
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
         ) : null}
         {shows("dueDate") && task.due_date ? (
-          <p>{t("kanban.due", { date: new Date(task.due_date).toLocaleString() })}</p>
+          <p>{t("kanban.due", { date: formatDateTime(task.due_date) })}</p>
         ) : null}
       </div>
       {shows("checklist") ? <TaskChecklistProgress progress={task.checklist_progress} /> : null}

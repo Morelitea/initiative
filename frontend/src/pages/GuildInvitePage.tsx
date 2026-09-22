@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDateTime } from "@/lib/formatDate";
 
 export const GuildInvitePage = () => {
   const { code = "" } = useParams({ strict: false }) as { code: string };
@@ -139,7 +140,7 @@ export const GuildInvitePage = () => {
                   {status?.expires_at ? (
                     <p>
                       <span className="font-medium">{t("invite.expiresLabel")}</span>{" "}
-                      {new Date(status.expires_at).toLocaleString()}
+                      {formatDateTime(status.expires_at)}
                     </p>
                   ) : null}
                   {status?.max_uses ? (

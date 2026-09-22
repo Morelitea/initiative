@@ -181,7 +181,7 @@ export function TagPicker({
           >
             <TagIcon className="h-4 w-4 shrink-0 opacity-50" />
             {selectedTags.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {selectedTags.map((tag) => (
                   <TagBadge
                     key={tag.id}

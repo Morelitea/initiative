@@ -30,6 +30,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
@@ -320,8 +321,11 @@ const KanbanCardContent = memo(
         )
       : null;
     const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
-    const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
-    const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+    // `formatDateTime` rather than `toLocaleString`: it is what every other
+    // timestamp in the app goes through, so it honours the reader's 12/24-hour
+    // choice and reads the same way ("Aug 3, 2026, 21:15").
+    const formattedStart = formatDateTime(task.start_date);
+    const formattedDue = formatDateTime(task.due_date);
     const commentCount = task.comment_count ?? 0;
     const blockedCount = task.blocked_by_open_count ?? 0;
     // A property is turned off by its own menu entry, resolved by id.

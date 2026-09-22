@@ -16,16 +16,18 @@ import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
+import { resetTimeFormat, setTimeFormat } from "@/lib/timeFormat";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 
-const seedTask = () => {
+const seedTask = (overrides: Record<string, unknown> = {}) => {
   const task = buildTask({
     id: 51,
     project_id: 1,
     title: "Draw the map",
     priority: "medium",
     task_status_id: STATUSES[0].id,
+    ...overrides,
   });
   server.use(guildHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([task]))));
 };
@@ -56,6 +58,7 @@ const openFieldsMenu = async () => {
 beforeEach(() => {
   seedTask();
   localStorage.clear();
+  resetTimeFormat();
 });
 
 describe("the board's Fields menu", () => {
@@ -106,5 +109,27 @@ describe("the board's Fields menu", () => {
     await user.click(await screen.findByRole("menuitem", { name: /show all fields/i }));
 
     await waitFor(() => expect(screen.getByText(/priority: medium/i)).toBeInTheDocument());
+  });
+});
+
+describe("a card's dates", () => {
+  it("reads on the clock the account picked", async () => {
+    // These lines used to call `toLocaleString()` directly, which ignores the
+    // preference — a reader on 24-hour still got AM/PM on every card.
+    seedTask({ due_date: "2026-08-03T21:15:00Z" });
+    setTimeFormat("24");
+    board();
+
+    const due = await screen.findByText(/^Due:/);
+    expect(due.textContent).not.toMatch(/\b(AM|PM)\b/);
+  });
+
+  it("still says AM/PM for a reader who picked 12-hour", async () => {
+    seedTask({ due_date: "2026-08-03T21:15:00Z" });
+    setTimeFormat("12");
+    board();
+
+    const due = await screen.findByText(/^Due:/);
+    expect(due.textContent).toMatch(/\b(AM|PM)\b/);
   });
 });

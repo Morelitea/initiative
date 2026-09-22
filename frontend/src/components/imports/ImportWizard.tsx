@@ -19,6 +19,7 @@ import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatBytes } from "@/lib/fileUtils";
+import { formatDateTime } from "@/lib/formatDate";
 
 // Mirrors the backend's IMPORT_MAX_BACKUP_UPLOAD_BYTES default — the UX
 // layer; the server (ASGI middleware + bounded read) is the enforcement.
@@ -201,7 +202,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     return {
       guildName: peeked.guild?.name ?? "",
       appVersion: peeked.app_version ?? "",
-      exportedAt: peeked.exported_at ? new Date(peeked.exported_at).toLocaleString() : "",
+      exportedAt: formatDateTime(peeked.exported_at),
       initiativeCount: peeked.initiatives?.length ?? 0,
       entryCount: peeked.entries?.length ?? 0,
       assetCount: peeked.assets?.length ?? 0,
