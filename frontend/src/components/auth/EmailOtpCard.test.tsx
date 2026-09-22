@@ -1,12 +1,31 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
 import { EmailOtpCard } from "./EmailOtpCard";
+
+/** What the deployment says it runs. Set per test; no captcha is the default. */
+const mocks = vi.hoisted(() => ({
+  captcha: null as { provider: string; site_key: string } | null,
+}));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({ captcha: mocks.captcha }),
+}));
+
+// Stands in for the vendor's widget, which loads its script over the network:
+// a button that hands the card a solve, which is all the card knows about it.
+vi.mock("@/components/auth/CaptchaWidget", () => ({
+  CaptchaWidget: ({ onToken }: { onToken: (token: string) => void }) => (
+    <button type="button" onClick={() => onToken("solved")}>
+      solve captcha
+    </button>
+  ),
+}));
 
 const mount = async (props: Partial<Parameters<typeof EmailOtpCard>[0]> = {}) => {
   const onSignedIn = vi.fn();
@@ -32,6 +51,10 @@ const askAt = async (address: string) => {
 };
 
 describe("EmailOtpCard", () => {
+  beforeEach(() => {
+    mocks.captcha = null;
+  });
+
   it("signs in when the code belongs to an account", async () => {
     const sent: Record<string, string>[] = [];
     server.use(
@@ -98,6 +121,66 @@ describe("EmailOtpCard", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByLabelText(/^code$/i)).toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
+  });
+
+  it("asks for a code without a captcha where the deployment runs none", async () => {
+    const asked: Record<string, string>[] = [];
+    server.use(
+      http.post("/api/v1/auth/email-otp/send", async ({ request }) => {
+        asked.push((await request.json()) as Record<string, string>);
+        return HttpResponse.json({ status: "sent", challenge: "handle-5" });
+      })
+    );
+    await mount();
+
+    await askAt("plain@example.com");
+
+    expect(asked).toEqual([{ email: "plain@example.com" }]);
+  });
+
+  it("sends the captcha the deployment asks for", async () => {
+    mocks.captcha = { provider: "hcaptcha", site_key: "site" };
+    const asked: Record<string, string>[] = [];
+    server.use(
+      http.post("/api/v1/auth/email-otp/send", async ({ request }) => {
+        asked.push((await request.json()) as Record<string, string>);
+        return HttpResponse.json({ status: "sent", challenge: "handle-6" });
+      })
+    );
+    await mount();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "guarded@example.com");
+    // Nothing is asked for until the captcha is answered — that is the one
+    // refusal this route makes, and it makes it before the address is read.
+    expect(screen.getByRole("button", { name: /email me a code/i })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /solve captcha/i }));
+    await user.click(screen.getByRole("button", { name: /email me a code/i }));
+    await screen.findByLabelText(/^code$/i);
+
+    expect(asked).toEqual([{ email: "guarded@example.com", captcha_token: "solved" }]);
+  });
+
+  it("asks for a fresh solve after a refused send", async () => {
+    mocks.captcha = { provider: "hcaptcha", site_key: "site" };
+    server.use(
+      http.post("/api/v1/auth/email-otp/send", () =>
+        HttpResponse.json({ detail: "CAPTCHA_INVALID" }, { status: 400 })
+      )
+    );
+    await mount();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "guarded@example.com");
+    await user.click(screen.getByRole("button", { name: /solve captcha/i }));
+    await user.click(screen.getByRole("button", { name: /email me a code/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    // A token is spent by being checked, so the one just sent buys nothing.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /email me a code/i })).toBeDisabled()
+    );
   });
 
   it("goes back to the address when it was typed wrong", async () => {
