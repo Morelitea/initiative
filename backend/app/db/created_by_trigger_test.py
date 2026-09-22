@@ -22,7 +22,7 @@ from app.testing.factories import (
     create_queue,
     create_user,
 )
-from app.testing import route_as
+from app.testing import route_as, route_system
 
 pytestmark = [pytest.mark.integration, pytest.mark.service]
 
@@ -40,7 +40,10 @@ async def _workspace(session: AsyncSession):
 
 async def _route(session: AsyncSession, guild_id: int, user_id: int | None) -> None:
     session.expunge_all()
-    await route_as(session, user_id=user_id, guild_id=guild_id)
+    if user_id is None:
+        await route_system(session, guild_id=guild_id)
+    else:
+        await route_as(session, user_id=user_id, guild_id=guild_id)
 
 
 async def _reload(session: AsyncSession, item_id: int) -> QueueItem:

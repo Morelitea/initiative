@@ -38,7 +38,7 @@ from app.testing import (
     create_project,
     create_tag,
     create_task,
-    route_as,
+    route_system,
 )
 
 pytestmark = pytest.mark.integration
@@ -49,11 +49,9 @@ async def _entries(
     guild_id: int,
     entity_type: str,
     entity_id: int,
-    *,
-    user_id: int | None = None,
-    guild_role: str = "admin",
 ) -> list[SearchEntry]:
-    await route_as(session, user_id=user_id, guild_id=guild_id)
+    """What the index holds, read with nobody asking — the sweep's own view."""
+    await route_system(session, guild_id=guild_id)
     rows = await session.exec(
         select(SearchEntry)
         .where(
@@ -291,7 +289,9 @@ async def test_short_text_is_exactly_one_chunk(session, acting_user):
     assert rows[0].chunk_ix == 0
 
 
-async def test_a_guild_member_outside_the_initiative_sees_nothing(session, acting_user):
+async def test_a_guild_member_outside_the_initiative_sees_nothing(
+    session, acting_user, reading_as
+):
     """The initiative gate this table registers, proven against the database.
 
     A guild member who is not in the initiative gets no rows — the same answer
@@ -304,33 +304,34 @@ async def test_a_guild_member_outside_the_initiative_sees_nothing(session, actin
     task = await create_task(session, a.project, title="quarterly vendor renewal")
 
     assert await _entries(session, a.guild.id, "task", task.id)
+    reader = await reading_as(outsider.user.id, a.guild.id)
     assert (
-        await _entries(
-            session,
-            a.guild.id,
-            "task",
-            task.id,
-            user_id=outsider.user.id,
-            guild_role="member",
+        list(
+            await reader.exec(
+                select(SearchEntry).where(
+                    SearchEntry.entity_type == "task",
+                    SearchEntry.entity_id == task.id,
+                )
+            )
         )
         == []
     )
 
 
-async def test_a_guild_level_tag_is_visible_to_any_member(session, acting_user):
+async def test_a_guild_level_tag_is_visible_to_any_member(
+    session, acting_user, reading_as
+):
     """The NULL-initiative leg: guild vocabulary every member already sees in
     every picker is not hidden from them in search."""
     a = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     tag = await create_tag(session, a.guild, name="urgent")
 
-    rows = await _entries(
-        session,
-        a.guild.id,
-        "tag",
-        tag.id,
-        user_id=member.user.id,
-        guild_role="member",
+    reader = await reading_as(member.user.id, a.guild.id)
+    rows = await reader.exec(
+        select(SearchEntry).where(
+            SearchEntry.entity_type == "tag", SearchEntry.entity_id == tag.id
+        )
     )
     assert [r.title for r in rows] == ["urgent"]
 

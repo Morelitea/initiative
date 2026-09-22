@@ -264,10 +264,15 @@ def _dac_via(
     if tool is None:
         return DacPath(predicate=lambda t, c, w: None)
 
-    return DacPath(
-        tool=tool,
-        via=((fk, parent),),
-        predicate=lambda t, c, w: (
+    def build(t: str, c: str, w: bool) -> str | None:
+        # For a read the membership walk above already reached this parent, and
+        # that walk ran the parent's own SELECT policy, which asks this same
+        # question. Asking it again would consult ``resource_grants`` a second
+        # time per row for the same answer. ``ANSWERED`` rather than nothing,
+        # because a polymorphic path composes these arms per target type.
+        if c == "SELECT" and parent_answers_for_reads(parent):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
             + _tool_gate(
@@ -279,24 +284,27 @@ def _dac_via(
                 creating=False,
             )
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, parent),), predicate=build)
 
 
 def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     """Two hops to the governing resource: ``table.<fk> -> mid -> parent`` — a
     task's tag link by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
-    return DacPath(
-        tool=tool,
-        via=((fk, mid), (mid_fk, parent)),
-        predicate=lambda t, c, w: (
+
+    def build(t: str, c: str, w: bool) -> str | None:
+        if c == "SELECT" and parent_answers_for_reads(mid):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
             + _tool_gate(tool, "dpar.id", "dpar.initiative_id", c, w, creating=False)
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, mid), (mid_fk, parent)), predicate=build)
 
 
 @dataclass(frozen=True)
@@ -370,12 +378,15 @@ def direct_full_access() -> InitiativePath:
 
 def via_full_access(parent: str, fk: str) -> InitiativePath:
     """One hop to a parent that is itself gated on full access."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.id = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_full_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.id = {t}.{fk} "
-            f"AND {_full_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.id = {r}.{fk})"
@@ -396,14 +407,39 @@ def direct() -> InitiativePath:
     )
 
 
+#: A sharing leg that the walk to the parent has already answered. Rendered as
+#: a literal rather than left out, because a polymorphic path composes one arm
+#: per target type and an arm has to be something; the planner folds it away,
+#: and :func:`app.db.guild_ddl` leaves it off the top level entirely.
+ANSWERED = "true"
+
+
+def parent_answers_for_reads(parent: str) -> bool:
+    """Whether walking to ``parent`` is, on its own, the read answer.
+
+    A child's read leg is an ``EXISTS`` into its parent, and that inner scan
+    runs the parent's own ``SELECT`` policy — which is the same question the
+    child was about to ask a second time. So where the parent carries one, the
+    walk is the whole of it.
+
+    A parent that carries none (the structural initiative tables, which are
+    guild-scoped by the schema boundary) answers nothing, and a child of one
+    keeps asking for itself.
+    """
+    return parent in INITIATIVE_PATHS
+
+
 def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
     """One hop: ``table.<fk> -> parent.<parent_pk>``; parent has ``initiative_id``."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.{parent_pk} = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.{parent_pk} = {t}.{fk} "
-            f"AND {_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.{parent_pk} = {r}.{fk})"
@@ -415,12 +451,20 @@ def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
 
 def via_task_project(fk: str = "task_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> tasks -> projects.initiative_id``."""
-    return InitiativePath(
-        predicate=lambda t, w: (
+
+    def predicate(t: str, w: bool) -> str:
+        if not w and parent_answers_for_reads("tasks"):
+            # One hop is enough for a read: the task's own policy is what walks
+            # on to its project.
+            return f"EXISTS (SELECT 1 FROM tasks tk WHERE tk.id = {t}.{fk})"
+        return (
             f"EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
             f"WHERE tk.id = {t}.{fk} "
             f"AND {_access('pr.initiative_id', w)})"
-        ),
+        )
+
+    return InitiativePath(
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
             f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.{fk})"

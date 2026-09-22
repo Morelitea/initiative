@@ -367,19 +367,26 @@ PAM_ANY = (
 
 
 def standing_ids(key: str) -> str:
-    """The integer set the standing carries under ``key``."""
+    """The integer set the standing carries under ``key``.
+
+    Empty rather than NULL when nothing is recorded: ``x = ANY(NULL)`` is NULL,
+    and a leg that answers neither yes nor no turns the whole chain around it
+    into one, which reads as no in a policy and as nothing at all to anybody
+    asking the function directly.
+    """
     return (
-        "string_to_array("
+        "COALESCE(string_to_array("
         f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
-        ")::integer[]"
+        ")::integer[], ARRAY[]::integer[])"
     )
 
 
 def standing_pairs(key: str) -> str:
     """The ``"<id>:<name>"`` set the standing carries under ``key``."""
     return (
-        "string_to_array("
-        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text)"
+        "COALESCE(string_to_array("
+        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
+        "), ARRAY[]::text[])"
     )
 
 

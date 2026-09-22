@@ -62,16 +62,23 @@ async def routed(role_session, workspace):
 
 
 @pytest.fixture
-async def admin_routed(role_session, workspace):
+async def admin_routed(session, role_session, workspace):
     """The same guild, entered as its admin.
 
     Hard delete is purge, and ``soft_delete_admin_purge`` already admits only a
-    routed guild admin — so a member's DELETE never reaches the freeze at all.
-    The delete half of the rule is only observable from here.
+    community's administrator — so a member's DELETE never reaches the freeze
+    at all. The delete half of the rule is only observable from here. The
+    standing says who administers, read from the membership row, so the row is
+    what this sets up.
     """
-    user, guild, *_ = workspace
+    _user, guild, initiative, *_ = workspace
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_initiative_member(session, initiative=initiative, user=admin)
     s = await role_session("app_user")
-    await route_as(s, user_id=user.id, guild_id=guild.id)
+    await route_as(s, user_id=admin.id, guild_id=guild.id)
     yield s
     await s.rollback()
 
@@ -575,7 +582,18 @@ class TestTrashedRowsAreOutOfSight:
         await create_initiative_member(session, initiative=initiative, user=user)
         return user
 
-    async def _routed_as(self, role_session, user, guild, guild_role):
+    @pytest.fixture
+    async def other_admin(self, session, workspace):
+        """A second member who administers the community, and deleted nothing."""
+        _u, guild, initiative, _p, _t = workspace
+        user = await create_user(session)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.admin
+        )
+        await create_initiative_member(session, initiative=initiative, user=user)
+        return user
+
+    async def _routed_as(self, role_session, user, guild):
         s = await role_session("app_user")
         await route_as(s, user_id=user.id, guild_id=guild.id)
         return s
@@ -589,9 +607,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.member.value
-        )
+        s = await self._routed_as(role_session, other_member, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -609,7 +625,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(role_session, user, guild, GuildRole.member.value)
+        s = await self._routed_as(role_session, user, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -619,7 +635,7 @@ class TestTrashedRowsAreOutOfSight:
         assert len(rows) == 1
 
     async def test_the_guild_admin_sees_everything_in_the_trash(
-        self, session, role_session, workspace, other_member
+        self, session, role_session, workspace, other_admin
     ):
         user, guild, _i, _p, task = workspace
         task.deleted_at = datetime.now(timezone.utc)
@@ -627,9 +643,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.admin.value
-        )
+        s = await self._routed_as(role_session, other_admin, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -650,9 +664,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.member.value
-        )
+        s = await self._routed_as(role_session, other_member, guild)
         frozen = await _frozen(s, "tasks", task.id)
         await s.rollback()
         assert frozen is True

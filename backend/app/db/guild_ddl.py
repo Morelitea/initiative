@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.db.initiative_rls import (
+    ANSWERED,
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
@@ -252,7 +253,7 @@ def _table_block(table: str, path: InitiativePath) -> str:
             # the resource carries no leg on INSERT — creating one answers to
             # the initiative-role gate instead. A child table keeps it: adding a
             # task means reaching the project it goes in.
-            if sharing is not None:
+            if sharing is not None and sharing != ANSWERED:
                 pred = f"{pred} AND {sharing}"
         if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
             pred = _TRIGGER_WRITTEN_INSERT[table]

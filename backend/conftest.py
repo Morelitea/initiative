@@ -585,6 +585,30 @@ async def role_session():
         await eng.dispose()
 
 
+@pytest.fixture
+async def reading_as(role_session):
+    """A session that reads a community the way a request reads it.
+
+    The default ``session`` fixture connects as the test-infrastructure
+    superuser, and a superuser cannot see a policy hide a row — even routed,
+    its *login* is still one the database treats as trusted. A test that
+    asserts what the policies allow therefore reads on the real request login,
+    through the same seam a request goes through, and sets its data up on the
+    ordinary session (the factories commit, so a separate connection sees it).
+
+        s = await reading_as(member.id, guild.id)
+        assert sorted(await s.exec(select(Queue.name))) == []
+    """
+    from app.testing import route_as
+
+    async def _make(user_id: int, guild_id: int):
+        session = await role_session("app_user")
+        await route_as(session, user_id=user_id, guild_id=guild_id)
+        return session
+
+    return _make
+
+
 # Guild ids whose schema was provisioned during the CURRENT test. Lets the
 # session-teardown SKIP the pg_namespace / pg_roles cleanup scan for the (vast
 # majority of) tests that never provision a guild — only a test that actually
