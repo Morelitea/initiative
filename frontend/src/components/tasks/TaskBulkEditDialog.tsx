@@ -11,6 +11,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import {
   Accordion,
   AccordionContent,
@@ -35,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 export type TaskBulkUpdate = {
   start_date: string | null;
@@ -186,10 +188,11 @@ export const TaskBulkEditDialog = ({
                     <SelectValue placeholder={t("bulkEdit.selectPriority")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">{t("priority.low")}</SelectItem>
-                    <SelectItem value="medium">{t("priority.medium")}</SelectItem>
-                    <SelectItem value="high">{t("priority.high")}</SelectItem>
-                    <SelectItem value="urgent">{t("priority.urgent")}</SelectItem>
+                    {PRIORITY_ORDER.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        <TaskPriorityOption priority={option} label={t(`priority.${option}`)} />
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -22,6 +22,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
+import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
@@ -45,7 +46,7 @@ interface KanbanColumnProps {
   status: TaskStatusRead;
   tasks: TaskListRead[];
   canWrite: boolean;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   collapsed: boolean;
@@ -290,7 +291,7 @@ const CollapsedHeader = ({
 
 interface KanbanCardContentProps {
   task: TaskListRead;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   visibleFields: KanbanCardFields;
@@ -416,7 +417,7 @@ const KanbanCardContent = memo(
 
 interface KanbanTaskCardVirtualProps {
   task: TaskListRead;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   visibleFields: KanbanCardFields;
@@ -528,7 +529,7 @@ const KanbanTaskCardPlain = memo(
 interface KanbanTaskCardProps {
   task: TaskListRead;
   canWrite: boolean;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
   visibleFields: KanbanCardFields;
