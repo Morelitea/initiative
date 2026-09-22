@@ -33,7 +33,11 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.tenant.backup_export import BackupEstimate
-from app.schemas.tenant.export_job import ExportJobRead, GuildExportStatus
+from app.schemas.tenant.export_job import (
+    ExportJobRead,
+    GuildExportStatus,
+    serialize_export_job,
+)
 from app.services import audit as audit_service
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
@@ -73,11 +77,11 @@ def _allow_job(guild_context: GuildContext) -> bool:
 
 
 def _job_response(
-    job: ExportJob, status_code: int = status.HTTP_200_OK
+    job: ExportJob, *, guild_id: int, status_code: int = status.HTTP_200_OK
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
-        content=ExportJobRead.model_validate(job).model_dump(mode="json"),
+        content=serialize_export_job(job, guild_id=guild_id).model_dump(mode="json"),
     )
 
 
@@ -132,7 +136,9 @@ async def export_tasks(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/project", response_model=None)
@@ -173,7 +179,9 @@ async def export_project(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/document", response_model=None)
@@ -219,7 +227,9 @@ async def export_document(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/queue", response_model=None)
@@ -257,7 +267,9 @@ async def export_queue(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/counter-group", response_model=None)
@@ -298,7 +310,9 @@ async def export_counter_group(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/dashboard", response_model=None)
@@ -341,7 +355,9 @@ async def export_dashboard(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/calendar", response_model=None)
@@ -390,7 +406,9 @@ async def export_calendars(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
@@ -592,7 +610,9 @@ async def export_initiative(
 
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/guild", response_model=None)
@@ -659,7 +679,9 @@ async def export_guild(
 
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/guild/status", response_model=GuildExportStatus)
@@ -693,7 +715,9 @@ async def read_guild_export_status(
     return GuildExportStatus(
         cooldown_hours=settings.EXPORT_GUILD_COOLDOWN_HOURS,
         next_available_at=await _guild_export_available_at(session),
-        latest=ExportJobRead.model_validate(latest) if latest is not None else None,
+        latest=serialize_export_job(latest, guild_id=guild_context.guild_id)
+        if latest is not None
+        else None,
         latest_started_by=started_by or None,
     )
 
@@ -703,14 +727,13 @@ async def list_export_jobs(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> list[ExportJob]:
+) -> list[ExportJobRead]:
     """The caller's export jobs, newest first (RLS scopes the rows: own rows,
     or the whole guild for a guild admin)."""
-    return list(
-        await session.exec(
-            select(ExportJob).order_by(ExportJob.created_at.desc()).limit(_LIST_LIMIT)
-        )
+    jobs = await session.exec(
+        select(ExportJob).order_by(ExportJob.created_at.desc()).limit(_LIST_LIMIT)
     )
+    return [serialize_export_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
 @router.get("/{job_id}", response_model=ExportJobRead)
@@ -719,14 +742,14 @@ async def get_export_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ExportJob:
+) -> ExportJobRead:
     job = await session.get(ExportJob, job_id)
     if job is None:  # includes rows RLS hides — 404, never 403
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
-    return job
+    return serialize_export_job(job, guild_id=guild_context.guild_id)
 
 
 @router.get("/{job_id}/download")
