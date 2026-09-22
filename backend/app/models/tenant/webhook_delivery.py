@@ -59,8 +59,18 @@ class WebhookDelivery(SQLModel, table=True):
     )
 
     #: While unclaimed, when this batch may next be attempted. While a pass holds
-    #: it, the lease that pass must still own in order to settle.
+    #: it, the lease that pass must still own in order to settle. NULL again once
+    #: dead-lettered — there is no further attempt to schedule.
     next_attempt_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+
+    #: Set once the backoff schedule is exhausted without a 2xx. A terminal
+    #: state alongside ``delivered_at``: the batch stops being retried, and
+    #: later transactions for the same subscription are no longer held behind
+    #: it.
+    dead_lettered_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
     )

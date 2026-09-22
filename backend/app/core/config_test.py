@@ -394,3 +394,17 @@ def test_log_level_is_read_as_a_standard_level_name(given):
 def test_log_level_refuses_anything_else(bad):
     with pytest.raises(ValidationError, match="LOG_LEVEL"):
         _settings(LOG_LEVEL=bad)
+
+
+def test_auth_login_methods_accepts_comma_separated_string():
+    settings = _settings(AUTH_LOGIN_METHODS="sso, Passkey,totp email_otp,sso")
+
+    # One of each, lower case: the shape the seed compares against the enum.
+    assert settings.AUTH_LOGIN_METHODS == ["sso", "passkey", "totp", "email_otp"]
+
+
+def test_auth_login_methods_blank_means_unset():
+    """An empty value is not an empty list: the app keeps its own default."""
+    assert _settings().AUTH_LOGIN_METHODS is None
+    assert _settings(AUTH_LOGIN_METHODS="").AUTH_LOGIN_METHODS is None
+    assert _settings(AUTH_LOGIN_METHODS=" , ").AUTH_LOGIN_METHODS is None

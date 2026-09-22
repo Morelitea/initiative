@@ -6,11 +6,16 @@ type, scope, and payload. The dispatcher looks up matching active
 subscriptions, builds an envelope, signs it with the subscription's
 HMAC secret, and POSTs to the target URL.
 
-Failure handling is intentionally permissive in v0: a subscriber that's
-slow or down does NOT block the user write that produced the event.
-We log and move on. Retry, dead-letter, and async dispatch (queue
-worker) live in PR2.4 once we have observability of how often deliveries
-fail.
+:func:`dispatch_event` itself is a synchronous, best-effort, one-shot send: a
+subscriber that's slow or down does NOT block the user write that produced the
+event, and a failed send here is not retried — it is logged and dropped. That
+is the right tradeoff for its one caller (re-emitting a verified third-party app
+event), which has nothing durable to retry from.
+
+:func:`deliver`, the actual POST, is shared with
+``app.services.tenant.outbox_poller``, which is where retry, backoff, and
+dead-lettering live: it drains ``event_outbox`` to each guild webhook
+subscription on its own schedule, independent of any request.
 
 Verification (the receiver's job, in initiative-auto):
 

@@ -57,6 +57,10 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     event_types: list[str]
     fields: list[str] | None
     active: bool
+    #: Ledger rows this subscription gave up retrying, most recently within
+    #: the outbox retention window. Nonzero means the target has been
+    #: failing — the signal to check it or deactivate the subscription.
+    dead_letter_count: int
     created_at: datetime
     updated_at: datetime
 

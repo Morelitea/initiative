@@ -8,8 +8,8 @@
   "long_description": "Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis and fencing. Floodlights, a court, an end zone, a rink, a diamond, sand, clay and a piste — each with the ball going in. Frames made out of the kit itself, and the object to wear. Twenty-four pieces and no season ticket.",
   "avatar_url": "/decorations/banners/soccer-floodlights.svg",
   "images": [],
-  "version": "1.3.0",
-  "release_notes": "More in the pack.",
+  "version": "1.4.0",
+  "release_notes": "Trophies renamed to say who you are, not what you're holding.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -22,7 +22,7 @@
       {
         "id": "soccer.matchball",
         "slot": "trophy",
-        "name": "Match ball"
+        "name": "Soccer fanatic"
       },
       {
         "id": "hoops.court",
@@ -32,7 +32,7 @@
       {
         "id": "hoops.swish",
         "slot": "trophy",
-        "name": "Swish"
+        "name": "Hoops fanatic"
       },
       {
         "id": "gridiron.endzone",
@@ -42,7 +42,7 @@
       {
         "id": "gridiron.pigskin",
         "slot": "trophy",
-        "name": "Pigskin"
+        "name": "Gridiron fanatic"
       },
       {
         "id": "hockey.rink",
@@ -52,7 +52,7 @@
       {
         "id": "hockey.puck",
         "slot": "trophy",
-        "name": "Puck"
+        "name": "Hockey fanatic"
       },
       {
         "id": "baseball.diamond",
@@ -62,7 +62,7 @@
       {
         "id": "baseball.fastball",
         "slot": "trophy",
-        "name": "Fastball"
+        "name": "Baseball fanatic"
       },
       {
         "id": "volleyball.beach",
@@ -72,7 +72,7 @@
       {
         "id": "volleyball.spike",
         "slot": "trophy",
-        "name": "Spike"
+        "name": "Volleyball fanatic"
       },
       {
         "id": "tennis.clay",
@@ -82,7 +82,7 @@
       {
         "id": "tennis.ace",
         "slot": "trophy",
-        "name": "Racket"
+        "name": "Tennis fanatic"
       },
       {
         "id": "fencing.piste",
@@ -92,7 +92,7 @@
       {
         "id": "fencing.engarde",
         "slot": "trophy",
-        "name": "En garde"
+        "name": "Fencing fanatic"
       },
       {
         "id": "soccer.panels",

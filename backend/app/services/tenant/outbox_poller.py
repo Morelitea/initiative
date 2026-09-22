@@ -1,13 +1,18 @@
 """Drain ``event_outbox`` to each subscription's target.
 
 The authorization decision is a query, not a check. For every subscription the
-poller routes a session **as that subscription's owner** and reads the outbox
+poller routes a session **as that subscription's owner** and reads each batch
 through it, so ``event_outbox``'s own RLS decides the batch and nothing here
 re-implements it. A guild-wide subscription therefore means "everything in this
 guild I belong to", and it stays true as membership changes: leaving an
 initiative, losing a PAM grant, or being deactivated all stop the matching
 deliveries on the next pass with no subscription edit and no cache to
 invalidate.
+
+Which transactions to *look at* is a different question, and it is asked as the
+system login instead — see ``_drain_subscription`` for why. RLS is the answer to
+"what may this owner see of transaction N", and it is asked of exactly that
+transaction's rows. It is not asked of the whole log every five seconds.
 
 What the log is scoped by is the initiative, not per-resource sharing: the
 change log is no tool's own table, so it carries the membership gate and not
@@ -28,8 +33,12 @@ for a subscription or it is not.
 
 What follows from that:
 
-* **Nothing is skipped.** Work not taken this pass is still pending on the next.
-  ``BATCH_LIMIT`` bounds throughput, never visibility.
+* **Nothing is skipped before it has to be.** Work not taken this pass is still
+  pending on the next. ``BATCH_LIMIT`` bounds throughput, never visibility. A
+  batch that exhausts ``_BACKOFF_SECONDS`` without a 2xx is the one exception —
+  it is dead-lettered (``dead_lettered_at`` set, no further attempt scheduled)
+  so a permanently unreachable target can't hold every later transaction
+  hostage forever.
 * **Two replicas racing is settled by the database.** Claiming is an insert on
   the ledger's primary key; the loser gets no row and moves on.
 * **A duplicate is recognizable as one.** ``event_id`` derives from
@@ -58,7 +67,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.session import set_rls_context
+from app.db.session import set_rls_context, set_system_guild_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -186,8 +195,11 @@ async def _pending_transactions(
     and is out of backoff" — there is no position to maintain, so a transaction
     missed by one pass is simply still pending.
 
-    The outbox read runs under the SUBSCRIPTION OWNER's context, so RLS has
-    already removed transactions holding nothing that owner may see.
+    This runs as the system login with BYPASSRLS (``_drain_subscription``
+    routes it so), which is what keeps it a two-column scan of the log rather
+    than a policy evaluation per row. It therefore names transactions the
+    owner may see nothing of; the per-transaction read that follows, in the
+    owner's context, is where that is decided.
     """
     rows = await session.exec(
         text(
@@ -197,7 +209,8 @@ async def _pending_transactions(
             "  AND NOT EXISTS ("
             "    SELECT 1 FROM webhook_deliveries d "
             "    WHERE d.subscription_id = :sid AND d.txn_id = o.txn_id "
-            "      AND (d.delivered_at IS NOT NULL OR d.next_attempt_at > :now)"
+            "      AND (d.delivered_at IS NOT NULL OR d.dead_lettered_at IS NOT NULL "
+            "           OR d.next_attempt_at > :now)"
             "  ) "
             "GROUP BY o.txn_id "
             "ORDER BY min(o.id) ASC "
@@ -228,6 +241,7 @@ async def _claim(
             "ON CONFLICT (subscription_id, txn_id) DO UPDATE "
             "  SET next_attempt_at = :lease "
             "  WHERE webhook_deliveries.delivered_at IS NULL "
+            "    AND webhook_deliveries.dead_lettered_at IS NULL "
             "    AND (webhook_deliveries.next_attempt_at IS NULL "
             "         OR webhook_deliveries.next_attempt_at <= :now) "
             "RETURNING attempts"
@@ -250,31 +264,45 @@ async def _settle(
     *,
     now: datetime,
     accepted: bool,
-) -> None:
-    """Record the outcome.
+) -> bool:
+    """Record the outcome. Returns whether this call dead-lettered the batch.
 
     ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
     mid-flight from reopening a batch another pass has already completed.
+
+    A refusal past the last backoff step dead-letters instead of scheduling
+    another retry at the final interval forever — computed in the same
+    statement that increments ``attempts``, for the same reason the interval
+    itself is: two passes racing must not each read a stale count and disagree
+    on whether this is the step that ends retries.
     """
     if accepted:
         statement = text(
             "UPDATE webhook_deliveries "
             "SET delivered_at = :now, next_attempt_at = NULL "
-            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
+            "RETURNING false"
         ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     else:
         statement = text(
             "UPDATE webhook_deliveries "
             "SET attempts = attempts + 1, "
-            "    next_attempt_at = :now + make_interval(secs => "
-            "      (CAST(:backoff AS integer[]))["
-            "        LEAST(attempts + 1, cardinality(CAST(:backoff AS integer[])))"
-            "      ]"
-            "    ) "
-            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+            "    next_attempt_at = CASE "
+            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN NULL "
+            "      ELSE :now + make_interval(secs => "
+            "        (CAST(:backoff AS integer[]))[attempts + 1]) "
+            "    END, "
+            "    dead_lettered_at = CASE "
+            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN :now "
+            "      ELSE NULL "
+            "    END "
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
+            "RETURNING dead_lettered_at IS NOT NULL"
         ).bindparams(_BACKOFF_PARAM, now=now, sid=subscription.id, txn=txn_id)
-    await session.exec(statement)
+    result = await session.exec(statement)
+    row = result.first()
     await session.commit()
+    return bool(row[0]) if row is not None else False
 
 
 async def _drain_subscription(
@@ -292,6 +320,27 @@ async def _drain_subscription(
     with, and that leg is about how a person authenticated, not about what this
     owner may reach.
     """
+    # The candidate scan runs as the system login, not as the owner. Under the
+    # owner's guild role every row of the log is put through initiative_access()
+    # — a SQL function the planner cannot inline, about a millisecond a call —
+    # before the cheap filters get a look, and the scan touches the whole log
+    # every pass to find the handful still owed. Ten subscriptions over a few
+    # thousand rows is a poller that never finishes a pass and a database
+    # pinned at its CPU limit: measured 3.5s a scan owner-side against 1.7ms
+    # system-side, on the same rows. Keeping app_admin's BYPASSRLS costs only
+    # the two log columns this reads and the ledger's five, granted in
+    # SYSTEM_GUILD_MAINTENANCE_GRANTS.
+    #
+    # What the OWNER may see is still decided by RLS, on the per-transaction
+    # read below, in the owner's context, over an indexed handful of rows. A
+    # transaction holding nothing that owner may see comes back empty there
+    # and is settled the way any batch with nothing in it for this subscriber
+    # is, so it is not reconsidered every pass. That is the one observable
+    # change: a row the owner could not see when it was written is not held
+    # back for them to gain access to later.
+    await set_system_guild_context(session, guild_id=subscription.guild_id)
+    pending = await _pending_transactions(session, subscription, now=now)
+
     await set_rls_context(
         session,
         user_id=subscription.created_by,
@@ -299,7 +348,7 @@ async def _drain_subscription(
         satisfied_providers="system",
     )
 
-    for txn_id in await _pending_transactions(session, subscription, now=now):
+    for txn_id in pending:
         if not await _claim(session, subscription, txn_id, now=now):
             continue
 
@@ -340,10 +389,21 @@ async def _drain_subscription(
                 actor_ref=None if actor_id is None else actor_refs[actor_id],
             ),
         )
-        await _settle(session, subscription, txn_id, now=now, accepted=accepted)
-        if not accepted:
+        dead_lettered = await _settle(
+            session, subscription, txn_id, now=now, accepted=accepted
+        )
+        if dead_lettered:
+            logger.warning(
+                "webhook delivery dead-lettered: subscription=%s txn=%s target=%s",
+                subscription.id,
+                txn_id,
+                subscription.target_url,
+            )
+        elif not accepted:
             # Deliver in order: hold the rest of this subscription's backlog
-            # until the refused batch gets through.
+            # until the refused batch gets through. Once dead-lettered there is
+            # nothing left to wait on, so later transactions proceed instead of
+            # queuing behind a batch that will never be retried again.
             return
 
 

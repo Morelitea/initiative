@@ -35,7 +35,7 @@ vi.mock("@/hooks/useGuildAppDetail", () => ({
 const app = (overrides: Partial<GuildAppDetail>) =>
   ({
     id: 7,
-    name: "Guild calendar",
+    name: "Community calendar",
     listing_version: "1.0.0",
     auto_update: true,
     ...overrides,

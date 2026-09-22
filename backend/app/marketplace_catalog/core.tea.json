@@ -8,8 +8,8 @@
   "long_description": "A pot that has sat exactly long enough, terraces at the hour the mist has not lifted, and the maddest tea party in English. Sit in a cup or put porcelain round your picture, then wear a pot, a bag, a bowl of matcha and a cup of your own. Loose-leaf people welcome. Bag people also welcome.",
   "avatar_url": "/decorations/banners/tea-service.svg",
   "images": [],
-  "version": "1.4.0",
-  "release_notes": "A cup to sit in, in place of the ring of leaves.",
+  "version": "1.5.0",
+  "release_notes": "Trophies renamed to say who you are, not what you're holding.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -22,7 +22,7 @@
       {
         "id": "tea.cup",
         "slot": "trophy",
-        "name": "Cup"
+        "name": "Loose-leaf person"
       },
       {
         "id": "tea.garden",
@@ -37,17 +37,17 @@
       {
         "id": "tea.bag",
         "slot": "trophy",
-        "name": "Tea bag"
+        "name": "Bag person"
       },
       {
         "id": "tea.pot",
         "slot": "trophy",
-        "name": "Teapot"
+        "name": "Tea snob"
       },
       {
         "id": "tea.matcha",
         "slot": "trophy",
-        "name": "Matcha"
+        "name": "Matcha devotee"
       },
       {
         "id": "tea.party",

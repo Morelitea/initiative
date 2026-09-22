@@ -1215,7 +1215,7 @@ class TestRelationshipCascades:
             headers=a.headers,
             json={
                 "password": "testpassword123",
-                "confirmation_text": f"DELETE GUILD {a.guild.name.upper()}",
+                "confirmation_text": f"DELETE COMMUNITY {a.guild.name.upper()}",
             },
         )
         assert response.status_code == 204, response.text
