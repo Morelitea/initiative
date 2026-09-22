@@ -445,7 +445,7 @@ async def get_guild_breakdown(
     """
     from app.models.platform.guild import Guild
 
-    completed = (
+    completed_row = (
         await session.exec(
             select(func.count(Task.id))
             .join(Project, Project.id == Task.project_id)
@@ -457,11 +457,14 @@ async def get_guild_breakdown(
             )
         )
     ).one()
+    # A SQLAlchemy ``select`` of one column answers in rows, not scalars.
+    completed = int(completed_row[0])
     if not completed:
         return []
-    name = (
+    name_row = (
         await session.exec(select(Guild.name).where(Guild.id == guild_id))
     ).one_or_none()
+    name = name_row[0] if name_row is not None else None
     return [
         GuildTaskBreakdown(
             guild_id=guild_id, guild_name=name or "", completed_count=completed

@@ -77,7 +77,6 @@ async def test_a_write_that_skips_the_orm_is_stamped_too(session: AsyncSession):
     await session.exec(
         insert(QueueItem).values(
             queue_id=queue.id,
-            guild_id=guild.id,
             label="written by statement",
             created_at=datetime.now(timezone.utc),
         )

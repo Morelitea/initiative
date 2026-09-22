@@ -50,6 +50,12 @@ def active_grant_level(guild_id: int) -> Optional[str]:
     return level if granted_guild == guild_id else None
 
 
+def active_grant_guild_id() -> Optional[int]:
+    """The community the request's grant names, or None when it holds none."""
+    current = _active_grant.get()
+    return None if current is None else current[0]
+
+
 def has_active_grant(guild_id: int) -> bool:
     """Whether this request is served via a live grant covering ``guild_id``.
 

@@ -141,10 +141,10 @@ async def test_a_read_only_grant_cannot_post(session: AsyncSession, role_session
     task = await create_task(session, project)
 
     insert = text(
-        "INSERT INTO comments (task_id, content, created_by, guild_id,"
+        "INSERT INTO comments (task_id, content, created_by,"
         " created_at, updated_at)"
-        " VALUES (:t, 'let me in', :u, :g, now(), now())"
-    ).bindparams(t=task.id, u=support.id, g=guild.id)
+        " VALUES (:t, 'let me in', :u, now(), now())"
+    ).bindparams(t=task.id, u=support.id)
 
     # A grantee is scoped by pam_guild_id and leaves current_guild_id unset —
     # a matching current_guild_id reads as proof of membership, which is the

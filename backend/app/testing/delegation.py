@@ -232,6 +232,10 @@ async def authorize_delegate(
     suite whose subject is something else states the precondition in one line.
     """
     from app.testing.factories import create_app_delegation
+    from app.testing.schema_harness import remember_guild
 
     app = await install_delegate(session, guild)
+    # The install may have been read back rather than built here; either way
+    # it is this guild's, which is what the delegation factory routes by.
+    remember_guild(app, guild.id)
     return await create_app_delegation(session, app, user, can_write=can_write)

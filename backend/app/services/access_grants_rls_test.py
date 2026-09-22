@@ -159,7 +159,6 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
 
         # Pre-fix this raised InsufficientPrivilegeError on the INSERT.
         row = await app_settings_service.get_or_create_guild_settings(session, guild.id)
-        assert row.guild_id == guild.id
         assert row.id is None, "grantee settings must be transient, not persisted"
     finally:
         set_active_grant(None, None)
@@ -168,8 +167,7 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
     # Nothing was written.
     persisted = (
         await session.exec(
-            text("SELECT count(*) FROM guild_settings WHERE guild_id = :g"),
-            params={"g": guild.id},
+            text("SELECT count(*) FROM guild_settings"),
         )
     ).scalar_one()
     assert persisted == 0, "grantee read must not create a guild_settings row"

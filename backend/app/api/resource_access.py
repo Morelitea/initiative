@@ -23,6 +23,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.role_context import context_guild_id
 from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
 from app.db.initiative_rls import governing_path
@@ -230,7 +231,7 @@ def authorize(
     if (
         manage_access
         and cfg.grant_cannot_manage_msg
-        and has_active_grant(getattr(row, "guild_id", None))
+        and has_active_grant(context_guild_id())
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=cfg.grant_cannot_manage_msg

@@ -2946,7 +2946,7 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
             )
             # Capture before the per-reminder commits expire/detach the rows.
             due = [
-                (e.id, e.start_at, e.guild_id)
+                (e.id, e.start_at, guild_id)
                 for e in events
                 if e.start_at - timedelta(minutes=minutes) <= now
             ]

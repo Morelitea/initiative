@@ -73,8 +73,8 @@ def public_relation(name: str) -> Table:
 
 async def _resolve_initiative(
     session: AsyncSession, target: SearchEntityType, target_id: int
-) -> Optional[tuple[int, int]]:
-    """``(guild_id, initiative_id)`` for a community target, or ``None``.
+) -> Optional[int]:
+    """The initiative a community target belongs to, or ``None``.
 
     The initiative is read with the expression
     ``app.db.initiative_rls.INITIATIVE_PATHS`` already declares for that table —
@@ -93,20 +93,19 @@ async def _resolve_initiative(
     table_name = target_table(target)
     path = INITIATIVE_PATHS.get(table_name)
     relation = SQLModel.metadata.tables.get(table_name)
-    if path is None or relation is None or "guild_id" not in relation.c:
+    if path is None or relation is None:
         return None
 
     row = (
         await session.exec(
-            sa_select(
-                relation.c["guild_id"],
-                text(path.initiative_expr(table_name)),
-            ).where(relation.c["id"] == target_id)
+            sa_select(text(path.initiative_expr(table_name)))
+            .select_from(relation)
+            .where(relation.c["id"] == target_id)
         )
     ).first()
-    if row is None or row[1] is None:
+    if row is None or row[0] is None:
         return None
-    return int(row[0]), int(row[1])
+    return int(row[0])
 
 
 async def file_report(
@@ -292,7 +291,8 @@ async def _locate_as_reporter(
         await establish_guild_access(reporter_session, reporter, guild_id)
     except GuildAccessError:
         return None
-    return await _resolve_initiative(reporter_session, target, target_id)
+    initiative_id = await _resolve_initiative(reporter_session, target, target_id)
+    return None if initiative_id is None else (guild_id, initiative_id)
 
 
 async def _platform_target_visible(

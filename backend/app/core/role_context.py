@@ -136,3 +136,28 @@ def content_read_only_active(guild_id: Optional[int]) -> bool:
     if guild_id is None:
         return False
     return _content_read_only_guild.get() == guild_id
+
+
+def context_guild_id() -> Optional[int]:
+    """The community this request acts in.
+
+    The route when one is set; otherwise whichever recorded context names one:
+    the active role, the active grant, or the read-only flag. A row loaded
+    through a routed session belongs to that community, and a caller that
+    recorded a role or a grant for one did so after validating it, so a
+    decision about the row reads the community from here rather than from a
+    column the row no longer carries.
+    """
+    from app.core.pam_context import active_grant_guild_id
+    from app.core.routed_guild import routed_guild_id
+
+    routed = routed_guild_id()
+    if routed is not None:
+        return routed
+    current = _active_role.get()
+    if current is not None:
+        return current[0]
+    granted = active_grant_guild_id()
+    if granted is not None:
+        return granted
+    return _content_read_only_guild.get()

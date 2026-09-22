@@ -51,6 +51,8 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+from app.core.routed_guild import routed_guild_id
+from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment
@@ -459,13 +461,22 @@ def _annotate_task_properties(tasks: list[Task]) -> None:
         object.__setattr__(task, "properties", summaries)
 
 
-def _task_to_list_read(task: Task) -> TaskListRead:
-    """Convert Task model to lightweight TaskListRead schema"""
+def _task_to_list_read(
+    task: Task,
+    *,
+    guild_id: int | None = None,
+    guild_name: str | None = None,
+) -> TaskListRead:
+    """Convert Task model to lightweight TaskListRead schema.
+
+    A guild-scoped list leaves ``guild_id`` to the route. A cross-guild list
+    passes the community each row came from, and its name, because rows
+    from several schemas are merged after the session has moved on.
+    """
     from app.schemas.tenant.task import TaskAssigneeSummary
 
     project = getattr(task, "project", None)
     initiative = getattr(project, "initiative", None) if project else None
-    guild = getattr(initiative, "guild", None) if initiative else None
 
     assignees = [
         TaskAssigneeSummary(
@@ -501,8 +512,8 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
         blocked_by_open_count=getattr(task, "blocked_by_open_count", 0),
-        guild_id=guild.id if guild else None,
-        guild_name=guild.name if guild else None,
+        guild_id=guild_id if guild_id is not None else routed_guild_id(),
+        guild_name=guild_name,
         project_name=project.name if project else None,
         initiative_id=initiative.id if initiative else None,
         initiative_name=initiative.name if initiative else None,
@@ -952,6 +963,19 @@ async def _gather_global_task_reads(
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
+    # Names for the guild column of each row, read once on the user context
+    # before the session starts routing into schemas.
+    guild_names: dict[int, str] = (
+        dict(
+            (
+                await session.exec(
+                    select(Guild.id, Guild.name).where(Guild.id.in_(target_guilds))
+                )
+            ).all()
+        )
+        if target_guilds
+        else {}
+    )
 
     ordering = _global_ordering_selectables(tz)
 
@@ -1021,7 +1045,12 @@ async def _gather_global_task_reads(
         await tags_service.annotate_tags(guild_session, tasks)
         _annotate_task_properties(tasks)
         return [
-            (placement[(_guild_id, task.id)], _task_to_list_read(task))
+            (
+                placement[(_guild_id, task.id)],
+                _task_to_list_read(
+                    task, guild_id=_guild_id, guild_name=guild_names.get(_guild_id)
+                ),
+            )
             for task in tasks
         ]
 

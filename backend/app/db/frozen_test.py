@@ -222,12 +222,10 @@ class TestAncestorFreeze:
             await routed.exec(
                 text(
                     "INSERT INTO resource_grants "
-                    "(resource_type, resource_id, user_id, level, guild_id, "
+                    "(resource_type, resource_id, user_id, level, "
                     " initiative_id, created_at) "
-                    "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
-                ).bindparams(
-                    pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id
-                )
+                    "VALUES ('project', :pid, :uid, 'viewer', :iid, now())"
+                ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
@@ -251,10 +249,10 @@ class TestAncestorFreeze:
         await routed.exec(
             text(
                 "INSERT INTO resource_grants "
-                "(resource_type, resource_id, user_id, level, guild_id, "
+                "(resource_type, resource_id, user_id, level, "
                 " initiative_id, created_at) "
-                "VALUES ('project', :pid, :uid, 'owner', :gid, :iid, now())"
-            ).bindparams(pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id)
+                "VALUES ('project', :pid, :uid, 'owner', :iid, now())"
+            ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
         )
 
     async def test_a_trashed_project_takes_no_new_sharing(
@@ -296,13 +294,12 @@ class TestAncestorFreeze:
                 await s.exec(
                     text(
                         "INSERT INTO resource_grants "
-                        "(resource_type, resource_id, user_id, level, guild_id, "
+                        "(resource_type, resource_id, user_id, level, "
                         " initiative_id, created_at) "
-                        "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
+                        "VALUES ('project', :pid, :uid, 'viewer', :iid, now())"
                     ).bindparams(
                         pid=project.id,
                         uid=bystander.id,
-                        gid=guild.id,
                         iid=initiative.id,
                     )
                 )

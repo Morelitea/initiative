@@ -75,20 +75,19 @@ async def test_initiative_rls_still_applies_to_it(engine, provisioned):
     async with engine.begin() as conn:
         initiative_id = await conn.scalar(
             text(
-                f"INSERT INTO {schema}.initiatives (name, guild_id, "
+                f"INSERT INTO {schema}.initiatives (name, "
                 "is_default, created_at, updated_at) "
-                "VALUES ('i', :g, false, now(), now()) RETURNING id"
+                "VALUES ('i', false, now(), now()) RETURNING id"
             ),
-            {"g": _GID},
         )
         await conn.execute(
             text(
-                f"INSERT INTO {schema}.projects (name, guild_id, initiative_id, "
+                f"INSERT INTO {schema}.projects (name, initiative_id, "
                 "archived_at, is_template, comments_enabled, "
                 "created_at, updated_at) "
-                "VALUES ('p', :g, :i, NULL, false, true, now(), now())"
+                "VALUES ('p', :i, NULL, false, true, now(), now())"
             ),
-            {"g": _GID, "i": initiative_id},
+            {"i": initiative_id},
         )
 
     async with engine.connect() as conn:

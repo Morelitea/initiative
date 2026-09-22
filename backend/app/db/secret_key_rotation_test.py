@@ -258,24 +258,22 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             await conn.execute(
                 text(
                     f'INSERT INTO "{schema}".guild_ai_connections '  # noqa: S608
-                    "(guild_id, label, provider, api_key_encrypted, enabled, "
+                    "(label, provider, api_key_encrypted, enabled, "
                     " is_default, created_at, updated_at) "
-                    "VALUES (:g, 'c', 'openai', :a, true, false, now(), now())"
+                    "VALUES ('c', 'openai', :a, true, false, now(), now())"
                 ),
                 {
-                    "g": gid,
                     "a": encrypt_field("guild-ai", SALT_AI_API_KEY, secret_key=OLD),
                 },
             )
             await conn.execute(
                 text(
                     f'INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
-                    "(guild_id, user_id, connection_scope, connection_id, "
+                    "(user_id, connection_scope, connection_id, "
                     " api_key_encrypted, created_at, updated_at) "
-                    "VALUES (:g, 1, 'guild', 1, :a, now(), now())"
+                    "VALUES (1, 'guild', 1, :a, now(), now())"
                 ),
                 {
-                    "g": gid,
                     "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),
                 },
             )
@@ -285,18 +283,10 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
 
         async with engine.connect() as conn:
             conn_ct = await conn.scalar(
-                text(
-                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connections '
-                    "WHERE guild_id = :g"
-                ),
-                {"g": gid},
+                text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connections'),
             )
             member_ct = await conn.scalar(
-                text(
-                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys '
-                    "WHERE guild_id = :g"
-                ),
-                {"g": gid},
+                text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys'),
             )
         assert decrypt_field(conn_ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
         assert decrypt_field(member_ct, SALT_AI_API_KEY, secret_key=NEW) == "member-ai"

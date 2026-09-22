@@ -43,6 +43,17 @@ DEFINITION = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _routed_to_the_apps_community():
+    """The serializer reads the community off the route, as a request has
+    one; these payloads are built without a request, so the route is set."""
+    from app.core.routed_guild import set_routed_guild_id
+
+    set_routed_guild_id(7)
+    yield
+    set_routed_guild_id(None)
+
+
 def _app(**overrides) -> SimpleNamespace:
     now = datetime.now(timezone.utc)
     return SimpleNamespace(

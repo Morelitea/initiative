@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import GuildRole
 from app.testing.factories import (
     create_guild,
@@ -203,6 +204,7 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
         session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     get_guild_storage(guild.id).write("note.txt", b"hello")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="note.txt",

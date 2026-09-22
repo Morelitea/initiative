@@ -417,7 +417,6 @@ def test_tool_models_spell_the_shared_columns_the_same():
 
     shared_columns = {
         "id",
-        "guild_id",
         "initiative_id",
         "name",
         "created_by",

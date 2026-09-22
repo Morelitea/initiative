@@ -1001,7 +1001,7 @@ async def websocket_queue(
     # RLS → DAC).
     async def _authorize(check_session, check_user):
         q = await queues_service.get_queue(check_session, queue_id)
-        if q is None or q.guild_id != guild_id:
+        if q is None:
             return False
         return (
             permissions_service.compute_permission(

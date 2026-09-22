@@ -243,7 +243,10 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
 
 
 def serialize_calendar_event_summary(
-    event: "CalendarEvent", *, user_id: Optional[int] = None
+    event: "CalendarEvent",
+    *,
+    user_id: Optional[int] = None,
+    guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
     from app.core.tools import Tool
@@ -283,7 +286,7 @@ def serialize_calendar_event_summary(
         recurrence=_parse_recurrence(event),
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
-        guild_id=require_routed_guild_id(),
+        guild_id=guild_id if guild_id is not None else require_routed_guild_id(),
         created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,

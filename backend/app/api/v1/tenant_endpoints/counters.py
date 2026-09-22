@@ -892,7 +892,7 @@ async def websocket_counter_group(
     # RLS → DAC).
     async def _authorize(check_session, check_user):
         grp = await counters_service.get_counter_group(check_session, group_id)
-        if grp is None or grp.guild_id != guild_id:
+        if grp is None:
             return False
         return (
             permissions_service.compute_permission(

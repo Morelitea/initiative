@@ -852,7 +852,7 @@ async def revoke_published_view(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.dashboard.no_access_code,
         )
-    guild_id, initiative_id = grant.guild_id, grant.initiative_id
+    guild_id, initiative_id = guild_context.guild_id, grant.initiative_id
     await session.delete(grant)
     await _record_published_change(
         session,
