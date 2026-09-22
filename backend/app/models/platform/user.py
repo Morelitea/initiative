@@ -261,6 +261,14 @@ class User(SQLModel, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
+    #: Whether clock times read as "1:30 PM" or "13:30". ``system`` — the
+    #: default — names no convention and leaves the choice to the browser's
+    #: locale, which is what every account had before the setting existed.
+    #: See ``app.core.user_input_validators.TIME_FORMATS``.
+    time_format: str = Field(
+        default="system",
+        sa_column=Column(String(16), nullable=False, server_default="system"),
+    )
     # How many recently-opened items the header tabs bar keeps and shows for
     # this user, across all entity types and guilds. Drives both the display
     # count and the per-guild prune cap (see app.services.recent_views).

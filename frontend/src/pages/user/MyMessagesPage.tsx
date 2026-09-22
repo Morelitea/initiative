@@ -53,6 +53,7 @@ import {
 import { useUserProfile } from "@/hooks/useUsers";
 import { groupName, isGroup, roster } from "@/lib/conversationName";
 import { formatDateTime } from "@/lib/formatDate";
+import { hour12Option } from "@/lib/timeFormat";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
@@ -402,7 +403,10 @@ const clockTime = (at: string): string => {
   const date = new Date(at);
   return Number.isNaN(date.getTime())
     ? ""
-    : new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(date);
+    : new Intl.DateTimeFormat(undefined, {
+        timeStyle: "short",
+        hour12: hour12Option(),
+      }).format(date);
 };
 
 /** Whether the second message carries on the first one's run. */

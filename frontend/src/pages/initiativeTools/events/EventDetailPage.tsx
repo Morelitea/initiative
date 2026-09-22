@@ -32,6 +32,7 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { hour12Option } from "@/lib/timeFormat";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -70,6 +71,7 @@ const formatDateTime = (dateStr: string, allDay: boolean): string => {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: hour12Option(),
   });
 };
 
@@ -102,10 +104,12 @@ const formatDateRange = (startStr: string, endStr: string, allDay: boolean): str
     const startTime = start.toLocaleTimeString(undefined, {
       hour: "numeric",
       minute: "2-digit",
+      hour12: hour12Option(),
     });
     const endTime = end.toLocaleTimeString(undefined, {
       hour: "numeric",
       minute: "2-digit",
+      hour12: hour12Option(),
     });
     return `${dayPart}, ${startTime} - ${endTime}`;
   }

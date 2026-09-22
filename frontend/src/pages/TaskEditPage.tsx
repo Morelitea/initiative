@@ -77,6 +77,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
+import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import {
   getAvatarSrc,
@@ -393,7 +394,9 @@ export const TaskEditPage = () => {
     ? {
         ...creationContext,
         relative: relativeCreatedAt,
-        absolute: format(creationContext.createdAt, "PPpp", { locale: dateLocale }),
+        absolute: format(creationContext.createdAt, dateTimePattern("PP", { seconds: true }), {
+          locale: dateLocale,
+        }),
       }
     : null;
 

@@ -35,6 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { getItem, setItem } from "@/lib/storage";
+import { formatClockSlot } from "@/lib/timeFormat";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -385,7 +386,7 @@ export const CreateEventDialog = ({
                     <SelectContent className="max-h-60">
                       {TIME_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {formatClockSlot(opt.value)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -417,7 +418,7 @@ export const CreateEventDialog = ({
                     <SelectContent className="max-h-60">
                       {endTimeOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {formatClockSlot(opt.value)}
                         </SelectItem>
                       ))}
                     </SelectContent>

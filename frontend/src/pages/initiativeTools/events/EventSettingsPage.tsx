@@ -54,6 +54,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { formatClockSlot } from "@/lib/timeFormat";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
@@ -389,7 +390,7 @@ export function EventSettingsPage() {
                     <SelectContent className="max-h-60">
                       {TIME_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {formatClockSlot(opt.value)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -421,7 +422,7 @@ export function EventSettingsPage() {
                     <SelectContent className="max-h-60">
                       {endTimeOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {formatClockSlot(opt.value)}
                         </SelectItem>
                       ))}
                     </SelectContent>

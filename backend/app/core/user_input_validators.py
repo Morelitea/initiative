@@ -66,6 +66,25 @@ def normalize_reminder_minutes(value: int | str | None) -> int | None:
     return number
 
 
+#: The clock conventions an account can pick between. ``system`` names none:
+#: the browser's locale decides, which is what every account did before the
+#: setting existed, so it is the default and the upgrade changes nothing.
+TIME_FORMATS = frozenset({"system", "12", "24"})
+
+
+def normalize_time_format(value: str | None) -> str | None:
+    """Validate a clock convention (``system``, ``12``, or ``24``)."""
+    if value is None:
+        return None
+    candidate = str(value).strip()
+    if candidate not in TIME_FORMATS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.INVALID_TIME_FORMAT,
+        )
+    return candidate
+
+
 def normalize_week_starts_on(value: int | str | None) -> int | None:
     """Validate a Sunday-Saturday weekday index (0–6)."""
     if value is None:
