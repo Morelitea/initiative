@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The task table's columns stop shifting as you scroll** — the table view keeps only the rows in view, and the browser was sizing the columns from whatever those happened to be, so every scroll re-measured against different content and the columns jumped. Widths now come from the columns themselves and hold still from the first row to the last.
+
 ## [0.71.3] - 2026-09-21
 
 ### Added
