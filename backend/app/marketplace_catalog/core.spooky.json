@@ -8,8 +8,8 @@
   "long_description": "A hollow with something in the trees, an apothecary bench with the burner lit and the cat supervising, and a chorus line of skeletons who have been at it since sundown. A web, a rib cage or wrought iron to frame you; a lantern, a ghost and a bat to wear.",
   "avatar_url": "/decorations/banners/spooky-hollow.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "Skeletons who have been dancing since sundown, and an apothecary bench.",
+  "version": "1.3.0",
+  "release_notes": "Trophies renamed to say who you are, not what you're holding.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -27,7 +27,7 @@
       {
         "id": "spooky.lantern",
         "slot": "trophy",
-        "name": "Jack-o'-lantern"
+        "name": "Pumpkin carver"
       },
       {
         "id": "spooky.witching",
@@ -47,12 +47,12 @@
       {
         "id": "spooky.ghost",
         "slot": "trophy",
-        "name": "Ghost"
+        "name": "Ghost hunter"
       },
       {
         "id": "spooky.bat",
         "slot": "trophy",
-        "name": "Bat"
+        "name": "A little batty"
       },
       {
         "id": "spooky.skeletons",
