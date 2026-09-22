@@ -72,24 +72,36 @@ async def require_login_method(session: AsyncSession, method: LoginMethod) -> No
         )
 
 
-def require_session_row(request: Request) -> uuid.UUID:
-    """The server-side session this request is on, or 403.
+def current_session_row(request: Request) -> uuid.UUID | None:
+    """The server-side session this request is on, or ``None``.
 
     Named by the request's own access token: every client carries one of
     those, and a credential that is not a session — a device token, an API
-    key — names none. The step-ups add to a session, so this is what they
-    have to be holding before a ceremony is worth starting.
+    key — names none.
     """
     raw = getattr(request.state, "session_id", None)
-    if raw:
-        try:
-            return uuid.UUID(str(raw))
-        except ValueError:
-            pass
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=AuthMessages.SESSION_REQUIRED,
-    )
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except ValueError:
+        return None
+
+
+def require_session_row(request: Request) -> uuid.UUID:
+    """The server-side session this request is on, or 403.
+
+    The step-ups add to a session, so this is what they have to be holding
+    before a ceremony is worth starting. Signing out has something to do
+    either way, and reads :func:`current_session_row` instead.
+    """
+    session_id = current_session_row(request)
+    if session_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
+        )
+    return session_id
 
 
 # Walk a session back up its rotation chain and read the oldest row there.

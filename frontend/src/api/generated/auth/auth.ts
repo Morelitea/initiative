@@ -1049,13 +1049,39 @@ export function useCheckUsernameAvailableApiV1AuthUsernameAvailableGet<
 }
 
 /**
+ * End the session this request is on, and leave the account's others.
+ *
+ * Signing out is per device: the rotation chain behind this login is revoked
+ * and the cookies that carried it are cleared, so a phone signing out does
+ * not close the laptop. What signs an account out everywhere is a credential
+ * change — a password change or reset, a second factor disabled, an account
+ * action taken by a platform admin — each of which bumps
+ * ``users.token_version`` on its own path.
+ *
+ * What is revoked here is the refresh side — the rotation chain behind this
+ * login. The access token it came in on is short-lived and the client drops
+ * it (history/auth-detailed-design.md §3.3).
+ *
+ * A native client authenticating with a device token consumes that row too —
+ * the token is one installed client's, so consuming it is the same per-device
+ * scope by another name.
  * @summary Logout
  */
 export const logoutApiV1AuthLogoutPost = (
+  refreshRequestNull?: BodyType<RefreshRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/auth/logout`, method: "POST", signal }, options);
+  return apiMutator<void>(
+    {
+      url: `/api/v1/auth/logout`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: refreshRequestNull,
+      signal,
+    },
+    options
+  );
 };
 
 export const getLogoutApiV1AuthLogoutPostMutationKey = () => ["logoutApiV1AuthLogoutPost"] as const;
@@ -1067,14 +1093,14 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
     TError,
-    void,
+    LogoutApiV1AuthLogoutPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
   TError,
-  void,
+  LogoutApiV1AuthLogoutPostMutationVariables,
   TContext
 > => {
   const mutationKey = getLogoutApiV1AuthLogoutPostMutationKey();
@@ -1086,9 +1112,11 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
-    void
-  > = () => {
-    return logoutApiV1AuthLogoutPost(requestOptions);
+    LogoutApiV1AuthLogoutPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return logoutApiV1AuthLogoutPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1097,8 +1125,9 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
 export type LogoutApiV1AuthLogoutPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>
 >;
-
+export type LogoutApiV1AuthLogoutPostMutationBody = BodyType<RefreshRequest | null> | undefined;
 export type LogoutApiV1AuthLogoutPostMutationError = ErrorType<HTTPValidationError>;
+export type LogoutApiV1AuthLogoutPostMutationVariables = { data?: BodyType<RefreshRequest | null> };
 
 /**
  * @summary Logout
@@ -1111,7 +1140,7 @@ export const useLogoutApiV1AuthLogoutPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
       TError,
-      void,
+      LogoutApiV1AuthLogoutPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1120,7 +1149,7 @@ export const useLogoutApiV1AuthLogoutPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
   TError,
-  void,
+  LogoutApiV1AuthLogoutPostMutationVariables,
   TContext
 > => {
   return useMutation(getLogoutApiV1AuthLogoutPostMutationOptions(options), queryClient);
