@@ -1718,9 +1718,8 @@
     "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
     "push": {
       "label": "Mobile Benachrichtigungen",
-      "onHelp_one": "Benachrichtigungen erreichen Telefone über Apple und Google. Dieser Server hält {{count}} Geräteregistrierung.",
-      "onHelp_other": "Benachrichtigungen erreichen Telefone über Apple und Google. Dieser Server hält {{count}} Geräteregistrierungen.",
-      "offHelp": "Dieser Server sendet nichts an ein Telefon, lehnt neue Geräteregistrierungen ab und hält keine."
+      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google.",
+      "offHelp": "Dieser Server sendet nichts an ein Telefon und speichert keine Geräteregistrierungen."
     },
     "email": {
       "label": "E-Mail-Benachrichtigungen",

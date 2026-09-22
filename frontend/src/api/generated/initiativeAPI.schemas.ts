@@ -5740,7 +5740,6 @@ export interface NotificationSettingsResponse {
   push_notifications_enabled: boolean;
   email_notifications_enabled: boolean;
   redact_notification_content: boolean;
-  push_tokens_held: number;
 }
 
 export interface NotificationSettingsUpdate {

@@ -353,7 +353,6 @@ async def _notification_payload(session) -> NotificationSettingsResponse:
         push_notifications_enabled=row.push_notifications_enabled,
         email_notifications_enabled=row.email_notifications_enabled,
         redact_notification_content=row.redact_notification_content,
-        push_tokens_held=await push_tokens.count_all(session),
     )
 
 
@@ -362,11 +361,7 @@ async def get_notification_settings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> NotificationSettingsResponse:
-    """What this deployment permits a notification to leave the app carrying.
-
-    System engine: the device-token count is over a table no request-path role
-    reads.
-    """
+    """What this deployment permits a notification to leave the app carrying."""
     return await _notification_payload(session)
 
 

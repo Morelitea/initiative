@@ -110,15 +110,13 @@ async def test_switching_push_off_drops_the_tokens_and_declines_new_ones(
         platform="android",
         device_token_id=None,
     )
-    held = (await client.get(PLATFORM, headers=headers)).json()
-    assert held["push_tokens_held"] == 1
+    assert len((await session.exec(select(PushToken))).all()) == 1
 
     off = await client.put(
         PLATFORM, json=_all(push_notifications_enabled=False), headers=headers
     )
 
     assert off.status_code == 200, off.text
-    assert off.json()["push_tokens_held"] == 0
     assert (await session.exec(select(PushToken))).all() == []
 
     declined = await client.post(
@@ -158,7 +156,8 @@ async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
         headers=headers,
     )
 
-    assert response.json()["push_tokens_held"] == 1
+    assert response.status_code == 200, response.text
+    assert len((await session.exec(select(PushToken))).all()) == 1
 
 
 # --- a community's own answers -----------------------------------------------
