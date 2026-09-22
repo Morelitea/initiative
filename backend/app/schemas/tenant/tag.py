@@ -77,6 +77,18 @@ class TagRead(TagBase):
     updated_at: datetime
 
 
+def serialize_tag(tag, *, guild_id: int) -> TagRead:
+    """The wire shape of one tag row.
+
+    The row lives in its guild's schema and carries no guild column of its
+    own, so the guild is handed in by whoever routed the session.
+    """
+    fields = {
+        name: getattr(tag, name) for name in TagRead.model_fields if name != "guild_id"
+    }
+    return TagRead(guild_id=guild_id, **fields)
+
+
 class TagSetRequest(SanitizedBaseModel):
     """Request body for setting tags on an entity."""
 

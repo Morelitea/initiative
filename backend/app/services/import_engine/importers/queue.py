@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -49,7 +48,6 @@ class QueueImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: QueueEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
         existing_names = {
@@ -102,9 +100,7 @@ class QueueImporter(QuotesNobody):
             if item.member:
                 dropped_members += 1
             for tag_name in item.tags:
-                resolved = await ensure_tag(
-                    session, guild_id=guild_id, name=tag_name, color="#6b7280"
-                )
+                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
                 if resolved.created:
                     tags_created += 1
                 else:

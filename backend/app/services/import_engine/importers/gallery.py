@@ -95,9 +95,7 @@ class GalleryImporter(QuotesNobody):
         async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
             nonlocal tags_created, tags_matched
             for tag_name in names:
-                resolved = await ensure_tag(
-                    session, guild_id=guild_id, name=tag_name, color="#6b7280"
-                )
+                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
                 if resolved.created:
                     tags_created += 1
                 else:

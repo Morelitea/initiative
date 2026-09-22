@@ -450,6 +450,7 @@
   "GUILD_APP_DELEGATION_NOT_OFFERED": "Diese App handelt nie im Namen anderer, es gibt also nichts zu erlauben.",
   "GUILD_APP_DELEGATION_NOT_FOUND": "Du hast dieser App nicht erlaubt, in deinem Namen zu handeln.",
   "SESSION_REQUIRED": "Melde dich dafür an. Mit einem API-Schlüssel oder aus einer App heraus geht das nicht.",
+  "SESSION_NOT_FOUND": "Diese Sitzung wurde nicht gefunden. Vielleicht ist sie schon abgemeldet.",
   "GUILD_APP_MANDATORY": "Diese App gehört zur Plattform und kann hier weder entfernt noch ausgeschaltet werden.",
   "GUILD_APP_SERVICE_NOT_REGISTERED": "Diese App ist auf diesem Server nicht eingerichtet, es gibt also noch nichts zu öffnen.",
   "GUILD_APP_SURFACE_NOT_FOUND": "Diese App hat keinen Bereich mit diesem Namen.",

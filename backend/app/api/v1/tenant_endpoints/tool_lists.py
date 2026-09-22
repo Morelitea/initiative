@@ -426,7 +426,7 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
             detail=DocumentMessages.TOO_MANY_IDS,
         )
     conditions = documents_endpoints.visible_document_conditions(
-        req.guild_id,
+        req.guild_context,
         req.user.id,
         initiative_id=values.get("initiative_id"),
         ids=ids,

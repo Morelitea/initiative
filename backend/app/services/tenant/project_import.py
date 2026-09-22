@@ -6,7 +6,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
 2. Resolve the target initiative + its guild + member handles.
 3. Create the ``Project`` (importer is owner; rename on collision).
 4. Bulk-create per-project task statuses; build ``name → id`` map.
-5. Upsert tags by ``(guild_id, name)``; build ``name → id`` map; attach
+5. Upsert tags by name; build ``name → id`` map; attach
    to project via ``project_tags``.
 6. Upsert property definitions by ``(initiative_id, name)``. On type
    collision, create a new definition named ``<name>_<type>`` instead
@@ -25,7 +25,6 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.db.session import routed_guild_id
 from app.core.messages import ProjectExportMessages
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
@@ -106,16 +105,6 @@ async def import_project(
     # membership however the handle was resolved, and a mapped account is
     # known by its id rather than by a handle to look up.
     initiative_member_ids = frozenset(initiative_member_handles.values())
-    target_guild_id = routed_guild_id(session)
-    if target_guild_id is None:
-        # Initiatives are created with a guild (services/initiatives.py
-        # requires it). Reaching here means data corruption, not user
-        # input — fail loudly rather than create guild-less tags that
-        # would silently leak across guilds.
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ProjectExportMessages.INITIATIVE_NOT_FOUND,
-        )
 
     # 1. Project row (rename on collision)
     project_name = await _unique_project_name(
@@ -184,7 +173,6 @@ async def import_project(
     for t in envelope.tags:
         tag_id = await ensure_tag(
             session,
-            guild_id=target_guild_id,
             name=t.name,
             color=t.color,
         )
@@ -220,7 +208,6 @@ async def import_project(
             session,
             envelope_task=t,
             project_id=project.id,
-            guild_id=target_guild_id,
             importer_id=importer.id,
             status_name_to_id=status_name_to_id,
             status_id_to_category=status_id_to_category,
@@ -279,7 +266,6 @@ async def _import_task(
     *,
     envelope_task: ProjectExportTask,
     project_id: int,
-    guild_id: int | None,
     importer_id: int,
     status_name_to_id: dict[str, int],
     status_id_to_category: dict[int, TaskStatusCategory],
@@ -352,7 +338,6 @@ async def _import_task(
         if tid is None:
             resolved = await ensure_tag(
                 session,
-                guild_id=guild_id,
                 name=task_tag.name,
                 color=task_tag.color,
             )

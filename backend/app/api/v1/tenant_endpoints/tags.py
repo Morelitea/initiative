@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated, List, Sequence
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import ColumnElement, func, update as sa_update
@@ -38,6 +38,7 @@ from app.schemas.tenant.tag import (
     TagBulkEditResponse,
     TagCreate,
     TagRead,
+    serialize_tag,
     TagUpdate,
     TaggedEntitiesResponse,
     TaggedTaskSummary,
@@ -92,11 +93,11 @@ async def list_tags(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Sequence[Tag]:
+) -> list[TagRead]:
     """List all tags in the current guild."""
     stmt = select(Tag).order_by(Tag.name.asc())
     result = await session.exec(stmt)
-    return result.all()
+    return [serialize_tag(tag, guild_id=guild_context.guild_id) for tag in result.all()]
 
 
 @router.post("/", response_model=TagRead, status_code=status.HTTP_201_CREATED)
@@ -105,7 +106,7 @@ async def create_tag(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Tag:
+) -> TagRead:
     """Create a new tag in the current guild."""
     await _check_duplicate_name(session, guild_context.guild_id, tag_in.name)
 
@@ -116,7 +117,7 @@ async def create_tag(
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
-    return tag
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.post("/bulk", response_model=TagBulkEditResponse)
@@ -247,9 +248,10 @@ async def get_tag(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     include_deleted: IncludeDeletedDep = False,
-) -> Tag:
+) -> TagRead:
     """Get a specific tag by ID."""
-    return await _get_tag_or_404(session, tag_id, guild_context.guild_id)
+    tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.patch("/{tag_id}", response_model=TagRead)
@@ -259,7 +261,7 @@ async def update_tag(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Tag:
+) -> TagRead:
     """Update a tag's name or color."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
@@ -280,7 +282,7 @@ async def update_tag(
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
-    return tag
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)

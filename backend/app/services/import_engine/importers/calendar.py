@@ -232,9 +232,7 @@ class CalendarImporter(QuotesNobody):
         tags_created = 0
         tags_matched = 0
         for tag_name in item.tags:
-            resolved = await ensure_tag(
-                session, guild_id=guild_id, name=tag_name, color="#6b7280"
-            )
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
             if resolved.created:
                 tags_created += 1
             else:
