@@ -59,6 +59,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.api.v1.platform_endpoints.session_opening import (
     access_ttl_for,
+    current_session_row,
     MOBILE_CALLBACK_URI,
     open_session,
     record_sign_in_failure,
@@ -1087,6 +1088,39 @@ async def check_username_available(
     return UsernameAvailabilityResponse(available=True)
 
 
+async def _revoke_signed_out_login(
+    request: Request,
+    admin_session: AsyncSession,
+    *,
+    payload: RefreshRequest | None,
+    user_id: int,
+) -> None:
+    """Revoke the rotation chain behind the login this request is on.
+
+    Two ways a client names it, in the order it can. The refresh token it
+    presents identifies the row exactly — a cookie for the browser, the body
+    for a native client, which keeps its own in secure storage and has no
+    cookie to send. Failing that, the ``sid`` its access token carries.
+
+    Either way it goes through ``revoke_chain`` rather than ``revoke_session``:
+    a refresh replaces the row it rotates, so a credential minted earlier in
+    the chain still names the live one.
+    """
+    raw = request.cookies.get(REFRESH_COOKIE_NAME) or (
+        payload.refresh_token if payload is not None else None
+    )
+    if raw:
+        row = await session_service.get_live_session_by_refresh_token(
+            admin_session, raw
+        )
+        if row is not None and row.user_id == user_id:
+            await session_service.revoke_chain(admin_session, session_id=row.id)
+            return
+    session_id = current_session_row(request)
+    if session_id is not None:
+        await session_service.revoke_chain(admin_session, session_id=session_id)
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request: Request,
@@ -1094,23 +1128,35 @@ async def logout(
     session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
+    payload: RefreshRequest | None = None,
 ) -> None:
-    # Note: `session` and `get_current_user_optional` must resolve to the
-    # SAME session — the `current_user` object is attached to the dep's
-    # session, so committing a different one silently drops the
-    # token_version bump. (Tests alias both deps to one fixture session,
-    # which can mask a mismatch.)
-    # (``admin_session`` is a SEPARATE, deliberate session used only to revoke
-    # auth_sessions — which the request-path role doesn't touch — never for
-    # the token_version bump above.)
+    """End the session this request is on, and leave the account's others.
+
+    Signing out is per device: the rotation chain behind this login is revoked
+    and the cookies that carried it are cleared, so a phone signing out does
+    not close the laptop. What signs an account out everywhere is a credential
+    change — a password change or reset, a second factor disabled, an account
+    action taken by a platform admin — each of which bumps
+    ``users.token_version`` on its own path.
+
+    What is revoked here is the refresh side — the rotation chain behind this
+    login. The access token it came in on is short-lived and the client drops
+    it (history/auth-detailed-design.md §3.3).
+
+    A native client authenticating with a device token consumes that row too —
+    the token is one installed client's, so consuming it is the same per-device
+    scope by another name.
+
+    (``admin_session`` is a SEPARATE, deliberate session: ``auth_sessions`` is
+    reached on the system engine, as everywhere else that touches it.)
+    """
     if current_user is not None:
-        # ``SessionDep`` carries no context of its own, and the write below is
-        # this caller's own row — name them so the own-row rule on
-        # ``public.users`` matches.
-        await set_rls_context(session, user_id=current_user.id)
-        current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("DeviceToken "):
+            # ``SessionDep`` carries no context of its own, and reading the
+            # token slides its expiry against rows scoped to the caller — name
+            # them so the lookup sees the same answer every other request does.
+            await set_rls_context(session, user_id=current_user.id)
             device_token_str = auth_header[12:]
             device_token = await user_tokens.get_device_token(
                 session, token=device_token_str
@@ -1118,13 +1164,9 @@ async def logout(
             if device_token:
                 device_token.consumed_at = datetime.now(timezone.utc)
                 session.add(device_token)
-        session.add(current_user)
-        await session.commit()
-        # Revoke the refresh side too: the token_version bump covers access
-        # tokens, and revoking the refresh chain completes "logout = sign out
-        # everywhere".
-        await session_service.revoke_all_for_user(
-            admin_session, user_id=current_user.id
+                await session.commit()
+        await _revoke_signed_out_login(
+            request, admin_session, payload=payload, user_id=current_user.id
         )
         await audit_service.record(
             admin_session,
