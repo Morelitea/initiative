@@ -64,6 +64,7 @@ __all__ = [
     "AUTHORIZATION_FUNCTIONS",
     "GUILD_AUTHORIZATION_FUNCTIONS",
     "GUILD_FUNCTION_SIGNATURES",
+    "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
     "apply_authorization_functions",
@@ -627,6 +628,14 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "resource_access": "(text, integer, integer, integer, boolean)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
+    "entity_access": "(text, integer, boolean, boolean)",
+}
+
+#: Functions an earlier render put in a guild schema under a name or
+#: signature this one no longer produces. The RLS render drops them last,
+#: the template strip drops them with the rest, and the boot step that
+#: retires ``public`` copies tries these names too.
+RETIRED_GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "relationship_endpoint_access": "(text, integer, boolean)",
 }
 
@@ -717,7 +726,10 @@ async def drop_public_copies(engine: "AsyncEngine") -> DropReport:
     from app.db.errors import dbapi_sqlstate
 
     report = DropReport()
-    for name, args in GUILD_FUNCTION_SIGNATURES.items():
+    for name, args in {
+        **GUILD_FUNCTION_SIGNATURES,
+        **RETIRED_GUILD_FUNCTION_SIGNATURES,
+    }.items():
         sig = f"public.{name}{args}"
         async with engine.connect() as conn:
             exists = (

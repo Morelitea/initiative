@@ -16,6 +16,13 @@ honest:
 import pytest
 from sqlalchemy import text
 
+from app.core.reactions import ReactionTarget
+from app.db.initiative_rls import (
+    COMMENT_PARENTS,
+    RECENT_ENTITY_TABLES,
+    entity_tables,
+    render_entity_access_fn,
+)
 from app.db.schema_provisioning import (
     drop_guild_schema,
     guild_schema_name,
@@ -315,7 +322,7 @@ _NO_SINGLE_PARENT = {
     # One tool, two parents: a link must clear the gate on BOTH documents, so
     # there is no single row to authorize against.
     # Two parents of any kind: an edge clears the gate on each end through
-    # relationship_endpoint_access, which asks each end's own entry here.
+    # entity_access, which asks each end's own entry here.
     "relationships": "source and target must both clear it, whatever they are",
     # No sharing leg at all — see the registry for each.
     "event_outbox": "the change log is no tool's own table",
@@ -498,3 +505,34 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_QUERY_TRASH)
+
+
+# ---------------------------------------------------------------------------
+# entity_access: the kinds it answers for
+# ---------------------------------------------------------------------------
+
+
+def test_every_comment_parent_is_a_kind_the_entity_function_answers_for():
+    """A comment's policy names its parent as a ``(kind, id)`` pair and asks
+    ``entity_access`` about it, so every parent column has to resolve to one of
+    the function's arms — at the table the parent actually lives in."""
+    tables = entity_tables()
+    for parent in COMMENT_PARENTS.values():
+        assert parent.kind in tables, parent.column
+        assert tables[parent.kind] == parent.table, parent.column
+
+
+def test_every_reaction_target_and_recentable_kind_is_an_arm():
+    tables = entity_tables()
+    for target in ReactionTarget:
+        assert tables[target.value] == target.table
+    for kind, table in RECENT_ENTITY_TABLES.items():
+        assert tables[kind] == table
+
+
+def test_the_entity_function_carries_one_arm_per_kind():
+    fn = render_entity_access_fn()
+    for kind, table in entity_tables().items():
+        assert f"WHEN '{kind}' THEN" in fn, kind
+        assert f"FROM {table} re WHERE re.id = p_entity_id" in fn, kind
+    assert fn.count("WHEN '") == len(entity_tables())
