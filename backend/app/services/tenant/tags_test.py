@@ -218,9 +218,9 @@ async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
         await route_as(reader, user_id=a.user.id, guild_id=guild_id)
         return (
             await reader.exec(
-                text(
-                    "SELECT relationship_endpoint_access('task', :id, false)"
-                ).bindparams(id=task_id)
+                text("SELECT entity_access('task', :id, false, false)").bindparams(
+                    id=task_id
+                )
             )
         ).one()[0]
 
