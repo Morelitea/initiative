@@ -20,7 +20,10 @@ if str(BASE_DIR) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.db import base  # noqa: F401,E402  # ensure models are imported
-from app.db.migration_filters import make_include_object  # noqa: E402
+from app.db.migration_filters import (  # noqa: E402
+    make_include_object,
+    strip_cross_schema_foreign_keys,
+)
 
 config = context.config
 
@@ -58,6 +61,11 @@ def _process_revision_directives(context, revision, directives):
     """Set the revision ID to YYYYMMDD_NNNN (date + sequential number)."""
     if not directives:
         return
+    if GUILD_AUTOGEN:
+        # A new table brings its constraints with it, so this is the only point
+        # where a key out of the guild schema can be caught — see
+        # app.db.migration_filters.
+        strip_cross_schema_foreign_keys(directives)
     now = datetime.now(timezone.utc)
     date_prefix = now.strftime("%Y%m%d")
 
