@@ -74,6 +74,19 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/schema_provisioning.py::drop_guild_schema": (
         "int-derived guild_<id> schema/role names"
     ),
+    "app/db/schema_provisioning.py::strip_template_registry_objects": (
+        "the TEMPLATE_SCHEMA constant; policy, trigger and table names read "
+        "from the catalog and quoted; function names and argument lists from "
+        "the authorization registry constants"
+    ),
+    "app/db/authorization.py::drop_public_copies": (
+        "boot step; function names and argument lists are the "
+        "GUILD_FUNCTION_SIGNATURES registry constants under the public schema"
+    ),
+    "app/db/public_rls.py::apply_public_rls_if_changed": (
+        "boot step; the schema comment is the STAMP_PREFIX constant plus a hex "
+        "digest of the registry render"
+    ),
     "app/db/schema_provisioning.py::_effective_missing_grants": (
         "table/verb/role names from the system_grants registry constants"
     ),
