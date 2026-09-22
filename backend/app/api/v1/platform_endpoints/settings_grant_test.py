@@ -237,6 +237,9 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
         "allow_api_keys": False,
         "enforce_compliance_session": True,
         "require_second_factor": False,
+        "allow_email_notifications": True,
+        "allow_push_notifications": True,
+        "redact_notification_content": False,
     }
 
 
