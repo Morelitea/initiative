@@ -343,6 +343,7 @@
   "IMPORT_SOURCE_RATE_LIMITED": "Ese sitio nos pidió que fuéramos más despacio. Inténtalo de nuevo en unos minutos.",
   "IMPORT_SOURCE_PRIVATE_HOST": "Esa dirección está en una red privada a la que no podemos conectarnos.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "No se seleccionó nada para importar.",
+  "IMPORT_CREDENTIAL_UNAVAILABLE": "La conexión con ese sitio ha terminado. Vuelve a conectarte para continuar.",
   "IMPORT_PERMISSION_REQUIRED": "No tienes permiso para crear este contenido en la iniciativa elegida.",
   "IMPORT_APPLY_FAILED": "La importación falló. No se importó nada.",
   "IMPORT_ACCESS_REVOKED": "La importación falló porque se revocó el acceso a la comunidad.",

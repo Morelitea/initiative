@@ -114,3 +114,54 @@ async def test_the_sweep_takes_the_elapsed_and_leaves_the_live(session):
         ).all()
     }
     assert remaining == {live_id}
+
+
+async def test_describing_one_names_the_site_and_only_for_its_owner(session):
+    """The request path's view of a credential: whose, which site, and no
+    secret. Anybody who is not the person who connected gets nothing — the id
+    arrives in a request body, and knowing a number is not owning it."""
+    user = await create_user(session)
+    stranger = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    other = await create_guild(session, creator=user)
+
+    credential_id = await _store(guild, user)
+
+    summary = await import_credentials.describe(
+        credential_id, guild_id=guild.id, user_id=user.id
+    )
+    assert summary is not None
+    assert summary.site_url == "https://acme.atlassian.net"
+    assert summary.provider == "atlassian"
+    assert not hasattr(summary, "secret")
+
+    assert (
+        await import_credentials.describe(
+            credential_id, guild_id=guild.id, user_id=stranger.id
+        )
+        is None
+    )
+    assert (
+        await import_credentials.describe(
+            credential_id, guild_id=other.id, user_id=user.id
+        )
+        is None
+    )
+
+
+async def test_an_elapsed_credential_describes_as_nothing(session):
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+
+    credential_id = await _store(guild, user)
+    row = await session.get(ImportCredential, credential_id)
+    row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    session.add(row)
+    await session.commit()
+
+    assert (
+        await import_credentials.describe(
+            credential_id, guild_id=guild.id, user_id=user.id
+        )
+        is None
+    )

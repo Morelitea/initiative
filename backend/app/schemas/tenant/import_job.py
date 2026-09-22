@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from pydantic import ConfigDict
 
-from app.models.tenant.import_job import ImportJobStatus
+from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.schemas.base import SanitizedBaseModel
 from app.services.import_engine.contract import EnvelopeImportResult
 
@@ -31,6 +31,20 @@ class ImportJobRead(SanitizedBaseModel):
     expires_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+def serialize_import_job(job: ImportJob, *, guild_id: int) -> ImportJobRead:
+    """The wire shape of one job row.
+
+    The row lives in its guild's schema and carries no guild column of its
+    own, so the guild is handed in by whoever routed the session.
+    """
+    fields = {
+        name: getattr(job, name)
+        for name in ImportJobRead.model_fields
+        if name != "guild_id"
+    }
+    return ImportJobRead(guild_id=guild_id, **fields)
 
 
 class EnvelopeImportRequest(SanitizedBaseModel):
@@ -68,6 +82,10 @@ class BackupPlanInitiative(SanitizedBaseModel):
     proposed_name: str
     tools: dict[str, str]  # tool -> "included" | "excluded" | "disabled"
     entry_counts: dict[str, int]  # tool -> entries in the zip
+    # Set when the bundle files into an initiative that already exists rather
+    # than creating one — every foreign-source import. ``proposed_name`` means
+    # nothing then; this is where the content goes.
+    target_initiative_id: Optional[int] = None
 
 
 class BackupPlanPerson(SanitizedBaseModel):
@@ -84,6 +102,24 @@ class BackupPlanPerson(SanitizedBaseModel):
     name: Optional[str] = None
     comment_count: int = 0
     suggested_user_id: Optional[int] = None
+
+
+class AtlassianFetchSummary(SanitizedBaseModel):
+    """What reading an Atlassian site found, for the review step.
+
+    Counts only, never a title or a body. Written while the fetch runs, so the
+    wizard can show it climbing, and final once the job is staged.
+    """
+
+    projects: int = 0
+    tasks: int = 0
+    #: Rich-text nodes the converter could not carry, summed over every body.
+    #: Said before anybody commits, rather than discovered afterwards.
+    dropped_nodes: int = 0
+    #: Issues the site returned that were not usable as tasks.
+    skipped_issues: int = 0
+    #: Project keys that were ticked and could not be read with this token.
+    unreadable_projects: list[str] = []
 
 
 class BackupImportPlan(SanitizedBaseModel):
@@ -103,6 +139,8 @@ class BackupImportPlan(SanitizedBaseModel):
     # people step asks about. Empty for a backup taken before people were
     # inventoried, and for one that quotes nobody.
     people: list[BackupPlanPerson] = []
+    # Only on a bundle this server fetched from an Atlassian site.
+    atlassian: Optional[AtlassianFetchSummary] = None
 
 
 class EnvelopeImportPlan(SanitizedBaseModel):

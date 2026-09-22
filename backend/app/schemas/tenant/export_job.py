@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from pydantic import ConfigDict, Field, computed_field
 
-from app.models.tenant.export_job import ExportJobStatus
+from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -42,6 +42,20 @@ class ExportJobRead(SanitizedBaseModel):
 
     created_at: datetime
     updated_at: datetime
+
+
+def serialize_export_job(job: ExportJob, *, guild_id: int) -> ExportJobRead:
+    """The wire shape of one job row.
+
+    The row lives in its guild's schema and carries no guild column of its
+    own, so the guild is handed in by whoever routed the session.
+    """
+    fields = {
+        name: getattr(job, name)
+        for name in ExportJobRead.model_fields
+        if name != "guild_id"
+    }
+    return ExportJobRead(guild_id=guild_id, **fields)
 
 
 class GuildExportStatus(SanitizedBaseModel):

@@ -32,7 +32,7 @@ import logging
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
@@ -346,8 +346,14 @@ async def fetch_projects_bundle(
     target_initiative_id: int,
     app_version: str,
     jql_extra: str | None = None,
+    progress: Optional[Callable[[FetchReport], Awaitable[None]]] = None,
 ) -> tuple[bytes, FetchReport]:
     """Read the chosen projects and return the bundle plus what it found.
+
+    ``progress`` hears the running report after every project, read or not.
+    It is how the job row shows the fetch moving, and how a cancelled job
+    stops one: the callback raising ends the walk at the next project rather
+    than after the last.
 
     A project the token cannot read is **counted, not fatal**: somebody who
     ticked four projects and can reach three should get the three and be told
@@ -386,14 +392,15 @@ async def fetch_projects_bundle(
                 raise
             logger.info("jira project unreadable key=%s code=%s", key, exc.code)
             report.unreadable_projects.append(key)
-            continue
-
-        envelopes.append((key, mapped.envelope))
-        report.projects += 1
-        report.tasks += len(mapped.envelope["tasks"])
-        report.dropped_nodes += mapped.dropped_nodes
-        report.skipped_issues += mapped.skipped_issues
-        remaining -= used
+        else:
+            envelopes.append((key, mapped.envelope))
+            report.projects += 1
+            report.tasks += len(mapped.envelope["tasks"])
+            report.dropped_nodes += mapped.dropped_nodes
+            report.skipped_issues += mapped.skipped_issues
+            remaining -= used
+        if progress is not None:
+            await progress(report)
 
     if not envelopes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)

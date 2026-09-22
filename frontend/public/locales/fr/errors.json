@@ -343,6 +343,7 @@
   "IMPORT_SOURCE_RATE_LIMITED": "Ce site nous a demandé de ralentir. Réessayez dans quelques minutes.",
   "IMPORT_SOURCE_PRIVATE_HOST": "Cette adresse se trouve sur un réseau privé auquel nous ne pouvons pas nous connecter.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "Rien n'a été sélectionné à importer.",
+  "IMPORT_CREDENTIAL_UNAVAILABLE": "La connexion à ce site a pris fin. Reconnectez-vous pour continuer.",
   "IMPORT_PERMISSION_REQUIRED": "Vous n'avez pas la permission de créer ce contenu dans l'initiative choisie.",
   "IMPORT_APPLY_FAILED": "L'import a échoué. Rien n'a été importé.",
   "IMPORT_ACCESS_REVOKED": "L'import a échoué car l'accès à la communauté a été révoqué.",

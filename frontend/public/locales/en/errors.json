@@ -343,6 +343,7 @@
   "IMPORT_SOURCE_RATE_LIMITED": "That site asked us to slow down. Try again in a few minutes.",
   "IMPORT_SOURCE_PRIVATE_HOST": "That address is on a private network, which we can't connect to.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "Nothing was selected to import.",
+  "IMPORT_CREDENTIAL_UNAVAILABLE": "That connection to the site has ended. Connect again to continue.",
   "IMPORT_PERMISSION_REQUIRED": "You don't have permission to create this content in the chosen initiative.",
   "IMPORT_APPLY_FAILED": "The import failed. Nothing was imported.",
   "IMPORT_ACCESS_REVOKED": "The import failed because access to the community was revoked.",

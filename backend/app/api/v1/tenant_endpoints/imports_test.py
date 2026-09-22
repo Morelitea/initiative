@@ -1863,8 +1863,8 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
     # It left ``fetching`` and its half-written payload is gone, so the fetch
     # can start clean. It is NOT the apply path's fail-closed outcome, which
     # is the distinction this rule exists to make. (The same pass then picks
-    # the queued row up and stops, because no fetcher exists yet — that is
-    # P1, and it is why the status lands on failed rather than done.)
+    # the queued row up and starts the fetch over, which fails on the spot:
+    # this row was never given a credential to read the site with.)
     assert reclaimed.status is not ImportJobStatus.fetching
     assert reclaimed.error != "IMPORT_INTERRUPTED"
     assert reclaimed.payload_ref != "imports/half-written.json"
@@ -2586,3 +2586,293 @@ async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
     resp = await _connect(client, a, site_url="http://acme.atlassian.net")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_SOURCE_UNREACHABLE"
+
+
+# ---------------------------------------------------------------------------
+# A Jira import as a job: start → fetch → review → apply
+# ---------------------------------------------------------------------------
+
+
+_JIRA_STATUSES = [
+    {
+        "name": "Story",
+        "statuses": [
+            {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+            {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+        ],
+    }
+]
+
+
+def _jira_site(*, issues=None, locked=(), on_request=None):
+    """Stub a site that answers both a connect and a fetch.
+
+    ``locked`` names projects the token cannot read; ``on_request`` sees every
+    URL before it is answered, which is how a test reaches into the middle of
+    a fetch.
+    """
+    import httpx
+
+    probe = _atlassian_site()
+    requested: list[str] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        requested.append(url)
+        if on_request is not None:
+            await on_request(url)
+        if any(f"/rest/api/3/project/{key}" in url for key in locked):
+            return httpx.Response(403, json={})
+        if "/rest/api/3/project/search" in url:
+            return await probe(method, url, headers=headers, json=json)
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=_JIRA_STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": f"{key} Board"})
+        if "/rest/api/3/search/jql" in url:
+            return httpx.Response(200, json={"issues": issues or []})
+        if "/rest/agile/1.0/board?" in url:
+            return httpx.Response(404, json={})
+        return await probe(method, url, headers=headers, json=json)
+
+    fake_request.requested = requested  # type: ignore[attr-defined]
+    return fake_request
+
+
+def _jira_issue(key, summary, status="To Do", assignee=None):
+    fields = {"summary": summary, "status": {"name": status}}
+    if assignee:
+        fields["assignee"] = {"displayName": assignee}
+    return {"key": key, "fields": fields}
+
+
+async def _start_jira(client, actor, credential_id, *, initiative_id, keys=("ACME",)):
+    return await client.post(
+        actor.g("/imports/atlassian/jira"),
+        headers=actor.headers,
+        json={
+            "credential_id": credential_id,
+            "initiative_id": initiative_id,
+            "project_keys": list(keys),
+        },
+    )
+
+
+async def _credential_row(session, credential_id):
+    from app.models.platform.import_credential import ImportCredential
+
+    session.expunge_all()
+    return await session.get(ImportCredential, credential_id)
+
+
+async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The whole path, once: the fetch reads the site into a bundle and parks
+    it for review with nothing written, the review names the people and the
+    counts, and the confirm files the project into the chosen initiative.
+
+    The credential is gone the moment the bundle is staged — the review can
+    wait for hours, and it has no need of a live secret to do it.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    site = _jira_site(
+        issues=[
+            _jira_issue("ACME-1", "Wire the thing", assignee="Pat Smith"),
+            _jira_issue("ACME-2", "Ship the thing", status="Done"),
+        ]
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    credential_id = (await _connect(client, a)).json()["credential_id"]
+    resp = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == ImportJobStatus.queued.value
+    assert job["source"] == "atlassian"
+    assert job["params"]["jira_projects"] == ["ACME"]
+    assert job["params"]["site_url"] == "https://acme.atlassian.net"
+    assert "shhh" not in resp.text
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    plan = staged["plan"]
+    assert plan["atlassian"]["projects"] == 1
+    assert plan["atlassian"]["tasks"] == 2
+    assert plan["atlassian"]["unreadable_projects"] == []
+    assert plan["initiatives"][0]["target_initiative_id"] == a.initiative.id
+    assert [p["handle"] for p in plan["people"]] == ["Pat Smith"]
+
+    # Fetched, not applied: no project yet, and the token is already gone.
+    assert (
+        await session.exec(select(Project).where(Project.name == "ACME Board"))
+    ).one_or_none() is None
+    assert await _credential_row(session, credential_id) is None
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["initiatives"][0]["initiative_id"] == a.initiative.id
+
+    session.expunge_all()
+    project = (
+        await session.exec(select(Project).where(Project.name == "ACME Board"))
+    ).one()
+    assert project.initiative_id == a.initiative.id
+    titles = {
+        t.title
+        for t in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    assert titles == {"Wire the thing", "Ship the thing"}
+
+
+async def test_starting_a_jira_import_refuses_what_it_can_up_front(
+    client, acting_user, session, monkeypatch
+):
+    """Everything that can be refused before the site is read is refused
+    before the site is read, so the answer arrives in the wizard rather than
+    as a failed job minutes later."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", _jira_site())
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    credential_id = (await _connect(client, a)).json()["credential_id"]
+
+    nothing = await _start_jira(
+        client, a, credential_id, initiative_id=a.initiative.id, keys=()
+    )
+    assert nothing.status_code == 400
+    assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
+
+    # A key travels into a URL path and a JQL clause at the other end, so one
+    # that is not shaped like a Jira key never gets that far.
+    malformed = await _start_jira(
+        client,
+        a,
+        credential_id,
+        initiative_id=a.initiative.id,
+        keys=('ACME" OR project = "X',),
+    )
+    assert malformed.status_code == 422
+
+    # Somebody else's connection is not there, as far as this caller knows.
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    borrowed = await _start_jira(
+        client, b, credential_id, initiative_id=a.initiative.id
+    )
+    assert borrowed.status_code == 404
+    assert borrowed.json()["detail"] == "IMPORT_CREDENTIAL_UNAVAILABLE"
+
+    target = await _second_initiative(session, a, projects_enabled=False)
+    disabled = await _start_jira(client, a, credential_id, initiative_id=target.id)
+    assert disabled.status_code == 400
+    assert disabled.json()["detail"] == "IMPORT_TOOL_DISABLED"
+
+    first = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    assert first.status_code == 202, first.text
+    # One connection backs one job.
+    second = await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    assert second.status_code == 409
+    assert second.json()["detail"] == "IMPORT_CREDENTIAL_UNAVAILABLE"
+
+
+async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_token(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A failed fetch is a failed job with a code, a notification, and no
+    credential left behind."""
+    from sqlmodel import select
+
+    from app.models.platform.notification import Notification, NotificationType
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(locked=("ACME",))
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    credential_id = (await _connect(client, a)).json()["credential_id"]
+    job_id = (
+        await _start_jira(client, a, credential_id, initiative_id=a.initiative.id)
+    ).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_SOURCE_UNREACHABLE"
+    assert await _credential_row(session, credential_id) is None
+
+    failed = [
+        n
+        for n in (
+            await session.exec(
+                select(Notification).where(Notification.user_id == a.user.id)
+            )
+        ).all()
+        if n.type == NotificationType.import_failed
+    ]
+    assert [n.data["import_job_id"] for n in failed] == [job_id]
+
+
+async def test_cancelling_a_fetch_stops_it_at_the_next_project(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A fetch has written nothing but its own payload, so stopping one is
+    safe — and it should actually stop, not read the rest of the site first
+    and throw it away."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    state: dict = {}
+
+    async def cancel_mid_read(url):
+        # The first project's issues are being read: cancel the job, as the
+        # wizard's Cancel button would, before the second is reached.
+        if "search/jql" in url and not state.get("cancelled"):
+            state["cancelled"] = True
+            resp = await client.delete(
+                state["actor"].g(f"/imports/jobs/{state['job_id']}"),
+                headers=state["actor"].headers,
+            )
+            assert resp.status_code == 200, resp.text
+
+    site = _jira_site(issues=[_jira_issue("ACME-1", "One")], on_request=cancel_mid_read)
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    credential_id = (await _connect(client, a)).json()["credential_id"]
+    job_id = (
+        await _start_jira(
+            client,
+            a,
+            credential_id,
+            initiative_id=a.initiative.id,
+            keys=("ACME", "BETA"),
+        )
+    ).json()["id"]
+    state.update(actor=a, job_id=job_id)
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.cancelled.value
+    assert not any("/project/BETA" in url for url in site.requested)
+    assert await _credential_row(session, credential_id) is None

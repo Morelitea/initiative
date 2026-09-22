@@ -314,12 +314,15 @@ from app.schemas.tenant.import_job import (  # noqa: E402
     EnvelopeImportRequest,
     EnvelopeImportResponse,
     ImportJobRead,
+    serialize_import_job,
 )
 from app.schemas.tenant.atlassian import (  # noqa: E402
     AtlassianConnectRequest,
     AtlassianConnectResponse,
+    AtlassianJiraImportRequest,
 )
 from app.services.import_engine import atlassian as atlassian_service  # noqa: E402
+from app.services.import_engine import atlassian_job  # noqa: E402
 from app.services.import_engine import credentials as import_credentials  # noqa: E402
 from app.services.import_engine import engine as import_engine  # noqa: E402
 from app.services.import_engine.contract import (  # noqa: E402
@@ -390,7 +393,9 @@ async def import_envelope(
         )
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
-        content=ImportJobRead.model_validate(outcome).model_dump(mode="json"),
+        content=serialize_import_job(
+            outcome, guild_id=guild_context.guild_id
+        ).model_dump(mode="json"),
     )
 
 
@@ -459,19 +464,63 @@ async def connect_atlassian(
     )
 
 
+@router.post(
+    "/atlassian/jira",
+    response_model=ImportJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_jira_import(
+    payload: AtlassianJiraImportRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportJobRead:
+    """Start reading Jira projects into an initiative.
+
+    Quotes the ``credential_id`` a connect returned, once: a connection backs
+    one job. The job comes back ``queued``; the worker moves it to
+    ``fetching`` while it reads the site, filling ``plan.atlassian`` with
+    counts as it goes, and parks it at ``staged`` with the full plan — the
+    people the projects name included — for
+    ``POST /imports/jobs/{id}/confirm``, exactly as an uploaded backup waits.
+
+    The initiative needs projects switched on and the caller needs to be able
+    to create them there. That is checked now, again before the site is read,
+    and again when the bundle is applied."""
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        # The same line the connect draws: a grant reaches existing content,
+        # not this server's outbound connections.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    try:
+        job = await atlassian_job.start_jira_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            credential_id=payload.credential_id,
+            initiative_id=payload.initiative_id,
+            project_keys=payload.project_keys,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
+
+
 @router.get("/jobs", response_model=list[ImportJobRead])
 async def list_import_jobs(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> list[ImportJob]:
+) -> list[ImportJobRead]:
     """The caller's import jobs, newest first (RLS scopes the rows: own rows,
     or the whole guild for a guild admin)."""
-    return list(
-        await session.exec(
-            select(ImportJob).order_by(ImportJob.created_at.desc()).limit(_LIST_LIMIT)
-        )
+    jobs = await session.exec(
+        select(ImportJob).order_by(ImportJob.created_at.desc()).limit(_LIST_LIMIT)
     )
+    return [serialize_import_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
 @router.get("/jobs/{job_id}", response_model=ImportJobRead)
@@ -480,14 +529,14 @@ async def get_import_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ImportJob:
+) -> ImportJobRead:
     job = await session.get(ImportJob, job_id)
     if job is None:  # includes rows RLS hides — 404, never 403
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 @router.delete("/jobs/{job_id}", response_model=ImportJobRead)
@@ -496,17 +545,24 @@ async def cancel_import_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ImportJob:
-    """Cancel a job that hasn't started applying (staged or queued); its
-    staged payload is deleted. A running/terminal job is not cancellable —
-    409 (an interrupted apply would leave half-committed content)."""
+) -> ImportJobRead:
+    """Cancel a job that hasn't started applying (staged, queued, or still
+    fetching from its source); its staged payload is deleted. A fetch writes
+    nothing but that payload, so stopping one mid-read is safe — the worker
+    notices at the next project and throws away what it had. A running or
+    terminal job is not cancellable — 409 (an interrupted apply would leave
+    half-committed content)."""
     job = await session.get(ImportJob, job_id)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
-    if job.status not in (ImportJobStatus.staged, ImportJobStatus.queued):
+    if job.status not in (
+        ImportJobStatus.staged,
+        ImportJobStatus.queued,
+        ImportJobStatus.fetching,
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CANCELLABLE,
@@ -520,7 +576,7 @@ async def cancel_import_job(
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +620,7 @@ async def upload_backup(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     file: UploadFile = File(...),
-) -> ImportJob:
+) -> ImportJobRead:
     """Upload a backup zip and get its pre-flight plan. The zip is staged in
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
@@ -617,7 +673,7 @@ async def upload_backup(
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 async def _guild_member_ids_by_handle(session, guild_id: int) -> dict[str, int]:
@@ -651,7 +707,7 @@ async def confirm_import(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     body: Optional[dict] = None,
-) -> ImportJob:
+) -> ImportJobRead:
     """Confirm a staged import: flips it to ``queued`` for the worker.
 
     Optional body ``{"include": {tool: bool}}`` narrows which tools apply
@@ -734,4 +790,4 @@ async def confirm_import(
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)

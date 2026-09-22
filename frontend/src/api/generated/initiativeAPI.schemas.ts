@@ -1153,6 +1153,26 @@ export interface AtlassianConnectResponse {
   confluence?: AtlassianConfluenceProbe;
 }
 
+/**
+ * The choose step's answer: which projects, from which connection, into
+ * which initiative.
+ *
+ * Nothing is read from the site here. The request starts a job, and the
+ * worker reads the projects into a bundle and parks it for review — the
+ * plan the wizard shows next is filled in as that fetch goes.
+ */
+export interface AtlassianJiraImportRequest {
+  credential_id: number;
+  initiative_id: number;
+  /**
+   * @maxItems 200
+   * @items.minLength 1
+   * @items.maxLength 50
+   * @items.pattern ^[A-Za-z][A-Za-z0-9_]*$
+   */
+  project_keys: string[];
+}
+
 export interface AttachmentUploadResponse {
   filename: string;
   url: string;
