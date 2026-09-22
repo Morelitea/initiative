@@ -703,9 +703,6 @@ export const useUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = <
 };
 /**
  * What this deployment permits a notification to leave the app carrying.
- *
- * System engine: the device-token count is over a table no request-path role
- * reads.
  * @summary Get Notification Settings
  */
 export const getNotificationSettingsApiV1SettingsNotificationsGet = (

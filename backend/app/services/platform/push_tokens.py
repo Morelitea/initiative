@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -84,12 +83,6 @@ async def delete_push_token(
     result = await session.exec(stmt)
     await session.commit()
     return result.rowcount > 0
-
-
-async def count_all(session: AsyncSession) -> int:
-    """How many device tokens this deployment is holding."""
-    result = await session.exec(select(func.count()).select_from(PushToken))
-    return result.one() or 0
 
 
 async def purge_all(session: AsyncSession) -> int:

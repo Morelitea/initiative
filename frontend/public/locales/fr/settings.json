@@ -1718,9 +1718,8 @@
     "error": "Impossible d'enregistrer les paramètres de notification",
     "push": {
       "label": "Notifications mobiles",
-      "onHelp_one": "Les notifications atteignent les téléphones via Apple et Google. Ce serveur conserve {{count}} enregistrement d'appareil.",
-      "onHelp_other": "Les notifications atteignent les téléphones via Apple et Google. Ce serveur conserve {{count}} enregistrements d'appareils.",
-      "offHelp": "Ce serveur n'envoie rien à un téléphone, refuse les nouveaux enregistrements d'appareils et n'en conserve aucun."
+      "onHelp": "Les notifications atteignent les téléphones via Apple et Google.",
+      "offHelp": "Ce serveur n'envoie rien à un téléphone et ne conserve aucun enregistrement d'appareil."
     },
     "email": {
       "label": "Notifications par e-mail",

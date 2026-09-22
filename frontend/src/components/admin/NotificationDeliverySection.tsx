@@ -51,9 +51,7 @@ export const NotificationDeliverySection = () => {
       id: "platform-push-notifications",
       label: t("notificationDelivery.push.label"),
       help: saved.push_notifications_enabled
-        ? // Said before the write rather than after it: switching this off
-          // drops the device tokens the deployment is holding.
-          t("notificationDelivery.push.onHelp", { count: saved.push_tokens_held })
+        ? t("notificationDelivery.push.onHelp")
         : t("notificationDelivery.push.offHelp"),
       checked: saved.push_notifications_enabled,
       change: (next: boolean) => flip({ push_notifications_enabled: next }),
