@@ -589,15 +589,14 @@ async def test_search_initiative_members_slim_and_filtered(
         "status",
         "profile_decorations",
         "guild_role",
-        "is_guild_admin",
     }
-    # Asserted as a value, not only as a key: the schema defaults it to False,
-    # so a key-set check passes just as happily on an endpoint that never
-    # fills it in.
+    # Asserted as a value, not only as a key: the schema leaves it unset, so a
+    # key-set check passes just as happily on an endpoint that never fills it
+    # in.
     by_name = {item["full_name"]: item for item in body["items"]}
-    assert by_name["Zed Admin"]["is_guild_admin"] is True
-    assert by_name["Alice Wonderland"]["is_guild_admin"] is False
-    assert by_name["Bob Builder"]["is_guild_admin"] is False
+    assert by_name["Zed Admin"]["guild_role"] == "admin"
+    assert by_name["Alice Wonderland"]["guild_role"] == "member"
+    assert by_name["Bob Builder"]["guild_role"] == "member"
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(

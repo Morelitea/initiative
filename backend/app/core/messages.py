@@ -710,14 +710,6 @@ class UserMessages:
     DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
 
 
-class ImportMessages:
-    PROJECT_ARCHIVED = "IMPORT_PROJECT_ARCHIVED"
-    NO_PERMISSION = "IMPORT_NO_PERMISSION"
-    INSUFFICIENT_PERMISSION = "IMPORT_INSUFFICIENT_PERMISSION"
-    INVALID_STATUS_ID = "IMPORT_INVALID_STATUS_ID"
-    PARSE_FAILED = "IMPORT_PARSE_FAILED"
-
-
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
     INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
@@ -767,6 +759,10 @@ class ImportEngineMessages:
     # the person has to fix something at the other end, not in this app.
     #: The site did not answer, or did not answer as a site of this kind.
     IMPORT_SOURCE_UNREACHABLE = "IMPORT_SOURCE_UNREACHABLE"
+    #: A file offered as one product's export that is not one.
+    IMPORT_UNKNOWN_SOURCE = "IMPORT_UNKNOWN_SOURCE"
+    #: A file that could not be read as the format it was offered as.
+    IMPORT_FILE_UNREADABLE = "IMPORT_FILE_UNREADABLE"
     #: The credential was refused, or it does not reach what was asked for.
     IMPORT_SOURCE_AUTH = "IMPORT_SOURCE_AUTH"
     #: The site asked us to slow down more than the job is willing to wait.

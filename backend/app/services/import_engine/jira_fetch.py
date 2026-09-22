@@ -397,7 +397,7 @@ async def fetch_projects_bundle(
             report.projects += 1
             report.tasks += len(mapped.envelope["tasks"])
             report.dropped_nodes += mapped.dropped_nodes
-            report.skipped_issues += mapped.skipped_issues
+            report.skipped_issues += mapped.skipped_rows
             remaining -= used
         if progress is not None:
             await progress(report)

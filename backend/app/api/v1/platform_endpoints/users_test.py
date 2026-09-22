@@ -363,12 +363,11 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
         "status",
         "profile_decorations",
         "guild_role",
-        "is_guild_admin",
     }
-    # Asserted as a value, not only as a key. The schema defaults it to False,
-    # so a key-set check passes just as happily on an endpoint that never
-    # fills it in -- which is the state this test was written against.
-    assert summary["is_guild_admin"] is False
+    # Asserted as a value, not only as a key. The schema leaves it unset, so a
+    # key-set check passes just as happily on an endpoint that never fills it
+    # in -- which is the state this test was written against.
+    assert summary["guild_role"] == "member"
     # This guild takes the default and shows names.
     assert summary["full_name"] == "Aaa"
 

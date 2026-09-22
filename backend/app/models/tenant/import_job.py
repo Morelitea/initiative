@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
@@ -82,7 +82,9 @@ class ImportJob(CreatedByMixin, table=True):
     # transition. Fernet-encrypted at rest under ``SALT_IMPORT_CREDENTIAL``
     # and registered for SECRET_KEY rotation. Not a field of
     # ``ImportJobRead``, so it is never serialized.
-    secret_encrypted: Optional[str] = Field(default=None)
+    secret_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     # Staged-payload GC deadline (unconfirmed backups expire).
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
