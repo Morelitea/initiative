@@ -824,3 +824,69 @@ async def test_upload_document_version_just_under_limit_succeeds(
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
+
+
+#: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
+#: enough to be identified as one.
+_TINY_PNG = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx"
+    b"\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00"
+    b"\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("uploader_role", ["guild_admin", "initiative_manager"])
+@pytest.mark.parametrize(
+    ("filename", "content", "content_type"),
+    [
+        pytest.param("floor-plan.png", _TINY_PNG, "image/png", id="image"),
+        pytest.param("floor-plan.pdf", _TINY_PDF, "application/pdf", id="pdf"),
+    ],
+)
+async def test_upload_document_file_as_any_author(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    uploader_role: str,
+    filename: str,
+    content: bytes,
+    content_type: str,
+) -> None:
+    """Anybody who may make documents can upload one, not only a guild admin.
+
+    Everything the upload writes after the documents row — its version, a
+    picture's featured image — is the owner's to write, and the uploader is
+    the owner only once their grant exists. A guild admin passes regardless,
+    which is how the order went unnoticed. A picture is its own featured image.
+    """
+    if uploader_role == "guild_admin":
+        uploader = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    else:
+        uploader = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    resp = await client.post(
+        uploader.g("/documents/upload"),
+        headers=uploader.headers,
+        data={"name": "Floor plan", "initiative_id": str(uploader.initiative.id)},
+        files={"file": (filename, content, content_type)},
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["file_content_type"] == content_type
+    expected_featured = body["file_url"] if content_type.startswith("image/") else None
+    assert body["featured_image_url"] == expected_featured
+
+    versions = (
+        await session.exec(
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == body["id"]
+            )
+        )
+    ).all()
+    assert [v.version_number for v in versions] == [1]
+    for v in versions:
+        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)

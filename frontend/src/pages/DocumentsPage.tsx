@@ -42,6 +42,8 @@ import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSke
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropOverlay } from "@/components/ui/file-drop";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
@@ -51,12 +53,14 @@ import {
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import type { GridToggleOptions } from "@/hooks/useGridSelection";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
@@ -579,6 +583,27 @@ export const DocumentsView = ({
     setDocumentTypeFilter(ALL_DOCUMENT_TYPES);
   }, [setTagFilters]);
 
+  // A file dragged in from the desktop lands wherever the cursor is, in any
+  // view, so the whole view takes it and opens the new-document dialog on its
+  // Upload tab holding it. Off while a dialog is up: those are portalled, and
+  // React would carry a drop on one back up to here.
+  const { maxUploadBytes } = useAppConfig();
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const drop = useFileDrop(
+    canCreateDocuments && !createDialogOpen && !bulkEditTagsOpen && !bulkEditAccessOpen,
+    (files) => {
+      const [first] = files;
+      if (!first) return;
+      setDroppedFile(first);
+      setCreateDialogOpen(true);
+    },
+    { accept: DOCUMENT_UPLOAD_ACCEPT, maxBytes: maxUploadBytes }
+  );
+  const onCreateDialogOpenChange = (open: boolean) => {
+    if (!open) setDroppedFile(null);
+    handleCreateDialogOpenChange(open);
+  };
+
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
     canCreateDocuments
@@ -637,7 +662,8 @@ export const DocumentsView = ({
   visibleDocumentsRef.current = displayDocuments;
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6" {...drop.handlers}>
+      {drop.dragging ? <DropOverlay label={t("page.dropToUpload")} tall /> : null}
       {!lockedInitiativeId && !fixedTagIds && (
         <div>
           <div className="flex items-baseline gap-4">
@@ -887,11 +913,12 @@ export const DocumentsView = ({
 
       <CreateDocumentDialog
         open={createDialogOpen}
-        onOpenChange={handleCreateDialogOpenChange}
+        onOpenChange={onCreateDialogOpenChange}
         initiativeId={lockedInitiativeId ?? undefined}
         defaultInitiativeId={lockedInitiativeId ?? createDialogInitiativeId}
         initiatives={creatableInitiatives}
         onSuccess={handleDocumentCreated}
+        initialFile={droppedFile}
       />
 
       <BulkEditTagsDialog

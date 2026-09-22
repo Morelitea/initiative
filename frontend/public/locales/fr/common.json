@@ -189,6 +189,11 @@
     "unavailable": "Cet appareil n'a pas d'appareil photo pour prendre une photo.",
     "failed": "Cette photo n'a pas pu être lue. Réessayez."
   },
+  "fileDrop": {
+    "release": "Dépose-le ici",
+    "unsupported": "Ce type de fichier ne peut pas être envoyé ici.",
+    "tooLarge": "Ce fichier dépasse la taille acceptée par ce serveur."
+  },
   "archiveError": "Impossible d'archiver cet élément. Veuillez réessayer.",
   "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer.",
   "markdownEditor": {

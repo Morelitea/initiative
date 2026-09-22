@@ -653,7 +653,9 @@ async def upload_document_file(
     )
     session.add(upload_record)
 
-    # Create document record
+    # Create document record. A picture is its own featured image, set here so
+    # it is written with the row: the uploader's owner grant is only added
+    # below, so a later UPDATE in this transaction is not theirs to make yet.
     document = Document(
         name=name,
         initiative_id=initiative.id,
@@ -664,36 +666,24 @@ async def upload_document_file(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
+        featured_image_url=(
+            file_url if mime_type and mime_type.startswith("image/") else None
+        ),
     )
     session.add(document)
     await session.flush()
 
     # Add owner permission for the creator
-    owner_permission = ResourceGrant(
-        resource_type="document",
-        resource_id=document.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        initiative_id=document.initiative_id,
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=document.id,
+            user_id=current_user.id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
+            initiative_id=document.initiative_id,
+        )
     )
-    # Record the initial version (v1). The documents row mirrors this version's
-    # file fields; subsequent uploads add higher-numbered versions.
-    initial_version = DocumentFileVersion(
-        document_id=document.id,
-        version_number=1,
-        file_url=file_url,
-        file_content_type=mime_type,
-        file_size=len(contents),
-        original_filename=file.filename,
-        created_by=current_user.id,
-    )
-    # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
-    if mime_type and mime_type.startswith("image/"):
-        document.featured_image_url = file_url
-
-    session.add(owner_permission)
-    session.add(initial_version)
     # File uploads default to Viewer for all members, like native docs.
     session.add(
         ResourceGrant(
@@ -704,6 +694,24 @@ async def upload_document_file(
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
             initiative_id=document.initiative_id,
+        )
+    )
+    # The grants land before the version row: writing a version is the
+    # document owner's to do, and the uploader is its owner only once the
+    # grant exists.
+    await session.flush()
+
+    # Record the initial version (v1). The documents row mirrors this version's
+    # file fields; subsequent uploads add higher-numbered versions.
+    session.add(
+        DocumentFileVersion(
+            document_id=document.id,
+            version_number=1,
+            file_url=file_url,
+            file_content_type=mime_type,
+            file_size=len(contents),
+            original_filename=file.filename,
+            created_by=current_user.id,
         )
     )
     await session.commit()

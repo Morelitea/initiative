@@ -86,6 +86,11 @@ Find the thing first. The wording is a dropdown in the middle, and you can
 change it after — so you never have to know the vocabulary before you start
 typing.
 
+If the thing isn't in the app yet — a PDF, a photo of the whiteboard — upload
+it right there instead. Choose a file, or drag one onto the panel, and it
+becomes a document in the same initiative, already linked. You need to be
+allowed to make documents in that initiative to see the option.
+
 | Heading | What it means |
 |---|---|
 | **Attached** | The documents and files this runs on |

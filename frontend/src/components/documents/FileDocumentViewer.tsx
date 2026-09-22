@@ -31,7 +31,12 @@ import {
 } from "@/hooks/useDocuments";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { toast } from "@/lib/chesterToast";
-import { formatBytes, getFileExtension, getFileTypeLabel } from "@/lib/fileUtils";
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  formatBytes,
+  getFileExtension,
+  getFileTypeLabel,
+} from "@/lib/fileUtils";
 import { resolveDocumentDownloadUrl, resolveDocumentVersionDownloadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -51,10 +56,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = __PDFJS_WORKER_URL__;
 // are where they turn up. Defined once at module scope: react-pdf reloads the
 // document whenever this object's identity changes.
 const PDF_OPTIONS = { wasmUrl: __PDFJS_WASM_URL__ };
-
-// Accepted file types for uploading a new version (mirrors CreateDocumentDialog).
-const VERSION_UPLOAD_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
 
 interface FileDocumentViewerProps {
   documentId: number;
@@ -427,7 +428,7 @@ export const FileDocumentViewer = ({
       <input
         ref={versionInputRef}
         type="file"
-        accept={VERSION_UPLOAD_ACCEPT}
+        accept={DOCUMENT_UPLOAD_ACCEPT}
         className="hidden"
         onChange={handleVersionFileSelected}
       />
