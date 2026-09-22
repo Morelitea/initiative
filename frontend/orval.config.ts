@@ -11,6 +11,7 @@ export default defineConfig({
       httpClient: "axios",
       mode: "tags-split",
       clean: true,
+      indexFiles: false,
       override: {
         mutator: {
           path: "./src/api/mutator.ts",
