@@ -178,7 +178,8 @@ def _summaries(
 
     async def serialize(session: AsyncSession, rows: list, user: User) -> list:
         await tags_service.annotate_tags(session, rows)
-        return [serializer(row, user_id=user.id) for row in rows]
+        context = require_guild_context(session)
+        return [serializer(row, context=context, user_id=user.id) for row in rows]
 
     return serialize
 

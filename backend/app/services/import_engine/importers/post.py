@@ -17,7 +17,6 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -61,7 +60,6 @@ class PostImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: PostEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = routed_guild_id(session)
 
         existing_names = {
             row
@@ -121,9 +119,7 @@ class PostImporter(QuotesNobody):
         tags_created = 0
         tags_matched = 0
         for tag_name in env.tags:
-            resolved = await ensure_tag(
-                session, guild_id=guild_id, name=tag_name, color="#6b7280"
-            )
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
             if resolved.created:
                 tags_created += 1
             else:

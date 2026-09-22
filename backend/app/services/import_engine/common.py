@@ -66,16 +66,10 @@ def options_compatible(
 async def ensure_tag(
     session: AsyncSession,
     *,
-    guild_id: int,
     name: str,
     color: str,
 ) -> TagResolved:
-    """Find a tag by ``(guild_id, name)`` or create it.
-
-    ``guild_id`` is intentionally non-optional: a ``None`` here would
-    silently match guild-less tags (``WHERE guild_id IS NULL``) and
-    cross-pollinate across guilds. Callers must guarantee a real guild
-    before reaching this helper.
+    """Find a tag by name in the routed guild's schema, or create it there.
 
     The match is case-insensitive to mirror the tag CRUD's duplicate-name
     rule — otherwise an import could mint a case-variant duplicate that the

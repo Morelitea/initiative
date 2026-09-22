@@ -828,7 +828,6 @@ async def _apply_file_entry(
             for tag_name in entry.tags:
                 resolved = await ensure_tag(
                     session,
-                    guild_id=routed_guild_id(session),
                     name=tag_name,
                     color="#6b7280",
                 )

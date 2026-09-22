@@ -448,6 +448,7 @@
   "GUILD_APP_DELEGATION_NOT_OFFERED": "Esta aplicación nunca actúa en nombre de nadie, así que no hay nada que permitir.",
   "GUILD_APP_DELEGATION_NOT_FOUND": "No has permitido que esta aplicación actúe en tu nombre.",
   "SESSION_REQUIRED": "Inicia sesión para hacer esto. No se puede con una clave de API ni desde una aplicación.",
+  "SESSION_NOT_FOUND": "No se encontró esa sesión. Puede que ya se haya cerrado.",
   "GUILD_APP_MANDATORY": "Esta aplicación viene con la plataforma, así que no se puede quitar ni desactivar aquí.",
   "GUILD_APP_SERVICE_NOT_REGISTERED": "Esta aplicación no está configurada en este servidor, así que todavía no hay nada que abrir.",
   "GUILD_APP_SURFACE_NOT_FOUND": "Esta aplicación no tiene ninguna pantalla con ese nombre.",
