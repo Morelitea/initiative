@@ -909,8 +909,12 @@ async def _load_guild_context(
         return GuildContext(
             guild=guild,
             user_id=current_user.id,
+            guild_id=guild_id,
             grant=grant,
             settings_grant=settings_grant,
+            settings_grant_level=(
+                None if settings_grant is None else settings_grant.access_level
+            ),
         )
     membership, guild, policy, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status: the statuses
@@ -946,7 +950,9 @@ async def _load_guild_context(
     return GuildContext(
         guild=guild,
         user_id=current_user.id,
+        guild_id=guild_id,
         membership=membership,
+        guild_role=membership.role.value,
         content_read_only=(guild.status == GuildStatus.read_only.value),
     )
 

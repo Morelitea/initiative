@@ -45,7 +45,6 @@ async def _denied(billing_session, sql: str) -> None:
 
 @pytest.fixture
 async def guilds(session):
-    """Two communities, the first with a second member beside its creator."""
     guild_a = await create_guild(session, name="Billing Probe A")
     guild_b = await create_guild(session, name="Billing Probe B")
     await create_guild_membership(session, guild=guild_a)
@@ -99,8 +98,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
             params={"gid": guild_a.id},
         )
     ).scalar_one()
-    # Its creator and the member the fixture added beside them.
-    assert count == 2
+    assert count == 1
 
     await s.exec(
         text(

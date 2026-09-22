@@ -229,12 +229,23 @@ class GuildContext:
 
     guild: "Guild"
     user_id: int
+    #: The community, as a number. Held rather than read off ``guild``: a
+    #: cross-guild gather clears the session's identity map between
+    #: communities, and which one a standing is for cannot depend on an
+    #: object still being attached to a session.
+    guild_id: int
     #: The membership row, when there is one. ``None`` for a grantee.
     membership: Optional["GuildMembership"] = None
+    #: That row's role, as a value. Held rather than read off the row for the
+    #: reason ``guild_id`` is: what somebody is in a community must not depend
+    #: on an object still being attached to a session.
+    guild_role: Optional[str] = None
     #: The live content grant, when access is by one rather than by membership.
     grant: Optional["AccessGrant"] = None
-    #: The live settings grant, independent of content access.
+    #: The live settings grant, independent of content access, and the rung it
+    #: confers.
     settings_grant: Optional["AccessGrant"] = None
+    settings_grant_level: Optional[str] = None
     #: True when the community is in ``read_only`` status and access is by real
     #: membership: the session is routed into the SELECT-only ``guild_<id>_ro``
     #: role, so content writes are refused by Postgres. Never set on the grant
@@ -272,10 +283,6 @@ class GuildContext:
     # --- Identity ------------------------------------------------------------
 
     @property
-    def guild_id(self) -> int:
-        return self.guild.id  # ty: ignore[invalid-return-type]
-
-    @property
     def role(self) -> "GuildRole":
         """The seat this request holds in the community.
 
@@ -286,9 +293,9 @@ class GuildContext:
         """
         from app.models.platform.guild import GuildRole
 
-        if self.membership is None:
+        if self.guild_role is None:
             return GuildRole.support
-        return self.membership.role
+        return GuildRole(self.guild_role)
 
     @property
     def is_admin(self) -> bool:
@@ -312,7 +319,7 @@ class GuildContext:
     @property
     def settings_level(self) -> Optional[str]:
         """The rung a settings grant confers, read off the grant itself."""
-        return None if self.settings_grant is None else self.settings_grant.access_level
+        return self.settings_grant_level
 
     def settings_rung_reaches(self, role: "GuildRole") -> bool:
         """Whether the settings grant includes ``role``'s authority."""

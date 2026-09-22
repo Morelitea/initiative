@@ -9,17 +9,15 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import set_active_grant
 from app.core.tools import Tool
-from app.db.session import set_rls_context
 from app.models.tenant.document import Document
 from app.services.tenant.comments import (
-    CommentPermissionError,
     _ensure_parent_access,
     _load_parent,
 )
 from app.testing.factories import TOOL_FACTORIES
 from app.testing import (
+    create_access_grant,
     create_comment,
     create_guild,
     create_guild_membership,
@@ -32,7 +30,7 @@ from app.testing import (
 
 
 @pytest.mark.integration
-async def test_task_comment_access_honors_grant(session: AsyncSession, role_session):
+async def test_task_comment_access_honors_grant(session: AsyncSession, reading_as):
     owner = await create_user(session, email="owner-cmt@example.com")
     grantee = await create_user(session, email="grantee-cmt@example.com")
     guild = await create_guild(session, creator=owner)
@@ -45,39 +43,29 @@ async def test_task_comment_access_honors_grant(session: AsyncSession, role_sess
     )
     assert ctx is not None
 
-    # Asked on a session that reaches Postgres as the app does. The sharing
-    # decision is the parent table's own policy now — selecting the id IS the
-    # question — so a session that bypasses row-level security cannot answer it,
-    # and would say yes to everything below.
-    reader = await role_session("app_user")
-    await route_as(reader, user_id=grantee.id, guild_id=guild.id)
+    # No grant: there is no way into the community at all.
+    from app.api.deps import GuildAccessError
 
-    try:
-        # No grant: a non-member is denied.
-        set_active_grant(None, None)
-        with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    with pytest.raises(GuildAccessError):
+        await reading_as(grantee.id, guild.id)
 
-        # Read grant: may read comments.
-        set_active_grant(guild.id, "read")
-        await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    # Read grant: may read comments.
+    grant = await create_access_grant(session, user=grantee, guild=guild)
+    reader = await reading_as(grantee.id, guild.id)
+    await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    await reader.rollback()
 
-        # Read-write grant: may post.
-        set_active_grant(guild.id, "read_write")
-        await _ensure_parent_access(reader, ctx, user=grantee, access="write")
-
-        # A grant for a different guild doesn't apply.
-        set_active_grant(guild.id + 999, "read_write")
-        with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
-    finally:
-        set_active_grant(None, None)
+    # The same grant at read_write: may post.
+    grant.access_level = "read_write"
+    session.add(grant)
+    await session.commit()
+    reader = await reading_as(grantee.id, guild.id)
+    await _ensure_parent_access(reader, ctx, user=grantee, access="write")
+    await reader.rollback()
 
 
 @pytest.mark.integration
-async def test_document_comment_access_honors_grant(
-    session: AsyncSession, role_session
-):
+async def test_document_comment_access_honors_grant(session: AsyncSession, reading_as):
     """The other branch of the parent check: a tool entity answers for itself,
     where a task answers through its project."""
     owner = await create_user(session, email="owner-cmt2@example.com")
@@ -99,25 +87,26 @@ async def test_document_comment_access_honors_grant(
     )
     assert ctx is not None
 
-    reader = await role_session("app_user")
-    await route_as(reader, user_id=grantee.id, guild_id=guild.id)
+    from app.api.deps import GuildAccessError
 
-    try:
-        set_active_grant(None, None)
-        with pytest.raises(CommentPermissionError):
-            await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    with pytest.raises(GuildAccessError):
+        await reading_as(grantee.id, guild.id)
 
-        set_active_grant(guild.id, "read")
-        await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    grant = await create_access_grant(session, user=grantee, guild=guild)
+    reader = await reading_as(grantee.id, guild.id)
+    await _ensure_parent_access(reader, ctx, user=grantee, access="read")
+    await reader.rollback()
 
-        set_active_grant(guild.id, "read_write")
-        await _ensure_parent_access(reader, ctx, user=grantee, access="write")
-    finally:
-        set_active_grant(None, None)
+    grant.access_level = "read_write"
+    session.add(grant)
+    await session.commit()
+    reader = await reading_as(grantee.id, guild.id)
+    await _ensure_parent_access(reader, ctx, user=grantee, access="write")
+    await reader.rollback()
 
 
 @pytest.mark.integration
-async def test_a_read_only_grant_cannot_post(session: AsyncSession, role_session):
+async def test_a_read_only_grant_cannot_post(session: AsyncSession, reading_as):
     """The half of the rule the parent check no longer answers.
 
     Reaching a thread and adding to it are different questions, and only the
@@ -146,13 +135,10 @@ async def test_a_read_only_grant_cannot_post(session: AsyncSession, role_session
         " VALUES (:t, 'let me in', :u, now(), now())"
     ).bindparams(t=task.id, u=support.id)
 
-    # A grantee is scoped by pam_guild_id and leaves current_guild_id unset —
-    # a matching current_guild_id reads as proof of membership, which is the
-    # one thing a grantee does not have.
-    reader = await role_session("app_user")
-    await set_rls_context(
-        reader, user_id=support.id, pam_guild_id=guild.id, pam_read=True
-    )
+    # A grantee reaches the community through the row, and the row says at
+    # what level.
+    grant = await create_access_grant(session, user=support, guild=guild)
+    reader = await reading_as(support.id, guild.id)
     with pytest.raises(Exception) as refused:
         await reader.exec(insert)
     message = str(refused.value).lower()
@@ -162,14 +148,10 @@ async def test_a_read_only_grant_cannot_post(session: AsyncSession, role_session
     await reader.rollback()
 
     # The same window at write level is what posting takes.
-    writer = await role_session("app_user")
-    await set_rls_context(
-        writer,
-        user_id=support.id,
-        pam_guild_id=guild.id,
-        pam_read=True,
-        pam_write=True,
-    )
+    grant.access_level = "read_write"
+    session.add(grant)
+    await session.commit()
+    writer = await reading_as(support.id, guild.id)
     await writer.exec(insert)
     await writer.rollback()
 

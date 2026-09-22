@@ -11,7 +11,7 @@ import pathlib
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import ColumnElement, text
+from sqlalchemy import ColumnElement
 from sqlmodel import delete, select
 
 from app.api import resource_access
@@ -40,7 +40,6 @@ from app.services.permissions import (
     writable_scope_clause,
 )
 from app.testing.factories import TOOL_FACTORIES
-from app.testing import route_as
 
 ALL_TOOLS = list(DAC_RESOURCES)
 
@@ -299,7 +298,7 @@ async def test_membership_alone_grants_nothing(session, acting_user, clean_conte
 @pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_a_grant_left_behind_after_removal_reaches_nothing(
-    session, acting_user, clean_context, tool: Tool
+    session, acting_user, clean_context, reading_as, tool: Tool
 ):
     """A grant row outliving the user's initiative membership carries no access.
 
@@ -307,22 +306,18 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     is still there naming you at owner. What answers it is the table's own
     policy: every content table ANDs ``initiative_access`` onto its
     sharing leg, so the resource stops being visible the moment the membership
-    goes — asserted here as the guild role, against the database, because that
-    is where the answer comes from.
+    goes — asserted against the database on the request login, because that is
+    where the answer comes from.
     """
     w = await build_world(session, acting_user, tool)
     await w.grant("owner", user=w.co_member.user)
     model = type(w.row)
 
     async def visible() -> bool:
-        await route_as(session, user_id=w.co_member.user.id, guild_id=w.guild.id)
-        try:
-            rows = (
-                await session.exec(select(model.id).where(model.id == w.row.id))
-            ).all()
-            return bool(rows)
-        finally:
-            await session.exec(text("RESET ROLE"))
+        reader = await reading_as(w.co_member.user.id, w.guild.id)
+        rows = (await reader.exec(select(model.id).where(model.id == w.row.id))).all()
+        await reader.rollback()
+        return bool(rows)
 
     assert await visible(), "the grant should reach it while the membership stands"
 

@@ -95,6 +95,7 @@ def _context(role: GuildRole) -> GuildContext:
     return GuildContext(
         guild=Guild(id=1, name="g"),
         user_id=2,
+        guild_id=1,
         membership=GuildMembership(guild_id=1, user_id=2, role=role),
         standing_guild_id=1,
         admin=role in GUILD_ADMIN_ROLES,

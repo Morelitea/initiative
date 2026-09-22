@@ -132,6 +132,10 @@ async def gather_across_guilds(
         # a prior guild, or anything already on the session) would otherwise be
         # returned by the identity map instead of this guild's row.
         session.expunge_all()
+        # The caller's own account is a ``public`` row and collides with
+        # nothing per schema, so it goes straight back — every step below
+        # reads it.
+        session.add(user)
         cached = contexts.get((user_id, guild_id))
         try:
             if cached is None:

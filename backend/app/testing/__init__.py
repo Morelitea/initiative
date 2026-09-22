@@ -19,6 +19,7 @@ from app.testing.app_channel import (
     register_app_service,
 )
 from app.testing.factories import (
+    create_access_grant,
     grant_role_permission,
     TOOL_FACTORIES,
     billing_guild_ref,
@@ -134,6 +135,7 @@ __all__ = [
     "create_document_property_value",
     "create_federated_identity",
     "create_guild_auth_policy",
+    "create_access_grant",
     "create_guild",
     "guild_administration",
     "create_guild_app",
