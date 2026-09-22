@@ -404,9 +404,8 @@ def _csv(values: Sequence[Any]) -> str:
 def empty_standing() -> dict[str, str]:
     """What the routing statement writes: nothing.
 
-    An empty standing answers no on every membership, role and switch leg, so a
-    routing that fails or stops before its second statement loses rows rather
-    than gaining them.
+    Every membership, role and switch leg reads no from it, which is what a
+    session that has been routed but not yet stood up should answer.
     """
     return {
         "standing_guild_id": "",

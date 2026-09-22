@@ -336,13 +336,12 @@ SYSTEM_SESSION = (
 #: initiative 5 is a different row in every schema — so every leg that reads
 #: one says which community it belongs to first.
 STANDING_IS_THIS_GUILD = (
-    "NULLIF(current_setting('app.standing_guild_id'::text, true), ''::text)::integer"
-    " = NULLIF(current_setting('app.current_guild_id'::text, true), ''::text)::integer"
+    "current_setting('app.standing_guild_id'::text, true)"
+    " IS NOT DISTINCT FROM current_setting('app.current_guild_id'::text, true)"
 )
 
-#: The reader administers this community. A lookup on ``guild_memberships``,
-#: made by the standing statement and written where a policy can read it — the
-#: request supplies no parameter that could claim it.
+#: The reader administers this community: the membership row's own answer, as
+#: the standing statement read it, written where a policy can read it.
 GUILD_ADMIN = (
     f"({STANDING_IS_THIS_GUILD}"
     " AND current_setting('app.guild_admin'::text, true) = 'true'::text)"
