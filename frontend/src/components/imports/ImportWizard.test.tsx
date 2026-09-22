@@ -67,6 +67,11 @@ const STAGED_JOB = {
   updated_at: new Date().toISOString(),
 };
 
+/** Answer "where is this coming from?" — the step before the file. */
+async function chooseBackup() {
+  await userEvent.click(screen.getByRole("button", { name: /initiative backup/i }));
+}
+
 function pickFile() {
   const input = document.querySelector<HTMLInputElement>('input[type="file"]');
   if (!input) throw new Error("no file input");
@@ -120,6 +125,7 @@ describe("ImportWizard", () => {
 
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
 
+    await chooseBackup();
     pickFile();
 
     // Local peek preview — nothing uploaded yet.
@@ -155,6 +161,7 @@ describe("ImportWizard", () => {
     );
 
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await chooseBackup();
     pickFile();
 
     expect(await screen.findByText(/isn't a valid Initiative backup/i)).toBeInTheDocument();

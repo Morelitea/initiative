@@ -15,6 +15,17 @@ vi.mock("@/lib/exportDownload", () => ({
   downloadExportArtifact: vi.fn(),
 }));
 
+// Taking the whole community out in one file is the seat's errand, and the
+// card says so itself rather than resting on which tab it sits in. Partial:
+// the render helper reaches for ``GuildContext`` from this module.
+vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useGuilds: () => ({
+    activeGuild: { id: 1, name: "Test Community", role: "superadmin" },
+    activeGuildId: 1,
+  }),
+}));
+
 const now = new Date();
 const iso = (offsetMs: number) => new Date(now.getTime() + offsetMs).toISOString();
 

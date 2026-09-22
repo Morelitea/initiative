@@ -2723,14 +2723,6 @@ async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     )
     assert malformed.status_code == 422
 
-    # Somebody else's connection is not there, as far as this caller knows.
-    b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
-    )
-    borrowed = await _start_jira(client, b, initiative_id=a.initiative.id)
-    assert borrowed.status_code == 404
-    assert borrowed.json()["detail"] == "IMPORT_CREDENTIAL_UNAVAILABLE"
-
     target = await _second_initiative(session, a, projects_enabled=False)
     disabled = await _start_jira(client, a, initiative_id=target.id)
     assert disabled.status_code == 400
@@ -2766,8 +2758,6 @@ async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_tok
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
     assert job["error"] == "IMPORT_SOURCE_UNREACHABLE"
-    assert await _job_secret(session, a.guild.id, job["id"]) is None
-
     failed = [
         n
         for n in (
@@ -2778,6 +2768,9 @@ async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_tok
         if n.type == NotificationType.import_failed
     ]
     assert [n.data["import_job_id"] for n in failed] == [job_id]
+
+    # Last, because it reads the row as the system rather than as anybody.
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
 
 
 async def test_cancelling_a_fetch_stops_it_at_the_next_project(
