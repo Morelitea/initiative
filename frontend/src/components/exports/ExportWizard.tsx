@@ -323,7 +323,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
                         <div key={option.format} className="flex items-center gap-1.5">
                           <RadioGroupItem value={option.format} id={`${tool}-${option.format}`} />
                           <Label htmlFor={`${tool}-${option.format}`} className="text-xs">
-                            {t(`tasks:${option.labelKey}` as never)}
+                            {t(option.labelKey as never)}
                           </Label>
                         </div>
                       ))}
@@ -355,7 +355,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
                                   htmlFor={`doc-${docType}-${option.format}`}
                                   className="text-xs"
                                 >
-                                  {t(`tasks:${option.labelKey}` as never)}
+                                  {t(option.labelKey as never)}
                                 </Label>
                               </div>
                             ))}

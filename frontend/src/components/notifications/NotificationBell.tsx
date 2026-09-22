@@ -37,9 +37,9 @@ export const NotificationBell = () => {
   const readWhileOpen = useRef(new Map<number, NotificationRead>());
   const router = useRouter();
   const { user } = useAuth();
-  // "tasks" is loaded alongside so the export download's cross-namespace
-  // toast keys (tasks:export.*) are available when clicked from the bell.
-  const { t } = useTranslation(["guilds", "tasks"]);
+  // "exports" is loaded alongside so the export download's cross-namespace
+  // toast keys (exports:export.*) are available when clicked from the bell.
+  const { t } = useTranslation(["guilds", "exports"]);
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 

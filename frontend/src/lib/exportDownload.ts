@@ -68,8 +68,8 @@ export async function downloadExportArtifact(
     });
     const serverName = filenameFromDisposition(res.headers["content-disposition"]);
     downloadBlob(res.data, serverName ?? `${source}-${jobId}.${format}`);
-    toast.success(t("tasks:export.success"));
+    toast.success(t("exports:export.success"));
   } catch (err) {
-    toast.error(getErrorMessage(await normalizeBlobError(err), "tasks:export.error"));
+    toast.error(getErrorMessage(await normalizeBlobError(err), "exports:export.error"));
   }
 }

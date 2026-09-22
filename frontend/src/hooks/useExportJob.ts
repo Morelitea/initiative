@@ -134,7 +134,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
       }
     } catch (err) {
       setOutcome("failed");
-      toast.error(getErrorMessage(await normalizeBlobError(err), "tasks:export.error"));
+      toast.error(getErrorMessage(await normalizeBlobError(err), "exports:export.error"));
     } finally {
       setRequesting(false);
     }
