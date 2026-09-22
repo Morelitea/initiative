@@ -42,6 +42,7 @@ _WRITE_PREFIXES = (
     "import_",
     "copy_",
     "vote_",
+    "toggle_",
     "start_",
     "stop_",
     "sort_",
@@ -81,6 +82,9 @@ _SAFE_WRITES = {
     "create_task",
     "update_task",
     "move_task",
+    # One checklist tick. The task update rewrites the list's lines but never
+    # its done flags, so this is the only way to mark a piece of a task done.
+    "toggle_checklist_item",
     "add_queue_item",
     "update_queue_item",
     "add_counter",
@@ -132,6 +136,8 @@ async def test_mcp_tools_are_curated():
         # The things a tool holds, which the enum names only their parent of:
         # a task belongs to a project, a counter to a counter group.
         "task",
+        # A task's checklist, ticked one item at a time.
+        "checklist",
         "counter",
         "backlink",
         # The edges between them, which belong to no one tool.
