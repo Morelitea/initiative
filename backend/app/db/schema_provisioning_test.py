@@ -21,6 +21,7 @@ from app.db.schema_provisioning import (
     drop_guild_schema,
     guild_readonly_role_name,
     guild_role_name,
+    guild_superadmin_role_name,
     guild_schema_name,
     guild_query_role_name,
     guild_support_role_name,
@@ -43,6 +44,7 @@ _GID_REPROVISION = 990_109
 _GID_DROP_ABSENT = 990_110
 _GID_SUPPORT = 990_120
 _GID_READ_FLOOR = 990_121
+_GID_SEAT = 990_122
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -202,6 +204,7 @@ async def test_drop_guild_schema_removes_role(engine):
         guild_readonly_role_name(gid),
         guild_support_role_name(gid),
         guild_query_role_name(gid),
+        guild_superadmin_role_name(gid),
     )
     try:
         async with engine.begin() as conn:
@@ -226,6 +229,54 @@ async def test_drop_guild_schema_removes_role(engine):
         assert not any(after), "every role should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
+    engine,
+):
+    """``guild_<id>_superadmin`` is what the four configuration routes assume.
+
+    Everything the community's own role reaches, and beside it the one shared
+    floor carrying its sign-in configuration — which the guild role itself no
+    longer writes.
+    """
+    gid = _GID_SEAT
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        schema = guild_schema_name(gid)
+        seat = guild_superadmin_role_name(gid)
+        role = guild_role_name(gid)
+        async with engine.connect() as conn:
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": seat, "t": "public.guild_auth_policies", "p": verb},
+                    )
+                    is True
+                ), f"the seat role must hold {verb} on guild_auth_policies"
+                # The community's own role reaches its content as before, and
+                # the seat role inherits that reach.
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": seat, "t": f"{schema}.projects", "p": verb},
+                    )
+                    is True
+                ), f"the seat role must hold {verb} on the community's content"
+            # And the writes it adds are the ones the guild role gave up.
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": role, "t": "public.guild_auth_policies", "p": verb},
+                    )
+                    is False
+                ), f"the guild role must not hold {verb} on guild_auth_policies"
+    finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
 
@@ -830,16 +881,12 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
 
     _original = sp._grant_statements
 
-    def _different_grants(
-        schema: str, role: str, ro_role: str, support_role: str, query_role: str
-    ) -> list[str]:
+    def _different_grants(*_args: str) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
 
-    def _cosmetic_rewrite(
-        schema: str, role: str, ro_role: str, support_role: str, query_role: str
-    ) -> list[str]:
+    def _cosmetic_rewrite(*args: str) -> list[str]:
         # Different source text, byte-identical output.
-        return list(_original(schema, role, ro_role, support_role, query_role))
+        return list(_original(*args))
 
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):

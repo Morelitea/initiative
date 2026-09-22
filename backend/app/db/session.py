@@ -263,6 +263,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
     settings_guild_id = params.get("settings_guild_id")
+    seat = bool(params.get("seat"))
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
     query = bool(params.get("query"))
@@ -327,6 +328,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
+        guild_superadmin_role_name,
         guild_support_role_name,
         platform_role_name,
     )
@@ -356,6 +358,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     else:
         sp = _search_path(guild_schema_name(route_guild), "public")
         # Pick the guild role by how access was granted:
+        # - a seat request (``seat``): guild_<id>_superadmin, which reads the
+        #   community and writes its sign-in configuration. Asked for by the
+        #   route, not by holding the seat.
         # - read grant, or a read_only-status member (guild_id set + read_only):
         #   the SELECT-only guild_<id>_ro role — writes denied at the role level.
         # - scoped read_write grant (no membership, pam_write): the restricted
@@ -366,15 +371,18 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - otherwise (real membership): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
-        if settings_guild_id is not None:
-            name_fn = guild_support_role_name
+        settings_only = (
+            guild_id is None and not pam_active and settings_guild_id is not None
+        )
+        if seat:
+            name_fn = guild_superadmin_role_name
         elif query:
             # A query runs as the query role whatever else the request is:
             # a member's, a read-only member's, or a grantee's.
             name_fn = guild_query_role_name
         elif read_only_grant or read_only:
             name_fn = guild_readonly_role_name
-        elif support_grant:
+        elif support_grant or settings_only:
             name_fn = guild_support_role_name
         else:
             name_fn = guild_role_name
@@ -492,6 +500,7 @@ async def set_rls_context(
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
     settings_guild_id: Optional[int] = None,
+    seat: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -521,6 +530,11 @@ async def set_rls_context(
     ``current_guild_id``: a grant records the guild it reaches in its own
     field, and a membership records its own. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
+
+    ``seat`` routes into ``guild_<id>_superadmin``, the role that carries the
+    community's own sign-in configuration. It is what the route asked for, not
+    what the caller holds: an ordinary request by a seat holder routes as
+    ``guild_<id>``, so a content read never carries those grants.
 
     ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``
     role while keeping the full membership GUCs — used when the guild is in
@@ -653,6 +667,7 @@ async def set_rls_context(
         "pam_read": pam_read,
         "pam_write": pam_write,
         "settings_guild_id": settings_guild_id,
+        "seat": seat,
         "platform_role": platform_role,
         "read_only": read_only,
         "query": query,

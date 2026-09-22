@@ -67,7 +67,9 @@ async def test_postgres_refuses_the_write_to_anyone_but_the_seat(
     """The rule stands on its own, with no endpoint in front of it.
 
     Both members are routed into the guild exactly as a request would be, and
-    the same INSERT is attempted as each. What separates them is the policy.
+    the same INSERT is attempted as each. Twice over: the seat holder's
+    ordinary routing is refused like the admin's — holding the seat is not
+    using it — and the same person on the seat's own route writes.
     """
     guild = await create_guild(session)
     seat = await create_user(session)
@@ -93,8 +95,21 @@ async def test_postgres_refuses_the_write_to_anyone_but_the_seat(
         await writer.exec(insert.bindparams(g=int(guild.id)))
     await writer.rollback()
 
+    # The seat holder, on the routing an ordinary request gets.
     await route_as(writer, user_id=int(seat.id), guild_id=int(guild.id))
+    with pytest.raises(DBAPIError):
+        await writer.exec(insert.bindparams(g=int(guild.id)))
+    await writer.rollback()
+
+    # And on the one the configuration routes ask for.
+    await route_as(writer, user_id=int(seat.id), guild_id=int(guild.id), seat=True)
     await writer.exec(insert.bindparams(g=int(guild.id)))
+    await writer.rollback()
+
+    # Asking is not enough either: the admin gets the ordinary routing back.
+    await route_as(writer, user_id=int(admin.id), guild_id=int(guild.id), seat=True)
+    with pytest.raises(DBAPIError):
+        await writer.exec(insert.bindparams(g=int(guild.id)))
     await writer.rollback()
 
 

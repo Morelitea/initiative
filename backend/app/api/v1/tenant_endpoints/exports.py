@@ -28,7 +28,6 @@ from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.core.user_display import display_name
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -421,12 +420,13 @@ def _require_guild_seat(guild_context: GuildContext) -> None:
     running the community, so it sits with the seat rather than with an
     ordinary admin — beside the other things only that seat decides.
 
-    Held outright, too: a lent seat is not it, and neither is a break-glass
-    stand-in. The adapter re-checks the creator's own membership at render
-    time, so a synthesized role would only fail later; reject it up front.
+    Lent as well as held: a ``superadmin`` settings grant is the seat for its
+    window, and taking the community out is one of the things that seat does.
+    Content access is a separate axis, and this route reads content — a grant
+    carrying none is refused at the session, before this.
     """
 
-    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
+    if not guild_context.seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED,

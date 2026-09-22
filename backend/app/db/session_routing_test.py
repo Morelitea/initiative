@@ -11,6 +11,7 @@ from app.db.schema_provisioning import (
     guild_readonly_role_name,
     guild_schema_name,
     guild_role_name,
+    guild_superadmin_role_name,
     guild_support_role_name,
 )
 from app.db.session import CONNECTION_RESET_SQL, _render_context_bind_params
@@ -27,6 +28,7 @@ def _params(**overrides):
         "pam_read": False,
         "pam_write": False,
         "settings_guild_id": None,
+        "seat": False,
         "platform_role": None,
         "read_only": False,
     }
@@ -137,6 +139,38 @@ class TestSearchPathNamesEverySchema:
         """One helper renders them all, so no route can drift off the pattern."""
         out = _render_context_bind_params(_params(**overrides))
         assert out["sp"].endswith(", pg_temp")
+
+
+class TestTheSeatRoute:
+    """``guild_<id>_superadmin`` is assumed by asking for it, not by holding
+    the seat: an ordinary request routes the ordinary way."""
+
+    def test_a_seat_request_by_a_member_assumes_the_seat_role(self):
+        out = _render_context_bind_params(_params(guild_id=3, seat=True))
+        assert out["role"] == guild_superadmin_role_name(3)
+        assert out["gid"] == "3"
+
+    def test_a_seat_request_by_a_settings_grantee_assumes_it_too(self):
+        out = _render_context_bind_params(_params(settings_guild_id=4, seat=True))
+        assert out["role"] == guild_superadmin_role_name(4)
+        assert out["setgid"] == "4"
+
+    def test_an_ordinary_request_by_the_same_person_does_not(self):
+        out = _render_context_bind_params(_params(guild_id=3))
+        assert out["role"] == guild_role_name(3)
+
+    def test_a_settings_grant_beside_a_read_grant_still_reads_read_only(self):
+        """Break-glass is a pair. The settings half names the community on its
+        own axis; the content half is what picks the role."""
+        out = _render_context_bind_params(
+            _params(pam_guild_id=4, pam_read=True, settings_guild_id=4)
+        )
+        assert out["role"] == guild_readonly_role_name(4)
+        assert out["setgid"] == "4"
+
+    def test_a_settings_only_grant_still_routes_as_support(self):
+        out = _render_context_bind_params(_params(settings_guild_id=4))
+        assert out["role"] == guild_support_role_name(4)
 
 
 class TestConnectionReset:

@@ -316,6 +316,23 @@ class GuildContext:
         return self.admin
 
     @property
+    def reaches_seat(self) -> bool:
+        """Whether the community's top seat is within this request's reach.
+
+        Read from what the lookup found — the membership row's role, or the
+        rung of a live settings grant — because the routing has to be chosen
+        before the standing statement runs. :attr:`seat` is the same question
+        answered by ``public.guild_superadmin()`` from the same rows, and is
+        what a guard checks once the standing is in.
+        """
+        from app.models.platform.guild import GuildRole
+
+        return (
+            self.guild_role == GuildRole.superadmin.value
+            or self.settings_grant_level == GuildRole.superadmin.value
+        )
+
+    @property
     def is_pam(self) -> bool:
         return self.grant is not None or self.settings_grant is not None
 

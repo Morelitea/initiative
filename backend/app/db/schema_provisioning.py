@@ -84,6 +84,22 @@ def guild_support_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_support"
 
 
+def guild_superadmin_role_name(guild_id: int) -> str:
+    """The seat's role for a guild, e.g. ``guild_42_superadmin``.
+
+    Assumed by a request that asked for the seat and reached it — the
+    membership row says ``superadmin``, or a live ``superadmin`` settings
+    grant does. It inherits ``guild_<id>`` (the schema, and through it the
+    ``app_guild_base`` floor) and ``app_superadmin``, the floor carrying the
+    community's sign-in configuration.
+
+    Asking for it is a separate condition from holding it: an ordinary
+    request by a seat holder routes as ``guild_<id>``, so a content read
+    carries none of the configuration grants.
+    """
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_superadmin"
+
+
 def guild_query_role_name(guild_id: int) -> str:
     """Read-only role for the SQL query surface, e.g. ``guild_42_q``.
 
@@ -278,6 +294,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
                     "__stamp_ro__",
                     "__stamp_support__",
                     "__stamp_q__",
+                    "__stamp_seat__",
                 )
             ).encode()
         )
@@ -455,7 +472,12 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
 
 
 def _grant_statements(
-    schema: str, role: str, ro_role: str, support_role: str, query_role: str
+    schema: str,
+    role: str,
+    ro_role: str,
+    support_role: str,
+    query_role: str,
+    seat_role: str,
 ) -> list[str]:
     """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
     (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
@@ -466,7 +488,7 @@ def _grant_statements(
     cosmetic edits here don't.
 
     Each role inherits shared/public access from ``app_guild_base``. The login
-    roles are granted membership in all three ``WITH INHERIT FALSE`` — they can
+    roles are granted membership in all of them ``WITH INHERIT FALSE`` — they can
     ``SET ROLE`` into any but hold no standing access to the schema, so a
     guild's data is reachable only by assuming one of its roles. The read-only
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
@@ -536,6 +558,15 @@ def _grant_statements(
         f'GRANT app_guild_base_ro TO "{query_role}"',
         f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
+        # Seat role: the full guild role's reach into the schema and the
+        # shared floor, plus app_superadmin — the one shared floor carrying
+        # the community's sign-in configuration. Composed from the guild role
+        # rather than granted afresh, so a content table added later reaches
+        # it by the same default privilege that reaches that one.
+        f'GRANT "{role}" TO "{seat_role}"',
+        f'GRANT app_superadmin TO "{seat_role}"',
+        f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f"WITH INHERIT FALSE",
     ]
     # Hard-cap the support role: SELECT stays, writes are revoked on the structural /
     # permission tables (these exist in every schema, so the REVOKE always applies).
@@ -584,14 +615,17 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     ro_role = guild_readonly_role_name(guild_id)
     support_role = guild_support_role_name(guild_id)
     query_role = guild_query_role_name(guild_id)
+    seat_role = guild_superadmin_role_name(guild_id)
     await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
     await _ensure_role(conn, role)
     await _ensure_role(conn, ro_role)
     await _ensure_role(conn, support_role)
     await _ensure_role(conn, query_role)
+    await _ensure_role(conn, seat_role)
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(
-        conn, _grant_statements(schema, role, ro_role, support_role, query_role)
+        conn,
+        _grant_statements(schema, role, ro_role, support_role, query_role, seat_role),
     )
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     await apply_guild_capture(conn, schema)  # change-capture triggers
@@ -619,6 +653,7 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
         guild_readonly_role_name(guild_id),
         guild_support_role_name(guild_id),
         guild_query_role_name(guild_id),
+        guild_superadmin_role_name(guild_id),
     ):
         if await _role_exists(conn, role):
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION

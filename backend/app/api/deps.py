@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, NoReturn, Optional
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -843,9 +843,10 @@ async def _load_guild_context(
     ``for_settings`` is the community's own configuration surface, which a
     guild administrator reaches while its content is closed to everybody: a
     community on hold or suspended, and one whose sign-in policy this session
-    does not answer, still has an administrator to run it. The rung guard on
-    those routes has already refused anyone who does not administer it; what
-    this establishes is the standing the database reads.
+    does not answer, still has an administrator to run it. It reads the same
+    way on both branches below, membership and grant. The rung guard on those
+    routes has already refused anyone who does not administer it; what this
+    establishes is the standing the database reads.
     """
     # A suspended account reaches no guild. Ahead of the branches below so it
     # holds for membership and for a grant alike, and it answers with the same
@@ -896,15 +897,22 @@ async def _load_guild_context(
         if await platform_factor_unmet(session, current_user, level=asked):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
         # The guild's sign-in policy binds grantees too — PAM is a scoped
-        # access path, not a policy bypass.
-        await _enforce_guild_auth_policy(
-            session,
-            policy,
-            guild_id,
-            satisfied,
-            auth_context.session_amr(),
-            require_second_factor=guild.require_second_factor,
-        )
+        # access path, not a policy bypass. Content only, the same line the
+        # membership branch draws: the rule a community sets for coming in
+        # governs its work, and the surface that sets the rule is reachable by
+        # whoever administers the community, which is what a settings grant
+        # lends. The database draws the same line on its own — the standing
+        # statement answers the sign-in question from the rows, and the
+        # initiative gates read that answer whatever this call was for.
+        if not for_settings:
+            await _enforce_guild_auth_policy(
+                session,
+                policy,
+                guild_id,
+                satisfied,
+                auth_context.session_amr(),
+                require_second_factor=guild.require_second_factor,
+            )
         # A grantee holds no membership row, and none is invented for them:
         # what the two grants reach is computed from the rows themselves by
         # the standing statement. ``context.role`` answers ``support`` — the
@@ -1023,53 +1031,62 @@ async def get_guild_membership(
     try:
         return await establish_guild_access(session, current_user, guild_id)
     except GuildAccessError as exc:
-        if exc.detail in (
-            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
-            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
-            GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
-        ):
-            # 401 for the same reason as the provider step-up below, and apart
-            # from it because what satisfies these is presented against the
-            # session already open rather than a sign-in page to visit. RFC
-            # 9470 all the same: the session authenticated, and what is missing
-            # is a factor. The detail says which of the two, so the dialog
-            # knows whether to ask for a code or run a ceremony.
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=exc.detail,
-                headers={
-                    "WWW-Authenticate": STEP_UP_CHALLENGE,
-                    "X-Auth-Step-Up-Guild": (
-                        str(exc.step_up_guild_id)
-                        if exc.step_up_guild_id is not None
-                        else ""
-                    ),
-                },
-            ) from exc
-        if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
-            # 401, not 403: the session lacks an auth factor, not a permission.
-            #
-            # Said twice, for two audiences. ``WWW-Authenticate`` is the
-            # standard form (RFC 9470), which an OAuth client library can act
-            # on knowing nothing about this app. The ``X-Auth-Step-Up`` pair
-            # names *which* provider serves the factor and which guild's login
-            # flow reaches it — ours to answer, and what our own SPA reads.
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=exc.detail,
-                headers={
-                    "WWW-Authenticate": STEP_UP_CHALLENGE,
-                    "X-Auth-Step-Up": exc.step_up_provider_slug or "",
-                    "X-Auth-Step-Up-Guild": (
-                        str(exc.step_up_guild_id)
-                        if exc.step_up_guild_id is not None
-                        else ""
-                    ),
-                },
-            ) from exc
+        _raise_for_guild_access(exc)
+
+
+def _raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
+    """Turn a refusal from the seam into the response it owes the caller.
+
+    Three shapes: the two step-up 401s, which say what is missing and where to
+    present it, and 403 for everything else.
+    """
+    if exc.detail in (
+        GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+        GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+        GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
+    ):
+        # 401 for the same reason as the provider step-up below, and apart
+        # from it because what satisfies these is presented against the
+        # session already open rather than a sign-in page to visit. RFC
+        # 9470 all the same: the session authenticated, and what is missing
+        # is a factor. The detail says which of the two, so the dialog
+        # knows whether to ask for a code or run a ceremony.
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=exc.detail,
+            headers={
+                "WWW-Authenticate": STEP_UP_CHALLENGE,
+                "X-Auth-Step-Up-Guild": (
+                    str(exc.step_up_guild_id)
+                    if exc.step_up_guild_id is not None
+                    else ""
+                ),
+            },
         ) from exc
+    if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
+        # 401, not 403: the session lacks an auth factor, not a permission.
+        #
+        # Said twice, for two audiences. ``WWW-Authenticate`` is the
+        # standard form (RFC 9470), which an OAuth client library can act
+        # on knowing nothing about this app. The ``X-Auth-Step-Up`` pair
+        # names *which* provider serves the factor and which guild's login
+        # flow reaches it — ours to answer, and what our own SPA reads.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=exc.detail,
+            headers={
+                "WWW-Authenticate": STEP_UP_CHALLENGE,
+                "X-Auth-Step-Up": exc.step_up_provider_slug or "",
+                "X-Auth-Step-Up-Guild": (
+                    str(exc.step_up_guild_id)
+                    if exc.step_up_guild_id is not None
+                    else ""
+                ),
+            },
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+    ) from exc
 
 
 def holds_guild_role(context: GuildContext, *roles: GuildRole) -> bool:
@@ -1145,6 +1162,8 @@ async def apply_guild_session_context(
     current_user: User,
     guild_context: GuildContext,
     satisfied: frozenset[int] | str = frozenset(),
+    *,
+    for_seat: bool = False,
 ) -> GuildContext:
     """Route ``session`` into ``guild_context``'s community and compute the
     reader's standing there, returning the context that says what it is.
@@ -1159,7 +1178,14 @@ async def apply_guild_session_context(
     database's own rows. Between the two the standing answers no to every
     membership leg, so a routing that stops half-way loses rows rather than
     gaining them.
+
+    ``for_seat`` is the four configuration routes asking for the seat's role
+    rather than the community's. It is honoured only where the seat is within
+    reach; holding it and asking for it are two conditions, and an ordinary
+    request by a seat holder routes as an ordinary member.
     """
+
+    seat = for_seat and guild_context.reaches_seat
 
     if guild_context.is_settings_only:
         _note_privileged_request(current_user, guild_context)
@@ -1168,6 +1194,7 @@ async def apply_guild_session_context(
             user_id=current_user.id,
             context=guild_context,
             settings_guild_id=guild_context.guild_id,
+            seat=seat,
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
@@ -1193,6 +1220,16 @@ async def apply_guild_session_context(
             pam_guild_id=guild_context.guild_id,
             pam_read=True,
             pam_write=(access_level == AccessLevel.read_write.value),
+            # Break-glass is a pair: the content grant names the community on
+            # the PAM axis, and a settings grant beside it names the same one
+            # on the configuration axis, which is what the shared tables' own
+            # policies read.
+            settings_guild_id=(
+                guild_context.guild_id
+                if guild_context.settings_grant is not None
+                else None
+            ),
+            seat=seat,
             platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
             satisfied_claims=auth_context.satisfied_claims(),
@@ -1212,6 +1249,7 @@ async def apply_guild_session_context(
         # but the session assumes the SELECT-only guild_<id>_ro Postgres role,
         # so content writes are refused by Postgres rather than by app code.
         read_only=guild_context.content_read_only,
+        seat=seat,
         satisfied_providers=_satp_param(satisfied),
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
@@ -1255,6 +1293,7 @@ async def establish_guild_access(
     satisfied_providers: frozenset[int] | str | None = None,
     *,
     for_settings: bool = False,
+    for_seat: bool = False,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
     point for callers that can't use the REST dependency chain.
@@ -1283,13 +1322,51 @@ async def establish_guild_access(
         session, current_user, guild_id, satisfied=satisfied, for_settings=for_settings
     )
     return await apply_guild_session_context(
-        session, current_user, guild_context, satisfied=satisfied
+        session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
     )
+
+
+async def get_guild_seat_context(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildContext:
+    """Route this request into the community's seat, or refuse it.
+
+    The seat is the rung above ``admin``: a community's sign-in configuration
+    and what it pays for. It is reached by the membership row that says so, or
+    by a live settings grant at that rung, and the session assumes
+    ``guild_<id>_superadmin`` — the one role whose floor carries those tables.
+    Every other route by the same person routes as an ordinary member.
+    """
+    try:
+        context = await establish_guild_access(
+            session, current_user, guild_id, for_settings=True, for_seat=True
+        )
+    except GuildAccessError as exc:
+        _raise_for_guild_access(exc)
+    if not context.seat:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
+        )
+    return context
+
+
+async def get_guild_seat_session(
+    session: SessionDep,
+    _context: Annotated[GuildContext, Depends(get_guild_seat_context)],
+) -> AsyncSession:
+    """The session :func:`get_guild_seat_context` routed, for the four
+    configuration routes the seat holds."""
+    return session
 
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
+SeatContextDep = Annotated[GuildContext, Depends(get_guild_seat_context)]
+SeatSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_session)]
 
 
 async def _include_deleted_flag(
