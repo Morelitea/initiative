@@ -37,7 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
-from app.db.authorization import GUILD_ADMIN, SYSTEM_SESSION
+from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,21 @@ __all__ = [
 UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
 GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
 PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
+SETTINGS_GID = "NULLIF(current_setting('app.settings_guild_id', true), '')::int"
 BILLING_GID = "NULLIF(current_setting('app.billing_guild_id', true), '')::int"
+#: The community this request is in, however it was reached: as a member, on a
+#: content grant, or on a settings grant. One of the three names a community,
+#: and a row belongs to this request's community when it names that one.
+ROUTED_GID = f"COALESCE({GID}, {PAM_GID}, {SETTINGS_GID})"
+#: The community whose own configuration this request administers. A content
+#: grant names none: what it reaches is the community's work, not its settings,
+#: so the two are kept apart here rather than in each policy.
+CONFIGURED_GID = f"COALESCE({GID}, {SETTINGS_GID})"
 #: The reader administers the routed community. A lookup on the membership
 #: row, made by the standing statement and written where a policy can read it
-#: — the same leg the guild schemas' gates carry, from one definition.
-ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
+#: — the same leg the guild schemas' gates carry, from one definition — beside
+#: the rung a live settings grant confers, which is its own axis.
+ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
 PAM_READ = "current_setting('app.pam_read', true) = 'true'"
 #: Who a notification is being written for. The bell is the one table whose
 #: rows are written by somebody other than the person they belong to, so the
@@ -88,17 +98,18 @@ def own_row(col: str = "user_id") -> str:
 
 
 def guild_scoped(col: str = "guild_id") -> str:
-    """The row belongs to the routed community."""
-    return f"{col} = {GID}"
+    """The row belongs to the community this request configures."""
+    return f"{col} = {CONFIGURED_GID}"
 
 
 def routed_admin(col: str = "guild_id") -> str:
-    """The row belongs to the routed community and the reader is its admin."""
-    return f"{col} = {GID} AND {ROUTED_ADMIN}"
+    """The row belongs to this request's community and the reader administers
+    it — as its admin, or at the rung a live settings grant confers."""
+    return f"{col} = {CONFIGURED_GID} AND {ROUTED_ADMIN}"
 
 
 def routed_or_own(guild_col: str, user_col: str) -> str:
-    return f"{guild_col} = {GID} OR {user_col} = {UID}"
+    return f"{guild_col} = {ROUTED_GID} OR {user_col} = {UID}"
 
 
 def routed_and_own(guild_col: str, user_col: str) -> str:
@@ -117,12 +128,12 @@ def member_of_guild(col: str = "guild_id") -> str:
 def routed_or_member(col: str = "guild_id") -> str:
     """The routed community, or one the reader belongs to (the pre-routing
     reads: a member's guild list, an invite preview, a guild image)."""
-    return f"{col} = {GID} OR {member_of_guild(col)}"
+    return f"{col} = {ROUTED_GID} OR {member_of_guild(col)}"
 
 
 def routed_or_pam(col: str = "guild_id") -> str:
-    """The routed community, falling back to the one a PAM grant names."""
-    return f"{col} = COALESCE({GID}, {PAM_GID})"
+    """The routed community, whichever of the three named it."""
+    return f"{col} = {ROUTED_GID}"
 
 
 def pam_read(col: str = "guild_id") -> str:
@@ -136,8 +147,10 @@ def billing_scoped(col: str = "guild_id") -> str:
 
 
 def seat(col: str = "guild_id") -> str:
-    """The routed community, and the reader holds its superadmin seat."""
-    return f"{col} = {GID} AND guild_superadmin({col}, {UID})"
+    """The community this request configures, and the reader holds its
+    superadmin seat — by the membership row, or by a live settings grant at
+    that rung, which is what ``guild_superadmin()`` asks."""
+    return f"{col} = {CONFIGURED_GID} AND guild_superadmin({col}, {UID})"
 
 
 # Predicates one table family shares, named once.

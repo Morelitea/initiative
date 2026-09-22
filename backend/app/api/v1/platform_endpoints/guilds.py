@@ -18,6 +18,7 @@ from fastapi import (
 
 from app.api.deps import (
     GuildContext,
+    SeatSessionDep,
     SessionDep,
     UploadUserDep,
     UserSessionDep,
@@ -50,7 +51,6 @@ from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.models.platform.guild import (
-    GUILD_ADMIN_ROLES,
     assignable_roles,
     Guild,
     GuildCategory,
@@ -150,9 +150,10 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
     """
-    is_admin = membership.role in GUILD_ADMIN_ROLES
-    # Role decides, not the caller: passing the row for a member still serves a
-    # member's payload, so this stays the one place the split is made.
+    # The rung decides, not the caller: passing the row for a member still
+    # serves a member's payload, so this stays the one place the split is made.
+    # Not on the wire — a reader asks the ladder the same question.
+    is_admin = membership.role.reaches(GuildRole.admin)
     admin_row = administration if is_admin else None
     return GuildRead(
         id=guild.id,
@@ -161,7 +162,6 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=membership.role,
-        is_admin=is_admin,
         position=membership.position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
@@ -1080,7 +1080,7 @@ async def _guild_payload_after_image_change(
 )
 async def create_guild_billing_handoff(
     guild_id: int,
-    session: SessionDep,
+    _session: SeatSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
     """Mint a billing-portal handoff. The guild's superadmin only.
@@ -1093,12 +1093,6 @@ async def create_guild_billing_handoff(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
-
-    await _ensure_guild_superadmin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
 
     try:
         user_ref, guild_ref = await billing_refs(
@@ -1182,12 +1176,10 @@ async def _platform_asks_everyone(session) -> bool:
 @router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
 async def get_guild_auth_settings(
     guild_id: int,
-    session: SessionDep,
+    _session: SeatSessionDep,
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildAuthSettingsRead:
     """Read the controls held by this community's superadmin seat."""
-    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
     guild = await admin_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
@@ -1238,7 +1230,7 @@ async def get_guild_auth_policy(
 async def set_guild_auth_policy(
     guild_id: int,
     payload: GuildAuthPolicyUpdate,
-    session: SessionDep,
+    session: SeatSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildAuthPolicyRead:
@@ -1256,11 +1248,6 @@ async def set_guild_auth_policy(
     requirement outlives the entitlement and the way to lift one outlives it
     too. Lifting only ever admits more, so it carries none of the conditions
     imposing it does."""
-    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
-    # The row is written through the guild's own role, so the policies on
-    # ``guild_auth_policies`` are what admit the write.
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
-
     if payload.policy == "open":
         policy_row = await session.get(GuildAuthPolicy, guild_id)
         if policy_row is not None:

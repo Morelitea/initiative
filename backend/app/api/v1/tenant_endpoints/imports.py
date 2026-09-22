@@ -15,7 +15,6 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative
@@ -546,11 +545,11 @@ def _require_guild_seat(guild_context: GuildContext) -> None:
     """Restoring a backup creates initiatives and writes blobs back into the
     community, so it sits with the seat that exports one.
 
-    Held outright, too: a break-glass grant synthesizes an admin role, but the
-    worker re-checks real membership at apply time, so a stand-in would only
-    fail later. Reject it up front.
+    Lent as well as held: a ``superadmin`` settings grant is the seat for its
+    window. Content access is a separate axis, and this route writes content —
+    a grant carrying none is refused at the session, before this.
     """
-    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
+    if not guild_context.seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED,

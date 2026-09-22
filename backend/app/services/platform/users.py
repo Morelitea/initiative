@@ -22,7 +22,7 @@ from app.models.platform.user import (
 )
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
@@ -951,12 +951,12 @@ async def summaries_with_guild_role(
 ) -> List["UserSummary"]:
     """``UserSummary`` per user, with the guild role actually filled in.
 
-    ``UserSummary`` defaults ``guild_role`` to ``None`` and ``is_guild_admin``
-    to ``False``, and ``model_validate`` over a profile row carries nothing
-    that could correct either -- the role lives on ``GuildMembership``, not on
-    the profile. So a guild admin came back from the roster endpoints looking
-    like an ordinary member, and a key-set assertion could not see it: the
-    field was present, and wrong.
+    ``UserSummary`` defaults ``guild_role`` to ``None``, and
+    ``model_validate`` over a profile row carries nothing that could correct
+    it -- the rung lives on ``GuildMembership``, not on the profile. So a
+    guild admin came back from the roster endpoints looking like an ordinary
+    member, and a key-set assertion could not see it: the field was present,
+    and wrong.
 
     One query for the whole batch, so this does not reintroduce an N+1 on a
     typeahead.
@@ -974,7 +974,6 @@ async def summaries_with_guild_role(
         role = roles.get(user.id)
         if role is not None:
             summary.guild_role = role.value
-            summary.is_guild_admin = role in GUILD_ADMIN_ROLES
         summaries.append(summary)
     return summaries
 

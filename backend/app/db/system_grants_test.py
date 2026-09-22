@@ -1,9 +1,10 @@
 """Completeness guard for the shared-table grant registry (issue #782).
 
 Mirrors ``tenancy_test``: these fail when a shared table has no grant decision
-for a directly-granted login role — a new ``public`` table must give the system
-engine (and the bare login role) *nothing* until this registry says so, making
-"decide and grant" a real edit rather than a comment in CLAUDE.md.
+for one of the five recorded roles — a new ``public`` table must give the
+system engine (and the bare login role) *nothing* until this registry says so,
+and the three floors must have said what they hold, making "decide and grant" a
+real edit rather than a comment in CLAUDE.md.
 
 Pure metadata — no database. The complementary check that the *live catalog*
 matches the registry (drift in either direction) lives in
@@ -15,7 +16,9 @@ import pytest
 from app.db.system_grants import (
     GRANTABLE_SHARED_TABLES,
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
+    SHARED_TABLE_PLATFORM_BASE_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
     VALID_GRANT_VERBS,
     grant_sql,
@@ -27,6 +30,8 @@ _MATRICES = [
     ("app_admin", SHARED_TABLE_SYSTEM_GRANTS),
     ("app_user", SHARED_TABLE_APP_USER_GRANTS),
     ("app_guild_base", SHARED_TABLE_APP_GUILD_BASE_GRANTS),
+    ("platform_base", SHARED_TABLE_PLATFORM_BASE_GRANTS),
+    ("app_superadmin", SHARED_TABLE_APP_SUPERADMIN_GRANTS),
 ]
 
 

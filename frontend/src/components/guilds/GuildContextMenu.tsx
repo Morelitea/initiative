@@ -26,7 +26,7 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { holdsGuildSeat } from "@/lib/permissions";
+import { administersGuild, holdsGuildSeat } from "@/lib/permissions";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
@@ -48,7 +48,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const { billing, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
-  const isAdmin = guild.is_admin;
+  const isAdmin = administersGuild(guild);
   const [creatingInvite, setCreatingInvite] = useState(false);
   // A guild at its seat cap mints no invite (the server refuses), so the item
   // says so rather than handing back an error toast. Both fields are

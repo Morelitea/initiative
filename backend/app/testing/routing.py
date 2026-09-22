@@ -26,6 +26,7 @@ async def route_as(
     user_id: int,
     guild_id: int,
     satisfied_providers: Optional[Sequence[int] | str] = None,
+    seat: bool = False,
 ):
     """Route ``session`` into ``guild_id`` as ``user_id``, through the seam.
 
@@ -33,6 +34,10 @@ async def route_as(
     standing it computed. Raises ``GuildAccessError`` when the account reaches
     the community by neither membership nor a live grant — the same refusal the
     request path gives.
+
+    ``seat`` is what the community's four configuration routes ask for, and it
+    is honoured only where the seat is reached — the same two conditions the
+    request path applies.
     """
     from app.api.deps import establish_guild_access
     from app.core import auth_context
@@ -50,7 +55,12 @@ async def route_as(
     await set_rls_context(session, user_id=user_id)
     user = (await session.exec(select(User).where(User.id == user_id))).one()
     return await establish_guild_access(
-        session, user, guild_id, satisfied_providers=satisfied_providers
+        session,
+        user,
+        guild_id,
+        satisfied_providers=satisfied_providers,
+        for_settings=seat,
+        for_seat=seat,
     )
 
 

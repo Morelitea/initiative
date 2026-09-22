@@ -329,7 +329,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("gives a superadmin settings grantee the current controls", () => {
-      guildRole = "member";
+      guildRole = "superadmin";
       grantSettingsLevel = "superadmin";
       authOptions = null;
       allowApiKeys = null;

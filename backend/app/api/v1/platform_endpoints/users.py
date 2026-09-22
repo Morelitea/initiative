@@ -20,6 +20,7 @@ from app.api.deps import (
     FactorExemptSessionDep,
     FactorExemptUser,
     RLSSessionDep,
+    SettingsRLSSessionDep,
     SessionDep,
     UserSessionDep,
     get_current_active_user,
@@ -226,10 +227,16 @@ async def get_user_stats(
 
 @guild_router.get("/", response_model=List[UserGuildMember])
 async def list_users(
-    session: RLSSessionDep,
+    session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
+    """The community's roster.
+
+    On the configuration session rather than the content one: who is in a
+    community is part of running it, which is what a settings grant reaches
+    and what an administrator keeps while its content is closed.
+    """
     stmt = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
@@ -250,7 +257,6 @@ async def list_users(
     for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
-        member.is_guild_admin = guild_role in GUILD_ADMIN_ROLES
         member.oidc_managed = oidc_provider_id is not None
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
@@ -259,12 +265,9 @@ async def list_users(
 
 
 def _membership_standing(role: GuildRole | None) -> dict[str, object]:
-    """The two membership fields a picker row carries: the role to show, and
-    whether it administers the guild — which is the question a caller asks."""
-    return {
-        "guild_role": role.value if role is not None else None,
-        "is_guild_admin": role in GUILD_ADMIN_ROLES,
-    }
+    """The membership field a picker row carries: the rung, which is both what
+    a row shows and what a surface asks the ladder about."""
+    return {"guild_role": role.value if role is not None else None}
 
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)

@@ -1,7 +1,7 @@
 """Single source of truth for the audited per-table GRANTs the request-path
 Postgres roles hold on the shared (``public``) tables.
 
-Three roles are recorded here, one matrix each:
+Five roles are recorded here, one matrix each:
 
 * **``app_admin``** — the system engine (BYPASSRLS trusted-batch actor). Its
   security boundary *is* exactly this grant set: a new shared table gives the
@@ -17,8 +17,15 @@ Three roles are recorded here, one matrix each:
   ``SHARED_TABLE_APP_GUILD_BASE_GRANTS`` records where that has landed, table
   by table, so a new table's reach is a decision here rather than a default.
 
-The platform floor, ``platform_base``, is granted the same way and is not yet
-recorded. The read-only guild floor, ``app_guild_base_ro``, is derived from
+* **``platform_base``** — the floor every ``platform_<tier>`` role inherits,
+  granted the same way as the guild floor and recorded the same way.
+  ``SHARED_TABLE_PLATFORM_BASE_GRANTS``.
+* **``app_superadmin``** — the seat floor, which only the per-guild
+  ``guild_<id>_superadmin`` role inherits. It takes no default privileges at
+  all, so its matrix is a short list of yeses among a long list of ``None``.
+  ``SHARED_TABLE_APP_SUPERADMIN_GRANTS``.
+
+The read-only guild floor, ``app_guild_base_ro``, is derived from
 ``app_guild_base`` (``guild_base_ro_parity_test``) rather than listed.
 
 Historically the first two matrices were the audited product of migrations
@@ -46,6 +53,8 @@ __all__ = [
     "SHARED_TABLE_SYSTEM_GRANTS",
     "SHARED_TABLE_APP_USER_GRANTS",
     "SHARED_TABLE_APP_GUILD_BASE_GRANTS",
+    "SHARED_TABLE_PLATFORM_BASE_GRANTS",
+    "SHARED_TABLE_APP_SUPERADMIN_GRANTS",
     "NON_MODEL_SHARED_TABLES",
     "GRANTABLE_SHARED_TABLES",
     "VALID_GRANT_VERBS",
@@ -522,10 +531,11 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_provider_secrets": None,
     "federated_identities": None,
     "federated_identity_secrets": None,
-    # 0147 granted SELECT — the gate reads the requirement before routing —
-    # and 0297 the three writes, each narrowed by a seat policy to the routed
-    # community's own row and to a holder of guild_superadmin.
-    "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0147 granted SELECT — the gate reads the requirement before routing, in
+    # whatever role the request assumed, so every floor keeps it. 0297 added
+    # the three writes and 0349 moved them to app_superadmin, the floor only a
+    # seat route inherits.
+    "guild_auth_policies": frozenset({"SELECT"}),
     # 0308: the read floor reads the gate; the writes are the system engine's.
     "guild_provider_connections": frozenset({"SELECT"}),
     "platform_provider_defaults": frozenset({"SELECT"}),
@@ -575,6 +585,152 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "alembic_version": None,
     # _ensure_table takes both floors back at creation
     # (app.services.storage_backfill).
+    "storage_backfill_state": None,
+}
+
+
+# table -> the verbs the PLATFORM FLOOR (``platform_base``) holds, or ``None``.
+# Every ``platform_<tier>`` role inherits this set, so it is the reach of an
+# unrouted, authenticated request into ``public``. Granted the same way as the
+# guild floor above — the schema default gives a new table full DML and the
+# migration that adds it takes back what it should not have — and recorded here
+# for the same reason: so a table's reach is a decision rather than a default.
+# Read off the live catalog when it was first written, table by table.
+SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
+    "users": frozenset({"SELECT"}),
+    "guilds": frozenset({"SELECT"}),
+    "guild_administration": frozenset({"SELECT"}),
+    "guild_memberships": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "access_grants": frozenset({"SELECT"}),
+    "import_credentials": None,
+    "identity_refs": None,
+    "app_settings": frozenset({"SELECT"}),
+    "marketplace_listings": frozenset({"SELECT"}),
+    "marketplace_listing_versions": frozenset({"SELECT"}),
+    "app_service_registrations": None,
+    "app_service_nonces": None,
+    "marketplace_registry_state": None,
+    "marketplace_media": frozenset({"SELECT"}),
+    "guild_images": None,
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_decorations": frozenset({"SELECT"}),
+    "profile_favorites": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "legal_acceptances": frozenset({"SELECT", "INSERT"}),
+    "user_dm_settings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_cookie_consent": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "email_outbox": frozenset({"INSERT"}),
+    "user_dm_guild_optouts": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "contact_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "user_ignores": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "dm_devices": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "dm_one_time_keys": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "dm_conversations": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "dm_conversation_members": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "dm_queue": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "platform_ai_connections": None,
+    "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "auth_providers": None,
+    "auth_provider_secrets": None,
+    "federated_identities": frozenset({"SELECT"}),
+    "federated_identity_secrets": None,
+    "guild_auth_policies": frozenset({"SELECT"}),
+    "guild_provider_connections": frozenset({"SELECT"}),
+    "platform_provider_defaults": frozenset({"SELECT"}),
+    "auth_sessions": None,
+    "user_emails": None,
+    "user_email_assertions": None,
+    "user_passkeys": None,
+    "user_totp": None,
+    "user_totp_secrets": None,
+    "mfa_recovery_codes": None,
+    "auth_challenges": None,
+    "user_view_preferences": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "announcements": frozenset({"SELECT"}),
+    "announcement_reads": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    "announcement_images": frozenset({"SELECT"}),
+    "user_api_keys": None,
+    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "auto_delegation_jti_blocklist": frozenset(
+        {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    ),
+    "billing_event_log": None,
+    "billing_jti_blocklist": None,
+    "alembic_version": None,
+    "storage_backfill_state": None,
+}
+
+
+# table -> the verbs the SEAT FLOOR (``app_superadmin``) holds, or ``None``.
+# Only ``guild_<id>_superadmin`` inherits it, and a request assumes that role
+# by asking for the seat and holding it. Unlike the three floors above it takes
+# no default privileges, so every entry here is an explicit grant in a
+# migration and everything else is ``None`` by construction.
+SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
+    "users": None,
+    "guilds": None,
+    "guild_administration": None,
+    "guild_memberships": None,
+    "guild_invites": None,
+    "access_grants": None,
+    "import_credentials": None,
+    "identity_refs": None,
+    "app_settings": None,
+    "marketplace_listings": None,
+    "marketplace_listing_versions": None,
+    "app_service_registrations": None,
+    "app_service_nonces": None,
+    "marketplace_registry_state": None,
+    "marketplace_media": None,
+    "guild_images": None,
+    "user_avatars": None,
+    "user_decorations": None,
+    "profile_favorites": None,
+    "legal_acceptances": None,
+    "user_dm_settings": None,
+    "user_cookie_consent": None,
+    "user_notification_prefs": None,
+    "email_outbox": None,
+    "user_dm_guild_optouts": None,
+    "contact_grants": None,
+    "user_ignores": None,
+    "dm_devices": None,
+    "dm_one_time_keys": None,
+    "dm_conversations": None,
+    "dm_conversation_members": None,
+    "dm_queue": None,
+    "platform_ai_connections": None,
+    "oidc_claim_mappings": None,
+    "auth_providers": None,
+    "auth_provider_secrets": None,
+    "federated_identities": None,
+    "federated_identity_secrets": None,
+    "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "guild_provider_connections": None,
+    "platform_provider_defaults": None,
+    "auth_sessions": None,
+    "user_emails": None,
+    "user_email_assertions": None,
+    "user_passkeys": None,
+    "user_totp": None,
+    "user_totp_secrets": None,
+    "mfa_recovery_codes": None,
+    "auth_challenges": None,
+    "user_view_preferences": None,
+    "notifications": None,
+    "announcements": None,
+    "announcement_reads": None,
+    "announcement_images": None,
+    "user_api_keys": None,
+    "user_tokens": None,
+    "push_tokens": None,
+    "auto_delegation_jti_blocklist": None,
+    "billing_event_log": None,
+    "billing_jti_blocklist": None,
+    "alembic_version": None,
     "storage_backfill_state": None,
 }
 

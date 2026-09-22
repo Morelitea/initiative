@@ -33,7 +33,9 @@ from app.db.user_columns import (
 from app.db.public_rls import PUBLIC_RLS
 from app.db.system_grants import (
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
+    SHARED_TABLE_PLATFORM_BASE_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
 )
 
@@ -69,6 +71,7 @@ def _app_role_family() -> list[str]:
         "app_admin",
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        "app_superadmin",
         *(platform_role_name(t) for t in PLATFORM_TIERS),
         billing_role_name(),
     ]
@@ -153,6 +156,59 @@ async def test_app_guild_base_grants_match_audited_matrix(engine):
     ``None``) instead of inherited."""
     live = await _table_grants_for(engine, "app_guild_base")
     _assert_matrix("app_guild_base", live, SHARED_TABLE_APP_GUILD_BASE_GRANTS)
+
+
+async def test_platform_base_grants_match_audited_matrix(engine):
+    """The platform floor's reach into ``public`` is what the registry says.
+
+    ``platform_base`` is what every ``platform_<tier>`` role inherits, and like
+    the guild floor it is granted by the schema default rather than table by
+    table — so this is the check that a shared table added later has had its
+    reach decided instead of inherited."""
+    live = await _table_grants_for(
+        engine, f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    )
+    _assert_matrix("platform_base", live, SHARED_TABLE_PLATFORM_BASE_GRANTS)
+
+
+async def test_app_superadmin_grants_match_audited_matrix(engine):
+    """The seat floor holds what the registry says and nothing more.
+
+    ``app_superadmin`` takes no default privileges, so anything here that the
+    registry does not name arrived by a hand-written grant."""
+    live = await _table_grants_for(engine, "app_superadmin")
+    _assert_matrix("app_superadmin", live, SHARED_TABLE_APP_SUPERADMIN_GRANTS)
+
+
+async def test_the_seat_floor_alone_writes_the_sign_in_rule(engine):
+    """Setting how a community signs its members in is the seat's.
+
+    Every floor reads the rule — the gate function runs under whichever role
+    the request assumed — and only the floor a seat route inherits writes it."""
+    async with engine.connect() as conn:
+        for role in (
+            "app_guild_base",
+            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            "app_user",
+        ):
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_table_privilege(:role,"
+                        " 'public.guild_auth_policies', :verb)"
+                    ),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guild_auth_policies"
+        for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+            held = await conn.scalar(
+                text(
+                    "SELECT has_table_privilege('app_superadmin',"
+                    " 'public.guild_auth_policies', :verb)"
+                ),
+                {"verb": verb},
+            )
+            assert held, f"app_superadmin must hold {verb} on guild_auth_policies"
 
 
 async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):

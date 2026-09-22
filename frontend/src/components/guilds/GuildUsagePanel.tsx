@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
-import { holdsGuildSeat } from "@/lib/permissions";
+import { holdsGuildSeat, reachesGuildContent } from "@/lib/permissions";
 
 /** Percentage 0–100 of `used` against a cap, or null when the cap is
  * unlimited (null) — a null ratio renders no progress bar. */
@@ -27,8 +27,10 @@ export const GuildUsagePanel = () => {
   const { billing, openPortal } = useBillingPortal();
 
   const guildId = activeGuild?.id;
+  // What a community stores is read from inside it, so the figure is not part
+  // of what a settings grant reaches. The panel renders without it.
   const { data: usage } = useReadStorageUsageApiV1GGuildIdStorageUsageGet(guildId ?? 0, {
-    query: { enabled: guildId != null },
+    query: { enabled: guildId != null && reachesGuildContent(activeGuild) },
   });
 
   if (!activeGuild) {

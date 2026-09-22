@@ -49,7 +49,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { holdsGuildSeat } from "@/lib/permissions";
+import { administersGuild, holdsGuildSeat, rungReaches } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -93,8 +93,10 @@ export const SettingsUsersPage = () => {
 
   const { activeGuild } = useGuilds();
   const { billing, openPortal } = useBillingPortal();
-  // Guild admin check is based on guild membership role only (independent from platform role)
-  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  // Running the community, not reaching its work: the roster and its
+  // invites answer to the guild's own ladder, and to a settings grant
+  // standing in on it. Platform role has nothing to do with it.
+  const isGuildAdmin = administersGuild(activeGuild);
   const roleOptions = holdsGuildSeat(activeGuild) ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
 
   const activeGuildId = activeGuild?.id ?? null;
@@ -159,7 +161,10 @@ export const SettingsUsersPage = () => {
   // Ownership can only be handed to a guild admin, so the picker is the guild's
   // admin roster rather than every member.
   const guildAdmins = useMemo(
-    () => (usersQuery.data ?? []).filter((m) => m.is_guild_admin && m.status !== "anonymized"),
+    () =>
+      (usersQuery.data ?? []).filter(
+        (m) => rungReaches(m.guild_role, "admin") && m.status !== "anonymized"
+      ),
     [usersQuery.data]
   );
 
