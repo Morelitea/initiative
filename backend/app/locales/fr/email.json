@@ -50,7 +50,8 @@
     "assignedBy": "assigné par <strong>{{name}}</strong>",
     "inProject": "dans <strong>{{projectName}}</strong>",
     "footer": "Visitez Initiative pour examiner les tâches.",
-    "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :"
+    "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
+    "redactedItem": "Une tâche vous a été attribuée"
   },
   "mention": {
     "document": {
@@ -142,7 +143,8 @@
     "taskDetail": "projet : <strong>{{projectName}}</strong>, échéance <strong>{{dueDate}}</strong>",
     "footer": "Visitez Initiative pour vous remettre sur la bonne voie.",
     "textBody_one": "Vous avez {{count}} tâche en retard :",
-    "textBody_other": "Vous avez {{count}} tâches en retard :"
+    "textBody_other": "Vous avez {{count}} tâches en retard :",
+    "redactedItem": "Une tâche est en retard"
   },
   "accessGrant": {
     "buttonLabel": "Ouvrir le tableau de bord des accès",
@@ -209,7 +211,8 @@
     "body": "Voici le résumé des réactions à vos publications :",
     "line": "de <strong>{{name}}</strong> sur",
     "footer": "Ouvrez Initiative pour voir la conversation.",
-    "textBody": "Voici le résumé des réactions à vos publications :"
+    "textBody": "Voici le résumé des réactions à vos publications :",
+    "redactedItem": "Quelqu'un a réagi à une de vos publications"
   },
   "quietHours": {
     "summary": {

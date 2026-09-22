@@ -36,6 +36,8 @@ import type {
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   LoginMethodsUpdate,
+  NotificationSettingsResponse,
+  NotificationSettingsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
@@ -696,6 +698,268 @@ export const useUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = <
 > => {
   return useMutation(
     getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * What this deployment permits a notification to leave the app carrying.
+ *
+ * System engine: the device-token count is over a table no request-path role
+ * reads.
+ * @summary Get Notification Settings
+ */
+export const getNotificationSettingsApiV1SettingsNotificationsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationSettingsResponse>(
+    { url: `/api/v1/settings/notifications`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey = () => {
+  return [`/api/v1/settings/notifications`] as const;
+};
+
+export const getGetNotificationSettingsApiV1SettingsNotificationsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+  > = ({ signal }) => getNotificationSettingsApiV1SettingsNotificationsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetNotificationSettingsApiV1SettingsNotificationsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+>;
+export type GetNotificationSettingsApiV1SettingsNotificationsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
+  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
+  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
+  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Notification Settings
+ */
+
+export function useGetNotificationSettingsApiV1SettingsNotificationsGet<
+  TData = Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNotificationSettingsApiV1SettingsNotificationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetNotificationSettingsApiV1SettingsNotificationsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Decide what this deployment permits a notification to leave the app with.
+ *
+ * Every community is held to this as a ceiling: one may decline a channel the
+ * deployment permits, and none may take back one the deployment has declined.
+ *
+ * Switching push off drops the device tokens this deployment was holding, and
+ * the registration endpoint declines while it stays off — so the deployment
+ * stops sending and stops keeping the addresses it was sending to. Devices
+ * register again the next time the app starts, which is what restores
+ * delivery when it is switched back on.
+ *
+ * Switching email off stops notification email and nothing else: a sign-in
+ * code, an address to confirm, a password reset and the notices an account
+ * gets about itself keep going, because this must not lock anybody out of
+ * their account.
+ * @summary Update Notification Settings
+ */
+export const updateNotificationSettingsApiV1SettingsNotificationsPut = (
+  notificationSettingsUpdate: BodyType<NotificationSettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationSettingsResponse>(
+    {
+      url: `/api/v1/settings/notifications`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: notificationSettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationKey = () =>
+  ["updateNotificationSettingsApiV1SettingsNotificationsPut"] as const;
+
+export const getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+    TError,
+    UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+  TError,
+  UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+    UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateNotificationSettingsApiV1SettingsNotificationsPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>
+>;
+export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationBody =
+  BodyType<NotificationSettingsUpdate>;
+export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables = {
+  data: BodyType<NotificationSettingsUpdate>;
+};
+
+/**
+ * @summary Update Notification Settings
+ */
+export const useUpdateNotificationSettingsApiV1SettingsNotificationsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+      TError,
+      UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateNotificationSettingsApiV1SettingsNotificationsPut>>,
+  TError,
+  UpdateNotificationSettingsApiV1SettingsNotificationsPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateNotificationSettingsApiV1SettingsNotificationsPutMutationOptions(options),
     queryClient
   );
 };

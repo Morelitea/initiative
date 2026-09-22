@@ -413,6 +413,9 @@ class GuildAuthSettingsRead(SanitizedBaseModel):
     allow_api_keys: bool
     enforce_compliance_session: bool
     require_second_factor: bool = False
+    allow_push_notifications: bool = True
+    allow_email_notifications: bool = True
+    redact_notification_content: bool = False
 
 
 class GuildApiAccessRead(SanitizedBaseModel):
@@ -461,6 +464,32 @@ class GuildSessionLimitUpdate(SanitizedBaseModel):
     hours, whatever the deployment's own limit says."""
 
     enforce_compliance_session: bool
+
+
+class GuildNotificationPolicyRead(SanitizedBaseModel):
+    """What this community's notifications may leave the app carrying."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    allow_push_notifications: bool
+    allow_email_notifications: bool
+    redact_notification_content: bool
+    #: What the deployment already asks of every community, so the page can say
+    #: that a switch has nothing to add rather than offering the same answer
+    #: twice. The stricter of the two applies, so a deployment that has already
+    #: declined a channel leaves nothing here to decline.
+    push_allowed_by_platform: bool = True
+    email_allowed_by_platform: bool = True
+    redacted_by_platform: bool = False
+
+
+class GuildNotificationPolicyUpdate(SanitizedBaseModel):
+    """Set them. Each one restricts this community's notifications and nothing
+    else: no switch here relaxes what the deployment has already said."""
+
+    allow_push_notifications: bool
+    allow_email_notifications: bool
+    redact_notification_content: bool
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

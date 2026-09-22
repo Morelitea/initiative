@@ -87,6 +87,8 @@ from app.schemas.platform.guild import (
     GuildInviteRead,
     GuildInviteStatus,
     GuildOrderUpdate,
+    GuildNotificationPolicyRead,
+    GuildNotificationPolicyUpdate,
     GuildSessionLimitRead,
     GuildSessionLimitUpdate,
     GuildUpdate,
@@ -105,6 +107,7 @@ from app.services.platform import access_grants as access_grants_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
+from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_claim
 from app.services.platform import guild_images as images_service
@@ -287,6 +290,14 @@ _GUILD_PROFILE_FIELDS = (
     "categories",
     "has_adult_content",
     "show_member_names",
+)
+
+#: What this community's notifications may leave the app carrying, for the
+#: record.
+_GUILD_NOTIFICATION_FIELDS = (
+    "allow_push_notifications",
+    "allow_email_notifications",
+    "redact_notification_content",
 )
 
 
@@ -1195,6 +1206,98 @@ async def get_guild_auth_settings(
         allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
         require_second_factor=guild.require_second_factor,
+        allow_push_notifications=guild.allow_push_notifications,
+        allow_email_notifications=guild.allow_email_notifications,
+        redact_notification_content=guild.redact_notification_content,
+    )
+
+
+def _notification_policy_read(
+    guild: Guild, platform: notification_policy.NotificationPolicy
+) -> GuildNotificationPolicyRead:
+    """This community's three answers, beside the deployment's."""
+    return GuildNotificationPolicyRead(
+        allow_push_notifications=guild.allow_push_notifications,
+        allow_email_notifications=guild.allow_email_notifications,
+        redact_notification_content=guild.redact_notification_content,
+        push_allowed_by_platform=platform.push,
+        email_allowed_by_platform=platform.email,
+        redacted_by_platform=platform.redact,
+    )
+
+
+@router.get(
+    "/{guild_id}/notification-policy", response_model=GuildNotificationPolicyRead
+)
+async def get_guild_notification_policy(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildNotificationPolicyRead:
+    """What this community's notifications may leave the app carrying."""
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    return _notification_policy_read(
+        guild, await notification_policy.resolve(admin_session, None)
+    )
+
+
+@router.put(
+    "/{guild_id}/notification-policy", response_model=GuildNotificationPolicyRead
+)
+async def set_guild_notification_policy(
+    guild_id: int,
+    payload: GuildNotificationPolicyUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildNotificationPolicyRead:
+    """Decide what this community's notifications may leave the app carrying.
+
+    Three answers: whether one may reach a phone, whether one may reach a
+    mailbox, and whether what it says may name the thing it is about. Each is
+    also asked of the deployment, and the stricter of the pair applies — so
+    this surface only ever narrows, and a deployment that has already declined
+    a channel leaves nothing here to decline.
+
+    The same seat as the three beside it, and for the same reason: it says what
+    is done on this community's behalf rather than how it is run. The bell
+    inside the app is unaffected, and so is what an account is sent about
+    itself — a sign-in code and a password reset are not notifications.
+    """
+    await _ensure_guild_superadmin(session, guild_id=guild_id, user_id=current_user.id)
+    await _require_guild_auth_option(
+        admin_session, guild_id, GuildAuthOption.restrictions
+    )
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    before = audit_service.snapshot(guild, _GUILD_NOTIFICATION_FIELDS)
+    guild.allow_push_notifications = payload.allow_push_notifications
+    guild.allow_email_notifications = payload.allow_email_notifications
+    guild.redact_notification_content = payload.redact_notification_content
+    admin_session.add(guild)
+    await _record_guild_settings_change(
+        admin_session,
+        guild_id=guild_id,
+        actor_user_id=current_user.id,
+        area="notifications",
+        before=before,
+        after=audit_service.snapshot(guild, _GUILD_NOTIFICATION_FIELDS),
+    )
+    await admin_session.commit()
+    return _notification_policy_read(
+        guild, await notification_policy.resolve(admin_session, None)
     )
 
 

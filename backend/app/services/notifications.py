@@ -41,6 +41,7 @@ from app.services.platform import accounts as accounts_service
 from app.models.platform.notification import Notification, NotificationType
 from app.services import email as email_service
 from app.services.platform import email_outbox
+from app.services.platform import notification_policy
 from app.services.platform import notification_prefs
 from app.services.platform import user_notifications
 from app.services.platform import push_notifications
@@ -532,6 +533,8 @@ async def notify_initiative_membership(
                 session=session,
                 user_id=user.id,
                 notification_type=NotificationType.initiative_added,
+                guild_id=guild_id,
+                locale=locale,
                 title=_nt("initiative.added.title", locale),
                 body=_nt("initiative.added.body", locale, initiative=initiative_name),
                 data={
@@ -577,6 +580,8 @@ async def _send_join_request_push(
             session=session,
             user_id=recipient.id,
             notification_type=notification_type,
+            guild_id=guild_id,
+            locale=locale,
             title=_nt(title_key, locale),
             body=_nt(body_key, locale, **body_vars),
             data={
@@ -833,6 +838,8 @@ async def notify_project_added(
                 session=session,
                 user_id=user.id,
                 notification_type=NotificationType.project_added,
+                guild_id=guild_id,
+                locale=locale,
                 title=_nt("project.added.title", locale),
                 body=_nt(
                     "project.added.body",
@@ -923,6 +930,8 @@ async def _deliver_rolled_up_comment(
                 session=session,
                 user_id=recipient.id,
                 notification_type=notification_type,
+                guild_id=guild_id,
+                locale=_recipient_locale(recipient),
                 title=push_title,
                 body=push_body,
                 data={
@@ -1412,6 +1421,8 @@ async def _deliver_notification(
                 session=session,
                 user_id=recipient.id,
                 notification_type=notification_type,
+                guild_id=guild_id if isinstance(guild_id, int) else None,
+                locale=_recipient_locale(recipient),
                 title=push_title,
                 body=push_body,
                 data={
@@ -1719,6 +1730,19 @@ async def _send_assignment_push(
     """
     locale = _recipient_locale(user)
     first = assignments[0]
+    if any(item.get("redacted") for item in assignments):
+        title, body = notification_policy.redacted_push(
+            NotificationType.task_assignment, locale
+        )
+    else:
+        title = _nt("task.assignment.title", locale)
+        body = _nt(
+            "task.assignment.body",
+            locale,
+            count=len(assignments),
+            title=first.get("task_title") or "",
+            project=first.get("project_name") or "",
+        )
     data: dict[str, str] = {
         "type": NotificationType.task_assignment.value,
         "count": str(len(assignments)),
@@ -1734,14 +1758,9 @@ async def _send_assignment_push(
             session=session,
             user_id=user.id,
             notification_type=NotificationType.task_assignment,
-            title=_nt("task.assignment.title", locale),
-            body=_nt(
-                "task.assignment.body",
-                locale,
-                count=len(assignments),
-                title=first.get("task_title") or "",
-                project=first.get("project_name") or "",
-            ),
+            locale=locale,
+            title=title,
+            body=body,
             data=data,
         )
     except Exception as exc:
@@ -1821,6 +1840,34 @@ def wants_digest(
             prefs, notification_type=sample, channel=channel, guild_id=guild_id
         )
         for channel in (Channel.email, Channel.push)
+    )
+
+
+async def _digest_batch(batch: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The items of a digest each channel may still carry, per community.
+
+    A digest gathers from every community an account is in, so what may leave
+    with it is answered one community at a time: items from one that declines a
+    channel are left out of it, and items from one asking for redacted
+    notifications are marked, so the composer writes the kind of thing that
+    happened rather than what it was about.
+
+    Returns ``(for_email, for_push)`` — the same items, filtered and marked for
+    each channel.
+    """
+    policies = await notification_policy.load_many(
+        {item.get("guild_id") for item in batch}
+    )
+
+    def prepared(item: dict, channel: str) -> dict | None:
+        policy = policies[item.get("guild_id")]
+        if not getattr(policy, channel):
+            return None
+        return {**item, "redacted": True} if policy.redact else item
+
+    return (
+        [row for item in batch if (row := prepared(item, "email")) is not None],
+        [row for item in batch if (row := prepared(item, "push")) is not None],
     )
 
 
@@ -1924,26 +1971,31 @@ async def _run_digest_pass(
         channels = await _channels(
             session, user, notification_type=sample_type(spec.category)
         )
-        if channels.email:
+        email_batch, push_batch = await _digest_batch(batch)
+        if channels.email and email_batch:
             # No community: a digest gathers from every guild the account is
-            # in, so there is no one of them it happened in.
+            # in, so there is no one of them it happened in. Each item carries
+            # its own community's answer instead.
             delivered = await email_outbox.enqueue(
                 session,
                 user,
                 category=spec.category,
                 prefs=channels.prefs,
-                pieces=spec.pieces(user, batch),
+                pieces=spec.pieces(user, email_batch),
             )
             if delivered:
                 logger.info(
-                    "%s: queued %d item(s) for user %s", spec.name, len(batch), user_id
+                    "%s: queued %d item(s) for user %s",
+                    spec.name,
+                    len(email_batch),
+                    user_id,
                 )
             else:
                 logger.warning(
                     "SMTP not configured; holding %s for %s", spec.name, user_id
                 )
-        if channels.push:
-            pushed, push_retry = await spec.send_push(session, user, batch)
+        if channels.push and push_batch:
+            pushed, push_retry = await spec.send_push(session, user, push_batch)
             delivered = delivered or pushed
             retry = retry or push_retry
         if retry and not delivered:
@@ -2394,6 +2446,20 @@ async def _send_reaction_push(
     """
     locale = _recipient_locale(user)
     first = reactions[0]
+    if any(item.get("redacted") for item in reactions):
+        title, body = notification_policy.redacted_push(
+            NotificationType.comment_reaction, locale
+        )
+    else:
+        title = _nt("comment.reaction.title", locale)
+        body = _nt(
+            "comment.reaction.body",
+            locale,
+            count=len(reactions),
+            actor=first.get("reactor_name") or "",
+            emoji=first.get("emoji") or "",
+            context=first.get("context_title") or "",
+        )
     data: dict[str, str] = {
         "type": NotificationType.comment_reaction.value,
         "count": str(len(reactions)),
@@ -2407,15 +2473,9 @@ async def _send_reaction_push(
             session=session,
             user_id=user.id,
             notification_type=NotificationType.comment_reaction,
-            title=_nt("comment.reaction.title", locale),
-            body=_nt(
-                "comment.reaction.body",
-                locale,
-                count=len(reactions),
-                actor=first.get("reactor_name") or "",
-                emoji=first.get("emoji") or "",
-                context=first.get("context_title") or "",
-            ),
+            locale=locale,
+            title=title,
+            body=body,
             data=data,
         )
     except Exception as exc:
@@ -2509,6 +2569,7 @@ async def _overdue_tasks_for_user(
                 if task.due_date
                 else "N/A",
                 "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+                "guild_id": guild_id,
             }
         )
     return tasks
@@ -2525,6 +2586,15 @@ async def _send_overdue_push(
     ``target_path`` as an app-level route.
     """
     locale = _recipient_locale(user)
+    if any(item.get("redacted") for item in tasks):
+        title, body = notification_policy.redacted_push(
+            NotificationType.overdue_tasks, locale
+        )
+    else:
+        title = _nt("task.overdue.title", locale)
+        body = _nt(
+            "task.overdue.body", locale, count=len(tasks), title=tasks[0]["title"]
+        )
     data = {
         "type": NotificationType.overdue_tasks.value,
         "count": str(len(tasks)),
@@ -2535,13 +2605,9 @@ async def _send_overdue_push(
             session=session,
             user_id=user.id,
             notification_type=NotificationType.overdue_tasks,
-            title=_nt("task.overdue.title", locale),
-            body=_nt(
-                "task.overdue.body",
-                locale,
-                count=len(tasks),
-                title=tasks[0]["title"],
-            ),
+            locale=locale,
+            title=title,
+            body=body,
             data=data,
         )
     except Exception as exc:
@@ -2647,26 +2713,27 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         channels = await _channels(
             session, user, notification_type=NotificationType.overdue_tasks
         )
-        if channels.email:
+        email_tasks, push_tasks = await _digest_batch(tasks)
+        if channels.email and email_tasks:
             delivered = await email_outbox.enqueue(
                 session,
                 user,
                 category=NotificationCategory.due_dates,
                 prefs=channels.prefs,
-                pieces=email_service.overdue_tasks_pieces(user, tasks),
+                pieces=email_service.overdue_tasks_pieces(user, email_tasks),
             )
             if delivered:
                 logger.info(
                     "overdue-digest: queued %d overdue task(s) for user %s",
-                    len(tasks),
+                    len(email_tasks),
                     user_id,
                 )
             else:
                 logger.warning(
                     "SMTP not configured; skipping overdue digest for %s", user_id
                 )
-        if channels.push:
-            delivered = await _send_overdue_push(session, user, tasks) or delivered
+        if channels.push and push_tasks:
+            delivered = await _send_overdue_push(session, user, push_tasks) or delivered
         if not delivered:
             continue
         user.last_overdue_notification_at = now
@@ -2857,6 +2924,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
                     session=session,
                     user_id=user.id,
                     notification_type=sample_type(rows[0][0]),
+                    locale=locale,
                     title=_nt(f"{key}.title", locale),
                     body=_nt(
                         f"{key}.body",

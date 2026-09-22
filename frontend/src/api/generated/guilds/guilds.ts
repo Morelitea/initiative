@@ -38,6 +38,8 @@ import type {
   GuildInviteRead,
   GuildInviteStatus,
   GuildMembershipUpdate,
+  GuildNotificationPolicyRead,
+  GuildNotificationPolicyUpdate,
   GuildOrderUpdate,
   GuildRead,
   GuildSecondFactorRead,
@@ -2075,6 +2077,324 @@ export function useGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * What this community's notifications may leave the app carrying.
+ * @summary Get Guild Notification Policy
+ */
+export const getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildNotificationPolicyRead>(
+    { url: `/api/v1/guilds/${guildId}/notification-policy`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/guilds/${guildId}/notification-policy`] as const;
+};
+
+export const getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>>
+  > = ({ signal }) =>
+    getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet(
+      guildId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>>
+  >;
+export type GetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet<
+  TData = Awaited<
+    ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet<
+  TData = Awaited<
+    ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet<
+  TData = Awaited<
+    ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Guild Notification Policy
+ */
+
+export function useGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet<
+  TData = Awaited<
+    ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Decide what this community's notifications may leave the app carrying.
+ *
+ * Three answers: whether one may reach a phone, whether one may reach a
+ * mailbox, and whether what it says may name the thing it is about. Each is
+ * also asked of the deployment, and the stricter of the pair applies — so
+ * this surface only ever narrows, and a deployment that has already declined
+ * a channel leaves nothing here to decline.
+ *
+ * The same seat as the three beside it, and for the same reason: it says what
+ * is done on this community's behalf rather than how it is run. The bell
+ * inside the app is unaffected, and so is what an account is sent about
+ * itself — a sign-in code and a password reset are not notifications.
+ * @summary Set Guild Notification Policy
+ */
+export const setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut = (
+  guildId: number,
+  guildNotificationPolicyUpdate: BodyType<GuildNotificationPolicyUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildNotificationPolicyRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/notification-policy`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildNotificationPolicyUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationKey = () =>
+  ["setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut"] as const;
+
+export const getSetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>,
+    TError,
+    SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>,
+  TError,
+  SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getSetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>,
+    SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut(
+      guildId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>
+  >;
+export type SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationBody =
+  BodyType<GuildNotificationPolicyUpdate>;
+export type SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables = {
+  guildId: number;
+  data: BodyType<GuildNotificationPolicyUpdate>;
+};
+
+/**
+ * @summary Set Guild Notification Policy
+ */
+export const useSetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>,
+      TError,
+      SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut>>,
+  TError,
+  SetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPutMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * The guild's sign-in requirement. Guild admin only (the settings UI);
  * a blocked session learns the required provider from the step-up 401's

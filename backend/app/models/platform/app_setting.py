@@ -259,6 +259,37 @@ class AppSetting(SQLModel, table=True):
         ),
     )
 
+    # Whether a notification may reach a phone at all. On by default, which is
+    # what every deployment has had. Off means this deployment sends none: no
+    # push leaves it, the registration endpoint declines, and the device tokens
+    # it was holding are dropped, so switching it off is the whole answer rather
+    # than the delivery half of one. Devices register again when it comes back.
+    push_notifications_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # And the other place a notification lands: a mailbox. Off means no
+    # notification email is written, on any cadence. It is the *notification*
+    # half of email and nothing else — a sign-in code, an address to confirm, a
+    # password reset and the notices an account gets about itself are not
+    # notifications and keep going, because switching this off must not lock
+    # anybody out of their account.
+    email_notifications_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether a notification that leaves the app may say what it is about. Off
+    # by default: a push that reads "Ana mentioned you in Q3 budget" is the one
+    # worth sending. On, a notification that leaves reduces to the kind of thing
+    # that happened — "You were mentioned in a comment" — and the app is where
+    # the rest of it is. The bell inside the app is unaffected either way.
+    redact_notification_content: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # AI config ownership mode: "platform" (the operator's connections apply to
     # every guild), "guild" (each guild admin configures its own), or "disabled".
     # Provider config itself lives in platform_ai_connections /

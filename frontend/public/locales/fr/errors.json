@@ -237,6 +237,7 @@
   "QUEUE_ITEM_NOT_HELD": "Cet élément n'est pas en attente",
   "QUEUES_NOT_ENABLED": "Les files ne sont pas activées pour cette initiative",
   "NOTIFICATION_NOT_FOUND": "Notification introuvable",
+  "PUSH_NOTIFICATIONS_DISABLED": "Ce serveur n'envoie pas de notifications push.",
   "QUERY_INVALID_CONDITIONS": "Conditions de filtre invalides",
   "QUERY_INVALID_SORT_FIELDS": "Champs de tri invalides",
   "QUERY_UNPARSEABLE": "Ce n'est pas du SQL que cette version sait lire.",

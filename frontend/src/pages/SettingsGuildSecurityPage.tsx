@@ -9,6 +9,7 @@ import {
 import { ConnectSignInWizard } from "@/components/auth/ConnectSignInWizard";
 import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
 import { GuildClaimRulesSection } from "@/components/auth/GuildClaimRulesSection";
+import { GuildNotificationPolicySection } from "@/components/auth/GuildNotificationPolicySection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -719,6 +720,8 @@ export const SettingsGuildSecurityPage = () => {
               )}
             </CardContent>
           </Card>
+
+          <GuildNotificationPolicySection guildId={guildId} />
         </section>
       ) : null}
     </div>

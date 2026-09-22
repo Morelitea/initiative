@@ -1155,6 +1155,15 @@ def initiative_join_request_pieces(
     )
 
 
+def _redacted_item(text: str, link: str | None) -> str:
+    """One digest line for a community that asks for redacted notifications.
+
+    The kind of thing that happened, and the way back to it. Nothing in it
+    comes from the content, so there is nothing here to escape.
+    """
+    return f'<li><a href="{link}">{text}</a></li>' if link else f"<li>{text}</li>"
+
+
 def task_assignment_digest_pieces(
     user: User, assignments: Sequence[dict]
 ) -> EmailPieces:
@@ -1162,6 +1171,11 @@ def task_assignment_digest_pieces(
     locale = _user_locale(user)
 
     def assignment_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("taskAssignment.redactedItem", locale=locale),
+                item.get("link"),
+            )
         # ``title`` is user-controlled and spliced into markup directly (not via
         # email_t), so escape it here.
         title = _html.escape(item.get("task_title") or "Task")
@@ -1197,6 +1211,10 @@ def reaction_digest_pieces(user: User, reactions: Sequence[dict]) -> EmailPieces
     locale = _user_locale(user)
 
     def reaction_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("reaction.redactedItem", locale=locale), item.get("link")
+            )
         # ``emoji`` and ``context_title`` are user-controlled and spliced into
         # markup directly (not via email_t), so escape them here.
         emoji = _html.escape(item.get("emoji") or "")
@@ -1243,6 +1261,10 @@ def overdue_tasks_pieces(user: User, tasks: Sequence[dict]) -> EmailPieces:
     locale = _user_locale(user)
 
     def overdue_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("overdue.redactedItem", locale=locale), item.get("link")
+            )
         # ``title`` is user-controlled and spliced into markup directly (not via
         # email_t), so escape it here.
         title = _html.escape(item.get("title") or "Task")

@@ -527,6 +527,39 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     deleted_account_retention_days: Optional[int] = None
 
 
+class NotificationSettingsResponse(SanitizedBaseModel):
+    """What this deployment permits a notification to leave the app carrying.
+
+    Three answers, each also asked of every community; the stricter of the pair
+    applies, so a community may decline what this permits and never the other
+    way round.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Whether a notification may reach a phone. Off, nothing is sent, the
+    #: registration endpoint declines, and no device token is held.
+    push_notifications_enabled: bool
+    #: Whether a notification may reach a mailbox. The notification half of
+    #: email only — a sign-in code, an address to confirm, a password reset and
+    #: the notices an account gets about itself are unaffected.
+    email_notifications_enabled: bool
+    #: Whether a notification that leaves the app may name the thing it is
+    #: about. Set, it says the kind of thing that happened and the app is where
+    #: the rest of it is. The bell inside the app is unaffected.
+    redact_notification_content: bool
+    #: How many device tokens this deployment is holding. What switching push
+    #: off would drop, so the page can say so before the write rather than
+    #: after it.
+    push_tokens_held: int = 0
+
+
+class NotificationSettingsUpdate(SanitizedBaseModel):
+    push_notifications_enabled: bool
+    email_notifications_enabled: bool
+    redact_notification_content: bool
+
+
 class CommunitySettingsUpdate(SanitizedBaseModel):
     community_directory_enabled: bool
     #: Whether an account must confirm it is 16 or older to join a listed

@@ -151,6 +151,68 @@
       "body": "{{actor}} hat deine Nachrichtenanfrage angenommen"
     }
   },
+  "redacted": {
+    "mentions": {
+      "title": "Du wurdest erwähnt",
+      "body": "Öffne Initiative, um zu sehen, wo."
+    },
+    "replies": {
+      "title": "Du hast eine Antwort",
+      "body": "Öffne Initiative, um sie zu lesen."
+    },
+    "comments": {
+      "title": "Neuer Kommentar",
+      "body": "Öffne Initiative, um ihn zu lesen."
+    },
+    "reactions": {
+      "title": "Neue Reaktion",
+      "body": "Öffne Initiative, um sie zu sehen."
+    },
+    "assignments": {
+      "title": "Neue Aufgabenzuweisung",
+      "body": "Öffne Initiative, um sie zu sehen."
+    },
+    "due_dates": {
+      "title": "Überfällige Aufgaben",
+      "body": "Öffne Initiative, um sie zu sehen."
+    },
+    "membership": {
+      "title": "Deine Mitgliedschaft hat sich geändert",
+      "body": "Öffne Initiative, um zu sehen, was sich geändert hat."
+    },
+    "approvals": {
+      "title": "Etwas wartet auf dich",
+      "body": "Öffne Initiative, um es zu prüfen."
+    },
+    "posts": {
+      "title": "Neuer Beitrag",
+      "body": "Öffne Initiative, um ihn zu lesen."
+    },
+    "events": {
+      "title": "Ein Termin hat sich geändert",
+      "body": "Öffne Initiative, um ihn zu sehen."
+    },
+    "event_reminders": {
+      "title": "Anstehender Termin",
+      "body": "Öffne Initiative, um ihn zu sehen."
+    },
+    "direct_messages": {
+      "title": "Neue Nachricht",
+      "body": "Öffne Initiative, um sie zu lesen."
+    },
+    "connections": {
+      "title": "Neuigkeiten zu Kontakten",
+      "body": "Öffne Initiative, um sie zu sehen."
+    },
+    "jobs": {
+      "title": "Ein von dir gestarteter Vorgang ist fertig",
+      "body": "Öffne Initiative, um ihn zu sehen."
+    },
+    "account": {
+      "title": "Ein Hinweis zu deinem Konto",
+      "body": "Öffne Initiative, um ihn zu lesen."
+    }
+  },
   "quietHours": {
     "summary": {
       "title": "Während du weg warst",

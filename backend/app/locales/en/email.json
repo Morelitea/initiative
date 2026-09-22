@@ -50,7 +50,8 @@
     "assignedBy": "assigned by <strong>{{name}}</strong>",
     "inProject": "in <strong>{{projectName}}</strong>",
     "footer": "Visit Initiative to review the tasks.",
-    "textBody": "Here is your hourly summary of tasks assigned to you:"
+    "textBody": "Here is your hourly summary of tasks assigned to you:",
+    "redactedItem": "A task was assigned to you"
   },
   "mention": {
     "document": {
@@ -142,7 +143,8 @@
     "taskDetail": "project: <strong>{{projectName}}</strong>, due <strong>{{dueDate}}</strong>",
     "footer": "Visit Initiative to get back on track.",
     "textBody_one": "You have {{count}} overdue task:",
-    "textBody_other": "You have {{count}} overdue tasks:"
+    "textBody_other": "You have {{count}} overdue tasks:",
+    "redactedItem": "A task is overdue"
   },
   "accessGrant": {
     "buttonLabel": "Open Access dashboard",
@@ -209,7 +211,8 @@
     "body": "Here is your summary of reactions to what you posted:",
     "line": "from <strong>{{name}}</strong> on",
     "footer": "Visit Initiative to see the conversation.",
-    "textBody": "Here is your summary of reactions to what you posted:"
+    "textBody": "Here is your summary of reactions to what you posted:",
+    "redactedItem": "Somebody reacted to something you posted"
   },
   "quietHours": {
     "summary": {

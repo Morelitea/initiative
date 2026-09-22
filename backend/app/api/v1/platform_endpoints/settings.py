@@ -35,6 +35,8 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    NotificationSettingsResponse,
+    NotificationSettingsUpdate,
     GuildNarrowingAgreement,
     GuildNarrowingPending,
     CommunitySettingsResponse,
@@ -98,6 +100,7 @@ from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform import push_tokens
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -113,6 +116,14 @@ BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 _SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
     "session_max_hours",
     "session_idle_minutes",
+)
+
+#: What this deployment permits a notification to leave the app carrying, for
+#: the record.
+_NOTIFICATION_FIELDS: tuple[str, ...] = (
+    "push_notifications_enabled",
+    "email_notifications_enabled",
+    "redact_notification_content",
 )
 
 #: What the operator's caps and entitlements for one community consist of.
@@ -334,6 +345,78 @@ async def update_session_lifetime(
         )
     await session.commit()
     return await _platform_auth_payload(session)
+
+
+async def _notification_payload(session) -> NotificationSettingsResponse:
+    row = await app_settings_service.get_app_settings(session)
+    return NotificationSettingsResponse(
+        push_notifications_enabled=row.push_notifications_enabled,
+        email_notifications_enabled=row.email_notifications_enabled,
+        redact_notification_content=row.redact_notification_content,
+        push_tokens_held=await push_tokens.count_all(session),
+    )
+
+
+@router.get("/notifications", response_model=NotificationSettingsResponse)
+async def get_notification_settings(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> NotificationSettingsResponse:
+    """What this deployment permits a notification to leave the app carrying.
+
+    System engine: the device-token count is over a table no request-path role
+    reads.
+    """
+    return await _notification_payload(session)
+
+
+@router.put("/notifications", response_model=NotificationSettingsResponse)
+async def update_notification_settings(
+    payload: NotificationSettingsUpdate,
+    session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> NotificationSettingsResponse:
+    """Decide what this deployment permits a notification to leave the app with.
+
+    Every community is held to this as a ceiling: one may decline a channel the
+    deployment permits, and none may take back one the deployment has declined.
+
+    Switching push off drops the device tokens this deployment was holding, and
+    the registration endpoint declines while it stays off — so the deployment
+    stops sending and stops keeping the addresses it was sending to. Devices
+    register again the next time the app starts, which is what restores
+    delivery when it is switched back on.
+
+    Switching email off stops notification email and nothing else: a sign-in
+    code, an address to confirm, a password reset and the notices an account
+    gets about itself keep going, because this must not lock anybody out of
+    their account.
+    """
+    row = await app_settings_service.ensure_settings_row(session)
+    before = audit_service.snapshot(row, _NOTIFICATION_FIELDS)
+    dropping_push = row.push_notifications_enabled and not (
+        payload.push_notifications_enabled
+    )
+    row.push_notifications_enabled = payload.push_notifications_enabled
+    row.email_notifications_enabled = payload.email_notifications_enabled
+    row.redact_notification_content = payload.redact_notification_content
+    session.add(row)
+    await session.flush()
+    if dropping_push:
+        dropped = await push_tokens.purge_all(session)
+        logger.info("push notifications switched off; dropped %d token(s)", dropped)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, _NOTIFICATION_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+            actor_user_id=admin.id,
+            detail={"area": "notifications", **changed},
+        )
+    await session.commit()
+    return await _notification_payload(session)
 
 
 @router.get("/interface", response_model=InterfaceSettingsResponse)

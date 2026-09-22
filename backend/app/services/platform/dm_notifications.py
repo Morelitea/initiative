@@ -270,6 +270,7 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
                 translate("deviceSync.body", locale, namespace="notifications"),
                 data={"type": "dm_device_sync", "target_path": "/messages"},
                 only_device_token_ids=token_ids,
+                locale=locale,
             )
             await session.commit()
     except Exception:  # noqa: BLE001 - a wake never fails a send
@@ -427,4 +428,5 @@ async def _push(
             "target_path": "/messages",
         },
         only_device_token_ids=token_ids,
+        locale=locale,
     )

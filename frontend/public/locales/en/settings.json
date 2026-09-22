@@ -1709,6 +1709,52 @@
   },
   "platformSecurity": {
     "title": "Security",
-    "description": "How long anybody may stay signed in before signing in again."
+    "description": "How long anybody may stay signed in, and what a notification may leave the app carrying."
+  },
+  "notificationDelivery": {
+    "title": "Notifications that leave the app",
+    "description": "Every community is held to these as a ceiling. A community can narrow them for itself; none can widen them.",
+    "saved": "Notification settings saved",
+    "error": "Could not save notification settings",
+    "push": {
+      "label": "Mobile notifications",
+      "onHelp_one": "Notifications reach phones through Apple and Google. This server holds {{count}} device registration.",
+      "onHelp_other": "Notifications reach phones through Apple and Google. This server holds {{count}} device registrations.",
+      "offHelp": "This server sends nothing to a phone, declines new device registrations, and holds none."
+    },
+    "email": {
+      "label": "Email notifications",
+      "onHelp": "Notifications reach mailboxes on whatever schedule each person has chosen.",
+      "offHelp": "No notification email is sent. Sign-in codes, address confirmations, password resets and account notices still go."
+    },
+    "redact": {
+      "label": "Hide notification details",
+      "onHelp": "A notification that leaves the app says the kind of thing that happened — “You were mentioned in a comment”. The app itself shows all of it.",
+      "offHelp": "A notification that leaves the app names what it is about: who acted, and on what."
+    }
+  },
+  "guildNotifications": {
+    "title": "Notifications that leave the app",
+    "description": "What this community's notifications carry once they leave. The server answers the same three questions for everybody, and the stricter answer applies.",
+    "saved": "Notification settings saved",
+    "error": "Could not save notification settings",
+    "push": {
+      "label": "Mobile notifications",
+      "onHelp": "This community's notifications reach members' phones.",
+      "offHelp": "Nothing about this community is sent to a phone. Members still get the bell, and email if it is on.",
+      "platformHelp": "This server sends nothing to a phone, so there is nothing here to decide."
+    },
+    "email": {
+      "label": "Email notifications",
+      "onHelp": "This community's notifications reach members' mailboxes.",
+      "offHelp": "No notification email is sent about this community. Sign-in codes and password resets are the account's own and still go.",
+      "platformHelp": "This server sends no notification email, so there is nothing here to decide."
+    },
+    "redact": {
+      "label": "Hide notification details",
+      "onHelp": "Notifications about this community say the kind of thing that happened once they leave the app. Members see all of it here.",
+      "offHelp": "Notifications about this community name what they are about once they leave the app.",
+      "platformHelp": "This server hides notification details everywhere, so this community is already covered."
+    }
   }
 }
