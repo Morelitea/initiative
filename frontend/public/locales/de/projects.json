@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} Aufgabe",
     "taskCount_other": "{{count}} Aufgaben",
     "collapse": "{{name}} einklappen",
-    "expand": "{{name}} ausklappen"
+    "expand": "{{name}} ausklappen",
+    "fields": {
+      "label": "Felder",
+      "menuTitle": "Felder auf Karten",
+      "showAll": "Alle Felder anzeigen",
+      "hiddenCount_one": "{{count}} ausgeblendet",
+      "hiddenCount_other": "{{count}} ausgeblendet",
+      "description": "Beschreibung",
+      "assignees": "Zugewiesen",
+      "startDate": "Startdatum",
+      "dueDate": "Fälligkeitsdatum",
+      "recurrence": "Wiederholung",
+      "checklist": "Checkliste",
+      "priority": "Priorität",
+      "comments": "Kommentare",
+      "blockers": "Blocker",
+      "tags": "Tags"
+    }
   },
   "recurrence": {
     "repeat": "Wiederholen",

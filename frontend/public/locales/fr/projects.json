@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} tâche",
     "taskCount_other": "{{count}} tâches",
     "collapse": "Réduire {{name}}",
-    "expand": "Développer {{name}}"
+    "expand": "Développer {{name}}",
+    "fields": {
+      "label": "Champs",
+      "menuTitle": "Champs sur les cartes",
+      "showAll": "Afficher tous les champs",
+      "hiddenCount_one": "{{count}} masqué",
+      "hiddenCount_other": "{{count}} masqués",
+      "description": "Description",
+      "assignees": "Assignés",
+      "startDate": "Date de début",
+      "dueDate": "Date d'échéance",
+      "recurrence": "Récurrence",
+      "checklist": "Liste de contrôle",
+      "priority": "Priorité",
+      "comments": "Commentaires",
+      "blockers": "Bloqueurs",
+      "tags": "Étiquettes"
+    }
   },
   "recurrence": {
     "repeat": "Répéter",

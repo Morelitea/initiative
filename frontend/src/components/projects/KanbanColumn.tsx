@@ -21,6 +21,7 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import type { KanbanCardFields } from "@/components/projects/kanbanFields";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
@@ -49,6 +50,7 @@ interface KanbanColumnProps {
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
+  visibleFields: KanbanCardFields;
   className?: string;
   onArchiveDoneTasks?: (statusId: number) => void;
   isArchiving?: boolean;
@@ -64,6 +66,7 @@ export const KanbanColumn = ({
   collapsed,
   onToggleCollapse,
   taskCount,
+  visibleFields,
   className,
   onArchiveDoneTasks,
   isArchiving,
@@ -154,6 +157,7 @@ export const KanbanColumn = ({
                       priorityVariant={priorityVariant}
                       taskHref={taskHref}
                       canOpenTask={canOpenTask}
+                      visibleFields={visibleFields}
                     />
                   ) : (
                     <KanbanTaskCardPlain
@@ -164,6 +168,7 @@ export const KanbanColumn = ({
                       priorityVariant={priorityVariant}
                       taskHref={taskHref}
                       canOpenTask={canOpenTask}
+                      visibleFields={visibleFields}
                     />
                   );
                 })}
@@ -178,6 +183,7 @@ export const KanbanColumn = ({
                   priorityVariant={priorityVariant}
                   taskHref={taskHref}
                   canOpenTask={canOpenTask}
+                  visibleFields={visibleFields}
                 />
               ))
             )}
@@ -286,6 +292,7 @@ interface KanbanCardContentProps {
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
+  visibleFields: KanbanCardFields;
 }
 
 const KanbanCardContent = memo(
@@ -294,10 +301,13 @@ const KanbanCardContent = memo(
     priorityVariant,
     taskHref,
     canOpenTask,
+    visibleFields,
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
     const gp = useGuildPath();
+
+    const { shows, showsProperty } = visibleFields;
 
     const recurrenceSummary = task.recurrence
       ? summarizeRecurrence(
@@ -314,6 +324,10 @@ const KanbanCardContent = memo(
     const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
     const commentCount = task.comment_count ?? 0;
     const blockedCount = task.blocked_by_open_count ?? 0;
+    // A property is turned off by its own menu entry, resolved by id.
+    const visibleProperties = nonEmptyPropertySummaries(task.properties).filter((summary) =>
+      showsProperty(summary.property_id)
+    );
 
     return (
       <>
@@ -331,24 +345,32 @@ const KanbanCardContent = memo(
           ) : (
             <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">{task.title}</p>
           )}
-          {task.description ? (
+          {shows("description") && task.description ? (
             <Markdown content={task.description} className="line-clamp-2 w-full min-w-0" />
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
-            {task.assignees.length > 0 ? (
+            {shows("assignees") && task.assignees.length > 0 ? (
               <TaskAssigneeList assignees={task.assignees} className="text-xs" />
             ) : null}
-            {formattedStart ? <p>{t("kanban.starts", { date: formattedStart })}</p> : null}
-            {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
-            {recurrenceText ? <p>{recurrenceText}</p> : null}
+            {shows("startDate") && formattedStart ? (
+              <p>{t("kanban.starts", { date: formattedStart })}</p>
+            ) : null}
+            {shows("dueDate") && formattedDue ? (
+              <p>{t("kanban.due", { date: formattedDue })}</p>
+            ) : null}
+            {shows("recurrence") && recurrenceText ? <p>{recurrenceText}</p> : null}
           </div>
-          <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
+          {shows("checklist") ? (
+            <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
+          ) : null}
         </div>
         <div className="flex min-w-0 flex-wrap gap-2">
-          <Badge variant={priorityVariant[task.priority]}>
-            {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
-          </Badge>
-          {commentCount > 0 ? (
+          {shows("priority") ? (
+            <Badge variant={priorityVariant[task.priority]}>
+              {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+            </Badge>
+          ) : null}
+          {shows("comments") && commentCount > 0 ? (
             <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
               <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
               {commentCount}
@@ -357,7 +379,7 @@ const KanbanCardContent = memo(
           {/* The signal the retired Blocked column used to give, back on the
               card and keeping itself current: it goes when the last thing
               holding this up is finished, with nobody moving anything. */}
-          {blockedCount > 0 ? (
+          {shows("blockers") && blockedCount > 0 ? (
             <Badge
               variant="outline"
               className="inline-flex items-center gap-1 border-warning/40 text-warning text-xs"
@@ -367,19 +389,23 @@ const KanbanCardContent = memo(
               {blockedCount}
             </Badge>
           ) : null}
-          {task.tags &&
+          {shows("tags") &&
+            task.tags &&
             task.tags.length > 0 &&
             task.tags.map((tag) => (
               <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
             ))}
-          {nonEmptyPropertySummaries(task.properties).map((summary) => (
+          {visibleProperties.map((summary) => (
             <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
           ))}
         </div>
       </>
     );
   },
-  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+  (prev, next) =>
+    prev.task === next.task &&
+    prev.canOpenTask === next.canOpenTask &&
+    prev.visibleFields === next.visibleFields
 );
 
 // --- Sortable card (with DnD, used in virtualized mode) ---
@@ -389,6 +415,7 @@ interface KanbanTaskCardVirtualProps {
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
+  visibleFields: KanbanCardFields;
   "data-index": number;
 }
 
@@ -398,6 +425,7 @@ const KanbanTaskCardSortable = memo(
     priorityVariant,
     taskHref,
     canOpenTask,
+    visibleFields,
     "data-index": dataIndex,
     ref,
   }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
@@ -442,11 +470,15 @@ const KanbanTaskCardSortable = memo(
           priorityVariant={priorityVariant}
           taskHref={taskHref}
           canOpenTask={canOpenTask}
+          visibleFields={visibleFields}
         />
       </div>
     );
   },
-  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+  (prev, next) =>
+    prev.task === next.task &&
+    prev.canOpenTask === next.canOpenTask &&
+    prev.visibleFields === next.visibleFields
 );
 
 // --- Plain card (no DnD hooks, used in virtualized mode when !canWrite) ---
@@ -457,6 +489,7 @@ const KanbanTaskCardPlain = memo(
     priorityVariant,
     taskHref,
     canOpenTask,
+    visibleFields,
     "data-index": dataIndex,
     ref,
   }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
@@ -475,11 +508,15 @@ const KanbanTaskCardPlain = memo(
           priorityVariant={priorityVariant}
           taskHref={taskHref}
           canOpenTask={canOpenTask}
+          visibleFields={visibleFields}
         />
       </div>
     );
   },
-  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+  (prev, next) =>
+    prev.task === next.task &&
+    prev.canOpenTask === next.canOpenTask &&
+    prev.visibleFields === next.visibleFields
 );
 
 // --- Original non-virtualized card (used for small lists) ---
@@ -490,6 +527,7 @@ interface KanbanTaskCardProps {
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   taskHref: (taskId: number) => string;
   canOpenTask: boolean;
+  visibleFields: KanbanCardFields;
 }
 
 const KanbanTaskCard = ({
@@ -498,6 +536,7 @@ const KanbanTaskCard = ({
   priorityVariant,
   taskHref,
   canOpenTask,
+  visibleFields,
 }: KanbanTaskCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
@@ -528,6 +567,7 @@ const KanbanTaskCard = ({
         priorityVariant={priorityVariant}
         taskHref={taskHref}
         canOpenTask={canOpenTask}
+        visibleFields={visibleFields}
       />
     </div>
   );
