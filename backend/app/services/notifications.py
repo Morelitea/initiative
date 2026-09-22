@@ -395,9 +395,7 @@ async def enqueue_task_assignment_event(
         notification_type=NotificationType.task_assignment,
         data={
             "task_id": task.id,
-            "task_title": task.title,
             "project_id": task.project_id,
-            "project_name": project_name,
             "assigned_by_name": handle_of(assigned_by),
             "guild_id": guild_id,
             "initiative_id": initiative_id,
@@ -510,7 +508,6 @@ async def notify_initiative_membership(
         notification_type=NotificationType.initiative_added,
         data={
             "initiative_id": initiative_id,
-            "initiative_name": initiative_name,
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
@@ -674,7 +671,6 @@ async def notify_initiative_join_requested(
             data={
                 "request_id": request_id,
                 "initiative_id": initiative_id,
-                "initiative_name": initiative_name,
                 "guild_id": guild_id,
                 "requester_id": requester.id,
                 "requester_name": requester_name,
@@ -743,7 +739,6 @@ async def notify_initiative_join_resolved(
         data={
             "request_id": request_id,
             "initiative_id": initiative_id,
-            "initiative_name": initiative_name,
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
@@ -805,9 +800,7 @@ async def notify_project_added(
         notification_type=NotificationType.project_added,
         data={
             "initiative_id": initiative_id,
-            "initiative_name": initiative_name,
             "project_id": project_id,
-            "project_name": project_name,
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": _build_smart_link(
@@ -966,7 +959,6 @@ async def notify_document_mention(
         notification_type=NotificationType.mention,
         data={
             "document_id": document_id,
-            "document_name": document_name,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
@@ -1059,7 +1051,6 @@ async def notify_comment_mention(
             "document_id": document_id,
             "entity_type": entity_type,
             "entity_id": entity_id,
-            "context_title": context_title,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
@@ -1129,12 +1120,10 @@ async def notify_task_mentioned_in_comment(
         data={
             "comment_id": comment_id,
             "mentioned_task_id": mentioned_task_id,
-            "mentioned_task_title": mentioned_task_title,
             "context_task_id": context_task_id,
             "context_document_id": context_document_id,
             "context_entity_type": context_entity_type,
             "context_entity_id": context_entity_id,
-            "context_title": context_title,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
@@ -1179,8 +1168,13 @@ async def notify_comment_on_task(
     guild_id: int,
     initiative_id: int | None = None,
     tool: str | None = None,
+    project_id: int | None = None,
 ) -> None:
-    """Notify task assignee that someone commented on their task."""
+    """Notify task assignee that someone commented on their task.
+
+    ``project_name`` is what the mail and the push say; ``project_id`` is what
+    the bell reads the name back from when the line is opened.
+    """
     if assignee.id == commenter.id:
         return
     target_path = _task_target_path(task_id, None)
@@ -1195,8 +1189,7 @@ async def notify_comment_on_task(
         data={
             "comment_id": comment_id,
             "task_id": task_id,
-            "task_title": task_title,
-            "project_name": project_name,
+            "project_id": project_id,
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
@@ -1258,7 +1251,6 @@ async def notify_comment_on_resource(
             "comment_id": comment_id,
             "entity_type": entity_type,
             "entity_id": entity_id,
-            "entity_name": entity_name,
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
@@ -1325,7 +1317,6 @@ async def notify_comment_reply(
             "document_id": document_id,
             "entity_type": entity_type,
             "entity_id": entity_id,
-            "context_title": context_title,
             "replier_name": replier_name,
             "replier_id": replier.id,
             "guild_id": guild_id,
@@ -1479,7 +1470,6 @@ async def _event_data(
     )
     data = {
         "event_id": event.id,
-        "event_title": event.title,
         "start_at": event.start_at.isoformat(),
         "guild_id": guild_id,
         "initiative_id": initiative_id,
@@ -1699,8 +1689,6 @@ async def notify_post_published(
         notification_type=NotificationType.post_published,
         data={
             "post_id": post_id,
-            "post_name": post_name,
-            "excerpt": excerpt,
             "author_name": author_name,
             "author_id": author_id,
             "guild_id": guild_id,
@@ -2191,7 +2179,6 @@ def _reaction_line(
     return {
         "target_type": target_type,
         "target_id": target_id,
-        "context_title": context_title,
         "guild_id": guild_id,
         "initiative_id": initiative_id,
         "tool": tool,

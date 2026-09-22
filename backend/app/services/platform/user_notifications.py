@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional
 
-from sqlalchemy import func, tuple_, update
+from sqlalchemy import func, text, tuple_, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -36,6 +36,24 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
     }
 
 
+async def name_recipient(session: AsyncSession, user_id: int) -> None:
+    """Say who the next notification write is for.
+
+    The bell is the one table whose rows are written by somebody other than the
+    person they belong to: a mention is caused by one account and delivered to
+    another. The write path therefore runs under a role that cannot use "the row
+    is mine" as its rule, and names the recipient instead — transaction-local,
+    so it lasts exactly as long as the write that set it.
+
+    Every read and write of a recipient's line goes through here first, which is
+    what lets one policy cover the lookup, the insert and the rollup.
+    """
+    await session.exec(
+        text("SELECT set_config('app.notify_target_user_id', :uid, true)"),
+        params={"uid": str(user_id)},
+    )
+
+
 async def create_notification(
     session: AsyncSession,
     *,
@@ -57,6 +75,7 @@ async def create_notification(
     None and this reads it.
     """
     place = _place(data)
+    await name_recipient(session, user_id)
     if prefs is None:
         prefs = await notification_prefs.load_prefs_for_delivery(user_id)
     if not notification_prefs.wants(
@@ -101,6 +120,7 @@ async def find_unread_by_data(
     has seen a line, the next event starts a fresh one, which is what keeps
     "new" meaning something.
     """
+    await name_recipient(session, user_id)
     stmt = select(Notification).where(
         Notification.user_id == user_id,
         Notification.type == notification_type,
@@ -139,6 +159,7 @@ async def refresh_notification(
     A withdrawal passes ``bump=False``: taking something away is not news, and
     must not resurrect a line the recipient has already dealt with.
     """
+    await name_recipient(session, notification.user_id)
     notification.data = dict(data)
     if bump:
         notification.created_at = datetime.now(timezone.utc)
@@ -160,6 +181,7 @@ async def delete_notification(
     """Remove a notification outright — used when every event it rolled up has
     been taken back, so the line has nothing left to say."""
     user_id = notification.user_id
+    await name_recipient(session, user_id)
     await session.delete(notification)
     await session.flush()
     # Read the recipient off before the delete — the instance is expunged, and

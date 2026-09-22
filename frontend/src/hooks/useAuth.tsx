@@ -683,8 +683,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   /** The session this device was holding is over, and nothing here asked for
    *  that.
    *
-   *  Distinct from `logout()`, which is the account signing out everywhere and
-   *  tells the server so. This one is local: the scope is this device. */
+   *  Distinct from `logout()`, which ends the same session deliberately and
+   *  tells the server so. Both are scoped to this device; this one has nothing
+   *  to tell the server, because the session is already gone. */
   const endSessionLocally = useCallback(async () => {
     setHasActiveSession(false);
     clearJustSignedIn();
@@ -718,7 +719,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Never a reason to stay signed in.
     }
     try {
-      await apiClient.post("/auth/logout");
+      // Which session is ending. A browser's refresh token is a cookie it
+      // cannot read and the request carries it anyway; a native client keeps
+      // its own in storage, so it names it here.
+      const refreshToken = readRefreshToken();
+      await apiClient.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : {});
     } catch {
       // Ignore errors — proceed with local cleanup regardless.
     }

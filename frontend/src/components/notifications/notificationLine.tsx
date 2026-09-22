@@ -241,39 +241,42 @@ export const notificationText = (
   switch (notification.type) {
     case "task_assignment":
       return t("notifications.taskAssignment", {
-        taskTitle: data.task_title ?? "A task",
-        projectName: data.project_name ?? "a project",
+        taskTitle: data.task_title ?? t("notifications.plain.task"),
+        projectName: data.project_name ?? t("notifications.plain.projectIn"),
         assignedBy: data.assigned_by_name
           ? t("notifications.taskAssignmentBy", { name: data.assigned_by_name })
           : "",
       });
     case "initiative_added":
       return t("notifications.initiativeAdded", {
-        initiativeName: data.initiative_name ?? "initiative",
+        initiativeName: data.initiative_name ?? t("notifications.plain.initiative"),
       });
     case "project_added":
       return t("notifications.projectAdded", {
-        projectName: data.project_name ?? "A project",
-        initiativeName: data.initiative_name ?? "an initiative",
+        projectName: data.project_name ?? t("notifications.plain.project"),
+        initiativeName: data.initiative_name ?? t("notifications.plain.initiativeIn"),
       });
     case "user_pending_approval":
-      return t("notifications.userPendingApproval", { email: data.email ?? "A user" });
+      return t("notifications.userPendingApproval", {
+        email: data.email ?? t("notifications.plain.user"),
+      });
     case "mention":
       // Check if it's a comment mention or document mention
       if (data.comment_id) {
         return t("notifications.mentionComment", {
-          mentionedBy: data.mentioned_by_name ?? "Someone",
-          contextTitle: data.context_title ?? "an item",
+          mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
+          contextTitle: data.context_title ?? t("notifications.plain.item"),
         });
       }
       return t("notifications.mentionDocument", {
-        mentionedBy: data.mentioned_by_name ?? "Someone",
+        mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
         // Notifications stored before the rename still carry `document_title`.
-        documentTitle: data.document_name ?? data.document_title ?? "a document",
+        documentTitle:
+          data.document_name ?? data.document_title ?? t("notifications.plain.document"),
       });
     case "comment_on_task": {
       const { name, others, count } = commentSummary(data);
-      const taskTitle = data.task_title ?? "your task";
+      const taskTitle = data.task_title ?? t("notifications.plain.taskObject");
       if (count > 1) {
         return others > 0
           ? t("notifications.commentsOnTaskMulti", { name, count, others, taskTitle })
@@ -283,7 +286,7 @@ export const notificationText = (
     }
     case "comment_on_resource": {
       const { name, others, count } = commentSummary(data);
-      const entityName = data.entity_name ?? "an item";
+      const entityName = data.entity_name ?? t("notifications.plain.item");
       if (count > 1) {
         return others > 0
           ? t("notifications.commentsOnResourceMulti", { name, count, others, entityName })
@@ -293,19 +296,19 @@ export const notificationText = (
     }
     case "post_published":
       return t("notifications.postPublished", {
-        authorName: data.author_name ?? "Someone",
-        postName: data.post_name ?? "a post",
+        authorName: data.author_name ?? t("notifications.someone"),
+        postName: data.post_name ?? t("notifications.plain.post"),
       });
     case "comment_reply":
       return t("notifications.commentReply", {
-        replierName: data.replier_name ?? "Someone",
-        contextTitle: data.context_title ?? "an item",
+        replierName: data.replier_name ?? t("notifications.someone"),
+        contextTitle: data.context_title ?? t("notifications.plain.item"),
       });
     case "direct_message": {
       // Who and how many. There is no preview here and no way to add one --
       // the server has no key to the message it is announcing.
       const count = typeof data.count === "number" ? data.count : 1;
-      const senderName = data.sender_name ?? "Someone";
+      const senderName = data.sender_name ?? t("notifications.someone");
       // A group thread has no name, so it is named by who is on it -- everybody
       // but the reader. Present only on a group line.
       const members = Array.isArray(data.member_names) ? data.member_names : null;
@@ -340,9 +343,9 @@ export const notificationText = (
     case "comment_reaction": {
       const { reactorName, emoji, others } = reactionSummary(data);
       const options = {
-        reactorName: reactorName ?? "Someone",
+        reactorName: reactorName ?? t("notifications.someone"),
         emoji,
-        contextTitle: data.context_title ?? "an item",
+        contextTitle: data.context_title ?? t("notifications.plain.item"),
       };
       return others > 0
         ? t("notifications.commentReactionMulti", { ...options, count: others })
@@ -350,7 +353,7 @@ export const notificationText = (
     }
     case "access_grant_requested": {
       const level = accessLevelLabel(data.access_level, t);
-      const requester = data.requester_name ?? "Someone";
+      const requester = data.requester_name ?? t("notifications.someone");
       const guild = data.guild_name ?? "a guild";
       return level
         ? t("notifications.accessGrantRequested", { requester, level, guild })
@@ -369,46 +372,46 @@ export const notificationText = (
       return t("notifications.accessGrantRevoked", { guild: data.guild_name ?? "a guild" });
     case "event_invitation":
       return t("notifications.eventInvitation", {
-        organizer: data.organizer_name ?? "Someone",
-        eventTitle: data.event_title ?? "an event",
+        organizer: data.organizer_name ?? t("notifications.someone"),
+        eventTitle: data.event_title ?? t("notifications.plain.event"),
       });
     case "event_updated":
       return data.time_changed
         ? t("notifications.eventRescheduled", {
-            editor: data.editor_name ?? "Someone",
-            eventTitle: data.event_title ?? "an event",
+            editor: data.editor_name ?? t("notifications.someone"),
+            eventTitle: data.event_title ?? t("notifications.plain.event"),
           })
         : t("notifications.eventUpdated", {
-            editor: data.editor_name ?? "Someone",
-            eventTitle: data.event_title ?? "an event",
+            editor: data.editor_name ?? t("notifications.someone"),
+            eventTitle: data.event_title ?? t("notifications.plain.event"),
           });
     case "event_cancelled":
       return t("notifications.eventCancelled", {
-        canceller: data.canceller_name ?? "Someone",
-        eventTitle: data.event_title ?? "an event",
+        canceller: data.canceller_name ?? t("notifications.someone"),
+        eventTitle: data.event_title ?? t("notifications.plain.event"),
       });
     case "event_rsvp":
       return t("notifications.eventRsvp", {
-        responder: data.responder_name ?? "Someone",
+        responder: data.responder_name ?? t("notifications.someone"),
         status: data.rsvp_status ?? "responded",
-        eventTitle: data.event_title ?? "an event",
+        eventTitle: data.event_title ?? t("notifications.plain.event"),
       });
     case "event_reminder":
       return t("notifications.eventReminder", {
-        eventTitle: data.event_title ?? "an event",
+        eventTitle: data.event_title ?? t("notifications.plain.event"),
       });
     case "initiative_join_requested":
       return t("notifications.initiativeJoinRequested", {
-        requester: data.requester_name ?? "Someone",
-        initiativeName: data.initiative_name ?? "an initiative",
+        requester: data.requester_name ?? t("notifications.someone"),
+        initiativeName: data.initiative_name ?? t("notifications.plain.initiativeIn"),
       });
     case "initiative_join_approved":
       return t("notifications.initiativeJoinApproved", {
-        initiativeName: data.initiative_name ?? "an initiative",
+        initiativeName: data.initiative_name ?? t("notifications.plain.initiativeIn"),
       });
     case "initiative_join_denied":
       return t("notifications.initiativeJoinDenied", {
-        initiativeName: data.initiative_name ?? "an initiative",
+        initiativeName: data.initiative_name ?? t("notifications.plain.initiativeIn"),
       });
     case "export_ready":
       return t("notifications.exportReady");

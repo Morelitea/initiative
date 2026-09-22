@@ -16,6 +16,7 @@ import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSele
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyFields, propertyStubFromDefinition } from "@/components/properties/PropertyFields";
 import { TagPicker } from "@/components/tags";
+import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import {
   Accordion,
@@ -235,7 +236,7 @@ export const TaskForm = ({
           <SelectContent>
             {PRIORITY_ORDER.map((option) => (
               <SelectItem key={option} value={option}>
-                {t(`priority.${option}` as never)}
+                <TaskPriorityOption priority={option} label={t(`priority.${option}` as never)} />
               </SelectItem>
             ))}
           </SelectContent>

@@ -31,8 +31,9 @@ vi.mock("@/api/client", () => ({
   clearUploadToken: vi.fn(),
 }));
 
+const getItem = vi.fn((_key: string): string | null => null);
 vi.mock("@/lib/storage", () => ({
-  getItem: () => null,
+  getItem: (key: string) => getItem(key),
   setItem: vi.fn(),
   removeItem: vi.fn(),
   listKeys: () => [],
@@ -49,6 +50,8 @@ const presentPasskey = vi.fn();
 vi.mock("@/lib/passkeys", () => ({
   stepUpWithPasskey: () => presentPasskey(),
 }));
+
+import { REFRESH_TOKEN_KEY } from "@/lib/nativeSession";
 
 import { AuthProvider, useAuth } from "./useAuth";
 
@@ -79,6 +82,7 @@ describe("useAuth identity ordering", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset().mockResolvedValue({ data: {} });
+    getItem.mockReset().mockReturnValue(null);
   });
 
   it("keeps the newer account when an older read finishes last", async () => {
@@ -212,9 +216,25 @@ describe("useAuth identity ordering", () => {
     expect(auth.user).toBeNull();
   });
 
-  it("ends an expired session here without signing out everywhere", async () => {
-    // Signing out is a different act with a different scope — the account,
-    // everywhere — and nothing here asked for that one.
+  it("names the session it is ending so the server revokes only that one", async () => {
+    // A native client's refresh token is the only thing that tells the server
+    // which of the account's sessions is going; without it the others would
+    // have to go too.
+    getItem.mockImplementation((key) => (key === REFRESH_TOKEN_KEY ? "rt-this-device" : null));
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+
+    await act(async () => {
+      await auth.logout();
+    });
+
+    expect(post).toHaveBeenCalledWith("/auth/logout", { refresh_token: "rt-this-device" });
+  });
+
+  it("ends an expired session here without telling the server to sign out", async () => {
+    // Signing out is a deliberate act that revokes the session server-side,
+    // and nothing here asked for that one — the session is already gone.
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
@@ -250,6 +270,7 @@ describe("useAuth second factor", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset().mockResolvedValue({ data: {} });
+    getItem.mockReset().mockReturnValue(null);
   });
 
   /** The 401 both sign-in routes answer with when a factor is outstanding. */
@@ -332,6 +353,7 @@ describe("useAuth passkey sign-in", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset().mockResolvedValue({ data: {} });
+    getItem.mockReset().mockReturnValue(null);
     setAuthToken.mockReset();
   });
 
@@ -368,6 +390,7 @@ describe("useAuth passkey step-up", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset().mockResolvedValue({ data: {} });
+    getItem.mockReset().mockReturnValue(null);
     setAuthToken.mockReset();
     presentPasskey.mockReset();
   });

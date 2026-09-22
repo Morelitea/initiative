@@ -455,10 +455,16 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     # The functions the render now puts in a guild schema, should a render
     # ever have been pointed at the template; dropped after the policies that
     # would bind them.
-    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+    from app.db.authorization import (
+        GUILD_FUNCTION_SIGNATURES,
+        RETIRED_GUILD_FUNCTION_SIGNATURES,
+    )
 
     functions = 0
-    for name, args in GUILD_FUNCTION_SIGNATURES.items():
+    for name, args in {
+        **GUILD_FUNCTION_SIGNATURES,
+        **RETIRED_GUILD_FUNCTION_SIGNATURES,
+    }.items():
         present = (
             await conn.execute(
                 text("SELECT to_regprocedure(CAST(:sig AS text)) IS NOT NULL"),

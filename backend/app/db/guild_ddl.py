@@ -35,11 +35,12 @@ from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
-    render_endpoint_access_fn,
+    render_entity_access_fn,
     InitiativePath,
 )
 from app.db.authorization import (
     GUILD_ADMIN,
+    RETIRED_GUILD_FUNCTION_SIGNATURES,
     SETTINGS_ADMIN,
     SYSTEM_SESSION,
     render_guild_authorization_functions,
@@ -376,6 +377,16 @@ _FREEZE_SECTION = """\
 -- ==========================================================================="""
 
 
+def render_retired_functions_ddl() -> str:
+    """Drop the functions an earlier render put in the schema and this one no
+    longer calls. Last in the script, after every policy that named one has
+    been re-created without it."""
+    return "\n".join(
+        f"DROP FUNCTION IF EXISTS {name}{args};"
+        for name, args in RETIRED_GUILD_FUNCTION_SIGNATURES.items()
+    )
+
+
 def render_guild_rls_ddl() -> str:
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
     # Shared, and written before the policies that call it. Re-rendered on every
@@ -386,7 +397,7 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + render_guild_authorization_functions()
         + "\n"
-        + render_endpoint_access_fn()
+        + render_entity_access_fn()
         + "\n"
         + render_resource_frozen_fn()
         + "\n"
@@ -413,7 +424,7 @@ def render_guild_rls_ddl() -> str:
         for trigger in frozen_write_triggers(table)
     ]
     out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
-    return out + "\n"
+    return out + "\n\n" + render_retired_functions_ddl() + "\n"
 
 
 # ============================================================================

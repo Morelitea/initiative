@@ -27,7 +27,7 @@ from app.schemas.platform.notification import (
     UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import presence, user_stream
+from app.services.platform import notification_subjects, presence, user_stream
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 
@@ -84,10 +84,38 @@ async def list_notifications(
         personal_only=personal_only,
     )
     return NotificationListResponse(
-        notifications=notifications,
+        notifications=await _with_subjects(session, current_user.id, notifications),
         unread_count=unread_count,
         next_cursor=next_cursor,
     )
+
+
+async def _with_subjects(
+    session: UserSessionDep,
+    user_id: int,
+    notifications: list,
+) -> list[NotificationRead]:
+    """Fill each line's titles from the communities they live in.
+
+    Read here rather than stored on the row, so a line says what its subject is
+    called now and says nothing about one the reader can no longer reach. The
+    bell renders its plain form for a line whose subject came back empty.
+
+    Runs last: gathering routes this session into each community in turn, so
+    nothing on the shared path may follow it.
+    """
+    lines = [NotificationRead.model_validate(line) for line in notifications]
+    resolved = await notification_subjects.resolve_subjects(
+        session, user_id, notifications
+    )
+    if not resolved:
+        return lines
+    return [
+        line.model_copy(update={"data": {**line.data, **resolved[line.id]}})
+        if line.id in resolved
+        else line
+        for line in lines
+    ]
 
 
 @router.get("/unread", response_model=UnreadPlacesResponse)

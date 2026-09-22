@@ -40,10 +40,12 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "IssuedSession",
+    "LiveSession",
     "RefreshOutcome",
     "RotationResult",
     "create_session",
     "get_live_session_by_refresh_token",
+    "list_live_for_user",
     "rotate_session",
     "revoke_session",
     "revoke_chain",
@@ -374,6 +376,73 @@ async def get_live_session_by_refresh_token(
     if row is None or row.revoked_at is not None or row.expires_at <= current:
         return None
     return row
+
+
+#: Every live session for one account, each with the moment its sign-in
+#: happened rather than the moment it last renewed.
+#
+# A refresh mints a new row and revokes the one it replaces, so the live rows
+# are already one per sign-in — the recursion is only there to walk each one
+# back to the sign-in it descends from. Without that, a browser left open for a
+# month reads as signed in fifteen minutes ago, which is when it last renewed.
+#
+# ``purge_dead_sessions`` eventually removes the spent ancestors, so a very old
+# chain reports the oldest row still kept. That is the retention window, and it
+# is the right answer to give once the earlier rows are gone.
+_LIVE_SESSIONS_SQL = text(
+    """
+    WITH RECURSIVE live AS (
+        SELECT id, parent_id, created_at, last_used_at, user_agent, ip, device_name
+        FROM auth_sessions
+        WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
+    ),
+    chain AS (
+        SELECT id, parent_id, created_at, id AS tip FROM live
+        UNION ALL
+        SELECT s.id, s.parent_id, s.created_at, c.tip
+        FROM auth_sessions s JOIN chain c ON s.id = c.parent_id
+    ),
+    roots AS (
+        SELECT tip, MIN(created_at) AS started_at FROM chain GROUP BY tip
+    )
+    SELECT
+        live.id,
+        roots.started_at,
+        live.last_used_at,
+        live.user_agent,
+        host(live.ip) AS ip,
+        live.device_name
+    FROM live JOIN roots ON roots.tip = live.id
+    ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
+    """
+)
+
+
+@dataclass(frozen=True)
+class LiveSession:
+    """One place an account is signed in, as the account's own list shows it.
+
+    Carries nothing secret: the refresh-token hash stays in the table this was
+    read from.
+    """
+
+    id: uuid.UUID
+    started_at: datetime
+    last_used_at: datetime | None
+    user_agent: str | None
+    ip: str | None
+    device_name: str | None
+
+
+async def list_live_for_user(
+    session: AsyncSession, *, user_id: int, now: datetime | None = None
+) -> list[LiveSession]:
+    """Every session this account can still use, most recently active first."""
+    connection = await session.connection()
+    result = await connection.execute(
+        _LIVE_SESSIONS_SQL, {"uid": user_id, "now": now or _now()}
+    )
+    return [LiveSession(**row) for row in result.mappings()]
 
 
 async def revoke_session(

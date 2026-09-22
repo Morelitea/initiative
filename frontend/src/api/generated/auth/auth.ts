@@ -68,6 +68,7 @@ import type {
   SecondFactorEnrolment,
   SecondFactorStatus,
   SecondFactorStepUpAnswer,
+  SignedInSessionInfo,
   Token,
   UploadTokenResponse,
   UserCreate,
@@ -1049,13 +1050,39 @@ export function useCheckUsernameAvailableApiV1AuthUsernameAvailableGet<
 }
 
 /**
+ * End the session this request is on, and leave the account's others.
+ *
+ * Signing out is per device: the rotation chain behind this login is revoked
+ * and the cookies that carried it are cleared, so a phone signing out does
+ * not close the laptop. What signs an account out everywhere is a credential
+ * change — a password change or reset, a second factor disabled, an account
+ * action taken by a platform admin — each of which bumps
+ * ``users.token_version`` on its own path.
+ *
+ * What is revoked here is the refresh side — the rotation chain behind this
+ * login. The access token it came in on is short-lived and the client drops
+ * it (history/auth-detailed-design.md §3.3).
+ *
+ * A native client authenticating with a device token consumes that row too —
+ * the token is one installed client's, so consuming it is the same per-device
+ * scope by another name.
  * @summary Logout
  */
 export const logoutApiV1AuthLogoutPost = (
+  refreshRequestNull?: BodyType<RefreshRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/auth/logout`, method: "POST", signal }, options);
+  return apiMutator<void>(
+    {
+      url: `/api/v1/auth/logout`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: refreshRequestNull,
+      signal,
+    },
+    options
+  );
 };
 
 export const getLogoutApiV1AuthLogoutPostMutationKey = () => ["logoutApiV1AuthLogoutPost"] as const;
@@ -1067,14 +1094,14 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
     TError,
-    void,
+    LogoutApiV1AuthLogoutPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
   TError,
-  void,
+  LogoutApiV1AuthLogoutPostMutationVariables,
   TContext
 > => {
   const mutationKey = getLogoutApiV1AuthLogoutPostMutationKey();
@@ -1086,9 +1113,11 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
-    void
-  > = () => {
-    return logoutApiV1AuthLogoutPost(requestOptions);
+    LogoutApiV1AuthLogoutPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return logoutApiV1AuthLogoutPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1097,8 +1126,9 @@ export const getLogoutApiV1AuthLogoutPostMutationOptions = <
 export type LogoutApiV1AuthLogoutPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>
 >;
-
+export type LogoutApiV1AuthLogoutPostMutationBody = BodyType<RefreshRequest | null> | undefined;
 export type LogoutApiV1AuthLogoutPostMutationError = ErrorType<HTTPValidationError>;
+export type LogoutApiV1AuthLogoutPostMutationVariables = { data?: BodyType<RefreshRequest | null> };
 
 /**
  * @summary Logout
@@ -1111,7 +1141,7 @@ export const useLogoutApiV1AuthLogoutPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
       TError,
-      void,
+      LogoutApiV1AuthLogoutPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1120,7 +1150,7 @@ export const useLogoutApiV1AuthLogoutPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
   TError,
-  void,
+  LogoutApiV1AuthLogoutPostMutationVariables,
   TContext
 > => {
   return useMutation(getLogoutApiV1AuthLogoutPostMutationOptions(options), queryClient);
@@ -4791,6 +4821,328 @@ export const useRegisterWithCodeApiV1AuthEmailOtpRegisterPost = <
 > => {
   return useMutation(
     getRegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Every browser session this account can still use, newest activity first.
+ *
+ * Each row is one sign-in rather than one renewal — the service walks each
+ * live session back to the sign-in it descends from, so a browser left open
+ * for a month says so.
+ * @summary List My Sessions
+ */
+export const listMySessionsApiV1AuthSessionsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SignedInSessionInfo[]>(
+    { url: `/api/v1/auth/sessions`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMySessionsApiV1AuthSessionsGetQueryKey = () => {
+  return [`/api/v1/auth/sessions`] as const;
+};
+
+export const getListMySessionsApiV1AuthSessionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMySessionsApiV1AuthSessionsGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>> = ({
+    signal,
+  }) => listMySessionsApiV1AuthSessionsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMySessionsApiV1AuthSessionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>
+>;
+export type ListMySessionsApiV1AuthSessionsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMySessionsApiV1AuthSessionsGet<
+  TData = Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMySessionsApiV1AuthSessionsGet<
+  TData = Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMySessionsApiV1AuthSessionsGet<
+  TData = Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Sessions
+ */
+
+export function useListMySessionsApiV1AuthSessionsGet<
+  TData = Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMySessionsApiV1AuthSessionsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMySessionsApiV1AuthSessionsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * End one of the account's sessions.
+ *
+ * The whole rotation chain, so the session cannot renew its way out of it.
+ * A session belonging to somebody else answers the same as one that does not
+ * exist, because the id is the only thing the caller supplied and it should
+ * not learn which of the two it got wrong.
+ * @summary Revoke My Session
+ */
+export const revokeMySessionApiV1AuthSessionsSessionIdDelete = (
+  sessionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/auth/sessions/${sessionId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationKey = () =>
+  ["revokeMySessionApiV1AuthSessionsSessionIdDelete"] as const;
+
+export const getRevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>,
+    TError,
+    RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>,
+  TError,
+  RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>,
+    RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables
+  > = (props) => {
+    const { sessionId } = props ?? {};
+
+    return revokeMySessionApiV1AuthSessionsSessionIdDelete(sessionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>
+>;
+
+export type RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables = {
+  sessionId: string;
+};
+
+/**
+ * @summary Revoke My Session
+ */
+export const useRevokeMySessionApiV1AuthSessionsSessionIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>,
+      TError,
+      RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeMySessionApiV1AuthSessionsSessionIdDelete>>,
+  TError,
+  RevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRevokeMySessionApiV1AuthSessionsSessionIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * End every session the account holds except the one asking.
+ *
+ * Both credentials, because the list this backs shows both and a button that
+ * signed out the browsers while leaving the phones would not be telling the
+ * truth. Which one is spared depends on what the caller is holding: a browser
+ * session spares its own row and takes every device token, a native client
+ * spares its own token and takes every session.
+ *
+ * Two sessions by necessity rather than by choice — the device tokens are on
+ * a table the system engine cannot write — so the device half commits first.
+ * That is the order that fails safely: a failure after it leaves the account
+ * with fewer credentials than it started with, never more.
+ * @summary Revoke My Other Sessions
+ */
+export const revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/auth/sessions/revoke-others`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationKey = () =>
+  ["revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost"] as const;
+
+export const getRevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getRevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>,
+    void
+  > = () => {
+    return revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>
+>;
+
+export type RevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Revoke My Other Sessions
+ */
+export const useRevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getRevokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPostMutationOptions(options),
     queryClient
   );
 };

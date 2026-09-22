@@ -42,6 +42,8 @@ class AuthMessages:
     HARD_DELETE_NOT_ALLOWED_HERE = "HARD_DELETE_NOT_ALLOWED_HERE"
     EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED"
     TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND"
+    #: The session named is not one this account holds.
+    SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
     INVALID_DEVICE_TOKEN = "INVALID_DEVICE_TOKEN"
     #: The action hands out authority, so it is taken while signed in rather

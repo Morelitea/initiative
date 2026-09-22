@@ -314,7 +314,20 @@
         "personal": "Mentions"
       }
     },
-    "ariaLabelCount": "Notifications — {{count}} non lues"
+    "ariaLabelCount": "Notifications — {{count}} non lues",
+    "plain": {
+      "document": "un document",
+      "event": "un événement",
+      "initiative": "une initiative",
+      "initiativeIn": "une initiative",
+      "item": "un élément",
+      "post": "une publication",
+      "project": "Un projet",
+      "projectIn": "un projet",
+      "task": "Une tâche",
+      "taskObject": "votre tâche",
+      "user": "Un utilisateur"
+    }
   },
   "version": {
     "versionInformation": "Informations de version",

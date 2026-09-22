@@ -77,6 +77,11 @@ CONFIGURED_GID = f"COALESCE({GID}, {SETTINGS_GID})"
 #: the rung a live settings grant confers, which is its own axis.
 ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
 PAM_READ = "current_setting('app.pam_read', true) = 'true'"
+#: Who a notification is being written for. The bell is the one table whose
+#: rows are written by somebody other than the person they belong to, so the
+#: writer names its recipient and the policy holds it to that one account.
+#: Set by ``user_notifications.name_recipient``.
+NOTIFY_TARGET = "NULLIF(current_setting('app.notify_target_user_id', true), '')::int"
 
 # --- Predicate builders -------------------------------------------------------
 # Each returns the SQL of a policy predicate. ``{table}`` is replaced with the
@@ -1060,9 +1065,60 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "email_outbox": NO_RLS,
     "push_tokens": NO_RLS,
     "user_tokens": NO_RLS,
-    # 0245: FORCE without ENABLE and no policy — inert, and left as that
-    # migration decided until the notification write path has its own design.
-    "notifications": TableRls(enabled=False, forced=True),
+    "notifications": TableRls(
+        policies=(
+            # The reader's own bell: list it, mark it read, dismiss it.
+            Policy(
+                "notifications_self_read",
+                SELECT,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+            Policy(
+                "notifications_self_update",
+                UPDATE,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+            Policy(
+                "notifications_self_delete",
+                DELETE,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+            # The write path, which runs inside the community the event happened
+            # in and writes for somebody else. Held to the one account it names
+            # in ``app.notify_target_user_id`` and to the routed community, so a
+            # rollup can find and extend the line it is about to write and
+            # nothing else.
+            Policy(
+                "notifications_write_named_recipient",
+                SELECT,
+                ("app_guild_base",),
+                using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+            ),
+            Policy(
+                "notifications_insert_named_recipient",
+                INSERT,
+                ("app_guild_base",),
+                check=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+            ),
+            Policy(
+                "notifications_update_named_recipient",
+                UPDATE,
+                ("app_guild_base",),
+                using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+            ),
+            # A line whose every rolled-up event has been taken back is removed
+            # outright, from the request that took the last one back.
+            Policy(
+                "notifications_delete_named_recipient",
+                DELETE,
+                ("app_guild_base",),
+                using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+            ),
+        ),
+    ),
 }
 
 

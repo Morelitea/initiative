@@ -2026,6 +2026,17 @@ export interface ChecklistItemToggle {
 }
 
 /**
+ * Which picture the list draws beside a session.
+ */
+export type ClientKind = (typeof ClientKind)[keyof typeof ClientKind];
+
+export const ClientKind = {
+  mobile: "mobile",
+  desktop: "desktop",
+  unknown: "unknown",
+} as const;
+
+/**
  * Who wrote a comment.
  *
  * An address never reaches a guild, so there is none here; the handle names
@@ -7436,6 +7447,29 @@ export interface SecondFactorStepUpAnswer {
 export interface SessionLifetimeUpdate {
   session_max_hours?: number | null;
   session_idle_minutes?: number | null;
+}
+
+/**
+ * One browser session, as the account's own "where you're signed in" list
+ * shows it.
+ *
+ * Beside it in that list sit the account's native devices, which are
+ * :class:`DeviceTokenInfo` and a different credential — this is the rotating
+ * kind a browser holds. ``started_at`` is the sign-in, not the last renewal,
+ * so a browser left open for a month reads as a month old.
+ *
+ * ``label`` is derived from the user agent (``core.user_agents``), because
+ * only a native sign-in is handed a name to go by. ``is_current`` marks the
+ * session doing the asking, which the list shows rather than offers to end.
+ */
+export interface SignedInSessionInfo {
+  id: string;
+  label: string | null;
+  kind: ClientKind;
+  ip: string | null;
+  started_at: string;
+  last_used_at: string | null;
+  is_current: boolean;
 }
 
 /**

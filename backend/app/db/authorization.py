@@ -64,6 +64,7 @@ __all__ = [
     "AUTHORIZATION_FUNCTIONS",
     "GUILD_AUTHORIZATION_FUNCTIONS",
     "GUILD_FUNCTION_SIGNATURES",
+    "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
     "apply_authorization_functions",
@@ -317,8 +318,14 @@ $function$
 # Each is a SQL fragment, written once and substituted into the bodies. They
 # read the request's standing — what the establishment seam computed for this
 # reader in this community, once, in one statement (``app.db.guild_standing``)
-# — rather than walking a table per row. None of them contains a sub-select
-# over a row variable, so Postgres inlines every function they appear in.
+# — rather than walking a table per row.
+#
+# The four gates that carry them are ``plpgsql`` rather than ``LANGUAGE sql``.
+# Each holds a sub-select (the system leg's catalog lookup, and in
+# ``resource_access`` the grants probe), which is what stops Postgres inlining
+# a SQL function; a SQL function that is not inlined is planned again on every
+# query execution that first calls it, and inside another function every call
+# is one. A plpgsql function keeps its plan for the session.
 
 #: Trusted system maintenance, admitted by the connection's own login rather
 #: than by anything a statement can write. A sweep assumes a community's role
@@ -414,10 +421,11 @@ def standing_pairs(key: str) -> str:
 INITIATIVE_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
- LANGUAGE sql
+ LANGUAGE plpgsql
  STABLE
 AS $function$
-    SELECT
+BEGIN
+    RETURN
         current_setting('app.guild_auth_ok'::text, true) = 'true'::text
         AND (
             -- The read's own scope, when the surface asking has one. A row of
@@ -439,6 +447,8 @@ AS $function$
             OR ({STANDING_IS_THIS_GUILD}
                 AND p_initiative_id = ANY ({standing_ids("app.member_initiatives")}))
         )
+    ;
+END
 $function$
 
 """
@@ -447,10 +457,11 @@ $function$
 INITIATIVE_FULL_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION initiative_full_access(p_initiative_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
- LANGUAGE sql
+ LANGUAGE plpgsql
  STABLE
 AS $function$
-    SELECT
+BEGIN
+    RETURN
         current_setting('app.guild_auth_ok'::text, true) = 'true'::text
         AND (
             {SYSTEM_SESSION}
@@ -459,6 +470,8 @@ AS $function$
             OR ({STANDING_IS_THIS_GUILD}
                 AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
         )
+    ;
+END
 $function$
 
 """
@@ -473,10 +486,11 @@ $function$
 INITIATIVE_ROLE_PERMITS = f"""\
 CREATE OR REPLACE FUNCTION initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean)
  RETURNS boolean
- LANGUAGE sql
+ LANGUAGE plpgsql
  STABLE
 AS $function$
-    SELECT
+BEGIN
+    RETURN
         -- A row belonging to no initiative has no initiative role to answer to.
         p_initiative_id IS NULL
         OR {SYSTEM_SESSION}
@@ -493,6 +507,8 @@ AS $function$
                               = ANY ({standing_pairs("app.role_denies")}))
              )
         ))
+    ;
+END
 $function$
 
 """
@@ -506,10 +522,11 @@ $function$
 RESOURCE_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
- LANGUAGE sql
+ LANGUAGE plpgsql
  STABLE
 AS $function$
-    SELECT
+BEGIN
+    RETURN
         -- Rows that carry no sharing identity (guild vocabulary) have nothing
         -- for this to decide.
         p_tool IS NULL
@@ -537,6 +554,8 @@ AS $function$
                     AND g.dashboard_id = NULLIF(current_setting('app.via_dashboard_id'::text, true), '')::int)
               )
         )
+    ;
+END
 $function$
 
 """
@@ -627,6 +646,14 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "resource_access": "(text, integer, integer, integer, boolean)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
+    "entity_access": "(text, integer, boolean, boolean)",
+}
+
+#: Functions an earlier render put in a guild schema under a name or
+#: signature this one no longer produces. The RLS render drops them last,
+#: the template strip drops them with the rest, and the boot step that
+#: retires ``public`` copies tries these names too.
+RETIRED_GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "relationship_endpoint_access": "(text, integer, boolean)",
 }
 
@@ -717,7 +744,10 @@ async def drop_public_copies(engine: "AsyncEngine") -> DropReport:
     from app.db.errors import dbapi_sqlstate
 
     report = DropReport()
-    for name, args in GUILD_FUNCTION_SIGNATURES.items():
+    for name, args in {
+        **GUILD_FUNCTION_SIGNATURES,
+        **RETIRED_GUILD_FUNCTION_SIGNATURES,
+    }.items():
         sig = f"public.{name}{args}"
         async with engine.connect() as conn:
             exists = (
