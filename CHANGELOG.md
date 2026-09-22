@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Priorities you can tell apart at a glance** — the priority dropdowns on the task form and in bulk edit put a coloured dot beside each option, and **High** now has a colour of its own: amber, the app's warning colour, where it used to share Medium's. The same amber carries through to the priority badge on the table and on kanban cards, so Low, Medium, High and Urgent each read differently.
 
+### Changed
+
+- **Notifications say what things are called now** — a notification kept a copy of the title it was about, taken the moment it was sent, so a task renamed afterwards kept its old name in your bell for good. The title is read when the line is drawn instead, so it is always the current one. A line about something you can no longer open — deleted, or no longer shared with you — reads as its plain form, "A task was assigned to you", rather than naming it.
+
 ### Fixed
 
 - **Uploading a file works for everyone who may create documents, not just community admins** — uploading a document as a regular initiative member failed with an error, because the file's first version (and a picture's cover image) was written before the upload's owner had been recorded, and the database refused both. They're now written after, and admins and members alike can upload again.
