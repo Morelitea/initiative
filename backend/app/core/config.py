@@ -489,6 +489,12 @@ class Settings(BaseSettings):
     OIDC_CLIENT_SECRET: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
     OIDC_SCOPES: list[str] | str | None = None
+    # Which ways in the deployment permits, seeded into ``app_settings`` on
+    # the first boot only — the same rule as the OIDC_* five above, and the
+    # same owner afterwards: Settings -> Platform -> Authentication, which the
+    # env never overwrites. Comma- or space-separated values of
+    # ``app.core.login_methods.LoginMethod``; unset keeps the app's default.
+    AUTH_LOGIN_METHODS: list[str] | str | None = None
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_SECURE: bool = False
@@ -974,6 +980,22 @@ class Settings(BaseSettings):
             if cleaned and cleaned not in normalized:
                 normalized.append(cleaned)
         return normalized or ["openid", "profile", "email"]
+
+    @field_validator("AUTH_LOGIN_METHODS", mode="before")
+    @classmethod
+    def parse_auth_login_methods(
+        cls, value: str | list[str] | None
+    ) -> list[str] | None:
+        """Blank and unset read the same: the app's own default."""
+        if value is None:
+            return None
+        items = value.replace(",", " ").split() if isinstance(value, str) else value
+        normalized: list[str] = []
+        for item in items:
+            cleaned = item.strip().lower()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+        return normalized or None
 
 
 @lru_cache

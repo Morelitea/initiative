@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A deployment can be told its ways in before anybody signs in** — `AUTH_LOGIN_METHODS=sso,passkey,totp,email_otp` in the environment seeds **Settings → Platform → Authentication** on the first boot, the way `OIDC_*` seeds the provider, so a server meant to run without passwords never has them on. Read once, when the settings row is first created; after that the page owns it and the variable is ignored. A value this version does not know is dropped with a line in the log, and a list with nothing that can begin a session — or one asking for the emailed code with no mail server configured — keeps the default.
 ### Fixed
 
 - **A couple of corners still said "guild"** — the phrase a community's Danger Zone tab asks you to type to confirm deletion, and the name the calendar app installs under, hadn't caught up with the rest of the app's move to "community." Confirming deletion now asks for `DELETE COMMUNITY <NAME>`, and the app installs as "Community calendar."

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
@@ -16,6 +18,12 @@ from app.core.encryption import (
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
+from app.core.login_methods import (
+    DEFAULT_LOGIN_METHODS,
+    LOGIN_METHOD_VALUES,
+    PRIMARY_LOGIN_METHODS,
+    LoginMethod,
+)
 from app.core.pam_context import has_active_grant
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
@@ -24,6 +32,8 @@ from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
 
 GLOBAL_SETTINGS_ID = 1
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -64,19 +74,63 @@ async def get_or_create_guild_settings(
     return await _ensure_guild_setting(session, resolved_guild_id)
 
 
+def _seeded_login_methods(*, mail_configured: bool) -> list[str]:
+    """The ways in a fresh deployment permits, from ``AUTH_LOGIN_METHODS``.
+
+    First-boot only, like everything else the builder below takes from the
+    env: the row is seeded once and Settings owns it from then on. Held to the
+    two rules the settings surface enforces on a write — something must be
+    able to begin a session, and the emailed code needs somewhere to send
+    from — but by falling back rather than refusing: a typo in an env file
+    must not hold up boot, and a row the column's CHECK would refuse is a
+    deployment nobody can configure. Each fallback says so in the log.
+    """
+    default = [m.value for m in DEFAULT_LOGIN_METHODS]
+    configured = app_config.AUTH_LOGIN_METHODS
+    if not configured:
+        return default
+    resolved = {LoginMethod(v) for v in configured if v in LOGIN_METHOD_VALUES}
+    unknown = sorted(set(configured) - {m.value for m in resolved})
+    if unknown:
+        logger.warning(
+            "AUTH_LOGIN_METHODS names %s, which this version does not know; ignored",
+            ", ".join(unknown),
+        )
+    if LoginMethod.email_otp in resolved and not mail_configured:
+        logger.warning(
+            "AUTH_LOGIN_METHODS permits the emailed code but no mail server is "
+            "configured (SMTP_HOST and SMTP_FROM_ADDRESS); left off"
+        )
+        resolved.discard(LoginMethod.email_otp)
+    if not resolved.intersection(PRIMARY_LOGIN_METHODS):
+        logger.warning(
+            "AUTH_LOGIN_METHODS=%s permits nothing that can begin a session; "
+            "keeping the default",
+            ",".join(configured),
+        )
+        return default
+    # Sorted, as the settings page stores it.
+    return sorted(m.value for m in resolved)
+
+
 def _build_default_app_settings() -> AppSetting:
     """A fresh, env-seeded ``AppSetting`` singleton (id=1), NOT persisted.
 
     Shared by the create path (persisted by a writer) and the privilege-tolerant
     read fallback (returned transient to a non-owner caller).
     """
+    _smtp_host = _normalize_optional_string(app_config.SMTP_HOST)
+    _smtp_from = _normalize_optional_string(app_config.SMTP_FROM_ADDRESS)
     _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
     _s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
     return AppSetting(
         id=GLOBAL_SETTINGS_ID,
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
-        smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
+        login_methods=_seeded_login_methods(
+            mail_configured=bool(_smtp_host and _smtp_from)
+        ),
+        smtp_host=_smtp_host,
         smtp_port=app_config.SMTP_PORT if app_config.SMTP_HOST else None,
         smtp_secure=bool(app_config.SMTP_SECURE),
         smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
@@ -84,7 +138,7 @@ def _build_default_app_settings() -> AppSetting:
         smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD)
         if _smtp_pw
         else None,
-        smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
+        smtp_from_address=_smtp_from,
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
         storage_backend=(app_config.STORAGE_BACKEND or "local").lower(),
         s3_bucket=_normalize_optional_string(app_config.S3_BUCKET),
