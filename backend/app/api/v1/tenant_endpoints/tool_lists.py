@@ -349,7 +349,10 @@ def _summaries(serializer: Callable[..., Any]) -> Callable[..., Awaitable[list]]
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
-        return [serializer(row, user_id=req.user.id) for row in rows]
+        return [
+            serializer(row, context=req.guild_context, user_id=req.user.id)
+            for row in rows
+        ]
 
     return serialize
 

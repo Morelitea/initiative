@@ -174,7 +174,9 @@ async def test_create_event_notifies_attendees_not_creator(
         session, attendee.user.id, NotificationType.event_invitation
     )
     assert len(invites) == 1
-    assert invites[0].data["event_title"] == "Kickoff"
+    # The line carries the reference, not the title: the bell reads the
+    # title back from the calendar when it renders.
+    assert "event_title" not in invites[0].data
     assert invites[0].data["event_id"] == response.json()["id"]
     # The creator should not be notified about their own event.
     assert (

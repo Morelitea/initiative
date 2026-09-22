@@ -950,6 +950,7 @@ async def _process_comment_notifications(
                     task_id=task.id,
                     task_title=task.title,
                     project_name=project_name,
+                    project_id=task.project_id,
                     guild_id=guild_id,
                     initiative_id=ctx.initiative_id,
                     tool=comment_tool,

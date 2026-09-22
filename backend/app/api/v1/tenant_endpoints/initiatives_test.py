@@ -2141,7 +2141,7 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     notes = await _notifications_for(session, member.user.id, expected_type)
     assert len(notes) == 1
     assert notes[0].data["initiative_id"] == initiative.id
-    assert notes[0].data["initiative_name"] == "Knockable"
+    assert "initiative_name" not in notes[0].data
     assert notes[0].data["request_id"] == request_id
 
     assert [m["recipient_id"] for m in sent] == [member.user.id]

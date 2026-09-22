@@ -314,7 +314,20 @@
         "personal": "Erwähnungen"
       }
     },
-    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen"
+    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen",
+    "plain": {
+      "document": "einem Dokument",
+      "event": "einem Termin",
+      "initiative": "einer Initiative",
+      "initiativeIn": "einer Initiative",
+      "item": "einem Element",
+      "post": "einen Beitrag",
+      "project": "Ein Projekt",
+      "projectIn": "einem Projekt",
+      "task": "Eine Aufgabe",
+      "taskObject": "deine Aufgabe",
+      "user": "Ein Benutzer"
+    }
   },
   "version": {
     "versionInformation": "Versionsinformationen",
