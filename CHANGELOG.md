@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **The Pride pack's hearts are hearts again** — Pride, Non-binary, Trans, Lesbian, Gay, Bisexual, Asexual and Polyamorous each wear a heart trophy whose two lobes were drawn with an arc too tight to reach around itself. Browsers correct that by flattening it, so the top came out as two straight ridges meeting at a shallow notch instead of a rounded heart. The outline is redrawn with real curves, and the striped fill inside it follows the same line.
+- **A couple of corners still said "guild"** — the phrase a community's Danger Zone tab asks you to type to confirm deletion, and the name the calendar app installs under, hadn't caught up with the rest of the app's move to "community." Confirming deletion now asks for `DELETE COMMUNITY <NAME>`, and the app installs as "Community calendar."
+
+## [0.71.2] - 2026-09-21
+
+### Fixed
+
 - **Upgrading to 0.71.1 no longer stops at startup** — on a server that had ever trashed, archived or purged one of the shared calendars created for it last month, 0.71.1 refused to start: the repair it carried for those calendars' ownership was blocked by the same rule that keeps trashed and archived content read-only, and the server tried the upgrade again on every restart. Nothing was changed on such a server — the upgrade stepped back each time — so 0.71.0 runs against it as before. The repair now sets that rule aside for the one statement and puts it back after, and a failure inside it would name its real cause instead of the aftermath. If 0.71.1 started for you, it did the same thing this does and there is nothing further to run.
 
 ## [0.71.1] - 2026-09-21

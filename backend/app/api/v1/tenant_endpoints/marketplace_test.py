@@ -511,7 +511,7 @@ class TestAnAppNeedsItsServiceRegistered:
             uid=self.TOOL_UID,
             public_id="tests.guild-calendar",
             kind="app",
-            name="Guild calendar",
+            name="Community calendar",
             definition={"app_kind": "tool_instance", "tool": "calendar"},
         )
         actor = await acting_user(guild_role=GuildRole.member)

@@ -39,7 +39,11 @@ CALENDAR_APP_UID = marketplace_uid("guildcalendar")
 
 
 def _app_definition(tool: str = "calendar") -> dict:
-    return {"app_kind": "tool_instance", "tool": tool, "default_name": "Guild calendar"}
+    return {
+        "app_kind": "tool_instance",
+        "tool": tool,
+        "default_name": "Community calendar",
+    }
 
 
 @pytest.fixture
@@ -49,7 +53,7 @@ async def calendar_app(session):
         uid=CALENDAR_APP_UID,
         public_id="core.guild-calendar",
         kind="app",
-        name="Guild calendar",
+        name="Community calendar",
         definition=_app_definition(),
     )
 

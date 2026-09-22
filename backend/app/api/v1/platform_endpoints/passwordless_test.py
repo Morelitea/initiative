@@ -736,7 +736,7 @@ async def _delete_guild(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",
         headers=headers,
-        json={"confirmation_text": "DELETE GUILD WINDING DOWN"},
+        json={"confirmation_text": "DELETE COMMUNITY WINDING DOWN"},
     )
 
 

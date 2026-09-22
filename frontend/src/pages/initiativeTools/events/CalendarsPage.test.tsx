@@ -164,7 +164,7 @@ describe("CalendarsView on a guild calendar", () => {
   /** The calendar the app mounts: guild-level, so it belongs to no initiative. */
   const guildCalendar = {
     id: 42,
-    name: "Guild calendar",
+    name: "Community calendar",
     description: null,
     color: "#6366f1",
     initiative_id: null,

@@ -396,7 +396,7 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
         headers=get_auth_headers(admin),
         json={
             "password": PASSWORD,
-            "confirmation_text": "DELETE GUILD TO DELETE",
+            "confirmation_text": "DELETE COMMUNITY TO DELETE",
         },
     )
     assert response.status_code == 204, response.text
@@ -424,7 +424,7 @@ async def test_a_refused_guild_deletion_records_nothing(
         "DELETE",
         f"/api/v1/guilds/{guild.id}",
         headers=get_auth_headers(admin),
-        json={"password": PASSWORD, "confirmation_text": "DELETE GUILD WRONG"},
+        json={"password": PASSWORD, "confirmation_text": "DELETE COMMUNITY WRONG"},
     )
     assert response.status_code == 400
     assert emitted(capfd, AuditEventType.GUILD_DELETED) == []

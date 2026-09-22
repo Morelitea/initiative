@@ -186,7 +186,7 @@ async def test_the_seat_deletes_the_community_and_then_itself(
         headers=headers,
         json={
             "password": "testpassword123",
-            "confirmation_text": f"DELETE GUILD {guild.name.upper()}",
+            "confirmation_text": f"DELETE COMMUNITY {guild.name.upper()}",
         },
     )
     assert deleted.status_code == 204, deleted.text

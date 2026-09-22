@@ -1614,7 +1614,7 @@ async def delete_guild(
 
     # The whole phrase is uppercased, including the name, so casing on
     # the guild name can't trip up the confirmation.
-    expected = f"DELETE GUILD {guild.name.upper()}"
+    expected = f"DELETE COMMUNITY {guild.name.upper()}"
     if request.confirmation_text != expected:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
