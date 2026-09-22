@@ -37,6 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
+from app.db.authorization import GUILD_ADMIN, SYSTEM_SESSION
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,10 @@ UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
 GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
 PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
 BILLING_GID = "NULLIF(current_setting('app.billing_guild_id', true), '')::int"
-ROUTED_ADMIN = "current_setting('app.current_guild_role', true) = 'admin'"
+#: The reader administers the routed community. A lookup on the membership
+#: row, made by the standing statement and written where a policy can read it
+#: — the same leg the guild schemas' gates carry, from one definition.
+ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 PAM_READ = "current_setting('app.pam_read', true) = 'true'"
 
 # --- Predicate builders -------------------------------------------------------

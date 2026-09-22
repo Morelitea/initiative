@@ -2026,7 +2026,7 @@ async def _run_gc_pass(
     )
     for guild_id in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         for model in models:
             await session.exec(delete(model).where(model.created_at < cutoff))
         await session.commit()

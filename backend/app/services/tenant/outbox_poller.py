@@ -413,7 +413,7 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     # registered is guild configuration, not initiative content. What each of
     # them may then SEE is decided per subscription in _drain_subscription,
     # under its own owner's context.
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.
     subscription_ids = list(
@@ -443,7 +443,7 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             await session.rollback()
         finally:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
 
 
 async def _active_guild_ids(session: AsyncSession) -> list[int]:
@@ -480,7 +480,7 @@ async def process_outbox_retention() -> None:
     async with db_session.AdminSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             stale = list(
                 await session.exec(
                     select(EventOutbox).where(EventOutbox.occurred_at < cutoff)

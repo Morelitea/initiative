@@ -203,7 +203,7 @@ async def _place_in_initiative(
     from app.db.session import AdminSessionLocal
 
     async with AdminSessionLocal() as session:
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for

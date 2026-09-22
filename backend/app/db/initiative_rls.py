@@ -37,6 +37,13 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
+from app.db.authorization import (
+    GUILD_ADMIN,
+    PAM_ANY,
+    STANDING_IS_THIS_GUILD,
+    SYSTEM_SESSION,
+    standing_pairs,
+)
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -151,6 +158,15 @@ class DacPath:
     via: tuple[tuple[str, str], ...] = ()
 
 
+def _switch_leg(tool: "Tool", initiative: str) -> str:
+    """Whether ``tool`` is switched on for ``initiative``, for this reader."""
+    return (
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR ({STANDING_IS_THIS_GUILD} AND ({initiative}::text || ':{tool.value}')"
+        f" = ANY ({standing_pairs('app.enabled_tools')})))"
+    )
+
+
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
     """Gate 4 alone, for a row that names its governing tool in a COLUMN.
 
@@ -188,14 +204,15 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # Every tool carries a switch on the initiative. A community admin or a PAM
     # grantee reaches the content of a tool that is switched off — the endpoints
     # still refuse them, and a maintenance sweep has to be able to see it.
-    legs.append(
-        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {initiative}), false))"
-    )
+    #
+    # Which initiatives have it on is in the request's standing, as one pair per
+    # initiative the reader is in: an admin, a grantee and a system sweep are
+    # already admitted above, so those are the only ones whose switch can decide
+    # anything for them.
+    legs.append(_switch_leg(tool, initiative))
 
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
@@ -313,15 +330,15 @@ _SYMMETRIC_SQL = ", ".join(f"'{t.value}'" for t in sorted(SYMMETRIC_TYPES))
 #: Rows nobody asserted: the save path read them out of a body.
 _FROM_CONTENT = f"'{Provenance.content.value}'"
 
-#: The routed guild-admin leg, for rows that span every initiative in a guild.
-_GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+#: The community-administrator leg, for rows that span every initiative in a
+#: community, beside the one that admits trusted system maintenance. Both are
+#: the same legs the gate functions carry — one definition, in
+#: :mod:`app.db.authorization`.
+_GUILD_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
-_PAM_ANY = (
-    "current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-)
+_PAM_ANY = PAM_ANY
 
 
 def _access(initiative_expr: str, write: bool) -> str:
@@ -1007,12 +1024,14 @@ def _search_tool_gate(t: str, write: bool) -> str:
     so it answers the same three questions the source does rather than trusting
     that it was right when it was written.
     """
-    switch_arms = " ".join(
-        f"WHEN '{tool.value}' THEN "
+    # The switch no longer needs an arm per tool: the pair the standing carries
+    # is ``<initiative>:<tool>``, and the row names its own tool in a column.
+    switch = (
         f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {t}.initiative_id), false))"
-        for tool in Tool
+        f" OR {t}.dac_tool IS NULL"
+        f" OR ({STANDING_IS_THIS_GUILD}"
+        f" AND ({t}.initiative_id::text || ':' || {t}.dac_tool)"
+        f" = ANY ({standing_pairs('app.enabled_tools')})))"
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
@@ -1021,7 +1040,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
         for tool in Tool
     )
     return (
-        f"((CASE {t}.dac_tool {switch_arms} ELSE true END)"
+        f"({switch}"
         f" AND (CASE {t}.dac_tool {role_arms} ELSE true END)"
         f" AND {_resource_call(f'{t}.dac_tool', f'{t}.dac_id', f'{t}.initiative_id', write)})"
     )

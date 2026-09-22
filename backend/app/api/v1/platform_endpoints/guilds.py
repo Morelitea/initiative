@@ -17,9 +17,11 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    GuildContext,
     SessionDep,
     UploadUserDep,
     UserSessionDep,
+    establish_guild_access,
     get_current_active_user,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
@@ -55,7 +57,6 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildRole,
     GuildStatus,
-    content_role,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.guild_image import (
@@ -318,14 +319,14 @@ async def _set_guild_admin_rls(
     *,
     guild_id: int,
     user: User,
-) -> None:
-    """Route a validated guild administrator into ``guild_id``."""
-    await set_rls_context(
-        session,
-        user_id=user.id,
-        guild_id=guild_id,
-        guild_role="admin",
-    )
+) -> GuildContext:
+    """Route a validated guild administrator into ``guild_id``, through the
+    one seam that routes a person into a community.
+
+    The rung guard above this has already refused anyone who is not an
+    administrator; this establishes what the database will let them reach.
+    """
+    return await establish_guild_access(session, user, guild_id)
 
 
 @router.get("/", response_model=List[GuildRead])
@@ -1048,9 +1049,10 @@ async def _guild_payload_after_image_change(
     the commit rather than around it — and everything read below is then read
     as the guild admin the caller actually is.
     """
-    await set_rls_context(
-        session, user_id=user.id, guild_id=guild_id, guild_role="admin"
-    )
+    # Platform management on the system engine: the guild row was just
+    # written there, and the schema read below is admitted by the connection's
+    # own login.
+    await set_rls_context(session, guild_id=guild_id)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     if guild is None:
         raise HTTPException(
@@ -1969,12 +1971,7 @@ async def leave_guild(
     # grants below writes to guild-scoped tables whose RLS is evaluated against
     # the current guild context. Now that membership is confirmed, set the full
     # context so those writes aren't filtered to zero rows.
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_id,
-        guild_role=content_role(membership.role),
-    )
+    await establish_guild_access(session, current_user, guild_id)
 
     # Ahead of the check below, so its answer is still true when the departure
     # is written. Counting a guild's seats is a question about the guild rather

@@ -861,6 +861,10 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     """
     from app.db.search_index import reindex_plan, search_generation
 
+    # The schema names its community, and the role to assume for it is named
+    # from the same id — a role name carries a per-checkout prefix, so it is
+    # not the schema's own spelling.
+    role = guild_role_name(int(schema.removeprefix("guild_")))
     generation = search_generation()
     async with engine.connect() as conn:
         current = await conn.scalar(
@@ -875,12 +879,15 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
         cursor = 0
         while True:
             async with engine.begin() as conn:
-                # System routing: no user id (so the auth gate reads as a system
-                # session), guild-admin role for the write.
+                # System routing: no user id, so the sign-in gate reads this as
+                # a system session; the index's own policy admits the write by
+                # the connection's login, which is the system engine's.
                 await conn.exec_driver_sql(
                     f"SELECT set_config('search_path', '\"{schema}\", public', true),"
-                    " set_config('app.current_guild_role', 'admin', true),"
-                    " set_config('app.current_user_id', '', true)"
+                    " set_config('role', %s, true),"
+                    " set_config('app.current_user_id', '', true),"
+                    " set_config('app.guild_auth_ok', 'true', true)",
+                    (role,),
                 )
                 rows = (
                     await conn.execute(
@@ -928,7 +935,7 @@ async def backfill_guild_search() -> int:
     total = 0
     for schema in schemas:
         try:
-            total += await reindex_guild_search(db_session.provisioning_engine, schema)
+            total += await reindex_guild_search(db_session.admin_engine, schema)
         except Exception:
             logger.exception("search reindex failed for %s", schema)
     if total:

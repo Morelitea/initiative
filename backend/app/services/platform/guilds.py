@@ -518,6 +518,22 @@ async def get_membership(
     return result.one_or_none()
 
 
+async def _guild_admin_rows(
+    session: AsyncSession, guild_id: int
+) -> tuple[GuildSetting | None, GuildAdministration | None]:
+    """The two rows a community's admin sees beside its name: its trash
+    retention window, which lives in the community's own schema, and its caps,
+    which the routed role reads under that table's own policy. Run inside the
+    excursion that routes there, so one trip answers both."""
+    row = (await session.exec(select(GuildSetting).limit(1))).one_or_none()
+    administration = (
+        await session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
+        )
+    ).one_or_none()
+    return row, administration
+
+
 async def list_memberships(
     session: AsyncSession,
     *,
@@ -546,7 +562,8 @@ async def list_memberships(
     same admin-only terms as retention, and for the same reason: ``GuildRead``
     serves those fields to guild admins alone, so a member's request never pays
     for the row."""
-    from app.db.session import set_rls_context  # lazy: avoids a circular import
+    # lazy: avoids a circular import
+    from app.db.session import guild_schema_context, set_rls_context
 
     await set_rls_context(session, user_id=user_id)
     pairs = (
@@ -582,22 +599,20 @@ async def list_memberships(
             and membership.role not in GUILD_ADMIN_ROLES
         ):
             continue
-        await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         retention: int | None = None
         administration: GuildAdministration | None = None
         if membership.role in GUILD_ADMIN_ROLES:
-            row = (await session.exec(select(GuildSetting).limit(1))).one_or_none()
+            # An excursion into the guild's own schema for two guild-level
+            # rows, and back out. It routes with the community alone, which is
+            # what the seam is for when a *person* is being routed: this list
+            # has already decided who may see what, and a sidebar of twenty
+            # communities is not twenty access establishments.
+            async with guild_schema_context(session, guild_id=guild.id):
+                row, administration = await _guild_admin_rows(session, guild.id)
             # No row yet → the 90-day default; an explicit NULL is the user's "never".
             retention = 90 if row is None else row.retention_days
             if row is not None:
                 session.expunge(row)
-            administration = (
-                await session.exec(
-                    select(GuildAdministration).where(
-                        GuildAdministration.guild_id == guild.id
-                    )
-                )
-            ).one_or_none()
         member_count = await count_members(session, guild_id=guild.id)
         out.append((guild, membership, retention, member_count, administration))
 
@@ -772,12 +787,9 @@ async def seed_guild_content(
     from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
-    await set_rls_context(
-        session,
-        user_id=owner.id,
-        guild_id=guild_id,
-        guild_role=GuildRole.admin.value,
-    )
+    # Seeding is the system engine's, routed into the new schema: the guild
+    # has no members yet and nobody is asking for anything.
+    await set_rls_context(session, guild_id=guild_id)
     await create_guild_settings(session, guild_id)
     try:
         # Inside a savepoint, so a failure here rolls back the app install and

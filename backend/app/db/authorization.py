@@ -312,16 +312,87 @@ $function$
 
 """
 
+# --- The legs every gate below shares ---------------------------------------
+#
+# Each is a SQL fragment, written once and substituted into the bodies. They
+# read the request's standing — what the establishment seam computed for this
+# reader in this community, once, in one statement (``app.db.guild_standing``)
+# — rather than walking a table per row. None of them contains a sub-select
+# over a row variable, so Postgres inlines every function they appear in.
+
+#: Trusted system maintenance, admitted by the connection's own login rather
+#: than by anything a statement can write. A sweep assumes a community's role
+#: for its schema, which drops the login's bypass, and this is what says the
+#: login was the system engine's. ``session_user`` is the connection's, not the
+#: assumed role's; the sub-select names no row variable, so the planner
+#: evaluates it once per statement.
+SYSTEM_SESSION = (
+    "EXISTS (SELECT 1 FROM pg_roles r"
+    " WHERE r.rolname = session_user AND r.rolbypassrls)"
+)
+
+#: The standing on this session was computed for the community it is routed
+#: into. A standing means nothing outside the community it came from —
+#: initiative 5 is a different row in every schema — so every leg that reads
+#: one says which community it belongs to first.
+STANDING_IS_THIS_GUILD = (
+    "NULLIF(current_setting('app.standing_guild_id'::text, true), ''::text)::integer"
+    " = NULLIF(current_setting('app.current_guild_id'::text, true), ''::text)::integer"
+)
+
+#: The reader administers this community. A lookup on ``guild_memberships``,
+#: made by the standing statement and written where a policy can read it — the
+#: request supplies no parameter that could claim it.
+GUILD_ADMIN = (
+    f"({STANDING_IS_THIS_GUILD}"
+    " AND current_setting('app.guild_admin'::text, true) = 'true'::text)"
+)
+
+#: A live grant covers this request, at whichever level the command asks for.
+PAM_AT_LEVEL = (
+    "(CASE"
+    " WHEN p_need_write"
+    " THEN current_setting('app.pam_write'::text, true) = 'true'::text"
+    " ELSE current_setting('app.pam_read'::text, true) = 'true'::text"
+    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
+    " END)"
+)
+
+#: A live grant at either level, where the question is what the community has
+#: switched on rather than what one person may reach.
+PAM_ANY = (
+    "current_setting('app.pam_read'::text, true) = 'true'::text"
+    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
+)
+
+
+def standing_ids(key: str) -> str:
+    """The integer set the standing carries under ``key``."""
+    return (
+        "string_to_array("
+        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
+        ")::integer[]"
+    )
+
+
+def standing_pairs(key: str) -> str:
+    """The ``"<id>:<name>"`` set the standing carries under ``key``."""
+    return (
+        "string_to_array("
+        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text)"
+    )
+
+
 #: Gate 2: the hard isolation boundary. Every initiative-scoped table's
 #: policies defer to this one function.
-INITIATIVE_ACCESS = """\
+INITIATIVE_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE
 AS $function$
     SELECT
-        public.guild_auth_satisfied()
+        current_setting('app.guild_auth_ok'::text, true) = 'true'::text
         AND (
             -- The read's own scope, when the surface asking has one. A row of
             -- another initiative is not the answer to the question, whatever
@@ -336,53 +407,44 @@ AS $function$
             -- initiative gate has nothing to decide. The schema boundary still
             -- confines it to this guild; grants decide who may read or write it.
             p_initiative_id IS NULL
-            OR current_setting('app.current_guild_role'::text, true) = 'admin'::text
-            OR (CASE
-                  WHEN p_need_write
-                    THEN current_setting('app.pam_write'::text, true) = 'true'::text
-                  ELSE current_setting('app.pam_read'::text, true) = 'true'::text
-                       OR current_setting('app.pam_write'::text, true) = 'true'::text
-                END)
-            OR EXISTS (
-                SELECT 1 FROM initiative_members im
-                WHERE im.initiative_id = p_initiative_id
-                  AND im.user_id = p_user_id
-            )
+            OR {SYSTEM_SESSION}
+            OR {GUILD_ADMIN}
+            OR {PAM_AT_LEVEL}
+            OR ({STANDING_IS_THIS_GUILD}
+                AND p_initiative_id = ANY ({standing_ids("app.member_initiatives")}))
         )
 $function$
 
 """
 
 #: Gate 2, narrowed: full standing in the initiative rather than membership.
-INITIATIVE_FULL_ACCESS = """\
+INITIATIVE_FULL_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION initiative_full_access(p_initiative_id integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
  STABLE
 AS $function$
     SELECT
-        public.guild_auth_satisfied()
+        current_setting('app.guild_auth_ok'::text, true) = 'true'::text
         AND (
-            current_setting('app.current_guild_role'::text, true) = 'admin'::text
-            OR (CASE
-                  WHEN p_need_write
-                    THEN current_setting('app.pam_write'::text, true) = 'true'::text
-                  ELSE current_setting('app.pam_read'::text, true) = 'true'::text
-                       OR current_setting('app.pam_write'::text, true) = 'true'::text
-                END)
-            OR p_initiative_id = ANY(
-                string_to_array(
-                    NULLIF(current_setting('app.override_initiatives'::text, true), ''),
-                    ','
-                )::integer[]
-            )
+            {SYSTEM_SESSION}
+            OR {GUILD_ADMIN}
+            OR {PAM_AT_LEVEL}
+            OR ({STANDING_IS_THIS_GUILD}
+                AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
         )
 $function$
 
 """
 
 #: Gate 3: what a member's role in the initiative permits.
-INITIATIVE_ROLE_PERMITS = """\
+#:
+#: The roles' stored rows arrive in the standing as two sets of
+#: ``"<initiative>:<key>"`` pairs — the ones the role turns on and the ones it
+#: turns off — so the answer is a membership test rather than a three-table
+#: join per row. A manager holds every key, stored or not; for everyone else a
+#: stored row decides, and the tool's own default decides when there is none.
+INITIATIVE_ROLE_PERMITS = f"""\
 CREATE OR REPLACE FUNCTION initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean)
  RETURNS boolean
  LANGUAGE sql
@@ -391,31 +453,31 @@ AS $function$
     SELECT
         -- A row belonging to no initiative has no initiative role to answer to.
         p_initiative_id IS NULL
-        OR current_setting('app.current_guild_role'::text, true) = 'admin'::text
-        OR current_setting('app.pam_read'::text, true) = 'true'::text
-        OR current_setting('app.pam_write'::text, true) = 'true'::text
-        OR COALESCE(
-             (SELECT CASE
-                       -- A manager role holds every key, stored or not.
-                       WHEN r.is_manager THEN true
-                       ELSE COALESCE(rp.enabled, p_default)
-                     END
-                FROM initiative_members im
-                JOIN initiative_roles r ON r.id = im.role_id
-                LEFT JOIN initiative_role_permissions rp
-                       ON rp.initiative_role_id = r.id
-                      AND rp.permission_key = p_key
-               WHERE im.initiative_id = p_initiative_id
-                 AND im.user_id = p_user_id),
-             -- No membership at all: gate 2 has already refused, and the
-             -- application's resolver answers false for the same case.
-             false)
+        OR {SYSTEM_SESSION}
+        OR {GUILD_ADMIN}
+        OR {PAM_ANY}
+        OR ({STANDING_IS_THIS_GUILD} AND (
+                p_initiative_id = ANY ({standing_ids("app.manager_initiatives")})
+             OR (p_initiative_id::text || ':' || p_key)
+                    = ANY ({standing_pairs("app.role_grants")})
+             OR (
+                 p_default
+                 AND p_initiative_id = ANY ({standing_ids("app.member_initiatives")})
+                 AND NOT ((p_initiative_id::text || ':' || p_key)
+                              = ANY ({standing_pairs("app.role_denies")}))
+             )
+        ))
 $function$
 
 """
 
 #: Gate 4: per-resource sharing (the ``resource_grants`` table).
-RESOURCE_ACCESS = """\
+#:
+#: The one gate that still probes a table, because which readers a resource was
+#: shared with is genuinely per resource. What the standing removes is the two
+#: reader sub-selects inside it: the roles they hold and the initiatives they
+#: are in are the same for every row.
+RESOURCE_ACCESS = f"""\
 CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE sql
@@ -425,20 +487,12 @@ AS $function$
         -- Rows that carry no sharing identity (guild vocabulary) have nothing
         -- for this to decide.
         p_tool IS NULL
-        OR current_setting('app.current_guild_role'::text, true) = 'admin'::text
-        OR (CASE
-              WHEN p_need_write
-                THEN current_setting('app.pam_write'::text, true) = 'true'::text
-              ELSE current_setting('app.pam_read'::text, true) = 'true'::text
-                   OR current_setting('app.pam_write'::text, true) = 'true'::text
-            END)
+        OR {SYSTEM_SESSION}
+        OR {GUILD_ADMIN}
+        OR {PAM_AT_LEVEL}
         -- Initiatives where the request holds "Full access".
-        OR p_initiative_id = ANY (
-               string_to_array(
-                   NULLIF(current_setting('app.override_initiatives'::text, true), ''),
-                   ','
-               )::integer[]
-           )
+        OR ({STANDING_IS_THIS_GUILD}
+            AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
         OR EXISTS (
             SELECT 1 FROM resource_grants g
             WHERE g.resource_type = p_tool
@@ -446,16 +500,12 @@ AS $function$
               AND (NOT p_need_write OR g.level IN ('write', 'owner'))
               AND (
                    g.user_id = p_user_id
-                OR g.role_id IN (
-                       SELECT im.role_id FROM initiative_members im
-                       WHERE im.user_id = p_user_id
-                   )
+                OR ({STANDING_IS_THIS_GUILD}
+                    AND g.role_id = ANY ({standing_ids("app.member_role_ids")}))
                 OR (g.all_initiative_members
+                    AND {STANDING_IS_THIS_GUILD}
                     AND (g.initiative_id IS NULL
-                         OR g.initiative_id IN (
-                                SELECT im.initiative_id FROM initiative_members im
-                                WHERE im.user_id = p_user_id
-                            )))
+                         OR g.initiative_id = ANY ({standing_ids("app.member_initiatives")})))
                 OR (NOT p_need_write
                     AND g.dashboard_id IS NOT NULL
                     AND g.dashboard_id = NULLIF(current_setting('app.via_dashboard_id'::text, true), '')::int)
@@ -464,6 +514,7 @@ AS $function$
 $function$
 
 """
+
 
 #: Who holds a guild's top seat — its sign-in configuration and its billing.
 #:

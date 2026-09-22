@@ -81,7 +81,7 @@ async def process_import_jobs() -> None:
         )
         for guild_id in guild_ids:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             outcomes = await _process_guild_jobs(session, guild_id=guild_id, now=now)
             await session.commit()
             # Notify creators from the UNROUTED system context: the guild-admin
@@ -318,7 +318,7 @@ async def process_import_gc() -> None:
         )
         for guild_id in guild_ids:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             jobs = list(
                 await session.exec(
                     select(ImportJob).where(

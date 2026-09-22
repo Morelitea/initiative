@@ -283,7 +283,7 @@ async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> 
     for guild_id in guild_ids:
         # ids repeat per schema, so the identity map is cleared between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await _end_app_access(session, user_id=user_id, guild_id=guild_id)
         await session.flush()
     await set_rls_context(session)
@@ -334,7 +334,7 @@ async def _drop_user_memberships(
 
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
         await initiatives_service.remove_user_from_guild_initiatives(
             session,
             guild_id=gid,
@@ -573,7 +573,7 @@ async def soft_delete_user(
         session.expunge_all()
         await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
         # Drop the user's AI credentials (member API keys) + connection
         # preference in this guild — the encrypted keys are a secret we must not
         # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
@@ -807,7 +807,7 @@ async def hard_delete_user(
     # transaction committed at the end, so a failure rolls the whole delete back.
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
 
         # Releases their owner grants (content is left unowned) and drops their
         # memberships.
@@ -821,7 +821,7 @@ async def hard_delete_user(
         # hard deletes need it here, before the row disappears.
         await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))

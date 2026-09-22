@@ -512,9 +512,7 @@ async def delegation_allowed(
             # Guild content lives in the guild's own schema, so the read is
             # routed there. `admin` because this asks what the guild has and
             # what one member said, not what any particular caller may see.
-            await db_session.set_rls_context(
-                session, guild_id=guild_id, guild_role="admin"
-            )
+            await db_session.set_rls_context(session, guild_id=guild_id)
             found = (
                 await session.exec(
                     select(GuildApp.id)

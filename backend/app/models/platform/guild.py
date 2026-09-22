@@ -391,29 +391,6 @@ def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     return GUILD_ASSIGNABLE_ROLES
 
 
-def content_role(role: GuildRole) -> str:
-    """What ``app.current_guild_role`` should carry for this membership.
-
-    The GUC answers one question — what content access does this request have —
-    and a superadmin's answer is an admin's. Keeping it to two values is why
-    adding a third stored role changes no RLS policy: every
-    ``current_guild_role = 'admin'`` leg, on ``public`` and inside each guild
-    schema, keeps meaning exactly what it meant.
-
-    What tells the two apart is the membership row, read where that distinction
-    is actually needed.
-    """
-    return GuildRole.admin.value if role in GUILD_ADMIN_ROLES else role.value
-
-
-#: Every value ``app.current_guild_role`` can carry, derived by putting each
-#: stored role through :func:`content_role`. There are two, and the context
-#: seam validates against this rather than restating the pair.
-CONTENT_ROLES: frozenset[str] = frozenset(
-    content_role(role) for role in GUILD_STORED_ROLES
-)
-
-
 class GuildMembership(SQLModel, table=True):
     __tablename__ = "guild_memberships"
     __allow_unmapped__ = True

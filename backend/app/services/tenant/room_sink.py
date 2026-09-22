@@ -279,7 +279,7 @@ async def deliver(payload: str) -> None:
         return
     try:
         async with db_session.AdminSessionLocal() as session:
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             rows = await _rows_of_transaction(session, int(txn))
             if guild_id not in _delivered:
                 # First read of this guild here. Everything else already in the
@@ -316,7 +316,7 @@ async def process_room_sweep() -> None:
         for guild_id in watched:
             session.expunge_all()
             try:
-                await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+                await set_rls_context(session, guild_id=guild_id)
                 rows = await _rows_in_window(session)
                 await _open_new_rooms(session, guild_id, rows)
                 sent = _delivered.get(guild_id)

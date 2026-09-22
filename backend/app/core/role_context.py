@@ -4,7 +4,7 @@ The deps layer records the authenticated user's role in the request's active
 guild here (mirroring ``pam_context``). The sync app-layer access check
 (``permissions.require_access``) consults it for the
 guild-admin leg of the initiative-scope gate — the leg the old RESTRICTIVE RLS
-policies expressed as ``current_setting('app.current_guild_role') = 'admin'`` —
+policies express as ``current_setting('app.guild_admin') = 'true'`` —
 without the session being threaded through them.
 
 Keyed by guild id so a context recorded for the request's active guild never
@@ -80,8 +80,6 @@ def is_request_guild_admin(
         return False
     role = guild_role if guild_role is not None else active_guild_role(guild_id)
     role_value = role.value if isinstance(role, GuildRole) else role
-    # Either stored role, and the GUC's own value — a request already carries
-    # ``admin`` there for both (``content_role``).
     return role_value in {r.value for r in GUILD_ADMIN_ROLES}
 
 

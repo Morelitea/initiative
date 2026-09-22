@@ -63,7 +63,8 @@ def initiative_scope_clause(
     the exact same predicate the guild-schema RLS policies use. There is one rule,
     in one place, called by both the database and the app.
 
-    Because the function reads ``app.current_guild_role`` / ``app.pam_*`` from the
+    Because the function reads the request's standing (``app.guild_admin``,
+    ``app.member_initiatives``) and ``app.pam_*`` from the
     session GUCs, the guild-admin and PAM legs come "for free" on any routed
     session (``RLSSessionDep`` or a per-guild ``set_rls_context``). ``need_write``
     selects the read vs. write PAM leg.

@@ -11,9 +11,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
-from sqlalchemy import Select, Text, cast, event, func, literal_column, text
-from sqlalchemy import select as sa_select
-from sqlalchemy.dialects.postgresql import aggregate_order_by
+from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
@@ -22,6 +20,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
+from app.db.guild_standing import (
+    GuildContext,
+    compute_guild_standing,
+    empty_standing,
+    standing_bind_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -185,15 +189,14 @@ CONNECTION_RESET_SQL = (
     f"set_config('search_path', '{_search_path('public')}', false)"
 )
 
-#: The GUC naming the initiatives this request holds "Full access" in. Written
-#: with the rest of the context below, and on its own by
-#: :func:`apply_override_initiatives` once the routed schema can answer for it.
+#: The GUC naming the initiatives this request holds "Full access" in. One of
+#: the standing keys: written empty by the routing statement below and filled
+#: by the standing statement (``app.db.guild_standing``).
 OVERRIDE_INITIATIVES_GUC = "app.override_initiatives"
 
 _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
-    "set_config('app.current_guild_role', :grole, true), "
     "set_config('app.pam_guild_id', :pgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
@@ -203,22 +206,48 @@ _CONTEXT_SQL = (
     "set_config('app.platform_role', :prole, true), "
     "set_config('app.platform_factor', :pfac, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
-    f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.scope_initiative_id', :sinit, true), "
     "set_config('app.via_dashboard_id', :vdash, true), "
     "set_config('app.query', :q, true), "
+    "set_config('app.guild_auth_ok', :gok, true), "
+    # The reader's standing in the community this routes into — written here
+    # so a routing always states it, and stated as nothing until the statement
+    # that computes it has run. See app.db.guild_standing.
+    "set_config('app.standing_guild_id', :sgid, true), "
+    "set_config('app.guild_admin', :gadm, true), "
+    "set_config('app.guild_seat', :gseat, true), "
+    "set_config('app.settings_rung', :srung, true), "
+    "set_config('app.member_initiatives', :minit, true), "
+    "set_config('app.manager_initiatives', :mginit, true), "
+    "set_config('app.member_role_ids', :mrole, true), "
+    "set_config('app.role_grants', :rgr, true), "
+    "set_config('app.role_denies', :rdn, true), "
+    "set_config('app.enabled_tools', :etool, true), "
+    f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
 
 
-_OVERRIDE_SQL = f"SELECT set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true)"
+#: The standing keys, as the statement above names them. One mapping rather
+#: than the pair of spellings repeated at each of the three return points.
+_STANDING_BINDS: dict[str, str] = {
+    "standing_guild_id": "sgid",
+    "guild_admin": "gadm",
+    "guild_seat": "gseat",
+    "settings_rung": "srung",
+    "member_initiatives": "minit",
+    "manager_initiatives": "mginit",
+    "member_role_ids": "mrole",
+    "role_grants": "rgr",
+    "role_denies": "rdn",
+    "enabled_tools": "etool",
+    "override_initiatives": "ovr",
+}
 
 
-def _override_csv(initiative_ids: Optional[Sequence[int]]) -> str:
-    """The GUC form of a "Full access" set: a sorted comma list the policy
-    reads with one ``string_to_array``, empty when there are none."""
-    return ",".join(str(i) for i in sorted({int(i) for i in initiative_ids or ()}))
+def _standing_binds(standing: dict[str, str]) -> dict[str, str]:
+    return {bind: standing[key] for key, bind in _STANDING_BINDS.items()}
 
 
 def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
@@ -229,7 +258,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     """
     user_id = params.get("user_id")
     guild_id = params.get("guild_id", params.get("system_guild_id"))
-    guild_role = params.get("guild_role")
     pam_guild_id = params.get("pam_guild_id")
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
@@ -241,7 +269,16 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     system_guild_id = params.get("system_guild_id")
     scope_initiative_id = params.get("scope_initiative_id")
     via_dashboard_id = params.get("via_dashboard_id")
-    override_csv = _override_csv(params.get("override_initiatives"))
+    # The standing, as the seam's statement computed it — or nothing, which is
+    # what a routing writes until that statement has run.
+    context = params.get("context")
+    standing = standing_bind_params(context)
+    if context is not None and context.standing_guild_id is not None:
+        # Recomputed from the grant rows by the same statement, so the grant
+        # flags a replay writes are the database's answer rather than what the
+        # lookup read.
+        pam_read = context.pam_read
+        pam_write = context.pam_write
 
     # Billing-service path (set_billing_context): assumes the
     # initiative_billing role with only the billing GUC set — no
@@ -252,7 +289,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         return {
             "uid": "",
             "gid": "",
-            "grole": "",
             "pgid": "",
             "pr": "false",
             "pw": "false",
@@ -266,10 +302,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "prole": "",
             "pfac": "false",
             "bgid": str(int(billing_guild_id)),
-            "ovr": "",
             "sinit": "",
             "vdash": "",
             "q": "false",
+            # No person and no community, so no standing either: the role is
+            # the whole of what this path may read.
+            "gok": "false",
+            **_standing_binds(empty_standing()),
             "sp": _search_path("public"),
             "role": billing_role_name(),
         }
@@ -365,10 +404,17 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # the rule is scoped by, which every routed request already carries.
     pfac = "true" if params.get("platform_factor") else "false"
 
+    # The community's sign-in gate, which the standing statement answers from
+    # the database for a person. A context with no person behind it is not a
+    # session to gate — the same first leg public.guild_auth_satisfied() reads
+    # — and neither is user-attributed system work whose enqueueing request
+    # already passed it.
+    system_session = user_id is None or satp == SYSTEM_SATISFIED
+    guild_auth_ok = system_session or (context is not None and context.guild_auth_ok)
+
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
-        "grole": guild_role if guild_role is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "amr": amr,
         "prole": platform_role or "",
@@ -378,7 +424,8 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "satc": satc,
         "bgid": "",
-        "ovr": override_csv,
+        "gok": "true" if guild_auth_ok else "false",
+        **_standing_binds(standing),
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
@@ -428,7 +475,7 @@ async def set_rls_context(
     session: AsyncSession,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
-    guild_role: Optional[str] = None,
+    context: Optional[GuildContext] = None,
     pam_guild_id: Optional[int] = None,
     pam_read: bool = False,
     pam_write: bool = False,
@@ -439,7 +486,6 @@ async def set_rls_context(
     satisfied_claims: Optional[dict] = None,
     session_amr: frozenset[str] | None = None,
     platform_factor: Optional[bool] = None,
-    override_initiatives: Optional[Sequence[int]] = None,
     scope_initiative_id: Optional[int] = None,
     via_dashboard_id: Optional[int] = None,
     settings_guild_id: Optional[int] = None,
@@ -455,6 +501,15 @@ async def set_rls_context(
     All variables are always written (defaulting to empty/false)
     so that stale values from a previous request on the same pooled
     connection can never leak into the current request.
+
+    ``context`` is a person's standing in the community this routes into, as
+    the establishment seam computed it (``app.db.guild_standing``). It carries
+    the values the initiative gates read — membership, initiative roles, the
+    admin fact, the tool switches — and is written with the routing so the two
+    always name the same community. A routing with no context writes the
+    standing empty, which answers no on every one of those legs. Routing a
+    person into a community without one is refused: the seam is where that
+    decision is made, and ``establish_guild_access`` is the way to it.
 
     ``pam_read`` / ``pam_write`` flag a time-bound Privileged Access
     Management grant for the guild named by ``pam_guild_id``: additive RLS
@@ -497,8 +552,8 @@ async def set_rls_context(
     path assumes ``platform_<tier>`` instead of the bare login role, so the request
     is role-scoped at the database (fail-closed) rather than running with the login
     role's broad standing grants. It is ignored when the request routes into a guild
-    schema (the guild role governs there) — pass it anyway, so the tier is on the
-    session for the trip back out.
+    schema (the community's own role governs there) — pass it anyway, so the
+    tier is on the session for the trip back out.
 
     The tier is remembered **for the request** — in the SQLAlchemy session's
     Python state, not on the connection — and reapplied to any later call that
@@ -514,24 +569,23 @@ async def set_rls_context(
     on the session handed to it and touches no task-scoped state, which is what
     makes it safe to call on a *second* session while a request is being served
     — ``published_views`` loading a row as its author, ``intake`` opening a case
-    in the operations guild. Recording the contextvars the sync DAC engine reads
-    is the establishment seam's job (``deps._apply_guild_session_context``, via
-    ``establish_guild_access``): that state belongs to the task, this call
-    belongs to one session, and the two scopes are kept apart. See
-    ``core/role_context_test.py``.
+    in the operations guild. Resolving who somebody is in a community, and
+    computing what that gives them, is the establishment seam's job
+    (``deps.apply_guild_session_context``, via ``establish_guild_access``):
+    this call applies the answer it reached.
     """
     # Which of the request shapes these arguments form — and a refusal if they
     # form none of them. This is where the rules that used to be prose in this
-    # docstring are actually applied: a grant carrying a guild, a guild role
-    # with no guild, a stored role that never went through ``content_role``.
-    # Imported here, beside the tier list below, to keep this module's import
-    # graph as it is.
+    # docstring are actually applied: a grant carrying a guild, a narrowing
+    # with nothing to narrow, a person routed into a community without the
+    # standing the seam computes. Imported here, beside the tier list below,
+    # to keep this module's import graph as it is.
     from app.db.request_context import classify
 
     classify(
         user_id=user_id,
         guild_id=guild_id,
-        guild_role=guild_role,
+        context=context,
         pam_guild_id=pam_guild_id,
         pam_read=pam_read,
         pam_write=pam_write,
@@ -542,7 +596,6 @@ async def set_rls_context(
         satisfied_providers=satisfied_providers,
         satisfied_claims=satisfied_claims,
         session_amr=session_amr,
-        override_initiatives=override_initiatives,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
     )
@@ -599,7 +652,7 @@ async def set_rls_context(
     session.info[_RLS_PARAMS_INFO_KEY] = {
         "user_id": user_id,
         "guild_id": guild_id,
-        "guild_role": guild_role,
+        "context": context,
         "pam_guild_id": pam_guild_id,
         "pam_read": pam_read,
         "pam_write": pam_write,
@@ -611,7 +664,6 @@ async def set_rls_context(
         "satisfied_claims": satisfied_claims,
         "session_amr": session_amr,
         "platform_factor": platform_factor,
-        "override_initiatives": tuple(override_initiatives or ()),
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
     }
@@ -640,71 +692,23 @@ def rls_context_params(session: AsyncSession) -> dict[str, Any]:
     return dict(params)
 
 
-async def set_override_initiatives(
-    session: AsyncSession, initiative_ids: Sequence[int]
-) -> None:
-    """Record the initiatives this request holds "Full access" in.
+async def apply_guild_standing(
+    session: AsyncSession, context: GuildContext
+) -> GuildContext:
+    """Compute this request's standing and record it on the session.
 
-    Set after :func:`set_rls_context`, because the ids are read from the guild
-    schema the routing selects. Stored with the other context parameters so the
-    replay hook carries them onto every later transaction, rather than living
-    only on the connection this call happens to be holding.
-
-    Only this one GUC is written. Every other value reached the open
-    transaction when the context was applied and has not changed since, and
-    what carries them onto the next transaction is the stored params, not the
-    connection.
+    The second half of the establishment seam: the routing has just written the
+    community context and cleared every standing key, so what
+    :data:`app.db.guild_standing.STANDING_SQL` writes is the whole of it. Its
+    returned row completes ``context``, which is stored with the routing
+    parameters so the replay hook re-applies routing and standing together —
+    one entry, one community.
     """
-    params = session.info.get(_RLS_PARAMS_INFO_KEY)
-    if params is None:
-        return
-    params["override_initiatives"] = tuple(initiative_ids)
-    if session.in_transaction():
-        await session.exec(
-            text(_OVERRIDE_SQL), params={"ovr": _override_csv(initiative_ids)}
-        )
-
-
-async def apply_override_initiatives(
-    session: AsyncSession, initiative_id_select: Select[Any]
-) -> frozenset[int]:
-    """Resolve this request's "Full access" initiatives and write their GUC in
-    one statement, returning the ids.
-
-    ``initiative_id_select`` is a one-column select of initiative ids out of
-    the guild schema the session has just been routed into — see
-    :func:`app.services.rls.override_sharing_initiatives_select`, which is
-    where the rule for which ones lives. The set is only answerable once that
-    routing is in place, so asking for it and recording it was a query followed
-    by a context write. Folding the answer straight into ``set_config`` makes
-    the pair one round trip, and ``set_config`` hands the value back, so the
-    caller still gets the ids.
-    """
-    ids = initiative_id_select.distinct().subquery()
-    initiative_id = ids.c[0]
-    csv = (
-        sa_select(
-            func.coalesce(
-                func.string_agg(
-                    cast(initiative_id, Text),
-                    aggregate_order_by(literal_column("','"), initiative_id),
-                ),
-                "",
-            )
-        )
-        .select_from(ids)
-        .scalar_subquery()
-    )
-    written = (
-        await session.exec(
-            sa_select(func.set_config(OVERRIDE_INITIATIVES_GUC, csv, True))
-        )
-    ).one()[0]
-    override_ids = frozenset(int(part) for part in written.split(",") if part)
+    completed = context.with_standing(await compute_guild_standing(session))
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is not None:
-        params["override_initiatives"] = tuple(sorted(override_ids))
-    return override_ids
+        params["context"] = completed
+    return completed
 
 
 def routed_guild_id(session: AsyncSession) -> int | None:
@@ -785,7 +789,6 @@ async def guild_schema_context(
     session: AsyncSession,
     *,
     guild_id: int,
-    guild_role: str = "admin",
 ) -> AsyncGenerator[AsyncSession, None]:
     """Borrow an already-open session for one guild's schema, then hand it back.
 
@@ -812,7 +815,7 @@ async def guild_schema_context(
     previous_tier = session.info.get(_RLS_TIER_INFO_KEY)
     routed = False
     try:
-        await set_rls_context(session, guild_id=guild_id, guild_role=guild_role)
+        await set_rls_context(session, guild_id=guild_id)
         routed = True
         yield session
     finally:
@@ -834,30 +837,6 @@ async def guild_schema_context(
         if previous is None:
             session.info.pop(_RLS_PARAMS_INFO_KEY, None)
             session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
-
-
-@asynccontextmanager
-async def rls_session(
-    user_id: int,
-    guild_id: int,
-    guild_role: Optional[str] = None,
-) -> AsyncGenerator[AsyncSession, None]:
-    """Context manager that provides a session with RLS context set.
-
-    Example:
-        async with rls_session(user_id=1, guild_id=2) as session:
-            # All queries in this session will be filtered by RLS
-            projects = await session.exec(select(Project))
-    """
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await set_rls_context(
-                session,
-                user_id=user_id,
-                guild_id=guild_id,
-                guild_role=guild_role,
-            )
-            yield session
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
