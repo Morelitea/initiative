@@ -304,7 +304,7 @@ async def duplicate_document(
     # Enforce the guild's storage quota BEFORE copying any bytes — a rejected
     # clone must not leave orphaned blobs on storage. Size it from the source
     # blobs it will duplicate (a copy is the same size as its source).
-    effective_guild_id = guild_id or routed_guild_id()
+    effective_guild_id = guild_id or routed_guild_id(session)
     if effective_guild_id is not None:
         clone_source_urls = list(content_uploads)
         if source.featured_image_url:
