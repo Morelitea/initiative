@@ -45,6 +45,11 @@ class AuditEventType(str, Enum):
     AUTH_SIGNED_IN = "auth.signed_in"
     AUTH_SIGN_IN_FAILED = "auth.sign_in_failed"
     AUTH_SIGNED_OUT = "auth.signed_out"
+    #: The account ended a session other than the one it was asking from —
+    #: a row in its own "where you're signed in" list, or all of them at
+    #: once. Apart from a sign-out because the session that ends is not the
+    #: session that asked, which is the whole point of recording it.
+    AUTH_SESSION_REVOKED = "auth.session_revoked"
     AUTH_PASSWORD_CHANGED = "auth.password_changed"
     #: The account gave its password up and signs in by another way from
     #: now on. Recorded apart from a change, because what the account holds
@@ -288,6 +293,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
     ),
     AuditEventType.AUTH_SIGNED_OUT: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SESSION_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_PASSWORD_CHANGED: AuditEventMeta(

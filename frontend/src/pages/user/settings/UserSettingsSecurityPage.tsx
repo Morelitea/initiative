@@ -1,21 +1,11 @@
-import { Smartphone, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 
-import type { ApiKeyMetadata, DeviceTokenInfo } from "@/api/generated/initiativeAPI.schemas";
+import type { ApiKeyMetadata } from "@/api/generated/initiativeAPI.schemas";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SignedInSection } from "@/components/settings/SignedInSection";
 import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,13 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  useCreateApiKey,
-  useDeleteApiKey,
-  useDeviceTokens,
-  useMyApiKeys,
-  useRevokeDeviceToken,
-} from "@/hooks/useSecurity";
+import { useCreateApiKey, useDeleteApiKey, useMyApiKeys } from "@/hooks/useSecurity";
 import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
 
@@ -56,7 +40,6 @@ export const UserSettingsSecurityPage = () => {
   const [expiresAtInput, setExpiresAtInput] = useState("");
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<DeviceTokenInfo | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [guildId, setGuildId] = useState<string>("all");
 
@@ -96,20 +79,6 @@ export const UserSettingsSecurityPage = () => {
   });
 
   // Device tokens queries and mutations
-  const devicesQuery = useDeviceTokens();
-
-  const revokeToken = useRevokeDeviceToken({
-    onSuccess: () => {
-      toast.success(t("security.revokeSuccess"));
-    },
-    onError: () => {
-      toast.error(t("security.revokeError"));
-    },
-    onSettled: () => {
-      setRevokeTarget(null);
-    },
-  });
-
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = name.trim();
@@ -135,14 +104,7 @@ export const UserSettingsSecurityPage = () => {
     createKey.mutate(payload);
   };
 
-  const handleRevoke = () => {
-    if (revokeTarget) {
-      revokeToken.mutate(revokeTarget.id);
-    }
-  };
-
   const apiKeys = useMemo(() => apiKeysQuery.data?.keys ?? [], [apiKeysQuery.data?.keys]);
-  const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
 
   const copySecret = () => {
     if (!generatedSecret || !navigator?.clipboard) {
@@ -167,57 +129,7 @@ export const UserSettingsSecurityPage = () => {
         <PasskeysSection />
       </SettingsSection>
 
-      <SettingsSection
-        title={t("security.devicesTitle")}
-        description={t("security.devicesDescription")}
-      >
-        {devicesQuery.isLoading ? (
-          <p className="text-muted-foreground text-sm">{t("security.loadingDevices")}</p>
-        ) : devicesQuery.isError ? (
-          <p className="text-destructive text-sm">{t("security.devicesError")}</p>
-        ) : devices.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center text-muted-foreground">
-            <Smartphone className="h-10 w-10 opacity-50" />
-            <div>
-              <p className="font-medium">{t("security.noDevices")}</p>
-              <p className="text-sm">{t("security.noDevicesHint")}</p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {devices.map((device) => (
-              <div
-                key={device.id}
-                className="flex items-center justify-between gap-4 rounded-lg border p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {device.device_name ?? t("security.unknownDevice")}
-                    </p>
-                    <p className="text-muted-foreground text-sm">
-                      {t("security.loggedIn", { date: formatDateTime(device.created_at) })}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRevokeTarget(device)}
-                  disabled={revokeToken.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {t("security.revoke")}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </SettingsSection>
+      <SignedInSection />
 
       {generatedSecret ? (
         <SettingsSection
@@ -384,29 +296,6 @@ export const UserSettingsSecurityPage = () => {
           </div>
         )}
       </SettingsSection>
-
-      {/* Revoke Device Dialog */}
-      <AlertDialog open={revokeTarget !== null} onOpenChange={() => setRevokeTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("security.revokeDialogTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              <Trans
-                i18nKey="security.revokeDialogDescription"
-                ns="settings"
-                values={{ deviceName: revokeTarget?.device_name ?? t("security.unknownDevice") }}
-                components={{ bold: <span className="font-medium" /> }}
-              />
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("security.revokeDialogCancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRevoke} disabled={revokeToken.isPending}>
-              {revokeToken.isPending ? t("security.revoking") : t("security.revokeDialogConfirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
