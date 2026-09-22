@@ -29,8 +29,9 @@ are different rows. Two things keep one from answering under another's
 routing. The routing statement writes ``''`` into every key here, so between
 routing and standing the standing is empty and an empty standing answers no on
 every membership leg. And the standing records the community it was computed
-for (``app.standing_guild_id``), which every gate that reads it compares
-against the routed one.
+for (``app.standing_guild_id``) — a member's routed community, or the one a
+grantee's grant names — which every gate that reads it compares against the
+routed one.
 
 **Where it lives.** In ``session.info`` as part of the stored routing
 parameters, so the ``after_begin`` replay hook re-applies the routing and the
@@ -66,10 +67,14 @@ __all__ = [
 # ''::int raises and faults the whole statement (CLAUDE.md §6).
 _UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
 _GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
-#: The community a grant reaches, which a grantee carries instead of ``_GID``.
+#: The community a content grant reaches, which a grantee carries instead of
+#: ``_GID``.
 _PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
-#: Whichever of the two names the community this session is routed into.
-_ROUTED_GID = f"COALESCE({_GID}, {_PAM_GID})"
+#: The community a settings grant reaches, which a grantee holding only one
+#: carries instead of either.
+_SETTINGS_GID = "NULLIF(current_setting('app.settings_guild_id', true), '')::int"
+#: Whichever of the three names the community this session is routed into.
+_ROUTED_GID = f"COALESCE({_GID}, {_PAM_GID}, {_SETTINGS_GID})"
 
 #: A grant that is in force right now — approved, unexpired, still standing.
 #: One definition, used by the statement below and by the ``access_grants``
@@ -126,7 +131,11 @@ STANDING_GUCS: tuple[str, ...] = (
 STANDING_SQL = f"""
 SELECT
   set_config('app.standing_guild_id',
-    COALESCE(current_setting('app.current_guild_id', true), ''), true) AS standing_guild_id,
+    COALESCE(
+      NULLIF(current_setting('app.current_guild_id', true), ''),
+      NULLIF(current_setting('app.pam_guild_id', true), ''),
+      NULLIF(current_setting('app.settings_guild_id', true), ''),
+      ''), true) AS standing_guild_id,
   set_config('app.guild_admin', COALESCE((
       SELECT (m.role IN ('admin', 'superadmin'))::text
       FROM public.guild_memberships m

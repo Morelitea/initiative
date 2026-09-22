@@ -198,6 +198,7 @@ _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
     "set_config('app.pam_guild_id', :pgid, true), "
+    "set_config('app.settings_guild_id', :setgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
@@ -290,6 +291,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "uid": "",
             "gid": "",
             "pgid": "",
+            "setgid": "",
             "pr": "false",
             "pw": "false",
             "satp": "",
@@ -416,6 +418,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
+        "setgid": str(int(settings_guild_id)) if settings_guild_id is not None else "",
         "amr": amr,
         "prole": platform_role or "",
         "pfac": pfac,

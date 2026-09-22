@@ -1972,8 +1972,10 @@ async def leave_guild(
     # ``UserSessionDep`` only sets the user_id; releasing the leaver's owner
     # grants below writes to guild-scoped tables whose RLS is evaluated against
     # the current guild context. Now that membership is confirmed, set the full
-    # context so those writes aren't filtered to zero rows.
-    await establish_guild_access(session, current_user, guild_id)
+    # context so those writes aren't filtered to zero rows. Leaving is about
+    # the membership row rather than the community's content, so it routes the
+    # way its configuration surface does.
+    await establish_guild_access(session, current_user, guild_id, for_settings=True)
 
     # Ahead of the check below, so its answer is still true when the departure
     # is written. Counting a guild's seats is a question about the guild rather

@@ -210,7 +210,10 @@ class InitiativeRead(InitiativeBase):
     )
 
     id: int
-    guild_id: int
+    #: The community this initiative was read in. Set by
+    #: :func:`serialize_initiative`; a payload pydantic builds while validating
+    #: another carries none until that serializer replaces it.
+    guild_id: Optional[int] = None
     is_default: bool = False
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None

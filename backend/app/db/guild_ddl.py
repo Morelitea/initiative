@@ -40,6 +40,7 @@ from app.db.initiative_rls import (
 )
 from app.db.authorization import (
     GUILD_ADMIN,
+    SETTINGS_ADMIN,
     SYSTEM_SESSION,
     render_guild_authorization_functions,
 )
@@ -208,7 +209,7 @@ _OWN_ROW_SECTION = """\
 # table (same rule as the public shared-table policies; see CLAUDE.md §5).
 _OWN_ROW_PREDICATE = (
     "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-    f" OR {SYSTEM_SESSION} OR {GUILD_ADMIN})"
+    f" OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
 )
 
 _COMMANDS = (

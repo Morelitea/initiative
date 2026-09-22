@@ -25,6 +25,7 @@ from app.testing import (
     create_queue,
     create_user,
 )
+from app.testing.schema_harness import route_session_to_guild
 
 
 async def _set_app_user(session: AsyncSession) -> None:
@@ -154,6 +155,7 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(
     await reader.rollback()
 
     # Nothing was written.
+    await route_session_to_guild(session, guild.id)
     persisted = (
         await session.exec(
             text("SELECT count(*) FROM guild_settings"),

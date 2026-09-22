@@ -687,7 +687,7 @@ async def test_db_layer_blocks_unsatisfied_session(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
-    user_id, guild_id, provider_id = a.user.id, a.guild.id, provider.id
+    user_id, guild_id = a.user.id, a.guild.id
 
     app_session = await role_session("app_user")
 
@@ -698,12 +698,12 @@ async def test_db_layer_blocks_unsatisfied_session(
     with pytest.raises(GuildAccessError):
         await route_as(app_session, user_id=user_id, guild_id=guild_id)
 
-    # Satisfied session: content visible.
+    # User-attributed system work carries the sentinel, and reads the rows.
     await route_as(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        satisfied_providers=[provider_id],
+        satisfied_providers=SYSTEM_SATISFIED,
     )
     assert await _visible_projects() == 1
 
@@ -713,18 +713,11 @@ async def test_db_layer_blocks_unsatisfied_session(
     assert await _visible_projects() == 0
     await app_session.rollback()
 
-    # User-attributed system work carries the sentinel.
-    await route_as(
-        app_session,
-        user_id=user_id,
-        guild_id=guild_id,
-        satisfied_providers=SYSTEM_SATISFIED,
-    )
-    assert await _visible_projects() == 1
-
-    # Pure system routing (no user context) is not a session to gate.
+    # A routing with nobody behind it is not a session to gate — and on the
+    # request login it is not a sweep either: what admits a sweep is the
+    # connection's own login, which this is not, so it reads nothing.
     await set_rls_context(app_session, guild_id=guild_id)
-    assert await _visible_projects() == 1
+    assert await _visible_projects() == 0
 
 
 # --- The rule is decided twice, and the two must agree ----------------------

@@ -377,8 +377,8 @@ export const useSettleReportApiV1GGuildIdReportsReportIdSettlePost = <
  * initiative *membership*, which is right for reading the grants on a
  * resource you can already reach and too wide for an aggregate over every
  * resource in the initiative. The standing required is the one the moderation
- * tables admit — "Full access", or guild admin — read from the same
- * request context the sharing override itself uses.
+ * tables admit — "Full access", or guild admin — read from the standing the
+ * seam computed for this request.
  * @summary Read Initiative Sharing
  */
 export const readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet = (
