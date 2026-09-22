@@ -36,7 +36,7 @@ from app.api.deps import (
 )
 from app.core.messages import DocumentMessages
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import AsyncSessionLocal, set_rls_context
+from app.db.session import AsyncSessionLocal
 from app.models.platform.user import User
 from app.services.tenant.collaboration import (
     broadcast_awareness,
@@ -478,7 +478,7 @@ async def _collaborate(
         # and only once nothing is connected to it — another tab of the same
         # account is another connection, and keeps it.
         async with AsyncSessionLocal() as session:
-            await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+            await establish_guild_access(session, user, guild_id)
             await collaboration_manager.persist_room(
                 guild_id, spec.resource_type, resource_id, session
             )

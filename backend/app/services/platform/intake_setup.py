@@ -62,7 +62,7 @@ async def _route(session: AsyncSession, guild_id: int) -> None:
     cached from ``public`` (or from another guild) may be handed back here.
     """
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
 
 async def _unroute(session: AsyncSession) -> None:

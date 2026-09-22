@@ -1291,12 +1291,9 @@ async def approve_user(
         await session.commit()
         await session.refresh(user)
     # Initiative roles live in the guild schema; SET ROLE into it for the read.
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
+    # Platform management, on the system engine, which the policies admit by
+    # the connection's own login rather than by anything this call says.
+    await set_rls_context(session, guild_id=guild_context.guild_id)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
@@ -1595,12 +1592,6 @@ async def list_unowned_content(
     Both the content released when someone left and anything orphaned before
     that — either way nobody who can act on it owns it.
     """
-    await set_rls_context(
-        session,
-        user_id=current_admin.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
     return _ownership_payload(
         await ownership_service.summarize_unowned_content(
             session, guild_id=guild_context.guild_id
@@ -1616,12 +1607,6 @@ async def claim_unowned_content(
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
     """Give everything nobody owns to one guild admin."""
-    await set_rls_context(
-        session,
-        user_id=current_admin.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
     await _require_receiving_admin(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
@@ -1647,12 +1632,6 @@ async def list_owned_content(
     Works for anyone the grants still name, member or not — accounts get
     abandoned as often as they get closed.
     """
-    await set_rls_context(
-        session,
-        user_id=current_admin.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
     return _ownership_payload(
         await ownership_service.summarize_owned_content(session, user_id)
     )
@@ -1677,12 +1656,6 @@ async def transfer_ownership(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.OWNER_ALREADY_HOLDS_CONTENT,
         )
-    await set_rls_context(
-        session,
-        user_id=current_admin.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
     await _require_receiving_admin(
         session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
     )
@@ -1712,12 +1685,6 @@ async def delete_user(
     reachable by them, until an admin re-homes it through
     ``POST /{user_id}/transfer-ownership``.
     """
-    await set_rls_context(
-        session,
-        user_id=current_admin.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
 
     # A platform question — whether the platform would be left with no config
     # manager — so it is asked on the system engine rather than through the

@@ -19,6 +19,7 @@ from app.testing.app_channel import (
     register_app_service,
 )
 from app.testing.factories import (
+    create_access_grant,
     grant_role_permission,
     TOOL_FACTORIES,
     billing_guild_ref,
@@ -85,6 +86,7 @@ from app.testing.passkeys import (
     stub_assertion,
     stub_registration,
 )
+from app.testing.routing import route_as, route_system
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
@@ -133,6 +135,7 @@ __all__ = [
     "create_document_property_value",
     "create_federated_identity",
     "create_guild_auth_policy",
+    "create_access_grant",
     "create_guild",
     "guild_administration",
     "create_guild_app",
@@ -159,5 +162,7 @@ __all__ = [
     "get_auth_headers",
     "get_auth_token",
     "guild_of",
+    "route_as",
     "route_session_to_guild",
+    "route_system",
 ]

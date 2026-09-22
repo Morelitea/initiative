@@ -139,9 +139,7 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     policies decide from here; a frozen guild is routed to its SELECT-only role
     so no write can land in it whatever the caller asked for."""
     session.expunge_all()
-    await set_rls_context(
-        session, guild_id=guild_id, guild_role="admin", read_only=read_only
-    )
+    await set_rls_context(session, guild_id=guild_id, read_only=read_only)
 
 
 async def _install_guild_ref(app: GuildApp) -> str:

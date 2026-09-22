@@ -16,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.db.query import MAX_ID_FILTER_VALUES
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
@@ -41,6 +40,7 @@ from app.testing.factories import (
     create_user,
     get_auth_token,
 )
+from app.testing import route_as
 
 #: Every test here drives the API through the real app and a real database.
 pytestmark = pytest.mark.integration
@@ -242,7 +242,7 @@ async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
     initiative = await create_initiative(session, guild, user, name="Queue")
     project = await create_project(session, initiative, user, name="Queue Project")
     task = await create_task(session, project, title="Queued")
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         TaskAssignmentDigestItem(
             user_id=user.id,
@@ -258,7 +258,7 @@ async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
 
 async def _pending_assignment_items(session: AsyncSession, user, guild) -> int:
     session.expunge_all()
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     rows = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(

@@ -14,14 +14,14 @@ property of the routed session.
 import pytest
 from sqlalchemy import text
 
-from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
 from app.testing import (
     create_guild,
+    create_guild_membership,
     create_initiative,
     create_project,
     create_task,
     create_user,
+    route_as,
 )
 
 pytestmark = pytest.mark.database
@@ -48,9 +48,7 @@ async def routed(role_session, workspace):
     """
     owner, guild, *_ = workspace
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=owner.id, guild_id=guild.id, guild_role=GuildRole.member.value
-    )
+    await route_as(s, user_id=owner.id, guild_id=guild.id)
     yield s
     await s.rollback()
 
@@ -99,13 +97,17 @@ class TestInitiativeAccessBindsTheRoutedSchema:
     async def test_a_non_member_stays_a_non_member(
         self, session, role_session, workspace
     ):
-        """The gate answers from the guild's own membership rows."""
+        """The gate answers from the guild's own membership rows.
+
+        The outsider belongs to the community but to none of its initiatives,
+        which is what a routing can be established for — somebody in neither
+        reaches no schema at all.
+        """
         _, guild, first, *_ = workspace
         outsider = await create_user(session)
+        await create_guild_membership(session, user=outsider, guild=guild)
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=outsider.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=outsider.id, guild_id=guild.id)
         await s.exec(
             text(
                 "CREATE TEMP TABLE initiative_members (initiative_id int, user_id int)"

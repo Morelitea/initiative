@@ -1,9 +1,9 @@
 """The seat above admin, and the one thing it must not cost.
 
 ``superadmin`` is a third stored role. What keeps that from touching the
-tenancy model is that ``app.current_guild_role`` still carries two values — it
-answers what content access a request has, and a superadmin's answer is an
-admin's. These pin both halves: the authority it has, and the GUC it does not
+tenancy model is that no policy asks which of the three it is: the standing
+carries one fact, ``app.guild_admin``, computed from the row by the database.
+These pin both halves — the authority the seat has, and the gate it does not
 widen.
 """
 
@@ -12,8 +12,8 @@ from fastapi import HTTPException
 
 from app.api import deps
 from app.core.role_context import is_request_guild_admin
+from app.db.guild_standing import GuildContext
 from app.models.platform.guild import (
-    CONTENT_ROLES,
     GUILD_ADMIN_ROLES,
     GUILD_ASSIGNABLE_ROLES,
     GUILD_STORED_ROLES,
@@ -21,7 +21,6 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildRole,
     assignable_roles,
-    content_role,
 )
 from app.services import rls as rls_service
 
@@ -41,29 +40,22 @@ def test_a_member_still_does_not():
         rls_service.require_guild_admin(GuildRole.member)
 
 
-def test_the_guc_still_carries_two_values():
-    """The reason no RLS policy changed.
+def test_the_gate_asks_one_question_about_three_roles():
+    """The reason a third stored role changed no policy.
 
-    Every ``current_guild_role = 'admin'`` leg — on ``public`` and inside every
-    guild schema — keeps meaning what it meant, because a superadmin
-    arrives there as an admin.
+    Every gate reads one fact — does this reader administer the community —
+    and the standing statement computes it from the membership row with the
+    two admin rungs named there, so the seat reaches what an admin reaches
+    without any leg being rewritten.
     """
-    assert content_role(GuildRole.superadmin) == "admin"
-    assert content_role(GuildRole.admin) == "admin"
-    assert content_role(GuildRole.member) == "member"
-    # Said once more from the other end: three roles can sit in a membership
-    # row, and putting all three through ``content_role`` yields two values.
-    # ``superadmin`` is deliberately absent from the result — it arrives as
-    # ``admin``, which is what lets every policy leg stay as it was written.
+    assert GUILD_ADMIN_ROLES == {GuildRole.admin, GuildRole.superadmin}
     assert GuildRole.superadmin in GUILD_STORED_ROLES
-    assert GuildRole.superadmin.value not in CONTENT_ROLES
-    assert {content_role(role) for role in GUILD_STORED_ROLES} == CONTENT_ROLES
-    assert CONTENT_ROLES == {"admin", "member"}
+    assert GuildRole.member not in GUILD_ADMIN_ROLES
 
 
 def test_support_is_not_a_stored_role():
-    """It is synthesized for the length of a PAM request, so it never reaches
-    the GUC — which is why ``content_role`` is not asked about it."""
+    """It is the identity a grant carries for the length of its request, so no
+    membership row holds it and no routing can be asked for it."""
     assert GuildRole.support not in GUILD_STORED_ROLES
     assert GUILD_STORED_ROLES == frozenset(GuildRole) - {GuildRole.support}
 
@@ -94,10 +86,20 @@ def test_support_is_never_assignable_by_anybody():
         assert GuildRole.support not in assignable_roles(by)
 
 
-def _context(role: GuildRole) -> deps.GuildContext:
-    return deps.GuildContext(
+def _context(role: GuildRole) -> GuildContext:
+    """A context shaped as the seam would have built it for this row.
+
+    The admin fact is what the standing statement computed from the membership
+    row, so a fixture states it the same way rather than re-deriving it.
+    """
+    return GuildContext(
         guild=Guild(id=1, name="g"),
+        user_id=2,
+        guild_id=1,
         membership=GuildMembership(guild_id=1, user_id=2, role=role),
+        standing_guild_id=1,
+        admin=role in GUILD_ADMIN_ROLES,
+        seat=role is GuildRole.superadmin,
     )
 
 

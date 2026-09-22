@@ -23,7 +23,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -45,6 +44,7 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
+from app.testing import route_as
 
 LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 
@@ -593,7 +593,7 @@ async def test_unassigning_withdraws_the_pending_digest_item(
     )
     assert assign.status_code == 200
 
-    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    await route_as(session, user_id=user.user.id, guild_id=user.guild.id)
     pending = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(
@@ -610,7 +610,7 @@ async def test_unassigning_withdraws_the_pending_digest_item(
     assert unassign.status_code == 200
 
     session.expunge_all()
-    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    await route_as(session, user_id=user.user.id, guild_id=user.guild.id)
     pending = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(

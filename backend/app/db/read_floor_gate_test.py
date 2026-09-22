@@ -46,7 +46,6 @@ async def test_the_read_floor_can_answer_the_gate(session, engine):
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),
-            ("app.current_guild_role", "member"),
             ("app.satisfied_providers", ""),
             ("app.satisfied_claims", ""),
         ):
@@ -83,7 +82,6 @@ async def test_the_read_floor_reads_a_deployment_wide_answer(session, engine):
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),
-            ("app.current_guild_role", "member"),
             ("app.satisfied_providers", str(provider_id)),
             ("app.satisfied_claims", '{"%s": {"tid": ["acme-tenant"]}}' % provider_id),
         ):
@@ -114,7 +112,6 @@ async def test_the_read_floor_reads_what_the_deployment_asks(session, engine):
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),
-            ("app.current_guild_role", "member"),
             ("app.satisfied_providers", ""),
             ("app.satisfied_claims", ""),
             ("app.platform_role", "member"),

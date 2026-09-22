@@ -338,15 +338,27 @@ def test_the_app_reads_the_same_governing_tool_the_policy_asks_about():
     entry to build the policy. A table where those two answered differently
     would be one where an endpoint authorized against one resource while the
     database gated on another.
+
+    Read off a **write** command. A child's read leg is the walk to its parent
+    and nothing else — the parent's own policy is what asks about sharing
+    there — so the tool is named on the commands that restate it.
     """
     import re
 
-    from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
+    from app.db.initiative_rls import (
+        INITIATIVE_PATHS,
+        dac_asks_at_write,
+        governing_path,
+    )
 
     mismatches = []
     for table, path in sorted(INITIATIVE_PATHS.items()):
         derived = governing_path(table)
-        leg = path.dac.predicate(table, "SELECT", False) if path.dac else None
+        leg = (
+            path.dac.predicate(table, "UPDATE", dac_asks_at_write(table, "UPDATE"))
+            if path.dac
+            else None
+        )
         asked = set(re.findall(r"resource_access\('([a-z_]+)'", leg or ""))
         if derived is None:
             if table not in _NO_SINGLE_PARENT:

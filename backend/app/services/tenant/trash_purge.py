@@ -2,7 +2,7 @@
 
 Polled by ``background_tasks._loop_worker`` once an hour. Connects via
 ``AdminSessionLocal`` (the ``app_admin`` login) and routes into each guild's
-schema as a guild admin (``current_guild_role='admin'``) — that admin leg clears
+schema on the system engine, whose login the policies' system leg names — it clears
 the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
 initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
 ``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
@@ -142,7 +142,7 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     Each guild's trashed rows live in its own schema, so the worker has to visit
     them all. Trash purge is system maintenance with full authority over the
     guild, so it routes into each guild's schema AS A GUILD ADMIN
-    (``current_guild_role='admin'``). That admin leg is what clears both the
+    (the system leg, keyed on the connection's own login). That leg clears both the
     initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
     guard on the soft-delete tables — ``SET ROLE`` drops the system engine's
     BYPASSRLS, so the admin context is what lets the hard deletes through.
@@ -164,7 +164,7 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await _run_purge_pass(session, now=now, guild_id=guild_id)
         await session.commit()
 

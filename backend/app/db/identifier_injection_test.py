@@ -88,11 +88,13 @@ async def test_set_rls_context_rejects_unknown_platform_tier(hostile_platform_ro
         await set_rls_context(None, platform_role=hostile_platform_role)
 
 
-@pytest.mark.parametrize(
-    "hostile_guild_role",
-    ["admin'; --", "owner", "superuser", "Admin", "member x"],
-)
-async def test_set_rls_context_rejects_unknown_guild_role(hostile_guild_role):
-    """The guild role GUC is restricted to {'admin', 'member'} before use."""
-    with pytest.raises(ValueError):
-        await set_rls_context(None, guild_role=hostile_guild_role)
+async def test_set_rls_context_takes_no_role_to_claim():
+    """There is no name sink here at all any more.
+
+    A routing says which community it is in. What the reader is there is a row
+    the database reads into the request's standing, so there is no parameter to
+    hand a value to — hostile or otherwise.
+    """
+    import inspect
+
+    assert "guild_role" not in inspect.signature(set_rls_context).parameters

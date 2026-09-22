@@ -28,6 +28,7 @@ from app.testing.factories import (
     create_task,
 )
 from app.testing.schema_harness import route_session_to_guild
+from app.testing import create_guild_membership, route_as
 
 pytestmark = pytest.mark.integration
 
@@ -135,7 +136,7 @@ async def test_purging_a_tag_takes_its_assignments(session: AsyncSession, acting
     session.add(tag)
     await session.commit()
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await hard_purge_entity(session, tag)
     await session.commit()
 
@@ -190,7 +191,7 @@ async def test_a_tag_assignment_is_invisible_to_a_reader_outside_the_initiative(
 
 
 async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
-    session: AsyncSession, acting_user
+    session: AsyncSession, acting_user, role_session
 ):
     """The gate is one function in ``public`` that reads guild-local tables
     through ``search_path``, so a connection that has served one community must
@@ -205,12 +206,18 @@ async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(
     other = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
+    # The same reader belongs to both, so what changes between the two calls
+    # below is the routing and nothing else.
+    await create_guild_membership(session, user=a.user, guild=other.guild)
+
+    # On the request login: the gate is a policy question, and the setup
+    # session's own login is one the database treats as trusted.
+    reader = await role_session("app_user")
 
     async def reachable(guild_id: int) -> bool:
-        await set_rls_context(session, user_id=a.user.id, guild_id=guild_id)
-        await route_session_to_guild(session, guild_id)
+        await route_as(reader, user_id=a.user.id, guild_id=guild_id)
         return (
-            await session.exec(
+            await reader.exec(
                 text(
                     "SELECT relationship_endpoint_access('task', :id, false)"
                 ).bindparams(id=task_id)

@@ -1218,7 +1218,7 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=staff.id, guild_role="admin")
+    await set_rls_context(session, guild_id=staff.id)
     session.add(IntakeBinding(stream=IntakeStream.support, project_id=project.id))
     await session.commit()
     await set_rls_context(session)

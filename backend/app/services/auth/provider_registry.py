@@ -255,7 +255,7 @@ async def _release_initiative_memberships(
     guild_ids = (await session.exec(select(Guild.id))).all()
     for guild_id in guild_ids:
         session.expunge_all()
-        await db_session.set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await db_session.set_rls_context(session, guild_id=guild_id)
         await session.exec(
             update(InitiativeMember)
             .where(InitiativeMember.oidc_provider_id == provider_id)

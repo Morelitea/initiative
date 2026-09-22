@@ -31,13 +31,18 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.db.initiative_rls import (
+    ANSWERED,
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
     render_endpoint_access_fn,
     InitiativePath,
 )
-from app.db.authorization import render_guild_authorization_functions
+from app.db.authorization import (
+    GUILD_ADMIN,
+    SYSTEM_SESSION,
+    render_guild_authorization_functions,
+)
 from app.db.frozen import (
     FROZEN_TABLES,
     freeze_leg,
@@ -74,13 +79,11 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
     frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
 )
 
-# Admit only a routed guild admin (the GUC ``set_rls_context`` writes from the
-# request's validated membership role; a break-glass full-admin is routed as a
-# synthetic guild admin and also sets it). Matches the guild-admin leg of
-# initiative_access exactly.
-_PURGE_GUARD_PREDICATE = (
-    "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
-)
+# Admit only a community's administrator, or trusted system maintenance.
+# Matches the same two legs of initiative_access exactly: the admin fact the
+# standing statement computed from the membership row, and the connection's own
+# login for a sweep.
+_PURGE_GUARD_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 
 # Who may READ a row that is in the trash. Deleting something takes it out of
 # sight, so the ordinary answer is nobody: the trash is a place to recover from,
@@ -157,10 +160,10 @@ _HEADER = """\
 -- rather than re-deciding the writer's access — see _TRIGGER_WRITTEN_INSERT.
 --
 -- Soft-delete tables additionally carry a RESTRICTIVE FOR DELETE policy
--- (soft_delete_admin_purge): hard delete = purge, and only a routed guild admin
--- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
--- above — a write-member clears the latter but not this one. app_admin (the
--- auto-purge worker) bypasses RLS entirely. Source of truth for the table set is
+-- (soft_delete_admin_purge): hard delete = purge, and only a community's
+-- administrator may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE
+-- delete policy above — a write-member clears the latter but not this one. The
+-- purge sweep is admitted by the connection's own login. Source of truth for the table set is
 -- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
 -- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
 -- the guard via the dedicated section at the bottom of this file.
@@ -193,10 +196,10 @@ _OWN_ROW_SECTION = """\
 -- Own-row guild-level tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to
 -- ONE user. Unlike guild_level_open, this IS a row gate — a member must not
 -- see another member's rows (an export_jobs row leaks the selector and gates
--- the artifact download). Owner OR routed guild admin; the admin leg matches
--- initiative_access / the purge guard exactly, so a break-glass full-admin
--- (routed as a synthetic guild admin) is covered. A read-only PAM grantee is
--- routed to guild_<id>_ro with neither leg set: no rows, by design.
+-- the artifact download). Owner OR the community's administrator OR trusted
+-- system maintenance; the last two legs match initiative_access and the purge
+-- guard exactly. A read-only PAM grantee is routed to guild_<id>_ro with none
+-- of them set: no rows, by design.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
@@ -205,7 +208,7 @@ _OWN_ROW_SECTION = """\
 # table (same rule as the public shared-table policies; see CLAUDE.md §5).
 _OWN_ROW_PREDICATE = (
     "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-    " OR current_setting('app.current_guild_role'::text, true) = 'admin'::text)"
+    f" OR {SYSTEM_SESSION} OR {GUILD_ADMIN})"
 )
 
 _COMMANDS = (
@@ -228,10 +231,7 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # The search index is derived: rows arrive from the refresh trigger as a
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
-    "search_entries": (
-        "pg_trigger_depth() > 0 OR "
-        "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
-    ),
+    "search_entries": f"pg_trigger_depth() > 0 OR {SYSTEM_SESSION} OR {GUILD_ADMIN}",
 }
 
 
@@ -253,7 +253,7 @@ def _table_block(table: str, path: InitiativePath) -> str:
             # the resource carries no leg on INSERT — creating one answers to
             # the initiative-role gate instead. A child table keeps it: adding a
             # task means reaching the project it goes in.
-            if sharing is not None:
+            if sharing is not None and sharing != ANSWERED:
                 pred = f"{pred} AND {sharing}"
         if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
             pred = _TRIGGER_WRITTEN_INSERT[table]

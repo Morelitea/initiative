@@ -38,7 +38,7 @@ async def _point_platform_at(session, guild_id: int | None) -> None:
 
 
 async def _bind(session, *, guild, project, stream, **overrides):
-    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild.id)
     binding = IntakeBinding(stream=stream, project_id=project.id, **overrides)
     session.add(binding)
     await session.commit()
@@ -96,7 +96,7 @@ async def test_a_bound_stream_lands_a_task_in_its_project(session, bound):
     assert outcome is not None
     assert outcome.opened is True
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     task = (await session.exec(select(Task).where(Task.id == outcome.task_id))).one()
     assert task.project_id == bound["project"].id
     assert task.title == "Cannot sign in"
@@ -108,13 +108,13 @@ async def test_a_system_opened_case_names_no_author(session, bound):
     outcome = await intake_service.open_case(IntakeStream.support, title="Help")
     assert outcome is not None
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     task = (await session.exec(select(Task).where(Task.id == outcome.task_id))).one()
     assert task.created_by is None
 
 
 async def test_a_disabled_binding_receives_nothing(session, bound):
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     binding = (
         await session.exec(
             select(IntakeBinding).where(IntakeBinding.id == bound["binding"].id)
@@ -135,7 +135,7 @@ async def test_refs_land_as_property_values(session, bound):
     )
     assert outcome is not None
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     definitions = {
         definition.name: definition
         for definition in await session.exec(
@@ -180,7 +180,7 @@ async def test_every_occurrence_is_counted_and_moves_last_seen(session, bound):
         now=soon,
     )
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     case = (
         await session.exec(
             select(IntakeCase).where(IntakeCase.task_id == first.task_id)
@@ -213,7 +213,7 @@ async def test_a_crossing_past_the_window_moves_the_mark(session, bound):
     assert again.task_id == first.task_id
     assert again.opened is False
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     case = (
         await session.exec(
             select(IntakeCase).where(IntakeCase.task_id == first.task_id)
@@ -228,7 +228,7 @@ async def test_an_unkeyed_case_still_gets_a_row(session, bound):
     outcome = await intake_service.open_case(IntakeStream.support, title="Help")
     assert outcome is not None
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     case = (
         await session.exec(
             select(IntakeCase).where(IntakeCase.task_id == outcome.task_id)
@@ -244,7 +244,7 @@ async def test_a_closed_case_opens_a_new_one(session, bound):
     )
     assert first is not None
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     task = (await session.exec(select(Task).where(Task.id == first.task_id))).one()
     done = (
         await session.exec(
@@ -282,7 +282,7 @@ async def test_a_case_whose_task_was_moved_away_is_not_this_projects_case(
     )
     assert first is not None
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     elsewhere = await create_project(session, bound["initiative"], bound["user"])
     await task_statuses_service.ensure_default_statuses(session, elsewhere.id)
     task = (await session.exec(select(Task).where(Task.id == first.task_id))).one()
@@ -302,6 +302,6 @@ async def test_a_case_whose_task_was_moved_away_is_not_this_projects_case(
     assert again.opened is True
     assert again.task_id != first.task_id
 
-    await set_rls_context(session, guild_id=bound["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=bound["guild"].id)
     landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
     assert landed.project_id == bound["project"].id

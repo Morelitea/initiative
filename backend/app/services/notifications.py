@@ -1978,12 +1978,9 @@ async def _run_digest_pass(
             if not item_ids:
                 continue
             session.expunge_all()
-            await set_rls_context(
-                session,
-                user_id=user_id,
-                guild_id=gid,
-                satisfied_providers=SYSTEM_SATISFIED,
-            )
+            # Nobody is asking: the rows were gathered under this account's own
+            # standing above, and marking them consumed is the sweep's write.
+            await set_rls_context(session, guild_id=gid)
             await session.exec(
                 sa_update(model).where(model.id.in_(item_ids)).values(processed_at=now)
             )
@@ -2026,7 +2023,7 @@ async def _run_gc_pass(
     )
     for guild_id in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         for model in models:
             await session.exec(delete(model).where(model.created_at < cutoff))
         await session.commit()
@@ -2904,6 +2901,8 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     for the events they attend there. Split out from ``process_event_reminders``
     so tests can drive it with the test session.
     """
+    from app.api.deps import GuildAccessError, establish_guild_access
+
     horizon = now + timedelta(days=1)
     # Allow events that started within the grace window so a 0-minute
     # ("at the time of the event") reminder still fires on the next poll.
@@ -2912,18 +2911,24 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     # each guild's schema in turn, and a routed session cannot read an
     # account's preferences.
     users = await accounts_service.load_event_reminder_optins()
-    candidates = [(u.id, u.event_reminder_minutes_before) for u in users]
-    for user_id, minutes in candidates:
+    for account in users:
+        minutes = account.event_reminder_minutes_before
+        user_id = account.id
         if minutes is None:
             continue
         for guild_id in await member_guild_ids(session, user_id):
             session.expunge_all()
-            await set_rls_context(
-                session,
-                user_id=user_id,
-                guild_id=guild_id,
-                satisfied_providers=SYSTEM_SATISFIED,
-            )
+            # Through the seam, as the account whose reminders these are: what
+            # the sweep may see of a community is what that account may see.
+            try:
+                await establish_guild_access(
+                    session,
+                    account,
+                    guild_id,
+                    satisfied_providers=SYSTEM_SATISFIED,
+                )
+            except GuildAccessError:
+                continue
             events = (
                 (
                     await session.exec(

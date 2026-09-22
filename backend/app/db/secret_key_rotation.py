@@ -108,9 +108,9 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
-# key table carries own-row RLS, so the per-guild sweep sets
-# ``app.current_guild_role='admin'`` (see rotate_secret_key) to satisfy its admin
-# leg — otherwise the SET ROLE into guild_<id> would RLS-filter it to 0 rows.
+# key table carries own-row RLS; the sweep runs on the system engine, whose
+# login is what that policy's system leg names, so the SET ROLE into
+# guild_<id> reaches every member's row.
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
     ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
@@ -479,15 +479,6 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     await conn_.execute(
                         text("SELECT set_config('role', :r, true)"),
                         {"r": guild_role_name(gid)},
-                    )
-                    # guild_ai_member_keys carries own-row RLS; the admin leg
-                    # (current_guild_role='admin') lets this full-authority
-                    # maintenance sweep see every member's row. Without it the
-                    # SET ROLE into guild_<id> filters the table to 0 rows.
-                    await conn_.execute(
-                        text(
-                            "SELECT set_config('app.current_guild_role', 'admin', true)"
-                        )
                     )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(

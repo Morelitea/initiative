@@ -37,6 +37,13 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
+from app.db.authorization import (
+    GUILD_ADMIN,
+    PAM_ANY,
+    STANDING_IS_THIS_GUILD,
+    SYSTEM_SESSION,
+    standing_pairs,
+)
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -151,6 +158,15 @@ class DacPath:
     via: tuple[tuple[str, str], ...] = ()
 
 
+def _switch_leg(tool: "Tool", initiative: str) -> str:
+    """Whether ``tool`` is switched on for ``initiative``, for this reader."""
+    return (
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR ({STANDING_IS_THIS_GUILD} AND ({initiative}::text || ':{tool.value}')"
+        f" = ANY ({standing_pairs('app.enabled_tools')})))"
+    )
+
+
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
     """Gate 4 alone, for a row that names its governing tool in a COLUMN.
 
@@ -188,14 +204,15 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # Every tool carries a switch on the initiative. A community admin or a PAM
     # grantee reaches the content of a tool that is switched off — the endpoints
     # still refuse them, and a maintenance sweep has to be able to see it.
-    legs.append(
-        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {initiative}), false))"
-    )
+    #
+    # Which initiatives have it on is in the request's standing, as one pair per
+    # initiative the reader is in: an admin, a grantee and a system sweep are
+    # already admitted above, so those are the only ones whose switch can decide
+    # anything for them.
+    legs.append(_switch_leg(tool, initiative))
 
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
@@ -247,10 +264,15 @@ def _dac_via(
     if tool is None:
         return DacPath(predicate=lambda t, c, w: None)
 
-    return DacPath(
-        tool=tool,
-        via=((fk, parent),),
-        predicate=lambda t, c, w: (
+    def build(t: str, c: str, w: bool) -> str | None:
+        # For a read the membership walk above already reached this parent, and
+        # that walk ran the parent's own SELECT policy, which asks this same
+        # question. Asking it again would consult ``resource_grants`` a second
+        # time per row for the same answer. ``ANSWERED`` rather than nothing,
+        # because a polymorphic path composes these arms per target type.
+        if c == "SELECT" and parent_answers_for_reads(parent):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
             + _tool_gate(
@@ -262,24 +284,27 @@ def _dac_via(
                 creating=False,
             )
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, parent),), predicate=build)
 
 
 def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     """Two hops to the governing resource: ``table.<fk> -> mid -> parent`` — a
     task's tag link by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
-    return DacPath(
-        tool=tool,
-        via=((fk, mid), (mid_fk, parent)),
-        predicate=lambda t, c, w: (
+
+    def build(t: str, c: str, w: bool) -> str | None:
+        if c == "SELECT" and parent_answers_for_reads(mid):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
             + _tool_gate(tool, "dpar.id", "dpar.initiative_id", c, w, creating=False)
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, mid), (mid_fk, parent)), predicate=build)
 
 
 @dataclass(frozen=True)
@@ -313,15 +338,15 @@ _SYMMETRIC_SQL = ", ".join(f"'{t.value}'" for t in sorted(SYMMETRIC_TYPES))
 #: Rows nobody asserted: the save path read them out of a body.
 _FROM_CONTENT = f"'{Provenance.content.value}'"
 
-#: The routed guild-admin leg, for rows that span every initiative in a guild.
-_GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+#: The community-administrator leg, for rows that span every initiative in a
+#: community, beside the one that admits trusted system maintenance. Both are
+#: the same legs the gate functions carry — one definition, in
+#: :mod:`app.db.authorization`.
+_GUILD_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
-_PAM_ANY = (
-    "current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-)
+_PAM_ANY = PAM_ANY
 
 
 def _access(initiative_expr: str, write: bool) -> str:
@@ -353,12 +378,15 @@ def direct_full_access() -> InitiativePath:
 
 def via_full_access(parent: str, fk: str) -> InitiativePath:
     """One hop to a parent that is itself gated on full access."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.id = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_full_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.id = {t}.{fk} "
-            f"AND {_full_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.id = {r}.{fk})"
@@ -379,14 +407,39 @@ def direct() -> InitiativePath:
     )
 
 
+#: A sharing leg that the walk to the parent has already answered. Rendered as
+#: a literal rather than left out, because a polymorphic path composes one arm
+#: per target type and an arm has to be something; the planner folds it away,
+#: and :func:`app.db.guild_ddl` leaves it off the top level entirely.
+ANSWERED = "true"
+
+
+def parent_answers_for_reads(parent: str) -> bool:
+    """Whether walking to ``parent`` is, on its own, the read answer.
+
+    A child's read leg is an ``EXISTS`` into its parent, and that inner scan
+    runs the parent's own ``SELECT`` policy — which is the same question the
+    child was about to ask a second time. So where the parent carries one, the
+    walk is the whole of it.
+
+    A parent that carries none (the structural initiative tables, which are
+    guild-scoped by the schema boundary) answers nothing, and a child of one
+    keeps asking for itself.
+    """
+    return parent in INITIATIVE_PATHS
+
+
 def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
     """One hop: ``table.<fk> -> parent.<parent_pk>``; parent has ``initiative_id``."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.{parent_pk} = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.{parent_pk} = {t}.{fk} "
-            f"AND {_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.{parent_pk} = {r}.{fk})"
@@ -398,12 +451,20 @@ def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
 
 def via_task_project(fk: str = "task_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> tasks -> projects.initiative_id``."""
-    return InitiativePath(
-        predicate=lambda t, w: (
+
+    def predicate(t: str, w: bool) -> str:
+        if not w and parent_answers_for_reads("tasks"):
+            # One hop is enough for a read: the task's own policy is what walks
+            # on to its project.
+            return f"EXISTS (SELECT 1 FROM tasks tk WHERE tk.id = {t}.{fk})"
+        return (
             f"EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
             f"WHERE tk.id = {t}.{fk} "
             f"AND {_access('pr.initiative_id', w)})"
-        ),
+        )
+
+    return InitiativePath(
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
             f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.{fk})"
@@ -658,7 +719,13 @@ def _comments_dac() -> DacPath:
                 leg = _dac_two_hop(
                     parent.table, parent.tool_fk, parent.governed_by.plural, col
                 )
-            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
+            rendered = leg.predicate(t, command, w)
+            if rendered != ANSWERED:
+                legs.append(f"({t}.{col} IS NOT NULL AND {rendered})")
+        # Every parent's own policy answered, so the walk above is the whole
+        # of it and there is nothing to AND on.
+        if not legs:
+            return ANSWERED
         return "(" + " OR ".join(legs) + ")"
 
     return DacPath(predicate=build)
@@ -669,12 +736,22 @@ def comments_path() -> InitiativePath:
     declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
 
     def build(t: str, w: bool) -> str:
-        legs = [
-            f"({t}.{p.column} IS NOT NULL AND EXISTS ("
-            f"SELECT 1 FROM {p.frm} WHERE {p.tie} = {t}.{p.column} "
-            f"AND {_access(p.initiative, w)}))"
-            for p in _COMMENT_PARENTS
-        ]
+        legs = []
+        for p in _COMMENT_PARENTS:
+            if not w and parent_answers_for_reads(p.table):
+                # The parent alone, without the hop past it: its own SELECT
+                # policy is what walks the rest of the way.
+                nearest = p.frm.split(" JOIN ")[0]
+                legs.append(
+                    f"({t}.{p.column} IS NOT NULL AND EXISTS ("
+                    f"SELECT 1 FROM {nearest} WHERE {p.tie} = {t}.{p.column}))"
+                )
+                continue
+            legs.append(
+                f"({t}.{p.column} IS NOT NULL AND EXISTS ("
+                f"SELECT 1 FROM {p.frm} WHERE {p.tie} = {t}.{p.column} "
+                f"AND {_access(p.initiative, w)}))"
+            )
         return "(" + " OR ".join(legs) + ")"
 
     def locate(r: str) -> str:
@@ -1007,12 +1084,14 @@ def _search_tool_gate(t: str, write: bool) -> str:
     so it answers the same three questions the source does rather than trusting
     that it was right when it was written.
     """
-    switch_arms = " ".join(
-        f"WHEN '{tool.value}' THEN "
+    # The switch no longer needs an arm per tool: the pair the standing carries
+    # is ``<initiative>:<tool>``, and the row names its own tool in a column.
+    switch = (
         f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {t}.initiative_id), false))"
-        for tool in Tool
+        f" OR {t}.dac_tool IS NULL"
+        f" OR ({STANDING_IS_THIS_GUILD}"
+        f" AND ({t}.initiative_id::text || ':' || {t}.dac_tool)"
+        f" = ANY ({standing_pairs('app.enabled_tools')})))"
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
@@ -1021,7 +1100,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
         for tool in Tool
     )
     return (
-        f"((CASE {t}.dac_tool {switch_arms} ELSE true END)"
+        f"({switch}"
         f" AND (CASE {t}.dac_tool {role_arms} ELSE true END)"
         f" AND {_resource_call(f'{t}.dac_tool', f'{t}.dac_id', f'{t}.initiative_id', write)})"
     )

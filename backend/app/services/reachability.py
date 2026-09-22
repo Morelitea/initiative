@@ -18,7 +18,6 @@ from sqlmodel import SQLModel, select
 
 from app.db import session as db_session
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
 
 
 def _model_for(table: str) -> Optional[type[SQLModel]]:
@@ -174,9 +173,7 @@ async def reader_is_in_the_initiative(
     async with db_session.AdminSessionLocal() as probe, probe.begin():
         # One transaction, explicitly: the routing is transaction-local, and the
         # probe runs on a session of its own rather than the request's.
-        await set_rls_context(
-            probe, guild_id=guild_id, guild_role=GuildRole.admin.value
-        )
+        await set_rls_context(probe, guild_id=guild_id)
         found = (await probe.exec(_initiative_query(model, row_id))).first()
         if found is None:
             return False

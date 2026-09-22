@@ -142,7 +142,7 @@ async def test_auto_purge_sweeps_every_guild_schema(
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(admin, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(admin, guild_id=guild_id)
         count = (
             await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -229,7 +229,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -244,7 +244,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     await session.commit()
 
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
-    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),

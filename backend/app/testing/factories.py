@@ -56,6 +56,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
+from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.guild_administration import GuildAdministration
@@ -233,6 +234,7 @@ async def create_guild(
     Example:
         guild = await create_guild(session, name="Test Guild")
     """
+    named_creator = creator is not None
     if creator is None:
         creator = await create_user(session, commit=commit)
 
@@ -278,6 +280,20 @@ async def create_guild(
     await session.flush()
     # Every guild has exactly one, created with it — same as the service path.
     session.add(GuildAdministration(guild_id=guild.id, **administration_data))
+    # A named creator administers what they made, as the service path has them
+    # do — a routing is a lookup now, so a community whose creator belonged to
+    # nothing could not be entered at all. An *invented* creator is the
+    # factory's own filler and joins nothing, so a test that did not ask for a
+    # member still has none.
+    if named_creator:
+        session.add(
+            GuildMembership(
+                user_id=creator.id,
+                guild_id=guild.id,
+                role=GuildRole.admin,
+                position=0,
+            )
+        )
 
     if commit:
         await session.commit()
@@ -315,6 +331,44 @@ async def guild_administration(
         else:
             await session.flush()
     return row
+
+
+async def create_access_grant(
+    session: AsyncSession,
+    *,
+    user: User,
+    guild: Guild,
+    access_level: str = "read",
+    purpose: str = "content",
+    minutes: int = 60,
+    commit: bool = True,
+) -> AccessGrant:
+    """A live, approved grant — what the seam reads when somebody reaches a
+    community they do not belong to.
+
+    Self-approved, which is what a break-glass row is; a requested-then-approved
+    one differs only in who decided it, and nothing that reads a grant asks.
+    """
+    now = datetime.now(timezone.utc)
+    grant = AccessGrant(
+        user_id=user.id,
+        guild_id=guild.id,
+        access_level=access_level,
+        status="approved",
+        purpose=purpose,
+        reason="test",
+        requested_duration_minutes=minutes,
+        requested_by_id=user.id,
+        approved_by_id=user.id,
+        requested_at=now,
+        decided_at=now,
+        expires_at=now + timedelta(minutes=minutes),
+    )
+    session.add(grant)
+    if commit:
+        await session.commit()
+        await session.refresh(grant)
+    return grant
 
 
 async def create_guild_membership(
@@ -361,7 +415,23 @@ async def create_guild_membership(
     }
 
     membership_data = {**defaults, **overrides}
-    membership = GuildMembership(**membership_data)
+    # The creator already has one (``create_guild`` seats them), so asking for
+    # theirs again says what role they should hold rather than adding a second
+    # row the table would refuse.
+    existing = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).one_or_none()
+    if existing is not None:
+        for field, value in membership_data.items():
+            setattr(existing, field, value)
+        membership = existing
+    else:
+        membership = GuildMembership(**membership_data)
     session.add(membership)
 
     if commit:

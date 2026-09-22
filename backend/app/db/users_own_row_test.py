@@ -22,7 +22,7 @@ from app.db.schema_provisioning import guild_role_name, platform_role_name
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.testing import create_guild, create_guild_membership, create_user
+from app.testing import create_guild, create_guild_membership, create_user, route_as
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
@@ -97,9 +97,7 @@ class TestGuildSession:
     async def guild_session(self, role_session, guild_with_two_members):
         admin, _member, guild = guild_with_two_members
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=admin.id, guild_id=guild.id, guild_role="admin"
-        )
+        await route_as(s, user_id=admin.id, guild_id=guild.id)
         return s
 
     async def test_does_not_read_the_users_table(
@@ -242,13 +240,7 @@ class TestReestablishedContext:
         member, other = two_accounts
         guild = await create_guild(session, creator=member)
         s = await role_session("app_user")
-        await set_rls_context(
-            s,
-            user_id=member.id,
-            guild_id=guild.id,
-            guild_role="admin",
-            platform_role="member",
-        )
+        await route_as(s, user_id=member.id, guild_id=guild.id)
         assert await _assumed_role(s) == guild_role_name(guild.id)
 
         await set_rls_context(s, user_id=member.id)

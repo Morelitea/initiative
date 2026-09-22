@@ -8,12 +8,10 @@ initiative-membership for non-admin guild roles.
 """
 
 import pytest
-from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.db.session import set_rls_context
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
@@ -29,7 +27,7 @@ from app.testing import (
 
 @pytest.mark.integration
 async def test_non_admin_member_sees_only_their_initiatives_content(
-    session: AsyncSession,
+    session: AsyncSession, reading_as
 ):
     """Under the guild role, a non-admin member sees content rows only for the
     initiatives they belong to — a co-guild-member's other initiative is hidden by
@@ -37,6 +35,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     owner = await create_user(session, email="irls-owner@example.com")
     member = await create_user(session, email="irls-member@example.com")
     guild = await create_guild(session, creator=owner)
+    admin = owner
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
@@ -58,21 +57,17 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     )
     await session.commit()
 
-    # Act as the guild role with this member's (non-admin) context — RLS applies.
-    await set_rls_context(
-        session, user_id=member.id, guild_id=guild.id, guild_role="member"
-    )
-    member_view = set((await session.exec(select(Project.name))).all())
+    # On the request login, where the policies bind.
+    reader = await reading_as(member.id, guild.id)
+    member_view = set((await reader.exec(select(Project.name))).all())
+    await reader.rollback()
     assert "A-Proj" in member_view, "member must see their own initiative's project"
     assert "B-Proj" not in member_view, (
         "RLS must hide a project in an initiative the member doesn't belong to"
     )
 
-    # A guild admin (current_guild_role='admin') sees every initiative's content.
-    await set_rls_context(
-        session, user_id=member.id, guild_id=guild.id, guild_role="admin"
-    )
-    admin_view = set((await session.exec(select(Project.name))).all())
+    # A community's administrator sees every initiative's content.
+    admin_reader = await reading_as(admin.id, guild.id)
+    admin_view = set((await admin_reader.exec(select(Project.name))).all())
+    await admin_reader.rollback()
     assert {"A-Proj", "B-Proj"} <= admin_view
-
-    await session.exec(text("RESET ROLE"))

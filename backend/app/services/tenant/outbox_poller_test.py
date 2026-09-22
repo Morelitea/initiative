@@ -329,7 +329,7 @@ async def test_repeated_refusals_escalate_the_backoff(
     moment = datetime.now(timezone.utc)
     for _ in range(3):
         await poller._drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
                 sa_text(
@@ -402,7 +402,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     moment = datetime.now(timezone.utc)
     for _ in range(len(poller._BACKOFF_SECONDS)):
         await poller._drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
                 sa_text(
@@ -435,7 +435,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     # This pass is what exhausts the first batch's schedule.
     await poller._drain_guild(system, guild_id, now=moment)
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
     dead_row = (
         await session.exec(

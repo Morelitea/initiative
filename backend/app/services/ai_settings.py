@@ -208,9 +208,7 @@ async def _purge_platform_connection_member_data(connection_id: int) -> None:
         guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
         for gid in guild_ids:
             try:
-                await db_session.set_rls_context(
-                    session, guild_id=gid, guild_role="admin"
-                )
+                await db_session.set_rls_context(session, guild_id=gid)
                 await session.exec(
                     delete(GuildAIMemberKey).where(
                         GuildAIMemberKey.connection_scope == "platform",
@@ -785,15 +783,9 @@ async def delete_guild_connection(
         target_id=connection_id,
         detail={"scope": ConnectionScope.guild.value},
     )
-    prior_role = (
-        await session.exec(
-            text("SELECT current_setting('app.current_guild_role', true)")
-        )
-    ).one()[0]
-    # Connection administration includes removing every member reference.
-    await session.exec(
-        text("SELECT set_config('app.current_guild_role', 'admin', true)")
-    )
+    # Connection administration includes removing every member reference. The
+    # own-row policy on those tables admits the community's administrator,
+    # which the seat holder running this already is in the request's standing.
     await session.exec(
         delete(GuildAIMemberKey).where(
             GuildAIMemberKey.connection_scope == ConnectionScope.guild.value,
@@ -805,10 +797,6 @@ async def delete_guild_connection(
             GuildAIMemberPref.connection_scope == ConnectionScope.guild.value,
             GuildAIMemberPref.connection_id == connection_id,
         )
-    )
-    await session.exec(
-        text("SELECT set_config('app.current_guild_role', :role, true)"),
-        params={"role": prior_role or ""},
     )
     await session.commit()
 

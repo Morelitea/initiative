@@ -236,7 +236,7 @@ async def _update_all_guilds(session: AsyncSession) -> None:
         # Ids collide across schemas, so the identity map is cleared between
         # guilds rather than carried into the next one.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         try:
             await _update_guild(session, guild_id)
             await session.commit()

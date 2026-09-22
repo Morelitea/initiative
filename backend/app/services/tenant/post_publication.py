@@ -191,7 +191,7 @@ async def _publish_all_guilds(session: AsyncSession, *, now: datetime) -> None:
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await publish_due_posts(session, now=now)
         await session.commit()
 

@@ -23,13 +23,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from typing import Annotated
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import SessionDep, establish_guild_access, get_current_active_user
 from app.core.messages import AppServiceMessages, DelegationExchangeMessages
 from app.core.security import (
     AppPlatformSigningNotConfiguredError,
     app_platform_signing_enabled,
 )
-from app.db.session import set_rls_context
 from app.models.platform.user import User
 from app.schemas.marketplace.delegation_exchange import (
     DelegationExchangeRequest,
@@ -79,7 +78,7 @@ async def exchange_delegation(
     # on the system engine. An install is guild-level, so reading one needs no
     # standing beyond being in the guild, which the delegation already
     # established.
-    await set_rls_context(session, user_id=current_user.id, guild_id=guild_id)
+    await establish_guild_access(session, current_user, guild_id)
     try:
         token, expires_in = await exchange_service.exchange_for_app(
             session,

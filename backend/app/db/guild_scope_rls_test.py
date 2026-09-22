@@ -16,13 +16,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
 from app.testing import (
     create_guild,
     create_guild_membership,
     create_initiative,
     create_user,
+    route_as,
 )
 
 pytestmark = pytest.mark.database
@@ -58,9 +57,7 @@ class TestGuildScope:
     ):
         user, guild = guild_member
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         assert await _access(s, None, user.id) is True
 
     async def test_a_guild_level_row_is_writable_at_this_layer(
@@ -71,9 +68,7 @@ class TestGuildScope:
         does not silently withhold write."""
         user, guild = guild_member
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         assert await _access(s, None, user.id, write=True) is True
 
     async def test_initiative_rows_are_untouched_by_the_null_branch(
@@ -87,9 +82,7 @@ class TestGuildScope:
         initiative = await create_initiative(session, guild=guild, creator=other)
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         assert await _access(s, initiative.id, user.id) is False
         assert await _access(s, initiative.id, user.id, write=True) is False
 
@@ -102,9 +95,7 @@ class TestGuildScope:
         initiative = await create_initiative(session, guild=guild, creator=user)
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         assert await _access(s, initiative.id, user.id) is True
 
 
@@ -121,9 +112,7 @@ class TestBoundariesStillHold:
         other_guild = await create_guild(session, creator=stranger)
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-        )
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         search_path = (
             await s.exec(text("SELECT current_setting('search_path')"))
         ).scalar()

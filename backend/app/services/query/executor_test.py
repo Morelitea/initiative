@@ -12,6 +12,8 @@ import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.messages import QueryMessages
+from app.db.guild_standing import GuildContext
+from app.models.platform.guild import Guild
 from app.db.schema_provisioning import drop_guild_schema, provision_guild_schema
 from app.services.fields.spec import FieldType
 from app.services.query import (
@@ -29,8 +31,23 @@ _GID = 990_200
 
 
 def _context(guild_id: int, **extra) -> dict:
-    """What the request's own session would have established."""
-    return {"user_id": 1, "guild_id": guild_id, "guild_role": "admin", **extra}
+    """What the request's own session would have established.
+
+    The reader's standing rides along as the ``GuildContext`` the seam built,
+    because that is what the policies on the tables a statement reads will
+    answer to. These tests are about the statement rather than about who may
+    read what, so the community here has nothing in it and the standing is an
+    administrator's.
+    """
+    standing = GuildContext(
+        guild=Guild(id=guild_id, name="Query probe"),
+        user_id=1,
+        guild_id=guild_id,
+        standing_guild_id=guild_id,
+        admin=True,
+        guild_auth_ok=True,
+    )
+    return {"user_id": 1, "guild_id": guild_id, "context": standing, **extra}
 
 
 @pytest.fixture

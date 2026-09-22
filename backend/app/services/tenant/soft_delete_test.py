@@ -201,7 +201,7 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
 ):
     """Every soft-delete-capable table carries a RESTRICTIVE FOR DELETE policy
     (``soft_delete_admin_purge``) that admits only a routed guild admin
-    (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
+    (``app.guild_admin = 'true'``); a hard delete is a purge. Post-squash
     these tables (and thus their policies) live in the per-guild schemas, not
     ``public``, rendered from the registry when a guild is provisioned. The
     admin fixture can't exercise the policy at runtime, so we inspect

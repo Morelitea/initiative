@@ -177,7 +177,7 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
             # Now into the guild, where the resource lives and its own policies
             # decide what is there to be read.
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             kind, resource_id = target(grant)
             cfg = resource_access.RESOURCE_ACCESS[kind]
             row = await cfg.loader(session, resource_id)

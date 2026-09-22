@@ -963,7 +963,7 @@ async def admin_delete_initiative(
     record. We route into that guild's schema as a guild admin (full authority
     over the guild; clears the purge guard) so the cascade reaches the rows.
     """
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
     initiative = await session.get(Initiative, initiative_id)
     if not initiative:
@@ -1103,7 +1103,7 @@ async def admin_get_initiative_members(
     admin so the member list comes from the live data, not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)
@@ -1155,7 +1155,7 @@ async def admin_update_initiative_member_role(
     Restrictions:
     - Cannot demote the last project manager
     """
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
     # Check initiative exists
     stmt = select(Initiative).where(Initiative.id == initiative_id)

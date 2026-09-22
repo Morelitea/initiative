@@ -136,7 +136,7 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
         if guild_id is None:
             return False
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         return await _binding_for(session, stream) is not None
 
 
@@ -323,7 +323,7 @@ async def open_case(
         # Ids are unique only within a schema, so nothing cached from the
         # public read may survive into the routed one.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
 
         binding = await _binding_for(session, stream)
         if binding is None:

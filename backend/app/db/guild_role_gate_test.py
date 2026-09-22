@@ -9,7 +9,6 @@ from __future__ import annotations
 import pytest
 from sqlmodel import select
 
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.queue import Queue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -34,15 +33,16 @@ async def _shared(session, queue, user) -> None:
     await session.commit()
 
 
-async def _names(session, guild_id, actor, *, role: str = "member") -> list[str]:
-    """Queue names the database hands back for a bare SELECT."""
-    await set_rls_context(
-        session, user_id=actor.user.id, guild_id=guild_id, guild_role=role
-    )
+async def _names(reading_as, guild_id, actor) -> list[str]:
+    """Queue names the database hands back for a bare SELECT, on the request
+    login — the one the policies actually bind."""
+    session = await reading_as(actor.user.id, guild_id)
     return sorted(await session.exec(select(Queue.name)))
 
 
-async def test_a_role_that_cannot_engage_the_tool_is_refused(session, acting_user):
+async def test_a_role_that_cannot_engage_the_tool_is_refused(
+    session, acting_user, reading_as
+):
     """Shared with them, in their initiative — and still not theirs to reach,
     because their role does not hold Queues."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -58,10 +58,10 @@ async def test_a_role_that_cannot_engage_the_tool_is_refused(session, acting_use
     # sharing picker would have offered. This one may not.
     await grant_role_permission(session, a.initiative, "queues_enabled", enabled=False)
 
-    assert await _names(session, a.guild.id, b) == []
+    assert await _names(reading_as, a.guild.id, b) == []
 
 
-async def test_the_role_permission_admits_them(session, acting_user):
+async def test_the_role_permission_admits_them(session, acting_user, reading_as):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     b = await acting_user(
         guild_role=GuildRole.member,
@@ -73,10 +73,10 @@ async def test_the_role_permission_admits_them(session, acting_user):
     await _shared(session, queue, b.user)
     await grant_role_permission(session, a.initiative, "queues_enabled")
 
-    assert await _names(session, a.guild.id, b) == ["Vendor intake"]
+    assert await _names(reading_as, a.guild.id, b) == ["Vendor intake"]
 
 
-async def test_a_manager_role_needs_no_row(session, acting_user):
+async def test_a_manager_role_needs_no_row(session, acting_user, reading_as):
     """A manager holds every key whether or not one is stored — the same rule
     the application's resolver applies."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -89,12 +89,14 @@ async def test_a_manager_role_needs_no_row(session, acting_user):
     queue = await create_queue(session, a.initiative, a.user, name="Vendor intake")
     await _shared(session, queue, b.user)
 
-    assert await _names(session, a.guild.id, b) == ["Vendor intake"]
+    assert await _names(reading_as, a.guild.id, b) == ["Vendor intake"]
 
 
-async def test_the_routed_guild_admin_still_reaches_it(session, acting_user):
+async def test_the_routed_guild_admin_still_reaches_it(
+    session, acting_user, reading_as
+):
     """Guild admin sits above all four gates."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await create_queue(session, a.initiative, a.user, name="Vendor intake")
 
-    assert await _names(session, a.guild.id, a, role="admin") == ["Vendor intake"]
+    assert await _names(reading_as, a.guild.id, a) == ["Vendor intake"]

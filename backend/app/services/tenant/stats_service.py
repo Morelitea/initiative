@@ -659,6 +659,7 @@ async def get_user_stats(
     ``guild_id`` is given (exact), otherwise every guild the user belongs to,
     merged.
     """
+    from app.api.deps import GuildAccessError, establish_guild_access
     from app.db.session import set_rls_context
     from app.services.cross_guild import member_guild_ids
 
@@ -672,7 +673,12 @@ async def get_user_stats(
     parts: List[UserStatsResponse] = []
     for gid in target_guilds:
         session.expunge_all()
-        await set_rls_context(session, user_id=user.id, guild_id=gid)
+        # Through the seam, so these numbers count what a request to that
+        # community would have shown this reader and nothing else.
+        try:
+            await establish_guild_access(session, user, gid)
+        except GuildAccessError:
+            continue
         parts.append(await _compute_guild_stats(session, user, gid, days))
 
     # Reset to the user-only (public) baseline so the caller's session isn't
