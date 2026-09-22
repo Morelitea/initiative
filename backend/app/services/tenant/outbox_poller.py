@@ -28,8 +28,12 @@ for a subscription or it is not.
 
 What follows from that:
 
-* **Nothing is skipped.** Work not taken this pass is still pending on the next.
-  ``BATCH_LIMIT`` bounds throughput, never visibility.
+* **Nothing is skipped before it has to be.** Work not taken this pass is still
+  pending on the next. ``BATCH_LIMIT`` bounds throughput, never visibility. A
+  batch that exhausts ``_BACKOFF_SECONDS`` without a 2xx is the one exception —
+  it is dead-lettered (``dead_lettered_at`` set, no further attempt scheduled)
+  so a permanently unreachable target can't hold every later transaction
+  hostage forever.
 * **Two replicas racing is settled by the database.** Claiming is an insert on
   the ledger's primary key; the loser gets no row and moves on.
 * **A duplicate is recognizable as one.** ``event_id`` derives from
@@ -197,7 +201,8 @@ async def _pending_transactions(
             "  AND NOT EXISTS ("
             "    SELECT 1 FROM webhook_deliveries d "
             "    WHERE d.subscription_id = :sid AND d.txn_id = o.txn_id "
-            "      AND (d.delivered_at IS NOT NULL OR d.next_attempt_at > :now)"
+            "      AND (d.delivered_at IS NOT NULL OR d.dead_lettered_at IS NOT NULL "
+            "           OR d.next_attempt_at > :now)"
             "  ) "
             "GROUP BY o.txn_id "
             "ORDER BY min(o.id) ASC "
@@ -228,6 +233,7 @@ async def _claim(
             "ON CONFLICT (subscription_id, txn_id) DO UPDATE "
             "  SET next_attempt_at = :lease "
             "  WHERE webhook_deliveries.delivered_at IS NULL "
+            "    AND webhook_deliveries.dead_lettered_at IS NULL "
             "    AND (webhook_deliveries.next_attempt_at IS NULL "
             "         OR webhook_deliveries.next_attempt_at <= :now) "
             "RETURNING attempts"
@@ -250,31 +256,45 @@ async def _settle(
     *,
     now: datetime,
     accepted: bool,
-) -> None:
-    """Record the outcome.
+) -> bool:
+    """Record the outcome. Returns whether this call dead-lettered the batch.
 
     ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
     mid-flight from reopening a batch another pass has already completed.
+
+    A refusal past the last backoff step dead-letters instead of scheduling
+    another retry at the final interval forever — computed in the same
+    statement that increments ``attempts``, for the same reason the interval
+    itself is: two passes racing must not each read a stale count and disagree
+    on whether this is the step that ends retries.
     """
     if accepted:
         statement = text(
             "UPDATE webhook_deliveries "
             "SET delivered_at = :now, next_attempt_at = NULL "
-            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
+            "RETURNING false"
         ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     else:
         statement = text(
             "UPDATE webhook_deliveries "
             "SET attempts = attempts + 1, "
-            "    next_attempt_at = :now + make_interval(secs => "
-            "      (CAST(:backoff AS integer[]))["
-            "        LEAST(attempts + 1, cardinality(CAST(:backoff AS integer[])))"
-            "      ]"
-            "    ) "
-            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+            "    next_attempt_at = CASE "
+            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN NULL "
+            "      ELSE :now + make_interval(secs => "
+            "        (CAST(:backoff AS integer[]))[attempts + 1]) "
+            "    END, "
+            "    dead_lettered_at = CASE "
+            "      WHEN attempts + 1 > cardinality(CAST(:backoff AS integer[])) THEN :now "
+            "      ELSE NULL "
+            "    END "
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
+            "RETURNING dead_lettered_at IS NOT NULL"
         ).bindparams(_BACKOFF_PARAM, now=now, sid=subscription.id, txn=txn_id)
-    await session.exec(statement)
+    result = await session.exec(statement)
+    row = result.first()
     await session.commit()
+    return bool(row[0]) if row is not None else False
 
 
 async def _drain_subscription(
@@ -340,10 +360,21 @@ async def _drain_subscription(
                 actor_ref=None if actor_id is None else actor_refs[actor_id],
             ),
         )
-        await _settle(session, subscription, txn_id, now=now, accepted=accepted)
-        if not accepted:
+        dead_lettered = await _settle(
+            session, subscription, txn_id, now=now, accepted=accepted
+        )
+        if dead_lettered:
+            logger.warning(
+                "webhook delivery dead-lettered: subscription=%s txn=%s target=%s",
+                subscription.id,
+                txn_id,
+                subscription.target_url,
+            )
+        elif not accepted:
             # Deliver in order: hold the rest of this subscription's backlog
-            # until the refused batch gets through.
+            # until the refused batch gets through. Once dead-lettered there is
+            # nothing left to wait on, so later transactions proceed instead of
+            # queuing behind a batch that will never be retried again.
             return
 
 

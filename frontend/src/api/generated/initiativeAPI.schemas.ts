@@ -8475,6 +8475,7 @@ export interface WebhookSubscriptionCreated {
   event_types: string[];
   fields: string[] | null;
   active: boolean;
+  dead_letter_count: number;
   created_at: string;
   updated_at: string;
   hmac_secret: string;
@@ -8498,6 +8499,7 @@ export interface WebhookSubscriptionRead {
   event_types: string[];
   fields: string[] | null;
   active: boolean;
+  dead_letter_count: number;
   created_at: string;
   updated_at: string;
 }

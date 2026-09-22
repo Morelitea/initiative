@@ -6,13 +6,14 @@ import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
 from app.core.audit_events import AuditEventType
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -94,6 +95,29 @@ async def list_subscriptions(
     )
     result = await session.exec(statement)
     return list(result.all())
+
+
+async def dead_letter_counts(
+    session: AsyncSession, *, subscription_ids: list[int]
+) -> dict[int, int]:
+    """How many of each subscription's ledger rows gave up retrying.
+
+    The count a guild admin needs to notice a target has gone bad: the row
+    that used to retry it forever, silently, now stops and shows up here
+    instead. Bounded by outbox retention — a dead-lettered row disappears with
+    the event it describes, so this reflects recent failures, not all-time.
+    """
+    if not subscription_ids:
+        return {}
+    statement = (
+        select(WebhookDelivery.subscription_id, func.count())
+        .where(
+            WebhookDelivery.subscription_id.in_(subscription_ids),
+            WebhookDelivery.dead_lettered_at.is_not(None),
+        )
+        .group_by(WebhookDelivery.subscription_id)
+    )
+    return dict((await session.exec(statement)).all())
 
 
 async def get_subscription(

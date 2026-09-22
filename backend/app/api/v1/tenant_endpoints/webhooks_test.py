@@ -88,6 +88,41 @@ async def test_a_guild_member_may_register_a_subscription(client, acting_user):
     assert body["hmac_secret"]
 
 
+async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, session):
+    """The signal a broken target needs: a nonzero count where an endlessly
+    retried, invisible failure used to be the only outcome.
+    """
+    from sqlalchemy import text as sa_text
+
+    from app.db.session import set_rls_context
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    with _mock_public_dns():
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+    assert created.status_code == 201, created.text
+    subscription_id = created.json()["id"]
+    assert created.json()["dead_letter_count"] == 0
+
+    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await session.exec(
+        sa_text(
+            "INSERT INTO webhook_deliveries "
+            "  (subscription_id, txn_id, attempts, dead_lettered_at) "
+            "VALUES (:sid, 999999, 7, now())"
+        ).bindparams(sid=subscription_id)
+    )
+    await session.commit()
+
+    listing = await client.get(_url(a.guild.id), headers=a.headers)
+    assert listing.status_code == 200
+    (row,) = [r for r in listing.json() if r["id"] == subscription_id]
+    assert row["dead_letter_count"] == 1
+
+
 async def test_the_secret_is_never_returned_again(client, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():

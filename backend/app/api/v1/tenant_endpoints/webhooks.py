@@ -22,6 +22,12 @@ and for a member is their initiatives.
   PATCH  /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
   DELETE /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
 
+Every read includes ``dead_letter_count`` — how many of the poller's ledger
+rows for that subscription (``app.services.tenant.outbox_poller``) gave up
+retrying. It is the only surface a broken target has: the poller itself never
+raises, so a nonzero count is what tells whoever owns the subscription to
+check the target or deactivate it.
+
 Mutation routes require the acting user to be the subscription's creator or a
 guild admin — ordinary ownership, the same rule any other guild resource uses.
 """
@@ -89,7 +95,9 @@ async def _validate_target_url(url: str) -> None:
         ) from exc
 
 
-async def _named(row: WebhookSubscription) -> WebhookSubscriptionRead:
+async def _named(
+    row: WebhookSubscription, *, dead_letter_count: int
+) -> WebhookSubscriptionRead:
     """One subscription, with the guild and its creator named for its receiver.
 
     Minted rather than stored, and in the same sector its deliveries use, so
@@ -110,6 +118,7 @@ async def _named(row: WebhookSubscription) -> WebhookSubscriptionRead:
         event_types=row.event_types,
         fields=row.fields,
         active=row.active,
+        dead_letter_count=dead_letter_count,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -158,7 +167,8 @@ async def create_subscription(
         ) from exc
 
     return WebhookSubscriptionCreated(
-        **(await _named(subscription)).model_dump(),
+        # A subscription that was just created has no delivery history yet.
+        **(await _named(subscription, dead_letter_count=0)).model_dump(),
         hmac_secret=secret,
     )
 
@@ -174,7 +184,10 @@ async def list_subscriptions(
     rows = await subscriptions_service.list_subscriptions(
         session, guild_id=guild_context.guild_id
     )
-    return [await _named(row) for row in rows]
+    counts = await subscriptions_service.dead_letter_counts(
+        session, subscription_ids=[row.id for row in rows]
+    )
+    return [await _named(row, dead_letter_count=counts.get(row.id, 0)) for row in rows]
 
 
 @router.patch(
@@ -213,7 +226,10 @@ async def update_subscription(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
-    return await _named(row)
+    counts = await subscriptions_service.dead_letter_counts(
+        session, subscription_ids=[row.id]
+    )
+    return await _named(row, dead_letter_count=counts.get(row.id, 0))
 
 
 @router.delete(
