@@ -112,13 +112,19 @@ async def fetch_board_column_order(
     thing as far as the import is concerned: the workflow order stands
     instead. Neither is worth failing a fetch over, so both come back
     ``None`` rather than raising.
+
+    Being throttled is the exception. That is about the site, not the board,
+    and quietly importing without the column order would hide it — so it is
+    raised like everywhere else.
     """
     try:
         boards = await get_json(
             credential,
             f"/rest/agile/1.0/board?projectKeyOrId={project_key}&maxResults=1",
         )
-    except ImportEngineError:
+    except ImportEngineError as exc:
+        if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+            raise
         return None
     values = boards.get("values") if isinstance(boards, dict) else None
     if not isinstance(values, list) or not values:
@@ -131,7 +137,9 @@ async def fetch_board_column_order(
         configuration = await get_json(
             credential, f"/rest/agile/1.0/board/{board_id}/configuration"
         )
-    except ImportEngineError:
+    except ImportEngineError as exc:
+        if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+            raise
         return None
     return jira_mapping.board_column_statuses(configuration)
 

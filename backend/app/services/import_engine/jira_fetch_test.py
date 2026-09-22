@@ -21,6 +21,18 @@ from app.services.import_engine.contract import ImportEngineError
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.fixture(autouse=True)
+def _no_waiting(monkeypatch):
+    """A throttled call retries after a wait; the tests take the retry and
+    skip the wait."""
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(atlassian, "_sleep", fake_sleep)
+
+
 CREDENTIAL = atlassian.AtlassianCredential(
     site_url="https://acme.atlassian.net",
     email="someone@example.com",
@@ -394,3 +406,23 @@ async def test_the_zip_stays_inside_the_members_bound(monkeypatch):
     payload, _ = await _bundle(monkeypatch)
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         assert len(archive.infolist()) == 2  # manifest + one envelope
+
+
+async def test_a_throttled_board_lookup_is_not_mistaken_for_no_board(monkeypatch):
+    """A board the token cannot read is fine to do without; a site that is
+    throttling us is not the same thing, and importing without the column
+    order would hide it."""
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/rest/agile/1.0/board" in url:
+            return httpx.Response(429, json={})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        return httpx.Response(200, json={"issues": []})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    with pytest.raises(ImportEngineError) as exc:
+        await _bundle(monkeypatch)
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
