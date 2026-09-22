@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.1] - 2026-09-21
+
+### Added
+
+- **A person's name is the way to them** — a mention of somebody in a comment or a document was a badge and nothing more, and the name over a comment was plain text. Both now open that person's profile, and pointing at either one shows a card with the banner they are wearing, what they said they're up to, their trophies and when they joined. A mention also shows who that id is *now* rather than the name it was written with, so somebody who changes their name is renamed in every sentence that mentions them, in every comment and document, with none of them edited.
+- **Pictures zoom** — a picture opened full screen can now be zoomed: pinch it on a phone, double-tap to jump in and back out, hold Ctrl and scroll on a trackpad, or use the two buttons in the top bar and the `+`, `-` and `0` keys. While it is larger than the screen a drag moves the picture around instead of turning the page, and it never travels further than there is picture to bring back. Letting go, or moving on to the next one, starts again at fit-to-screen. This is the same viewer the gallery, a document's attached image and an announcement all use, so all three gained it at once.
+
+### Changed
+
+- **A checklist line too long to read can be opened** — a step with more to say than the row could hold ran off the end of its field with no way to see the rest of it. A line that does not fit now carries a chevron that opens it to its full height, closes it again, and is absent from every line that fits. An opened line is still editable, and still saves the same way.
+- **A task's description opens as it reads** — the description field started on the writing tab, so arriving at a task meant looking at its markdown rather than at the task. It now opens showing the finished text, with **Write** a click away and the tab you pick staying picked. A task with nothing written yet still opens ready to type.
+- **The mark on a blocked task is a caution** — something waiting on another piece of work is a thing to know about, not a thing that has gone wrong, so the mark on its board card and in every task table is now amber rather than the grey it shared with everything else.
+- **A document card no longer counts its projects** — the card carried a badge saying how many projects a document was attached to, which was a number almost nobody needed and the one badge that showed up even when the answer was none. The links panel on the document itself says what it is attached to.
+
+### Fixed
+
+- **Content nobody owns can be claimed again** — a community's older shared calendars were listed under **Settings → Users** as having no owner, and claiming them came back with a server error every time. Ownership of those calendars had been recorded against a role rather than a person when they were first created, which is not something the app can hand to anybody, and the sharing panel never showed it either. Those roles now hold ordinary edit access, listed where the rest of a calendar's sharing is, and the calendars can be claimed like everything else on that list.
+- **A server reached at its own address works again** — on a deployment reached over plain HTTP at a name or address other than the one set as `APP_URL` — a NAS, a box on the house network — ticking a checklist item, saving a change or opening anything live came back with “This request didn’t come from a page on this site”. Browsers only send the header that proves a request came from the page in front of you when the address is HTTPS or localhost, so there was nothing to read and the address people had typed was not the one configured. Such a request is now settled by comparing the page it came from against the address it was sent to, which needs no header and no configuration: a community reached at whatever address its server answers on writes, and its live views connect, without anybody editing a setting first.
+- **The notification panel fits the window** — it reserved the same tall box whether it held twenty notifications or two, and on a short window the bottom of it ran off the screen where the **See all** button could not be reached. It is now as tall as what is in it, and never taller than the space it has, with the list scrolling inside while the heading and the footer stay put.
+
 ## [0.71.0] - 2026-09-20
 
 ### Added

@@ -30,6 +30,7 @@ import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floatin
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { LegacyNodesPlugin } from "@/components/ui/editor/plugins/legacy-nodes-plugin";
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
+import { MentionedPeoplePlugin } from "@/components/ui/editor/plugins/mentioned-people-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
@@ -362,6 +363,10 @@ export function Plugins({
             costs nothing, so an editor with no chips pays for this in an empty
             array. */}
         <SmartChipRefsPlugin />
+        {/* Ungated for the same reason: a read-only view renders mentions too,
+            and an unreported one shows the name it was written with instead of
+            who that person is now. */}
+        <MentionedPeoplePlugin />
         {supportsEntityMentions && !readOnly && (
           <EntityMentionsPlugin initiativeId={initiativeId} subject={subject} />
         )}

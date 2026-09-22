@@ -167,7 +167,9 @@
   "lightbox": {
     "title": "Imagen",
     "description": "Usa las flechas o desliza para pasar de una imagen a otra.",
-    "position": "{{current}} / {{total}}"
+    "position": "{{current}} / {{total}}",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar"
   },
   "timeline": {
     "label": "Ir a un mes",

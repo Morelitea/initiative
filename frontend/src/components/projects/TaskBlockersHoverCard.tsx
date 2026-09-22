@@ -52,7 +52,7 @@ export const TaskBlockersHoverCard = ({ task, className }: TaskBlockersHoverCard
     <HoverCard open={open} onOpenChange={setOpen}>
       <HoverCardTrigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={t("blockers.icon")}>
-          <Ban className={cn("h-4 w-4 text-muted-foreground", className)} />
+          <Ban className={cn("h-4 w-4 text-warning", className)} />
         </Button>
       </HoverCardTrigger>
       <HoverCardContent className="w-72" align="start">

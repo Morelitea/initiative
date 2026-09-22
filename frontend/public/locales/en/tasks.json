@@ -155,7 +155,9 @@
     "batchAdded_one": "Added {{count}} checklist item",
     "batchAdded_other": "Added {{count}} checklist items",
     "progress_one": "{{completed}}/{{total}} item",
-    "progress_other": "{{completed}}/{{total}} items"
+    "progress_other": "{{completed}}/{{total}} items",
+    "expandItem": "Show the whole item",
+    "collapseItem": "Show less"
   },
   "prioritySelector": {
     "ariaLabel": "Priority: {{priority}}. Click to change.",

@@ -26,18 +26,30 @@ from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 logger = logging.getLogger(__name__)
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
-engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL_APP,
+    echo=False,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+)
 
 # System engine: background jobs, startup seeding, platform lifecycle.
 # The textbook Postgres trusted-batch actor: BYPASSRLS, bounded by
 # enumerated per-table GRANTs (migration 0129). Guild schemas still
 # require SET ROLE guild_<id>, which drops the bypass.
-admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
+admin_engine = create_async_engine(
+    settings.DATABASE_URL_ADMIN,
+    echo=False,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+)
 _SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
-provisioning_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+provisioning_engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+)
 
 #: A pool of its own for reader-written SQL, so what those statements wait for
 #: is each other rather than the requests serving every other page. Same login
@@ -49,6 +61,7 @@ query_engine = create_async_engine(
     pool_size=settings.QUERY_POOL_SIZE,
     max_overflow=0,
     pool_timeout=settings.QUERY_POOL_TIMEOUT_SECONDS,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 
 AsyncSessionLocal = async_sessionmaker(

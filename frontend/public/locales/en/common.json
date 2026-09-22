@@ -166,8 +166,10 @@
   },
   "lightbox": {
     "title": "Picture",
-    "description": "Use the arrow keys or swipe to move between pictures.",
-    "position": "{{current}} / {{total}}"
+    "description": "Use the arrow keys or swipe to move between pictures. Pinch, double-tap or scroll with Ctrl to zoom.",
+    "position": "{{current}} / {{total}}",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "timeline": {
     "label": "Jump to a month",

@@ -93,6 +93,33 @@ def test_one_owner_per_resource_is_enforced_in_the_schema():
     assert [c.name for c in index.columns] == ["resource_type", "resource_id"]
 
 
+def test_a_grantee_holds_one_grant_per_resource():
+    """One row per grantee, whatever level it is at.
+
+    This is what makes stepping an owner row down to ``write`` safe without
+    looking for a second row to merge it into: there cannot be one.
+    """
+    from sqlalchemy import UniqueConstraint
+
+    constraint = next(
+        (
+            c
+            for c in ResourceGrant.__table__.constraints
+            if isinstance(c, UniqueConstraint)
+            and c.name == "resource_grants_unique_grantee"
+        ),
+        None,
+    )
+    assert constraint is not None, "the unique-grantee constraint is missing"
+    assert [c.name for c in constraint.columns] == [
+        "resource_type",
+        "resource_id",
+        "user_id",
+        "role_id",
+        "dashboard_id",
+    ]
+
+
 # ── Behaviour ───────────────────────────────────────────────────────────────
 
 
@@ -408,3 +435,143 @@ async def test_general_access_does_not_displace_the_owner(session):
             )
         ).one()
         assert shared.level == ResourceAccessLevel.write
+
+
+# ── Owner grants that name no user (issue #1858) ────────────────────────────
+
+
+async def _make_role_the_owner(session, *, tool: Tool, row, role_id: int):
+    """Replace a resource's user owner grant with one held by a role.
+
+    The shape migration 20260804_0157 left on every calendar it backfilled:
+    one owner row per manager role, no user named. Reproduced rather than
+    depended on, because that migration has already run everywhere.
+    """
+    grant = await _owner_grant(session, tool, row.id)
+    assert grant is not None
+    await session.delete(grant)
+    await session.flush()
+    session.add(
+        ResourceGrant(
+            resource_type=tool.value,
+            resource_id=row.id,
+            user_id=None,
+            role_id=role_id,
+            level=ResourceAccessLevel.owner,
+            guild_id=row.guild_id,
+            initiative_id=row.initiative_id,
+        )
+    )
+    await session.commit()
+
+
+async def _manager_role_id(session, initiative) -> int:
+    from app.models.tenant.initiative import InitiativeRoleModel
+
+    return (
+        await session.exec(
+            select(InitiativeRoleModel.id).where(
+                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.name == "project_manager",
+            )
+        )
+    ).one()
+
+
+async def _grants_for(session, tool: Tool, resource_id: int):
+    return (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == tool.value,
+                ResourceGrant.resource_id == resource_id,
+            )
+        )
+    ).all()
+
+
+async def test_a_role_held_owner_grant_is_claimable(session):
+    """Content whose owner row names a role can be claimed by an admin.
+
+    Ownership means a person or nobody, but the single-owner index counts a
+    role's owner row like anyone else's — so one left standing made the new
+    owner collide with it and the claim fail outright.
+    """
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    initiative = await create_initiative(session, guild, admin)
+    calendar = await TOOL_FACTORIES[Tool.calendar](session, initiative, admin)
+    role_id = await _manager_role_id(session, initiative)
+
+    await route_session_to_guild(session, guild.id)
+    await _make_role_the_owner(
+        session, tool=Tool.calendar, row=calendar, role_id=role_id
+    )
+
+    await route_session_to_guild(session, guild.id)
+    items = await ownership_service.summarize_unowned_content(
+        session, guild_id=guild.id
+    )
+    assert (Tool.calendar, calendar.id) in {(i.tool, i.id) for i in items}
+
+    counts = await ownership_service.claim_unowned_content(
+        session, guild_id=guild.id, to_user_id=admin.id
+    )
+    await session.commit()
+
+    assert counts.get(Tool.calendar) == 1
+    grant = await _owner_grant(session, Tool.calendar, calendar.id)
+    assert grant is not None and grant.user_id == admin.id
+
+
+async def test_claiming_leaves_the_role_able_to_edit(session):
+    """The role that held the owner row keeps write, not nothing.
+
+    Its grant was never visible in the sharing panel, so dropping it would take
+    editing away from people with no record of why.
+    """
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    initiative = await create_initiative(session, guild, admin)
+    calendar = await TOOL_FACTORIES[Tool.calendar](session, initiative, admin)
+    role_id = await _manager_role_id(session, initiative)
+
+    await route_session_to_guild(session, guild.id)
+    await _make_role_the_owner(
+        session, tool=Tool.calendar, row=calendar, role_id=role_id
+    )
+
+    await route_session_to_guild(session, guild.id)
+    await ownership_service.claim_unowned_content(
+        session, guild_id=guild.id, to_user_id=admin.id
+    )
+    await session.commit()
+
+    role_grants = [
+        g
+        for g in await _grants_for(session, Tool.calendar, calendar.id)
+        if g.role_id == role_id
+    ]
+    assert len(role_grants) == 1
+    assert role_grants[0].level == ResourceAccessLevel.write
+
+
+async def test_releasing_content_clears_an_owner_row_that_names_no_user(session):
+    """Every path through ``set_resource_owner`` ends with no owner row left."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    initiative = await create_initiative(session, guild, admin)
+    calendar = await TOOL_FACTORIES[Tool.calendar](session, initiative, admin)
+    role_id = await _manager_role_id(session, initiative)
+
+    await route_session_to_guild(session, guild.id)
+    await _make_role_the_owner(
+        session, tool=Tool.calendar, row=calendar, role_id=role_id
+    )
+
+    await route_session_to_guild(session, guild.id)
+    await ownership_service.set_resource_owner(
+        session, tool=Tool.calendar, row=calendar, new_owner_id=None
+    )
+    await session.commit()
+
+    assert await _owner_grant(session, Tool.calendar, calendar.id) is None
