@@ -26,7 +26,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import SeatSessionDep, SessionDep, get_current_active_user
+from app.api.deps import SeatWriteSessionDep, SessionDep, get_current_active_user
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
     _require_guild_auth_option,
@@ -72,7 +72,7 @@ async def _require_connection_option(
     admin_session: AsyncSession, guild_id: int
 ) -> None:
     """Changing it: the operator's grant of the option. The seat itself is
-    :data:`~app.api.deps.SeatSessionDep`, which routed the request here — who
+    :data:`~app.api.deps.SeatWriteSessionDep`, which routed the request here — who
     may enter a community is that seat's to decide."""
     await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
 
@@ -120,7 +120,7 @@ async def list_connectable_providers(
 async def create_guild_provider_connection(
     guild_id: int,
     payload: GuildProviderConnectionCreate,
-    _session: SeatSessionDep,
+    _session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> GuildProviderConnectionRead:
@@ -138,7 +138,7 @@ async def update_guild_provider_connection(
     guild_id: int,
     connection_id: int,
     payload: GuildProviderConnectionUpdate,
-    session: SeatSessionDep,
+    session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> GuildProviderConnectionRead:
@@ -161,7 +161,7 @@ async def update_guild_provider_connection(
 async def delete_guild_provider_connection(
     guild_id: int,
     connection_id: int,
-    session: SeatSessionDep,
+    session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> None:
@@ -202,7 +202,7 @@ async def list_guild_claim_rules(
 async def create_guild_claim_rule(
     guild_id: int,
     payload: GuildClaimRuleCreate,
-    _session: SeatSessionDep,
+    _session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> GuildClaimRuleRead:
@@ -223,7 +223,7 @@ async def update_guild_claim_rule(
     guild_id: int,
     rule_id: int,
     payload: GuildClaimRuleUpdate,
-    _session: SeatSessionDep,
+    _session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> GuildClaimRuleRead:
@@ -243,7 +243,7 @@ async def update_guild_claim_rule(
 async def delete_guild_claim_rule(
     guild_id: int,
     rule_id: int,
-    _session: SeatSessionDep,
+    _session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUserDep,
 ) -> None:

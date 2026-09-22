@@ -32,6 +32,7 @@ from app.services.platform import auth_posture
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
+    AccessGrantMessages,
     AuthMessages,
     DirectMessageMessages,
     GuildMessages,
@@ -1362,11 +1363,38 @@ async def get_guild_seat_session(
     return session
 
 
+def require_grant_writes(context: GuildContext) -> None:
+    """Refuse a change from a grantee whose grants read.
+
+    A settings rung reaches the community's configuration; changing it takes
+    a ``read_write`` content grant beside the rung — the two asks together.
+    The membership row's administrator is not a grantee and passes.
+    """
+    if context.is_pam and not context.pam_write:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AccessGrantMessages.WRITE_GRANT_REQUIRED,
+        )
+
+
+async def get_guild_seat_write_session(
+    session: SessionDep,
+    context: Annotated[GuildContext, Depends(get_guild_seat_context)],
+) -> AsyncSession:
+    """The seat's session, for a route that changes what the seat holds.
+
+    Held by the membership row, the seat writes. Lent by a settings grant, it
+    reads, and writes only beside a live ``read_write`` content grant."""
+    require_grant_writes(context)
+    return session
+
+
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 SeatContextDep = Annotated[GuildContext, Depends(get_guild_seat_context)]
 SeatSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_session)]
+SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_session)]
 
 
 async def _include_deleted_flag(

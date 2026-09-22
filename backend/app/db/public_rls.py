@@ -77,6 +77,13 @@ CONFIGURED_GID = f"COALESCE({GID}, {SETTINGS_GID})"
 #: the rung a live settings grant confers, which is its own axis.
 ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
 PAM_READ = "current_setting('app.pam_read', true) = 'true'"
+PAM_WRITE = "current_setting('app.pam_write', true) = 'true'"
+#: The reader changes what they administer. The membership row's admin does;
+#: a settings rung reads, and writes only beside a live read_write content
+#: grant — the two asks together.
+ROUTED_ADMIN_WRITE = (
+    f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {PAM_WRITE}))"
+)
 #: Who a notification is being written for. The bell is the one table whose
 #: rows are written by somebody other than the person they belong to, so the
 #: writer names its recipient and the policy holds it to that one account.
@@ -106,6 +113,13 @@ def routed_admin(col: str = "guild_id") -> str:
     """The row belongs to this request's community and the reader administers
     it — as its admin, or at the rung a live settings grant confers."""
     return f"{col} = {CONFIGURED_GID} AND {ROUTED_ADMIN}"
+
+
+def routed_admin_write(col: str = "guild_id") -> str:
+    """The row belongs to this request's community and the reader changes what
+    they administer — as its admin, or on a settings grant beside a read_write
+    content grant."""
+    return f"{col} = {CONFIGURED_GID} AND {ROUTED_ADMIN_WRITE}"
 
 
 def routed_or_own(guild_col: str, user_col: str) -> str:
@@ -151,6 +165,12 @@ def seat(col: str = "guild_id") -> str:
     superadmin seat — by the membership row, or by a live settings grant at
     that rung, which is what ``guild_superadmin()`` asks."""
     return f"{col} = {CONFIGURED_GID} AND guild_superadmin({col}, {UID})"
+
+
+def seat_write(col: str = "guild_id") -> str:
+    """The seat, changing what it holds: by the membership row, or lent by a
+    settings grant beside a live read_write content grant."""
+    return f"{seat(col)} AND ({GUILD_ADMIN} OR {PAM_WRITE})"
 
 
 # Predicates one table family shares, named once.
@@ -542,19 +562,19 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 "guild_auth_policies_seat_delete",
                 DELETE,
                 ("public",),
-                using=seat("guild_id"),
+                using=seat_write("guild_id"),
             ),
             Policy(
                 "guild_auth_policies_seat_insert",
                 INSERT,
                 ("public",),
-                check=seat("guild_id"),
+                check=seat_write("guild_id"),
             ),
             Policy(
                 "guild_auth_policies_seat_update",
                 UPDATE,
                 ("public",),
-                using=seat("guild_id"),
+                using=seat_write("guild_id"),
             ),
         ),
     ),
@@ -578,10 +598,25 @@ PUBLIC_RLS: dict[str, TableRls] = {
     # engine, which these do not bind.
     "guild_invites": TableRls(
         policies=(
-            Policy("guild_delete", DELETE, ("public",), using=routed_admin("guild_id")),
-            Policy("guild_insert", INSERT, ("public",), check=routed_admin("guild_id")),
+            Policy(
+                "guild_delete",
+                DELETE,
+                ("public",),
+                using=routed_admin_write("guild_id"),
+            ),
+            Policy(
+                "guild_insert",
+                INSERT,
+                ("public",),
+                check=routed_admin_write("guild_id"),
+            ),
             Policy("guild_select", SELECT, ("public",), using=routed_admin("guild_id")),
-            Policy("guild_update", UPDATE, ("public",), using=routed_admin("guild_id")),
+            Policy(
+                "guild_update",
+                UPDATE,
+                ("public",),
+                using=routed_admin_write("guild_id"),
+            ),
         ),
     ),
     "guild_memberships": TableRls(
@@ -639,7 +674,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 using=billing_scoped("id"),
             ),
             Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
-            Policy("guild_delete", DELETE, ("public",), using=routed_admin("id")),
+            Policy("guild_delete", DELETE, ("public",), using=seat_write("id")),
             Policy("guild_insert", INSERT, ("public",), check=SIGNED_IN),
             Policy(
                 "guild_select",
@@ -651,7 +686,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ),
                 using=routed_or_member("id"),
             ),
-            Policy("guild_update", UPDATE, ("public",), using=routed_admin("id")),
+            Policy("guild_update", UPDATE, ("public",), using=routed_admin_write("id")),
             Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),
             Policy(
                 "profile_reader_reads_the_name_rule",
