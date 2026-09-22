@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncContextManager, Awaitable, Callable
 from urllib.parse import urlsplit
 
-from sqlmodel import select
+from cryptography.fernet import InvalidToken
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -36,8 +36,12 @@ from app.core.version import get_version
 from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.core.encryption import (
+    SALT_IMPORT_CREDENTIAL,
+    decrypt_field,
+    encrypt_field,
+)
 from app.schemas.tenant.import_job import AtlassianFetchSummary, BackupImportPlan
-from app.services.import_engine import credentials as import_credentials
 from app.services.import_engine import engine as import_engine
 from app.services.import_engine import jira_fetch
 from app.services.import_engine.atlassian import AtlassianCredential
@@ -77,37 +81,26 @@ async def start_jira_import(
     *,
     user: User,
     guild_id: int,
-    credential_id: int,
+    credential: AtlassianCredential,
     initiative_id: int,
     project_keys: list[str],
 ) -> ImportJob:
     """Queue a job that reads these Jira projects into ``initiative_id``.
 
+    The token the connect step proved comes back with this request and is
+    stored on the job, encrypted, for the worker that reads the site minutes
+    later. It is cleared the moment the job reaches a terminal state.
+
     Everything that can be refused now is refused now, so a person finds out
     in the wizard rather than from a failed job minutes later: nothing
-    ticked, a connection that is not theirs or not live, a connection another
-    job already took, an initiative they cannot create projects in. The
-    worker asks the last of those again before it reads anything, and the
-    apply asks it a third time — authorization is a property of the moment.
+    ticked, an initiative they cannot create projects in. The worker asks the
+    second of those again before it reads anything, and the apply asks it a
+    third time — authorization is a property of the moment.
     """
     # Order kept, repeats dropped: the order is the order they were ticked.
     keys = list(dict.fromkeys(key.strip() for key in project_keys if key.strip()))
     if not keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
-
-    credential = await import_credentials.describe(
-        credential_id, guild_id=guild_id, user_id=user.id
-    )
-    if credential is None or credential.provider != PROVIDER:
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_CREDENTIAL_UNAVAILABLE, status_code=404
-        )
-    if await _credential_taken(session, credential_id):
-        # One connection, one job. A second job quoting it would fail when the
-        # first one's end dropped the credential, so it is refused here instead.
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_CREDENTIAL_UNAVAILABLE, status_code=409
-        )
 
     initiative = await import_engine.load_target_initiative(
         session,
@@ -123,12 +116,13 @@ async def start_jira_import(
         source=SOURCE,
         params={
             "initiative_id": initiative.id,
-            "credential_id": credential.id,
-            # Which site, so the wizard and the Data tab can say where this
-            # came from. The person typed it; it is not a secret.
+            # Which site and as whom, so the wizard and the Data tab can say
+            # where this came from. The person typed both; neither is secret.
             "site_url": credential.site_url,
+            "principal": credential.email,
             "jira_projects": keys,
         },
+        secret_encrypted=encrypt_field(credential.api_token, SALT_IMPORT_CREDENTIAL),
         status=ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
         + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
@@ -137,22 +131,6 @@ async def start_jira_import(
     await session.commit()
     await session.refresh(job)
     return job
-
-
-async def _credential_taken(session: AsyncSession, credential_id: int) -> bool:
-    """Whether some job already quotes this credential.
-
-    Only the credential's owner can quote it, and their own jobs are what the
-    own-row policy shows them, so the jobs that matter are all visible here.
-    """
-    taken = (
-        await session.exec(
-            select(ImportJob.id)
-            .where(ImportJob.params["credential_id"].as_integer() == credential_id)
-            .limit(1)
-        )
-    ).first()
-    return taken is not None
 
 
 @dataclass(frozen=True)
@@ -186,9 +164,15 @@ async def fetch(
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
-    credential_id = params.get("credential_id")
     keys = params.get("jira_projects")
-    if not isinstance(credential_id, int) or not isinstance(keys, list):
+    site_url = params.get("site_url")
+    principal = params.get("principal")
+    if (
+        not isinstance(keys, list)
+        or not isinstance(site_url, str)
+        or not isinstance(principal, str)
+        or not job.secret_encrypted
+    ):
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
     keys = [key for key in keys if isinstance(key, str) and key]
 
@@ -196,13 +180,12 @@ async def fetch(
     if user is None or user.status != UserStatus.active:
         raise ImportEngineError(ImportEngineMessages.IMPORT_CREATOR_INACTIVE)
 
-    loaded = await import_credentials.load(credential_id, guild_id=guild_id)
-    if (
-        loaded is None
-        or loaded.created_by != job.created_by
-        or (loaded.provider != PROVIDER)
-    ):
-        raise ImportEngineError(ImportEngineMessages.IMPORT_CREDENTIAL_UNAVAILABLE)
+    try:
+        api_token = decrypt_field(job.secret_encrypted, SALT_IMPORT_CREDENTIAL)
+    except InvalidToken as exc:
+        raise ImportEngineError(
+            ImportEngineMessages.IMPORT_CREDENTIAL_UNAVAILABLE
+        ) from exc
 
     # Before a single call to the site: is the person still somebody who may
     # put projects in that initiative? The session is closed again before
@@ -230,14 +213,14 @@ async def fetch(
             await progress(summary_of(report))
 
     credential = AtlassianCredential(
-        site_url=loaded.site_url, email=loaded.principal, api_token=loaded.secret
+        site_url=site_url, email=principal, api_token=api_token
     )
     bundle, report = await jira_fetch.fetch_projects_bundle(
         credential,
         project_keys=keys,
         guild_id=guild_id,
         # The bundle's "source guild" is where it came from, which is the site.
-        guild_name=urlsplit(loaded.site_url).hostname or loaded.site_url,
+        guild_name=urlsplit(site_url).hostname or site_url,
         target_initiative_id=target_initiative_id,
         app_version=get_version(),
         progress=report_progress,

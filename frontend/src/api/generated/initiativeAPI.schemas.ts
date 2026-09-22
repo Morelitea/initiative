@@ -1139,30 +1139,45 @@ export interface AtlassianJiraProbe {
 }
 
 /**
- * The connect step's answer: a credential to quote later, and what is
- * on the site.
+ * The connect step's answer: what is on the site.
  *
- * ``credential_id`` names the stored credential. It is what a later confirm
- * hands to the job so the worker can read the site — the token itself never
- * comes back out of the server.
+ * The request that starts an import carries the token again, so there is
+ * nothing to quote back here and nothing kept between the two.
  */
 export interface AtlassianConnectResponse {
-  credential_id: number;
   site_url: string;
   jira?: AtlassianJiraProbe;
   confluence?: AtlassianConfluenceProbe;
 }
 
 /**
- * The choose step's answer: which projects, from which connection, into
- * which initiative.
+ * The choose step's answer: which projects, from which site, into which
+ * initiative.
  *
  * Nothing is read from the site here. The request starts a job, and the
  * worker reads the projects into a bundle and parks it for review — the
  * plan the wizard shows next is filled in as that fetch goes.
+ *
+ * It carries the same three values the connect step proved, because the job
+ * row is what holds them from here on: the site the projects come from, who
+ * the token authenticates as there, and the token itself.
  */
 export interface AtlassianJiraImportRequest {
-  credential_id: number;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  site_url: string;
+  /**
+   * @minLength 1
+   * @maxLength 320
+   */
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  api_token: string;
   initiative_id: number;
   /**
    * @maxItems 200
@@ -3759,6 +3774,40 @@ export interface FilterPresetUpdate {
 }
 
 /**
+ * Body of ``POST /imports/foreign/{source}``.
+ *
+ * ``content`` is the export's own text — a CSV or a JSON document — sent
+ * back with the choice made about it, so nothing is held server-side
+ * between the preview and the import.
+ */
+export interface ForeignImportRequest {
+  initiative_id: number;
+  selection?: string;
+  content: string;
+}
+
+/**
+ * One importable thing inside an uploaded export.
+ */
+export interface ForeignSourceOption {
+  key: string;
+  name: string;
+  task_count: number;
+}
+
+/**
+ * What an uploaded export holds, read without storing any of it.
+ *
+ * ``picks_one`` tells the wizard what its next step is for: choosing
+ * between the options, or naming the single project the file describes.
+ */
+export interface ForeignPreview {
+  source: string;
+  picks_one: boolean;
+  options: ForeignSourceOption[];
+}
+
+/**
  * What a list draws for a gallery: one picture, at whichever size it has.
  */
 export interface GalleryCover {
@@ -4799,20 +4848,6 @@ export interface ImportJobRead {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-/**
- * Result of an import operation.
- */
-export interface ImportResult {
-  /** Number of tasks successfully created */
-  tasks_created?: number;
-  /** Number of checklist lines successfully created */
-  checklist_items_created?: number;
-  /** Number of tasks that failed to import */
-  tasks_failed?: number;
-  /** List of error messages */
-  errors?: string[];
 }
 
 export interface InitiativeCreate {
@@ -8059,52 +8094,6 @@ export interface TaskUpdate {
 }
 
 /**
- * A column (status) from a TickTick list.
- */
-export interface TickTickColumn {
-  name: string;
-  task_count: number;
-}
-
-/**
- * Mapping of TickTick column names to task_status_id
- */
-export type TickTickImportRequestColumnMapping = { [key: string]: number };
-
-/**
- * Request body for importing tasks from TickTick CSV export.
- */
-export interface TickTickImportRequest {
-  /** Target Initiative project to import into */
-  project_id: number;
-  /** Raw CSV content from TickTick export */
-  csv_content: string;
-  /** TickTick list name to import from */
-  source_list_name: string;
-  /** Mapping of TickTick column names to task_status_id */
-  column_mapping: TickTickImportRequestColumnMapping;
-}
-
-/**
- * A list detected in the TickTick export.
- */
-export interface TickTickList {
-  name: string;
-  task_count: number;
-  columns?: TickTickColumn[];
-}
-
-/**
- * Result of parsing a TickTick CSV export.
- */
-export interface TickTickParseResult {
-  /** Lists found in the export */
-  lists?: TickTickList[];
-  /** Total number of tasks across all lists */
-  total_tasks?: number;
-}
-
-/**
  * One period on the rail.
  */
 export interface TimelineBucket {
@@ -8116,43 +8105,6 @@ export interface TimelineBucket {
 
 export interface TimelineResponse {
   buckets: TimelineBucket[];
-}
-
-/**
- * Mapping of Todoist section names to task_status_id
- */
-export type TodoistImportRequestSectionMapping = { [key: string]: number };
-
-/**
- * Request body for importing tasks from Todoist CSV export.
- */
-export interface TodoistImportRequest {
-  /** Target project to import tasks into */
-  project_id: number;
-  /** Raw CSV content from Todoist export */
-  csv_content: string;
-  /** Mapping of Todoist section names to task_status_id */
-  section_mapping: TodoistImportRequestSectionMapping;
-}
-
-/**
- * A section detected in the Todoist CSV.
- */
-export interface TodoistSection {
-  name: string;
-  task_count: number;
-}
-
-/**
- * Result of parsing a Todoist CSV file.
- */
-export interface TodoistParseResult {
-  /** Sections found in the CSV */
-  sections?: TodoistSection[];
-  /** Total number of tasks found */
-  task_count?: number;
-  /** Whether any tasks carry checklist lines */
-  has_checklist_items?: boolean;
 }
 
 export interface Token {
@@ -8491,54 +8443,6 @@ export interface VerificationConfirmRequest {
 
 export interface VerificationSendResponse {
   status: string;
-}
-
-/**
- * A bucket (status column) from a Vikunja project.
- */
-export interface VikunjaBucket {
-  id: number;
-  name: string;
-  task_count: number;
-}
-
-/**
- * Mapping of Vikunja bucket IDs to task_status_id
- */
-export type VikunjaImportRequestBucketMapping = { [key: string]: number };
-
-/**
- * Request body for importing tasks from Vikunja JSON export.
- */
-export interface VikunjaImportRequest {
-  /** Target Initiative project to import into */
-  project_id: number;
-  /** Raw JSON content from Vikunja export */
-  json_content: string;
-  /** Vikunja project ID to import from */
-  source_project_id: number;
-  /** Mapping of Vikunja bucket IDs to task_status_id */
-  bucket_mapping: VikunjaImportRequestBucketMapping;
-}
-
-/**
- * A project detected in the Vikunja export.
- */
-export interface VikunjaProject {
-  id: number;
-  name: string;
-  task_count: number;
-  buckets?: VikunjaBucket[];
-}
-
-/**
- * Result of parsing a Vikunja JSON export.
- */
-export interface VikunjaParseResult {
-  /** Projects found in the export */
-  projects?: VikunjaProject[];
-  /** Total number of tasks across all projects */
-  total_tasks?: number;
 }
 
 /**

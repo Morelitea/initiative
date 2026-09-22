@@ -30,9 +30,11 @@ SALT_APP_SERVICE_SECRET = b"app-service-secret"
 SALT_APP_CONFIG = b"app-config"
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
+# The value a job needs to read a foreign site. Kept under its original
+# name so values written before the job carried it still decrypt.
+SALT_IMPORT_CREDENTIAL = b"import-credential"
 # The API token one import job uses to read a foreign site. Held for the
 # length of that job and deleted with it.
-SALT_IMPORT_CREDENTIAL = b"import-credential"
 
 
 def _resolve_secret_key(secret_key: str | None) -> str:

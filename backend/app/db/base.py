@@ -115,7 +115,6 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
-from app.models.platform.import_credential import ImportCredential
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
     MarketplaceRegistryState,
@@ -149,7 +148,6 @@ __all__ = [
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
-    "ImportCredential",
     "Project",
     "Task",
     "TaskAssignee",

@@ -38,7 +38,6 @@ import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './r
 import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
 import { Route as ServerRequiredAuthenticatedProfileAiRouteImport } from './routes/_serverRequired/_authenticated/profile/ai'
 import { Route as ServerRequiredAuthenticatedProfileDangerRouteImport } from './routes/_serverRequired/_authenticated/profile/danger'
-import { Route as ServerRequiredAuthenticatedProfileImportRouteImport } from './routes/_serverRequired/_authenticated/profile/import'
 import { Route as ServerRequiredAuthenticatedProfileInterfaceRouteImport } from './routes/_serverRequired/_authenticated/profile/interface'
 import { Route as ServerRequiredAuthenticatedProfileNotificationsRouteImport } from './routes/_serverRequired/_authenticated/profile/notifications'
 import { Route as ServerRequiredAuthenticatedProfilePrivacyRouteImport } from './routes/_serverRequired/_authenticated/profile/privacy'
@@ -326,12 +325,6 @@ const ServerRequiredAuthenticatedProfileDangerRoute =
   ServerRequiredAuthenticatedProfileDangerRouteImport.update({
     id: '/danger',
     path: '/danger',
-    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
-  } as any)
-const ServerRequiredAuthenticatedProfileImportRoute =
-  ServerRequiredAuthenticatedProfileImportRouteImport.update({
-    id: '/import',
-    path: '/import',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileInterfaceRoute =
@@ -1321,7 +1314,6 @@ export interface FileRoutesByFullPath {
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1472,7 +1464,6 @@ export interface FileRoutesByTo {
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1613,7 +1604,6 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/_serverRequired/_authenticated/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/_serverRequired/_authenticated/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/_serverRequired/_authenticated/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/_serverRequired/_authenticated/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/_serverRequired/_authenticated/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1768,7 +1758,6 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
     | '/profile/privacy'
@@ -1919,7 +1908,6 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
     | '/profile/privacy'
@@ -2059,7 +2047,6 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
     | '/_serverRequired/_authenticated/profile/danger'
-    | '/_serverRequired/_authenticated/profile/import'
     | '/_serverRequired/_authenticated/profile/interface'
     | '/_serverRequired/_authenticated/profile/notifications'
     | '/_serverRequired/_authenticated/profile/privacy'
@@ -2395,13 +2382,6 @@ declare module '@tanstack/react-router' {
       path: '/danger'
       fullPath: '/profile/danger'
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDangerRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
-    }
-    '/_serverRequired/_authenticated/profile/import': {
-      id: '/_serverRequired/_authenticated/profile/import'
-      path: '/import'
-      fullPath: '/profile/import'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedProfileImportRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
     '/_serverRequired/_authenticated/profile/interface': {
@@ -3272,7 +3252,6 @@ interface ServerRequiredAuthenticatedProfileRouteChildren {
   ServerRequiredAuthenticatedProfileAccountRoute: typeof ServerRequiredAuthenticatedProfileAccountRoute
   ServerRequiredAuthenticatedProfileAiRoute: typeof ServerRequiredAuthenticatedProfileAiRoute
   ServerRequiredAuthenticatedProfileDangerRoute: typeof ServerRequiredAuthenticatedProfileDangerRoute
-  ServerRequiredAuthenticatedProfileImportRoute: typeof ServerRequiredAuthenticatedProfileImportRoute
   ServerRequiredAuthenticatedProfileInterfaceRoute: typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   ServerRequiredAuthenticatedProfileNotificationsRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   ServerRequiredAuthenticatedProfilePrivacyRoute: typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -3289,8 +3268,6 @@ const ServerRequiredAuthenticatedProfileRouteChildren: ServerRequiredAuthenticat
       ServerRequiredAuthenticatedProfileAiRoute,
     ServerRequiredAuthenticatedProfileDangerRoute:
       ServerRequiredAuthenticatedProfileDangerRoute,
-    ServerRequiredAuthenticatedProfileImportRoute:
-      ServerRequiredAuthenticatedProfileImportRoute,
     ServerRequiredAuthenticatedProfileInterfaceRoute:
       ServerRequiredAuthenticatedProfileInterfaceRoute,
     ServerRequiredAuthenticatedProfileNotificationsRoute:

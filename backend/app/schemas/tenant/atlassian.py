@@ -86,17 +86,24 @@ JIRA_PROJECT_KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
 
 
 class AtlassianJiraImportRequest(SanitizedBaseModel):
-    """The choose step's answer: which projects, from which connection, into
-    which initiative.
+    """The choose step's answer: which projects, from which site, into which
+    initiative.
 
     Nothing is read from the site here. The request starts a job, and the
     worker reads the projects into a bundle and parks it for review — the
     plan the wizard shows next is filled in as that fetch goes.
+
+    It carries the same three values the connect step proved, because the job
+    row is what holds them from here on: the site the projects come from, who
+    the token authenticates as there, and the token itself.
     """
 
-    #: What the connect step returned. Only the person who connected may quote
-    #: it, and only once.
-    credential_id: int
+    site_url: str = Field(min_length=1, max_length=2000)
+    #: The Atlassian account the API token belongs to. Their identifier at the
+    #: source, not this platform's.
+    email: str = Field(min_length=1, max_length=320)
+    #: An Atlassian API token. Stored encrypted on the job and never echoed.
+    api_token: str = Field(min_length=1, max_length=2000)
     #: The initiative the projects land in. It has to exist, have projects
     #: switched on, and let this person create them — checked now, and again
     #: when the fetch starts and when the bundle is applied.
@@ -109,15 +116,12 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
 
 
 class AtlassianConnectResponse(SanitizedBaseModel):
-    """The connect step's answer: a credential to quote later, and what is
-    on the site.
+    """The connect step's answer: what is on the site.
 
-    ``credential_id`` names the stored credential. It is what a later confirm
-    hands to the job so the worker can read the site — the token itself never
-    comes back out of the server.
+    The request that starts an import carries the token again, so there is
+    nothing to quote back here and nothing kept between the two.
     """
 
-    credential_id: int
     #: The site as the server normalised it, which is what the job will use.
     site_url: str
     jira: AtlassianJiraProbe = AtlassianJiraProbe()

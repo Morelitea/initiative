@@ -21,12 +21,18 @@ for and Jira does not.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine.adf import adf_to_markdown
+from app.services.import_engine.mapping import (
+    DEFAULT_TAG_COLOR,
+    POSITION_STEP,
+    MappedProject,
+    build_envelope,
+    fallback_statuses,
+)
 
 #: Jira's five priorities to this app's four. Two of Jira's collapse into
 #: ``low`` — the field has to land somewhere, and the property mapping keeps
@@ -46,34 +52,6 @@ CATEGORY_BY_JIRA_KEY: dict[str, TaskStatusCategory] = {
     "indeterminate": TaskStatusCategory.in_progress,
     "done": TaskStatusCategory.done,
 }
-
-#: What an imported label is coloured. Jira labels carry no colour at all, so
-#: this is the app's own default rather than a translation of anything — a
-#: tag that already exists here keeps whatever colour it was given, because
-#: ``ensure_tag`` matches by name and never repaints.
-DEFAULT_TAG_COLOR = "#6366F1"
-
-#: The gap between adjacent task positions. Matches what the app's own
-#: reordering leaves room for, so a hand move after the import does not have
-#: to renumber the board.
-POSITION_STEP = 1000.0
-
-
-@dataclass
-class MappedProject:
-    """A project envelope and what mapping it cost.
-
-    The counts ride beside the envelope rather than inside it — the envelope
-    has to validate as the same document a project export writes, and a
-    casualty count is not part of that. They are what the plan shows somebody
-    before they commit to the import.
-    """
-
-    envelope: dict[str, Any]
-    #: ADF nodes no rule could render, summed over every description.
-    dropped_nodes: int = 0
-    #: Rows the search returned that were not usable as tasks.
-    skipped_issues: int = 0
 
 
 def map_priority(field: Any) -> TaskPriority:
@@ -368,14 +346,7 @@ def build_project_envelope(
         # refuses it), and a project with no workflow is not a thing Jira
         # has — but the fetch must not produce something unapplyable, so one
         # honest column stands in.
-        statuses = [
-            {
-                "name": "To Do",
-                "category": TaskStatusCategory.todo.value,
-                "position": 0,
-                "is_default": True,
-            }
-        ]
+        statuses = fallback_statuses()
     status_names = {status["name"] for status in statuses}
     default_status_name = next(
         (status["name"] for status in statuses if status["is_default"]),
@@ -406,33 +377,15 @@ def build_project_envelope(
         # ADF on others.
         description = str(project_fields["description"]).strip()
 
-    # Every tag any task carries, so the project declares them once.
-    tag_names: list[str] = []
-    seen_tags: set[str] = set()
-    for task in tasks:
-        for tag in task["tags"]:
-            key = tag["name"].lower()
-            if key not in seen_tags:
-                seen_tags.add(key)
-                tag_names.append(tag["name"])
-
-    envelope = {
-        "type": "initiative-project",
-        "schema_version": 1,
-        "app_version": app_version,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "source_instance_url": site_url,
-        "project": {
-            "name": str(project_fields.get("name") or "Imported project").strip(),
-            "description": description or None,
-        },
-        "tags": [{"name": name, "color": DEFAULT_TAG_COLOR} for name in tag_names],
-        "task_statuses": statuses,
-        "property_definitions": [],
-        "tasks": tasks,
-    }
     return MappedProject(
-        envelope=envelope,
+        envelope=build_envelope(
+            name=str(project_fields.get("name") or "Imported project"),
+            description=description or None,
+            statuses=statuses,
+            tasks=tasks,
+            app_version=app_version,
+            source_url=site_url,
+        ),
         dropped_nodes=dropped_nodes,
-        skipped_issues=skipped_issues,
+        skipped_rows=skipped_issues,
     )

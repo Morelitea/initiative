@@ -27,15 +27,10 @@ import type {
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
   ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
+  ForeignImportRequest,
+  ForeignPreview,
   HTTPValidationError,
   ImportJobRead,
-  ImportResult,
-  TickTickImportRequest,
-  TickTickParseResult,
-  TodoistImportRequest,
-  TodoistParseResult,
-  VikunjaImportRequest,
-  VikunjaParseResult,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -58,624 +53,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-/**
- * Parse a Todoist CSV export and return detected sections and task count.
- *
- * This is a preview endpoint to help users map sections before importing.
- * @summary Parse Todoist Csv
- */
-export const parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost = (
-  guildId: number,
-  parseTodoistCsvApiV1GGuildIdImportsTodoistParsePostBody: BodyType<string>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<TodoistParseResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/todoist/parse`,
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      data: parseTodoistCsvApiV1GGuildIdImportsTodoistParsePostBody,
-      signal,
-    },
-    options
-  );
-};
-
-export const getParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationKey = () =>
-  ["parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost"] as const;
-
-export const getParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>,
-    TError,
-    ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>,
-  TError,
-  ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>,
-    ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>
->;
-export type ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationBody = BodyType<string>;
-export type ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables = {
-  guildId: number;
-  data: BodyType<string>;
-};
-
-/**
- * @summary Parse Todoist Csv
- */
-export const useParseTodoistCsvApiV1GGuildIdImportsTodoistParsePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>,
-      TError,
-      ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost>>,
-  TError,
-  ParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getParseTodoistCsvApiV1GGuildIdImportsTodoistParsePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Import tasks from a Todoist CSV export into a project.
- *
- * The section_mapping maps Todoist section names to task_status_id values
- * in the target project.
- * @summary Import From Todoist
- */
-export const importFromTodoistApiV1GGuildIdImportsTodoistPost = (
-  guildId: number,
-  todoistImportRequest: BodyType<TodoistImportRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ImportResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/todoist`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: todoistImportRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationKey = () =>
-  ["importFromTodoistApiV1GGuildIdImportsTodoistPost"] as const;
-
-export const getImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>,
-    TError,
-    ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>,
-  TError,
-  ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>,
-    ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return importFromTodoistApiV1GGuildIdImportsTodoistPost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>
->;
-export type ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationBody =
-  BodyType<TodoistImportRequest>;
-export type ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables = {
-  guildId: number;
-  data: BodyType<TodoistImportRequest>;
-};
-
-/**
- * @summary Import From Todoist
- */
-export const useImportFromTodoistApiV1GGuildIdImportsTodoistPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>,
-      TError,
-      ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>>,
-  TError,
-  ImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getImportFromTodoistApiV1GGuildIdImportsTodoistPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Parse a Vikunja JSON export and return detected projects with buckets.
- *
- * This is a preview endpoint to help users select a project and map buckets.
- * @summary Parse Vikunja Json
- */
-export const parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost = (
-  guildId: number,
-  parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostBody: BodyType<string>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<VikunjaParseResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/vikunja/parse`,
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      data: parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostBody,
-      signal,
-    },
-    options
-  );
-};
-
-export const getParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationKey = () =>
-  ["parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost"] as const;
-
-export const getParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>,
-    TError,
-    ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>,
-  TError,
-  ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>,
-    ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>
->;
-export type ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationBody = BodyType<string>;
-export type ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables = {
-  guildId: number;
-  data: BodyType<string>;
-};
-
-/**
- * @summary Parse Vikunja Json
- */
-export const useParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>,
-      TError,
-      ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost>>,
-  TError,
-  ParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getParseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Import tasks from a Vikunja JSON export into a project.
- *
- * The bucket_mapping maps Vikunja bucket IDs to task_status_id values
- * in the target project.
- * @summary Import From Vikunja
- */
-export const importFromVikunjaApiV1GGuildIdImportsVikunjaPost = (
-  guildId: number,
-  vikunjaImportRequest: BodyType<VikunjaImportRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ImportResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/vikunja`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: vikunjaImportRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationKey = () =>
-  ["importFromVikunjaApiV1GGuildIdImportsVikunjaPost"] as const;
-
-export const getImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>,
-    TError,
-    ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>,
-  TError,
-  ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>,
-    ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return importFromVikunjaApiV1GGuildIdImportsVikunjaPost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>
->;
-export type ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationBody =
-  BodyType<VikunjaImportRequest>;
-export type ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables = {
-  guildId: number;
-  data: BodyType<VikunjaImportRequest>;
-};
-
-/**
- * @summary Import From Vikunja
- */
-export const useImportFromVikunjaApiV1GGuildIdImportsVikunjaPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>,
-      TError,
-      ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>>,
-  TError,
-  ImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getImportFromVikunjaApiV1GGuildIdImportsVikunjaPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Parse a TickTick CSV export and return detected lists with columns.
- *
- * This is a preview endpoint to help users select a list and map columns.
- * @summary Parse Ticktick Csv
- */
-export const parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost = (
-  guildId: number,
-  parseTicktickCsvApiV1GGuildIdImportsTicktickParsePostBody: BodyType<string>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<TickTickParseResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/ticktick/parse`,
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      data: parseTicktickCsvApiV1GGuildIdImportsTicktickParsePostBody,
-      signal,
-    },
-    options
-  );
-};
-
-export const getParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationKey = () =>
-  ["parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost"] as const;
-
-export const getParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>,
-    TError,
-    ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>,
-  TError,
-  ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>,
-    ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>
->;
-export type ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationBody = BodyType<string>;
-export type ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables = {
-  guildId: number;
-  data: BodyType<string>;
-};
-
-/**
- * @summary Parse Ticktick Csv
- */
-export const useParseTicktickCsvApiV1GGuildIdImportsTicktickParsePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>,
-      TError,
-      ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost>>,
-  TError,
-  ParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getParseTicktickCsvApiV1GGuildIdImportsTicktickParsePostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Import tasks from a TickTick CSV export into a project.
- *
- * The column_mapping maps TickTick column names to task_status_id values
- * in the target project.
- * @summary Import From Ticktick
- */
-export const importFromTicktickApiV1GGuildIdImportsTicktickPost = (
-  guildId: number,
-  tickTickImportRequest: BodyType<TickTickImportRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ImportResult>(
-    {
-      url: `/api/v1/g/${guildId}/imports/ticktick`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: tickTickImportRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationKey = () =>
-  ["importFromTicktickApiV1GGuildIdImportsTicktickPost"] as const;
-
-export const getImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>,
-    TError,
-    ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>,
-  TError,
-  ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>,
-    ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return importFromTicktickApiV1GGuildIdImportsTicktickPost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>
->;
-export type ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationBody =
-  BodyType<TickTickImportRequest>;
-export type ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables = {
-  guildId: number;
-  data: BodyType<TickTickImportRequest>;
-};
-
-/**
- * @summary Import From Ticktick
- */
-export const useImportFromTicktickApiV1GGuildIdImportsTicktickPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>,
-      TError,
-      ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>>,
-  TError,
-  ImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * Import a previously-exported JSON envelope (any tool — the envelope's
  * ``type`` field selects the importer) into the chosen initiative. Requires
@@ -786,24 +163,256 @@ export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
   );
 };
 /**
+ * Say what an uploaded export holds, without keeping any of it.
+ *
+ * Nothing is written and nothing is staged: the file is read, described,
+ * and forgotten. The description is what the wizard needs to ask its one
+ * question — which list, or what to call this — and the answer comes back
+ * with the file itself on the import.
+ *
+ * Writable membership, like every other import entry point: this reads
+ * somebody's file on the community's behalf, and a community nobody can
+ * write to has nothing to read it for.
+ * @summary Preview Foreign Import
+ */
+export const previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost = (
+  guildId: number,
+  source: BodyType<string>,
+  previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostBody: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ForeignPreview>(
+    {
+      url: `/api/v1/g/${guildId}/imports/foreign/${source}/preview`,
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      data: previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostBody,
+      signal,
+    },
+    options
+  );
+};
+
+export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationKey = () =>
+  ["previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost"] as const;
+
+export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+    TError,
+    PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+  TError,
+  PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+    PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables
+  > = (props) => {
+    const { guildId, source, data } = props ?? {};
+
+    return previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost(
+      guildId,
+      source,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>
+  >;
+export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationBody =
+  BodyType<string>;
+export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables = {
+  guildId: number;
+  source: string;
+  data: BodyType<string>;
+};
+
+/**
+ * @summary Preview Foreign Import
+ */
+export const usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+      TError,
+      PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+  TError,
+  PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Import the chosen part of another product's export.
+ *
+ * The file becomes the envelope a project export writes, and from there it
+ * is an ordinary import: the same ceilings, the same people step, the same
+ * worker, the same report. Nothing past this point knows which product the
+ * rows came from.
+ *
+ * Answers exactly as ``/imports/envelope`` does — 201 with the counts when
+ * it applied in the request, 202 with the job when it did not.
+ * @summary Import Foreign
+ */
+export const importForeignApiV1GGuildIdImportsForeignSourcePost = (
+  guildId: number,
+  source: string,
+  foreignImportRequest: BodyType<ForeignImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    {
+      url: `/api/v1/g/${guildId}/imports/foreign/${source}`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: foreignImportRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationKey = () =>
+  ["importForeignApiV1GGuildIdImportsForeignSourcePost"] as const;
+
+export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+    TError,
+    ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+  TError,
+  ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+    ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables
+  > = (props) => {
+    const { guildId, source, data } = props ?? {};
+
+    return importForeignApiV1GGuildIdImportsForeignSourcePost(
+      guildId,
+      source,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>
+>;
+export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationBody =
+  BodyType<ForeignImportRequest>;
+export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables = {
+  guildId: number;
+  source: string;
+  data: BodyType<ForeignImportRequest>;
+};
+
+/**
+ * @summary Import Foreign
+ */
+export const useImportForeignApiV1GGuildIdImportsForeignSourcePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+      TError,
+      ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+  TError,
+  ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Prove an Atlassian API token and say what the site holds.
  *
  * One request, because the two questions are the same one: the only honest
  * proof that a token works is using it, so connecting *is* the first
  * listing. It returns the Jira projects and Confluence spaces the token can
- * see, with rough counts, and the id of the stored credential the later
- * confirm quotes.
+ * see, with rough counts.
  *
- * The credential is stored **after** the site answers, never before — a
- * token the site rejects is not worth a row. What is stored is short-lived
- * by construction: it carries the secret to the worker that picks the job
- * up and is deleted when that job ends, or swept at its deadline if no job
- * ever claims it.
+ * Nothing is kept. The token is used for the length of this request and
+ * dropped; the request that actually starts an import carries it again, and
+ * that one has a job row to hold it on.
  *
  * Real membership of a writable guild, like every other import entry point.
  * Which initiative the work lands in is not asked here and not trusted from
  * here — the target and the create permission for it are resolved on the
- * confirm, and again by the worker at apply time.
+ * start, and again by the worker at apply time.
  * @summary Connect Atlassian
  */
 export const connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = (
@@ -906,8 +515,9 @@ export const useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = <
 /**
  * Start reading Jira projects into an initiative.
  *
- * Quotes the ``credential_id`` a connect returned, once: a connection backs
- * one job. The job comes back ``queued``; the worker moves it to
+ * Carries the same token the connect proved, which is stored encrypted on
+ * the job row itself and cleared the moment that job is over. The job comes
+ * back ``queued``; the worker moves it to
  * ``fetching`` while it reads the site, filling ``plan.atlassian`` with
  * counts as it goes, and parks it at ``staged`` with the full plan — the
  * people the projects name included — for

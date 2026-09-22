@@ -11,6 +11,47 @@
     "cancelUpload": "Import abbrechen",
     "upload": "Backup hochladen",
     "start": "Import starten",
+    "source": {
+      "prompt": "Woher stammen diese Daten?",
+      "names": {
+        "backup": "Initiative-Sicherung",
+        "todoist": "Todoist",
+        "ticktick": "TickTick",
+        "vikunja": "Vikunja"
+      },
+      "descriptions": {
+        "backup": "Eine aus Initiative exportierte .zip-Datei, unverändert zurückgespielt.",
+        "todoist": "Ein als CSV exportiertes Projekt.",
+        "ticktick": "Eine Sicherungs-CSV mit allen Listen.",
+        "vikunja": "Die data.json aus einem Vikunja-Export."
+      }
+    },
+    "file": {
+      "prompt": "Exportdatei auswählen",
+      "hint": "Lade die Datei hoch, die du aus {{source}} exportiert hast.",
+      "where": {
+        "todoist": "Projektmenü → Exportieren → Als CSV exportieren",
+        "ticktick": "Einstellungen → Sicherung → Sicherung herunterladen",
+        "vikunja": "Einstellungen → Datenexport – entpacken und data.json auswählen"
+      },
+      "nothingInIt": "In dieser Datei gibt es nichts zu importieren.",
+      "unreadable": "Diese Datei passt nicht zu diesem Export. Prüfe, ob du die richtige gewählt hast.",
+      "todoistOmitsCompleted": "Todoist lässt erledigte Aufgaben beim Export weg, es kommen also nur offene Aufgaben an."
+    },
+    "choose": {
+      "prompt": "Was soll übernommen werden, und wohin?",
+      "whichLabel": "Was importiert wird",
+      "whichPlaceholder": "Eines auswählen",
+      "option_one": "{{name}} – {{count}} Aufgabe",
+      "option_other": "{{name}} – {{count}} Aufgaben",
+      "nameLabel": "Projekt benennen",
+      "namePlaceholder": "Aus Todoist importiert",
+      "taskCount_one": "{{count}} Aufgabe zu importieren",
+      "taskCount_other": "{{count}} Aufgaben zu importieren",
+      "initiativeLabel": "Initiative",
+      "initiativePlaceholder": "Initiative auswählen",
+      "note": "Daraus entsteht ein neues Projekt. Die Spalten werden zu Status, und Tags, Daten und Kommentare kommen mit."
+    },
     "pick": {
       "prompt": "Backup-Datei wählen",
       "hint": "Eine aus einem Community- oder Initiative-Backup von Initiative exportierte .zip.",

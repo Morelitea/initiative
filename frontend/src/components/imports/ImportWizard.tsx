@@ -1,19 +1,35 @@
-import { AlertTriangle, CheckCircle2, FileUp, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileUp, Loader2, Package, XCircle } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
   useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
+  useImportForeignApiV1GGuildIdImportsForeignSourcePost,
+  usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost,
   useUploadBackupApiV1GGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
-import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import ticktickIcon from "@/assets/ticktick.svg";
+import todoistIcon from "@/assets/todoist.svg";
+import vikunjaIcon from "@/assets/vikunja.svg";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { ImportReport } from "@/components/imports/ImportReport";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useImportJob } from "@/hooks/useImportJob";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
 import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/backupPeek";
 import { toast } from "@/lib/chesterToast";
@@ -25,27 +41,83 @@ import { formatDateTime } from "@/lib/formatDate";
 // layer; the server (ASGI middleware + bounded read) is the enforcement.
 const MAX_UPLOAD_BYTES = 268_435_456;
 
+// Mirrors IMPORT_MAX_ENVELOPE_BYTES, for the same reason: a foreign export
+// travels as its own text in the request body.
+const MAX_FOREIGN_BYTES = 20 * 1024 * 1024;
+
 export interface ImportWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "pick" | "peek" | "uploading" | "plan" | "people" | "progress" | "report";
+/** Where an import can come from. ``backup`` is this app's own archive; the
+ * rest are other products, each read by a mapper on the server that turns
+ * the file into the same envelope a project export writes. */
+type ForeignSourceKey = "todoist" | "ticktick" | "vikunja";
+type Source = "backup" | ForeignSourceKey;
 
-/** The backup import flow: pick a zip → local manifest preview (nothing
- * uploaded yet — the zip's central directory is read in-browser) → upload →
- * the server's authoritative plan → say who the archive's people are, where
- * it quotes anybody → confirm → poll to the report. Closing
- * the dialog after confirm doesn't cancel the job; the report also lands in
- * the Data tab's jobs table and the inbox notification. */
+const FOREIGN_ICONS: Record<string, string> = {
+  todoist: todoistIcon,
+  ticktick: ticktickIcon,
+  vikunja: vikunjaIcon,
+};
+
+const SOURCES: Source[] = ["backup", "todoist", "ticktick", "vikunja"];
+
+type Step =
+  | "source"
+  // Restoring this app's own backup zip.
+  | "pick"
+  | "peek"
+  | "uploading"
+  | "plan"
+  // Reading another product's export.
+  | "file"
+  | "choose"
+  // Shared tail.
+  | "people"
+  | "progress"
+  | "report";
+
+/** Importing into a community: pick where the work is coming from, then
+ * answer that source's own questions.
+ *
+ * A **backup** is this app's archive going back where it came from — picked,
+ * previewed in-browser (the zip's central directory is read locally, nothing
+ * uploaded yet), uploaded, planned by the server, confirmed.
+ *
+ * **Another product's export** is a file the server reads and describes
+ * without keeping: it says what is in there, the step after picks which part
+ * and where it lands, and the import itself is an ordinary envelope import
+ * from that point on.
+ *
+ * Both rejoin at the same tail — say who the file's people are where it
+ * quotes anybody, then watch it run. Closing the dialog after confirm does
+ * not cancel the job; the report also lands in the Data tab's jobs table and
+ * the inbox notification.
+ */
 export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const importJob = useImportJob();
 
-  const { step, go, commit, back, reset } = useWizard<Step>("pick");
+  const { step, go, commit, back, reset } = useWizard<Step>("source");
+  const [source, setSource] = useState<Source | null>(null);
+  // The file and choose steps are reachable only from a foreign tile, so the
+  // one narrowing here spares every read of it below.
+  const foreignSource: ForeignSourceKey | null =
+    source !== null && source !== "backup" ? source : null;
+
+  // Backup branch.
   const [file, setFile] = useState<File | null>(null);
   const [peeked, setPeeked] = useState<PeekedManifest | null>(null);
+
+  // Foreign branch.
+  const [foreignText, setForeignText] = useState<string>("");
+  const [preview, setPreview] = useState<ForeignPreview | null>(null);
+  const [selection, setSelection] = useState<string>("");
+  const [initiativeId, setInitiativeId] = useState<string>("");
+
   const [pickError, setPickError] = useState<string | null>(null);
   const [stagedJob, setStagedJob] = useState<ImportJobRead | null>(null);
   // Source handle → the account picked for it. Seeded from the plan's exact
@@ -55,13 +127,31 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const uploadMutation = useUploadBackupApiV1GGuildIdImportsBackupPost();
   const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
   const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
+  const previewMutation = usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost();
+  const importMutation = useImportForeignApiV1GGuildIdImportsForeignSourcePost();
+
+  const initiativesQuery = useInitiatives();
+  const { filterVisible, permissionsFor } = useInitiativeAccess();
+  const creatableInitiatives = useMemo(() => {
+    if (!initiativesQuery.data) {
+      return [];
+    }
+    return filterVisible(initiativesQuery.data).filter(
+      (initiative) => permissionsFor(initiative).project.create
+    );
+  }, [initiativesQuery.data, filterVisible, permissionsFor]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment
   useEffect(() => {
     if (!open) {
       reset();
+      setSource(null);
       setFile(null);
       setPeeked(null);
+      setForeignText("");
+      setPreview(null);
+      setSelection("");
+      setInitiativeId("");
       setPickError(null);
       setStagedJob(null);
       setPeopleMap({});
@@ -97,6 +187,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
   }, [step, importJob.terminal, commit]);
 
+  const chooseSource = (picked: Source) => {
+    setSource(picked);
+    setPickError(null);
+    go(picked === "backup" ? "pick" : "file");
+  };
+
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     setPickError(null);
     setPeeked(null);
@@ -125,6 +221,42 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     }
   };
 
+  const handleForeignFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    setPickError(null);
+    setPreview(null);
+    const picked = e.target.files?.[0];
+    if (!picked || !source || source === "backup") {
+      return;
+    }
+    if (picked.size > MAX_FOREIGN_BYTES) {
+      setPickError(t("wizard.pick.tooLarge", { limit: formatBytes(MAX_FOREIGN_BYTES) }));
+      return;
+    }
+    let text: string;
+    try {
+      text = await picked.text();
+    } catch {
+      setPickError(t("wizard.pick.readFailed"));
+      return;
+    }
+    try {
+      const described = await previewMutation.mutateAsync({ guildId, source, data: text });
+      if (described.options.length === 0) {
+        setPickError(t("wizard.file.nothingInIt"));
+        return;
+      }
+      setForeignText(text);
+      setPreview(described);
+      // A file holding one thing needs no choice made about it; a file
+      // holding several opens on none picked.
+      setSelection(described.picks_one ? "" : described.options[0].key);
+      setInitiativeId(creatableInitiatives.length === 1 ? String(creatableInitiatives[0].id) : "");
+      go("choose");
+    } catch (err) {
+      setPickError(getErrorMessage(err, "imports:wizard.file.unreadable"));
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) {
       return;
@@ -137,6 +269,50 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     } catch (err) {
       toast.error(getErrorMessage(err, "imports:envelope.error"));
       back();
+    }
+  };
+
+  const handleForeignImport = async () => {
+    if (!source || source === "backup" || !initiativeId) {
+      return;
+    }
+    try {
+      const response = (await importMutation.mutateAsync({
+        guildId,
+        source,
+        data: {
+          initiative_id: Number(initiativeId),
+          selection,
+          content: foreignText,
+        },
+      })) as { result: { entity_title: string; unmatched_handles: string[] } } | ImportJobRead;
+      // `id` rather than `result`, which a job row also carries (its report):
+      // only a job has an id, so that is what tells the two apart.
+      if (!("id" in response)) {
+        toast.success(t("envelope.success", { name: response.result.entity_title }));
+        if (response.result.unmatched_handles.length > 0) {
+          toast.warning(
+            t("envelope.warningUnmatched", {
+              count: response.result.unmatched_handles.length,
+              handles: response.result.unmatched_handles.join(", "),
+            })
+          );
+        }
+        onOpenChange(false);
+        return;
+      }
+      if (response.status === "staged") {
+        // Nothing is imported yet: the server is asking who the file's people
+        // are. Hold on the people step rather than reporting a success that
+        // has not happened.
+        setStagedJob(response);
+        go("people");
+        return;
+      }
+      importJob.watch(response.id);
+      commit("progress");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "imports:envelope.error"));
     }
   };
 
@@ -211,28 +387,41 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   }, [peeked]);
 
   const stepDescription =
-    step === "pick"
-      ? t("wizard.pick.hint")
-      : step === "plan"
-        ? t("wizard.plan.prompt")
-        : step === "people"
-          ? t("wizard.people.prompt")
-          : null;
+    step === "source"
+      ? t("wizard.source.prompt")
+      : step === "pick"
+        ? t("wizard.pick.hint")
+        : step === "file"
+          ? t("wizard.file.hint", { source: t(`wizard.source.names.${source ?? "backup"}`) })
+          : step === "choose"
+            ? t("wizard.choose.prompt")
+            : step === "plan"
+              ? t("wizard.plan.prompt")
+              : step === "people"
+                ? t("wizard.people.prompt")
+                : null;
 
   // The questions to answer; the upload, the run and the report are what
-  // happens afterwards. The fourth appears only where the archive quotes
-  // somebody — a backup with no comments in it has nobody to ask about.
-  const total = people.length > 0 ? 4 : 3;
+  // happens afterwards. The people step appears only where the file quotes
+  // somebody — one quoting nobody has nothing to ask about.
+  const foreign = source != null && source !== "backup";
+  const total = (foreign ? 3 : 4) + (people.length > 0 ? 1 : 0);
   const position: Record<Step, number | null> = {
-    pick: 1,
-    peek: 2,
+    source: 1,
+    pick: 2,
+    peek: 3,
     uploading: null,
-    plan: 3,
-    people: 4,
+    plan: 4,
+    file: 2,
+    choose: 3,
+    people: foreign ? 4 : 5,
     progress: null,
     report: null,
   };
   const current = position[step];
+
+  const canImportForeign =
+    initiativeId !== "" && (!preview?.picks_one || selection !== "") && !importMutation.isPending;
 
   return (
     <WizardDialog
@@ -242,12 +431,45 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       title={t("wizard.title")}
       description={stepDescription}
       progress={current === null ? undefined : { current, total }}
-      // Here, and back out of the people step — the two places where going
-      // back costs nothing. Between them the file is uploaded and a job is
-      // staged, and the way out of that is Cancel, which deletes it.
-      onBack={step === "peek" || step === "people" ? back : undefined}
+      // Back where it costs nothing: choosing a source again, re-reading a
+      // file, or out of the people step. Between the upload and the confirm
+      // a job is staged server-side, and the way out of that is Cancel.
+      onBack={
+        step === "pick" || step === "peek" || step === "file" || step === "choose"
+          ? back
+          : step === "people" && !foreign
+            ? back
+            : undefined
+      }
       backLabel={t("wizard.back")}
     >
+      {step === "source" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {SOURCES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => chooseSource(option)}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-accent"
+            >
+              {option === "backup" ? (
+                <Package className="h-8 w-8 shrink-0 text-muted-foreground" />
+              ) : (
+                <img src={FOREIGN_ICONS[option]} alt="" className="h-8 w-8 shrink-0" />
+              )}
+              <span className="flex-1">
+                <span className="block font-medium text-sm">
+                  {t(`wizard.source.names.${option}`)}
+                </span>
+                <span className="block text-muted-foreground text-xs">
+                  {t(`wizard.source.descriptions.${option}`)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {step === "pick" && (
         <div className="space-y-3">
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors hover:bg-accent">
@@ -261,6 +483,98 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
             />
           </label>
           {pickError && <p className="text-destructive text-sm">{pickError}</p>}
+        </div>
+      )}
+
+      {step === "file" && (
+        <div className="space-y-3">
+          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors hover:bg-accent">
+            {previewMutation.isPending ? (
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            ) : (
+              <FileUp className="h-8 w-8 text-muted-foreground" />
+            )}
+            <span className="font-medium text-sm">{t("wizard.file.prompt")}</span>
+            <span className="text-muted-foreground text-xs">
+              {t(`wizard.file.where.${foreignSource ?? "todoist"}`)}
+            </span>
+            <input
+              type="file"
+              accept=".csv,.json,text/csv,application/json"
+              className="hidden"
+              onChange={handleForeignFileChange}
+            />
+          </label>
+          {source === "todoist" && (
+            <p className="flex items-start gap-2 text-muted-foreground text-xs">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {t("wizard.file.todoistOmitsCompleted")}
+            </p>
+          )}
+          {pickError && <p className="text-destructive text-sm">{pickError}</p>}
+        </div>
+      )}
+
+      {step === "choose" && preview && (
+        <div className="space-y-4">
+          {preview.picks_one ? (
+            <div className="space-y-2">
+              <Label htmlFor="import-selection">{t("wizard.choose.whichLabel")}</Label>
+              <Select value={selection} onValueChange={setSelection}>
+                <SelectTrigger id="import-selection">
+                  <SelectValue placeholder={t("wizard.choose.whichPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {preview.options.map((option) => (
+                    <SelectItem key={option.key} value={option.key}>
+                      {t("wizard.choose.option", {
+                        name: option.name,
+                        count: option.task_count,
+                      })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="import-name">{t("wizard.choose.nameLabel")}</Label>
+              <Input
+                id="import-name"
+                value={selection}
+                placeholder={t("wizard.choose.namePlaceholder")}
+                onChange={(e) => setSelection(e.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                {t("wizard.choose.taskCount", { count: preview.options[0]?.task_count ?? 0 })}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="import-initiative">{t("wizard.choose.initiativeLabel")}</Label>
+            <Select value={initiativeId} onValueChange={setInitiativeId}>
+              <SelectTrigger id="import-initiative">
+                <SelectValue placeholder={t("wizard.choose.initiativePlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {creatableInitiatives.map((initiative) => (
+                  <SelectItem key={initiative.id} value={String(initiative.id)}>
+                    {initiative.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className="text-muted-foreground text-xs">{t("wizard.choose.note")}</p>
+          <Button
+            className="w-full"
+            disabled={!canImportForeign}
+            onClick={() => void handleForeignImport()}
+          >
+            {t("wizard.start")}
+          </Button>
         </div>
       )}
 

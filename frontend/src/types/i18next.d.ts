@@ -18,7 +18,6 @@ import type exports_ from "../../public/locales/en/exports.json";
 import type galleries from "../../public/locales/en/galleries.json";
 import type guildHome from "../../public/locales/en/guildHome.json";
 import type guilds from "../../public/locales/en/guilds.json";
-import type importNs from "../../public/locales/en/import.json";
 import type importsNs from "../../public/locales/en/imports.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
 import type intake from "../../public/locales/en/intake.json";
@@ -70,7 +69,6 @@ declare module "i18next" {
       calendars: typeof calendars;
       guildHome: typeof guildHome;
       guilds: typeof guilds;
-      import: typeof importNs;
       imports: typeof importsNs;
       initiatives: typeof initiatives;
       intake: typeof intake;

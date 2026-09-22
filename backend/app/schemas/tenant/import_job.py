@@ -62,6 +62,39 @@ class EnvelopeImportResponse(SanitizedBaseModel):
     result: EnvelopeImportResult
 
 
+class ForeignSourceOption(SanitizedBaseModel):
+    """One importable thing inside an uploaded export."""
+
+    key: str
+    name: str
+    task_count: int
+
+
+class ForeignPreview(SanitizedBaseModel):
+    """What an uploaded export holds, read without storing any of it.
+
+    ``picks_one`` tells the wizard what its next step is for: choosing
+    between the options, or naming the single project the file describes.
+    """
+
+    source: str
+    picks_one: bool
+    options: list[ForeignSourceOption]
+
+
+class ForeignImportRequest(SanitizedBaseModel):
+    """Body of ``POST /imports/foreign/{source}``.
+
+    ``content`` is the export's own text — a CSV or a JSON document — sent
+    back with the choice made about it, so nothing is held server-side
+    between the preview and the import.
+    """
+
+    initiative_id: int
+    selection: str = ""
+    content: str
+
+
 class EntryResult(SanitizedBaseModel):
     """One manifest entry's apply outcome inside a backup import."""
 

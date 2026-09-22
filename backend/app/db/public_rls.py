@@ -1049,7 +1049,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "auth_providers": FORCED_NO_POLICY,
     "auth_sessions": FORCED_NO_POLICY,
     "federated_identity_secrets": FORCED_NO_POLICY,
-    "import_credentials": FORCED_NO_POLICY,
     "marketplace_registry_state": FORCED_NO_POLICY,
     "mfa_recovery_codes": FORCED_NO_POLICY,
     "user_api_keys": FORCED_NO_POLICY,

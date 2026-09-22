@@ -11,6 +11,47 @@
     "cancelUpload": "Annuler l'import",
     "upload": "Téléverser la sauvegarde",
     "start": "Lancer l'import",
+    "source": {
+      "prompt": "D'où viennent ces données ?",
+      "names": {
+        "backup": "Sauvegarde Initiative",
+        "todoist": "Todoist",
+        "ticktick": "TickTick",
+        "vikunja": "Vikunja"
+      },
+      "descriptions": {
+        "backup": "Un .zip exporté depuis Initiative, remis en l'état.",
+        "todoist": "Un projet exporté en CSV.",
+        "ticktick": "Un CSV de sauvegarde contenant toutes les listes.",
+        "vikunja": "Le data.json d'un export Vikunja."
+      }
+    },
+    "file": {
+      "prompt": "Choisissez votre fichier d'export",
+      "hint": "Téléversez le fichier exporté depuis {{source}}.",
+      "where": {
+        "todoist": "Menu du projet → Exporter → Exporter en CSV",
+        "ticktick": "Réglages → Sauvegarde → Télécharger la sauvegarde",
+        "vikunja": "Réglages → Export des données – décompressez et choisissez data.json"
+      },
+      "nothingInIt": "Il n'y a rien à importer dans ce fichier.",
+      "unreadable": "Ce fichier ne correspond pas à cet export. Vérifiez que vous avez choisi le bon.",
+      "todoistOmitsCompleted": "Todoist exclut les tâches terminées de son export : seul le travail en cours arrivera."
+    },
+    "choose": {
+      "prompt": "Qu'est-ce qui doit être repris, et où ?",
+      "whichLabel": "Ce qu'il faut importer",
+      "whichPlaceholder": "Choisissez-en un",
+      "option_one": "{{name}} — {{count}} tâche",
+      "option_other": "{{name}} — {{count}} tâches",
+      "nameLabel": "Nommez le projet",
+      "namePlaceholder": "Importé de Todoist",
+      "taskCount_one": "{{count}} tâche à importer",
+      "taskCount_other": "{{count}} tâches à importer",
+      "initiativeLabel": "Initiative",
+      "initiativePlaceholder": "Choisissez une initiative",
+      "note": "Cela arrive sous forme de nouveau projet. Ses colonnes deviennent des statuts, et ses étiquettes, dates et commentaires suivent."
+    },
     "pick": {
       "prompt": "Choisir un fichier de sauvegarde",
       "hint": "Un .zip exporté depuis une sauvegarde de communauté ou d'initiative d'Initiative.",

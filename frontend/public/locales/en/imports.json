@@ -11,6 +11,47 @@
     "cancelUpload": "Cancel import",
     "upload": "Upload backup",
     "start": "Start import",
+    "source": {
+      "prompt": "Where is this coming from?",
+      "names": {
+        "backup": "Initiative backup",
+        "todoist": "Todoist",
+        "ticktick": "TickTick",
+        "vikunja": "Vikunja"
+      },
+      "descriptions": {
+        "backup": "A .zip exported from Initiative, put back as it was.",
+        "todoist": "A project exported as CSV.",
+        "ticktick": "A backup CSV holding every list.",
+        "vikunja": "The data.json from a Vikunja export."
+      }
+    },
+    "file": {
+      "prompt": "Choose your export file",
+      "hint": "Upload the file you exported from {{source}}.",
+      "where": {
+        "todoist": "Project menu → Export → Export as CSV",
+        "ticktick": "Settings → Backup → Download backup",
+        "vikunja": "Settings → Data export — unzip it and pick data.json"
+      },
+      "nothingInIt": "There is nothing to import in that file.",
+      "unreadable": "That file doesn't read as this export. Check you picked the right one.",
+      "todoistOmitsCompleted": "Todoist leaves completed tasks out of its export, so only outstanding work will arrive."
+    },
+    "choose": {
+      "prompt": "What should come across, and where to?",
+      "whichLabel": "What to import",
+      "whichPlaceholder": "Choose one",
+      "option_one": "{{name}} — {{count}} task",
+      "option_other": "{{name}} — {{count}} tasks",
+      "nameLabel": "Name the project",
+      "namePlaceholder": "Imported from Todoist",
+      "taskCount_one": "{{count}} task to import",
+      "taskCount_other": "{{count}} tasks to import",
+      "initiativeLabel": "Initiative",
+      "initiativePlaceholder": "Choose an initiative",
+      "note": "This arrives as a new project. Its columns become statuses, and its tags, dates and comments come with it."
+    },
     "pick": {
       "prompt": "Choose a backup file",
       "hint": "A .zip exported from Initiative's community or initiative backup.",
